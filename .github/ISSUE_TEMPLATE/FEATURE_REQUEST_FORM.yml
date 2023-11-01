@@ -1,0 +1,31 @@
+name: Feature request
+description: Request a new feature or enhancement
+labels: [ "type: feature" ]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **THANK YOU** for submitting this feature request! Please fill out the form below to provide us with more details.
+        
+        Before proceeding, please check the issue request tracker to ensure that a similar request has not already been submitted.
+        
+        ---
+  - type: dropdown
+    attributes:
+      label: Module
+      description: Which module would you like to see improved or enhanced?
+      multiple: false
+      options:
+        - ABI
+        - RLP
+        - Signers
+        - Providers
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: 📝 Description
+      description: Please provide a description of the desired feature, including the context in which it would be used and any specific use cases. If you have any pseudocode, sketches, snapshots, links or other resources that illustrate your idea, please include those as well.
+    validations:
+      required: true

@@ -1,0 +1,524 @@
+{
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "number",
+          "type": "uint256"
+        },
+        {
+          "components": [
+            {
+              "internalType": "bool",
+              "name": "success",
+              "type": "bool"
+            },
+            {
+              "internalType": "bytes",
+              "name": "data",
+              "type": "bytes"
+            }
+          ],
+          "internalType": "struct ConstructorComplexArguments.Details",
+          "name": "details",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    }
+  ],
+  "bytecode": {
+    "object": "0x608060405234801561001057600080fd5b506040516101ea3803806101ea83398101604081905261002f916100a4565b505061019d565b634e487b7160e01b600052604160045260246000fd5b604080519081016001600160401b038111828210171561006e5761006e610036565b60405290565b604051601f8201601f191681016001600160401b038111828210171561009c5761009c610036565b604052919050565b600080604083850312156100b757600080fd5b8251602080850151919350906001600160401b03808211156100d857600080fd5b90850190604082880312156100ec57600080fd5b6100f461004c565b8251801515811461010457600080fd5b8152828401518281111561011757600080fd5b80840193505087601f84011261012c57600080fd5b82518281111561013e5761013e610036565b610150601f8201601f19168601610074565b9250808352888582860101111561016657600080fd5b60005b81811015610184578481018601518482018701528501610169565b5060009083018501529283015250919491935090915050565b603f806101ab6000396000f3fe6080604052600080fdfea2646970667358221220d6d23bf6dd5f6cd13b4bed7f245524a7d169a302f8577ea4a2fdb213ffcd358464736f6c63430008130033",
+    "sourceMap": "273:169:0:-:0;;;316:54;;;;;;;;;;;;;;;;;;;;;;;;;;;;:::i;:::-;;;273:169;;14:127:5;75:10;70:3;66:20;63:1;56:31;106:4;103:1;96:15;130:4;127:1;120:15;146:250;217:2;211:9;;;247:15;;-1:-1:-1;;;;;277:34:5;;313:22;;;274:62;271:88;;;339:18;;:::i;:::-;375:2;368:22;146:250;:::o;401:275::-;472:2;466:9;537:2;518:13;;-1:-1:-1;;514:27:5;502:40;;-1:-1:-1;;;;;557:34:5;;593:22;;;554:62;551:88;;;619:18;;:::i;:::-;655:2;648:22;401:275;;-1:-1:-1;401:275:5:o;681:1333::-;783:6;791;844:2;832:9;823:7;819:23;815:32;812:52;;;860:1;857;850:12;812:52;883:16;;918:2;949:18;;;943:25;883:16;;-1:-1:-1;918:2:5;-1:-1:-1;;;;;1017:14:5;;;1014:34;;;1044:1;1041;1034:12;1014:34;1067:22;;;;1123:2;1105:16;;;1101:25;1098:45;;;1139:1;1136;1129:12;1098:45;1165:21;;:::i;:::-;1216:2;1210:9;1264:7;1257:15;1250:23;1241:7;1238:36;1228:64;;1288:1;1285;1278:12;1228:64;1301:22;;1354:11;;;1348:18;1378:16;;;1375:36;;;1407:1;1404;1397:12;1375:36;1438:8;1434:2;1430:17;1420:27;;;1485:7;1478:4;1474:2;1470:13;1466:27;1456:55;;1507:1;1504;1497:12;1456:55;1536:2;1530:9;1558:2;1554;1551:10;1548:36;;;1564:18;;:::i;:::-;1606:53;1649:2;1630:13;;-1:-1:-1;;1626:27:5;1622:36;;1606:53;:::i;:::-;1593:66;;1682:2;1675:5;1668:17;1722:7;1717:2;1712;1708;1704:11;1700:20;1697:33;1694:53;;;1743:1;1740;1733:12;1694:53;1765:1;1775:128;1789:2;1786:1;1783:9;1775:128;;;1876:10;;;1872:19;;1866:26;1846:13;;;1842:22;;1835:58;1800:10;;1775:128;;;-1:-1:-1;1944:1:5;1923:14;;;1919:23;;1912:34;1962:14;;;1955:29;-1:-1:-1;681:1333:5;;1966:5;;-1:-1:-1;681:1333:5;;-1:-1:-1;;681:1333:5:o;:::-;273:169:0;;;;;;",
+    "linkReferences": {}
+  },
+  "deployedBytecode": {
+    "object": "0x6080604052600080fdfea2646970667358221220d6d23bf6dd5f6cd13b4bed7f245524a7d169a302f8577ea4a2fdb213ffcd358464736f6c63430008130033",
+    "sourceMap": "273:169:0:-:0;;;;;",
+    "linkReferences": {}
+  },
+  "methodIdentifiers": {},
+  "rawMetadata": "{\"compiler\":{\"version\":\"0.8.19+commit.7dd6d404\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"number\",\"type\":\"uint256\"},{\"components\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"}],\"internalType\":\"struct ConstructorComplexArguments.Details\",\"name\":\"details\",\"type\":\"tuple\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"src/Constructors.sol\":\"ConstructorComplexArguments\"},\"evmVersion\":\"paris\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":true,\"runs\":200},\"remappings\":[\":ds-test/=lib/forge-std/lib/ds-test/src/\",\":forge-std/=lib/forge-std/src/\"]},\"sources\":{\"src/Constructors.sol\":{\"keccak256\":\"0x34d7eab70f6f7dadc6ebe58a9aadf7325e022d8d9a1fd3e82982cfa5c925360f\",\"license\":\"UNLICENSED\",\"urls\":[\"bzz-raw://ace207ca0691789278413c458c170bb5b8711a107d7b843e4df381669589937e\",\"dweb:/ipfs/QmZ4wQC6RCNkfZFXTYDCWTemdXVD8D8zf1kM86xQdAtET9\"]}},\"version\":1}",
+  "metadata": {
+    "compiler": {
+      "version": "0.8.19+commit.7dd6d404"
+    },
+    "language": "Solidity",
+    "output": {
+      "abi": [
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "number",
+              "type": "uint256"
+            },
+            {
+              "internalType": "struct ConstructorComplexArguments.Details",
+              "name": "details",
+              "type": "tuple",
+              "components": [
+                {
+                  "internalType": "bool",
+                  "name": "success",
+                  "type": "bool"
+                },
+                {
+                  "internalType": "bytes",
+                  "name": "data",
+                  "type": "bytes"
+                }
+              ]
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "constructor"
+        }
+      ],
+      "devdoc": {
+        "kind": "dev",
+        "methods": {},
+        "version": 1
+      },
+      "userdoc": {
+        "kind": "user",
+        "methods": {},
+        "version": 1
+      }
+    },
+    "settings": {
+      "remappings": [
+        "ds-test/=lib/forge-std/lib/ds-test/src/",
+        "forge-std/=lib/forge-std/src/"
+      ],
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "metadata": {
+        "bytecodeHash": "ipfs"
+      },
+      "compilationTarget": {
+        "src/Constructors.sol": "ConstructorComplexArguments"
+      },
+      "libraries": {}
+    },
+    "sources": {
+      "src/Constructors.sol": {
+        "keccak256": "0x34d7eab70f6f7dadc6ebe58a9aadf7325e022d8d9a1fd3e82982cfa5c925360f",
+        "urls": [
+          "bzz-raw://ace207ca0691789278413c458c170bb5b8711a107d7b843e4df381669589937e",
+          "dweb:/ipfs/QmZ4wQC6RCNkfZFXTYDCWTemdXVD8D8zf1kM86xQdAtET9"
+        ],
+        "license": "UNLICENSED"
+      }
+    },
+    "version": 1
+  },
+  "ast": {
+    "absolutePath": "src/Constructors.sol",
+    "id": 32,
+    "exportedSymbols": {
+      "ConstructorArgumentsPayable": [
+        16
+      ],
+      "ConstructorComplexArguments": [
+        31
+      ],
+      "ConstructorExplicitEmpty": [
+        7
+      ],
+      "ConstructorNoExplicit": [
+        2
+      ]
+    },
+    "nodeType": "SourceUnit",
+    "src": "39:404:0",
+    "nodes": [
+      {
+        "id": 1,
+        "nodeType": "PragmaDirective",
+        "src": "39:24:0",
+        "nodes": [],
+        "literals": [
+          "solidity",
+          "^",
+          "0.8",
+          ".13"
+        ]
+      },
+      {
+        "id": 2,
+        "nodeType": "ContractDefinition",
+        "src": "65:35:0",
+        "nodes": [],
+        "abstract": false,
+        "baseContracts": [],
+        "canonicalName": "ConstructorNoExplicit",
+        "contractDependencies": [],
+        "contractKind": "contract",
+        "fullyImplemented": true,
+        "linearizedBaseContracts": [
+          2
+        ],
+        "name": "ConstructorNoExplicit",
+        "nameLocation": "74:21:0",
+        "scope": 32,
+        "usedErrors": []
+      },
+      {
+        "id": 7,
+        "nodeType": "ContractDefinition",
+        "src": "102:58:0",
+        "nodes": [
+          {
+            "id": 6,
+            "nodeType": "FunctionDefinition",
+            "src": "142:16:0",
+            "nodes": [],
+            "body": {
+              "id": 5,
+              "nodeType": "Block",
+              "src": "156:2:0",
+              "nodes": [],
+              "statements": []
+            },
+            "implemented": true,
+            "kind": "constructor",
+            "modifiers": [],
+            "name": "",
+            "nameLocation": "-1:-1:-1",
+            "parameters": {
+              "id": 3,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "153:2:0"
+            },
+            "returnParameters": {
+              "id": 4,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "156:0:0"
+            },
+            "scope": 7,
+            "stateMutability": "nonpayable",
+            "virtual": false,
+            "visibility": "public"
+          }
+        ],
+        "abstract": false,
+        "baseContracts": [],
+        "canonicalName": "ConstructorExplicitEmpty",
+        "contractDependencies": [],
+        "contractKind": "contract",
+        "fullyImplemented": true,
+        "linearizedBaseContracts": [
+          7
+        ],
+        "name": "ConstructorExplicitEmpty",
+        "nameLocation": "111:24:0",
+        "scope": 32,
+        "usedErrors": []
+      },
+      {
+        "id": 16,
+        "nodeType": "ContractDefinition",
+        "src": "162:109:0",
+        "nodes": [
+          {
+            "id": 15,
+            "nodeType": "FunctionDefinition",
+            "src": "205:64:0",
+            "nodes": [],
+            "body": {
+              "id": 14,
+              "nodeType": "Block",
+              "src": "267:2:0",
+              "nodes": [],
+              "statements": []
+            },
+            "implemented": true,
+            "kind": "constructor",
+            "modifiers": [],
+            "name": "",
+            "nameLocation": "-1:-1:-1",
+            "parameters": {
+              "id": 12,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 9,
+                  "mutability": "mutable",
+                  "name": "value",
+                  "nameLocation": "225:5:0",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 15,
+                  "src": "217:13:0",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  },
+                  "typeName": {
+                    "id": 8,
+                    "name": "uint256",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "217:7:0",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 11,
+                  "mutability": "mutable",
+                  "name": "description",
+                  "nameLocation": "246:11:0",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 15,
+                  "src": "232:25:0",
+                  "stateVariable": false,
+                  "storageLocation": "memory",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_string_memory_ptr",
+                    "typeString": "string"
+                  },
+                  "typeName": {
+                    "id": 10,
+                    "name": "string",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "232:6:0",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_string_storage_ptr",
+                      "typeString": "string"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "216:42:0"
+            },
+            "returnParameters": {
+              "id": 13,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "267:0:0"
+            },
+            "scope": 16,
+            "stateMutability": "payable",
+            "virtual": false,
+            "visibility": "public"
+          }
+        ],
+        "abstract": false,
+        "baseContracts": [],
+        "canonicalName": "ConstructorArgumentsPayable",
+        "contractDependencies": [],
+        "contractKind": "contract",
+        "fullyImplemented": true,
+        "linearizedBaseContracts": [
+          16
+        ],
+        "name": "ConstructorArgumentsPayable",
+        "nameLocation": "171:27:0",
+        "scope": 32,
+        "usedErrors": []
+      },
+      {
+        "id": 31,
+        "nodeType": "ContractDefinition",
+        "src": "273:169:0",
+        "nodes": [
+          {
+            "id": 25,
+            "nodeType": "FunctionDefinition",
+            "src": "316:54:0",
+            "nodes": [],
+            "body": {
+              "id": 24,
+              "nodeType": "Block",
+              "src": "368:2:0",
+              "nodes": [],
+              "statements": []
+            },
+            "implemented": true,
+            "kind": "constructor",
+            "modifiers": [],
+            "name": "",
+            "nameLocation": "-1:-1:-1",
+            "parameters": {
+              "id": 22,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 18,
+                  "mutability": "mutable",
+                  "name": "number",
+                  "nameLocation": "336:6:0",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 25,
+                  "src": "328:14:0",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  },
+                  "typeName": {
+                    "id": 17,
+                    "name": "uint256",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "328:7:0",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 21,
+                  "mutability": "mutable",
+                  "name": "details",
+                  "nameLocation": "359:7:0",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 25,
+                  "src": "344:22:0",
+                  "stateVariable": false,
+                  "storageLocation": "memory",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_struct$_Details_$30_memory_ptr",
+                    "typeString": "struct ConstructorComplexArguments.Details"
+                  },
+                  "typeName": {
+                    "id": 20,
+                    "nodeType": "UserDefinedTypeName",
+                    "pathNode": {
+                      "id": 19,
+                      "name": "Details",
+                      "nameLocations": [
+                        "344:7:0"
+                      ],
+                      "nodeType": "IdentifierPath",
+                      "referencedDeclaration": 30,
+                      "src": "344:7:0"
+                    },
+                    "referencedDeclaration": 30,
+                    "src": "344:7:0",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_struct$_Details_$30_storage_ptr",
+                      "typeString": "struct ConstructorComplexArguments.Details"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "327:40:0"
+            },
+            "returnParameters": {
+              "id": 23,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "368:0:0"
+            },
+            "scope": 31,
+            "stateMutability": "nonpayable",
+            "virtual": false,
+            "visibility": "public"
+          },
+          {
+            "id": 30,
+            "nodeType": "StructDefinition",
+            "src": "376:64:0",
+            "nodes": [],
+            "canonicalName": "ConstructorComplexArguments.Details",
+            "members": [
+              {
+                "constant": false,
+                "id": 27,
+                "mutability": "mutable",
+                "name": "success",
+                "nameLocation": "406:7:0",
+                "nodeType": "VariableDeclaration",
+                "scope": 30,
+                "src": "401:12:0",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_bool",
+                  "typeString": "bool"
+                },
+                "typeName": {
+                  "id": 26,
+                  "name": "bool",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "401:4:0",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_bool",
+                    "typeString": "bool"
+                  }
+                },
+                "visibility": "internal"
+              },
+              {
+                "constant": false,
+                "id": 29,
+                "mutability": "mutable",
+                "name": "data",
+                "nameLocation": "429:4:0",
+                "nodeType": "VariableDeclaration",
+                "scope": 30,
+                "src": "423:10:0",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_bytes_storage_ptr",
+                  "typeString": "bytes"
+                },
+                "typeName": {
+                  "id": 28,
+                  "name": "bytes",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "423:5:0",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_bytes_storage_ptr",
+                    "typeString": "bytes"
+                  }
+                },
+                "visibility": "internal"
+              }
+            ],
+            "name": "Details",
+            "nameLocation": "383:7:0",
+            "scope": 31,
+            "visibility": "public"
+          }
+        ],
+        "abstract": false,
+        "baseContracts": [],
+        "canonicalName": "ConstructorComplexArguments",
+        "contractDependencies": [],
+        "contractKind": "contract",
+        "fullyImplemented": true,
+        "linearizedBaseContracts": [
+          31
+        ],
+        "name": "ConstructorComplexArguments",
+        "nameLocation": "282:27:0",
+        "scope": 32,
+        "usedErrors": []
+      }
+    ],
+    "license": "UNLICENSED"
+  },
+  "id": 0
+}

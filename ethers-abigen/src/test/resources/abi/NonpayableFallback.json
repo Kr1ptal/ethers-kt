@@ -1,0 +1,245 @@
+{
+  "abi": [
+    {
+      "stateMutability": "nonpayable",
+      "type": "fallback"
+    }
+  ],
+  "bytecode": {
+    "object": "0x6080604052348015600f57600080fd5b50604780601d6000396000f3fe6080604052348015600f57600080fd5b00fea264697066735822122000580c2f8a50e7344120f4d66a414177d8f529fc5bb762d42c3ca304533f803d64736f6c63430008130033",
+    "sourceMap": "168:58:2:-:0;;;;;;;;;;;;;;;;;;;",
+    "linkReferences": {}
+  },
+  "deployedBytecode": {
+    "object": "0x6080604052348015600f57600080fd5b00fea264697066735822122000580c2f8a50e7344120f4d66a414177d8f529fc5bb762d42c3ca304533f803d64736f6c63430008130033",
+    "sourceMap": "168:58:2:-:0;;;;;;;;;;;;",
+    "linkReferences": {}
+  },
+  "methodIdentifiers": {},
+  "rawMetadata": "{\"compiler\":{\"version\":\"0.8.19+commit.7dd6d404\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"stateMutability\":\"nonpayable\",\"type\":\"fallback\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"src/ReceiveAndFallback.sol\":\"NonpayableFallback\"},\"evmVersion\":\"paris\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":true,\"runs\":200},\"remappings\":[\":ds-test/=lib/forge-std/lib/ds-test/src/\",\":forge-std/=lib/forge-std/src/\"]},\"sources\":{\"src/ReceiveAndFallback.sol\":{\"keccak256\":\"0x75a0b0a6b834ca1e157b64cf27e254d00075534fede36fed509512cee3d035d5\",\"license\":\"UNLICENSED\",\"urls\":[\"bzz-raw://b62753ad887f4bde6547e71f7d6d4230608af936497339b53d2d4506ea6ce5ff\",\"dweb:/ipfs/Qme7NkSqx3h2xhsLJNY5TGMSQrfjuGvAv8xDf4sp8w2USE\"]}},\"version\":1}",
+  "metadata": {
+    "compiler": {
+      "version": "0.8.19+commit.7dd6d404"
+    },
+    "language": "Solidity",
+    "output": {
+      "abi": [
+        {
+          "inputs": [],
+          "stateMutability": "nonpayable",
+          "type": "fallback"
+        }
+      ],
+      "devdoc": {
+        "kind": "dev",
+        "methods": {},
+        "version": 1
+      },
+      "userdoc": {
+        "kind": "user",
+        "methods": {},
+        "version": 1
+      }
+    },
+    "settings": {
+      "remappings": [
+        "ds-test/=lib/forge-std/lib/ds-test/src/",
+        "forge-std/=lib/forge-std/src/"
+      ],
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "metadata": {
+        "bytecodeHash": "ipfs"
+      },
+      "compilationTarget": {
+        "src/ReceiveAndFallback.sol": "NonpayableFallback"
+      },
+      "libraries": {}
+    },
+    "sources": {
+      "src/ReceiveAndFallback.sol": {
+        "keccak256": "0x75a0b0a6b834ca1e157b64cf27e254d00075534fede36fed509512cee3d035d5",
+        "urls": [
+          "bzz-raw://b62753ad887f4bde6547e71f7d6d4230608af936497339b53d2d4506ea6ce5ff",
+          "dweb:/ipfs/Qme7NkSqx3h2xhsLJNY5TGMSQrfjuGvAv8xDf4sp8w2USE"
+        ],
+        "license": "UNLICENSED"
+      }
+    },
+    "version": 1
+  },
+  "ast": {
+    "absolutePath": "src/ReceiveAndFallback.sol",
+    "id": 96,
+    "exportedSymbols": {
+      "NonpayableFallback": [
+        95
+      ],
+      "ReceiveAndFallback": [
+        90
+      ]
+    },
+    "nodeType": "SourceUnit",
+    "src": "39:188:2",
+    "nodes": [
+      {
+        "id": 81,
+        "nodeType": "PragmaDirective",
+        "src": "39:24:2",
+        "nodes": [],
+        "literals": [
+          "solidity",
+          "^",
+          "0.8",
+          ".13"
+        ]
+      },
+      {
+        "id": 90,
+        "nodeType": "ContractDefinition",
+        "src": "65:101:2",
+        "nodes": [
+          {
+            "id": 85,
+            "nodeType": "FunctionDefinition",
+            "src": "99:29:2",
+            "nodes": [],
+            "body": {
+              "id": 84,
+              "nodeType": "Block",
+              "src": "126:2:2",
+              "nodes": [],
+              "statements": []
+            },
+            "implemented": true,
+            "kind": "receive",
+            "modifiers": [],
+            "name": "",
+            "nameLocation": "-1:-1:-1",
+            "parameters": {
+              "id": 82,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "106:2:2"
+            },
+            "returnParameters": {
+              "id": 83,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "126:0:2"
+            },
+            "scope": 90,
+            "stateMutability": "payable",
+            "virtual": false,
+            "visibility": "external"
+          },
+          {
+            "id": 89,
+            "nodeType": "FunctionDefinition",
+            "src": "134:30:2",
+            "nodes": [],
+            "body": {
+              "id": 88,
+              "nodeType": "Block",
+              "src": "162:2:2",
+              "nodes": [],
+              "statements": []
+            },
+            "implemented": true,
+            "kind": "fallback",
+            "modifiers": [],
+            "name": "",
+            "nameLocation": "-1:-1:-1",
+            "parameters": {
+              "id": 86,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "142:2:2"
+            },
+            "returnParameters": {
+              "id": 87,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "162:0:2"
+            },
+            "scope": 90,
+            "stateMutability": "payable",
+            "virtual": false,
+            "visibility": "external"
+          }
+        ],
+        "abstract": false,
+        "baseContracts": [],
+        "canonicalName": "ReceiveAndFallback",
+        "contractDependencies": [],
+        "contractKind": "contract",
+        "fullyImplemented": true,
+        "linearizedBaseContracts": [
+          90
+        ],
+        "name": "ReceiveAndFallback",
+        "nameLocation": "74:18:2",
+        "scope": 96,
+        "usedErrors": []
+      },
+      {
+        "id": 95,
+        "nodeType": "ContractDefinition",
+        "src": "168:58:2",
+        "nodes": [
+          {
+            "id": 94,
+            "nodeType": "FunctionDefinition",
+            "src": "202:22:2",
+            "nodes": [],
+            "body": {
+              "id": 93,
+              "nodeType": "Block",
+              "src": "222:2:2",
+              "nodes": [],
+              "statements": []
+            },
+            "implemented": true,
+            "kind": "fallback",
+            "modifiers": [],
+            "name": "",
+            "nameLocation": "-1:-1:-1",
+            "parameters": {
+              "id": 91,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "210:2:2"
+            },
+            "returnParameters": {
+              "id": 92,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "222:0:2"
+            },
+            "scope": 95,
+            "stateMutability": "nonpayable",
+            "virtual": false,
+            "visibility": "external"
+          }
+        ],
+        "abstract": false,
+        "baseContracts": [],
+        "canonicalName": "NonpayableFallback",
+        "contractDependencies": [],
+        "contractKind": "contract",
+        "fullyImplemented": true,
+        "linearizedBaseContracts": [
+          95
+        ],
+        "name": "NonpayableFallback",
+        "nameLocation": "177:18:2",
+        "scope": 96,
+        "usedErrors": []
+      }
+    ],
+    "license": "UNLICENSED"
+  },
+  "id": 2
+}

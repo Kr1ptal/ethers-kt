@@ -1,0 +1,1125 @@
+{
+  "abi": [
+    {
+      "anonymous": true,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "status",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "string",
+          "name": "msg",
+          "type": "string"
+        }
+      ],
+      "name": "AnonymousEvent",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "status",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "string",
+          "name": "msg",
+          "type": "string"
+        }
+      ],
+      "name": "ComplexIndexedArgsEvent",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "status",
+          "type": "uint256"
+        },
+        {
+          "components": [
+            {
+              "internalType": "bool",
+              "name": "success",
+              "type": "bool"
+            },
+            {
+              "internalType": "bytes",
+              "name": "data",
+              "type": "bytes"
+            }
+          ],
+          "indexed": false,
+          "internalType": "struct Events.Details",
+          "name": "details",
+          "type": "tuple"
+        }
+      ],
+      "name": "IndexedAndDataArgsEvent",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "status",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint16",
+          "name": "errorCode",
+          "type": "uint16"
+        },
+        {
+          "components": [
+            {
+              "internalType": "bool",
+              "name": "success",
+              "type": "bool"
+            },
+            {
+              "internalType": "bytes",
+              "name": "data",
+              "type": "bytes"
+            }
+          ],
+          "indexed": false,
+          "internalType": "struct Events.Details",
+          "name": "details",
+          "type": "tuple"
+        }
+      ],
+      "name": "IndexedAndDataArgsEvent",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [],
+      "name": "NoArgsEvent",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "status",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "string",
+          "name": "msg",
+          "type": "string"
+        }
+      ],
+      "name": "NoIndexedArgsEvent",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "status",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "bool",
+          "name": "done",
+          "type": "bool"
+        }
+      ],
+      "name": "OnlyIndexedArgsEvent",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "status",
+          "type": "uint256"
+        },
+        {
+          "components": [
+            {
+              "internalType": "bool",
+              "name": "success",
+              "type": "bool"
+            },
+            {
+              "internalType": "bytes",
+              "name": "data",
+              "type": "bytes"
+            }
+          ],
+          "indexed": true,
+          "internalType": "struct Events.Details",
+          "name": "details",
+          "type": "tuple"
+        }
+      ],
+      "name": "StructIndexedArgsEvent",
+      "type": "event"
+    }
+  ],
+  "bytecode": {
+    "object": "0x6080604052348015600f57600080fd5b50603f80601d6000396000f3fe6080604052600080fdfea264697066735822122063c6dc3237473f4cc6f40cd9e86b0528063181f8f86b434c3b821e20fda0dd6364736f6c63430008130033",
+    "sourceMap": "65:685:0:-:0;;;;;;;;;;;;;;;;;;;",
+    "linkReferences": {}
+  },
+  "deployedBytecode": {
+    "object": "0x6080604052600080fdfea264697066735822122063c6dc3237473f4cc6f40cd9e86b0528063181f8f86b434c3b821e20fda0dd6364736f6c63430008130033",
+    "sourceMap": "65:685:0:-:0;;;;;",
+    "linkReferences": {}
+  },
+  "methodIdentifiers": {},
+  "rawMetadata": "{\"compiler\":{\"version\":\"0.8.19+commit.7dd6d404\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"anonymous\":true,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"status\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"string\",\"name\":\"msg\",\"type\":\"string\"}],\"name\":\"AnonymousEvent\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"status\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"string\",\"name\":\"msg\",\"type\":\"string\"}],\"name\":\"ComplexIndexedArgsEvent\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"status\",\"type\":\"uint256\"},{\"components\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"}],\"indexed\":false,\"internalType\":\"struct Events.Details\",\"name\":\"details\",\"type\":\"tuple\"}],\"name\":\"IndexedAndDataArgsEvent\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"status\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint16\",\"name\":\"errorCode\",\"type\":\"uint16\"},{\"components\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"}],\"indexed\":false,\"internalType\":\"struct Events.Details\",\"name\":\"details\",\"type\":\"tuple\"}],\"name\":\"IndexedAndDataArgsEvent\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[],\"name\":\"NoArgsEvent\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"status\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"string\",\"name\":\"msg\",\"type\":\"string\"}],\"name\":\"NoIndexedArgsEvent\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"status\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"bool\",\"name\":\"done\",\"type\":\"bool\"}],\"name\":\"OnlyIndexedArgsEvent\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"status\",\"type\":\"uint256\"},{\"components\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"}],\"indexed\":true,\"internalType\":\"struct Events.Details\",\"name\":\"details\",\"type\":\"tuple\"}],\"name\":\"StructIndexedArgsEvent\",\"type\":\"event\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"src/Events.sol\":\"Events\"},\"evmVersion\":\"paris\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":true,\"runs\":200},\"remappings\":[\":ds-test/=lib/forge-std/lib/ds-test/src/\",\":forge-std/=lib/forge-std/src/\"]},\"sources\":{\"src/Events.sol\":{\"keccak256\":\"0xc4504544866e7770bd209699d72253b3fa17c6f49e6b989268aeea1a0d7e9076\",\"license\":\"UNLICENSED\",\"urls\":[\"bzz-raw://2f7221fc650b7de4e5460bf9ee06d110a8fedd5fcf5b2525773072bc24a1d09f\",\"dweb:/ipfs/QmcvJz5iG7iDmjLouwkUmGXYqCmrcvdAyifkeYMYSRvYiy\"]}},\"version\":1}",
+  "metadata": {
+    "compiler": {
+      "version": "0.8.19+commit.7dd6d404"
+    },
+    "language": "Solidity",
+    "output": {
+      "abi": [
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "status",
+              "type": "uint256",
+              "indexed": true
+            },
+            {
+              "internalType": "string",
+              "name": "msg",
+              "type": "string",
+              "indexed": true
+            }
+          ],
+          "type": "event",
+          "name": "AnonymousEvent",
+          "anonymous": true
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "status",
+              "type": "uint256",
+              "indexed": true
+            },
+            {
+              "internalType": "string",
+              "name": "msg",
+              "type": "string",
+              "indexed": true
+            }
+          ],
+          "type": "event",
+          "name": "ComplexIndexedArgsEvent",
+          "anonymous": false
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "status",
+              "type": "uint256",
+              "indexed": true
+            },
+            {
+              "internalType": "struct Events.Details",
+              "name": "details",
+              "type": "tuple",
+              "components": [
+                {
+                  "internalType": "bool",
+                  "name": "success",
+                  "type": "bool"
+                },
+                {
+                  "internalType": "bytes",
+                  "name": "data",
+                  "type": "bytes"
+                }
+              ],
+              "indexed": false
+            }
+          ],
+          "type": "event",
+          "name": "IndexedAndDataArgsEvent",
+          "anonymous": false
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "status",
+              "type": "uint256",
+              "indexed": true
+            },
+            {
+              "internalType": "uint16",
+              "name": "errorCode",
+              "type": "uint16",
+              "indexed": false
+            },
+            {
+              "internalType": "struct Events.Details",
+              "name": "details",
+              "type": "tuple",
+              "components": [
+                {
+                  "internalType": "bool",
+                  "name": "success",
+                  "type": "bool"
+                },
+                {
+                  "internalType": "bytes",
+                  "name": "data",
+                  "type": "bytes"
+                }
+              ],
+              "indexed": false
+            }
+          ],
+          "type": "event",
+          "name": "IndexedAndDataArgsEvent",
+          "anonymous": false
+        },
+        {
+          "inputs": [],
+          "type": "event",
+          "name": "NoArgsEvent",
+          "anonymous": false
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "status",
+              "type": "uint256",
+              "indexed": false
+            },
+            {
+              "internalType": "string",
+              "name": "msg",
+              "type": "string",
+              "indexed": false
+            }
+          ],
+          "type": "event",
+          "name": "NoIndexedArgsEvent",
+          "anonymous": false
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "status",
+              "type": "uint256",
+              "indexed": true
+            },
+            {
+              "internalType": "bool",
+              "name": "done",
+              "type": "bool",
+              "indexed": true
+            }
+          ],
+          "type": "event",
+          "name": "OnlyIndexedArgsEvent",
+          "anonymous": false
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "status",
+              "type": "uint256",
+              "indexed": true
+            },
+            {
+              "internalType": "struct Events.Details",
+              "name": "details",
+              "type": "tuple",
+              "components": [
+                {
+                  "internalType": "bool",
+                  "name": "success",
+                  "type": "bool"
+                },
+                {
+                  "internalType": "bytes",
+                  "name": "data",
+                  "type": "bytes"
+                }
+              ],
+              "indexed": true
+            }
+          ],
+          "type": "event",
+          "name": "StructIndexedArgsEvent",
+          "anonymous": false
+        }
+      ],
+      "devdoc": {
+        "kind": "dev",
+        "methods": {},
+        "version": 1
+      },
+      "userdoc": {
+        "kind": "user",
+        "methods": {},
+        "version": 1
+      }
+    },
+    "settings": {
+      "remappings": [
+        "ds-test/=lib/forge-std/lib/ds-test/src/",
+        "forge-std/=lib/forge-std/src/"
+      ],
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "metadata": {
+        "bytecodeHash": "ipfs"
+      },
+      "compilationTarget": {
+        "src/Events.sol": "Events"
+      },
+      "libraries": {}
+    },
+    "sources": {
+      "src/Events.sol": {
+        "keccak256": "0xc4504544866e7770bd209699d72253b3fa17c6f49e6b989268aeea1a0d7e9076",
+        "urls": [
+          "bzz-raw://2f7221fc650b7de4e5460bf9ee06d110a8fedd5fcf5b2525773072bc24a1d09f",
+          "dweb:/ipfs/QmcvJz5iG7iDmjLouwkUmGXYqCmrcvdAyifkeYMYSRvYiy"
+        ],
+        "license": "UNLICENSED"
+      }
+    },
+    "version": 1
+  },
+  "ast": {
+    "absolutePath": "src/Events.sol",
+    "id": 57,
+    "exportedSymbols": {
+      "Events": [
+        56
+      ]
+    },
+    "nodeType": "SourceUnit",
+    "src": "39:712:0",
+    "nodes": [
+      {
+        "id": 1,
+        "nodeType": "PragmaDirective",
+        "src": "39:24:0",
+        "nodes": [],
+        "literals": [
+          "solidity",
+          "^",
+          "0.8",
+          ".13"
+        ]
+      },
+      {
+        "id": 56,
+        "nodeType": "ContractDefinition",
+        "src": "65:685:0",
+        "nodes": [
+          {
+            "id": 3,
+            "nodeType": "EventDefinition",
+            "src": "87:20:0",
+            "nodes": [],
+            "anonymous": false,
+            "eventSelector": "1a41f428cca3134b7bff28631c7c69c17a18d25c46b69ee3329f83fd28dd1d78",
+            "name": "NoArgsEvent",
+            "nameLocation": "93:11:0",
+            "parameters": {
+              "id": 2,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "104:2:0"
+            }
+          },
+          {
+            "id": 9,
+            "nodeType": "EventDefinition",
+            "src": "112:53:0",
+            "nodes": [],
+            "anonymous": false,
+            "eventSelector": "f0a64d728b06efea7c73957ee97cc357adf3bde9af7cf0f3686bc5b2348d70ed",
+            "name": "NoIndexedArgsEvent",
+            "nameLocation": "118:18:0",
+            "parameters": {
+              "id": 8,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 5,
+                  "indexed": false,
+                  "mutability": "mutable",
+                  "name": "status",
+                  "nameLocation": "145:6:0",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 9,
+                  "src": "137:14:0",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  },
+                  "typeName": {
+                    "id": 4,
+                    "name": "uint256",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "137:7:0",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 7,
+                  "indexed": false,
+                  "mutability": "mutable",
+                  "name": "msg",
+                  "nameLocation": "160:3:0",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 9,
+                  "src": "153:10:0",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_string_memory_ptr",
+                    "typeString": "string"
+                  },
+                  "typeName": {
+                    "id": 6,
+                    "name": "string",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "153:6:0",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_string_storage_ptr",
+                      "typeString": "string"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "136:28:0"
+            }
+          },
+          {
+            "id": 15,
+            "nodeType": "EventDefinition",
+            "src": "170:70:0",
+            "nodes": [],
+            "anonymous": false,
+            "eventSelector": "96056f9c8ce264286185b0b318763da9f2de94f5a0f91985f9725fbce43562f5",
+            "name": "OnlyIndexedArgsEvent",
+            "nameLocation": "176:20:0",
+            "parameters": {
+              "id": 14,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 11,
+                  "indexed": true,
+                  "mutability": "mutable",
+                  "name": "status",
+                  "nameLocation": "213:6:0",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 15,
+                  "src": "197:22:0",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  },
+                  "typeName": {
+                    "id": 10,
+                    "name": "uint256",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "197:7:0",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 13,
+                  "indexed": true,
+                  "mutability": "mutable",
+                  "name": "done",
+                  "nameLocation": "234:4:0",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 15,
+                  "src": "221:17:0",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_bool",
+                    "typeString": "bool"
+                  },
+                  "typeName": {
+                    "id": 12,
+                    "name": "bool",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "221:4:0",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_bool",
+                      "typeString": "bool"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "196:43:0"
+            }
+          },
+          {
+            "id": 21,
+            "nodeType": "EventDefinition",
+            "src": "245:74:0",
+            "nodes": [],
+            "anonymous": false,
+            "eventSelector": "eadd156a94c978abfef1f2bf715b568bdde8c5e52a2582eddb0b52333573cd1d",
+            "name": "ComplexIndexedArgsEvent",
+            "nameLocation": "251:23:0",
+            "parameters": {
+              "id": 20,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 17,
+                  "indexed": true,
+                  "mutability": "mutable",
+                  "name": "status",
+                  "nameLocation": "291:6:0",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 21,
+                  "src": "275:22:0",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  },
+                  "typeName": {
+                    "id": 16,
+                    "name": "uint256",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "275:7:0",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 19,
+                  "indexed": true,
+                  "mutability": "mutable",
+                  "name": "msg",
+                  "nameLocation": "314:3:0",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 21,
+                  "src": "299:18:0",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_string_memory_ptr",
+                    "typeString": "string"
+                  },
+                  "typeName": {
+                    "id": 18,
+                    "name": "string",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "299:6:0",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_string_storage_ptr",
+                      "typeString": "string"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "274:44:0"
+            }
+          },
+          {
+            "id": 28,
+            "nodeType": "EventDefinition",
+            "src": "324:78:0",
+            "nodes": [],
+            "anonymous": false,
+            "eventSelector": "641b84300b1ab4cb871360a542f7b23ea7e42b6cabaed7f5ff059642d014a1d2",
+            "name": "StructIndexedArgsEvent",
+            "nameLocation": "330:22:0",
+            "parameters": {
+              "id": 27,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 23,
+                  "indexed": true,
+                  "mutability": "mutable",
+                  "name": "status",
+                  "nameLocation": "369:6:0",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 28,
+                  "src": "353:22:0",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  },
+                  "typeName": {
+                    "id": 22,
+                    "name": "uint256",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "353:7:0",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 26,
+                  "indexed": true,
+                  "mutability": "mutable",
+                  "name": "details",
+                  "nameLocation": "393:7:0",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 28,
+                  "src": "377:23:0",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_struct$_Details_$55_memory_ptr",
+                    "typeString": "struct Events.Details"
+                  },
+                  "typeName": {
+                    "id": 25,
+                    "nodeType": "UserDefinedTypeName",
+                    "pathNode": {
+                      "id": 24,
+                      "name": "Details",
+                      "nameLocations": [
+                        "377:7:0"
+                      ],
+                      "nodeType": "IdentifierPath",
+                      "referencedDeclaration": 55,
+                      "src": "377:7:0"
+                    },
+                    "referencedDeclaration": 55,
+                    "src": "377:7:0",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_struct$_Details_$55_storage_ptr",
+                      "typeString": "struct Events.Details"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "352:49:0"
+            }
+          },
+          {
+            "id": 34,
+            "nodeType": "EventDefinition",
+            "src": "407:75:0",
+            "nodes": [],
+            "anonymous": true,
+            "eventSelector": "ff04b27c72aba80a3f3a94bb055e8e6bb6cccdb5b1ec580e36b7d3a7d54dcc05",
+            "name": "AnonymousEvent",
+            "nameLocation": "413:14:0",
+            "parameters": {
+              "id": 33,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 30,
+                  "indexed": true,
+                  "mutability": "mutable",
+                  "name": "status",
+                  "nameLocation": "444:6:0",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 34,
+                  "src": "428:22:0",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  },
+                  "typeName": {
+                    "id": 29,
+                    "name": "uint256",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "428:7:0",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 32,
+                  "indexed": true,
+                  "mutability": "mutable",
+                  "name": "msg",
+                  "nameLocation": "467:3:0",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 34,
+                  "src": "452:18:0",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_string_memory_ptr",
+                    "typeString": "string"
+                  },
+                  "typeName": {
+                    "id": 31,
+                    "name": "string",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "452:6:0",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_string_storage_ptr",
+                      "typeString": "string"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "427:44:0"
+            }
+          },
+          {
+            "id": 41,
+            "nodeType": "EventDefinition",
+            "src": "513:71:0",
+            "nodes": [],
+            "anonymous": false,
+            "eventSelector": "04c8086f3d22a3b97cd1101d9d382039f25aa8ef0842df7430ab9541fca539a5",
+            "name": "IndexedAndDataArgsEvent",
+            "nameLocation": "519:23:0",
+            "parameters": {
+              "id": 40,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 36,
+                  "indexed": true,
+                  "mutability": "mutable",
+                  "name": "status",
+                  "nameLocation": "559:6:0",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 41,
+                  "src": "543:22:0",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  },
+                  "typeName": {
+                    "id": 35,
+                    "name": "uint256",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "543:7:0",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 39,
+                  "indexed": false,
+                  "mutability": "mutable",
+                  "name": "details",
+                  "nameLocation": "575:7:0",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 41,
+                  "src": "567:15:0",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_struct$_Details_$55_memory_ptr",
+                    "typeString": "struct Events.Details"
+                  },
+                  "typeName": {
+                    "id": 38,
+                    "nodeType": "UserDefinedTypeName",
+                    "pathNode": {
+                      "id": 37,
+                      "name": "Details",
+                      "nameLocations": [
+                        "567:7:0"
+                      ],
+                      "nodeType": "IdentifierPath",
+                      "referencedDeclaration": 55,
+                      "src": "567:7:0"
+                    },
+                    "referencedDeclaration": 55,
+                    "src": "567:7:0",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_struct$_Details_$55_storage_ptr",
+                      "typeString": "struct Events.Details"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "542:41:0"
+            }
+          },
+          {
+            "id": 50,
+            "nodeType": "EventDefinition",
+            "src": "589:89:0",
+            "nodes": [],
+            "anonymous": false,
+            "eventSelector": "f0f6e53c8e45a0b970d0859961209e43de2fbe729f02ce2448389db9fc6067f9",
+            "name": "IndexedAndDataArgsEvent",
+            "nameLocation": "595:23:0",
+            "parameters": {
+              "id": 49,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 43,
+                  "indexed": true,
+                  "mutability": "mutable",
+                  "name": "status",
+                  "nameLocation": "635:6:0",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 50,
+                  "src": "619:22:0",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  },
+                  "typeName": {
+                    "id": 42,
+                    "name": "uint256",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "619:7:0",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 45,
+                  "indexed": false,
+                  "mutability": "mutable",
+                  "name": "errorCode",
+                  "nameLocation": "650:9:0",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 50,
+                  "src": "643:16:0",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint16",
+                    "typeString": "uint16"
+                  },
+                  "typeName": {
+                    "id": 44,
+                    "name": "uint16",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "643:6:0",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint16",
+                      "typeString": "uint16"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 48,
+                  "indexed": false,
+                  "mutability": "mutable",
+                  "name": "details",
+                  "nameLocation": "669:7:0",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 50,
+                  "src": "661:15:0",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_struct$_Details_$55_memory_ptr",
+                    "typeString": "struct Events.Details"
+                  },
+                  "typeName": {
+                    "id": 47,
+                    "nodeType": "UserDefinedTypeName",
+                    "pathNode": {
+                      "id": 46,
+                      "name": "Details",
+                      "nameLocations": [
+                        "661:7:0"
+                      ],
+                      "nodeType": "IdentifierPath",
+                      "referencedDeclaration": 55,
+                      "src": "661:7:0"
+                    },
+                    "referencedDeclaration": 55,
+                    "src": "661:7:0",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_struct$_Details_$55_storage_ptr",
+                      "typeString": "struct Events.Details"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "618:59:0"
+            }
+          },
+          {
+            "id": 55,
+            "nodeType": "StructDefinition",
+            "src": "684:64:0",
+            "nodes": [],
+            "canonicalName": "Events.Details",
+            "members": [
+              {
+                "constant": false,
+                "id": 52,
+                "mutability": "mutable",
+                "name": "success",
+                "nameLocation": "714:7:0",
+                "nodeType": "VariableDeclaration",
+                "scope": 55,
+                "src": "709:12:0",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_bool",
+                  "typeString": "bool"
+                },
+                "typeName": {
+                  "id": 51,
+                  "name": "bool",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "709:4:0",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_bool",
+                    "typeString": "bool"
+                  }
+                },
+                "visibility": "internal"
+              },
+              {
+                "constant": false,
+                "id": 54,
+                "mutability": "mutable",
+                "name": "data",
+                "nameLocation": "737:4:0",
+                "nodeType": "VariableDeclaration",
+                "scope": 55,
+                "src": "731:10:0",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_bytes_storage_ptr",
+                  "typeString": "bytes"
+                },
+                "typeName": {
+                  "id": 53,
+                  "name": "bytes",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "731:5:0",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_bytes_storage_ptr",
+                    "typeString": "bytes"
+                  }
+                },
+                "visibility": "internal"
+              }
+            ],
+            "name": "Details",
+            "nameLocation": "691:7:0",
+            "scope": 56,
+            "visibility": "public"
+          }
+        ],
+        "abstract": false,
+        "baseContracts": [],
+        "canonicalName": "Events",
+        "contractDependencies": [],
+        "contractKind": "contract",
+        "fullyImplemented": true,
+        "linearizedBaseContracts": [
+          56
+        ],
+        "name": "Events",
+        "nameLocation": "74:6:0",
+        "scope": 57,
+        "usedErrors": []
+      }
+    ],
+    "license": "UNLICENSED"
+  },
+  "id": 0
+}

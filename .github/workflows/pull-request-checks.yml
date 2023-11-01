@@ -1,0 +1,38 @@
+# For local testing use this: https://github.com/nektos/act
+
+name: Run Pull Request Checks
+
+on:
+  push:
+    branches:
+      - master
+
+  pull_request:
+    types: [ opened, synchronize, reopened ] # default events - listed to make them explicit
+
+# cancel any existing actions for current branch/PR on new push, unless the action is running on master
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+
+jobs:
+  java-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/environment-setup
+
+      - name: Gradle test
+        run: ./gradlew test --no-watch-fs --stacktrace -Dlog.level=debug
+
+      - name: Gradle ktlint
+        run: ./gradlew ktlintCheck --no-watch-fs --stacktrace
+
+      - uses: actions/upload-artifact@v3
+        if: failure()
+        with:
+          name: report-unit-test
+          path: build/reports/unit-test/

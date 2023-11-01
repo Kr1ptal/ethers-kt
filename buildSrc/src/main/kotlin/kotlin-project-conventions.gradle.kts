@@ -1,0 +1,53 @@
+import org.jetbrains.kotlin.gradle.dsl.KotlinJvmCompilerOptions
+
+plugins {
+    id("java-toolchain-conventions")
+    kotlin("jvm")
+}
+
+repositories {
+    mavenCentral()
+}
+
+project.pluginManager.withPlugin("java") {
+    val jvmTarget = the<JavaPluginExtension>().toolchain.languageVersion.get().asInt().toString()
+
+    // disable runtime nullable call and argument checks for improved performance - they're left in tests to catch early bugs
+    val kotlinCompilerConfig: KotlinJvmCompilerOptions.(Boolean) -> Unit = { isTestTask ->
+        val defaultArgs = listOf(
+            "-progressive",
+            "-Xjvm-default=all",
+            "-opt-in=kotlin.RequiresOptIn",
+            "-Xbackend-threads=0", // use all available processors
+        )
+
+        val specificArgs = if (isTestTask) {
+            listOf(
+                "-opt-in=kotlin.ExperimentalStdlibApi,io.kotest.common.ExperimentalKotest",
+            )
+        } else {
+            listOf(
+                "-Xno-param-assertions",
+                "-Xno-call-assertions",
+                "-Xno-receiver-assertions",
+            )
+        }
+
+        freeCompilerArgs.addAll(defaultArgs + specificArgs)
+    }
+
+    // need to do two separate checks for both cases, not ignoring case. Otherwise, we'd get a false positive for "kaptGenera`teSt`ubsKotlin"
+    fun isTestTask(name: String) = name.contains("test") || name.contains("Test")
+
+    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+        kotlinOptions.jvmTarget = jvmTarget
+        compilerOptions { kotlinCompilerConfig(isTestTask(name)) }
+    }
+
+    project.pluginManager.withPlugin("kapt") {
+        tasks.withType<org.jetbrains.kotlin.gradle.tasks.KaptGenerateStubs>().configureEach {
+            kotlinOptions.jvmTarget = jvmTarget
+            compilerOptions { kotlinCompilerConfig(isTestTask(name)) }
+        }
+    }
+}

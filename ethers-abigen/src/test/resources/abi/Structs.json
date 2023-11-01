@@ -1,0 +1,937 @@
+{
+  "abi": [
+    {
+      "inputs": [
+        {
+          "components": [
+            {
+              "internalType": "bool",
+              "name": "success",
+              "type": "bool"
+            },
+            {
+              "internalType": "bytes",
+              "name": "data",
+              "type": "bytes"
+            }
+          ],
+          "internalType": "struct Structs.Simple",
+          "name": "simple",
+          "type": "tuple"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint256[][][]",
+              "name": "status",
+              "type": "uint256[][][]"
+            },
+            {
+              "internalType": "string[3]",
+              "name": "msg",
+              "type": "string[3]"
+            }
+          ],
+          "internalType": "struct Structs.Complex",
+          "name": "complex",
+          "type": "tuple"
+        },
+        {
+          "components": [
+            {
+              "internalType": "string",
+              "name": "desc",
+              "type": "string"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "bool",
+                  "name": "success",
+                  "type": "bool"
+                },
+                {
+                  "internalType": "bytes",
+                  "name": "data",
+                  "type": "bytes"
+                }
+              ],
+              "internalType": "struct Structs.Simple",
+              "name": "simple",
+              "type": "tuple"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "uint256[][][]",
+                  "name": "status",
+                  "type": "uint256[][][]"
+                },
+                {
+                  "internalType": "string[3]",
+                  "name": "msg",
+                  "type": "string[3]"
+                }
+              ],
+              "internalType": "struct Structs.Complex",
+              "name": "complex",
+              "type": "tuple"
+            }
+          ],
+          "internalType": "struct Structs.Nested",
+          "name": "nested",
+          "type": "tuple"
+        },
+        {
+          "components": [
+            {
+              "internalType": "string",
+              "name": "desc",
+              "type": "string"
+            }
+          ],
+          "internalType": "struct Structs.class",
+          "name": "cls",
+          "type": "tuple"
+        },
+        {
+          "components": [
+            {
+              "internalType": "string",
+              "name": "desc",
+              "type": "string"
+            }
+          ],
+          "internalType": "struct Structs.package",
+          "name": "pkg",
+          "type": "tuple"
+        }
+      ],
+      "name": "withStructs",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "bytecode": {
+    "object": "0x608060405234801561001057600080fd5b50610627806100206000396000f3fe608060405234801561001057600080fd5b506004361061002b5760003560e01c8063dcb1618914610030575b600080fd5b61004561003e36600461051f565b5050505050565b005b634e487b7160e01b600052604160045260246000fd5b6040805190810167ffffffffffffffff8111828210171561008057610080610047565b60405290565b6040516060810167ffffffffffffffff8111828210171561008057610080610047565b604051601f8201601f1916810167ffffffffffffffff811182821017156100d2576100d2610047565b604052919050565b600067ffffffffffffffff8311156100f4576100f4610047565b610107601f8401601f19166020016100a9565b905082815283838301111561011b57600080fd5b828260208301376000602084830101529392505050565b60006040828403121561014457600080fd5b61014c61005d565b90508135801515811461015e57600080fd5b8152602082013567ffffffffffffffff81111561017a57600080fd5b8201601f8101841361018b57600080fd5b61019a848235602084016100da565b60208301525092915050565b600067ffffffffffffffff8211156101c0576101c0610047565b5060051b60200190565b600082601f8301126101db57600080fd5b6101ea838335602085016100da565b9392505050565b600082601f83011261020257600080fd5b61020a610086565b80606084018581111561021c57600080fd5b845b8181101561025957803567ffffffffffffffff81111561023e5760008081fd5b61024a888289016101ca565b8552506020938401930161021e565b509095945050505050565b60006040828403121561027657600080fd5b61027e61005d565b905067ffffffffffffffff808335111561029757600080fd5b8235830184601f8201126102aa57600080fd5b6102bc6102b782356101a6565b6100a9565b81358082526020808301929160051b8401018710156102da57600080fd5b602083015b6020843560051b8501018110156103f45784813511156102fe57600080fd5b8035840188603f82011261031157600080fd5b6103216102b760208301356101a6565b602082810135808352908201919060051b83016040018b101561034357600080fd5b604083015b6040602085013560051b8501018110156103e357888135111561036a57600080fd5b803584018c605f82011261037d57600080fd5b61038d6102b760408301356101a6565b604082013580825260208201919060051b83016060018f8111156103b057600080fd5b6060840193505b808410156103d25783358352602093840193909201916103b7565b508552505060209283019201610348565b5085525050602092830192016102df565b5084525050602083013581101561040a57600080fd5b5061041b83602084013584016101f1565b602082015292915050565b60006060828403121561043857600080fd5b610440610086565b9050813567ffffffffffffffff8082111561045a57600080fd5b610466858386016101ca565b8352602084013591508082111561047c57600080fd5b61048885838601610132565b602084015260408401359150808211156104a157600080fd5b506104ae84828501610264565b60408301525092915050565b6000602082840312156104cc57600080fd5b6040516020810167ffffffffffffffff82821081831117156104f0576104f0610047565b81604052829350843591508082111561050857600080fd5b50610515858286016101ca565b8252505092915050565b600080600080600060a0868803121561053757600080fd5b853567ffffffffffffffff8082111561054f57600080fd5b61055b89838a01610132565b9650602088013591508082111561057157600080fd5b61057d89838a01610264565b9550604088013591508082111561059357600080fd5b61059f89838a01610426565b945060608801359150808211156105b557600080fd5b6105c189838a016104ba565b935060808801359150808211156105d757600080fd5b506105e4888289016104ba565b915050929550929590935056fea26469706673582212204e8f4e3eb7471eafa59d8eef429a6c51939fd0ffc966d127fd8322a9cb91d75564736f6c63430008130033",
+    "sourceMap": "65:535:0:-:0;;;;;;;;;;;;;;;;;;;",
+    "linkReferences": {}
+  },
+  "deployedBytecode": {
+    "object": "0x608060405234801561001057600080fd5b506004361061002b5760003560e01c8063dcb1618914610030575b600080fd5b61004561003e36600461051f565b5050505050565b005b634e487b7160e01b600052604160045260246000fd5b6040805190810167ffffffffffffffff8111828210171561008057610080610047565b60405290565b6040516060810167ffffffffffffffff8111828210171561008057610080610047565b604051601f8201601f1916810167ffffffffffffffff811182821017156100d2576100d2610047565b604052919050565b600067ffffffffffffffff8311156100f4576100f4610047565b610107601f8401601f19166020016100a9565b905082815283838301111561011b57600080fd5b828260208301376000602084830101529392505050565b60006040828403121561014457600080fd5b61014c61005d565b90508135801515811461015e57600080fd5b8152602082013567ffffffffffffffff81111561017a57600080fd5b8201601f8101841361018b57600080fd5b61019a848235602084016100da565b60208301525092915050565b600067ffffffffffffffff8211156101c0576101c0610047565b5060051b60200190565b600082601f8301126101db57600080fd5b6101ea838335602085016100da565b9392505050565b600082601f83011261020257600080fd5b61020a610086565b80606084018581111561021c57600080fd5b845b8181101561025957803567ffffffffffffffff81111561023e5760008081fd5b61024a888289016101ca565b8552506020938401930161021e565b509095945050505050565b60006040828403121561027657600080fd5b61027e61005d565b905067ffffffffffffffff808335111561029757600080fd5b8235830184601f8201126102aa57600080fd5b6102bc6102b782356101a6565b6100a9565b81358082526020808301929160051b8401018710156102da57600080fd5b602083015b6020843560051b8501018110156103f45784813511156102fe57600080fd5b8035840188603f82011261031157600080fd5b6103216102b760208301356101a6565b602082810135808352908201919060051b83016040018b101561034357600080fd5b604083015b6040602085013560051b8501018110156103e357888135111561036a57600080fd5b803584018c605f82011261037d57600080fd5b61038d6102b760408301356101a6565b604082013580825260208201919060051b83016060018f8111156103b057600080fd5b6060840193505b808410156103d25783358352602093840193909201916103b7565b508552505060209283019201610348565b5085525050602092830192016102df565b5084525050602083013581101561040a57600080fd5b5061041b83602084013584016101f1565b602082015292915050565b60006060828403121561043857600080fd5b610440610086565b9050813567ffffffffffffffff8082111561045a57600080fd5b610466858386016101ca565b8352602084013591508082111561047c57600080fd5b61048885838601610132565b602084015260408401359150808211156104a157600080fd5b506104ae84828501610264565b60408301525092915050565b6000602082840312156104cc57600080fd5b6040516020810167ffffffffffffffff82821081831117156104f0576104f0610047565b81604052829350843591508082111561050857600080fd5b50610515858286016101ca565b8252505092915050565b600080600080600060a0868803121561053757600080fd5b853567ffffffffffffffff8082111561054f57600080fd5b61055b89838a01610132565b9650602088013591508082111561057157600080fd5b61057d89838a01610264565b9550604088013591508082111561059357600080fd5b61059f89838a01610426565b945060608801359150808211156105b557600080fd5b6105c189838a016104ba565b935060808801359150808211156105d757600080fd5b506105e4888289016104ba565b915050929550929590935056fea26469706673582212204e8f4e3eb7471eafa59d8eef429a6c51939fd0ffc966d127fd8322a9cb91d75564736f6c63430008130033",
+    "sourceMap": "65:535:0:-:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;460:138;;;;;;:::i;:::-;;;;;;;;;14:127:1;75:10;70:3;66:20;63:1;56:31;106:4;103:1;96:15;130:4;127:1;120:15;146:257;218:4;212:11;;;250:17;;297:18;282:34;;318:22;;;279:62;276:88;;;344:18;;:::i;:::-;380:4;373:24;146:257;:::o;408:251::-;480:2;474:9;522:2;510:15;;555:18;540:34;;576:22;;;537:62;534:88;;;602:18;;:::i;664:275::-;735:2;729:9;800:2;781:13;;-1:-1:-1;;777:27:1;765:40;;835:18;820:34;;856:22;;;817:62;814:88;;;882:18;;:::i;:::-;918:2;911:22;664:275;;-1:-1:-1;664:275:1:o;944:406::-;1008:5;1042:18;1034:6;1031:30;1028:56;;;1064:18;;:::i;:::-;1102:57;1147:2;1126:15;;-1:-1:-1;;1122:29:1;1153:4;1118:40;1102:57;:::i;:::-;1093:66;;1182:6;1175:5;1168:21;1222:3;1213:6;1208:3;1204:16;1201:25;1198:45;;;1239:1;1236;1229:12;1198:45;1288:6;1283:3;1276:4;1269:5;1265:16;1252:43;1342:1;1335:4;1326:6;1319:5;1315:18;1311:29;1304:40;944:406;;;;;:::o;1355:637::-;1408:5;1456:4;1444:9;1439:3;1435:19;1431:30;1428:50;;;1474:1;1471;1464:12;1428:50;1496:22;;:::i;:::-;1487:31;;1555:9;1542:23;1610:7;1603:15;1596:23;1587:7;1584:36;1574:64;;1634:1;1631;1624:12;1574:64;1647:22;;1720:2;1705:18;;1692:32;1747:18;1736:30;;1733:50;;;1779:1;1776;1769:12;1733:50;1802:22;;1855:4;1847:13;;1843:23;-1:-1:-1;1833:51:1;;1880:1;1877;1870:12;1833:51;1916:69;1981:3;1976:2;1963:16;1958:2;1954;1950:11;1916:69;:::i;:::-;1911:2;1904:5;1900:14;1893:93;;1355:637;;;;:::o;1997:203::-;2077:4;2110:18;2102:6;2099:30;2096:56;;;2132:18;;:::i;:::-;-1:-1:-1;2177:1:1;2173:14;2189:4;2169:25;;1997:203::o;2205:221::-;2248:5;2301:3;2294:4;2286:6;2282:17;2278:27;2268:55;;2319:1;2316;2309:12;2268:55;2341:79;2416:3;2407:6;2394:20;2387:4;2379:6;2375:17;2341:79;:::i;:::-;2332:88;2205:221;-1:-1:-1;;;2205:221:1:o;2431:701::-;2480:5;2533:3;2526:4;2518:6;2514:17;2510:27;2500:55;;2551:1;2548;2541:12;2500:55;2575:22;;:::i;:::-;2619:3;2657:2;2649:6;2645:15;2683:3;2675:6;2672:15;2669:35;;;2700:1;2697;2690:12;2669:35;2724:6;2739:364;2755:6;2750:3;2747:15;2739:364;;;2843:3;2830:17;2879:18;2866:11;2863:35;2860:125;;;2939:1;2968:2;2964;2957:14;2860:125;3010:48;3054:3;3040:11;3032:6;3028:24;3010:48;:::i;:::-;2998:61;;-1:-1:-1;3088:4:1;3079:14;;;;2772;2739:364;;;-1:-1:-1;3121:5:1;;2431:701;-1:-1:-1;;;;;2431:701:1:o;3137:2769::-;3191:5;3239:4;3227:9;3222:3;3218:19;3214:30;3211:50;;;3257:1;3254;3247:12;3211:50;3279:22;;:::i;:::-;3270:31;;3320:18;3378:2;3366:9;3353:23;3350:31;3347:51;;;3394:1;3391;3384:12;3347:51;3445:9;3432:23;3421:9;3417:39;3494:3;3487:4;3483:2;3479:13;3475:23;3465:51;;3512:1;3509;3502:12;3465:51;3536:94;3552:77;3625:2;3612:16;3552:77;:::i;:::-;3536:94;:::i;:::-;3676:16;;3664:29;;;3718:4;3709:14;;;;3652:3;3754:1;3750:24;3742:33;;3738:44;3735:53;-1:-1:-1;3732:73:1;;;3801:1;3798;3791:12;3732:73;3833:4;3829:2;3825:13;3847:1838;3910:4;3903:2;3890:16;3887:1;3883:24;3879:2;3875:33;3871:44;3866:3;3863:53;3847:1838;;;3998:2;3992:3;3979:17;3976:25;3973:45;;;4014:1;4011;4004:12;3973:45;4062:3;4049:17;4045:2;4041:26;4107:3;4102:2;4098;4094:11;4090:21;4080:49;;4125:1;4122;4115:12;4080:49;4155:105;4171:88;4252:4;4248:2;4244:13;4231:27;4171:88;:::i;4155:105::-;4339:4;4331:13;;;4318:27;4304:42;;;4368:16;;;;4286:5;4419:1;4415:35;4407:44;;4453:4;4403:55;4400:64;-1:-1:-1;4397:84:1;;;4477:1;4474;4467:12;4397:84;4515:4;4511:2;4507:13;4533:1077;4613:4;4603;4599:2;4595:13;4582:27;4579:1;4575:35;4571:2;4567:44;4563:55;4556:5;4553:66;4533:1077;;;4719:2;4711:5;4698:19;4695:27;4692:47;;;4735:1;4732;4725:12;4692:47;4787:5;4774:19;4770:2;4766:28;4838:3;4833:2;4829;4825:11;4821:21;4811:49;;4856:1;4853;4846:12;4811:49;4890:105;4906:88;4987:4;4983:2;4979:13;4966:27;4906:88;:::i;4890:105::-;5082:4;5074:13;;5061:27;5047:42;;;5126:4;5115:16;;;5025:5;5178:1;5174:35;5166:44;;5212:2;5162:53;5235:15;;;5232:35;;;5263:1;5260;5253:12;5232:35;5305:2;5301;5297:11;5284:24;;5325:192;5343:6;5336:5;5333:17;5325:192;;;5433:19;;5419:34;;5494:4;5362:16;;;;5483;;;;5325:192;;;-1:-1:-1;5534:20:1;;-1:-1:-1;;5591:4:1;5580:16;;;;4643;4533:1077;;;-1:-1:-1;5623:18:1;;-1:-1:-1;;5670:4:1;5661:14;;;;3934;3847:1838;;;-1:-1:-1;5694:20:1;;-1:-1:-1;;5757:4:1;5742:20;;5729:34;5726:42;-1:-1:-1;5723:62:1;;;5781:1;5778;5771:12;5723:62;;5819:80;5895:3;5886:4;5875:9;5871:20;5858:34;5847:9;5843:50;5819:80;:::i;:::-;5812:4;5805:5;5801:16;5794:106;3137:2769;;;;:::o;5911:746::-;5964:5;6012:4;6000:9;5995:3;5991:19;5987:30;5984:50;;;6030:1;6027;6020:12;5984:50;6052:22;;:::i;:::-;6043:31;;6110:9;6097:23;6139:18;6180:2;6172:6;6169:14;6166:34;;;6196:1;6193;6186:12;6166:34;6223:46;6265:3;6256:6;6245:9;6241:22;6223:46;:::i;:::-;6216:5;6209:61;6323:2;6312:9;6308:18;6295:32;6279:48;;6352:2;6342:8;6339:16;6336:36;;;6368:1;6365;6358:12;6336:36;6404:55;6455:3;6444:8;6433:9;6429:24;6404:55;:::i;:::-;6399:2;6392:5;6388:14;6381:79;6513:2;6502:9;6498:18;6485:32;6469:48;;6542:2;6532:8;6529:16;6526:36;;;6558:1;6555;6548:12;6526:36;;6594:56;6646:3;6635:8;6624:9;6620:24;6594:56;:::i;:::-;6589:2;6582:5;6578:14;6571:80;;5911:746;;;;:::o;6662:537::-;6714:5;6762:4;6750:9;6745:3;6741:19;6737:30;6734:50;;;6780:1;6777;6770:12;6734:50;6813:2;6807:9;6855:4;6847:6;6843:17;6879:18;6947:6;6935:10;6932:22;6927:2;6915:10;6912:18;6909:46;6906:72;;;6958:18;;:::i;:::-;6998:10;6994:2;6987:22;7027:6;7018:15;;7069:9;7056:23;7042:37;;7102:2;7094:6;7091:14;7088:34;;;7118:1;7115;7108:12;7088:34;;7146:46;7188:3;7179:6;7168:9;7164:22;7146:46;:::i;:::-;7138:6;7131:62;;;6662:537;;;;:::o;7204:1239::-;7409:6;7417;7425;7433;7441;7494:3;7482:9;7473:7;7469:23;7465:33;7462:53;;;7511:1;7508;7501:12;7462:53;7551:9;7538:23;7580:18;7621:2;7613:6;7610:14;7607:34;;;7637:1;7634;7627:12;7607:34;7660:57;7709:7;7700:6;7689:9;7685:22;7660:57;:::i;:::-;7650:67;;7770:2;7759:9;7755:18;7742:32;7726:48;;7799:2;7789:8;7786:16;7783:36;;;7815:1;7812;7805:12;7783:36;7838:60;7890:7;7879:8;7868:9;7864:24;7838:60;:::i;:::-;7828:70;;7951:2;7940:9;7936:18;7923:32;7907:48;;7980:2;7970:8;7967:16;7964:36;;;7996:1;7993;7986:12;7964:36;8019:59;8070:7;8059:8;8048:9;8044:24;8019:59;:::i;:::-;8009:69;;8131:2;8120:9;8116:18;8103:32;8087:48;;8160:2;8150:8;8147:16;8144:36;;;8176:1;8173;8166:12;8144:36;8199:58;8249:7;8238:8;8227:9;8223:24;8199:58;:::i;:::-;8189:68;;8310:3;8299:9;8295:19;8282:33;8266:49;;8340:2;8330:8;8327:16;8324:36;;;8356:1;8353;8346:12;8324:36;;8379:58;8429:7;8418:8;8407:9;8403:24;8379:58;:::i;:::-;8369:68;;;7204:1239;;;;;;;;:::o",
+    "linkReferences": {}
+  },
+  "methodIdentifiers": {
+    "withStructs((bool,bytes),(uint256[][][],string[3]),(string,(bool,bytes),(uint256[][][],string[3])),(string),(string))": "dcb16189"
+  },
+  "rawMetadata": "{\"compiler\":{\"version\":\"0.8.19+commit.7dd6d404\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"components\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"}],\"internalType\":\"struct Structs.Simple\",\"name\":\"simple\",\"type\":\"tuple\"},{\"components\":[{\"internalType\":\"uint256[][][]\",\"name\":\"status\",\"type\":\"uint256[][][]\"},{\"internalType\":\"string[3]\",\"name\":\"msg\",\"type\":\"string[3]\"}],\"internalType\":\"struct Structs.Complex\",\"name\":\"complex\",\"type\":\"tuple\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"components\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"}],\"internalType\":\"struct Structs.Simple\",\"name\":\"simple\",\"type\":\"tuple\"},{\"components\":[{\"internalType\":\"uint256[][][]\",\"name\":\"status\",\"type\":\"uint256[][][]\"},{\"internalType\":\"string[3]\",\"name\":\"msg\",\"type\":\"string[3]\"}],\"internalType\":\"struct Structs.Complex\",\"name\":\"complex\",\"type\":\"tuple\"}],\"internalType\":\"struct Structs.Nested\",\"name\":\"nested\",\"type\":\"tuple\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"}],\"internalType\":\"struct Structs.class\",\"name\":\"cls\",\"type\":\"tuple\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"}],\"internalType\":\"struct Structs.package\",\"name\":\"pkg\",\"type\":\"tuple\"}],\"name\":\"withStructs\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"src/Structs.sol\":\"Structs\"},\"evmVersion\":\"paris\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":true,\"runs\":200},\"remappings\":[\":ds-test/=lib/forge-std/lib/ds-test/src/\",\":forge-std/=lib/forge-std/src/\"]},\"sources\":{\"src/Structs.sol\":{\"keccak256\":\"0x6d91d947047fb49d5055942355b8053df70424829658487f16c3efa3d7735a42\",\"license\":\"UNLICENSED\",\"urls\":[\"bzz-raw://20b5a43a220833a1c2d9a5302fc0292d470d6cdb901f69444460cb88d920f4d7\",\"dweb:/ipfs/QmaGHQ7JYPn6ybmKbBYYu4Kk5ZKup5iSZvhNmSQou5w8J5\"]}},\"version\":1}",
+  "metadata": {
+    "compiler": {
+      "version": "0.8.19+commit.7dd6d404"
+    },
+    "language": "Solidity",
+    "output": {
+      "abi": [
+        {
+          "inputs": [
+            {
+              "internalType": "struct Structs.Simple",
+              "name": "simple",
+              "type": "tuple",
+              "components": [
+                {
+                  "internalType": "bool",
+                  "name": "success",
+                  "type": "bool"
+                },
+                {
+                  "internalType": "bytes",
+                  "name": "data",
+                  "type": "bytes"
+                }
+              ]
+            },
+            {
+              "internalType": "struct Structs.Complex",
+              "name": "complex",
+              "type": "tuple",
+              "components": [
+                {
+                  "internalType": "uint256[][][]",
+                  "name": "status",
+                  "type": "uint256[][][]"
+                },
+                {
+                  "internalType": "string[3]",
+                  "name": "msg",
+                  "type": "string[3]"
+                }
+              ]
+            },
+            {
+              "internalType": "struct Structs.Nested",
+              "name": "nested",
+              "type": "tuple",
+              "components": [
+                {
+                  "internalType": "string",
+                  "name": "desc",
+                  "type": "string"
+                },
+                {
+                  "internalType": "struct Structs.Simple",
+                  "name": "simple",
+                  "type": "tuple",
+                  "components": [
+                    {
+                      "internalType": "bool",
+                      "name": "success",
+                      "type": "bool"
+                    },
+                    {
+                      "internalType": "bytes",
+                      "name": "data",
+                      "type": "bytes"
+                    }
+                  ]
+                },
+                {
+                  "internalType": "struct Structs.Complex",
+                  "name": "complex",
+                  "type": "tuple",
+                  "components": [
+                    {
+                      "internalType": "uint256[][][]",
+                      "name": "status",
+                      "type": "uint256[][][]"
+                    },
+                    {
+                      "internalType": "string[3]",
+                      "name": "msg",
+                      "type": "string[3]"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "internalType": "struct Structs.class",
+              "name": "cls",
+              "type": "tuple",
+              "components": [
+                {
+                  "internalType": "string",
+                  "name": "desc",
+                  "type": "string"
+                }
+              ]
+            },
+            {
+              "internalType": "struct Structs.package",
+              "name": "pkg",
+              "type": "tuple",
+              "components": [
+                {
+                  "internalType": "string",
+                  "name": "desc",
+                  "type": "string"
+                }
+              ]
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "withStructs"
+        }
+      ],
+      "devdoc": {
+        "kind": "dev",
+        "methods": {},
+        "version": 1
+      },
+      "userdoc": {
+        "kind": "user",
+        "methods": {},
+        "version": 1
+      }
+    },
+    "settings": {
+      "remappings": [
+        "ds-test/=lib/forge-std/lib/ds-test/src/",
+        "forge-std/=lib/forge-std/src/"
+      ],
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "metadata": {
+        "bytecodeHash": "ipfs"
+      },
+      "compilationTarget": {
+        "src/Structs.sol": "Structs"
+      },
+      "libraries": {}
+    },
+    "sources": {
+      "src/Structs.sol": {
+        "keccak256": "0x6d91d947047fb49d5055942355b8053df70424829658487f16c3efa3d7735a42",
+        "urls": [
+          "bzz-raw://20b5a43a220833a1c2d9a5302fc0292d470d6cdb901f69444460cb88d920f4d7",
+          "dweb:/ipfs/QmaGHQ7JYPn6ybmKbBYYu4Kk5ZKup5iSZvhNmSQou5w8J5"
+        ],
+        "license": "UNLICENSED"
+      }
+    },
+    "version": 1
+  },
+  "ast": {
+    "absolutePath": "src/Structs.sol",
+    "id": 52,
+    "exportedSymbols": {
+      "Structs": [
+        51
+      ]
+    },
+    "nodeType": "SourceUnit",
+    "src": "39:562:0",
+    "nodes": [
+      {
+        "id": 1,
+        "nodeType": "PragmaDirective",
+        "src": "39:24:0",
+        "nodes": [],
+        "literals": [
+          "solidity",
+          "^",
+          "0.8",
+          ".13"
+        ]
+      },
+      {
+        "id": 51,
+        "nodeType": "ContractDefinition",
+        "src": "65:535:0",
+        "nodes": [
+          {
+            "id": 6,
+            "nodeType": "StructDefinition",
+            "src": "88:63:0",
+            "nodes": [],
+            "canonicalName": "Structs.Simple",
+            "members": [
+              {
+                "constant": false,
+                "id": 3,
+                "mutability": "mutable",
+                "name": "success",
+                "nameLocation": "117:7:0",
+                "nodeType": "VariableDeclaration",
+                "scope": 6,
+                "src": "112:12:0",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_bool",
+                  "typeString": "bool"
+                },
+                "typeName": {
+                  "id": 2,
+                  "name": "bool",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "112:4:0",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_bool",
+                    "typeString": "bool"
+                  }
+                },
+                "visibility": "internal"
+              },
+              {
+                "constant": false,
+                "id": 5,
+                "mutability": "mutable",
+                "name": "data",
+                "nameLocation": "140:4:0",
+                "nodeType": "VariableDeclaration",
+                "scope": 6,
+                "src": "134:10:0",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_bytes_storage_ptr",
+                  "typeString": "bytes"
+                },
+                "typeName": {
+                  "id": 4,
+                  "name": "bytes",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "134:5:0",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_bytes_storage_ptr",
+                    "typeString": "bytes"
+                  }
+                },
+                "visibility": "internal"
+              }
+            ],
+            "name": "Simple",
+            "nameLocation": "95:6:0",
+            "scope": 51,
+            "visibility": "public"
+          },
+          {
+            "id": 16,
+            "nodeType": "StructDefinition",
+            "src": "157:75:0",
+            "nodes": [],
+            "canonicalName": "Structs.Complex",
+            "members": [
+              {
+                "constant": false,
+                "id": 11,
+                "mutability": "mutable",
+                "name": "status",
+                "nameLocation": "196:6:0",
+                "nodeType": "VariableDeclaration",
+                "scope": 16,
+                "src": "182:20:0",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_array$_t_array$_t_array$_t_uint256_$dyn_storage_$dyn_storage_$dyn_storage_ptr",
+                  "typeString": "uint256[][][]"
+                },
+                "typeName": {
+                  "baseType": {
+                    "baseType": {
+                      "baseType": {
+                        "id": 7,
+                        "name": "uint256",
+                        "nodeType": "ElementaryTypeName",
+                        "src": "182:7:0",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint256",
+                          "typeString": "uint256"
+                        }
+                      },
+                      "id": 8,
+                      "nodeType": "ArrayTypeName",
+                      "src": "182:9:0",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_array$_t_uint256_$dyn_storage_ptr",
+                        "typeString": "uint256[]"
+                      }
+                    },
+                    "id": 9,
+                    "nodeType": "ArrayTypeName",
+                    "src": "182:11:0",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_array$_t_array$_t_uint256_$dyn_storage_$dyn_storage_ptr",
+                      "typeString": "uint256[][]"
+                    }
+                  },
+                  "id": 10,
+                  "nodeType": "ArrayTypeName",
+                  "src": "182:13:0",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_array$_t_array$_t_array$_t_uint256_$dyn_storage_$dyn_storage_$dyn_storage_ptr",
+                    "typeString": "uint256[][][]"
+                  }
+                },
+                "visibility": "internal"
+              },
+              {
+                "constant": false,
+                "id": 15,
+                "mutability": "mutable",
+                "name": "msg",
+                "nameLocation": "222:3:0",
+                "nodeType": "VariableDeclaration",
+                "scope": 16,
+                "src": "212:13:0",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_array$_t_string_storage_$3_storage_ptr",
+                  "typeString": "string[3]"
+                },
+                "typeName": {
+                  "baseType": {
+                    "id": 12,
+                    "name": "string",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "212:6:0",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_string_storage_ptr",
+                      "typeString": "string"
+                    }
+                  },
+                  "id": 14,
+                  "length": {
+                    "hexValue": "33",
+                    "id": 13,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": true,
+                    "kind": "number",
+                    "lValueRequested": false,
+                    "nodeType": "Literal",
+                    "src": "219:1:0",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_rational_3_by_1",
+                      "typeString": "int_const 3"
+                    },
+                    "value": "3"
+                  },
+                  "nodeType": "ArrayTypeName",
+                  "src": "212:9:0",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_array$_t_string_storage_$3_storage_ptr",
+                    "typeString": "string[3]"
+                  }
+                },
+                "visibility": "internal"
+              }
+            ],
+            "name": "Complex",
+            "nameLocation": "164:7:0",
+            "scope": 51,
+            "visibility": "public"
+          },
+          {
+            "id": 25,
+            "nodeType": "StructDefinition",
+            "src": "238:90:0",
+            "nodes": [],
+            "canonicalName": "Structs.Nested",
+            "members": [
+              {
+                "constant": false,
+                "id": 18,
+                "mutability": "mutable",
+                "name": "desc",
+                "nameLocation": "269:4:0",
+                "nodeType": "VariableDeclaration",
+                "scope": 25,
+                "src": "262:11:0",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_string_storage_ptr",
+                  "typeString": "string"
+                },
+                "typeName": {
+                  "id": 17,
+                  "name": "string",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "262:6:0",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_string_storage_ptr",
+                    "typeString": "string"
+                  }
+                },
+                "visibility": "internal"
+              },
+              {
+                "constant": false,
+                "id": 21,
+                "mutability": "mutable",
+                "name": "simple",
+                "nameLocation": "290:6:0",
+                "nodeType": "VariableDeclaration",
+                "scope": 25,
+                "src": "283:13:0",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_struct$_Simple_$6_storage_ptr",
+                  "typeString": "struct Structs.Simple"
+                },
+                "typeName": {
+                  "id": 20,
+                  "nodeType": "UserDefinedTypeName",
+                  "pathNode": {
+                    "id": 19,
+                    "name": "Simple",
+                    "nameLocations": [
+                      "283:6:0"
+                    ],
+                    "nodeType": "IdentifierPath",
+                    "referencedDeclaration": 6,
+                    "src": "283:6:0"
+                  },
+                  "referencedDeclaration": 6,
+                  "src": "283:6:0",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_struct$_Simple_$6_storage_ptr",
+                    "typeString": "struct Structs.Simple"
+                  }
+                },
+                "visibility": "internal"
+              },
+              {
+                "constant": false,
+                "id": 24,
+                "mutability": "mutable",
+                "name": "complex",
+                "nameLocation": "314:7:0",
+                "nodeType": "VariableDeclaration",
+                "scope": 25,
+                "src": "306:15:0",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_struct$_Complex_$16_storage_ptr",
+                  "typeString": "struct Structs.Complex"
+                },
+                "typeName": {
+                  "id": 23,
+                  "nodeType": "UserDefinedTypeName",
+                  "pathNode": {
+                    "id": 22,
+                    "name": "Complex",
+                    "nameLocations": [
+                      "306:7:0"
+                    ],
+                    "nodeType": "IdentifierPath",
+                    "referencedDeclaration": 16,
+                    "src": "306:7:0"
+                  },
+                  "referencedDeclaration": 16,
+                  "src": "306:7:0",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_struct$_Complex_$16_storage_ptr",
+                    "typeString": "struct Structs.Complex"
+                  }
+                },
+                "visibility": "internal"
+              }
+            ],
+            "name": "Nested",
+            "nameLocation": "245:6:0",
+            "scope": 51,
+            "visibility": "public"
+          },
+          {
+            "id": 28,
+            "nodeType": "StructDefinition",
+            "src": "364:41:0",
+            "nodes": [],
+            "canonicalName": "Structs.class",
+            "members": [
+              {
+                "constant": false,
+                "id": 27,
+                "mutability": "mutable",
+                "name": "desc",
+                "nameLocation": "394:4:0",
+                "nodeType": "VariableDeclaration",
+                "scope": 28,
+                "src": "387:11:0",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_string_storage_ptr",
+                  "typeString": "string"
+                },
+                "typeName": {
+                  "id": 26,
+                  "name": "string",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "387:6:0",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_string_storage_ptr",
+                    "typeString": "string"
+                  }
+                },
+                "visibility": "internal"
+              }
+            ],
+            "name": "class",
+            "nameLocation": "371:5:0",
+            "scope": 51,
+            "visibility": "public"
+          },
+          {
+            "id": 31,
+            "nodeType": "StructDefinition",
+            "src": "411:43:0",
+            "nodes": [],
+            "canonicalName": "Structs.package",
+            "members": [
+              {
+                "constant": false,
+                "id": 30,
+                "mutability": "mutable",
+                "name": "desc",
+                "nameLocation": "443:4:0",
+                "nodeType": "VariableDeclaration",
+                "scope": 31,
+                "src": "436:11:0",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_string_storage_ptr",
+                  "typeString": "string"
+                },
+                "typeName": {
+                  "id": 29,
+                  "name": "string",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "436:6:0",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_string_storage_ptr",
+                    "typeString": "string"
+                  }
+                },
+                "visibility": "internal"
+              }
+            ],
+            "name": "package",
+            "nameLocation": "418:7:0",
+            "scope": 51,
+            "visibility": "public"
+          },
+          {
+            "id": 50,
+            "nodeType": "FunctionDefinition",
+            "src": "460:138:0",
+            "nodes": [],
+            "body": {
+              "id": 49,
+              "nodeType": "Block",
+              "src": "596:2:0",
+              "nodes": [],
+              "statements": []
+            },
+            "functionSelector": "dcb16189",
+            "implemented": true,
+            "kind": "function",
+            "modifiers": [],
+            "name": "withStructs",
+            "nameLocation": "469:11:0",
+            "parameters": {
+              "id": 47,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 34,
+                  "mutability": "mutable",
+                  "name": "simple",
+                  "nameLocation": "495:6:0",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 50,
+                  "src": "481:20:0",
+                  "stateVariable": false,
+                  "storageLocation": "memory",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_struct$_Simple_$6_memory_ptr",
+                    "typeString": "struct Structs.Simple"
+                  },
+                  "typeName": {
+                    "id": 33,
+                    "nodeType": "UserDefinedTypeName",
+                    "pathNode": {
+                      "id": 32,
+                      "name": "Simple",
+                      "nameLocations": [
+                        "481:6:0"
+                      ],
+                      "nodeType": "IdentifierPath",
+                      "referencedDeclaration": 6,
+                      "src": "481:6:0"
+                    },
+                    "referencedDeclaration": 6,
+                    "src": "481:6:0",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_struct$_Simple_$6_storage_ptr",
+                      "typeString": "struct Structs.Simple"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 37,
+                  "mutability": "mutable",
+                  "name": "complex",
+                  "nameLocation": "518:7:0",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 50,
+                  "src": "503:22:0",
+                  "stateVariable": false,
+                  "storageLocation": "memory",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_struct$_Complex_$16_memory_ptr",
+                    "typeString": "struct Structs.Complex"
+                  },
+                  "typeName": {
+                    "id": 36,
+                    "nodeType": "UserDefinedTypeName",
+                    "pathNode": {
+                      "id": 35,
+                      "name": "Complex",
+                      "nameLocations": [
+                        "503:7:0"
+                      ],
+                      "nodeType": "IdentifierPath",
+                      "referencedDeclaration": 16,
+                      "src": "503:7:0"
+                    },
+                    "referencedDeclaration": 16,
+                    "src": "503:7:0",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_struct$_Complex_$16_storage_ptr",
+                      "typeString": "struct Structs.Complex"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 40,
+                  "mutability": "mutable",
+                  "name": "nested",
+                  "nameLocation": "541:6:0",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 50,
+                  "src": "527:20:0",
+                  "stateVariable": false,
+                  "storageLocation": "memory",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_struct$_Nested_$25_memory_ptr",
+                    "typeString": "struct Structs.Nested"
+                  },
+                  "typeName": {
+                    "id": 39,
+                    "nodeType": "UserDefinedTypeName",
+                    "pathNode": {
+                      "id": 38,
+                      "name": "Nested",
+                      "nameLocations": [
+                        "527:6:0"
+                      ],
+                      "nodeType": "IdentifierPath",
+                      "referencedDeclaration": 25,
+                      "src": "527:6:0"
+                    },
+                    "referencedDeclaration": 25,
+                    "src": "527:6:0",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_struct$_Nested_$25_storage_ptr",
+                      "typeString": "struct Structs.Nested"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 43,
+                  "mutability": "mutable",
+                  "name": "cls",
+                  "nameLocation": "562:3:0",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 50,
+                  "src": "549:16:0",
+                  "stateVariable": false,
+                  "storageLocation": "memory",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_struct$_class_$28_memory_ptr",
+                    "typeString": "struct Structs.class"
+                  },
+                  "typeName": {
+                    "id": 42,
+                    "nodeType": "UserDefinedTypeName",
+                    "pathNode": {
+                      "id": 41,
+                      "name": "class",
+                      "nameLocations": [
+                        "549:5:0"
+                      ],
+                      "nodeType": "IdentifierPath",
+                      "referencedDeclaration": 28,
+                      "src": "549:5:0"
+                    },
+                    "referencedDeclaration": 28,
+                    "src": "549:5:0",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_struct$_class_$28_storage_ptr",
+                      "typeString": "struct Structs.class"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 46,
+                  "mutability": "mutable",
+                  "name": "pkg",
+                  "nameLocation": "582:3:0",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 50,
+                  "src": "567:18:0",
+                  "stateVariable": false,
+                  "storageLocation": "memory",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_struct$_package_$31_memory_ptr",
+                    "typeString": "struct Structs.package"
+                  },
+                  "typeName": {
+                    "id": 45,
+                    "nodeType": "UserDefinedTypeName",
+                    "pathNode": {
+                      "id": 44,
+                      "name": "package",
+                      "nameLocations": [
+                        "567:7:0"
+                      ],
+                      "nodeType": "IdentifierPath",
+                      "referencedDeclaration": 31,
+                      "src": "567:7:0"
+                    },
+                    "referencedDeclaration": 31,
+                    "src": "567:7:0",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_struct$_package_$31_storage_ptr",
+                      "typeString": "struct Structs.package"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "480:106:0"
+            },
+            "returnParameters": {
+              "id": 48,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "596:0:0"
+            },
+            "scope": 51,
+            "stateMutability": "nonpayable",
+            "virtual": false,
+            "visibility": "external"
+          }
+        ],
+        "abstract": false,
+        "baseContracts": [],
+        "canonicalName": "Structs",
+        "contractDependencies": [],
+        "contractKind": "contract",
+        "fullyImplemented": true,
+        "linearizedBaseContracts": [
+          51
+        ],
+        "name": "Structs",
+        "nameLocation": "74:7:0",
+        "scope": 52,
+        "usedErrors": []
+      }
+    ],
+    "license": "UNLICENSED"
+  },
+  "id": 0
+}

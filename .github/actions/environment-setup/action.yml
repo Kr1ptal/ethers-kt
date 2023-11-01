@@ -1,0 +1,28 @@
+name: Environment setup
+description: Set up the environment by installing java and gradle
+
+runs:
+  using: composite
+
+  steps:
+    - uses: actions/setup-java@v3
+      with:
+        # version should match what we use in "java-toolchain-conventions"
+        java-version: "11.0.19+7"
+        java-package: jdk
+        distribution: "temurin"
+
+    - uses: gradle/gradle-build-action@v2
+      with:
+        # Only write to the cache for builds on the 'master' branch. (Default is 'main'.)
+        # Builds on other branches will only read existing entries from the cache.
+        # https://github.com/marketplace/actions/gradle-build-action#using-the-caches-read-only
+        cache-read-only: ${{ github.ref != 'refs/heads/master' }}
+        gradle-home-cache-includes: |
+          caches
+          notifications
+          jdks
+
+        # Clean-up unused entries to prevent stale cache entries to occupy storage
+        # https://github.com/marketplace/actions/gradle-build-action#removing-unused-files-from-gradle-user-home-before-saving-to-cache
+        gradle-home-cache-cleanup: true

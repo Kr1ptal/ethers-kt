@@ -1,0 +1,52 @@
+name: Bug report
+description: Report a bug
+labels: [ "type: bug" ]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **THANK YOU** for taking the time to report this bug! Please fill out the form below to help us fix it.
+        
+        Before proceeding, please check the issue tracker and verify the issue has not already been reported.
+        
+        ---
+  - type: dropdown
+    attributes:
+      label: Module
+      description: What module is causing troubles?
+      multiple: false
+      options:
+        - ABI
+        - RLP
+        - Signers
+        - Providers
+        - Data types
+        - Other
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: What version of `ethers-kt` are you using?
+      placeholder: "Check your Maven / Gradle configuration."
+  - type: input
+    attributes:
+      label: What version of `Java` you are working on?
+      placeholder: "Run 'java --version' in your CLI and paste the output here."
+  - type: input
+    attributes:
+      label: Are you developing an `Android` app? If yes, please provide the OS version.
+      placeholder: "Find 'Settings > About phone > Android version' and paste it here."
+  - type: textarea
+    attributes:
+      label: 📝 Description
+      description: Please provide a description of the bug, including the context in which it occurs, and steps to reproduce it.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: 📑 Stack trace
+      description: Please provide a stack trace, if available.
+  - type: textarea
+    attributes:
+      label: 💻 Code to reproduce the bug
+      description: Please provide a code snippet to reproduce the bug.
