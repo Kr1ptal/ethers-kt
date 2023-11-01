@@ -33,9 +33,9 @@ It's recommended to define BOM platform dependency to ensure that ethers-kt arti
 ```kotlin
 // Define a maven repository for github packages where the library is published
 repositories {
-  maven {
-    url = uri("https://maven.pkg.github.com/kr1ptal/ethers-kt")
-  }
+    maven {
+        url = uri("https://maven.pkg.github.com/kr1ptal/ethers-kt")
+    }
 }
 
 dependencies {
@@ -120,6 +120,10 @@ This library has been made possible thanks to the inspiration provided by the fo
 - [web3j](https://github.com/web3j/web3j)
 - [ethers-rs](https://github.com/gakonst/ethers-rs)
 - [ethers-js](https://github.com/ethers-io/ethers.js/)
+
+----------------------
+
+<p style="text-align: center;"> <b>Proof of Work:</b> <a href="https://etherscan.io/tx/0x6b0f9ff6f53ec22d8d2d92b1beb193cdc523628951b5c81779fabce9f51db351">0x6b0f9ff6f53ec22d8d2d92b1beb193cdc523628951b5c81779fabce9f51db351</a> </p>
 
 [discord-channel]: https://discord.gg/rx35NzQGSb
 
