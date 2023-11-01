@@ -25,5 +25,7 @@ allprojects {
 }
 
 subprojects {
-    apply(plugin = "maven-publish-conventions")
+    if (name != "ethers-abigen-plugin") {
+        apply(plugin = "maven-publish-conventions")
+    }
 }
