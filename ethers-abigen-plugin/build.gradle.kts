@@ -17,7 +17,7 @@ gradlePlugin {
 
     plugins {
         create("abigen-plugin") {
-            id = "io.ethers.abigen-plugin"
+            id = "io.kriptal.ethers.abigen-plugin"
             implementationClass = "io.ethers.abigen.plugin.EthersAbigenPlugin"
 
             displayName = "Plugin for generating JVM contract bindings for Ethereum smart contracts"

@@ -20,7 +20,7 @@ tasks.withType<Test> {
 }
 
 allprojects {
-    group = "io.ethers"
+    group = "io.kriptal.ethers"
     version = "0.1.0"
 }
 
