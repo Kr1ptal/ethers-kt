@@ -1,5 +1,6 @@
 plugins {
     `project-conventions`
+    `maven-publish-conventions`
 }
 
 repositories {

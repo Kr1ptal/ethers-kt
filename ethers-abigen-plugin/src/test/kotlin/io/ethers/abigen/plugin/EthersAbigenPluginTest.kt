@@ -15,7 +15,7 @@ class EthersAbigenPluginTest : FunSpec({
     test("plugin is successfully applied") {
         val project = ProjectBuilder.builder().build()
         project.plugins.apply("org.jetbrains.kotlin.jvm")
-        project.plugins.apply("io.ethers.abigen-plugin")
+        project.plugins.apply("io.kriptal.ethers.abigen-plugin")
 
         (project.plugins.getPlugin(EthersAbigenPlugin::class.java) is EthersAbigenPlugin) shouldBe true
     }
@@ -23,7 +23,7 @@ class EthersAbigenPluginTest : FunSpec({
     test("plugin applies defaults to tasks") {
         val project = ProjectBuilder.builder().build()
         project.plugins.apply("org.jetbrains.kotlin.jvm")
-        project.plugins.apply("io.ethers.abigen-plugin")
+        project.plugins.apply("io.kriptal.ethers.abigen-plugin")
 
         val ext = project.extensions.getByType(EthersAbigenExtension::class.java)
 
@@ -37,7 +37,7 @@ class EthersAbigenPluginTest : FunSpec({
         val project = ProjectBuilder.builder().build()
 
         shouldThrow<PluginApplicationException> {
-            project.plugins.apply("io.ethers.abigen-plugin")
+            project.plugins.apply("io.kriptal.ethers.abigen-plugin")
         }
     }
 
@@ -70,7 +70,7 @@ class EthersAbigenPluginTest : FunSpec({
             plugins {
                 id 'base'
                 id 'org.jetbrains.kotlin.jvm'
-                id 'io.ethers.abigen-plugin'
+                id 'io.kriptal.ethers.abigen-plugin'
             }
             
             ethersAbigen {
@@ -129,7 +129,7 @@ class EthersAbigenPluginTest : FunSpec({
                 plugins {
                     id 'base'
                     id 'org.jetbrains.kotlin.jvm'
-                    id 'io.ethers.abigen-plugin'
+                    id 'io.kriptal.ethers.abigen-plugin'
                 }
                 
                 ethersAbigen {

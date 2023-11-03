@@ -20,12 +20,6 @@ tasks.withType<Test> {
 }
 
 allprojects {
-    group = "io.ethers"
-    version = "0.1.0"
-}
-
-subprojects {
-    if (name != "ethers-abigen-plugin") {
-        apply(plugin = "maven-publish-conventions")
-    }
+    group = "io.kriptal.ethers"
+    version = "0.1.0-SNAPSHOT"
 }

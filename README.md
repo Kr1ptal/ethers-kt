@@ -26,27 +26,29 @@ EVM-based blockchains. It targets <b>JVM</b> and <b>Android</b> platforms. </p>
 > [!NOTE]
 > `ethers-kt` API is not yet stable and might be subject to change. It will be stabilized in the 1.0.0 release.
 
-The latest release of the library is available under [Releases](https://github.com/Kr1ptal/ethers-kt/releases).
+All releases are published to Maven Central. Changelog of each release can be found
+under [Releases](https://github.com/Kr1ptal/ethers-kt/releases).
 
 It's recommended to define BOM platform dependency to ensure that ethers-kt artifacts are compatible with each other.
 
 ```kotlin
-// Define a maven repository for github packages where the library is published
+// Define a maven repository where the library is published
 repositories {
-    maven {
-        url = uri("https://maven.pkg.github.com/kr1ptal/ethers-kt")
-    }
+    mavenCentral()
+
+    // for snapshot versions, use the following repository
+    //maven { url = uri("https://s01.oss.sonatype.org/content/repositories/snapshots/") }
 }
 
 dependencies {
     // Define a BOM and its version
-    implementation(platform("io.ethers:ethers-bom:0.1.0"))
+    implementation(platform("io.kriptal.ethers:ethers-bom:0.1.0"))
 
     // Define any required artifacts without version
-    implementation("io.ethers:ethers-abi")
-    implementation("io.ethers:ethers-core")
-    implementation("io.ethers:ethers-providers")
-    implementation("io.ethers:ethers-signers")
+    implementation("io.kriptal.ethers:ethers-abi")
+    implementation("io.kriptal.ethers:ethers-core")
+    implementation("io.kriptal.ethers:ethers-providers")
+    implementation("io.kriptal.ethers:ethers-signers")
 }
 ```
 
