@@ -1,6 +1,7 @@
 plugins {
-    `java-gradle-plugin`
     `project-conventions`
+    `signing-conventions`
+    `java-gradle-plugin`
     id("com.gradle.plugin-publish") version "1.2.1"
 }
 

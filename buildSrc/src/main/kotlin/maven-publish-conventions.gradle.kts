@@ -1,10 +1,11 @@
 plugins {
     `maven-publish`
+    id("signing-conventions")
 }
 
 val configureRepositories: Action<PublishingExtension> = Action {
     repositories {
-        if (System.getenv("LIB_RELEASE").equals("true", ignoreCase = true)) {
+        if (isLibraryReleaseMode()) {
             maven {
                 name = "GithubPackages"
                 url = uri("https://maven.pkg.github.com/Kr1ptal/ethers-kt")
@@ -34,16 +35,24 @@ project.pluginManager.withPlugin("java") {
 
         configureRepositories.execute(this)
     }
+
+    signing {
+        sign(publishing.publications["library"])
+    }
 }
 
 project.pluginManager.withPlugin("java-platform") {
     publishing {
         publications {
-            create<MavenPublication>("library-bom") {
+            create<MavenPublication>("libraryBom") {
                 from(components["javaPlatform"])
             }
         }
 
         configureRepositories.execute(this)
+    }
+
+    signing {
+        sign(publishing.publications["libraryBom"])
     }
 }
