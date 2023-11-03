@@ -1,6 +1,6 @@
-@Suppress("DSL_SCOPE_VIOLATION")
 plugins {
     `project-conventions`
+    `maven-publish-conventions`
 }
 
 dependencies {

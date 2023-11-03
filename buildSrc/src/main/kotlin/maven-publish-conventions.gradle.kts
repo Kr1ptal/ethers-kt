@@ -3,21 +3,52 @@ plugins {
     id("signing-conventions")
 }
 
-val configureRepositories: Action<PublishingExtension> = Action {
-    repositories {
-        if (isLibraryReleaseMode()) {
-            maven {
-                name = "GithubPackages"
-                url = uri("https://maven.pkg.github.com/Kr1ptal/ethers-kt")
+val configureMavenCentralRepo: Action<RepositoryHandler> = Action {
+    if (isLibraryReleaseMode()) {
+        maven {
+            name = "mavenCentral"
 
-                credentials {
-                    username = System.getenv("GITHUB_ACTOR")
-                    password = System.getenv("GITHUB_TOKEN")
-                }
+            url = if (version.toString().endsWith("-SNAPSHOT")) {
+                uri("https://s01.oss.sonatype.org/content/repositories/snapshots/")
+            } else {
+                uri("https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/")
             }
-        } else {
-            mavenLocal()
+
+            credentials {
+                username = System.getenv("SONATYPE_USERNAME")
+                password = System.getenv("SONATYPE_PASSWORD")
+            }
         }
+    } else {
+        mavenLocal()
+    }
+}
+
+val configurePom = Action<MavenPom> {
+    name = project.name
+    description =
+        "Async, high-performance Kotlin library for interacting with EVM-based blockchains. Targeting JVM and Android platforms."
+    url = "https://github.com/Kr1ptal/ethers-kt"
+
+    licenses {
+        license {
+            name = "Apache-2.0 License"
+            url = "https://www.apache.org/licenses/LICENSE-2.0.txt"
+            distribution = "repo"
+        }
+    }
+    developers {
+        developer {
+            id = "kriptal"
+            name = "Kriptal"
+            organization = "Kriptal"
+            organizationUrl = "https://kriptal.io"
+        }
+    }
+    scm {
+        url = "https://github.com/Kr1ptal/ethers-kt"
+        connection = "scm:git:git://github.com/Kr1ptal/ethers-kt.git"
+        developerConnection = "scm:git:ssh://git@github.com/Kr1ptal/ethers-kt.git"
     }
 }
 
@@ -29,11 +60,12 @@ project.pluginManager.withPlugin("java") {
     publishing {
         publications {
             create<MavenPublication>("library") {
+                pom(configurePom)
                 from(components["java"])
             }
         }
 
-        configureRepositories.execute(this)
+        repositories(configureMavenCentralRepo)
     }
 
     signing {
@@ -45,11 +77,12 @@ project.pluginManager.withPlugin("java-platform") {
     publishing {
         publications {
             create<MavenPublication>("libraryBom") {
+                pom(configurePom)
                 from(components["javaPlatform"])
             }
         }
 
-        configureRepositories.execute(this)
+        repositories(configureMavenCentralRepo)
     }
 
     signing {
