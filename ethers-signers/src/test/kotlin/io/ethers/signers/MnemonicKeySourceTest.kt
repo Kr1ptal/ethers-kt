@@ -14,6 +14,7 @@ class MnemonicKeySourceTest : FunSpec({
         val expectedAddress: String,
     )
 
+    // test cases taken from ethers-rs tests
     listOf(
         TestCase(
             "work man father plunge mystery proud hollow address reunion sauce theory bonus",
