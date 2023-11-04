@@ -7,4 +7,5 @@ dependencies {
     implementation(libs.bouncycastle.provider)
 
     testImplementation(libs.bundles.kotest)
+    testImplementation(libs.bundles.jackson)
 }

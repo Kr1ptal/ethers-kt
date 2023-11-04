@@ -1,6 +1,11 @@
 package io.ethers.crypto
 
+import org.bouncycastle.crypto.digests.RIPEMD160Digest
+import org.bouncycastle.crypto.digests.SHA512Digest
+import org.bouncycastle.crypto.macs.HMac
+import org.bouncycastle.crypto.params.KeyParameter
 import org.bouncycastle.jcajce.provider.digest.Keccak
+import org.bouncycastle.jcajce.provider.digest.SHA256
 
 object Hashing {
     private val MESSAGE_PREFIX = "\u0019Ethereum Signed Message:\n".toByteArray()
@@ -28,5 +33,35 @@ object Hashing {
     @JvmStatic
     fun keccak256(data: ByteArray): ByteArray {
         return Keccak.Digest256().digest(data)
+    }
+
+    /**
+     * Compute the HMAC SHA-512 of the given [input] using the given [key].
+     * */
+    @JvmStatic
+    fun hmacSha512(key: ByteArray, input: ByteArray): ByteArray {
+        val out = ByteArray(64)
+        return HMac(SHA512Digest()).run {
+            init(KeyParameter(key))
+            update(input, 0, input.size)
+            doFinal(out, 0)
+
+            out
+        }
+    }
+
+    /**
+     * Compute the RIPEMD-160 of the SHA-256 hash of given [input].
+     * */
+    fun sha256ripe160(input: ByteArray): ByteArray {
+        val out = ByteArray(20)
+        return RIPEMD160Digest().run {
+            val sha256 = SHA256.Digest().digest(input)
+
+            update(sha256, 0, sha256.size)
+            doFinal(out, 0)
+
+            out
+        }
     }
 }

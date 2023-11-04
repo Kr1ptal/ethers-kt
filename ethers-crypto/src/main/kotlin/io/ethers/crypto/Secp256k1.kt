@@ -25,6 +25,36 @@ object Secp256k1 {
     private const val UNCOMPRESSED_KEY_FLAG = (0x04).toByte()
 
     /**
+     * Add [add] to the provided [privateKey] and return the result.
+     * */
+    fun privateKeyAdd(privateKey: ByteArray, add: ByteArray): ByteArray {
+        val a = BigInteger(1, privateKey)
+        if (a >= CURVE.n) {
+            throw IllegalArgumentException("Provided private key is greater than curve order")
+        }
+
+        val b = BigInteger(1, add)
+        val c = a.add(b).mod(CURVE.n)
+        if (c == BigInteger.ZERO) {
+            throw IllegalArgumentException("Resulting private key is zero")
+        }
+
+        return c.toUnsignedByteArray32()
+    }
+
+    /**
+     * Return public key point on the elliptic curve derived from the provided [privateKey].
+     * */
+    fun publicPointFromPrivateKey(privateKey: BigInteger): ECPoint {
+        var pk = privateKey
+        if (pk.bitLength() > CURVE.n.bitLength()) {
+            pk = pk.mod(CURVE.n)
+        }
+
+        return FIXED_POINT_MULTIPLIER.multiply(CURVE.g, pk)
+    }
+
+    /**
      * Hash provided [publicKey] using Keccak-256 algorithm, and return last 20 bytes, which is the address.
      * */
     fun publicKeyToAddress(publicKey: ByteArray): ByteArray {
@@ -122,29 +152,51 @@ object Secp256k1 {
         return CURVE.curve.decodePoint(compEnc)
     }
 
+    private fun BigInteger.toUnsignedByteArray32(): ByteArray {
+        val bytes = this.toByteArray()
+        if (bytes.size > 33 || bytes.size == 33 && bytes[0] != 0.toByte()) {
+            throw IllegalArgumentException("Input is too large to put in byte array of size 32")
+        }
+
+        if (bytes.size == 32) {
+            return bytes
+        }
+
+        if (bytes.size == 33 && bytes[0] == 0.toByte()) {
+            return bytes.copyOfRange(1, 33)
+        }
+
+        val ret = ByteArray(32)
+        System.arraycopy(bytes, 0, ret, 32 - bytes.size, bytes.size)
+        return ret
+    }
+
     /**
-     * Helper object to encapsulate ECDSA hash message signing logic.
+     * Elliptic curve public/private key pair.
      */
-    class SigningKey(privateKey: BigInteger) {
-        constructor(privateKey: ByteArray) : this(BigInteger(1, privateKey))
+    class SigningKey(val privateKey: ByteArray) {
+        private val privateKeyParams = ECPrivateKeyParameters(BigInteger(1, privateKey), CURVE)
 
-        private val privateKey = ECPrivateKeyParameters(privateKey, CURVE)
+        constructor(privateKey: BigInteger) : this(privateKey.toUnsignedByteArray32())
 
+        /**
+         * Public key point on the elliptic curve.
+         * */
+        val publicPoint: ECPoint
+
+        /**
+         * Public key encoded in uncompressed format. Contains the 0x04 prefix.
+         * */
         val publicKey: ByteArray
 
         init {
-            @Suppress("NAME_SHADOWING")
-            var privateKey = privateKey
-            if (privateKey.bitLength() > CURVE.n.bitLength()) {
-                privateKey = privateKey.mod(CURVE.n)
-            }
-
-            val point = FIXED_POINT_MULTIPLIER.multiply(CURVE.g, privateKey)
+            val point = publicPointFromPrivateKey(privateKeyParams.d)
             val encoded = point.getEncoded(false)
-            if (encoded[0].toInt() != 0x04) {
+            if (encoded[0] != UNCOMPRESSED_KEY_FLAG) {
                 throw IllegalArgumentException("Invalid encoded point. Expected 0x04 prefix, got ${encoded[0]}")
             }
 
+            this.publicPoint = point
             this.publicKey = encoded
         }
 
@@ -153,7 +205,7 @@ object Secp256k1 {
          */
         fun signHash(hash: ByteArray): Array<BigInteger> {
             val signer = ECDSASignerRecoverable(HMacDSAKCalculator(SHA256Digest()))
-            signer.init(true, privateKey)
+            signer.init(true, privateKeyParams)
 
             // r, s, v
             val sig = signer.generateSignatureWithY(hash)
