@@ -4,7 +4,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.inspectors.forAll
 import io.kotest.matchers.shouldBe
 
-class HDPathTest: FunSpec({
+class HDPathTest : FunSpec({
     context("parse") {
         listOf(
             "m/44'/60'/0'/0/0",

@@ -80,7 +80,6 @@ class ExtendedSigningKeyTest : FunSpec({
         }
     }
 
-
     // vectors from https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki#Test-vectors
     private companion object {
         val TEST_VECTOR_1 = listOf(
