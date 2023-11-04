@@ -35,6 +35,9 @@ class MnemonicCodeTest : FunSpec({
         listOf(
             byteArrayOf(),
             byteArrayOf(1, 2),
+            byteArrayOf(1, 2, 3, 4),
+            ByteArray(12),
+            ByteArray(36),
         ).forAll {
             shouldThrow<IllegalArgumentException> {
                 MnemonicCode.fromEntropy(it, MnemonicWordListEnglish)

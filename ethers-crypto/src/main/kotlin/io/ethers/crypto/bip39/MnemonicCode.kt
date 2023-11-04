@@ -106,7 +106,7 @@ class MnemonicCode(val words: List<String>) {
         private const val SEED_ITERATIONS = 2048
 
         /**
-         * Convert entropy data to mnemonic word list.
+         * Convert entropy data to mnemonic word list. Valid entropy lengths are 128-256 bits, in 32 bit increments.
          */
         @JvmStatic
         @JvmOverloads
@@ -116,6 +116,12 @@ class MnemonicCode(val words: List<String>) {
             }
             if (entropy.size % 4 > 0) {
                 throw IllegalArgumentException("Entropy length not multiple of 32 bits.")
+            }
+            if (entropy.size < 16) {
+                throw IllegalArgumentException("Entropy length too short, must be at least 128 bits.")
+            }
+            if (entropy.size > 32) {
+                throw IllegalArgumentException("Entropy length too long, must be at most 256 bits.")
             }
 
             // We take initial entropy of ENT bits and compute its
