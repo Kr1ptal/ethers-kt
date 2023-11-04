@@ -6,7 +6,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.inspectors.forAll
 import io.kotest.matchers.shouldBe
 
-class MnemonicSignerTest : FunSpec({
+class MnemonicKeySourceTest : FunSpec({
     data class TestCase(
         val mnemonic: String,
         val passphrase: String,
@@ -41,9 +41,9 @@ class MnemonicSignerTest : FunSpec({
         ),
     ).forAll { (mnemonic, passphrase, index, expectedAddress) ->
         test("mnemonic=$mnemonic, passphrase=$passphrase, index=$index") {
-            val signer = MnemonicSigner(mnemonic, passphrase, HDPath.ETHEREUM)
+            val source = MnemonicKeySource(mnemonic, passphrase, HDPath.ETHEREUM)
 
-            signer.getAccount(index).address shouldBe Address(expectedAddress)
+            source.getAccount(index).address shouldBe Address(expectedAddress)
         }
     }
 })
