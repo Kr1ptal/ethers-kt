@@ -13,6 +13,14 @@ import java.util.Collections
  * Implementation of [BIP-0039](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki).
  * */
 class MnemonicCode(val words: List<String>) {
+    /**
+     * Create a mnemonic code from a string of words, separated by provided [MnemonicWordList.separator].
+     *
+     * @param wordString String of words, separated by provided [MnemonicWordList.separator].
+     * @param wordList Word list to use. Default is [MnemonicWordListEnglish].
+     * */
+    constructor(wordString: String, wordList: MnemonicWordList = MnemonicWordListEnglish) : this(wordString.split(wordList.separator))
+
     init {
         if (words.isEmpty()) {
             throw IllegalArgumentException("Word list is empty.")
