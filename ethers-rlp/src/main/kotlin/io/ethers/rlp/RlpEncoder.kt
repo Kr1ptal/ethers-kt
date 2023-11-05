@@ -59,6 +59,21 @@ class RlpEncoder(array: ByteArray) {
      *
      * This function should be preferred over calling [startList] and [finishList] directly.
      */
+    inline fun <T> encodeList(list: List<T>, action: RlpEncoder.(T) -> Unit): RlpEncoder {
+        val bufferStartPosition = startList()
+        for (i in list.indices) {
+            action(this, list[i])
+        }
+        finishList(bufferStartPosition)
+
+        return this
+    }
+
+    /**
+     * RLP encode list of values provided via [action].
+     *
+     * This function should be preferred over calling [startList] and [finishList] directly.
+     */
     inline fun encodeList(action: RlpEncoder.() -> Unit): RlpEncoder {
         val bufferStartPosition = startList()
         action(this)

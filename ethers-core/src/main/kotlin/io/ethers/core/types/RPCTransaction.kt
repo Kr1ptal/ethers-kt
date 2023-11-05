@@ -12,11 +12,13 @@ import io.ethers.core.readAddress
 import io.ethers.core.readBytesEmptyAsNull
 import io.ethers.core.readHash
 import io.ethers.core.readHexBigInteger
+import io.ethers.core.readHexInt
 import io.ethers.core.readHexLong
 import io.ethers.core.readListOf
 import io.ethers.core.readOrNull
 import io.ethers.core.types.transaction.ChainId
 import io.ethers.core.types.transaction.TransactionRecovered
+import io.ethers.core.types.transaction.TxBlob
 import io.ethers.core.types.transaction.TxType
 import java.math.BigInteger
 
@@ -41,8 +43,14 @@ data class RPCTransaction(
     val v: Long,
     val r: BigInteger,
     val s: BigInteger,
+    val yParity: Int,
+    override val blobVersionedHashes: List<Hash>?,
+    override val blobFeeCap: BigInteger?,
     val otherFields: Map<String, JsonNode> = emptyMap(),
-) : TransactionRecovered
+) : TransactionRecovered {
+    override val blobGas: Long
+        get() = blobVersionedHashes?.size?.toLong()?.times(TxBlob.GAS_PER_BLOB) ?: 0
+}
 
 private class RPCTransactionDeserializer : JsonDeserializer<RPCTransaction>() {
     override fun deserialize(p: JsonParser, ctxt: DeserializationContext): RPCTransaction {
@@ -69,6 +77,9 @@ private class RPCTransactionDeserializer : JsonDeserializer<RPCTransaction>() {
         var v = -1L
         lateinit var r: BigInteger
         lateinit var s: BigInteger
+        var yParity = -1
+        var blobVersionedHashes: List<Hash>? = null
+        var blobFeeCap: BigInteger? = null
         var otherFields: MutableMap<String, JsonNode>? = null
 
         p.forEachObjectField { field ->
@@ -92,6 +103,9 @@ private class RPCTransactionDeserializer : JsonDeserializer<RPCTransaction>() {
                 "v" -> v = p.readHexLong()
                 "r" -> r = p.readHexBigInteger()
                 "s" -> s = p.readHexBigInteger()
+                "y" -> yParity = p.readHexInt()
+                "blobVersionedHashes" -> blobVersionedHashes = p.readListOf(Hash::class.java)
+                "maxFeePerBlobGas" -> blobFeeCap = p.readHexBigInteger()
                 else -> {
                     if (otherFields == null) {
                         otherFields = HashMap()
@@ -121,6 +135,9 @@ private class RPCTransactionDeserializer : JsonDeserializer<RPCTransaction>() {
             v,
             r,
             s,
+            yParity,
+            blobVersionedHashes,
+            blobFeeCap,
             otherFields ?: emptyMap(),
         )
     }

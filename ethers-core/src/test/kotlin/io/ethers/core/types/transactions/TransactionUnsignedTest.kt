@@ -6,6 +6,7 @@ import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
 import io.ethers.core.types.transaction.TransactionUnsigned
 import io.ethers.core.types.transaction.TxAccessList
+import io.ethers.core.types.transaction.TxBlob
 import io.ethers.core.types.transaction.TxDynamicFee
 import io.ethers.core.types.transaction.TxLegacy
 import io.ethers.rlp.RlpDecoder
@@ -116,6 +117,43 @@ class TransactionUnsignedTest : FunSpec({
 
             tx.signatureHash().toHexString() shouldBe "02f1301823f1eaa4cbf6832369fea3a5754bf88a13d95ac7eb6d2f8320f85c27"
         }
+
+        test("TxBlob with and without sidecar encodes to same signature hash") {
+            val withoutSidecar = TxBlob(
+                to = Address("0xF0109fC8DF283027b6285cc889F5aA624EaC1F55"),
+                value = "1000000000".toBigInteger(),
+                nonce = 12425132,
+                gas = 2000000,
+                gasFeeCap = "210000000000".toBigInteger(),
+                gasTipCap = "21000000000".toBigInteger(),
+                data = Bytes("0x1214abcdef12445980"),
+                chainId = 1L,
+                accessList = null,
+                blobFeeCap = "21000000000".toBigInteger(),
+                blobVersionedHashes = listOf(Hash("0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014")),
+            )
+
+            val withSidecar = TxBlob(
+                to = Address("0xF0109fC8DF283027b6285cc889F5aA624EaC1F55"),
+                value = "1000000000".toBigInteger(),
+                nonce = 12425132,
+                gas = 2000000,
+                gasFeeCap = "210000000000".toBigInteger(),
+                gasTipCap = "21000000000".toBigInteger(),
+                data = Bytes("0x1214abcdef12445980"),
+                chainId = 1L,
+                accessList = null,
+                blobFeeCap = "21000000000".toBigInteger(),
+                sidecar = TxBlob.Sidecar(
+                    blobs = listOf(Bytes(ByteArray(TxBlob.Sidecar.BLOB_LENGTH))),
+                    commitments = listOf(Bytes("c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")),
+                    proofs = listOf(Bytes("c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")),
+                ),
+            )
+
+            withoutSidecar.signatureHash() shouldBe withSidecar.signatureHash()
+            withoutSidecar.signatureHash().toHexString() shouldBe "bb41b484e4a165d7536c36b12ead57c3391a69632e9b09cca5f3abf1584ed55e"
+        }
     }
 
     context("RLP decoding") {
@@ -149,6 +187,19 @@ class TransactionUnsignedTest : FunSpec({
                 data = Bytes("0x1214abcdef12445980"),
                 chainId = 1L,
                 accessList = accessList,
+            ),
+            TxBlob(
+                to = Address("0xF0109fC8DF283027b6285cc889F5aA624EaC1F55"),
+                value = "1000000000".toBigInteger(),
+                nonce = 12425132,
+                gas = 2000000,
+                gasFeeCap = "210000000000".toBigInteger(),
+                gasTipCap = "21000000000".toBigInteger(),
+                data = Bytes("0x1214abcdef12445980"),
+                chainId = 1L,
+                accessList = accessList,
+                blobFeeCap = "21000000000".toBigInteger(),
+                blobVersionedHashes = listOf(Hash.ZERO),
             ),
         ) { tx ->
             val encoder = RlpEncoder()

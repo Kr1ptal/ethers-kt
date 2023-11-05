@@ -34,7 +34,8 @@ class TransactionSigned @JvmOverloads constructor(
     override val hash: Hash
         get() {
             if (_hash == null) {
-                _hash = Hash(Hashing.keccak256(toRlp()))
+                val hashRlp = RlpEncoder().also { rlpEncode(it, true) }.toByteArray()
+                _hash = Hash(Hashing.keccak256(hashRlp))
             }
             return _hash!!
         }
@@ -45,7 +46,7 @@ class TransactionSigned @JvmOverloads constructor(
     override val from: Address
         get() {
             if (_from == null) {
-                if (!hasValidSignature) {
+                if (!isSignatureValid) {
                     throw IllegalStateException("Unable to recover sender, invalid signature")
                 }
             }
@@ -58,7 +59,7 @@ class TransactionSigned @JvmOverloads constructor(
     val fromOrNull: Address?
         get() {
             if (_from == null) {
-                if (!hasValidSignature) {
+                if (!isSignatureValid) {
                     return null
                 }
             }
@@ -68,8 +69,7 @@ class TransactionSigned @JvmOverloads constructor(
     /**
      * Check if transaction has a valid signature by trying to recover signer address from signature hash.
      */
-    @get:JvmName("hasValidSignature")
-    val hasValidSignature: Boolean
+    val isSignatureValid: Boolean
         get() {
             if (_isValidSignature == -1) {
                 val from = signature.recoverFromHash(tx.signatureHash())
@@ -102,15 +102,34 @@ class TransactionSigned @JvmOverloads constructor(
         return "TransactionSigned(tx=$tx, signature=$signature)"
     }
 
-    override fun rlpEncode(rlp: RlpEncoder) {
+    override fun rlpEncode(rlp: RlpEncoder) = rlpEncode(rlp, false)
+
+    private fun rlpEncode(rlp: RlpEncoder, hashEncoding: Boolean) {
         // non-legacy txs are enveloped based on eip2718
         if (tx.type != TxType.LEGACY) {
             rlp.appendRaw(tx.type.value.toByte())
         }
 
         rlp.encodeList {
-            tx.rlpEncodeFields(this)
-            signature.rlpEncode(this)
+            // If blob tx has sidecar, encode as network encoding - but only if not encoding for hash. For hash, we use
+            // canonical encoding.
+            //
+            // Network encoding: 'type || rlp([tx_payload_body, blobs, commitments, proofs])'
+            // Canonical encoding: 'type || rlp(tx_payload_body)', where 'tx_payload_body' is a list of tx fields with
+            // signature values.
+            //
+            // See: https://eips.ethereum.org/EIPS/eip-4844#networking
+            if (!hashEncoding && tx.type == TxType.BLOB && (tx as TxBlob).sidecar != null) {
+                rlp.encodeList {
+                    tx.rlpEncodeFields(this)
+                    signature.rlpEncode(this)
+                }
+
+                tx.sidecar!!.rlpEncode(this)
+            } else {
+                tx.rlpEncodeFields(this)
+                signature.rlpEncode(this)
+            }
         }
     }
 
@@ -118,28 +137,10 @@ class TransactionSigned @JvmOverloads constructor(
         @JvmStatic
         override fun rlpDecode(rlp: RlpDecoder): TransactionSigned? {
             val type = rlp.peekByte().toUByte().toInt()
-            return when {
-                type == TxType.ACCESS_LIST.value -> {
-                    rlp.readByte()
 
-                    rlp.decodeList {
-                        val tx = TxAccessList.rlpDecode(rlp)
-                        val signature = rlp.decode(Signature) ?: return null
-                        TransactionSigned(tx, signature)
-                    }
-                }
-
-                type == TxType.DYNAMIC_FEE.value -> {
-                    rlp.readByte()
-
-                    rlp.decodeList {
-                        val tx = TxDynamicFee.rlpDecode(rlp)
-                        val signature = rlp.decode(Signature) ?: return null
-                        TransactionSigned(tx, signature)
-                    }
-                }
-
-                type >= 0xc0 -> rlp.decodeList {
+            // legacy tx
+            if (type >= 0xc0) {
+                return rlp.decodeList {
                     val nonce = rlp.decodeLong()
                     val gasPrice = rlp.decodeBigInteger() ?: BigInteger.ZERO
                     val gas = rlp.decodeLong()
@@ -164,8 +165,58 @@ class TransactionSigned @JvmOverloads constructor(
 
                     TransactionSigned(tx, signature)
                 }
+            }
 
-                else -> null
+            return when (TxType.findOrNull(type)) {
+                TxType.LEGACY -> throw IllegalStateException("Should not happen")
+                TxType.ACCESS_LIST -> {
+                    rlp.readByte()
+
+                    rlp.decodeList {
+                        val tx = TxAccessList.rlpDecode(rlp)
+                        val signature = rlp.decode(Signature) ?: return null
+                        TransactionSigned(tx, signature)
+                    }
+                }
+
+                TxType.DYNAMIC_FEE -> {
+                    rlp.readByte()
+
+                    rlp.decodeList {
+                        val tx = TxDynamicFee.rlpDecode(rlp)
+                        val signature = rlp.decode(Signature) ?: return null
+                        TransactionSigned(tx, signature)
+                    }
+                }
+
+                TxType.BLOB -> {
+                    rlp.readByte()
+
+                    rlp.decodeList {
+                        val isNetworkEncoding = rlp.isNextElementList()
+                        if (!isNetworkEncoding) {
+                            val tx = TxBlob.rlpDecode(rlp) ?: return null
+                            val signature = rlp.decode(Signature) ?: return null
+
+                            TransactionSigned(tx, signature)
+                        } else {
+                            // see: https://eips.ethereum.org/EIPS/eip-4844#networking
+                            lateinit var tx: TxBlob
+                            lateinit var signature: Signature
+                            rlp.decodeList {
+                                tx = TxBlob.rlpDecode(rlp) ?: return null
+                                signature = rlp.decode(Signature) ?: return null
+                            }
+
+                            val sidecar = rlp.decode(TxBlob.Sidecar) ?: return null
+
+                            // TODO avoid creating a copy just with sidecar
+                            TransactionSigned(tx.copy(sidecar = sidecar), signature)
+                        }
+                    }
+                }
+
+                null -> null
             }
         }
     }

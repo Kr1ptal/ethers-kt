@@ -69,22 +69,32 @@ sealed interface TransactionUnsigned : Transaction {
          */
         fun rlpDecode(rlp: RlpDecoder, chainId: Long): TransactionUnsigned? {
             val type = rlp.peekByte().toUByte().toInt()
-            val ret = when {
-                type == TxType.ACCESS_LIST.value -> {
+
+            // legacy tx
+            if (type >= 0xc0) {
+                return rlp.decodeList { TxLegacy.rlpDecode(rlp, chainId).also { dropEmptyRSV() } }
+            }
+
+            return when (TxType.findOrNull(type)) {
+                TxType.LEGACY -> throw IllegalStateException("Should not happen")
+
+                TxType.ACCESS_LIST -> {
                     rlp.readByte()
                     rlp.decodeList { TxAccessList.rlpDecode(rlp).also { dropEmptyRSV() } }
                 }
 
-                type == TxType.DYNAMIC_FEE.value -> {
+                TxType.DYNAMIC_FEE -> {
                     rlp.readByte()
                     rlp.decodeList { TxDynamicFee.rlpDecode(rlp).also { dropEmptyRSV() } }
                 }
 
-                type >= 0xc0 -> rlp.decodeList { TxLegacy.rlpDecode(rlp, chainId).also { dropEmptyRSV() } }
-                else -> null
-            }
+                TxType.BLOB -> {
+                    rlp.readByte()
+                    rlp.decodeList { TxBlob.rlpDecode(rlp).also { dropEmptyRSV() } }
+                }
 
-            return ret
+                null -> null
+            }
         }
 
         // Decode and ignore empty r, s, v signature fields

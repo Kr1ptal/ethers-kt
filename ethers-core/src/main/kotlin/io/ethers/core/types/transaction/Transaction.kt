@@ -30,6 +30,9 @@ interface Transaction {
     val chainId: Long
     val accessList: List<AccessList.Item>?
     val type: TxType
+    val blobFeeCap: BigInteger?
+    val blobVersionedHashes: List<Hash>?
+    val blobGas: Long
 }
 
 /**
@@ -39,6 +42,21 @@ enum class TxType(val value: Int) {
     LEGACY(0x0),
     ACCESS_LIST(0x1),
     DYNAMIC_FEE(0x2),
+    BLOB(0x3),
+    ;
+
+    companion object {
+        // optimization to avoid allocating an iterator
+        fun findOrNull(value: Int): TxType? {
+            for (i in entries.indices) {
+                val entry = entries[i]
+                if (entry.value == value) {
+                    return entry
+                }
+            }
+            return null
+        }
+    }
 }
 
 object ChainId {

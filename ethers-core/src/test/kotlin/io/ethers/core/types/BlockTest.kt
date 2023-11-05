@@ -254,6 +254,9 @@ class BlockTest : FunSpec({
                     v = 38L,
                     r = BigInteger("95546998719565769459668967071015181532151001694673704956264532570756523618244"),
                     s = BigInteger("40051673859117113248116558288385057013128832480810174174673686209253214644924"),
+                    yParity = -1,
+                    blobVersionedHashes = null,
+                    blobFeeCap = null,
                     otherFields = mapOf(
                         "test_tx" to Jackson.MAPPER.readTree("""{"k1_tx":"v1_tx","k2_tx":"v2_tx"}"""),
                     ),
