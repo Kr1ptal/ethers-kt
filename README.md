@@ -121,6 +121,7 @@ This library has been made possible thanks to the inspiration provided by the fo
 
 - [web3j](https://github.com/web3j/web3j)
 - [ethers-rs](https://github.com/gakonst/ethers-rs)
+- [reth](https://github.com/paradigmxyz/reth)
 - [ethers-js](https://github.com/ethers-io/ethers.js/)
 
 ----------------------

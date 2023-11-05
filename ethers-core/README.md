@@ -22,6 +22,7 @@ Transaction
   │      ├── TxDynamicFee
   │      └── TxLegacy
   └── TransactionRecovered
+     ├── RPCTransaction
      └── TransactionSigned
 ```
 
@@ -47,6 +48,7 @@ The structure of transactions is defined by the following hierarchy:
 
 - `TransactionRecovered` contains the recovered `from` address and transaction `hash` fields, without the signature.
 
+    - `RPCTransaction` also contains the `r`, `s`, `v` fields, and is a type used for block/rpc transactions.
     - `TransactionSigned` also has a valid signature, and is used to send transactions.
 
 ## 💻 Code Examples
