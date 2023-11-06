@@ -32,23 +32,33 @@ under [Releases](https://github.com/Kr1ptal/ethers-kt/releases).
 It's recommended to define BOM platform dependency to ensure that ethers-kt artifacts are compatible with each other.
 
 ```kotlin
+plugins {
+  id("io.kriptal.ethers.abigen-plugin") version "0.1.0"
+}
+
+// default values
+ethersAbigen {
+  directorySource("src/main/abi")
+  outputDir = "generated/source/ethers/main/kotlin"
+}
+
 // Define a maven repository where the library is published
 repositories {
-    mavenCentral()
+  mavenCentral()
 
-    // for snapshot versions, use the following repository
-    //maven { url = uri("https://s01.oss.sonatype.org/content/repositories/snapshots/") }
+  // for snapshot versions, use the following repository
+  //maven { url = uri("https://s01.oss.sonatype.org/content/repositories/snapshots/") }
 }
 
 dependencies {
-    // Define a BOM and its version
-    implementation(platform("io.kriptal.ethers:ethers-bom:0.1.0"))
+  // Define a BOM and its version
+  implementation(platform("io.kriptal.ethers:ethers-bom:0.1.0"))
 
-    // Define any required artifacts without version
-    implementation("io.kriptal.ethers:ethers-abi")
-    implementation("io.kriptal.ethers:ethers-core")
-    implementation("io.kriptal.ethers:ethers-providers")
-    implementation("io.kriptal.ethers:ethers-signers")
+  // Define any required artifacts without version
+  implementation("io.kriptal.ethers:ethers-abi")
+  implementation("io.kriptal.ethers:ethers-core")
+  implementation("io.kriptal.ethers:ethers-providers")
+  implementation("io.kriptal.ethers:ethers-signers")
 }
 ```
 
