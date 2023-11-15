@@ -37,7 +37,7 @@ val (blockNum2, txpoolStatus) = batchRequest(
 
 Once the request is sent, the result is returned via `RpcResponse` class, which wraps either the result of the call, or
 any errors that happened while processing it. This means that an RPC request never throws an exception, and leaves it
-up to the consumer to decide how to handle errors. All errors implement the `RpcRequest.Error` type, and each service
+up to the consumer to decide how to handle errors. All errors implement the `RpcResponse.Error` type, and each service
 can implement its own subclasses, containing custom data specific to the failure. This allows you to have fine-grained
 control over how your application reacts to errors:
 
