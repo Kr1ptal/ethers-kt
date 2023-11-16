@@ -1,17 +1,13 @@
 plugins {
     id("java")
     kotlin("jvm") version "1.9.20"
+    // abigen-plugin is used for automatic generation of contract wrappers from JSON-ABI on project build.
+    // See documentation for default source for ABI files and output of contract wrappers
     id("io.kriptal.ethers.abigen-plugin") version "0.1.0"
 }
 
 group = "io.ethers"
 version = "1.0-SNAPSHOT"
-
-// default values
-ethersAbigen {
-    directorySource("src/main/abi")
-    outputDir = "generated/source/ethers/main/kotlin"
-}
 
 // Define a maven repository where the library is published
 repositories {
