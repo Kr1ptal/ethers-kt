@@ -63,16 +63,16 @@ if (result.isError) {
 
 ## PubSub Functionality
 
-The `PubSubClient` interface provides a way to subscribe to events on the blockchain. If the underlying transport
-of the `Provider` does not implement the `PubSubClient` interface, all subscription calls will fail with an exception.
-All `PubSubClient` implementations automatically reconnect on connection drop and resubscribe to all active
+The `JsonPubSubClient` interface provides a way to subscribe to events on the blockchain. If the underlying transport
+of the `Provider` does not implement the `JsonPubSubClient` interface, all subscription calls will fail with an exception.
+All `JsonPubSubClient` implementations automatically reconnect on connection drop and resubscribe to all active
 subscriptions transparently.
 
 The returned `SubscriptionStream` is blocking by default. This means that **iteration will block the calling thread**.
 In case you want to process the stream asynchronously, you can use the `forEachAsync` function, which will spawn a new
 thread in the background. You can pass a custom thread factory to this method, for example to spawn a virtual thread.
 
-In case the underlying transport does implement the `PubSubClient` interface, there are also `watch`-prefixed functions
+In case the underlying transport does implement the `JsonPubSubClient` interface, there are also `watch`-prefixed functions
 which mimic the behavior of subscriptions, but instead create a filter on the server, which is polled intermittently for
 new values.
 
