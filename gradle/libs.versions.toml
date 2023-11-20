@@ -1,7 +1,7 @@
 [versions]
 kotlin = "1.9.20"
 jacoco-tool = "0.8.11"
-log4j2 = "2.21.1"
+log4j2 = "2.22.0"
 jackson = "2.16.0"
 eclipse-collections = "11.1.0"
 junit = "5.10.1"
