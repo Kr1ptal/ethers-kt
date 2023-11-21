@@ -22,6 +22,9 @@ repositories {
 }
 
 dependencies {
+    // ArgParser
+    implementation("org.jetbrains.kotlinx:kotlinx-cli:0.3.6")
+
     // Define a BOM and its version
     implementation(platform("io.kriptal.ethers:ethers-bom:0.1.0"))
 
