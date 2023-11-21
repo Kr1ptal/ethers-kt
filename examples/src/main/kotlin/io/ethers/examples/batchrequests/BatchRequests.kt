@@ -14,7 +14,8 @@ import java.math.BigDecimal
 import java.math.BigInteger
 
 /**
- * On each block batch request USDC / ETH price from a Uniswap V2 and Sushiswap pool and calculate the difference between them.
+ * Demonstrating request batching for pool reserves retrieval on various DEXes, showcasing both consolidated and
+ * manual batching methods.
  */
 fun main() {
     // Init provider
@@ -31,7 +32,7 @@ fun main() {
     var uniWethPrice: BigDecimal
     var sushiWethPrice: BigDecimal
 
-    // Simplified request batching
+    // Consolidated request batching
     var (uniReserves, sushiReserves) = batchRequest(
         uniPool.getReserves().call(BlockId.LATEST),
         sushiPool.getReserves().call(BlockId.LATEST),
