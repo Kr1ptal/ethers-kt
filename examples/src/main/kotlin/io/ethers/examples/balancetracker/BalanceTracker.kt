@@ -61,7 +61,7 @@ private val TOKEN_LIST = listOf(
 class BalanceTracker(
     httpRpcUrl: String,
     wsRpcUrl: String,
-    val address: Address
+    private val address: Address
 ) {
     // Init providers
     private val httpClient = HttpClient(httpRpcUrl)
@@ -166,7 +166,7 @@ fun displayTokenBalances(balances: HashMap<String, BigDecimal>) {
 
 fun main(args: Array<String>) {
     // Parse input arguments
-    val argParser = ArgParser("TransferERC20")
+    val argParser = ArgParser("BalanceTracker")
     val httpRpc by argParser.option(ArgType.String, description = "HTTP RPC URL")
         .default("https://ethereum.publicnode.com")
     val wsRpc by argParser.option(ArgType.String, description = "WS RPC URL")
