@@ -4,8 +4,8 @@ import UniswapV2Pair
 import io.ethers.core.types.Address
 import io.ethers.core.types.BlockId
 import io.ethers.examples.ConstantsMainnet
+import io.ethers.providers.HttpClient
 import io.ethers.providers.Provider
-import io.ethers.providers.WsClient
 import io.ethers.providers.types.BatchRpcRequest
 import io.ethers.providers.types.await
 import io.ethers.providers.types.batchRequest
@@ -19,7 +19,7 @@ import java.math.BigInteger
  */
 fun main() {
     // Init provider
-    val httpClient = WsClient(ConstantsMainnet.HTTP_URL)
+    val httpClient = HttpClient(ConstantsMainnet.HTTP_URL)
     val httpProvider = Provider(httpClient)
 
     val uniPoolAddr = Address("0xb4e16d0168e52d35cacd2c6185b44281ec28c9dc") // Uniswap V2 USDC/WETH
@@ -77,7 +77,6 @@ fun main() {
     } else {
         throw Exception("Batch did not execute successfully")
     }
-    httpClient.close()
 }
 
 // Convert wei to units with specific decimal places
