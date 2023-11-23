@@ -2,47 +2,76 @@ package io.ethers.examples.functionselectors
 
 import UniswapV2Router02
 import io.ethers.abi.AbiFunction
-import io.ethers.examples.ConstantsMainnet
+import io.ethers.core.FastHex
 import io.ethers.providers.Provider
 import io.ethers.providers.WsClient
+import kotlinx.cli.ArgParser
+import kotlinx.cli.ArgType
+import kotlinx.cli.default
 
 /**
- * Here we search for all transactions for specific function selector, starting from the most recent block
+ * Searching for all transactions with specific function selector, starting from the most recent block.
+ * We get function selector in two ways: from ABI smart contract wrapper and manually from function signature.
  */
-fun main() {
-    // Initialize provider for subscription and for sending transactions
-    val wsClient = WsClient(ConstantsMainnet.WS_URL)
-    val wsProvider = Provider(wsClient)
+class FunctionSelectors(
+    wsRpcUrl: String,
+    private val abiFunction: AbiFunction,
+    private val functionSignature: String,
+    private val maxBlocks: Int
+    ) {
+    // Initialize provider
+    private val wsClient = WsClient(wsRpcUrl)
+    private val wsProvider = Provider(wsClient)
+    fun run() {
+        // Get current block number
+        val blockNumber = wsProvider.getBlockNumber().sendAwait().resultOrThrow()
 
-    val blockNumber = wsProvider.getBlockNumber().sendAwait().resultOrThrow()
-    val maxBlocks = 5 // how many blocks to search
+        // Function selector obtained from smart contract wrapper
+        val wrapperSelector = abiFunction.selector
 
-    // Function selector obtained from smart contract wrapper
-    println("Searching for transactions with selector from SC wrapper...")
-    val wrapperSelector = UniswapV2Router02.FUNCTION_SWAP_EXACT_TOKENS_FOR_TOKENS.selector
+        // Function selector obtained manually from function signature
+        val abiFunction = AbiFunction.parseSignature(functionSignature)
 
-    var blockCounter = blockNumber
-    while (blockCounter >= blockNumber - maxBlocks) {
-        val block = wsProvider.getBlockWithTransactions(blockCounter).sendAwait().resultOrThrow()
-        block.transactions
-            .filter { it.data != null && it.data!!.startsWith(wrapperSelector) }
-            .forEach { println("block: $blockCounter, tx: ${it.hash}") }
-        blockCounter--
+        println("Searching for selector from SC wrapper: ${FastHex.encodeWithPrefix(wrapperSelector)}")
+        println("Searching for selector from signature:  ${FastHex.encodeWithPrefix(abiFunction.selector)}")
+        var blockCounter = blockNumber
+        while (blockCounter > blockNumber - maxBlocks) {
+            val block = wsProvider.getBlockWithTransactions(blockCounter).sendAwait().resultOrThrow()
+            println("Searching block: ${block.number}")
+
+            // # Searching for transactions with selector from SC wrapper
+            block.transactions
+                .filter { it.data != null && it.data!!.startsWith(wrapperSelector) }
+                .forEach { println("Tx with selector from SC wrapper: ${it.hash}") }
+
+            // # Searching for transactions manually from function signature
+            block.transactions
+                .filter { it.data != null && it.data!!.startsWith(abiFunction.selector) }
+                .forEach { println("Tx with selector from signature:  ${it.hash}") }
+            blockCounter--
+        }
+
+        wsClient.close()
     }
+}
 
+fun main(args: Array<String>) {
+    // Parse input arguments
+    val argParser = ArgParser("FunctionSelectors")
 
-    // Function selector obtained manually from function signature
-    println("Searching for transactions manually from function description...")
-    val signature = "swapExactTokensForTokens(uint256,uint256,address[],address,uint256)" // 0x38ed1739
-    val function = AbiFunction.parseSignature(signature)
+    val wsRpc by argParser.option(ArgType.String, description = "WS RPC URL")
+        .default("wss://ethereum.publicnode.com") // Mainnet WS url
+    val abiFunctionSignature by argParser.option(ArgType.String, description = "Function signature")
+        .default("swapExactTokensForTokens(uint256,uint256,address[],address,uint256)") // selector: 0x38ed1739
+    val maxBlocks by argParser.option(ArgType.String, description = "Max blocks - how many blocks to search")
+        .default("20")
 
-    blockCounter = blockNumber
-    while (blockCounter >= blockNumber - maxBlocks) {
-        val block = wsProvider.getBlockWithTransactions(blockCounter).sendAwait().resultOrThrow()
-        block.transactions
-            .filter { it.data != null && it.data!!.startsWith(function.selector) }
-            .forEach { println("block: $blockCounter, tx: ${it.hash}") }
-        blockCounter--
-    }
-    wsClient.close()
+    argParser.parse(args)
+
+    FunctionSelectors(
+        wsRpc,
+        UniswapV2Router02.FUNCTION_SWAP_EXACT_TOKENS_FOR_TOKENS,
+        abiFunctionSignature,
+        maxBlocks.toInt(),
+    ).run()
 }
