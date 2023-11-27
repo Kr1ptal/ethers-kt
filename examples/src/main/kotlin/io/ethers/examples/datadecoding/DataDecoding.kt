@@ -26,14 +26,14 @@ class DataDecoding(txInput: String) {
         Decoded transaction input from ABI:
             amountIn: ${autoDec[0]}
             amountOutMin: ${autoDec[1]}
-            path: [${(autoDec[2] as Array<*>)[0]}, ${(autoDec[2] as Array<*>)[1]}]
+            path: ${(autoDec[2] as Array<*>).contentToString()}
             to: ${autoDec[3]}
             deadline: ${autoDec[4]}
         
         Decoded transaction input from function signature:
             amountIn: ${manualDec[0]}
             amountOutMin: ${manualDec[1]}
-            path: [${(manualDec[2] as Array<*>)[0]}, ${(manualDec[2] as Array<*>)[1]}]
+            path: ${(manualDec[2] as Array<*>).contentToString()}
             to: ${manualDec[3]}
             deadline: ${manualDec[4]}
     """.trimIndent())
