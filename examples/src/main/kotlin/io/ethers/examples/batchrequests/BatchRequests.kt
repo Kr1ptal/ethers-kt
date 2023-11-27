@@ -42,8 +42,8 @@ class BatchRequests(
             sushiPool.getReserves().call(BlockId.LATEST),
         ).await().resultOrThrow()
 
-        uniWethPrice = formatUnits(uniReserves._reserve0, 6) / formatUnits(uniReserves._reserve1, 18)
-        sushiWethPrice = formatUnits(sushiReserves._reserve0, 6) / formatUnits(sushiReserves._reserve1, 18)
+        uniWethPrice = uniReserves._reserve0.toBigDecimal(6) / uniReserves._reserve1.toBigDecimal(18)
+        sushiWethPrice = sushiReserves._reserve0.toBigDecimal(6) / sushiReserves._reserve1.toBigDecimal(18)
 
         println("""
         Consolidated request batching:
@@ -64,10 +64,10 @@ class BatchRequests(
         if (batch.sendAwait()) {
             // success
             uniReserves = uniFuture.get().resultOrThrow()
-            uniWethPrice = formatUnits(uniReserves._reserve0, 6) / formatUnits(uniReserves._reserve1, 18)
+            uniWethPrice = uniReserves._reserve0.toBigDecimal(6) / uniReserves._reserve1.toBigDecimal(18)
 
             sushiReserves = sushiFuture.get().resultOrThrow()
-            sushiWethPrice = formatUnits(sushiReserves._reserve0, 6) / formatUnits(sushiReserves._reserve1, 18)
+            sushiWethPrice = sushiReserves._reserve0.toBigDecimal(6) / sushiReserves._reserve1.toBigDecimal(18)
 
             println("""
             Manual request batching:
@@ -80,12 +80,6 @@ class BatchRequests(
             throw Exception("Batch did not execute successfully")
         }
     }
-}
-
-// Convert wei to units with specific decimal places
-fun formatUnits(value: BigInteger, decimalPlaces: Int): BigDecimal {
-    val weiValue = BigDecimal(value)
-    return weiValue.scaleByPowerOfTen(-decimalPlaces)
 }
 
 fun main(args: Array<String>) {
