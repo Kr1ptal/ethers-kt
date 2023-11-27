@@ -1,10 +1,10 @@
 package io.ethers.examples.tokenswapwitheventlistening
 
-import UniswapV2Factory
-import UniswapV2Pair
-import UniswapV2Router02
 import io.ethers.core.types.Address
 import io.ethers.core.types.BlockId
+import io.ethers.examples.gen.UniswapV2Factory
+import io.ethers.examples.gen.UniswapV2Pair
+import io.ethers.examples.gen.UniswapV2Router02
 import io.ethers.providers.Provider
 import io.ethers.providers.WsClient
 import io.ethers.signers.PrivateKeySigner
