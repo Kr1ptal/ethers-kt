@@ -21,10 +21,9 @@ class TransferERC20(
     private val amount: BigInteger,
     rpcUrl: String,
 ) {
-    private val httpClient = HttpClient(rpcUrl)
-    private val provider = Provider(httpClient)
-
+    private val provider = Provider(HttpClient(rpcUrl))
     private val signer = PrivateKeySigner(privateKey)
+
     fun run() {
         // Initialise token contract
         val token = ERC20(provider, Address(tokenAddress))
