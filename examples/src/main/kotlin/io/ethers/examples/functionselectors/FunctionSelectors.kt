@@ -1,8 +1,8 @@
 package io.ethers.examples.functionselectors
 
-import UniswapV2Router02
 import io.ethers.abi.AbiFunction
 import io.ethers.core.FastHex
+import io.ethers.examples.gen.UniswapV2Router02
 import io.ethers.providers.Provider
 import io.ethers.providers.WsClient
 import kotlinx.cli.ArgParser
