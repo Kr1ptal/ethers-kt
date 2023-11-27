@@ -17,8 +17,8 @@ class FunctionSelectors(
     wsRpcUrl: String,
     private val abiFunction: AbiFunction,
     private val functionSignature: String,
-    private val maxBlocks: Int
-    ) {
+    private val maxBlocks: Int,
+) {
     // Initialize provider
     private val wsClient = WsClient(wsRpcUrl)
     private val wsProvider = Provider(wsClient)

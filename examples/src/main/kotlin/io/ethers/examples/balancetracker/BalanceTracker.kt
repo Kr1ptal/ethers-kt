@@ -5,7 +5,6 @@ import io.ethers.core.types.BlockId
 import io.ethers.examples.gen.ERC20
 import io.ethers.providers.Provider
 import io.ethers.providers.WsClient
-import io.ethers.providers.types.RpcRequest
 import io.ethers.providers.types.sendAwait
 import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
@@ -16,7 +15,6 @@ import java.math.BigInteger
 /**
  * Monitoring of ETH balance and balance of list of ERC20 tokens for a given address, using manual request batching.
  */
-
 
 class BalanceTracker(
     private val address: Address,
@@ -77,9 +75,9 @@ fun main(args: Array<String>) {
     val tokenList by argParser.option(ArgType.String, description = "Observed token list, separated by ','")
         .default(
             "0xff56Cc6b1E6dEd347aA0B7676C85AB0B3D08B0FA," +
-                    "0xfe9A29aB92522D14Fc65880d817214261D8479AE," +
-                    "0xfc05987bd2be489ACCF0f509E44B0145d68240f7," +
-                    "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+                "0xfe9A29aB92522D14Fc65880d817214261D8479AE," +
+                "0xfc05987bd2be489ACCF0f509E44B0145d68240f7," +
+                "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
         )
 
     argParser.parse(args)

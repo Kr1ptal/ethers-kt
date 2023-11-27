@@ -26,7 +26,7 @@ class TokenSwapWithEventListening(
     private val tokenAddress: String,
     private val ethAmount: BigInteger,
 
-    ) {
+) {
     // Init provider for swap and subscription
     private val wsClient = WsClient(wsRpcUrl)
     private val provider = Provider(wsClient)

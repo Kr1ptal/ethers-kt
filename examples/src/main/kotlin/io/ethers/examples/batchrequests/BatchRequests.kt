@@ -44,12 +44,13 @@ class BatchRequests(
         uniWethPrice = uniReserves._reserve0.toBigDecimal(6) / uniReserves._reserve1.toBigDecimal(18)
         sushiWethPrice = sushiReserves._reserve0.toBigDecimal(6) / sushiReserves._reserve1.toBigDecimal(18)
 
-        println("""
+        println(
+            """
         Consolidated request batching:
         WETH price on Uniswap: $uniWethPrice USDC
         WETH price on Sushiswap: $sushiWethPrice USDC
         Price difference: ${(uniWethPrice - sushiWethPrice).abs()} USDC
-        """.trimIndent() + '\n'
+            """.trimIndent() + '\n',
         )
 
         // Manual request batching
@@ -68,12 +69,13 @@ class BatchRequests(
             sushiReserves = sushiFuture.get().resultOrThrow()
             sushiWethPrice = sushiReserves._reserve0.toBigDecimal(6) / sushiReserves._reserve1.toBigDecimal(18)
 
-            println("""
+            println(
+                """
             Manual request batching:
             WETH price on Uniswap: $uniWethPrice USDC
             WETH price on Sushiswap: $sushiWethPrice USDC
             Price difference: ${(uniWethPrice - sushiWethPrice).abs()} USDC
-            """.trimIndent()
+                """.trimIndent(),
             )
         } else {
             throw Exception("Batch did not execute successfully")
