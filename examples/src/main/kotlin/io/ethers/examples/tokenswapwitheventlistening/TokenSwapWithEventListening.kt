@@ -5,7 +5,6 @@ import UniswapV2Pair
 import UniswapV2Router02
 import io.ethers.core.types.Address
 import io.ethers.core.types.BlockId
-import io.ethers.providers.HttpClient
 import io.ethers.providers.Provider
 import io.ethers.providers.WsClient
 import io.ethers.signers.PrivateKeySigner
@@ -23,7 +22,6 @@ class TokenSwapWithEventListening(
     privateKey: String,
     routerAddress: String,
     wsRpcUrl: String,
-    httpRpcUrl: String,
     private val wethAddress: String,
     private val tokenAddress: String,
     private val ethAmount: BigInteger,
@@ -31,18 +29,14 @@ class TokenSwapWithEventListening(
     ) {
     // Init provider for swap and subscription
     private val wsClient = WsClient(wsRpcUrl)
-    private val wsProvider = Provider(wsClient)
-    private val httpClient = HttpClient(httpRpcUrl)
-    private val httpProvider = Provider(httpClient)
-
-    // Init wallet
+    private val provider = Provider(wsClient)
     private val signer = PrivateKeySigner(privateKey)
+    private val router = UniswapV2Router02(provider, Address(routerAddress))
 
-    private val router = UniswapV2Router02(httpProvider, Address(routerAddress))
     fun run() {
         // Get pool address via factory
         val factoryAddress = router.factory().call(BlockId.LATEST).sendAwait().resultOrThrow()
-        val pairAddress = UniswapV2Factory(wsProvider, factoryAddress)
+        val pairAddress = UniswapV2Factory(provider, factoryAddress)
             .getPair(Address(wethAddress), Address(tokenAddress))
             .call(BlockId.LATEST)
             .sendAwait()
@@ -57,7 +51,7 @@ class TokenSwapWithEventListening(
         // It is also possible to filter based on topics and block numbers
         println("Listening for Sync events on pair: $pairAddress")
         val stream = UniswapV2Pair.Sync
-            .filter(wsProvider)
+            .filter(provider)
             .address(pairAddress)
             .subscribe()
             .sendAwait()
@@ -82,6 +76,8 @@ class TokenSwapWithEventListening(
         println("Wait for transaction: ${pendingTx.hash} to be included in a block...")
         val receipt = pendingTx.awaitInclusion(retries = 10).resultOrThrow()
         println("Buy tx ${receipt.transactionHash} was included in block ${receipt.blockNumber}")
+
+        // We don't close the wsClient to keep listening to events
     }
 }
 
@@ -90,10 +86,8 @@ fun main(args: Array<String>) {
     val argParser = ArgParser("TokenSwapWithEventListening")
 
     val privateKey by argParser.option(ArgType.String, description = "Private key").required()
-    val httpRpc by argParser.option(ArgType.String, description = "HTTP RPC URL")
-        .default("https://ethereum-goerli.publicnode.com") // Goerli HTTP url
-    val wsRpc by argParser.option(ArgType.String, description = "WS RPC URL")
-        .default("wss://ethereum-goerli.publicnode.com") // Goerli WS url
+    // Problems with public ws rpc - use your own
+    val wsRpc by argParser.option(ArgType.String, description = "WS RPC URL").required() // Goerli WS Rpc
     val routerAddress by argParser.option(ArgType.String, description = "Uniswap V2 Router address")
         .default("0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D")
     val wethAddress by argParser.option(ArgType.String, description = "WETH address")
@@ -109,7 +103,6 @@ fun main(args: Array<String>) {
         privateKey,
         routerAddress,
         wsRpc,
-        httpRpc,
         wethAddress,
         tokenAddress,
         ethAmount.toBigInteger(),
