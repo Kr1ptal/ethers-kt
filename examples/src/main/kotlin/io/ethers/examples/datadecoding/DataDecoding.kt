@@ -1,9 +1,9 @@
 package io.ethers.examples.datadecoding
 
-import UniswapV2Router02
 import io.ethers.abi.AbiCodec
 import io.ethers.abi.AbiFunction
 import io.ethers.core.types.Bytes
+import io.ethers.examples.gen.UniswapV2Router02
 import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
 import kotlinx.cli.default
