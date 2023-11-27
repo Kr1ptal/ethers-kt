@@ -15,6 +15,10 @@ ktlint {
         reporter(ReporterType.SARIF)
     }
 
+    filter {
+        exclude { it.file.path.contains(layout.buildDirectory.dir("generated").get().toString()) }
+    }
+
     // format of rule keys defined at: https://pinterest.github.io/ktlint/1.0.1/rules/configuration-ktlint/#disabled-rules
     additionalEditorconfig.set(
         mapOf(
