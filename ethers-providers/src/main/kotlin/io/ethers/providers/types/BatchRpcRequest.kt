@@ -12,10 +12,10 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) {
     private val batchSent = AtomicBoolean(false)
 
     private val _requests = ArrayList<RpcCall<*>>(defaultSize)
-    val requests: List<RpcCall<*>> get() = _requests
+    internal val requests: List<RpcCall<*>> get() = _requests
 
     private val _responses = ArrayList<CompletableFuture<RpcResponse<*>>>(defaultSize)
-    val responses: List<CompletableFuture<RpcResponse<*>>> get() = _responses
+    internal val responses: List<CompletableFuture<RpcResponse<*>>> get() = _responses
 
     private var client: JsonRpcClient? = null
 
@@ -131,14 +131,15 @@ fun <T> Iterable<RpcRequest<out T>>.sendAsync(): BatchResponseAsync<T> {
         return BatchResponseAsync(emptyList())
     }
 
+    val futures = ArrayList<CompletableFuture<RpcResponse<T>>>()
     val batch = BatchRpcRequest()
     while (iter.hasNext()) {
-        iter.next().batch(batch)
+        futures.add(iter.next().batch(batch) as CompletableFuture<RpcResponse<T>>)
     }
 
     batch.sendAsync()
 
-    return BatchResponseAsync(batch.responses as List<CompletableFuture<RpcResponse<T>>>)
+    return BatchResponseAsync(futures)
 }
 
 // Zero-cost typed response classes to provide specialized "component" operators. In case it's used as a different type
