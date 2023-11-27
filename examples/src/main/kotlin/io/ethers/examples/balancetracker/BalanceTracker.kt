@@ -3,17 +3,13 @@ package io.ethers.examples.balancetracker
 import ERC20
 import io.ethers.core.types.Address
 import io.ethers.core.types.BlockId
-import io.ethers.providers.HttpClient
 import io.ethers.providers.Provider
 import io.ethers.providers.WsClient
-import io.ethers.providers.types.BatchRpcRequest
-import io.ethers.providers.types.RpcResponse
 import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
 import kotlinx.cli.default
-import java.math.BigDecimal
+import kotlinx.cli.required
 import java.math.BigInteger
-import java.util.concurrent.CompletableFuture
 
 /**
  * Monitoring of ETH balance and balance of list of ERC20 tokens for a given address, using manual request batching.
@@ -59,31 +55,36 @@ private val TOKEN_LIST = listOf(
 )
 
 class BalanceTracker(
-    httpRpcUrl: String,
     wsRpcUrl: String,
     private val address: Address
 ) {
     // Init providers
-    private val httpClient = HttpClient(httpRpcUrl)
-    private val httpProvider = Provider(httpClient)
     private val wsClient = WsClient(wsRpcUrl)
-    private val wsProvider = Provider(wsClient)
+    private val provider = Provider(wsClient)
 
-    // Stored token balances
-    private lateinit var tokenBalances: HashMap<String, BigDecimal>
     fun run() {
-        val decimals = getTokenDecimals(TOKEN_LIST, httpProvider)
-        val balances = getTokenBalances(address, TOKEN_LIST, decimals, httpProvider)
-        println("Balances for block ${httpProvider.getBlockNumber().sendAwait().resultOrThrow()}")
-        displayTokenBalances(balances)
+        val tokens = TOKEN_LIST.map { ERC20(provider, Address(it)) }
 
-        // Problematic for some public ws nodes
+        // Get symbols and decimals for each token
+        val symbols = tokens.map { it.symbol().call(BlockId.LATEST).sendAwait().resultOrThrow() }
+        val decimals = tokens.map { it.decimals().call(BlockId.LATEST).sendAwait().resultOrThrow() }
+
+        // Get balances for ETH and each token
+        var balanceEth = provider.getBalance(address, BlockId.LATEST).sendAwait().resultOrThrow()
+        var balances = tokens.map { it.balanceOf(address).call(BlockId.LATEST).sendAwait().resultOrThrow() }
+
+        println("Balances for block ${provider.getBlockNumber().sendAwait().resultOrThrow()}")
+        println("ETH - ${balanceEth.toBigDecimal(18).toPlainString()}")
+        displayTokenBalances(symbols, decimals, balances)
+
         // For each new block, update token balances and display them
-        val stream = wsProvider.subscribeNewHeads().sendAwait().resultOrThrow()
-        stream.forEach {
-            println("\nBalances for block ${it.number}")
-            tokenBalances = getTokenBalances(address, TOKEN_LIST, decimals, httpProvider)
-            displayTokenBalances(tokenBalances)
+        provider.subscribeNewHeads().sendAwait().resultOrThrow().forEach { head ->
+            balanceEth = provider.getBalance(address, BlockId.LATEST).sendAwait().resultOrThrow()
+            balances = tokens.map { it.balanceOf(address).call(BlockId.LATEST).sendAwait().resultOrThrow() }
+
+            println("\nBalances for block ${head.number}")
+            println("ETH - ${balanceEth.toBigDecimal(18).toPlainString()}")
+            displayTokenBalances(symbols, decimals, balances)
         }
 
         // Close web socket client
@@ -91,91 +92,25 @@ class BalanceTracker(
     }
 }
 
-fun getTokenDecimals(tokenList: List<String>, provider: Provider): HashMap<String, BigInteger> {
-    val decimals = hashMapOf<String, BigInteger>()
-    val responses = hashMapOf<String, CompletableFuture<RpcResponse<BigInteger>>>()
-
-    // Init batch
-    val batch = BatchRpcRequest()
-
-    tokenList.forEach {
-        // Init ERC20 contract
-        val erc20 = ERC20(provider, Address(it))
-
-        // Init "decimals" RpcRequest and store it in responses
-        responses[it] = erc20.decimals().call(BlockId.LATEST).batch(batch)
+private fun displayTokenBalances(symbols: List<String>, decimals: List<BigInteger>, balances: List<BigInteger>) {
+    balances.forEachIndexed { i, balance ->
+        val symbol = symbols[i]
+        val scaled = balance.toBigDecimal(decimals[i].toInt())
+        println("$symbol - ${scaled.toPlainString()}")
     }
-
-    if (batch.sendAwait()) {
-        responses.forEach { (addr, future) ->
-            // Unwrap each response representing token decimal and store it in decimals
-            decimals[addr] = future.get().resultOrThrow()
-        }
-    } else {
-        throw Exception("Batch did not execute successfully")
-    }
-
-    return decimals
-}
-
-fun getTokenBalances(
-    address: Address,
-    tokenList: List<String>,
-    decimals: HashMap<String, BigInteger>,
-    provider: Provider
-): HashMap<String, BigDecimal> {
-    val balances = hashMapOf<String, BigDecimal>()
-    val responses = hashMapOf<String, CompletableFuture<RpcResponse<BigInteger>>>()
-
-    // Init batch
-    val batch = BatchRpcRequest()
-
-    // The first request is ETH balance
-    responses["ETH"] = provider.getBalance(address, BlockId.LATEST).batch(batch)
-
-    // Other requests are balances for tokens
-    tokenList.forEach {
-        // Init ERC20 contract
-        val erc20 = ERC20(provider, Address(it))
-        // Init "balanceOf" RpcRequest and store it in responses
-        responses[it] = erc20.balanceOf(address).call(BlockId.LATEST).batch(batch)
-    }
-
-    if (batch.sendAwait()) {
-        // The first request is ETH balance
-        balances["ETH"] = responses["ETH"]!!.get().resultOrThrow().toBigDecimal().scaleByPowerOfTen(-18)
-
-        // Other requests are balances for tokens
-        responses.forEach { (addr, future) ->
-            val decimal = decimals[addr]?.toInt() ?: 18
-
-            // Unwrap each response representing token balance, format it, and store it in balances
-            val balance = future.get().resultOrThrow().toBigDecimal()
-            balances[addr] = if (balance == BigDecimal.ZERO) BigDecimal.ZERO else balance.scaleByPowerOfTen(-decimal)
-        }
-    } else {
-        throw Exception("Batch did not execute successfully")
-    }
-
-    return balances
-}
-
-fun displayTokenBalances(balances: HashMap<String, BigDecimal>) {
-    balances.forEach { (addr, balance) -> println("$addr - $balance") }
 }
 
 fun main(args: Array<String>) {
     // Parse input arguments
     val argParser = ArgParser("BalanceTracker")
-    val httpRpc by argParser.option(ArgType.String, description = "HTTP RPC URL")
-        .default("https://ethereum.publicnode.com")
-    val wsRpc by argParser.option(ArgType.String, description = "WS RPC URL")
-        .default("wss://mainnet.gateway.tenderly.co")
+
+    // Problems with public ws rpc url - add your own
+    val wsRpc by argParser.option(ArgType.String, description = "WS RPC URL").required()
     val address by argParser.option(ArgType.String, description = "Token holder address")
         .default("0x0D0707963952f2fBA59dD06f2b425ace40b492Fe") // Gate.io address
 
     argParser.parse(args)
 
-    val balanceTracker = BalanceTracker(httpRpc, wsRpc, Address(address))
+    val balanceTracker = BalanceTracker(wsRpc, Address(address))
     balanceTracker.run()
 }
