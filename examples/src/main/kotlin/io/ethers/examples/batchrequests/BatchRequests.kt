@@ -1,8 +1,8 @@
 package io.ethers.examples.batchrequests
 
-import UniswapV2Pair
 import io.ethers.core.types.Address
 import io.ethers.core.types.BlockId
+import io.ethers.examples.gen.UniswapV2Pair
 import io.ethers.providers.HttpClient
 import io.ethers.providers.Provider
 import io.ethers.providers.types.BatchRpcRequest
@@ -13,7 +13,6 @@ import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
 import kotlinx.cli.default
 import java.math.BigDecimal
-import java.math.BigInteger
 
 /**
  * Request batching of pool reserves on different DEXes for WETH / USDC pair and calculating WETH price,
