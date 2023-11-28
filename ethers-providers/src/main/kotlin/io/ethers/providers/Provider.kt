@@ -132,7 +132,13 @@ class Provider(override val client: JsonRpcClient) : Middleware {
         stateOverride: Map<Address, AccountOverride>?,
         blockOverride: BlockOverride?,
     ): RpcRequest<Bytes> {
-        val params = arrayOf(call, blockId.id, stateOverride, blockOverride)
+        // create minimal params array - some RPC's don't support stateOverride or blockOverride
+        val params = when {
+            blockOverride != null -> arrayOf(call, blockId.id, stateOverride, blockOverride)
+            stateOverride != null -> arrayOf(call, blockId.id, stateOverride)
+            else -> arrayOf(call, blockId.id)
+        }
+
         return RpcCall(client, "eth_call", params, Bytes::class.java)
     }
 
