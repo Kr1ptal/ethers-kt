@@ -1,6 +1,5 @@
 package io.ethers.examples.datadecoding
 
-import io.ethers.abi.AbiCodec
 import io.ethers.abi.AbiFunction
 import io.ethers.core.types.Bytes
 import io.ethers.examples.gen.UniswapV2Router02
@@ -20,9 +19,10 @@ class DataDecoding(txInput: String) {
 
         // # Manually decode function input data when we only know function signature
         val function = AbiFunction.parseSignature("swapExactTokensForTokens(uint256,uint256,address[],address,uint256)")
-        val manualDec = AbiCodec.decodeWithPrefix(4 /*selector is 4 bytes long*/, function.inputs, calldata.value)
+        val manualDec = function.decodeCall(calldata)
 
-        println("""
+        println(
+            """
         Decoded transaction input from ABI:
             amountIn: ${autoDec[0]}
             amountOutMin: ${autoDec[1]}
@@ -36,7 +36,8 @@ class DataDecoding(txInput: String) {
             path: ${(manualDec[2] as Array<*>).contentToString()}
             to: ${manualDec[3]}
             deadline: ${manualDec[4]}
-    """.trimIndent())
+            """.trimIndent(),
+        )
     }
 }
 
