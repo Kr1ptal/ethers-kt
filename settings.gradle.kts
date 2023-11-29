@@ -10,6 +10,7 @@ include("ethers-abigen")
 include("ethers-abigen-plugin")
 include("ethers-crypto")
 include("logger")
+include("examples")
 
 pluginManagement {
     repositories {
