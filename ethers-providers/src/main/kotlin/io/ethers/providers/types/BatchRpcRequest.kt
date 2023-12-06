@@ -110,6 +110,24 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) {
 }
 
 /**
+ * Unwrap all responses, throwing an exception if any of them is an error.
+ * */
+fun <T> Iterable<RpcResponse<out T>>.resultOrThrow(): UnwrappedBatchResponse<T> {
+    val iter = this.iterator()
+    if (!iter.hasNext()) {
+        return UnwrappedBatchResponse(emptyList())
+    }
+
+    val size = if (this is Collection<*>) this.size else 10
+    val ret = ArrayList<T>(size)
+    while (iter.hasNext()) {
+        ret.add(iter.next().resultOrThrow())
+    }
+
+    return UnwrappedBatchResponse(ret)
+}
+
+/**
  * Batch-send all requests, awaiting the result by blocking the calling thread.
  */
 fun <T> Iterable<RpcRequest<out T>>.sendAwait(): BatchResponse<T> {
@@ -131,7 +149,8 @@ fun <T> Iterable<RpcRequest<out T>>.sendAsync(): BatchResponseAsync<T> {
         return BatchResponseAsync(emptyList())
     }
 
-    val futures = ArrayList<CompletableFuture<RpcResponse<T>>>()
+    val size = if (this is Collection<*>) this.size else 10
+    val futures = ArrayList<CompletableFuture<RpcResponse<T>>>(size)
     val batch = BatchRpcRequest()
     while (iter.hasNext()) {
         futures.add(iter.next().batch(batch) as CompletableFuture<RpcResponse<T>>)
@@ -179,4 +198,22 @@ value class BatchResponse<T>(
     operator fun <O> component10() = responses[9] as RpcResponse<O>
     operator fun <O> component11() = responses[10] as RpcResponse<O>
     operator fun <O> component12() = responses[11] as RpcResponse<O>
+}
+
+@JvmInline
+value class UnwrappedBatchResponse<T>(
+    private val responses: List<T>,
+) : List<T> by responses {
+    operator fun <O> component1() = responses[0] as O
+    operator fun <O> component2() = responses[1] as O
+    operator fun <O> component3() = responses[2] as O
+    operator fun <O> component4() = responses[3] as O
+    operator fun <O> component5() = responses[4] as O
+    operator fun <O> component6() = responses[5] as O
+    operator fun <O> component7() = responses[6] as O
+    operator fun <O> component8() = responses[7] as O
+    operator fun <O> component9() = responses[8] as O
+    operator fun <O> component10() = responses[9] as O
+    operator fun <O> component11() = responses[10] as O
+    operator fun <O> component12() = responses[11] as O
 }
