@@ -167,7 +167,7 @@ class TxBlob(
         return "TxBlob(to=$to, value=$value, nonce=$nonce, gas=$gas, gasFeeCap=$gasFeeCap, gasTipCap=$gasTipCap, data=$data, chainId=$chainId, accessList=$accessList, blobFeeCap=$blobFeeCap, blobVersionedHashes=$blobVersionedHashes, sidecar=$sidecar)"
     }
 
-    class Sidecar(
+    data class Sidecar(
         val blobs: List<Bytes>,
         val commitments: List<Bytes>,
         val proofs: List<Bytes>,
@@ -198,30 +198,6 @@ class TxBlob(
             rlp.encodeList(blobs)
             rlp.encodeList(commitments)
             rlp.encodeList(proofs)
-        }
-
-        override fun equals(other: Any?): Boolean {
-            if (this === other) return true
-            if (javaClass != other?.javaClass) return false
-
-            other as Sidecar
-
-            if (blobs != other.blobs) return false
-            if (commitments != other.commitments) return false
-            if (proofs != other.proofs) return false
-
-            return true
-        }
-
-        override fun hashCode(): Int {
-            var result = blobs.hashCode()
-            result = 31 * result + commitments.hashCode()
-            result = 31 * result + proofs.hashCode()
-            return result
-        }
-
-        override fun toString(): String {
-            return "Sidecar(blobs=$blobs, commitments=$commitments, proofs=$proofs)"
         }
 
         companion object : RlpDecodable<Sidecar> {
