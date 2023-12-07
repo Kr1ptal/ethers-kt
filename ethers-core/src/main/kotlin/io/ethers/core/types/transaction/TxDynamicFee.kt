@@ -38,16 +38,13 @@ class TxDynamicFee(
         get() = gasFeeCap
 
     override val type: TxType
-        get() = TxType.DYNAMIC_FEE
+        get() = TxType.DynamicFee
 
     override val blobFeeCap: BigInteger?
         get() = null
 
     override val blobVersionedHashes: List<Hash>?
         get() = null
-
-    override val blobGas: Long
-        get() = 0
 
     override fun rlpEncodeFields(rlp: RlpEncoder) {
         rlp.encode(chainId)

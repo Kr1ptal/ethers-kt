@@ -106,8 +106,8 @@ class TransactionSigned @JvmOverloads constructor(
 
     private fun rlpEncode(rlp: RlpEncoder, hashEncoding: Boolean) {
         // non-legacy txs are enveloped based on eip2718
-        if (tx.type != TxType.LEGACY) {
-            rlp.appendRaw(tx.type.value.toByte())
+        if (tx.type != TxType.Legacy) {
+            rlp.appendRaw(tx.type.type.toByte())
         }
 
         rlp.encodeList {
@@ -119,7 +119,7 @@ class TransactionSigned @JvmOverloads constructor(
             // signature values.
             //
             // See: https://eips.ethereum.org/EIPS/eip-4844#networking
-            if (!hashEncoding && tx.type == TxType.BLOB && (tx as TxBlob).sidecar != null) {
+            if (!hashEncoding && tx.type == TxType.Blob && (tx as TxBlob).sidecar != null) {
                 rlp.encodeList {
                     tx.rlpEncodeFields(this)
                     signature.rlpEncode(this)
@@ -167,9 +167,9 @@ class TransactionSigned @JvmOverloads constructor(
                 }
             }
 
-            return when (TxType.findOrNull(type)) {
-                TxType.LEGACY -> throw IllegalStateException("Should not happen")
-                TxType.ACCESS_LIST -> {
+            return when (TxType.fromType(type)) {
+                TxType.Legacy -> throw IllegalStateException("Should not happen")
+                TxType.AccessList -> {
                     rlp.readByte()
 
                     rlp.decodeList {
@@ -179,7 +179,7 @@ class TransactionSigned @JvmOverloads constructor(
                     }
                 }
 
-                TxType.DYNAMIC_FEE -> {
+                TxType.DynamicFee -> {
                     rlp.readByte()
 
                     rlp.decodeList {
@@ -189,7 +189,7 @@ class TransactionSigned @JvmOverloads constructor(
                     }
                 }
 
-                TxType.BLOB -> {
+                TxType.Blob -> {
                     rlp.readByte()
 
                     rlp.decodeList {
@@ -216,7 +216,7 @@ class TransactionSigned @JvmOverloads constructor(
                     }
                 }
 
-                null -> null
+                is TxType.Unsupported -> null
             }
         }
     }

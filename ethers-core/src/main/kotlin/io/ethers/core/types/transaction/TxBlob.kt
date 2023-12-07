@@ -73,10 +73,7 @@ class TxBlob(
         get() = gasFeeCap
 
     override val type: TxType
-        get() = TxType.BLOB
-
-    override val blobGas: Long
-        get() = GAS_PER_BLOB * blobVersionedHashes.size.toLong()
+        get() = TxType.Blob
 
     override fun rlpEncodeFields(rlp: RlpEncoder) {
         rlp.encode(chainId)

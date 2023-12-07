@@ -242,7 +242,7 @@ class BlockTest : FunSpec({
                     to = Address("0xb0bababe78a9be0810fadf99dd2ed31ed12568be"),
                     transactionIndex = 1L,
                     value = BigInteger("10000000000000000"),
-                    type = TxType.DYNAMIC_FEE,
+                    type = TxType.DynamicFee,
                     accessList = listOf(
                         AccessList.Item(
                             Address("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),

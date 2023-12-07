@@ -79,7 +79,7 @@ class TransactionReceiptTest : FunSpec({
             to = Address("0x881d40237659c251811cec9c364ef91dc08d300c"),
             transactionHash = Hash("0xce15f8ce74845b0d254fcbfda722ba89976ca6e09936d6761a648a6492b82e9b"),
             transactionIndex = 1,
-            type = TxType.DYNAMIC_FEE.value.toLong(),
+            type = TxType.DynamicFee,
             root = Bytes("0x5f5755290000000000000000000000000000000000000000000000000000000000000080"),
             otherFields = mapOf(
                 "test_tx" to Jackson.MAPPER.readTree("""{"k1_tx":"v1_tx","k2_tx":"v2_tx"}"""),

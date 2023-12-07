@@ -28,8 +28,8 @@ sealed interface TransactionUnsigned : Transaction {
      */
     fun rlpEncode(encoder: RlpEncoder, forSignatureHash: Boolean = false) {
         // non-legacy txs are enveloped based on eip2718
-        if (type != TxType.LEGACY) {
-            encoder.appendRaw(type.value.toByte())
+        if (type != TxType.Legacy) {
+            encoder.appendRaw(type.type.toByte())
         }
 
         encoder.encodeList {
@@ -43,7 +43,7 @@ sealed interface TransactionUnsigned : Transaction {
                 return@encodeList
             }
 
-            if (type == TxType.LEGACY && ChainId.isValid(chainId)) {
+            if (type == TxType.Legacy && ChainId.isValid(chainId)) {
                 // EIP-155 support for LegacyTx, applies only if we have a valid chainId
                 // see: https://github.com/ethereum/EIPs/blob/master/EIPS/eip-155.md
                 encoder.encode(chainId)
@@ -75,25 +75,25 @@ sealed interface TransactionUnsigned : Transaction {
                 return rlp.decodeList { TxLegacy.rlpDecode(rlp, chainId).also { dropEmptyRSV() } }
             }
 
-            return when (TxType.findOrNull(type)) {
-                TxType.LEGACY -> throw IllegalStateException("Should not happen")
+            return when (TxType.fromType(type)) {
+                TxType.Legacy -> throw IllegalStateException("Should not happen")
 
-                TxType.ACCESS_LIST -> {
+                TxType.AccessList -> {
                     rlp.readByte()
                     rlp.decodeList { TxAccessList.rlpDecode(rlp).also { dropEmptyRSV() } }
                 }
 
-                TxType.DYNAMIC_FEE -> {
+                TxType.DynamicFee -> {
                     rlp.readByte()
                     rlp.decodeList { TxDynamicFee.rlpDecode(rlp).also { dropEmptyRSV() } }
                 }
 
-                TxType.BLOB -> {
+                TxType.Blob -> {
                     rlp.readByte()
                     rlp.decodeList { TxBlob.rlpDecode(rlp).also { dropEmptyRSV() } }
                 }
 
-                null -> null
+                is TxType.Unsupported -> null
             }
         }
 

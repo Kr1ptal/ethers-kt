@@ -32,29 +32,57 @@ interface Transaction {
     val type: TxType
     val blobFeeCap: BigInteger?
     val blobVersionedHashes: List<Hash>?
+
     val blobGas: Long
+        get() = blobVersionedHashes?.size?.toLong()?.times(TxBlob.GAS_PER_BLOB) ?: 0
 }
 
 /**
- * Supported transaction types.
- */
-enum class TxType(val value: Int) {
-    LEGACY(0x0),
-    ACCESS_LIST(0x1),
-    DYNAMIC_FEE(0x2),
-    BLOB(0x3),
-    ;
+ * [EIP-2718](https://eips.ethereum.org/EIPS/eip-2718) Transaction Type.
+ *
+ * If type is not officially supported by this library - meaning it cannot construct, sign, and send it -, it will be
+ * represented as [TxType.Unsupported]. Unsupported tx types can still be received from the network.
+ * */
+sealed class TxType(val type: Int) {
+    /**
+     * @return true if this transaction type is supported by this library, false otherwise.
+     * */
+    val isSupported: Boolean
+        get() = this !is Unsupported
+
+    data object Legacy : TxType(0x0)
+    data object AccessList : TxType(0x1)
+    data object DynamicFee : TxType(0x2)
+    data object Blob : TxType(0x3)
+
+    /**
+     * A transaction type that is not supported by this library, but can still be received from the network.
+     * */
+    class Unsupported(type: Int) : TxType(type) {
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (javaClass != other?.javaClass) return false
+            return type == (other as Unsupported).type
+        }
+
+        override fun hashCode(): Int {
+            return type
+        }
+
+        override fun toString(): String {
+            return "Unknown(type=$type)"
+        }
+    }
 
     companion object {
-        // optimization to avoid allocating an iterator
-        fun findOrNull(value: Int): TxType? {
-            for (i in entries.indices) {
-                val entry = entries[i]
-                if (entry.value == value) {
-                    return entry
-                }
+        fun fromType(type: Int): TxType {
+            return when (type) {
+                Legacy.type -> Legacy
+                AccessList.type -> AccessList
+                DynamicFee.type -> DynamicFee
+                Blob.type -> Blob
+                else -> Unsupported(type)
             }
-            return null
         }
     }
 }

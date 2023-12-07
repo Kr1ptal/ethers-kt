@@ -26,7 +26,7 @@ interface Signer {
     fun signTransaction(tx: TransactionUnsigned): TransactionSigned {
         val sig = signHash(tx.signatureHash())
 
-        if (tx.type == TxType.LEGACY) {
+        if (tx.type == TxType.Legacy) {
             // applies EIP-155 replay protection if we have a valid chainId for legacy tx
             // see: https://github.com/ethereum/EIPs/blob/master/EIPS/eip-155.md
             if (ChainId.isValid(tx.chainId)) {
