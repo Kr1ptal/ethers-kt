@@ -12,6 +12,10 @@ import io.ethers.crypto.Secp256k1
 class PrivateKeySigner(val signingKey: Secp256k1.SigningKey) : Signer {
     override val address = Address(Secp256k1.publicKeyToAddress(signingKey.publicKey))
 
+    constructor(privateKey: String) : this(validHexToKey(privateKey))
+    constructor(privateKey: Bytes) : this(validByteArrayToKey(privateKey.value))
+    constructor(privateKey: ByteArray) : this(validByteArrayToKey(privateKey))
+
     override fun signHash(hash: ByteArray): Signature {
         val sig = signingKey.signHash(hash)
 
@@ -23,27 +27,20 @@ class PrivateKeySigner(val signingKey: Secp256k1.SigningKey) : Signer {
     }
 
     companion object {
-        @JvmName("from")
-        operator fun invoke(privateKey: String): PrivateKeySigner {
-            if (!FastHex.isValidHex(privateKey)) {
+        private fun validHexToKey(hex: String): Secp256k1.SigningKey {
+            if (!FastHex.isValidHex(hex)) {
                 throw IllegalArgumentException("Invalid private key format. Should be hex string.")
             }
 
-            return invoke(FastHex.decode(privateKey))
+            return validByteArrayToKey(FastHex.decode(hex))
         }
 
-        @JvmName("from")
-        operator fun invoke(privateKey: Bytes): PrivateKeySigner {
-            return invoke(privateKey.value)
-        }
-
-        @JvmName("from")
-        operator fun invoke(privateKey: ByteArray): PrivateKeySigner {
-            if (privateKey.size != 32) {
-                throw IllegalArgumentException("Invalid private key length. Should be exactly 32 bytes, got ${privateKey.size}")
+        private fun validByteArrayToKey(bytes: ByteArray): Secp256k1.SigningKey {
+            if (bytes.size != 32) {
+                throw IllegalArgumentException("Invalid private key length. Should be exactly 32 bytes, got ${bytes.size}")
             }
 
-            return PrivateKeySigner(Secp256k1.SigningKey(privateKey))
+            return Secp256k1.SigningKey(bytes)
         }
     }
 }
