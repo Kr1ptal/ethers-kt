@@ -1,27 +1,35 @@
 package io.ethers
 
+import io.ethers.EnsResolver.Error.Normalisation
 import io.ethers.crypto.Hashing
+import io.ethers.providers.types.RpcResponse
 import io.github.adraffy.ens.ENSNormalize
 import io.github.adraffy.ens.InvalidLabelException
 import java.nio.charset.StandardCharsets
 
 object NameHash {
-    private fun normalise(ensName: String): String {
+    /**
+     * Normalise ENS name based on [specification](https://docs.ens.domains/ens-improvement-proposals/ensip-15-normalization-standard)
+     */
+    private fun normalise(ensName: String): RpcResponse<String> {
         return try {
-            ENSNormalize.ENSIP15.normalize(ensName)
+            RpcResponse.result(ENSNormalize.ENSIP15.normalize(ensName))
         } catch (e: InvalidLabelException) {
-            throw Exception("Invalid ENS name provided: $ensName")
+            RpcResponse.error(Normalisation(e))
         }
     }
 
-    fun nameHash(ensName: String): ByteArray {
-        val normalisedEnsName: String = normalise(ensName)
-        return nameHash(normalisedEnsName.split("."))
+    fun nameHash(ensName: String): RpcResponse<ByteArray> {
+        val normalisedEnsName = normalise(ensName)
+        if (normalisedEnsName.isError) {
+            return normalisedEnsName.propagateError()
+        }
+        return RpcResponse.result(nameHash(normalisedEnsName.resultOrThrow().split(".")))
     }
 
-    private fun nameHash(labels: List<String>) : ByteArray {
+    private fun nameHash(labels: List<String>): ByteArray {
         if (labels.isEmpty() || labels[0] == "") {
-            return ByteArray(32) {0}
+            return ByteArray(32) { 0 }
         } else {
             val tail: List<String> = if (labels.size == 1) {
                 listOf()

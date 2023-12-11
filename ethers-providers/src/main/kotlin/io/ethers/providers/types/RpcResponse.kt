@@ -68,6 +68,13 @@ class RpcResponse<T> private constructor(
         return result(result!!.let(mapper::apply))
     }
 
+    fun mapError(mapper: Function<Error, Error>): RpcResponse<T> {
+        if (isResult) {
+            return this
+        }
+        return error(error!!.let(mapper::apply))
+    }
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
