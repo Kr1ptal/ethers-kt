@@ -9,31 +9,51 @@ import java.math.RoundingMode
  */
 data class EthUnit(val decimals: Int) {
     /**
-     * Converts an [amount] of the current unit to Wei, truncating values less than 1 Wei.
+     * Convert an [amount] of the current unit to [WEI], truncating values less than 1 Wei.
      */
     fun toWei(amount: String): BigDecimal = this.convert(amount, WEI)
 
     /**
-     * Converts an [amount] of Wei to the current unit, truncating values less than 1 Wei.
+     * Convert an [amount] of the current unit to [GWEI], truncating values less than 1 Wei.
+     */
+    fun toGwei(amount: String): BigDecimal = this.convert(amount, GWEI)
+
+    /**
+     * Convert an [amount] of the current unit to [ETHER], truncating values less than 1 Wei.
+     */
+    fun toEther(amount: String): BigDecimal = this.convert(amount, ETHER)
+
+    /**
+     * Convert an [amount] of Wei to the current unit, truncating values less than 1 Wei.
      */
     fun fromWei(amount: String): BigDecimal = WEI.convert(amount, this)
 
     /**
-     * Converts an [amount] from the current unit to [toUnit], truncating values less than 1 Wei.
+     * Convert an [amount] of [GWEI] to the current unit, truncating values less than 1 Wei.
+     */
+    fun fromGwei(amount: String): BigDecimal = GWEI.convert(amount, this)
+
+    /**
+     * Convert an [amount] of [ETHER] to the current unit, truncating values less than 1 Wei.
+     */
+    fun fromEther(amount: String): BigDecimal = ETHER.convert(amount, this)
+
+    /**
+     * Convert an [amount] from the current unit to [toUnit], truncating values less than 1 Wei.
      */
     fun convert(amount: BigDecimal, toUnit: EthUnit): BigDecimal {
         return amount.movePointRight(this.decimals - toUnit.decimals).setScale(toUnit.decimals, RoundingMode.DOWN)
     }
 
     /**
-     * Converts an [amount] from the current unit to [toUnit], truncating values less than 1 Wei.
+     * Convert an [amount] from the current unit to [toUnit], truncating values less than 1 Wei.
      */
     fun convert(amount: BigInteger, toUnit: EthUnit): BigDecimal {
         return amount.toBigDecimal(toUnit.decimals - this.decimals)
     }
 
     /**
-     * Converts an [amount] from the current unit to [toUnit], truncating values less than 1 Wei.
+     * Convert an [amount] from the current unit to [toUnit], truncating values less than 1 Wei.
      */
     fun convert(amount: String, toUnit: EthUnit): BigDecimal {
         return convert(amount.toBigDecimal(), toUnit)
@@ -69,35 +89,5 @@ data class EthUnit(val decimals: Int) {
 
         @JvmField
         val GETHER = EthUnit(27)
-
-        /**
-         * Converts an [amount] of the current unit to Wei, truncating values less than 1 Wei.
-         */
-        @JvmStatic
-        fun toWei(amount: String, fromUnit: EthUnit): BigDecimal = fromUnit.convert(amount, WEI)
-
-        /**
-         * Converts an [amount] of Wei to the current unit, truncating values less than 1 Wei.
-         */
-        @JvmStatic
-        fun fromWei(amount: String, toUnit: EthUnit): BigDecimal = WEI.convert(amount, toUnit)
-
-        /**
-         * Converts an [amount] from the current unit to [toUnit], truncating values less than 1 Wei.
-         */
-        @JvmStatic
-        fun convert(amount: String, fromUnit: EthUnit, toUnit: EthUnit) = fromUnit.convert(amount, toUnit)
-
-        /**
-         * Converts an [amount] from the current unit to [toUnit], truncating values less than 1 Wei.
-         */
-        @JvmStatic
-        fun convert(amount: BigDecimal, fromUnit: EthUnit, toUnit: EthUnit) = fromUnit.convert(amount, toUnit)
-
-        /**
-         * Converts an [amount] from the current unit to [toUnit], truncating values less than 1 Wei.
-         */
-        @JvmStatic
-        fun convert(amount: BigInteger, fromUnit: EthUnit, toUnit: EthUnit) = fromUnit.convert(amount, toUnit)
     }
 }

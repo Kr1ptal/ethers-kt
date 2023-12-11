@@ -19,21 +19,21 @@ class EthUnitTest : FunSpec({
 
     test("Usage examples") {
         // To and from wei (String only)
-        // ETHER -> WEI
         EthUnit.ETHER.toWei("1")
-        EthUnit.toWei("1", EthUnit.ETHER)
-        // WEI -> ETHER
         EthUnit.ETHER.fromWei("1000000000000000000")
-        EthUnit.fromWei("1000000000000000000", EthUnit.ETHER)
+
+        // To and from gwei (String only)
+        EthUnit.ETHER.toGwei("1")
+        EthUnit.ETHER.fromGwei("1000000000")
+
+        // To and from ether (String only)
+        EthUnit.GWEI.toEther("1000000000")
+        EthUnit.GWEI.fromEther("1")
 
         // Between units (BigDecimal, BigInteger, String)
         EthUnit.ETHER.convert(BigDecimal("1.234"), EthUnit.KWEI)
         EthUnit.ETHER.convert(BigInteger("1"), EthUnit.GWEI)
         EthUnit.ETHER.convert("1.234", EthUnit.GETHER)
-
-        EthUnit.convert(BigDecimal("1.234"), fromUnit = EthUnit.ETHER, toUnit = EthUnit.KWEI)
-        EthUnit.convert(BigInteger("1"), fromUnit = EthUnit.ETHER, toUnit = EthUnit.GWEI)
-        EthUnit.convert("1.234", fromUnit = EthUnit.ETHER, toUnit = EthUnit.GETHER)
     }
 
     /**
@@ -42,8 +42,6 @@ class EthUnitTest : FunSpec({
     fun testToUnit(amount1: BigDecimal, unit1: EthUnit, amount2: BigDecimal, unit2: EthUnit) {
         unit1.convert(amount1, unit2) shouldBeEqualComparingTo amount2
         unit1.convert(amount1.toPlainString(), unit2) shouldBeEqualComparingTo amount2
-        EthUnit.convert(amount1, unit1, unit2) shouldBeEqualComparingTo amount2
-        EthUnit.convert(amount1.toPlainString(), unit1, unit2) shouldBeEqualComparingTo amount2
     }
 
     /**
@@ -51,7 +49,6 @@ class EthUnitTest : FunSpec({
      */
     fun testToUnit(amount1: BigInteger, unit1: EthUnit, amount2: BigDecimal, unit2: EthUnit) {
         unit1.convert(amount1, unit2) shouldBeEqualComparingTo amount2
-        EthUnit.convert(amount1, unit1, unit2) shouldBeEqualComparingTo amount2
     }
 
     context("Manual tests") {
@@ -153,6 +150,8 @@ class EthUnitTest : FunSpec({
             for (toDecimals in 0..30) {
                 Arb.bigInt(0, 256).checkAll(100) {
                     val weiAmount = it.toBigDecimal()
+                    val gweiAmount = it.toBigDecimal().divide(BigDecimal.TEN.pow(9))
+                    val etherAmount = it.toBigDecimal().divide(BigDecimal.TEN.pow(18))
 
                     val fromAmountDec = weiAmount.divide(BigDecimal.TEN.pow(fromDecimals))
                     val fromUnit = EthUnit(fromDecimals)
@@ -161,11 +160,18 @@ class EthUnitTest : FunSpec({
 
                     // # To and from wei (String only)
                     fromUnit.toWei(fromAmountDec.toString()) shouldBeEqualComparingTo weiAmount
-                    EthUnit.toWei(fromAmountDec.toString(), fromUnit) shouldBeEqualComparingTo weiAmount
-
                     // WEI -> source unit
                     fromUnit.fromWei(weiAmount.toString()) shouldBeEqualComparingTo fromAmountDec
-                    EthUnit.fromWei(weiAmount.toString(), fromUnit) shouldBeEqualComparingTo fromAmountDec
+
+                    // # To and from gwei (String only)
+                    fromUnit.toGwei(fromAmountDec.toString()) shouldBeEqualComparingTo gweiAmount
+                    // GWEI -> source unit
+                    fromUnit.fromGwei(gweiAmount.toString()) shouldBeEqualComparingTo fromAmountDec
+
+                    // # To and from ethers (String only)
+                    fromUnit.toEther(fromAmountDec.toString()) shouldBeEqualComparingTo etherAmount
+                    // ETHER -> source unit
+                    fromUnit.fromEther(etherAmount.toString()) shouldBeEqualComparingTo fromAmountDec
 
                     // # Between units (BigDecimal, BigInteger, String)
                     testToUnit(fromAmountDec, fromUnit, toAmount, toUnit)
