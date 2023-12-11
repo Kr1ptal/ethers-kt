@@ -1,8 +1,5 @@
 package io.ethers.core.utils
 
-import io.ethers.core.utils.EthUnit.Companion.fromWei
-import io.ethers.core.utils.EthUnit.Companion.toUnit
-import io.ethers.core.utils.EthUnit.Companion.toWei
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData
 import io.kotest.matchers.comparables.shouldBeEqualComparingTo
@@ -24,37 +21,37 @@ class EthUnitTest : FunSpec({
         // To and from wei (String only)
         // ETHER -> WEI
         EthUnit.ETHER.toWei("1")
-        toWei("1", EthUnit.ETHER)
+        EthUnit.toWei("1", EthUnit.ETHER)
         // WEI -> ETHER
         EthUnit.ETHER.fromWei("1000000000000000000")
-        fromWei("1000000000000000000", EthUnit.ETHER)
+        EthUnit.fromWei("1000000000000000000", EthUnit.ETHER)
 
         // Between units (BigDecimal, BigInteger, String)
-        EthUnit.ETHER.toUnit(BigDecimal("1.234"), EthUnit.KWEI)
-        EthUnit.ETHER.toUnit(BigInteger("1"), EthUnit.GWEI)
-        EthUnit.ETHER.toUnit("1.234", EthUnit.GETHER)
+        EthUnit.ETHER.convert(BigDecimal("1.234"), EthUnit.KWEI)
+        EthUnit.ETHER.convert(BigInteger("1"), EthUnit.GWEI)
+        EthUnit.ETHER.convert("1.234", EthUnit.GETHER)
 
-        toUnit(BigDecimal("1.234"), sourceUnit = EthUnit.ETHER, targetUnit = EthUnit.KWEI)
-        toUnit(BigInteger("1"), sourceUnit = EthUnit.ETHER, targetUnit = EthUnit.GWEI)
-        toUnit("1.234", sourceUnit = EthUnit.ETHER, targetUnit = EthUnit.GETHER)
+        EthUnit.convert(BigDecimal("1.234"), fromUnit = EthUnit.ETHER, toUnit = EthUnit.KWEI)
+        EthUnit.convert(BigInteger("1"), fromUnit = EthUnit.ETHER, toUnit = EthUnit.GWEI)
+        EthUnit.convert("1.234", fromUnit = EthUnit.ETHER, toUnit = EthUnit.GETHER)
     }
 
     /**
      * Testing toUnit with amount as BigDecimal and String
      */
     fun testToUnit(amount1: BigDecimal, unit1: EthUnit, amount2: BigDecimal, unit2: EthUnit) {
-        unit1.toUnit(amount1, unit2) shouldBeEqualComparingTo amount2
-        unit1.toUnit(amount1.toPlainString(), unit2) shouldBeEqualComparingTo amount2
-        toUnit(amount1, unit1, unit2) shouldBeEqualComparingTo amount2
-        toUnit(amount1.toPlainString(), unit1, unit2) shouldBeEqualComparingTo amount2
+        unit1.convert(amount1, unit2) shouldBeEqualComparingTo amount2
+        unit1.convert(amount1.toPlainString(), unit2) shouldBeEqualComparingTo amount2
+        EthUnit.convert(amount1, unit1, unit2) shouldBeEqualComparingTo amount2
+        EthUnit.convert(amount1.toPlainString(), unit1, unit2) shouldBeEqualComparingTo amount2
     }
 
     /**
      * Testing toUnit with amount as BigInteger
      */
     fun testToUnit(amount1: BigInteger, unit1: EthUnit, amount2: BigDecimal, unit2: EthUnit) {
-        unit1.toUnit(amount1, unit2) shouldBeEqualComparingTo amount2
-        toUnit(amount1, unit1, unit2) shouldBeEqualComparingTo amount2
+        unit1.convert(amount1, unit2) shouldBeEqualComparingTo amount2
+        EthUnit.convert(amount1, unit1, unit2) shouldBeEqualComparingTo amount2
     }
 
     context("Manual tests") {
@@ -157,37 +154,37 @@ class EthUnitTest : FunSpec({
                 Arb.bigInt(0, 256).checkAll(100) {
                     val weiAmount = it.toBigDecimal()
 
-                    val srcAmountDec = weiAmount.divide(BigDecimal.TEN.pow(fromDecimals))
-                    val srcUnit = EthUnit(fromDecimals)
-                    val destUnit = EthUnit(toDecimals)
-                    val destAmount = weiAmount.divide(BigDecimal.TEN.pow(toDecimals))
+                    val fromAmountDec = weiAmount.divide(BigDecimal.TEN.pow(fromDecimals))
+                    val fromUnit = EthUnit(fromDecimals)
+                    val toUnit = EthUnit(toDecimals)
+                    val toAmount = weiAmount.divide(BigDecimal.TEN.pow(toDecimals))
 
                     // # To and from wei (String only)
-                    srcUnit.toWei(srcAmountDec.toString()) shouldBeEqualComparingTo weiAmount
-                    toWei(srcAmountDec.toString(), srcUnit) shouldBeEqualComparingTo weiAmount
+                    fromUnit.toWei(fromAmountDec.toString()) shouldBeEqualComparingTo weiAmount
+                    EthUnit.toWei(fromAmountDec.toString(), fromUnit) shouldBeEqualComparingTo weiAmount
 
                     // WEI -> source unit
-                    srcUnit.fromWei(weiAmount.toString()) shouldBeEqualComparingTo srcAmountDec
-                    fromWei(weiAmount.toString(), srcUnit) shouldBeEqualComparingTo srcAmountDec
+                    fromUnit.fromWei(weiAmount.toString()) shouldBeEqualComparingTo fromAmountDec
+                    EthUnit.fromWei(weiAmount.toString(), fromUnit) shouldBeEqualComparingTo fromAmountDec
 
                     // # Between units (BigDecimal, BigInteger, String)
-                    testToUnit(srcAmountDec, srcUnit, destAmount, destUnit)
-                    testToUnit(destAmount, destUnit, srcAmountDec, srcUnit)
+                    testToUnit(fromAmountDec, fromUnit, toAmount, toUnit)
+                    testToUnit(toAmount, toUnit, fromAmountDec, fromUnit)
 
                     // toUnit using BigInteger
                     // calculate sourceAmount without decimals
-                    val srcAmountInt = weiAmount
+                    val fromAmountInt = weiAmount
                         .divide(BigDecimal.TEN.pow(fromDecimals)).toBigInteger()
 
-                    // When input is BigInteger we can't calculate destination amount from wei,
+                    // When input is BigInteger we can't calculate toAmount from wei,
                     // because of loss of decimals when calculating sourceAmount
-                    val destAmountInt =
+                    val toAmountInt =
                         if (toDecimals > fromDecimals)
-                            srcAmountInt.toBigDecimal().divide(BigDecimal.TEN.pow(toDecimals - fromDecimals))
+                            fromAmountInt.toBigDecimal().divide(BigDecimal.TEN.pow(toDecimals - fromDecimals))
                         else
-                            srcAmountInt.toBigDecimal().multiply(BigDecimal.TEN.pow(fromDecimals - toDecimals))
+                            fromAmountInt.toBigDecimal().multiply(BigDecimal.TEN.pow(fromDecimals - toDecimals))
 
-                    testToUnit(srcAmountInt, srcUnit, destAmountInt, destUnit)
+                    testToUnit(fromAmountInt, fromUnit, toAmountInt, toUnit)
                 }
             }
         }

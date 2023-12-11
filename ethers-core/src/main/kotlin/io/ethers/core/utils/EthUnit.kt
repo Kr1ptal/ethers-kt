@@ -4,50 +4,100 @@ import java.math.BigDecimal
 import java.math.BigInteger
 import java.math.RoundingMode
 
+/**
+ * Represents a unit of measurement within the EVM ecosystem.
+ */
 data class EthUnit(val decimals: Int) {
-    fun toWei(amount: String): BigDecimal = this.toUnit(amount, WEI)
+    /**
+     * Converts an [amount] of the current unit to Wei, truncating values less than 1 Wei.
+     */
+    fun toWei(amount: String): BigDecimal = this.convert(amount, WEI)
 
-    fun fromWei(amount: String): BigDecimal = WEI.toUnit(amount, this)
+    /**
+     * Converts an [amount] of Wei to the current unit, truncating values less than 1 Wei.
+     */
+    fun fromWei(amount: String): BigDecimal = WEI.convert(amount, this)
 
-    // Values lower than 1 WEI are truncated
-    fun toUnit(amount: BigDecimal, targetUnit: EthUnit): BigDecimal {
-        return amount.movePointRight(this.decimals - targetUnit.decimals)
-            .setScale(targetUnit.decimals, RoundingMode.DOWN)
+    /**
+     * Converts an [amount] from the current unit to [toUnit], truncating values less than 1 Wei.
+     */
+    fun convert(amount: BigDecimal, toUnit: EthUnit): BigDecimal {
+        return amount.movePointRight(this.decimals - toUnit.decimals).setScale(toUnit.decimals, RoundingMode.DOWN)
     }
 
-    fun toUnit(amount: BigInteger, targetUnit: EthUnit): BigDecimal {
-        return amount.toBigDecimal(targetUnit.decimals - this.decimals)
+    /**
+     * Converts an [amount] from the current unit to [toUnit], truncating values less than 1 Wei.
+     */
+    fun convert(amount: BigInteger, toUnit: EthUnit): BigDecimal {
+        return amount.toBigDecimal(toUnit.decimals - this.decimals)
     }
 
-    fun toUnit(amount: String, targetUnit: EthUnit): BigDecimal {
-        return toUnit(amount.toBigDecimal(), targetUnit)
+    /**
+     * Converts an [amount] from the current unit to [toUnit], truncating values less than 1 Wei.
+     */
+    fun convert(amount: String, toUnit: EthUnit): BigDecimal {
+        return convert(amount.toBigDecimal(), toUnit)
     }
 
     companion object {
+        @JvmField
         val WEI = EthUnit(0)
+
+        @JvmField
         val KWEI = EthUnit(3)
+
+        @JvmField
         val MWEI = EthUnit(6)
+
+        @JvmField
         val GWEI = EthUnit(9)
+
+        @JvmField
         val SZABO = EthUnit(12)
+
+        @JvmField
         val FINNEY = EthUnit(15)
+
+        @JvmField
         val ETHER = EthUnit(18)
+
+        @JvmField
         val KETHER = EthUnit(21)
+
+        @JvmField
         val METHER = EthUnit(24)
+
+        @JvmField
         val GETHER = EthUnit(27)
 
-        fun toWei(amount: String, sourceUnit: EthUnit): BigDecimal =
-            sourceUnit.toUnit(amount, WEI)
+        /**
+         * Converts an [amount] of the current unit to Wei, truncating values less than 1 Wei.
+         */
+        @JvmStatic
+        fun toWei(amount: String, fromUnit: EthUnit): BigDecimal = fromUnit.convert(amount, WEI)
 
-        fun fromWei(number: String, targetUnit: EthUnit): BigDecimal =
-            WEI.toUnit(number, targetUnit)
+        /**
+         * Converts an [amount] of Wei to the current unit, truncating values less than 1 Wei.
+         */
+        @JvmStatic
+        fun fromWei(amount: String, toUnit: EthUnit): BigDecimal = WEI.convert(amount, toUnit)
 
-        fun toUnit(amount: String, sourceUnit: EthUnit, targetUnit: EthUnit) =
-            sourceUnit.toUnit(amount, targetUnit)
+        /**
+         * Converts an [amount] from the current unit to [toUnit], truncating values less than 1 Wei.
+         */
+        @JvmStatic
+        fun convert(amount: String, fromUnit: EthUnit, toUnit: EthUnit) = fromUnit.convert(amount, toUnit)
 
-        fun toUnit(amount: BigDecimal, sourceUnit: EthUnit, targetUnit: EthUnit) =
-            sourceUnit.toUnit(amount, targetUnit)
+        /**
+         * Converts an [amount] from the current unit to [toUnit], truncating values less than 1 Wei.
+         */
+        @JvmStatic
+        fun convert(amount: BigDecimal, fromUnit: EthUnit, toUnit: EthUnit) = fromUnit.convert(amount, toUnit)
 
-        fun toUnit(amount: BigInteger, sourceUnit: EthUnit, targetUnit: EthUnit) =
-            sourceUnit.toUnit(amount, targetUnit)
+        /**
+         * Converts an [amount] from the current unit to [toUnit], truncating values less than 1 Wei.
+         */
+        @JvmStatic
+        fun convert(amount: BigInteger, fromUnit: EthUnit, toUnit: EthUnit) = fromUnit.convert(amount, toUnit)
     }
 }
