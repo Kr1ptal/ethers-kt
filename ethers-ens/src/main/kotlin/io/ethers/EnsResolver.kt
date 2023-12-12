@@ -3,6 +3,7 @@ package io.ethers
 import io.ethers.EnsResolver.Error.FailedToResolve
 import io.ethers.EnsResolver.Error.UnknownResolver
 import io.ethers.core.ENSRegistryWithFallback
+import io.ethers.core.FastHex
 import io.ethers.core.PublicResolver
 import io.ethers.core.types.Address
 import io.ethers.core.types.BlockId
@@ -34,7 +35,7 @@ class EnsResolver(private val provider: Provider) {
         return resolver.addr(Bytes(nameHash))
             .call(BlockId.LATEST)
             .sendAwait()
-            .mapError { FailedToResolve(resolver.address, ensName, it) }
+            .mapError { FailedToResolve(resolver.address, ensName) }
     }
 
     /**
@@ -54,8 +55,16 @@ class EnsResolver(private val provider: Provider) {
         val registryContract = ENSRegistryWithFallback(provider, registryAddr)
         return registryContract.resolver(Bytes(nameHash))
             .call(BlockId.LATEST)
+            .map {
+                //
+                if (it == Address.ZERO) {
+                    return@map RpcResponse.error(Error.ResolvingResolver(registryAddr, nameHash.toString()))
+                } else {
+                    return@map RpcResponse.result(it)
+                }
+            }
             .sendAwait()
-            .mapError { UnknownResolver(it) }
+            .mapError { UnknownResolver(registryAddr, FastHex.encodeWithPrefix(nameHash)) }
     }
 
     /**
@@ -86,13 +95,26 @@ class EnsResolver(private val provider: Provider) {
         }
 
         /**
+         * Error on resolver address resolving.
+         */
+        data class ResolvingResolver(
+            val registryAddress: Address,
+            val nameHash: String,
+        ) : Error() {
+            override fun doThrow() {
+                throw RuntimeException("Error when resolving resolver on registry $registryAddress for nameHash $nameHash.")
+            }
+        }
+
+        /**
          * Resolver address not found for given nameHash on registry.
          */
         data class UnknownResolver(
-            val cause: RpcResponse.Error,
+            val registryAddress: Address,
+            val nameHash: String,
         ) : Error() {
             override fun doThrow() {
-                throw RuntimeException("Resolver for given nameHash was not found: $cause")
+                throw RuntimeException("Resolver on registry $registryAddress for nameHash $nameHash was not found.")
             }
         }
 
@@ -102,11 +124,10 @@ class EnsResolver(private val provider: Provider) {
         data class FailedToResolve(
             val resolverAddr: Address,
             val ensName: String,
-            val cause: RpcResponse.Error,
         ) :
             Error() {
             override fun doThrow() {
-                throw RuntimeException("Failed to resolve ens name: $ensName with resolver $resolverAddr: $cause")
+                throw RuntimeException("Failed to resolve ens name: $ensName with resolver $resolverAddr.")
             }
         }
     }
