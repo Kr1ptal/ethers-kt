@@ -17,38 +17,19 @@ class EthUnitTest : FunSpec({
         val unit2: EthUnit,
     )
 
-    test("Usage examples") {
-        // To and from wei (String only)
-        EthUnit.ETHER.toWei("1")
-        EthUnit.ETHER.fromWei("1000000000000000000")
-
-        // To and from gwei (String only)
-        EthUnit.ETHER.toGwei("1")
-        EthUnit.ETHER.fromGwei("1000000000")
-
-        // To and from ether (String only)
-        EthUnit.GWEI.toEther("1000000000")
-        EthUnit.GWEI.fromEther("1")
-
-        // Between units (BigDecimal, BigInteger, String)
-        EthUnit.ETHER.convert(BigDecimal("1.234"), EthUnit.KWEI)
-        EthUnit.ETHER.convert(BigInteger("1"), EthUnit.GWEI)
-        EthUnit.ETHER.convert("1.234", EthUnit.GETHER)
+    /**
+     * Testing [EthUnit.convert] with amount as BigDecimal and String
+     */
+    fun testConvert(fromAmount: BigDecimal, fromUnit: EthUnit, expectedAmount: BigDecimal, toUnit: EthUnit) {
+        fromUnit.convert(fromAmount, toUnit) shouldBeEqualComparingTo expectedAmount
+        fromUnit.convert(fromAmount.toPlainString(), toUnit) shouldBeEqualComparingTo expectedAmount
     }
 
     /**
-     * Testing toUnit with amount as BigDecimal and String
+     * Testing [EthUnit.convert] with amount as BigInteger
      */
-    fun testToUnit(amount1: BigDecimal, unit1: EthUnit, amount2: BigDecimal, unit2: EthUnit) {
-        unit1.convert(amount1, unit2) shouldBeEqualComparingTo amount2
-        unit1.convert(amount1.toPlainString(), unit2) shouldBeEqualComparingTo amount2
-    }
-
-    /**
-     * Testing toUnit with amount as BigInteger
-     */
-    fun testToUnit(amount1: BigInteger, unit1: EthUnit, amount2: BigDecimal, unit2: EthUnit) {
-        unit1.convert(amount1, unit2) shouldBeEqualComparingTo amount2
+    fun testConvert(fromAmount: BigInteger, fromUnit: EthUnit, expectedAmount: BigDecimal, toUnit: EthUnit) {
+        fromUnit.convert(fromAmount, toUnit) shouldBeEqualComparingTo expectedAmount
     }
 
     context("Manual tests") {
@@ -83,8 +64,8 @@ class EthUnitTest : FunSpec({
                 ),
             ) {
                 // test in both directions
-                testToUnit(it.amount1, it.unit1, it.amount2, it.unit2)
-                testToUnit(it.amount2, it.unit2, it.amount1, it.unit1)
+                testConvert(it.amount1, it.unit1, it.amount2, it.unit2)
+                testConvert(it.amount2, it.unit2, it.amount1, it.unit1)
             }
         }
 
@@ -113,7 +94,7 @@ class EthUnitTest : FunSpec({
                 ),
             ) {
                 // test in one direction
-                testToUnit(it.amount1.toBigInteger(), it.unit1, it.amount2, it.unit2)
+                testConvert(it.amount1.toBigInteger(), it.unit1, it.amount2, it.unit2)
             }
         }
 
@@ -125,7 +106,7 @@ class EthUnitTest : FunSpec({
                     ConversionTestData(BigDecimal("-0.00001"), EthUnit.KWEI, BigDecimal("0"), EthUnit.WEI),
                 ),
             ) {
-                testToUnit(it.amount1, it.unit1, it.amount2, it.unit2)
+                testConvert(it.amount1, it.unit1, it.amount2, it.unit2)
             }
         }
 
@@ -139,8 +120,8 @@ class EthUnitTest : FunSpec({
                     ConversionTestData(BigDecimal("0"), EthUnit.WEI, BigDecimal("0"), EthUnit.KETHER),
                 ),
             ) {
-                testToUnit(it.amount1, it.unit1, it.amount2, it.unit2)
-                testToUnit(it.amount1.toBigInteger(), it.unit1, it.amount2, it.unit2)
+                testConvert(it.amount1, it.unit1, it.amount2, it.unit2)
+                testConvert(it.amount1.toBigInteger(), it.unit1, it.amount2, it.unit2)
             }
         }
     }
@@ -174,8 +155,8 @@ class EthUnitTest : FunSpec({
                     fromUnit.fromEther(etherAmount.toString()) shouldBeEqualComparingTo fromAmountDec
 
                     // # Between units (BigDecimal, BigInteger, String)
-                    testToUnit(fromAmountDec, fromUnit, toAmount, toUnit)
-                    testToUnit(toAmount, toUnit, fromAmountDec, fromUnit)
+                    testConvert(fromAmountDec, fromUnit, toAmount, toUnit)
+                    testConvert(toAmount, toUnit, fromAmountDec, fromUnit)
 
                     // toUnit using BigInteger
                     // calculate sourceAmount without decimals
@@ -190,7 +171,7 @@ class EthUnitTest : FunSpec({
                         else
                             fromAmountInt.toBigDecimal().multiply(BigDecimal.TEN.pow(fromDecimals - toDecimals))
 
-                    testToUnit(fromAmountInt, fromUnit, toAmountInt, toUnit)
+                    testConvert(fromAmountInt, fromUnit, toAmountInt, toUnit)
                 }
             }
         }
