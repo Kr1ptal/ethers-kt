@@ -10,29 +10,30 @@ import io.ethers.core.types.BlockId
 import io.ethers.core.types.Bytes
 import io.ethers.providers.Provider
 import io.ethers.providers.types.RpcResponse
+import java.util.concurrent.CompletableFuture
 
 class EnsResolver(private val provider: Provider) {
 
     /**
      * Resolve ens name to Address. On error return [RpcResponse] as error.
      */
-    fun resolveName(ensName: String): RpcResponse<Address> {
+    fun resolveName(ensName: String): CompletableFuture<RpcResponse<Address>> = CompletableFuture.supplyAsync {
         // Check that ens name is valid
         if (ensName.isBlank() || (ensName.trim().length == 1 && ensName.contains("."))) {
-            return RpcResponse.error(Error.EnsNameInvalid)
+            return@supplyAsync RpcResponse.error(Error.EnsNameInvalid)
         }
 
         val nameHashResponse = NameHash.nameHash(ensName)
-        if (nameHashResponse.isError) return nameHashResponse.propagateError()
+        if (nameHashResponse.isError) return@supplyAsync nameHashResponse.propagateError()
         val nameHash = nameHashResponse.resultOrThrow()
 
         val resolverResponse = getResolver(nameHash)
-        if (resolverResponse.isError) return resolverResponse.propagateError()
+        if (resolverResponse.isError) return@supplyAsync resolverResponse.propagateError()
 
         // Unwrap resolver from RpcResponse and call its addr() function.
         // If RpcResponse is an error, map it to error FailedToResolve.
         val resolver = resolverResponse.resultOrThrow()
-        return resolver.addr(Bytes(nameHash))
+        return@supplyAsync resolver.addr(Bytes(nameHash))
             .call(BlockId.LATEST)
             .sendAwait()
             .mapError { FailedToResolve(resolver.address, ensName) }
@@ -151,7 +152,7 @@ class EnsResolver(private val provider: Provider) {
             }
         }
 
-        fun Provider.resolveName(ensName: String): RpcResponse<Address> {
+        fun Provider.resolveName(ensName: String): CompletableFuture<RpcResponse<Address>> {
             val ensResolver = EnsResolver(this)
             return ensResolver.resolveName(ensName)
         }
