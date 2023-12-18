@@ -40,9 +40,9 @@ class EnsResolverTest : FunSpec({
                     ),
                 ),
             ) {
-                ensResolver.resolveName(it.ensName).resultOrThrow() shouldBe it.address
+                ensResolver.resolveName(it.ensName).get().resultOrThrow() shouldBe it.address
 
-                provider.resolveName(it.ensName).resultOrThrow() shouldBe it.address
+                provider.resolveName(it.ensName).get().resultOrThrow() shouldBe it.address
             }
         }
 
@@ -52,24 +52,24 @@ class EnsResolverTest : FunSpec({
          * Testing [EnsResolver.Error.EnsNameInvalid]
          */
         test("Invalid ENS names") {
-            ensResolver.resolveName("").error.shouldBeInstanceOf<EnsResolver.Error.EnsNameInvalid>()
-            ensResolver.resolveName("\t").error.shouldBeInstanceOf<EnsResolver.Error.EnsNameInvalid>()
-            ensResolver.resolveName(".").error.shouldBeInstanceOf<EnsResolver.Error.EnsNameInvalid>()
-            ensResolver.resolveName("\n.").error.shouldBeInstanceOf<EnsResolver.Error.EnsNameInvalid>()
+            ensResolver.resolveName("").get().error.shouldBeInstanceOf<EnsResolver.Error.EnsNameInvalid>()
+            ensResolver.resolveName("\t").get().error.shouldBeInstanceOf<EnsResolver.Error.EnsNameInvalid>()
+            ensResolver.resolveName(".").get().error.shouldBeInstanceOf<EnsResolver.Error.EnsNameInvalid>()
+            ensResolver.resolveName("\n.").get().error.shouldBeInstanceOf<EnsResolver.Error.EnsNameInvalid>()
 
-            provider.resolveName("").error.shouldBeInstanceOf<EnsResolver.Error.EnsNameInvalid>()
-            provider.resolveName("\t").error.shouldBeInstanceOf<EnsResolver.Error.EnsNameInvalid>()
-            provider.resolveName(".").error.shouldBeInstanceOf<EnsResolver.Error.EnsNameInvalid>()
-            provider.resolveName("\n.").error.shouldBeInstanceOf<EnsResolver.Error.EnsNameInvalid>()
+            provider.resolveName("").get().error.shouldBeInstanceOf<EnsResolver.Error.EnsNameInvalid>()
+            provider.resolveName("\t").get().error.shouldBeInstanceOf<EnsResolver.Error.EnsNameInvalid>()
+            provider.resolveName(".").get().error.shouldBeInstanceOf<EnsResolver.Error.EnsNameInvalid>()
+            provider.resolveName("\n.").get().error.shouldBeInstanceOf<EnsResolver.Error.EnsNameInvalid>()
         }
 
         /**
          * Testing [EnsResolver.Error.Normalisation]
          */
         test("Failed normalisation") {
-            ensResolver.resolveName("xn--u-ccb.com").error.shouldBeInstanceOf<EnsResolver.Error.Normalisation>()
+            ensResolver.resolveName("xn--u-ccb.com").get().error.shouldBeInstanceOf<EnsResolver.Error.Normalisation>()
 
-            provider.resolveName("xn--u-ccb.com").error.shouldBeInstanceOf<EnsResolver.Error.Normalisation>()
+            provider.resolveName("xn--u-ccb.com").get().error.shouldBeInstanceOf<EnsResolver.Error.Normalisation>()
         }
 
         /**
@@ -90,8 +90,8 @@ class EnsResolverTest : FunSpec({
                     ),
                 ),
             ) {
-                testError(ensResolver.resolveName(it.ensName).error, it)
-                testError(provider.resolveName(it.ensName).error, it)
+                testError(ensResolver.resolveName(it.ensName).get().error, it)
+                testError(provider.resolveName(it.ensName).get().error, it)
             }
         }
     }
