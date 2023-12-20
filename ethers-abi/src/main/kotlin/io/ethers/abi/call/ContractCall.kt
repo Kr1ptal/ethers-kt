@@ -2,6 +2,8 @@ package io.ethers.abi.call
 
 import io.ethers.abi.error.ContractError
 import io.ethers.abi.error.DecodingError
+import io.ethers.abi.error.RevertError
+import io.ethers.core.FastHex
 import io.ethers.core.types.AccessList
 import io.ethers.core.types.AccountOverride
 import io.ethers.core.types.Address
@@ -51,11 +53,17 @@ abstract class ReadWriteContractCall<C, S : PendingInclusion<*>, B : ReadWriteCo
         // if all params are set on "call", create signed tx directly
         val signed = sign(signer)
         if (signed != null) {
-            return provider.sendRawTransaction(signed).map { RpcResponse.result(handleSendResult(it)) }
+            return provider.sendRawTransaction(signed).map {
+                if (it.isError) return@map it.propagateError()
+
+                RpcResponse.result(handleSendResult(it.resultOrThrow()))
+            }
         }
 
         return provider.fillTransaction(call).map { result ->
-            val tx = signer.signTransaction(result)
+            if (result.isError) return@map result.propagateError()
+
+            val tx = signer.signTransaction(result.resultOrThrow())
             provider.sendRawTransaction(tx).sendAwait().map(::handleSendResult)
         }
     }
@@ -137,7 +145,27 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
         stateOverride: Map<Address, AccountOverride>? = null,
         blockOverride: BlockOverride? = null,
     ): RpcRequest<C> {
-        return provider.call(call, blockId, stateOverride, blockOverride).map { result ->
+        return provider.call(call, blockId, stateOverride, blockOverride).map { response ->
+            // "eth_call" execution reverts are included in "error" field of the json-rpc response
+            if (response.isError) {
+                val err = response.error?.asTypeOrNull<RpcResponse.RpcError>()
+                if (err != null && err.isExecutionError && err.data != null) {
+                    // if data is not a valid hex string, it's an already decoded revert error
+                    if (!FastHex.isValidHex(err.data!!)) {
+                        return@map RpcResponse.error(RevertError(err.data!!))
+                    }
+
+                    // otherwise it could be a custom error
+                    val error = ContractError.getOrNull(Bytes(err.data!!))
+                    if (error != null) {
+                        return@map RpcResponse.error(error)
+                    }
+                }
+
+                return@map response.propagateError()
+            }
+
+            val result = response.resultOrThrow()
             val error = ContractError.getOrNull(result)
             if (error != null) {
                 return@map RpcResponse.error(error)
