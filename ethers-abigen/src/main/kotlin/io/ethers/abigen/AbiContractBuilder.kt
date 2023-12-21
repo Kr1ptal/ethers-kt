@@ -70,6 +70,7 @@ class AbiContractBuilder(
         contractBuilder.addSuperclassConstructorParameter("%N, %N", providerArg, addressArg)
         contractBuilder.primaryConstructor(constructor.build())
 
+        val companionInitCode = ArrayList<CodeBlock>()
         val companion = TypeSpec.companionObjectBuilder()
 
         val errorFactories = ArrayList<String>()
@@ -147,11 +148,7 @@ class AbiContractBuilder(
             companion.addProperty(
                 PropertySpec.builder("ERRORS", errorArrayType)
                     .addAnnotation(JvmField::class)
-                    .initializer(
-                        "arrayOf(%L).also·{ %T.addFactories(it) }",
-                        errorFactories.joinToString(","),
-                        CustomErrorFactoryResolver::class.asClassName(),
-                    )
+                    .initializer("arrayOf(%L)", errorFactories.joinToString(","))
                     .build(),
             )
 
@@ -169,6 +166,13 @@ class AbiContractBuilder(
                         }.build(),
                     )
                     .build(),
+            )
+
+            companionInitCode.add(
+                CodeBlock.of(
+                    "%T.addFactories(ERRORS)",
+                    CustomErrorFactoryResolver::class.asClassName(),
+                ),
             )
         }
 
@@ -202,6 +206,7 @@ class AbiContractBuilder(
         }
 
         constants.values.forEach { companion.addProperty(it) }
+        companion.addInitializerBlock(CodeBlock.of(companionInitCode.joinToString("\n")))
 
         contractBuilder.addType(companion.build())
         fileBuilder.addType(contractBuilder.build())
