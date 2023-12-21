@@ -32,6 +32,9 @@ class BlockTest : FunSpec({
               "withdrawalsRoot": "0x1276b1e90b9f4a76b24e5fad4adce2a5e6ffef7351bfaa2e128955950a9027b0",
               "baseFeePerGas": "0x2e22eacf",
               "miner": "0x3b64216ad1a58f61538b4fa1b27327675ab7ed67",
+              "blobGasUsed": "0x1276b0",
+              "excessBlobGas": "0x01276b",
+              "parentBeaconBlockRoot": "0xc74b35721eec9b338589ea735f8d322b3e27f3259d9e924ef354a4336fb715a8",
               "transactions": [
                 "0xc74b35721eec9b338589ea735f8d322b3e27f3259d9e924ef354a4336fb715a8",
                 "0x5c4ca94fca565ef1c983e3a3cd4bc6d6da1091a487f5d64b8a1bb3434a12d876",
@@ -106,8 +109,9 @@ class BlockTest : FunSpec({
                 Withdrawal(20789864, 599445, Address("0xe839a3e9efb32c6a56ab7128e51056585275506c"), 16657613L),
             ),
             withdrawalsRoot = Hash("0x1276b1e90b9f4a76b24e5fad4adce2a5e6ffef7351bfaa2e128955950a9027b0"),
-            blobGasUsed = -1L,
-            excessBlobGas = -1L,
+            blobGasUsed = 1210032,
+            excessBlobGas = 75627,
+            parentBeaconBlockRoot = Hash("0xc74b35721eec9b338589ea735f8d322b3e27f3259d9e924ef354a4336fb715a8"),
             otherFields = mapOf(
                 "test" to Jackson.MAPPER.readTree("""{"k1":"v1","k2":"v2"}"""),
             ),
@@ -278,6 +282,7 @@ class BlockTest : FunSpec({
             withdrawalsRoot = Hash("0x1276b1e90b9f4a76b24e5fad4adce2a5e6ffef7351bfaa2e128955950a9027b0"),
             blobGasUsed = -1L,
             excessBlobGas = -1L,
+            parentBeaconBlockRoot = null,
             otherFields = mapOf(
                 "test" to Jackson.MAPPER.readTree("""{"k1":"v1","k2":"v2"}"""),
             ),
