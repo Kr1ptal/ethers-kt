@@ -73,7 +73,9 @@ abstract class EventFilterBase<T : ContractEvent, F : EventFilterBase<T, F>>(
      * */
     fun watch(): RpcRequest<FilterPoller<T>> {
         return provider.watchLogs(filter).map { poller ->
-            RpcResponse.result(poller.mapPoller(::decodeMatchingLogs))
+            if (poller.isError) return@map poller.propagateError()
+
+            RpcResponse.result(poller.resultOrThrow().mapPoller(::decodeMatchingLogs))
         }
     }
 
@@ -94,7 +96,11 @@ abstract class EventFilterBase<T : ContractEvent, F : EventFilterBase<T, F>>(
      * Query for events matching this filter.
      * */
     fun query(): RpcRequest<List<T>> {
-        return provider.getLogs(filter).map { RpcResponse.result(decodeMatchingLogs(it)) }
+        return provider.getLogs(filter).map {
+            if (it.isError) return@map it.propagateError()
+
+            RpcResponse.result(decodeMatchingLogs(it.resultOrThrow()))
+        }
     }
 
     /**

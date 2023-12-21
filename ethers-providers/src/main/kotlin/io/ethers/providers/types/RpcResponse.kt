@@ -122,7 +122,69 @@ class RpcResponse<T> private constructor(
     /**
      * Internal JSON-RPC error, returned when the RPC call fails.
      */
-    data class RpcError(val code: Int, val message: String, val data: String?) : Error()
+    data class RpcError(val code: Int, val message: String, val data: String?) : Error() {
+        /**
+         * Invalid JSON was received by the server. An error occurred on the server while parsing the JSON text.
+         * */
+        val isParseError get() = code == CODE_PARSE_ERROR
+
+        /**
+         * The JSON sent is not a valid Request object.
+         * */
+        val isInvalidRequest get() = code == CODE_INVALID_REQUEST
+
+        /**
+         * The method does not exist / is not available.
+         * */
+        val isMethodNotFound get() = code == CODE_METHOD_NOT_FOUND
+
+        /**
+         * Invalid method parameter(s).
+         * */
+        val isInvalidParams get() = code == CODE_INVALID_PARAMS
+
+        /**
+         * Internal JSON-RPC error.
+         * */
+        val isInternalError get() = code == CODE_INTERNAL_ERROR
+
+        /**
+         * Server error. Contains implementation-defined server-errors.
+         * */
+        val isServerError get() = code in CODE_SERVER_ERROR
+
+        /**
+         * Action is not authorized, e.g. sending from a locked account.
+         * */
+        val isUnauthorized get() = code == CODE_UNAUTHORIZED
+
+        /**
+         * Action is not allowed, e.g. preventing an action, while another dependant action is being processed.
+         * */
+        val isActionNotAllowed get() = code == CODE_ACTION_NOT_ALLOWED
+
+        /**
+         * Will contain a subset of custom errors in the data field. See below.
+         * */
+        val isExecutionError get() = code == CODE_EXECUTION_ERROR
+
+        companion object {
+            // Standard JSON-RPC errors
+            const val CODE_PARSE_ERROR = -32700
+            const val CODE_INVALID_REQUEST = -32600
+            const val CODE_METHOD_NOT_FOUND = -32601
+            const val CODE_INVALID_PARAMS = -32602
+            const val CODE_INTERNAL_ERROR = -32603
+
+            @JvmField
+            val CODE_SERVER_ERROR = -32099..-32000
+
+            // Custom errors
+            const val CODE_UNAUTHORIZED = 1
+            const val CODE_ACTION_NOT_ALLOWED = 2
+            const val CODE_EXECUTION_ERROR = 3
+        }
+    }
 
     companion object {
         @JvmStatic

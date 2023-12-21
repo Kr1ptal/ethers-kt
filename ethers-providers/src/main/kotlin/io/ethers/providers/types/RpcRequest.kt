@@ -24,14 +24,8 @@ abstract class RpcRequest<T> {
     /**
      * Remap the returned RPC response if the call was successful.
      */
-    fun <R> map(mapper: Function<T, RpcResponse<R>>): RpcRequest<R> {
-        return MappingRpcRequest(this) {
-            if (it.isError) {
-                it.propagateError()
-            } else {
-                mapper.apply(it.resultOrThrow())
-            }
-        }
+    fun <R> map(mapper: Function<RpcResponse<T>, RpcResponse<R>>): RpcRequest<R> {
+        return MappingRpcRequest(this, mapper)
     }
 }
 
