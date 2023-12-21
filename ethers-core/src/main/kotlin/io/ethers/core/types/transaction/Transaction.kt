@@ -70,7 +70,7 @@ sealed class TxType(val type: Int) {
         }
 
         override fun toString(): String {
-            return "Unknown(type=$type)"
+            return "Unsupported(type=$type)"
         }
     }
 
