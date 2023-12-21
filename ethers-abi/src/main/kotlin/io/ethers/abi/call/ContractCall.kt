@@ -166,11 +166,6 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
             }
 
             val result = response.resultOrThrow()
-            val error = ContractError.getOrNull(result)
-            if (error != null) {
-                return@map RpcResponse.error(error)
-            }
-
             try {
                 return@map handleCallResult(result)
             } catch (e: Exception) {
