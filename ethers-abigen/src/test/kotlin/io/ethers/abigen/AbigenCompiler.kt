@@ -28,13 +28,13 @@ object AbigenCompiler {
         val contractName = resourceName.removeSuffix(".json").split("/").last()
         val outFile = File(SOURCE_FOLDER, "$GENERATED_CLASS_DEST_DIR/$contractName.kt")
 
-        AbiContractBuilder(
+        val contract = AbiContractBuilder(
             contractName,
             GENERATED_CLASS_PACKAGE,
             SOURCE_FOLDER,
             abi,
             emptyMap(),
-        ).run()
+        ).build()
 
         val result = KotlinCompilation().apply {
             sources = listOf(SourceFile.fromPath(outFile))
@@ -46,6 +46,6 @@ object AbigenCompiler {
             throw IllegalStateException("Compilation failed: ${result.messages}")
         }
 
-        return result.classLoader.loadClass("$GENERATED_CLASS_PACKAGE.$contractName").kotlin
+        return result.classLoader.loadClass(contract.canonicalName).kotlin
     }
 }

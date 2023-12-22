@@ -44,13 +44,13 @@ class AbiContractBuilder(
     private val destination: File,
     private val artifact: JsonAbi,
     private val functionRenames: Map<String, String>,
-) : Runnable {
+) {
     private val uniqueClassNames = HashSet<String>()
     private val constants = HashMap<String, PropertySpec>()
     private val structs = HashMap<String, AbiTypeParameter.Struct>()
     private val resultClasses = HashMap<String, TypeSpec>()
 
-    override fun run() {
+    fun build(): ClassName {
         val fileBuilder = FileSpec.builder(packageName, contractName)
             .indent("    ") // 1 tab / 4 spaces
 
@@ -209,8 +209,13 @@ class AbiContractBuilder(
         companion.addInitializerBlock(CodeBlock.of(companionInitCode.joinToString("\n")))
 
         contractBuilder.addType(companion.build())
-        fileBuilder.addType(contractBuilder.build())
+        val contract = contractBuilder.build()
+        val className = ClassName(packageName, contractName.simpleName)
+
+        fileBuilder.addType(contract)
         fileBuilder.build().writeTo(destination)
+
+        return className
     }
 
     private fun createReceiveFunction(): FunSpec {

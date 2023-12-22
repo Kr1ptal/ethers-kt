@@ -32,7 +32,7 @@ abstract class AbigenWork : WorkAction<AbigenWork.Parameters> {
             parameters.destination.get(),
             abi,
             parameters.functionRenames.get(),
-        ).run()
+        ).build()
     }
 
     // all parameters need to be serializable
