@@ -38,6 +38,8 @@ object AbigenCompiler {
             .listFiles()!!
             .filter { it.name.endsWith(".json") }
 
+        val errorLoaderBuilder = ErrorLoaderBuilder("AbigenTest", ABIGEN_DIRECTORY)
+
         val genSources = abis.map {
             val resourceName = it.name
             val abi = JsonAbiReaderRegistry.readAbi(it.toURI().toURL())
@@ -46,16 +48,23 @@ object AbigenCompiler {
             val contractName = resourceName.removeSuffix(".json").split("/").last()
             val outFile = File(ABIGEN_DIRECTORY, "$GENERATED_CLASS_DEST_DIR/$contractName.kt")
 
-            AbiContractBuilder(
-                contractName,
-                GENERATED_CLASS_PACKAGE,
-                ABIGEN_DIRECTORY,
-                abi,
-                emptyMap(),
-            ).build()
+            errorLoaderBuilder.addContract(
+                AbiContractBuilder(
+                    contractName,
+                    GENERATED_CLASS_PACKAGE,
+                    ABIGEN_DIRECTORY,
+                    abi,
+                    emptyMap(),
+                ).build(errorLoaderBuilder.canonicalName)
+            )
 
             SourceFile.fromPath(outFile)
-        }
+        }.toMutableList()
+
+        errorLoaderBuilder.build()
+
+        val loaderOutFile = File(ABIGEN_DIRECTORY, "${errorLoaderBuilder.canonicalName.replace('.', '/')}.kt")
+        genSources.add(SourceFile.fromPath(loaderOutFile))
 
         val result = KotlinCompilation().apply {
             sources = genSources
