@@ -19,8 +19,8 @@ import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.shouldBe
 
 class OffchainResolverTest : FunSpec({
-    context("abigen validation") {
-        val clazz = AbigenCompiler.compile("/abi/OffchainResolver.json")
+    context("abigen validation: OffchainResolver") {
+        val clazz = AbigenCompiler.getContract("OffchainResolver")
 
         test("class name") {
             clazz.simpleName shouldBe "OffchainResolver"

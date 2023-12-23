@@ -21,8 +21,8 @@ import kotlin.reflect.full.isSubclassOf
 import kotlin.reflect.full.primaryConstructor
 
 class ErrorsTest : FunSpec({
-    context("abigen validation") {
-        val clazz = AbigenCompiler.compile("/abi/Errors.json")
+    context("abigen validation: Errors") {
+        val clazz = AbigenCompiler.getContract("Errors")
 
         val (baseClass, classes, descriptors, factories) = clazz.getDeclaredErrors()
 

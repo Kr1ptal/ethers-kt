@@ -50,7 +50,11 @@ class AbiContractBuilder(
     private val structs = HashMap<String, AbiTypeParameter.Struct>()
     private val resultClasses = HashMap<String, TypeSpec>()
 
-    fun build(): ClassName {
+    /**
+     * Generates the contract class, writes it to the destination directory, and returns the canonical name of the
+     * generated class (e.g. `io.ethers.gen.ExampleContractClass`).
+     * */
+    fun build(): String {
         val fileBuilder = FileSpec.builder(packageName, contractName)
             .indent("    ") // 1 tab / 4 spaces
 
@@ -215,7 +219,7 @@ class AbiContractBuilder(
         fileBuilder.addType(contract)
         fileBuilder.build().writeTo(destination)
 
-        return className
+        return className.canonicalName
     }
 
     private fun createReceiveFunction(): FunSpec {

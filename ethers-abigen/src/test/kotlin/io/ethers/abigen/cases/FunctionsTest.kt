@@ -15,8 +15,8 @@ import io.kotest.matchers.shouldBe
 import java.math.BigInteger
 
 class FunctionsTest : FunSpec({
-    context("abigen validation") {
-        val clazz = AbigenCompiler.compile("/abi/Functions.json")
+    context("abigen validation: Functions") {
+        val clazz = AbigenCompiler.getContract("Functions")
 
         test("class name") {
             clazz.simpleName shouldBe "Functions"

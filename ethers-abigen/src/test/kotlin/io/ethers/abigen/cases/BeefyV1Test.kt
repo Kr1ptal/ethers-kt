@@ -24,8 +24,8 @@ import kotlin.reflect.full.companionObject
 import kotlin.reflect.full.isSubclassOf
 
 class BeefyV1Test : FunSpec({
-    context("abigen validation") {
-        val clazz = AbigenCompiler.compile("/abi/BeefyV1.json")
+    context("abigen validation: BeefyV1") {
+        val clazz = AbigenCompiler.getContract("BeefyV1")
 
         test("class name") {
             clazz.simpleName shouldBe "BeefyV1"
