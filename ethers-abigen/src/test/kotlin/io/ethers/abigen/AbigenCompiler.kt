@@ -38,7 +38,7 @@ object AbigenCompiler {
             .listFiles()!!
             .filter { it.name.endsWith(".json") }
 
-        val errorLoaderBuilder = ErrorLoaderBuilder("AbigenTest", ABIGEN_DIRECTORY)
+        val errorLoaderBuilder = ErrorLoaderBuilder("Test", ABIGEN_DIRECTORY)
 
         val genSources = abis.map {
             val resourceName = it.name
@@ -55,7 +55,7 @@ object AbigenCompiler {
                     ABIGEN_DIRECTORY,
                     abi,
                     emptyMap(),
-                ).build(errorLoaderBuilder.canonicalName)
+                ).build(errorLoaderBuilder.canonicalName),
             )
 
             SourceFile.fromPath(outFile)

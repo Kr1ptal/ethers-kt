@@ -97,7 +97,7 @@ class EthersAbigenPluginTest : FunSpec({
                 .filter(File::isFile)
                 .toList()
 
-            generatedFiles.size shouldBe 2
+            generatedFiles.size shouldBe 3
         }
 
         test("task results are loaded from cache on second run with same inputs") {
@@ -148,7 +148,7 @@ class EthersAbigenPluginTest : FunSpec({
                 .filter(File::isFile)
                 .toList()
 
-            generatedFiles.size shouldBe 2
+            generatedFiles.size shouldBe 3
         }
     }
 })

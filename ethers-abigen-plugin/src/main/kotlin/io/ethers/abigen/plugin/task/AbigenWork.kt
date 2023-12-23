@@ -4,6 +4,7 @@ import io.ethers.abigen.AbiContractBuilder
 import io.ethers.abigen.plugin.source.AbiSource
 import io.ethers.abigen.reader.JsonAbiReaderRegistry
 import org.gradle.api.GradleException
+import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.MapProperty
 import org.gradle.api.provider.Property
 import org.gradle.workers.WorkAction
@@ -26,13 +27,15 @@ abstract class AbigenWork : WorkAction<AbigenWork.Parameters> {
         }
 
         logger.info("Generating Kotlin wrapper for ${source.contractName}")
-        AbiContractBuilder(
+        val canonicalName = AbiContractBuilder(
             source.contractName,
             source.destinationPackage,
             parameters.destination.get(),
             abi,
             parameters.functionRenames.get(),
-        ).build()
+        ).build(parameters.errorLoaderName.get())
+
+        parameters.canonicalNameFile.get().asFile.writeText(canonicalName)
     }
 
     // all parameters need to be serializable
@@ -40,5 +43,7 @@ abstract class AbigenWork : WorkAction<AbigenWork.Parameters> {
         val abi: Property<AbiSource>
         val destination: Property<File>
         val functionRenames: MapProperty<String, String>
+        val errorLoaderName: Property<String>
+        val canonicalNameFile: RegularFileProperty
     }
 }

@@ -228,9 +228,9 @@ class AbiContractBuilder(
             CodeBlock.of(
                 companionInitCode.joinToString(
                     System.lineSeparator(),
-                    postfix = System.lineSeparator()
-                )
-            )
+                    postfix = System.lineSeparator(),
+                ),
+            ),
         )
 
         contractBuilder.addType(companion.build())
