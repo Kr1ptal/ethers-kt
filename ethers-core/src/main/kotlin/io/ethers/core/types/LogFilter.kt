@@ -94,7 +94,7 @@ class LogFilter {
     /**
      * Filter logs matching any of provided topic0 [hashes].
      */
-    fun topic0(vararg hashes: Hash): LogFilter = topic0(Topic.Array(hashes as Array<Hash>))
+    fun topic0(vararg hashes: Hash): LogFilter = topic0(Topic.Array(hashes))
 
     /**
      * Filter logs matching provided topic0 [topic].
@@ -112,7 +112,7 @@ class LogFilter {
     /**
      * Filter logs matching any of provided topic1 [hashes].
      */
-    fun topic1(vararg hashes: Hash): LogFilter = topic1(Topic.Array(hashes as Array<Hash>))
+    fun topic1(vararg hashes: Hash): LogFilter = topic1(Topic.Array(hashes))
 
     /**
      * Filter logs matching provided topic1 [topic].
@@ -123,14 +123,14 @@ class LogFilter {
     }
 
     /**
-     * Filter logs matching provided topic2 [hash].
+     * Filter logs matching provided topic2 [hashes].
      */
     fun topic2(hashes: Hash): LogFilter = topic2(Topic.Single(hashes))
 
     /**
      * Filter logs matching any of provided topic2 [hashes].
      */
-    fun topic2(vararg hashes: Hash): LogFilter = topic2(Topic.Array(hashes as Array<Hash>))
+    fun topic2(vararg hashes: Hash): LogFilter = topic2(Topic.Array(hashes))
 
     /**
      * Filter logs matching provided topic2 [topic].
@@ -148,7 +148,7 @@ class LogFilter {
     /**
      * Filter logs matching any of provided topic3 [hashes].
      */
-    fun topic3(vararg hashes: Hash): LogFilter = topic3(Topic.Array(hashes as Array<Hash>))
+    fun topic3(vararg hashes: Hash): LogFilter = topic3(Topic.Array(hashes))
 
     /**
      * Filter logs matching provided topic3 [topic].
@@ -222,7 +222,7 @@ sealed interface BlockSelector {
 sealed interface Topic {
     data class Single(val hash: Hash) : Topic
 
-    class Array(val hashes: kotlin.Array<Hash>) : Topic {
+    class Array(val hashes: kotlin.Array<out Hash>) : Topic {
         constructor(value: List<Hash>) : this(value.toTypedArray())
 
         override fun equals(other: Any?): Boolean {
