@@ -4,7 +4,6 @@ import com.tschuchort.compiletesting.KotlinCompilation
 import com.tschuchort.compiletesting.SourceFile
 import io.ethers.abigen.reader.JsonAbiReaderRegistry
 import java.io.File
-import java.nio.file.Files
 import kotlin.reflect.KClass
 
 /**
@@ -13,7 +12,10 @@ import kotlin.reflect.KClass
 object AbigenCompiler {
     private const val GENERATED_CLASS_PACKAGE = "io.ethers.abigen.test"
     private val GENERATED_CLASS_DEST_DIR = GENERATED_CLASS_PACKAGE.replace('.', '/')
-    private val SOURCE_FOLDER = Files.createTempDirectory("abigen-test").toFile().apply { deleteOnExit() }
+    private val ABIGEN_DIRECTORY = File(
+        // Keep the property name in sync with the one in build.gradle.kts
+        System.getProperty("abigen.directory") ?: throw IllegalStateException("abigen.directory not set")
+    )
 
     /**
      * Build the contract wrapper of ABI located at [resourceName], compile it, and return the generated class. The
@@ -26,12 +28,12 @@ object AbigenCompiler {
         val abi = JsonAbiReaderRegistry.readAbi(abiUrl) ?: throw IllegalArgumentException("Invalid ABI: $resourceName")
 
         val contractName = resourceName.removeSuffix(".json").split("/").last()
-        val outFile = File(SOURCE_FOLDER, "$GENERATED_CLASS_DEST_DIR/$contractName.kt")
+        val outFile = File(ABIGEN_DIRECTORY, "$GENERATED_CLASS_DEST_DIR/$contractName.kt")
 
         val contract = AbiContractBuilder(
             contractName,
             GENERATED_CLASS_PACKAGE,
-            SOURCE_FOLDER,
+            ABIGEN_DIRECTORY,
             abi,
             emptyMap(),
         ).build()
