@@ -1,10 +1,12 @@
-package io.ethers
+package io.ethers.ens
 
-import io.ethers.EnsResolver.Error.Normalisation
+import io.ethers.core.FastHex
+import io.ethers.core.types.Bytes
 import io.ethers.crypto.Hashing
 import io.ethers.providers.types.RpcResponse
 import io.github.adraffy.ens.ENSNormalize
 import io.github.adraffy.ens.InvalidLabelException
+import java.io.ByteArrayOutputStream
 import java.nio.charset.StandardCharsets
 
 object NameHash {
@@ -15,7 +17,7 @@ object NameHash {
         return try {
             RpcResponse.result(ENSNormalize.ENSIP15.normalize(ensName))
         } catch (e: InvalidLabelException) {
-            RpcResponse.error(Normalisation(e))
+            RpcResponse.error(EnsResolver.Error.Normalisation(e))
         }
     }
 
@@ -45,5 +47,27 @@ object NameHash {
 
             return Hashing.keccak256(result)
         }
+    }
+
+    private fun toUtf8Bytes(string: String?): ByteArray? {
+        return if (string.isNullOrEmpty()) {
+            null
+        } else string.toByteArray(StandardCharsets.UTF_8)
+    }
+
+    /**
+     * Encode Dns name. Reference implementation
+     * https://github.com/ethers-io/ethers.js/blob/fc1e006575d59792fa97b4efb9ea2f8cca1944cf/packages/hash/src.ts/namehash.ts#L49
+     */
+    fun dnsEncode(name: String): Bytes {
+        val parts = name.split(".")
+        val outputStream = ByteArrayOutputStream()
+        for (part in parts) {
+            val bytes: ByteArray = NameHash.toUtf8Bytes("_" + normalise(part).resultOrThrow()) ?: break
+            bytes[0] = (bytes.size - 1).toByte()
+            outputStream.write(bytes)
+        }
+
+        return Bytes(FastHex.encodeWithPrefix(outputStream.toByteArray()) + "00")
     }
 }
