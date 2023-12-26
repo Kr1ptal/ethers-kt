@@ -1,13 +1,13 @@
 package io.ethers.ens
 
-import io.ethers.EnsResolver
-import io.ethers.NameHash
 import io.ethers.core.FastHex
+import io.ethers.core.types.Bytes
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 
+@OptIn(ExperimentalUnsignedTypes::class)
 class NameHashTest : FunSpec({
     context("Expected nameHash") {
         withData(
@@ -19,6 +19,16 @@ class NameHashTest : FunSpec({
             ),
         ) {
             FastHex.encodeWithPrefix(NameHash.nameHash(it.first).resultOrThrow()) shouldBe it.second
+        }
+    }
+
+    context("Expected DNS encode") {
+        withData(
+            listOf(
+                "1.offchainexample.eth" to "0x01310f6f6666636861696e6578616d706c650365746800",
+            ),
+        ) {
+            NameHash.dnsEncode(it.first) shouldBe Bytes(it.second)
         }
     }
 
