@@ -297,7 +297,13 @@ class WsClient @JvmOverloads constructor(
                         lastTimeoutCheck = Stopwatch.start()
                     }
 
-                    eventLock.withLock { newEventCondition.await(1, TimeUnit.SECONDS) }
+                    eventLock.withLock {
+                        // do a quick check if any new events arrived while processing requests, while holding the lock
+                        // so there is no race condition, and we don't wait unnecessarily
+                        if (messageQueue.isEmpty() && requestQueue.isEmpty() && batchRequestQueue.isEmpty() && subscriptionQueue.isEmpty()) {
+                            newEventCondition.await(1, TimeUnit.SECONDS)
+                        }
+                    }
                 } catch (e: Exception) {
                     LOG.err(e) { "Exception when processing events, reconnecting WebSocket" }
 
