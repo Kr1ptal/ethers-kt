@@ -44,13 +44,22 @@ class AbiContractBuilder(
     private val destination: File,
     private val artifact: JsonAbi,
     private val functionRenames: Map<String, String>,
-) : Runnable {
+) {
     private val uniqueClassNames = HashSet<String>()
     private val constants = HashMap<String, PropertySpec>()
     private val structs = HashMap<String, AbiTypeParameter.Struct>()
     private val resultClasses = HashMap<String, TypeSpec>()
 
-    override fun run() {
+    /**
+     * Generates the contract class, writes it to the destination directory, and returns the canonical name of the
+     * generated class (e.g. `io.ethers.gen.ExampleContractClass`).
+     *
+     * If [customErrorLoader] is provided, it will call "load()" static method on it to force-initialize all generated
+     * contract wrapper classes, so all custom errors are automatically registered on first access. See
+     * [io.ethers.abigen.ErrorLoaderBuilder] for more details.
+     * */
+    @JvmOverloads
+    fun build(customErrorLoader: String? = null): String {
         val fileBuilder = FileSpec.builder(packageName, contractName)
             .indent("    ") // 1 tab / 4 spaces
 
@@ -205,12 +214,33 @@ class AbiContractBuilder(
             )
         }
 
+        // if error loader is present, call the dummy load function to force all generated errors to be loaded, even
+        // if this contract does not implement one
+        if (customErrorLoader != null) {
+            companionInitCode.add(CodeBlock.of("%T.load()", ClassName.bestGuess(customErrorLoader)))
+        }
+
         constants.values.forEach { companion.addProperty(it) }
-        companion.addInitializerBlock(CodeBlock.of(companionInitCode.joinToString("\n")))
+
+        // add init block to companion object at the end of the class definition so all fields are initialized
+        // when this is called
+        companion.addInitializerBlock(
+            CodeBlock.of(
+                companionInitCode.joinToString(
+                    System.lineSeparator(),
+                    postfix = System.lineSeparator(),
+                ),
+            ),
+        )
 
         contractBuilder.addType(companion.build())
-        fileBuilder.addType(contractBuilder.build())
+        val contract = contractBuilder.build()
+        val className = ClassName(packageName, contractName.simpleName)
+
+        fileBuilder.addType(contract)
         fileBuilder.build().writeTo(destination)
+
+        return className.canonicalName
     }
 
     private fun createReceiveFunction(): FunSpec {

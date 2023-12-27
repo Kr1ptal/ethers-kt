@@ -17,18 +17,18 @@ import kotlin.reflect.full.companionObject
 import kotlin.reflect.full.isSubclassOf
 
 class ConstructorsTest : FunSpec({
-    context("abigen validation") {
-        val noExplicitConstructor = AbigenCompiler.compile(
-            "/abi/ConstructorNoExplicit.json",
+    context("abigen validation: Constructors") {
+        val noExplicitConstructor = AbigenCompiler.getContract(
+            "ConstructorNoExplicit",
         )
-        val explicitNoArgsConstructor = AbigenCompiler.compile(
-            "/abi/ConstructorExplicitEmpty.json",
+        val explicitNoArgsConstructor = AbigenCompiler.getContract(
+            "ConstructorExplicitEmpty",
         )
-        val payableConstructorWithArgs = AbigenCompiler.compile(
-            "/abi/ConstructorArgumentsPayable.json",
+        val payableConstructorWithArgs = AbigenCompiler.getContract(
+            "ConstructorArgumentsPayable",
         )
-        val complexArgsConstructor = AbigenCompiler.compile(
-            "/abi/ConstructorComplexArguments.json",
+        val complexArgsConstructor = AbigenCompiler.getContract(
+            "ConstructorComplexArguments",
         )
 
         context("constructors") {

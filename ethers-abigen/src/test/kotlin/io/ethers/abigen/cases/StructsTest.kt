@@ -17,8 +17,8 @@ import kotlin.reflect.full.companionObjectInstance
 import kotlin.reflect.full.primaryConstructor
 
 class StructsTest : FunSpec({
-    context("abigen validation") {
-        val clazz = AbigenCompiler.compile("/abi/Structs.json")
+    context("abigen validation: Structs") {
+        val clazz = AbigenCompiler.getContract("Structs")
 
         val (classes, descriptors) = clazz.getDeclaredStructs()
 

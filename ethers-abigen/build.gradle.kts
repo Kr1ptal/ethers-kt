@@ -18,8 +18,11 @@ dependencies {
     testImplementation(libs.kotlin.compileTesting)
 }
 
-// https://github.com/tschuchortdev/kotlin-compile-testing?tab=readme-ov-file#java-16-compatibility
 tasks.withType<Test>().all {
+    // Keep the property name in sync with the one in AbigenCompiler.kt
+    systemProperty("abigen.directory", layout.buildDirectory.dir("abigen").get().asFile.absolutePath)
+
+    // https://github.com/tschuchortdev/kotlin-compile-testing?tab=readme-ov-file#java-16-compatibility
     if (JavaVersion.current() >= JavaVersion.VERSION_16) {
         jvmArgs(
             "--add-opens=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED",

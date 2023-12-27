@@ -22,8 +22,8 @@ import kotlin.reflect.full.isSubclassOf
 import kotlin.reflect.full.primaryConstructor
 
 class EventsTest : FunSpec({
-    context("abigen validation") {
-        val clazz = AbigenCompiler.compile("/abi/Events.json")
+    context("abigen validation: Events") {
+        val clazz = AbigenCompiler.getContract("Events")
 
         val (baseClass, classes, descriptors, factories) = clazz.getDeclaredEvents()
 

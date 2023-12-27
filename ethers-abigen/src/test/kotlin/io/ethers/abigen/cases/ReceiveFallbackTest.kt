@@ -13,10 +13,10 @@ import kotlin.reflect.full.createType
 import kotlin.reflect.full.declaredFunctions
 
 class ReceiveFallbackTest : FunSpec({
-    context("abigen validation") {
-        val clazz = AbigenCompiler.compile("/abi/ReceiveAndFallback.json")
-        val clazzNonPayableFallback = AbigenCompiler.compile(
-            "/abi/NonpayableFallback.json",
+    context("abigen validation: ReceiveAndFallback") {
+        val clazz = AbigenCompiler.getContract("ReceiveAndFallback")
+        val clazzNonPayableFallback = AbigenCompiler.getContract(
+            "NonpayableFallback",
         )
 
         context("functions") {

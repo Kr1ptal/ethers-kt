@@ -1,5 +1,6 @@
 package io.ethers.abigen.plugin.task
 
+import io.ethers.abigen.ErrorLoaderBuilder
 import io.ethers.abigen.plugin.source.AbiSourceProvider
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.internal.ConventionTask
@@ -12,6 +13,9 @@ import org.gradle.api.tasks.Nested
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 import org.gradle.workers.WorkerExecutor
+import java.io.File
+import java.util.Collections
+import java.util.UUID
 import javax.inject.Inject
 
 @CacheableTask
@@ -54,14 +58,43 @@ abstract class EthersAbigenTask @Inject constructor(private val executor: Worker
     fun run() {
         val destDir = destinationDir.get().asFile
 
+        var loaderPrefix = project.path.split(":")
+            .map { it.replaceFirstChar { c -> c.uppercase() } }
+            .joinToString(separator = "") { it }
+            .trim()
+
+        if (loaderPrefix.isBlank()) {
+            loaderPrefix = "Default"
+        }
+
+        val errorLoaderBuilder = ErrorLoaderBuilder(loaderPrefix, destDir)
+        val results = Collections.synchronizedList(ArrayList<File>())
+
+        val resultsDir = File(project.layout.buildDirectory.get().asFile, "tmp/abigen-results/").apply { mkdirs() }
+        val queue = executor.noIsolation()
+
         sourceProviders.get().parallelStream().forEach { provider ->
             provider.getSources().forEach { source ->
-                executor.noIsolation().submit(AbigenWork::class.java) {
+                val resultFile = File(resultsDir, UUID.randomUUID().toString())
+                results.add(resultFile)
+
+                queue.submit(AbigenWork::class.java) {
                     it.abi.set(source)
                     it.destination.set(destDir)
                     it.functionRenames.set(functionRenames)
+                    it.errorLoaderName.set(errorLoaderBuilder.canonicalName)
+                    it.canonicalNameFile.set(resultFile)
                 }
             }
         }
+
+        queue.await()
+
+        results.forEach {
+            val canonicalName = it.readText()
+            errorLoaderBuilder.addContract(canonicalName)
+        }
+
+        errorLoaderBuilder.build()
     }
 }
