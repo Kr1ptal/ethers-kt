@@ -7,7 +7,11 @@ import io.ethers.crypto.bip39.MnemonicCode
 /**
  * Key source that uses a mnemonic phrase and derivation path to derive [PrivateKeySigner]s.
  * */
-class MnemonicKeySource(val mnemonic: MnemonicCode, val passphrase: String, val path: HDPath) {
+class MnemonicKeySource @JvmOverloads constructor(
+    mnemonic: MnemonicCode,
+    passphrase: String = "",
+    val path: HDPath = HDPath.ETHEREUM,
+) {
     private val parentKey = ExtendedSigningKey.fromSeed(mnemonic.getSeed(passphrase)).derivePath(path)
 
     @JvmOverloads

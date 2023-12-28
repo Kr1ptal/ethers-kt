@@ -5,6 +5,7 @@ import org.bouncycastle.crypto.generators.PKCS5S2ParametersGenerator
 import org.bouncycastle.crypto.params.KeyParameter
 import org.bouncycastle.jcajce.provider.digest.SHA256
 import java.nio.charset.StandardCharsets
+import java.security.SecureRandom
 import java.util.Collections
 
 /**
@@ -104,6 +105,19 @@ class MnemonicCode(val words: List<String>) {
     companion object {
         private const val SEED_KEY_SIZE = 512
         private const val SEED_ITERATIONS = 2048
+
+        /**
+         * Create a new mnemonic code from random entropy, using [SecureRandom].
+         * */
+        @JvmStatic
+        @JvmOverloads
+        fun fromRandomEntropy(bitsOfEntropy: Int = 256, wordList: MnemonicWordList = MnemonicWordListEnglish): MnemonicCode {
+            val rand = SecureRandom()
+            val entropy = ByteArray(bitsOfEntropy / 8)
+            rand.nextBytes(entropy)
+
+            return fromEntropy(entropy, wordList)
+        }
 
         /**
          * Convert entropy data to mnemonic word list. Valid entropy lengths are 128-256 bits, in 32 bit increments.
