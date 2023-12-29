@@ -56,6 +56,15 @@ abstract class EthersAbigenTask @Inject constructor(private val executor: Worker
 
     @TaskAction
     fun run() {
+        // Since the task action is being executed, it means that inputs of the task have been changed. In this case
+        // first delete previous outputs if any exist. This prevents a case where user changes inputs without changing
+        // "destinationDir" and does not run the "clean" task before the next build, and the old outputs are still
+        // present. Gradle task will include both new and old task outputs in the new build cache. Now even if we
+        // manually run "clean" task or delete the old output files, they will always get restored from the build cache.
+        //
+        // Solution: https://discuss.gradle.org/t/is-there-a-way-to-delete-prior-runs-output-for-a-task/28834
+        outputs.previousOutputFiles.forEach { it.delete() }
+
         val destDir = destinationDir.get().asFile
 
         var loaderPrefix = project.path.split(":")
