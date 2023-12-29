@@ -89,17 +89,11 @@ public class OffchainResolver(
     public fun addr(node: Bytes): ReadFunctionCall<Address> = ReadFunctionCall(
         provider,
         address,
-        io.ethers.core.OffchainResolver.FUNCTION_ADDR.encodeCall(arrayOf(node)),
+        FUNCTION_ADDR.encodeCall(arrayOf(node)),
     ) {
-        val data = io.ethers.core.OffchainResolver.FUNCTION_ADDR.decodeResponse(it)
+        val data = FUNCTION_ADDR.decodeResponse(it)
         data[0] as io.ethers.core.types.Address
     }
-
-    public fun addr(node: Bytes, coinType: BigInteger): ReadFunctionCall<Bytes> =
-        ReadFunctionCall(provider, address, io.ethers.core.OffchainResolver.FUNCTION_ADDR_1.encodeCall(arrayOf(node, coinType))) {
-            val data = io.ethers.core.OffchainResolver.FUNCTION_ADDR_1.decodeResponse(it)
-            data[0] as io.ethers.core.types.Bytes
-        }
 
     public sealed class Error : CustomContractError()
 

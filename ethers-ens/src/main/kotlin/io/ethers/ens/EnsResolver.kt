@@ -2,7 +2,6 @@ package io.ethers.ens
 
 import io.ethers.abi.AbiCodec
 import io.ethers.abi.AbiType
-import io.ethers.core.ENSRegistryWithFallback
 import io.ethers.core.FastHex
 import io.ethers.core.Jackson
 import io.ethers.core.types.Address
@@ -11,23 +10,26 @@ import io.ethers.core.types.Bytes
 import io.ethers.core.types.CallRequest
 import io.ethers.logger.err
 import io.ethers.logger.getLogger
+import io.ethers.logger.wrn
 import io.ethers.providers.Provider
 import io.ethers.providers.types.RpcResponse
+import io.github.adraffy.ens.InvalidLabelException
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
 import java.io.IOException
 import java.util.concurrent.CompletableFuture
 
-private val ENSIP_10_INTERFACE_ID = Bytes("0x9061b923")
-private val CALLBACK_FUNCTION_PARAM_TYPES = listOf(AbiType.Bytes, AbiType.Bytes)
-private val JSON_MEDIA_TYPE = "application/json".toMediaType()
-private val CCIP_LOOKUP_LIMIT = 4
-class EnsResolver(private val provider: Provider) {
-    // TODO
-    private val client: OkHttpClient = OkHttpClient()
+class EnsResolver(
+    private val provider: Provider,
+    private val registryAddress: Address,
+    private val ccipLookupLimit: Int = 4,
+    private val client: OkHttpClient = OkHttpClient(),
+) {
     private val LOG = getLogger()
+    constructor(provider: Provider) : this(provider, getRegistryAddressOrThrow(provider.chainId))
 
     data class EnsGatewayRequestDTO(val data: Bytes)
 
@@ -35,18 +37,25 @@ class EnsResolver(private val provider: Provider) {
      * Resolve ens name to Address. On error return [RpcResponse] as error.
      */
     fun resolveName(ensName: String): CompletableFuture<RpcResponse<Address>> = CompletableFuture.supplyAsync {
+        return@supplyAsync resolveNameResponse(ensName)
+    }
+
+    private fun resolveNameResponse(ensName: String): RpcResponse<Address> {
         OffchainResolver.ERRORS
         // Check that ens name is valid
         if (ensName.isBlank() || (ensName.trim().length == 1 && ensName.contains("."))) {
-            return@supplyAsync RpcResponse.error(Error.EnsNameInvalid)
+            return RpcResponse.error(Error.EnsNameInvalid)
         }
 
-        val nameHashResponse = NameHash.nameHash(ensName)
-        if (nameHashResponse.isError) return@supplyAsync nameHashResponse.propagateError()
-        val nameHash = nameHashResponse.resultOrThrow()
+        val nameHash: ByteArray
+        try {
+            nameHash = NameHash.nameHash(ensName)
+        } catch (e: InvalidLabelException) {
+            return RpcResponse.error(Error.Normalisation(e))
+        }
 
         val resolverResponse = getResolver(ensName)
-        if (resolverResponse.isError) return@supplyAsync resolverResponse.propagateError()
+        if (resolverResponse.isError) return resolverResponse.propagateError()
 
         // Unwrap resolver from RpcResponse and call its addr() function.
         // If RpcResponse is an error, map it to error FailedToResolve.
@@ -59,52 +68,50 @@ class EnsResolver(private val provider: Provider) {
             val dnsEncoded = NameHash.dnsEncode(ensName)
             val addrFunction = OffchainResolver.FUNCTION_ADDR.encodeCall(arrayOf(Bytes(nameHash)))
 
-            val resolveResult = resolver
-                .resolve(dnsEncoded, addrFunction)
+            val resolveResult = resolver.resolve(dnsEncoded, addrFunction)
                 .call(BlockId.LATEST)
                 .sendAwait()
-                // todo properly decode dynamic bytes to address
                 .map {
+                    // TODO properly decode dynamic bytes to address
                     // 64 do 84 index
                     Address(it.value.sliceArray(12..32))
                 }
 
             // try to decode OffchainLookup error
             val resolveLookupRevert = resolveResult.error?.asTypeOrNull<OffchainResolver.OffchainLookup>()
-            if (resolveLookupRevert == null) return@supplyAsync resolveResult
-            else {
-                return@supplyAsync resolveOffchain(
+
+            return if (resolveLookupRevert == null) {
+                // result is resolved ens name
+                resolveResult
+            } else {
+                // result is OffchainLookup error
+                resolveOffchain(
                     resolveLookupRevert,
                     resolver,
-                    CCIP_LOOKUP_LIMIT,
+                    ccipLookupLimit,
                 )
             }
         } else {
-            // Resolve ens name with resolver. Return different errors on empty address and failure to resolve
+            // Simple ENS name resolution: resolve ens name with resolver.addr().
+            // Return different errors on empty address and failure to resolve
             val address = resolver.addr(Bytes(nameHash))
                 .call(BlockId.LATEST)
                 .map {
-                    if (it.isError) {
-                        return@map RpcResponse.error(Error.FailedToResolve(resolver.address, ensName))
+                    return@map when {
+                        it.isError -> RpcResponse.error(Error.FailedToResolve(resolver.address, ensName))
+                        it.resultOrThrow() == Address.ZERO ->
+                            RpcResponse.error(
+                                Error.UnknownEnsName(
+                                    resolver.address,
+                                    FastHex.encodeWithPrefix(nameHash),
+                                ),
+                            )
+                        else -> RpcResponse.result(it)
                     }
+                }.sendAwait()
 
-                    if (it.resultOrThrow() == Address.ZERO) {
-                        return@map RpcResponse.error(
-                            Error.UnknownEnsName(
-                                resolver.address,
-                                FastHex.encodeWithPrefix(nameHash),
-                            ),
-                        )
-                    }
-
-                    return@map RpcResponse.result(it)
-                }
-                .sendAwait()
-
-            if (address.isError) {
-                return@supplyAsync address.propagateError()
-            }
-            return@supplyAsync address.resultOrThrow()
+            return if (address.isError) address.propagateError()
+            else address.resultOrThrow()
         }
     }
 
@@ -113,27 +120,27 @@ class EnsResolver(private val provider: Provider) {
      * [ERC-3668: CCIP offchain data retrieval](https://eips.ethereum.org/EIPS/eip-3668)
      */
     private fun resolveOffchain(
-        resolveLookupRevert: OffchainResolver.OffchainLookup,
+        revert: OffchainResolver.OffchainLookup,
         resolver: OffchainResolver,
         lookupLimit: Int,
     ): RpcResponse<Address> {
         // OffchainLookup.sender has to be resolver address
-        if (resolveLookupRevert.sender != resolver.address) {
+        if (revert.sender != resolver.address) {
             return RpcResponse.error(Error.NestedOffchainLookup)
         }
 
-        // get gateway result by trying urls one by one and passing sender and data returned by OffchainLookup error
-        val gatewayResult = httpCall(resolveLookupRevert.urls, resolveLookupRevert.sender, resolveLookupRevert.callData)
+        if (revert.callData.isEmpty) return RpcResponse.error(Error.CcipRevertDataInvalid("Calldata is empty!"))
 
-        if (gatewayResult.isError) {
-            return gatewayResult.propagateError()
-        }
+        // get gateway result by trying urls one by one and passing sender and data returned by OffchainLookup error
+        val gatewayResult = httpCall(revert.urls, revert.sender, revert.callData)
+
+        if (gatewayResult.isError) return gatewayResult.propagateError()
 
         // call resolver.callbackFunction(gatewayResult, extraData). If this call is CCIP, repeat the procedure.
         val callbackData = AbiCodec.encodeWithPrefix(
-            resolveLookupRevert.callbackFunction.value,
+            revert.callbackFunction.value,
             CALLBACK_FUNCTION_PARAM_TYPES,
-            arrayOf(gatewayResult.resultOrThrow(), resolveLookupRevert.extraData),
+            arrayOf(gatewayResult.resultOrThrow(), revert.extraData),
         )
 
         // dynamic bytes
@@ -143,17 +150,16 @@ class EnsResolver(private val provider: Provider) {
                 data = Bytes(callbackData)
             },
             BlockId.LATEST,
-        )
-            .sendAwait()
+        ).sendAwait()
 
-        // Support for multiple lookups by the same contract
+        // If callbackResult is OffchainLookup error, resolve using recursive CCIP calls
         val callbackLookupRevert = callbackResult.error?.asTypeOrNull<OffchainResolver.OffchainLookup>()
         if (callbackLookupRevert != null) {
             if (lookupLimit <= 0) return RpcResponse.error(Error.CcipLookupLimit)
 
             return resolveOffchain(callbackLookupRevert, resolver, lookupLimit - 1)
         } else {
-            // decode dynamic bytes to address
+            // callbackResult is resolved ENS name. Decode dynamic bytes to address
             val resolvedDecoded = AbiCodec.decode(AbiType.Bytes, callbackResult.resultOrThrow().value) as Bytes
             val resolvedAddress = AbiCodec.decode(AbiType.Address, resolvedDecoded.value) as Address
             return RpcResponse.result(resolvedAddress)
@@ -169,84 +175,86 @@ class EnsResolver(private val provider: Provider) {
      * @param calldata calldata parameter of [OffchainResolver.OffchainLookup] - replacing {data} RPC call parameter
      */
     private fun httpCall(urls: Array<String>, sender: Address, calldata: Bytes): RpcResponse<Bytes> {
-        val errors = mutableListOf<String>()
+        if (urls.isEmpty()) return RpcResponse.error(Error.CcipCallFailed("No urls to resolve ens name!", null))
 
         for (url in urls) {
-            // If url contains {data} parameter the request is GET, otherwise POST
-            val request = buildRequest(url, sender, calldata)
-            if (request.isError) {
-                return request.propagateError()
-            }
+            // If url is missing mandatory {sender} parameter, try next url
+            val request = buildCcipRequest(url, sender, calldata) ?: continue
 
-            val call = client.newCall(request.resultOrThrow())
+            return try {
+                val response = client.newCall(request).execute().use { handleCcipResponse(it, url) } ?: continue
 
-            try {
-                call.execute().use { response ->
-                    if (response.isSuccessful) {
-                        val responseBody = response.body
-                            ?: return RpcResponse.error(Error.CcipCallFailed("Response body is null (url: $url)", null))
-
-                        val result = responseBody.byteStream().readBytes()
-
-                        val gatewayRequestDTO = Jackson.MAPPER.readValue(result, EnsGatewayRequestDTO::class.java)
-                        val data = gatewayRequestDTO.data
-
-                        return RpcResponse.result(data)
-                    } else {
-                        val statusCode = response.code
-                        // 4xx - return an error and stop
-                        if (statusCode in 400..499) {
-                            val mes = "Blocking error during CCIP call: url: $url, error: ${response.message}"
-                            LOG.err { mes }
-                            return RpcResponse.error(Error.CcipStatus4xx(mes))
-                        }
-
-                        // 5xx - server issue, try different url
-                        errors.add(response.message)
-                        LOG.warn("500 error during CCIP call: url: $url, error: ${response.message}")
-                    }
+                if (response.isError) {
+                    return response.propagateError()
                 }
+                response
             } catch (e: IOException) {
                 LOG.err(e) { e.message ?: "" }
-                return RpcResponse.error(Error.CcipCallFailed("Unknown error", e))
+                RpcResponse.error(Error.CcipCallFailed("Unknown error", e))
             }
         }
 
-        if (errors.isEmpty()) {
-            return RpcResponse.error(Error.CcipUrlsMissing)
+        return RpcResponse.error(Error.CcipCallFailed("All urls are invalid or got server response 5xx", null))
+    }
+
+    /**
+     * If CCIP [response] from [url]:
+     * - is successful, decode it and return [Bytes].
+     * - has status code 4xx, return error. Execution is stopped.
+     * - has status code 5xx, return null and try another url, if present.
+     */
+    private fun handleCcipResponse(
+        response: Response,
+        url: String,
+    ): RpcResponse<Bytes>? {
+        if (response.isSuccessful) {
+            val responseBody = response.body
+                ?: return RpcResponse.error(Error.CcipCallFailed("Response body is null (url: $url)", null))
+
+            val gatewayRequestDTO = Jackson.MAPPER.readValue(
+                responseBody.byteStream(),
+                EnsGatewayRequestDTO::class.java,
+            )
+            val data = gatewayRequestDTO.data
+
+            return RpcResponse.result(data)
+        }
+
+        return if (response.code in 400..499) {
+            // 4xx - return an error and stop
+            val mes = "Received status code: ${response.code} during CCIP call (url: $url, error: ${response.message})"
+            LOG.err { mes }
+            RpcResponse.error(Error.CcipCallFailed(mes, null))
         } else {
-            return RpcResponse.error(Error.CcipStatus5xx(errors))
+            // 5xx - server issue, try different url
+            LOG.wrn { "500 error during CCIP call: url: $url, error: ${response.message}" }
+            null
         }
     }
 
     /**
-     * Builds [okhttp3.Request] CCIP-read request from [url], [sender] and [calldata], where [sender] and [calldata]
-     * are RPC request parameters. If RPC url contains {data}, the request is GET, otherwise POST.
+     * Builds CCIP-read [okhttp3.Request] from [url], [sender] and [calldata], where [sender] and [calldata]
+     * are RPC request parameters.
+     *
+     * If RPC url contains {data}, the request is GET, otherwise POST.
+     *
+     * If [url] is missing {sender} parameter, return null.
      */
-    private fun buildRequest(url: String, sender: Address, calldata: Bytes): RpcResponse<Request> {
-        if (calldata.isEmpty) {
-            return RpcResponse.error(Error.CcipCalldataEmpty)
-        }
-        if (!url.contains("{sender}")) {
-            return RpcResponse.error(Error.CcipSenderEmpty)
-        }
+    private fun buildCcipRequest(url: String, sender: Address, calldata: Bytes): Request? {
+        if (!url.contains("{sender}")) return null // skip this url
 
         // URL expansion
-        // TODO is calldata.toString() ok?
         val href = url.replace("{sender}", sender.toString()).replace("{data}", calldata.toString())
         val builder = Request.Builder().url(href)
 
         return if (url.contains("{data}")) {
-            RpcResponse.result(builder.get().build())
+            builder.get().build()
         } else {
             val requestDTO = EnsGatewayRequestDTO(calldata)
 
-            val mapper = Jackson.MAPPER
-            RpcResponse.result(
-                builder.post(mapper.writeValueAsString(requestDTO).toRequestBody(JSON_MEDIA_TYPE))
-                    .addHeader("Content-Type", "application/json")
-                    .build(),
-            )
+            builder.post(Jackson.MAPPER.writeValueAsString(requestDTO).toRequestBody(JSON_MEDIA_TYPE))
+                .addHeader("Content-Type", "application/json")
+                .build()
         }
     }
 
@@ -261,25 +269,25 @@ class EnsResolver(private val provider: Provider) {
      * Get resolver address for [ensName] from [ENSRegistryWithFallback].
      */
     private fun getResolverAddress(ensName: String): RpcResponse<Address> {
-        val registryAddr = getRegistryAddress(provider.chainId)
-            ?: return RpcResponse.error(Error.RegistryAddrNotExists(provider.chainId))
-
-        val nameHashResponse = NameHash.nameHash(ensName)
-        if (nameHashResponse.isError) return nameHashResponse.propagateError()
-        val nameHash = nameHashResponse.resultOrThrow()
+        val nameHash: ByteArray
+        try {
+            nameHash = NameHash.nameHash(ensName)
+        } catch (e: InvalidLabelException) {
+            return RpcResponse.error(Error.Normalisation(e))
+        }
 
         if (ensName.isEmpty()) {
             return RpcResponse.error(Error.UnknownResolver)
         }
 
-        val registryContract = ENSRegistryWithFallback(provider, registryAddr)
+        val registryContract = ENSRegistryWithFallback(provider, registryAddress)
         val address = registryContract.resolver(Bytes(nameHash))
             .call(BlockId.LATEST)
             .map {
                 if (it.isError) {
                     return@map RpcResponse.error(
                         Error.ResolvingResolver(
-                            registryAddr,
+                            registryAddress,
                             FastHex.encodeWithPrefix(nameHash),
                         ),
                     )
@@ -323,23 +331,21 @@ class EnsResolver(private val provider: Provider) {
         data object NestedOffchainLookup : Error()
 
         /**
-         * Calldata returned with OffchainLookup error is empty
-         */
-        data object CcipCalldataEmpty : Error()
-
-        /**
-         * CCIP calls reached a maximum limit of [CCIP_LOOKUP_LIMIT]
+         * CCIP calls reached a maximum limit.
          */
         data object CcipLookupLimit : Error()
 
         /**
-         * Sender returned with OffchainLookup error is empty
+         * Data returned with OffchainLookup error is invalid.
          */
-        data object CcipSenderEmpty : Error()
-        data object CcipUrlsMissing : Error()
+        data class CcipRevertDataInvalid(val message: String) : Error() {
+            override fun doThrow() {
+                throw RuntimeException(message)
+            }
+        }
 
         /**
-         * Unknown error during CCIP call execution
+         * Unknown error during CCIP call execution.
          */
         data class CcipCallFailed(val message: String, val cause: Throwable?) : Error() {
             override fun doThrow() {
@@ -348,40 +354,11 @@ class EnsResolver(private val provider: Provider) {
         }
 
         /**
-         * One CCIP call got 4xx status code. Execution is stopped.
-         */
-        data class CcipStatus4xx(val message: String) : Error() {
-            override fun doThrow() {
-                throw RuntimeException(message, null)
-            }
-        }
-
-        /**
-         * All CCIP calls got 5xx status code.
-         *
-         * @param errors list of all error response messages
-         */
-        data class CcipStatus5xx(val errors: List<String>) : Error() {
-            override fun doThrow() {
-                throw RuntimeException(errors.joinToString(prefix = "<", postfix = ">", separator = "\n"), null)
-            }
-        }
-
-        /**
-         * Error on ens name [NameHash.normalise] attempt.
+         * Error on ens name normalisation attempt.
          */
         data class Normalisation(val cause: Exception) : Error() {
             override fun doThrow() {
                 throw RuntimeException("Normalisation failed: $cause")
-            }
-        }
-
-        /**
-         * Registry address does not exist for chain.
-         */
-        data class RegistryAddrNotExists(val chainId: Long) : Error() {
-            override fun doThrow() {
-                throw RuntimeException("Registry address not found for chain $chainId!")
             }
         }
 
@@ -398,7 +375,7 @@ class EnsResolver(private val provider: Provider) {
         }
 
         /**
-         * Resolver address resolved ens name to an empty address
+         * Resolver address resolved ens name to an empty address.
          */
         data class UnknownEnsName(
             val resolverAddr: Address,
@@ -424,14 +401,17 @@ class EnsResolver(private val provider: Provider) {
     }
 
     companion object {
-        // TODO - refactor
+        private val ENSIP_10_INTERFACE_ID = Bytes("0x9061b923")
+        private val CALLBACK_FUNCTION_PARAM_TYPES = listOf(AbiType.Bytes, AbiType.Bytes)
+        private val JSON_MEDIA_TYPE = "application/json".toMediaType()
+
         private val MAINNET_REGISTRY_ADDR = Address("0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e")
         private val ROPSTEN_REGISTRY_ADDR = Address("0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e")
         private val RINKEBY_REGISTRY_ADDR = Address("0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e")
         private val GOERLI_REGISTRY_ADDR = Address("0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e")
         private val SEPOLIA_REGISTRY_ADDR = Address("0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e")
 
-        fun getRegistryAddress(chainId: Long): Address? {
+        private fun getRegistryAddress(chainId: Long): Address? {
             return when (chainId) {
                 1L -> MAINNET_REGISTRY_ADDR
                 3L -> ROPSTEN_REGISTRY_ADDR
@@ -442,12 +422,17 @@ class EnsResolver(private val provider: Provider) {
             }
         }
 
+        private fun getRegistryAddressOrThrow(chainId: Long): Address {
+            return getRegistryAddress(chainId)
+                ?: throw IllegalArgumentException("No registry address found for chain id: $chainId")
+        }
+
         fun Provider.resolveName(ensName: String): CompletableFuture<RpcResponse<Address>> {
             val ensResolver = EnsResolver(this)
             return ensResolver.resolveName(ensName)
         }
 
-        fun getParent(name: String): String {
+        private fun getParent(name: String): String {
             val ensName = if (name.isNotEmpty()) name.trim() else ""
 
             return if (ensName == "." || !ensName.contains(".")) ""
