@@ -143,12 +143,64 @@ class EthersAbigenPluginTest : FunSpec({
             val result = runner.withArguments("clean", taskName, "--build-cache", "--info").build()
             result.tasks.filter { it.path.endsWith(taskName) }.forEach { it.outcome shouldBe TaskOutcome.SUCCESS }
 
+            val previousGeneratedFiles = project.layout.buildDirectory.dir(customOutputDir).get().asFile
+                .walkTopDown()
+                .filter(File::isFile)
+                .toList()
+
             val generatedFiles = project.layout.buildDirectory.dir(newOutputDir).get().asFile
                 .walkTopDown()
                 .filter(File::isFile)
                 .toList()
 
+            previousGeneratedFiles.size shouldBe 0
             generatedFiles.size shouldBe 3
+        }
+
+        test("changing task inputs removes previous outputs and generates new ones") {
+            @Language("gradle")
+            val newBuildFile = """
+                plugins {
+                    id 'base'
+                    id 'org.jetbrains.kotlin.jvm'
+                    id 'io.kriptal.ethers.abigen-plugin'
+                }
+                
+                ethersAbigen {
+                    directorySource('$customAbiPath')
+                    outputDir = '$customOutputDir'
+                }
+            """.trimIndent()
+
+            project.layout.projectDirectory.file("build.gradle").asFile.writeText(newBuildFile)
+
+            // old task results are loaded from cache
+            val oldResult = runner.withArguments(taskName, "--build-cache", "--info").build()
+            oldResult.tasks.filter { it.path.endsWith(taskName) }.forEach { it.outcome shouldBe TaskOutcome.FROM_CACHE }
+
+            val oldGeneratedFiles = project.layout.buildDirectory.dir(customOutputDir).get().asFile
+                .walkTopDown()
+                .filter(File::isFile)
+                .toList()
+
+            oldGeneratedFiles.size shouldBe 3
+            oldGeneratedFiles.filter { it.path.contains("io/ethers/contracts") }.size shouldBe 2
+
+            // delete previous ABI files, and copy new ones, keeping the wrappers in build folder
+            abiDir.deleteRecursively()
+            File(EthersAbigenPlugin::class.java.getResource("/abi-alt-package")!!.toURI()).copyRecursively(abiDir, true)
+
+            // new task results are not from cache, and the old output files are deleted because inputs changed
+            val result = runner.withArguments(taskName, "--build-cache", "--info").build()
+            result.tasks.filter { it.path.endsWith(taskName) }.forEach { it.outcome shouldBe TaskOutcome.SUCCESS }
+
+            val generatedFiles = project.layout.buildDirectory.dir(customOutputDir).get().asFile
+                .walkTopDown()
+                .filter(File::isFile)
+                .toList()
+
+            generatedFiles.size shouldBe 3
+            generatedFiles.filter { it.path.contains("io/ethers/moved") }.size shouldBe 2
         }
     }
 })
