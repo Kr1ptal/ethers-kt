@@ -20,17 +20,6 @@ class EnsResolverTest : FunSpec({
         val resolverAddr: Address = Address.ZERO,
     )
 
-    context("getParent success") {
-        withData(
-            listOf(
-                "kriptal.eth" to "eth",
-                "1.kriptal.eth" to "kriptal.eth",
-            ),
-        ) {
-            EnsResolver.getParent(it.first) shouldBe it.second
-        }
-    }
-
     context("Ens resolving with instantiated EnsResolver") {
         val provider = Provider(HttpClient(MAINNET_HTTP_RPC))
         val ensResolver = EnsResolver(provider)
@@ -102,10 +91,6 @@ class EnsResolverTest : FunSpec({
          * Testing [EnsResolver.Error.UnknownResolver]
          */
         context("Resolver not found") {
-            fun testError(error: RpcResponse.Error?, testData: EnsNameTestData) {
-                error.shouldBeInstanceOf<EnsResolver.Error.UnknownResolver>()
-            }
-
             withData(
                 listOf(
                     EnsNameTestData(
@@ -114,8 +99,8 @@ class EnsResolverTest : FunSpec({
                     ),
                 ),
             ) {
-                testError(ensResolver.resolveName(it.ensName).get().error, it)
-                testError(provider.resolveName(it.ensName).get().error, it)
+                ensResolver.resolveName(it.ensName).get().error.shouldBeInstanceOf<EnsResolver.Error.UnknownResolver>()
+                provider.resolveName(it.ensName).get().error.shouldBeInstanceOf<EnsResolver.Error.UnknownResolver>()
             }
         }
 

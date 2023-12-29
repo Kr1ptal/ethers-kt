@@ -2,10 +2,11 @@ package io.ethers.ens
 
 import io.ethers.core.FastHex
 import io.ethers.core.types.Bytes
+import io.github.adraffy.ens.InvalidLabelException
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.types.shouldBeInstanceOf
 
 @OptIn(ExperimentalUnsignedTypes::class)
 class NameHashTest : FunSpec({
@@ -18,7 +19,7 @@ class NameHashTest : FunSpec({
                 "\uD83D\uDC8E.test.eth" to "0x47cc6ab7edfed1938183b144966298c1742fd9261c12fed859471364f7b8e364",
             ),
         ) {
-            FastHex.encodeWithPrefix(NameHash.nameHash(it.first).resultOrThrow()) shouldBe it.second
+            FastHex.encodeWithPrefix(NameHash.nameHash(it.first)) shouldBe it.second
         }
     }
 
@@ -33,7 +34,11 @@ class NameHashTest : FunSpec({
     }
 
     test("Normalisation error") {
-        NameHash.nameHash(".").error.shouldBeInstanceOf<EnsResolver.Error.Normalisation>()
-        NameHash.nameHash(".eth").error.shouldBeInstanceOf<EnsResolver.Error.Normalisation>()
+        shouldThrow<InvalidLabelException> {
+            NameHash.nameHash(".")
+        }
+        shouldThrow<InvalidLabelException> {
+            NameHash.nameHash(".eth")
+        }
     }
 })
