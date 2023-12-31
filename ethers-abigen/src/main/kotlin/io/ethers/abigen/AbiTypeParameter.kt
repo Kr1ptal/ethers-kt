@@ -137,10 +137,13 @@ sealed interface AbiTypeParameter {
         }
     }
 
-    fun toParameterSpec(builder: FunSpec.Builder): ParameterSpec {
+    fun toParameterSpec(builder: FunSpec.Builder, reservedNames: Set<String> = emptySet()): ParameterSpec {
         var paramName = name
         if (paramName.isBlank()) {
             paramName = "arg${builder.parameters.size}"
+        }
+        if (reservedNames.contains(paramName)) {
+            paramName = "_$paramName"
         }
         return ParameterSpec.builder(paramName, apiType).build()
     }

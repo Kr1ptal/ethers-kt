@@ -35,8 +35,8 @@ object AbigenCompiler {
         val abis = AbigenCompiler::class.java.getResource("/abi")!!
             .file
             .let(::File)
-            .listFiles()!!
-            .filter { it.name.endsWith(".json") }
+            .walkTopDown()
+            .filter { it.isFile && it.name.endsWith(".json") }
 
         val errorLoaderBuilder = ErrorLoaderBuilder("Test", ABIGEN_DIRECTORY)
 

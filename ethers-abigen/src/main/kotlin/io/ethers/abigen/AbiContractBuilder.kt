@@ -26,6 +26,7 @@ import io.ethers.abi.call.PayableConstructorCall
 import io.ethers.abi.call.PayableFunctionCall
 import io.ethers.abi.call.ReadFunctionCall
 import io.ethers.abi.call.ReceiveFunctionCall
+import io.ethers.abi.error.ContractError
 import io.ethers.abi.error.CustomContractError
 import io.ethers.abi.error.CustomErrorFactory
 import io.ethers.abi.error.CustomErrorFactoryResolver
@@ -37,6 +38,7 @@ import java.io.File
 import java.math.BigInteger
 import java.util.function.Function
 import javax.lang.model.SourceVersion
+import kotlin.reflect.full.memberProperties
 
 class AbiContractBuilder(
     private val contractName: String,
@@ -302,8 +304,9 @@ class AbiContractBuilder(
             CodeBlock.of(argsBuilder.toString(), *builder.parameters.toTypedArray())
         }
 
+        // use "this" for referencing class properties because there can also be a function parameter with the same name
         val body = CodeBlock.builder().beginControlFlow(
-            "return %T(provider, address, %N.encodeCall(%L)) {",
+            "return %T(this.provider, this.address, %N.encodeCall(%L)) {",
             callClass,
             abiFunctionProperty,
             encodeArgs,
@@ -363,7 +366,11 @@ class AbiContractBuilder(
             .addParameter(ParameterSpec.builder("data", Array::class.parameterizedBy(Any::class)).build())
             .returns(errorClassName)
 
-        return CodeFactory.createClass(errorClassName, inputs) { builder, _ ->
+        return CodeFactory.createClass(
+            errorClassName,
+            inputs,
+            reservedFieldNames = RESERVED_ERROR_FIELD_NAMES,
+        ) { builder, _ ->
             builder.superclass(errorSuperclass)
 
             // codegen logic:
@@ -463,6 +470,7 @@ class AbiContractBuilder(
             eventClassName,
             inputs,
             KModifier.DATA,
+            reservedFieldNames = RESERVED_EVENT_FIELD_NAMES,
         ) { builder, constructor ->
             builder.superclass(eventSuperclass)
 
@@ -496,7 +504,7 @@ class AbiContractBuilder(
 
         // add function args
         function.addParameter("provider", Middleware::class)
-        arguments.forEach { function.addParameter(it.toParameterSpec(function)) }
+        arguments.forEach { function.addParameter(it.toParameterSpec(function, RESERVED_DEPLOY_FUNCTION_ARG_NAMES)) }
 
         // add function body
         function.addStatement(
@@ -717,5 +725,11 @@ class AbiContractBuilder(
         }
 
         return false
+    }
+
+    companion object {
+        private val RESERVED_DEPLOY_FUNCTION_ARG_NAMES = setOf("provider")
+        private val RESERVED_EVENT_FIELD_NAMES = ContractEvent::class.memberProperties.map { it.name }.toSet()
+        private val RESERVED_ERROR_FIELD_NAMES = ContractError::class.memberProperties.map { it.name }.toSet()
     }
 }

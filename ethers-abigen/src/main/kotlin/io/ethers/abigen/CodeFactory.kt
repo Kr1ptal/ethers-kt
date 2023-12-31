@@ -13,12 +13,13 @@ object CodeFactory {
         name: ClassName,
         fields: List<AbiTypeParameter>,
         vararg modifiers: KModifier,
+        reservedFieldNames: Set<String> = emptySet(),
         decorator: (builder: TypeSpec.Builder, constructor: FunSpec.Builder) -> Unit = { _, _ -> },
     ): TypeSpec {
         val builder = TypeSpec.classBuilder(name).addModifiers(modifiers.toList())
         val constructor = FunSpec.constructorBuilder()
         fields.forEach {
-            val param = it.toParameterSpec(constructor)
+            val param = it.toParameterSpec(constructor, reservedFieldNames)
             addConstructorValParameter(builder, constructor, param)
         }
 
