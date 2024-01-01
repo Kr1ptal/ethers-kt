@@ -3,6 +3,7 @@ package io.ethers.core.types.transaction
 import io.ethers.core.types.AccessList
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
+import io.ethers.core.types.Hash
 import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncoder
@@ -28,6 +29,15 @@ data class TxLegacy(
 
     override val type: TxType
         get() = TxType.LEGACY
+
+    override val blobFeeCap: BigInteger?
+        get() = null
+
+    override val blobVersionedHashes: List<Hash>?
+        get() = null
+
+    override val blobGas: Long
+        get() = 0
 
     override fun rlpEncodeFields(rlp: RlpEncoder) {
         rlp.encode(nonce)

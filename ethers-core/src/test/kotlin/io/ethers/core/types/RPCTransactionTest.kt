@@ -1,6 +1,7 @@
 package io.ethers.core.types
 
 import io.ethers.core.Jackson
+import io.ethers.core.types.transaction.TxBlob
 import io.ethers.core.types.transaction.TxType
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -39,6 +40,8 @@ class RPCTransactionTest : FunSpec({
               "v": "0x26",
               "r": "0xd33daf514da958c63cb5b812447e580391609f1deb42eaa8717f94942cf9efc4",
               "s": "0x588c71ae3c52c6d3decfbaf3fd3764845d743525de3d293d5aa0a4e7f815eabc",
+              "blobVersionedHashes": ["0xd33daf514da958c63cb5b812447e580391609f1deb42eaa8717f94942cf9efc4", "0xf58bc0d9ad6de2ca7169880cf7d6ffe970c85e48880c00745f21f7a0a5330560"],
+              "maxFeePerBlobGas": "0x26f45990a",
               "test_tx": {
                 "k1_tx": "v1_tx",
                 "k2_tx": "v2_tx"
@@ -75,11 +78,18 @@ class RPCTransactionTest : FunSpec({
             v = 38L,
             r = BigInteger("95546998719565769459668967071015181532151001694673704956264532570756523618244"),
             s = BigInteger("40051673859117113248116558288385057013128832480810174174673686209253214644924"),
+            yParity = -1,
+            blobVersionedHashes = listOf(
+                Hash("0xd33daf514da958c63cb5b812447e580391609f1deb42eaa8717f94942cf9efc4"),
+                Hash("0xf58bc0d9ad6de2ca7169880cf7d6ffe970c85e48880c00745f21f7a0a5330560"),
+            ),
+            blobFeeCap = BigInteger("10456766730"),
             otherFields = mapOf(
                 "test_tx" to Jackson.MAPPER.readTree("""{"k1_tx":"v1_tx","k2_tx":"v2_tx"}"""),
             ),
         )
 
         result shouldBe expectedResult
+        result.blobGas shouldBe TxBlob.GAS_PER_BLOB * 2
     }
 })

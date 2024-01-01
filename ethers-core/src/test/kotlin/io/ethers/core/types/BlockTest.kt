@@ -106,6 +106,8 @@ class BlockTest : FunSpec({
                 Withdrawal(20789864, 599445, Address("0xe839a3e9efb32c6a56ab7128e51056585275506c"), 16657613L),
             ),
             withdrawalsRoot = Hash("0x1276b1e90b9f4a76b24e5fad4adce2a5e6ffef7351bfaa2e128955950a9027b0"),
+            blobGasUsed = -1L,
+            excessBlobGas = -1L,
             otherFields = mapOf(
                 "test" to Jackson.MAPPER.readTree("""{"k1":"v1","k2":"v2"}"""),
             ),
@@ -254,6 +256,9 @@ class BlockTest : FunSpec({
                     v = 38L,
                     r = BigInteger("95546998719565769459668967071015181532151001694673704956264532570756523618244"),
                     s = BigInteger("40051673859117113248116558288385057013128832480810174174673686209253214644924"),
+                    yParity = -1,
+                    blobVersionedHashes = null,
+                    blobFeeCap = null,
                     otherFields = mapOf(
                         "test_tx" to Jackson.MAPPER.readTree("""{"k1_tx":"v1_tx","k2_tx":"v2_tx"}"""),
                     ),
@@ -271,6 +276,8 @@ class BlockTest : FunSpec({
                 Withdrawal(20789864, 599445, Address("0xe839a3e9efb32c6a56ab7128e51056585275506c"), 16657613L),
             ),
             withdrawalsRoot = Hash("0x1276b1e90b9f4a76b24e5fad4adce2a5e6ffef7351bfaa2e128955950a9027b0"),
+            blobGasUsed = -1L,
+            excessBlobGas = -1L,
             otherFields = mapOf(
                 "test" to Jackson.MAPPER.readTree("""{"k1":"v1","k2":"v2"}"""),
             ),

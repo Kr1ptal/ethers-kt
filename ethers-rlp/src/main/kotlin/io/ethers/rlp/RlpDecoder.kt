@@ -117,6 +117,20 @@ class RlpDecoder(private val array: ByteArray) {
     }
 
     /**
+     * Returns true if the next element is a list, false otherwise.
+     * */
+    fun isNextElementList(): Boolean {
+        val flag = peekFlag()
+        return when {
+            flag < RLP_LIST_SHORT -> false
+            flag == RLP_LIST_SHORT -> true
+            flag <= RLP_LIST_SHORT + MAX_SHORT_LENGTH -> true
+            flag <= 0xff -> true
+            else -> false
+        }
+    }
+
+    /**
      * Start decoding a list, returning the end position of the list. The following needs to be done, in order,
      * after calling this function:
      *
@@ -271,6 +285,10 @@ class RlpDecoder(private val array: ByteArray) {
 
             else -> throw IllegalStateException("Not a byte array: $flag")
         }
+    }
+
+    private fun peekFlag(): Int {
+        return array[position].toUByte().toInt()
     }
 
     private fun takeFlag(): Int {

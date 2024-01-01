@@ -9,6 +9,7 @@ import org.bouncycastle.jcajce.provider.digest.SHA256
 
 object Hashing {
     private val MESSAGE_PREFIX = "\u0019Ethereum Signed Message:\n".toByteArray()
+    private const val VERSIONED_HASH_VERSION_KZG = 0x01.toByte()
 
     /**
      * Construct and hash [message] based on [EIP-191](https://eips.ethereum.org/EIPS/eip-191) standard (version 0x01).
@@ -63,5 +64,18 @@ object Hashing {
 
             out
         }
+    }
+
+    /**
+     * Compute blob versioned hash of the given KZG [commitment].
+     *
+     * The blob versioned hash is constructed as follows: `VERSIONED_HASH_VERSION_KZG + SHA-256(commitment)[1:]`.
+     * See: [EIP-4844](https://eips.ethereum.org/EIPS/eip-4844#helpers)
+     * */
+    @JvmStatic
+    fun blobVersionedHash(commitment: ByteArray): ByteArray {
+        val hash = SHA256.Digest().digest(commitment)
+        hash[0] = VERSIONED_HASH_VERSION_KZG
+        return hash
     }
 }

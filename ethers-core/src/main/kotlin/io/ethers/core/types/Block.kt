@@ -43,6 +43,8 @@ data class BlockWithHashes(
     override val uncles: List<Hash>,
     override val withdrawals: List<Withdrawal>?,
     override val withdrawalsRoot: Hash?,
+    override val blobGasUsed: Long,
+    override val excessBlobGas: Long,
     override val otherFields: Map<String, JsonNode> = emptyMap(),
 ) : Block<Hash>
 
@@ -71,6 +73,8 @@ data class BlockWithTransactions(
     override val uncles: List<Hash>,
     override val withdrawals: List<Withdrawal>?,
     override val withdrawalsRoot: Hash?,
+    override val blobGasUsed: Long,
+    override val excessBlobGas: Long,
     override val otherFields: Map<String, JsonNode> = emptyMap(),
 ) : Block<RPCTransaction>
 
@@ -98,6 +102,8 @@ interface Block<T> {
     val uncles: List<Hash>
     val withdrawals: List<Withdrawal>?
     val withdrawalsRoot: Hash?
+    val blobGasUsed: Long
+    val excessBlobGas: Long
     val otherFields: Map<String, JsonNode>
 }
 
@@ -141,6 +147,8 @@ private class BlockWithHashesDeserializer : GenericBlockDeserializer<Hash, Block
         uncles: List<Hash>,
         withdrawals: List<Withdrawal>?,
         withdrawalsRoot: Hash?,
+        blobGasUsed: Long,
+        excessBlobGas: Long,
         otherFields: Map<String, JsonNode>,
     ): BlockWithHashes {
         return BlockWithHashes(
@@ -167,6 +175,8 @@ private class BlockWithHashesDeserializer : GenericBlockDeserializer<Hash, Block
             uncles,
             withdrawals,
             withdrawalsRoot,
+            blobGasUsed,
+            excessBlobGas,
             otherFields,
         )
     }
@@ -201,6 +211,8 @@ private class BlockWithTransactionDeserialize : GenericBlockDeserializer<RPCTran
         uncles: List<Hash>,
         withdrawals: List<Withdrawal>?,
         withdrawalsRoot: Hash?,
+        blobGasUsed: Long,
+        excessBlobGas: Long,
         otherFields: Map<String, JsonNode>,
     ): BlockWithTransactions {
         return BlockWithTransactions(
@@ -227,6 +239,8 @@ private class BlockWithTransactionDeserialize : GenericBlockDeserializer<RPCTran
             uncles,
             withdrawals,
             withdrawalsRoot,
+            blobGasUsed,
+            excessBlobGas,
             otherFields,
         )
     }
@@ -261,6 +275,8 @@ private abstract class GenericBlockDeserializer<TX, T : Block<TX>> : JsonDeseria
         var uncles: List<Hash>? = null
         var withdrawals: List<Withdrawal>? = null
         var withdrawalsRoot: Hash? = null
+        var blobGasUsed: Long = -1L
+        var excessBlobGas: Long = -1L
         var otherFields: MutableMap<String, JsonNode>? = null
 
         p.forEachObjectField { field ->
@@ -291,6 +307,8 @@ private abstract class GenericBlockDeserializer<TX, T : Block<TX>> : JsonDeseria
                 "uncles" -> uncles = p.readOrNull { readListOfHashes() }
                 "withdrawals" -> withdrawals = p.readOrNull { readListOf(Withdrawal::class.java) }
                 "withdrawalsRoot" -> withdrawalsRoot = p.readOrNull { readHash() }
+                "blobGasUsed" -> blobGasUsed = p.readHexLong()
+                "excessBlobGas" -> excessBlobGas = p.readHexLong()
                 else -> {
                     if (otherFields == null) {
                         otherFields = HashMap()
@@ -324,6 +342,8 @@ private abstract class GenericBlockDeserializer<TX, T : Block<TX>> : JsonDeseria
             uncles ?: emptyList(),
             withdrawals,
             withdrawalsRoot,
+            blobGasUsed,
+            excessBlobGas,
             otherFields ?: emptyMap(),
         )
     }
@@ -354,6 +374,8 @@ private abstract class GenericBlockDeserializer<TX, T : Block<TX>> : JsonDeseria
         uncles: List<Hash>,
         withdrawals: List<Withdrawal>?,
         withdrawalsRoot: Hash?,
+        blobGasUsed: Long,
+        excessBlobGas: Long,
         otherFields: Map<String, JsonNode>,
     ): T
 }
