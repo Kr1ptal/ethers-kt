@@ -18,7 +18,6 @@ import io.ethers.core.readListOf
 import io.ethers.core.readOrNull
 import io.ethers.core.types.transaction.ChainId
 import io.ethers.core.types.transaction.TransactionRecovered
-import io.ethers.core.types.transaction.TxBlob
 import io.ethers.core.types.transaction.TxType
 import java.math.BigInteger
 
@@ -47,10 +46,7 @@ data class RPCTransaction(
     override val blobVersionedHashes: List<Hash>?,
     override val blobFeeCap: BigInteger?,
     val otherFields: Map<String, JsonNode> = emptyMap(),
-) : TransactionRecovered {
-    override val blobGas: Long
-        get() = blobVersionedHashes?.size?.toLong()?.times(TxBlob.GAS_PER_BLOB) ?: 0
-}
+) : TransactionRecovered
 
 private class RPCTransactionDeserializer : JsonDeserializer<RPCTransaction>() {
     override fun deserialize(p: JsonParser, ctxt: DeserializationContext): RPCTransaction {
@@ -131,7 +127,7 @@ private class RPCTransactionDeserializer : JsonDeserializer<RPCTransaction>() {
             data,
             accessList,
             chainId,
-            TxType.entries[type.toInt()],
+            TxType.fromType(type.toInt()),
             v,
             r,
             s,

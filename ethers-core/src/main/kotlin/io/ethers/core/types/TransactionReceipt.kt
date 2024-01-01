@@ -12,9 +12,11 @@ import io.ethers.core.readBloom
 import io.ethers.core.readBytes
 import io.ethers.core.readHash
 import io.ethers.core.readHexBigInteger
+import io.ethers.core.readHexInt
 import io.ethers.core.readHexLong
 import io.ethers.core.readListOf
 import io.ethers.core.readOrNull
+import io.ethers.core.types.transaction.TxType
 import java.math.BigInteger
 
 /**
@@ -33,7 +35,7 @@ data class TransactionReceipt(
     val contractAddress: Address?,
     val logs: List<Log>,
     val logsBloom: Bloom,
-    val type: Long,
+    val type: TxType,
     val effectiveGasPrice: BigInteger,
     val status: Long,
     val root: Bytes?,
@@ -60,7 +62,7 @@ private class TxReceiptDeserializer : JsonDeserializer<TransactionReceipt>() {
         var contractAddress: Address? = null
         var logs = emptyList<Log>()
         lateinit var logsBloom: Bloom
-        var type: Long = -1L
+        var type: Int = -1
         lateinit var effectiveGasPrice: BigInteger
         var status: Long = -1L
         var root: Bytes? = null
@@ -79,7 +81,7 @@ private class TxReceiptDeserializer : JsonDeserializer<TransactionReceipt>() {
                 "contractAddress" -> contractAddress = p.readOrNull { readAddress() }
                 "logs" -> logs = p.readListOf(Log::class.java)
                 "logsBloom" -> logsBloom = p.readBloom()
-                "type" -> type = p.readHexLong()
+                "type" -> type = p.readHexInt()
                 "effectiveGasPrice" -> effectiveGasPrice = p.readHexBigInteger()
                 "status" -> status = p.readHexLong()
                 "root" -> root = p.readBytes()
@@ -104,7 +106,7 @@ private class TxReceiptDeserializer : JsonDeserializer<TransactionReceipt>() {
             contractAddress,
             logs,
             logsBloom,
-            type,
+            TxType.fromType(type),
             effectiveGasPrice,
             status,
             root,
