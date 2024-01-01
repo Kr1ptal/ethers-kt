@@ -194,12 +194,7 @@ class TransactionSigned @JvmOverloads constructor(
 
                     rlp.decodeList {
                         val isNetworkEncoding = rlp.isNextElementList()
-                        if (!isNetworkEncoding) {
-                            val tx = TxBlob.rlpDecode(rlp) ?: return null
-                            val signature = rlp.decode(Signature) ?: return null
-
-                            TransactionSigned(tx, signature)
-                        } else {
+                        if (isNetworkEncoding) {
                             // see: https://eips.ethereum.org/EIPS/eip-4844#networking
                             lateinit var tx: TxBlob
                             lateinit var signature: Signature
@@ -212,6 +207,11 @@ class TransactionSigned @JvmOverloads constructor(
 
                             // TODO avoid creating a copy just with sidecar
                             TransactionSigned(tx.copy(sidecar = sidecar), signature)
+                        } else {
+                            val tx = TxBlob.rlpDecode(rlp) ?: return null
+                            val signature = rlp.decode(Signature) ?: return null
+
+                            TransactionSigned(tx, signature)
                         }
                     }
                 }

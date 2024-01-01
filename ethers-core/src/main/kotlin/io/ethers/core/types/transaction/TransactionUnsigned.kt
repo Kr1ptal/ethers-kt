@@ -26,7 +26,7 @@ sealed interface TransactionUnsigned : Transaction {
     /**
      * Encode [TransactionUnsigned] into provided [RlpEncoder].
      */
-    fun rlpEncode(encoder: RlpEncoder, forSigHash: Boolean = false) {
+    fun rlpEncode(encoder: RlpEncoder, forSignatureHash: Boolean = false) {
         // non-legacy txs are enveloped based on eip2718
         if (type != TxType.LEGACY) {
             encoder.appendRaw(type.value.toByte())
@@ -35,7 +35,7 @@ sealed interface TransactionUnsigned : Transaction {
         encoder.encodeList {
             rlpEncodeFields(encoder)
 
-            if (!forSigHash) {
+            if (!forSignatureHash) {
                 // Encode empty r, s, v signature fields
                 encoder.encode(0)
                 encoder.encode(0)
