@@ -5,6 +5,7 @@ import io.ethers.core.types.Bytes
 import io.ethers.core.types.CallRequest
 import io.ethers.core.types.Hash
 import io.ethers.core.types.tracers.TracerConfig
+import io.ethers.core.types.tracers.TxTraceResult
 import io.ethers.providers.types.RpcRequest
 import java.util.Optional
 
@@ -73,4 +74,19 @@ interface DebugApi {
      * Trace [txHash] transaction execution with given tracer [config].
      */
     fun <T> traceTransaction(txHash: Hash, config: TracerConfig<T>): RpcRequest<T>
+
+    /**
+     * Trace all transactions within block with given tracer [config].
+     * */
+    fun <T> traceBlock(blockHash: Hash, config: TracerConfig<T>) = traceBlock(BlockId.Hash(blockHash), config)
+
+    /**
+     * Trace all transactions within block with given tracer [config].
+     * */
+    fun <T> traceBlock(blockNumber: Long, config: TracerConfig<T>) = traceBlock(BlockId.Number(blockNumber), config)
+
+    /**
+     * Trace all transactions within block with given tracer [config].
+     * */
+    fun <T> traceBlock(blockId: BlockId, config: TracerConfig<T>): RpcRequest<List<TxTraceResult<T>>>
 }

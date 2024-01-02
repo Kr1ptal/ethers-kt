@@ -2,6 +2,7 @@ package io.ethers.providers
 
 import com.fasterxml.jackson.core.JsonParser
 import io.ethers.core.FastHex
+import io.ethers.core.forEachObjectField
 import io.ethers.core.isField
 import io.ethers.core.isNextTokenObjectEnd
 import io.ethers.core.readBytesEmptyAsNull
@@ -33,6 +34,7 @@ import io.ethers.core.types.TxpoolContentFromAddress
 import io.ethers.core.types.TxpoolInspectResult
 import io.ethers.core.types.TxpoolStatus
 import io.ethers.core.types.tracers.TracerConfig
+import io.ethers.core.types.tracers.TxTraceResult
 import io.ethers.core.types.transaction.TransactionUnsigned
 import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.FilterPoller
@@ -369,6 +371,30 @@ class Provider(override val client: JsonRpcClient) : Middleware {
     override fun <T> traceTransaction(txHash: Hash, config: TracerConfig<T>): RpcRequest<T> {
         val params = arrayOf(txHash, config)
         return RpcCall(client, "debug_traceTransaction", params, { config.tracer.decodeResult(it) })
+    }
+
+    override fun <T> traceBlock(blockId: BlockId, config: TracerConfig<T>): RpcRequest<List<TxTraceResult<T>>> {
+        val params = arrayOf(blockId.id, config)
+        val method = when (blockId) {
+            is BlockId.Hash -> "debug_traceBlockByHash"
+            is BlockId.Number, is BlockId.Name -> "debug_traceBlockByNumber"
+        }
+        return RpcCall(client, method, params, {
+            it.readListOf {
+                var txHash: Hash? = null
+                var result: T? = null
+                var error: String? = null
+
+                it.forEachObjectField { field ->
+                    when (field) {
+                        "txHash" -> txHash = it.readHash()
+                        "result" -> result = config.tracer.decodeResult(it)
+                        "error" -> error = it.valueAsString
+                    }
+                }
+                TxTraceResult(txHash, result, error)
+            }
+        })
     }
 
     //-----------------------------------------------------------------------------------------------------------------
