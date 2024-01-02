@@ -21,5 +21,5 @@ tasks.withType<Test> {
 
 allprojects {
     group = "io.kriptal.ethers"
-    version = "0.2.0"
+    version = "0.2.0-SNAPSHOT"
 }
