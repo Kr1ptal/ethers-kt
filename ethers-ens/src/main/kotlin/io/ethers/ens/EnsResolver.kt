@@ -13,25 +13,35 @@ import io.ethers.logger.getLogger
 import io.ethers.logger.wrn
 import io.ethers.providers.Provider
 import io.ethers.providers.types.RpcResponse
-import io.github.adraffy.ens.InvalidLabelException
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
-import java.io.IOException
 import java.util.concurrent.CompletableFuture
 
-class EnsResolver(
+class EnsResolver @JvmOverloads constructor(
     private val provider: Provider,
     private val registryAddress: Address,
     private val ccipLookupLimit: Int = 4,
     private val client: OkHttpClient = OkHttpClient(),
 ) {
     private val LOG = getLogger()
-    constructor(provider: Provider) : this(provider, getRegistryAddressOrThrow(provider.chainId))
 
-    data class EnsGatewayRequestDTO(val data: Bytes)
+    @JvmOverloads
+    constructor(
+        provider: Provider,
+        ccipLookupLimit: Int = 4,
+        client: OkHttpClient = OkHttpClient(),
+    ) : this(
+        provider,
+        getRegistryAddressOrThrow(provider.chainId),
+        ccipLookupLimit,
+        client,
+    )
+
+    private data class EnsGatewayRequestDTO(val data: Bytes, val sender: String)
+    private data class EnsGatewayResponseDTO(val data: Bytes)
 
     /**
      * Resolve ens name to Address. On error return [RpcResponse] as error.
@@ -50,7 +60,7 @@ class EnsResolver(
         val nameHash: ByteArray
         try {
             nameHash = NameHash.nameHash(ensName)
-        } catch (e: InvalidLabelException) {
+        } catch (e: Exception) {
             return RpcResponse.error(Error.Normalisation(e))
         }
 
@@ -71,11 +81,7 @@ class EnsResolver(
             val resolveResult = resolver.resolve(dnsEncoded, addrFunction)
                 .call(BlockId.LATEST)
                 .sendAwait()
-                .map {
-                    // TODO properly decode dynamic bytes to address
-                    // 64 do 84 index
-                    Address(it.value.sliceArray(12..32))
-                }
+                .map { Address(it.value) }
 
             // try to decode OffchainLookup error
             val resolveLookupRevert = resolveResult.error?.asTypeOrNull<OffchainResolver.OffchainLookup>()
@@ -106,12 +112,12 @@ class EnsResolver(
                                     FastHex.encodeWithPrefix(nameHash),
                                 ),
                             )
-                        else -> RpcResponse.result(it)
+                        else -> it
                     }
                 }.sendAwait()
 
             return if (address.isError) address.propagateError()
-            else address.resultOrThrow()
+            else address
         }
     }
 
@@ -188,7 +194,7 @@ class EnsResolver(
                     return response.propagateError()
                 }
                 response
-            } catch (e: IOException) {
+            } catch (e: Exception) {
                 LOG.err(e) { e.message ?: "" }
                 RpcResponse.error(Error.CcipCallFailed("Unknown error", e))
             }
@@ -213,7 +219,7 @@ class EnsResolver(
 
             val gatewayRequestDTO = Jackson.MAPPER.readValue(
                 responseBody.byteStream(),
-                EnsGatewayRequestDTO::class.java,
+                EnsGatewayResponseDTO::class.java,
             )
             val data = gatewayRequestDTO.data
 
@@ -244,15 +250,19 @@ class EnsResolver(
         if (!url.contains("{sender}")) return null // skip this url
 
         // URL expansion
-        val href = url.replace("{sender}", sender.toString()).replace("{data}", calldata.toString())
-        val builder = Request.Builder().url(href)
+        var href = url.replace("{sender}", sender.toString())
 
         return if (url.contains("{data}")) {
-            builder.get().build()
+            href = href.replace("{data}", calldata.toString())
+            Request.Builder().url(href).get().build()
         } else {
-            val requestDTO = EnsGatewayRequestDTO(calldata)
+            val requestDTO = EnsGatewayRequestDTO(calldata, sender.toString())
 
-            builder.post(Jackson.MAPPER.writeValueAsString(requestDTO).toRequestBody(JSON_MEDIA_TYPE))
+            Request.Builder().url(href)
+                .post(
+                    Jackson.MAPPER.writeValueAsString(requestDTO)
+                        .toRequestBody(JSON_MEDIA_TYPE),
+                )
                 .addHeader("Content-Type", "application/json")
                 .build()
         }
@@ -272,7 +282,7 @@ class EnsResolver(
         val nameHash: ByteArray
         try {
             nameHash = NameHash.nameHash(ensName)
-        } catch (e: InvalidLabelException) {
+        } catch (e: Exception) {
             return RpcResponse.error(Error.Normalisation(e))
         }
 
@@ -284,20 +294,17 @@ class EnsResolver(
         val address = registryContract.resolver(Bytes(nameHash))
             .call(BlockId.LATEST)
             .map {
-                if (it.isError) {
-                    return@map RpcResponse.error(
+                return@map when {
+                    it.isError -> RpcResponse.error(
                         Error.ResolvingResolver(
                             registryAddress,
                             FastHex.encodeWithPrefix(nameHash),
                         ),
                     )
-                }
 
-                if (it.resultOrThrow() == Address.ZERO) {
-                    return@map RpcResponse.error(Error.UnknownResolver)
+                    it.resultOrThrow() == Address.ZERO -> RpcResponse.error(Error.UnknownResolver)
+                    else -> it
                 }
-
-                return@map RpcResponse.result(it)
             }
             .sendAwait()
 
@@ -308,7 +315,7 @@ class EnsResolver(
             return address.propagateError()
         }
 
-        return address.resultOrThrow()
+        return address
     }
 
     /**
