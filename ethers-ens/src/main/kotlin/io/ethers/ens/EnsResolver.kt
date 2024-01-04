@@ -1,6 +1,7 @@
 package io.ethers.ens
 
 import io.ethers.abi.AbiCodec
+import io.ethers.abi.AbiFunction
 import io.ethers.abi.AbiType
 import io.ethers.core.FastHex
 import io.ethers.core.Jackson
@@ -47,10 +48,11 @@ class EnsResolver @JvmOverloads constructor(
      * Resolve ens name to Address. On error return [RpcResponse] as error.
      */
     fun resolveName(ensName: String): CompletableFuture<RpcResponse<Address>> = CompletableFuture.supplyAsync {
-        return@supplyAsync resolveNameResponse(ensName)
+        resolveParameters(ensName, OffchainResolver.FUNCTION_ADDR, mutableListOf(), mutableListOf())
+            .map { AbiCodec.decode(AbiType.Address, it.value) as Address }
     }
 
-    private fun resolveNameResponse(ensName: String): RpcResponse<Address> {
+    private fun resolveParameters(ensName: String, abiFunction: AbiFunction, parameters: MutableList<Any>, paramTypes: MutableList<AbiType>): RpcResponse<Bytes> {
         // Check that ens name is valid
         if (ensName.isBlank() || (ensName.trim().length == 1 && ensName.contains("."))) {
             return RpcResponse.error(Error.EnsNameInvalid)
@@ -73,14 +75,17 @@ class EnsResolver @JvmOverloads constructor(
         val supportsWildcard =
             resolver.supportsInterface(ENSIP_10_INTERFACE_ID).call(BlockId.LATEST).sendAwait().resultOrThrow()
 
+        // todo check on text resolution
+        // add nodehash as first parameter, because it is present in all resolutions
+        parameters.add(0, Bytes(nameHash))
+        paramTypes.add(0, AbiType.FixedBytes(32))
         if (supportsWildcard) {
             val dnsEncoded = NameHash.dnsEncode(ensName)
-            val addrFunction = OffchainResolver.FUNCTION_ADDR.encodeCall(arrayOf(Bytes(nameHash)))
+            val encodedParams = abiFunction.encodeCall(parameters.toTypedArray())
 
-            val resolveResult = resolver.resolve(dnsEncoded, addrFunction)
+            val resolveResult = resolver.resolve(dnsEncoded, encodedParams)
                 .call(BlockId.LATEST)
                 .sendAwait()
-                .map { Address(it.value) }
 
             // try to decode OffchainLookup error
             val resolveLookupRevert = resolveResult.error?.asTypeOrNull<OffchainResolver.OffchainLookup>()
@@ -97,24 +102,50 @@ class EnsResolver @JvmOverloads constructor(
                 )
             }
         } else {
-            // Simple ENS name resolution: resolve ens name with resolver.addr().
-            // Return different errors on empty address and failure to resolve
-            return resolver.addr(Bytes(nameHash))
-                .call(BlockId.LATEST)
-                .map {
-                    return@map when {
-                        it.isError -> RpcResponse.error(Error.FailedToResolve(resolver.address, ensName))
-                        it.resultOrThrow() == Address.ZERO ->
-                            RpcResponse.error(
-                                Error.UnknownEnsName(
-                                    resolver.address,
-                                    FastHex.encodeWithPrefix(nameHash),
-                                ),
-                            )
+            // Simple ENS name resolution: resolve by calling corresponding resolving function
+            // (eg. addr(bytes32), text(bytes32, string)) of resolver directly.
 
-                        else -> it
-                    }
-                }.sendAwait()
+            // Validate that resolver supports abiFunction
+            val supportsFunction =
+                resolver.supportsInterface(Bytes(abiFunction.selector)).call(BlockId.LATEST).sendAwait().resultOrThrow()
+
+            if (!supportsFunction) {
+                return RpcResponse.error(
+                    Error.UnsupportedSelector(
+                        resolver.address,
+                        FastHex.encodeWithPrefix(abiFunction.selector)
+                    )
+                )
+            }
+
+            // create callback for corresponding function selector
+            val callbackData = AbiCodec.encodeWithPrefix(
+                abiFunction.selector,
+                paramTypes,
+                parameters.toTypedArray(),
+            )
+
+            return provider.call(
+                CallRequest {
+                    to = resolver.address
+                    data = Bytes(callbackData)
+                },
+                BlockId.LATEST,
+            ).map {
+                return@map when {
+                    // Return different errors on empty address and failure to resolve
+                    it.isError -> RpcResponse.error(Error.FailedToResolve(resolver.address, ensName))
+                    // TODO - handle differently
+                    (AbiCodec.decode(AbiType.Address, it.resultOrThrow().value) as Address) == Address.ZERO ->
+                        RpcResponse.error(
+                            Error.UnknownEnsName(
+                                resolver.address,
+                                FastHex.encodeWithPrefix(nameHash),
+                            ),
+                        )
+                    else -> it
+                }
+            }.sendAwait()
         }
     }
 
@@ -126,7 +157,7 @@ class EnsResolver @JvmOverloads constructor(
         revert: OffchainResolver.OffchainLookup,
         resolver: OffchainResolver,
         lookupLimit: Int,
-    ): RpcResponse<Address> {
+    ): RpcResponse<Bytes> {
         // OffchainLookup.sender has to be resolver address
         if (revert.sender != resolver.address) {
             return RpcResponse.error(Error.NestedOffchainLookup)
@@ -164,8 +195,7 @@ class EnsResolver @JvmOverloads constructor(
         } else {
             // callbackResult is resolved ENS name. Decode dynamic bytes to address
             val resolvedDecoded = AbiCodec.decode(AbiType.Bytes, callbackResult.resultOrThrow().value) as Bytes
-            val resolvedAddress = AbiCodec.decode(AbiType.Address, resolvedDecoded.value) as Address
-            return RpcResponse.result(resolvedAddress)
+            return RpcResponse.result(resolvedDecoded)
         }
     }
 
@@ -338,6 +368,16 @@ class EnsResolver @JvmOverloads constructor(
          * CCIP calls reached a maximum limit.
          */
         data object CcipLookupLimit : Error()
+
+        /**
+         * Resolver does not support selector
+         */
+        data class UnsupportedSelector(val resolver: Address,
+                                       val selector: String) : Error() {
+            override fun doThrow() {
+                throw RuntimeException("Resolver: ")
+            }
+        }
 
         /**
          * Data returned with OffchainLookup error is invalid.

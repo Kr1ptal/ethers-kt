@@ -44,7 +44,7 @@ class EnsResolverTest : FunSpec({
                     ),
                 ),
             ) {
-                ensResolver.resolveName(it.ensName).get().resultOrThrow()
+                ensResolver.resolveName(it.ensName).get().resultOrThrow() shouldBe it.resolvedAddr
             }
         }
 
