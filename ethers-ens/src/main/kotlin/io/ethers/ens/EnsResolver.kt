@@ -51,7 +51,6 @@ class EnsResolver @JvmOverloads constructor(
     }
 
     private fun resolveNameResponse(ensName: String): RpcResponse<Address> {
-        OffchainResolver.ERRORS
         // Check that ens name is valid
         if (ensName.isBlank() || (ensName.trim().length == 1 && ensName.contains("."))) {
             return RpcResponse.error(Error.EnsNameInvalid)
@@ -100,7 +99,7 @@ class EnsResolver @JvmOverloads constructor(
         } else {
             // Simple ENS name resolution: resolve ens name with resolver.addr().
             // Return different errors on empty address and failure to resolve
-            val address = resolver.addr(Bytes(nameHash))
+            return resolver.addr(Bytes(nameHash))
                 .call(BlockId.LATEST)
                 .map {
                     return@map when {
@@ -112,12 +111,10 @@ class EnsResolver @JvmOverloads constructor(
                                     FastHex.encodeWithPrefix(nameHash),
                                 ),
                             )
+
                         else -> it
                     }
                 }.sendAwait()
-
-            return if (address.isError) address.propagateError()
-            else address
         }
     }
 
