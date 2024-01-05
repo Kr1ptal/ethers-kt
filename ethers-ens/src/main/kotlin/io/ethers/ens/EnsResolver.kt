@@ -45,14 +45,36 @@ class EnsResolver @JvmOverloads constructor(
     private data class EnsGatewayResponseDTO(val data: Bytes)
 
     /**
-     * Resolve ens name to Address. On error return [RpcResponse] as error.
+     * Resolve ENS name to [Address]. On error return [RpcResponse] as error.
      */
     fun resolveName(ensName: String): CompletableFuture<RpcResponse<Address>> = CompletableFuture.supplyAsync {
-        resolveParameters(ensName, OffchainResolver.FUNCTION_ADDR, mutableListOf(), mutableListOf())
-            .map { AbiCodec.decode(AbiType.Address, it.value) as Address }
+        resolveWithParameters(
+            ensName,
+            OffchainResolver.FUNCTION_ADDR,
+            mutableListOf(),
+            mutableListOf(),
+        ).map { AbiCodec.decode(AbiType.Address, it.value) as Address }
     }
 
-    private fun resolveParameters(ensName: String, abiFunction: AbiFunction, parameters: MutableList<Any>, paramTypes: MutableList<AbiType>): RpcResponse<Bytes> {
+    /**
+     * Resolve ENS name to a text record associated with a [key]. On error return [RpcResponse] as error.
+     */
+    fun resolveText(ensName: String, key: String): CompletableFuture<RpcResponse<String>> =
+        CompletableFuture.supplyAsync {
+            return@supplyAsync resolveWithParameters(
+                ensName,
+                PublicResolver.FUNCTION_TEXT,
+                mutableListOf(key),
+                mutableListOf(AbiType.String),
+            ).map { AbiCodec.decode(AbiType.String, it.value) as String }
+        }
+
+    private fun resolveWithParameters(
+        ensName: String,
+        abiFunction: AbiFunction,
+        parameters: MutableList<Any>,
+        paramTypes: MutableList<AbiType>,
+    ): RpcResponse<Bytes> {
         // Check that ens name is valid
         if (ensName.isBlank() || (ensName.trim().length == 1 && ensName.contains("."))) {
             return RpcResponse.error(Error.EnsNameInvalid)
@@ -75,7 +97,6 @@ class EnsResolver @JvmOverloads constructor(
         val supportsWildcard =
             resolver.supportsInterface(ENSIP_10_INTERFACE_ID).call(BlockId.LATEST).sendAwait().resultOrThrow()
 
-        // todo check on text resolution
         // add nodehash as first parameter, because it is present in all resolutions
         parameters.add(0, Bytes(nameHash))
         paramTypes.add(0, AbiType.FixedBytes(32))
@@ -113,8 +134,8 @@ class EnsResolver @JvmOverloads constructor(
                 return RpcResponse.error(
                     Error.UnsupportedSelector(
                         resolver.address,
-                        FastHex.encodeWithPrefix(abiFunction.selector)
-                    )
+                        FastHex.encodeWithPrefix(abiFunction.selector),
+                    ),
                 )
             }
 
@@ -136,13 +157,15 @@ class EnsResolver @JvmOverloads constructor(
                     // Return different errors on empty address and failure to resolve
                     it.isError -> RpcResponse.error(Error.FailedToResolve(resolver.address, ensName))
                     // TODO - handle differently
-                    (AbiCodec.decode(AbiType.Address, it.resultOrThrow().value) as Address) == Address.ZERO ->
+                    abiFunction.selector.contentEquals(PublicResolver.FUNCTION_ADDR.selector) &&
+                        (AbiCodec.decode(AbiType.Address, it.resultOrThrow().value) as Address) == Address.ZERO ->
                         RpcResponse.error(
                             Error.UnknownEnsName(
                                 resolver.address,
                                 FastHex.encodeWithPrefix(nameHash),
                             ),
                         )
+
                     else -> it
                 }
             }.sendAwait()
@@ -355,49 +378,6 @@ class EnsResolver @JvmOverloads constructor(
         data object EnsNameInvalid : Error()
 
         /**
-         * Resolver address not found for given nameHash on registry.
-         */
-        data object UnknownResolver : Error()
-
-        /**
-         * Cannot handle OffchainLookup raised inside nested call.
-         */
-        data object NestedOffchainLookup : Error()
-
-        /**
-         * CCIP calls reached a maximum limit.
-         */
-        data object CcipLookupLimit : Error()
-
-        /**
-         * Resolver does not support selector
-         */
-        data class UnsupportedSelector(val resolver: Address,
-                                       val selector: String) : Error() {
-            override fun doThrow() {
-                throw RuntimeException("Resolver: ")
-            }
-        }
-
-        /**
-         * Data returned with OffchainLookup error is invalid.
-         */
-        data class CcipRevertDataInvalid(val message: String) : Error() {
-            override fun doThrow() {
-                throw RuntimeException(message)
-            }
-        }
-
-        /**
-         * Unknown error during CCIP call execution.
-         */
-        data class CcipCallFailed(val message: String, val cause: Throwable?) : Error() {
-            override fun doThrow() {
-                throw RuntimeException(message, cause)
-            }
-        }
-
-        /**
          * Error on ens name normalisation attempt.
          */
         data class Normalisation(val cause: Exception) : Error() {
@@ -406,15 +386,34 @@ class EnsResolver @JvmOverloads constructor(
             }
         }
 
+        // Errors when getting resolver address
         /**
-         * Error on resolver address resolving.
+         * Error on getting resolver address from registry
          */
         data class ResolvingResolver(
             val registryAddress: Address,
             val nameHash: String,
         ) : Error() {
             override fun doThrow() {
-                throw RuntimeException("Error when resolving resolver on registry $registryAddress for nameHash $nameHash.")
+                throw RuntimeException("Error when getting resolver address from registry> $registryAddress for nameHash: $nameHash.")
+            }
+        }
+
+        /**
+         * Resolver address not found for given nameHash on registry.
+         */
+        data object UnknownResolver : Error()
+
+        // Errors when resolving ENS name with resolver
+        /**
+         * Resolver does not support selector
+         */
+        data class UnsupportedSelector(
+            val resolver: Address,
+            val selector: String,
+        ) : Error() {
+            override fun doThrow() {
+                throw RuntimeException("Resolver: ")
             }
         }
 
@@ -440,6 +439,35 @@ class EnsResolver @JvmOverloads constructor(
             Error() {
             override fun doThrow() {
                 throw RuntimeException("Failed to resolve ens name: $ensName with resolver $resolverAddr.")
+            }
+        }
+
+        // CCIP specific errors
+        /**
+         * Cannot handle OffchainLookup raised inside nested call.
+         */
+        data object NestedOffchainLookup : Error()
+
+        /**
+         * CCIP calls reached a maximum limit.
+         */
+        data object CcipLookupLimit : Error()
+
+        /**
+         * Data returned with OffchainLookup error is invalid.
+         */
+        data class CcipRevertDataInvalid(val message: String) : Error() {
+            override fun doThrow() {
+                throw RuntimeException(message)
+            }
+        }
+
+        /**
+         * Unknown error during CCIP call execution.
+         */
+        data class CcipCallFailed(val message: String, val cause: Throwable?) : Error() {
+            override fun doThrow() {
+                throw RuntimeException(message, cause)
             }
         }
     }
@@ -471,9 +499,15 @@ class EnsResolver @JvmOverloads constructor(
                 ?: throw IllegalArgumentException("No registry address found for chain id: $chainId")
         }
 
+        // TODO: structure differently, new Middleware?
         fun Provider.resolveName(ensName: String): CompletableFuture<RpcResponse<Address>> {
             val ensResolver = EnsResolver(this)
             return ensResolver.resolveName(ensName)
+        }
+
+        fun Provider.resolveText(ensName: String, key: String): CompletableFuture<RpcResponse<String>> {
+            val ensResolver = EnsResolver(this)
+            return ensResolver.resolveText(ensName, key)
         }
 
         private fun getParent(name: String): String {
