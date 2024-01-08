@@ -54,7 +54,7 @@ kotest-assertions-json = { module = "io.kotest:kotest-assertions-json-jvm", vers
 # has different versioning than above dependencies
 kotest-runner = { module = "io.kotest:kotest-runner-console-jvm", version = "4.1.3.2" }
 
-mockk = { module = "io.mockk:mockk-jvm", version = "1.13.8" }
+mockk = { module = "io.mockk:mockk-jvm", version = "1.13.9" }
 kotlin-compileTesting = { module = "com.github.tschuchortdev:kotlin-compile-testing", version = "1.5.0" }
 
 ##################### JMH #####################
