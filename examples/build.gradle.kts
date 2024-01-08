@@ -1,6 +1,6 @@
 plugins {
     `project-conventions`
-    id("io.kriptal.ethers.abigen-plugin") version "0.1.0"
+    id("io.kriptal.ethers.abigen-plugin") version "0.2.0"
 }
 
 dependencies {
