@@ -45,19 +45,25 @@ class EnsResolver @JvmOverloads constructor(
     private data class EnsGatewayResponseDTO(val data: Bytes)
 
     /**
-     * Resolve ENS name to [Address]. On error return [RpcResponse] as error.
+     * Resolve ENS name to [Address], as per [specification](https://docs.ens.domains/dapp-developer-guide/resolving-names).
+     *
+     * On error return [RpcResponse] as error.
+     *
+     * Additional support for:
+     * - [Wildcard resolution](https://docs.ens.domains/ens-improvement-proposals/ensip-10-wildcard-resolution)
+     * - [Offchain metadata](https://docs.ens.domains/ens-improvement-proposals/ensip-16-offchain-metadata)
      */
     fun resolveName(ensName: String): CompletableFuture<RpcResponse<Address>> = CompletableFuture.supplyAsync {
         resolveWithParameters(
             ensName,
             OffchainResolver.FUNCTION_ADDR,
-            mutableListOf(),
-            mutableListOf(),
         ).map { AbiCodec.decode(AbiType.Address, it.value) as Address }
     }
 
     /**
-     * Resolve ENS name to a text record associated with a [key]. On error return [RpcResponse] as error.
+     * Resolve ENS name to a text record associated with a [key], as per [specification](https://docs.ens.domains/ens-improvement-proposals/ensip-5-text-records).
+     *
+     * On error return [RpcResponse] as error.
      */
     fun resolveText(ensName: String, key: String): CompletableFuture<RpcResponse<String>> =
         CompletableFuture.supplyAsync {
@@ -69,11 +75,24 @@ class EnsResolver @JvmOverloads constructor(
             ).map { AbiCodec.decode(AbiType.String, it.value) as String }
         }
 
+    /**
+     * Reverse ENS name resolution, as per [specification](https://docs.ens.domains/ens-improvement-proposals/ensip-3-reverse-resolution).
+     *
+     * On error return [RpcResponse] as error.
+     */
+    fun reverseLookup(address: Address): CompletableFuture<RpcResponse<String>> =
+        CompletableFuture.supplyAsync {
+            return@supplyAsync resolveWithParameters(
+                "${address.toString().substring(2)}.$ENS_DOMAIN_REVERSE_REGISTER",
+                PublicResolver.FUNCTION_NAME,
+            ).map { AbiCodec.decode(AbiType.String, it.value) as String }
+        }
+
     private fun resolveWithParameters(
         ensName: String,
         abiFunction: AbiFunction,
-        parameters: MutableList<Any>,
-        paramTypes: MutableList<AbiType>,
+        parameters: MutableList<Any> = mutableListOf(),
+        paramTypes: MutableList<AbiType> = mutableListOf(),
     ): RpcResponse<Bytes> {
         // Check that ens name is valid
         if (ensName.isBlank() || (ensName.trim().length == 1 && ensName.contains("."))) {
@@ -94,13 +113,12 @@ class EnsResolver @JvmOverloads constructor(
         // If RpcResponse is an error, map it to error FailedToResolve.
         val resolver = resolverResponse.resultOrThrow()
 
-        val supportsWildcard =
-            resolver.supportsInterface(ENSIP_10_INTERFACE_ID).call(BlockId.LATEST).sendAwait().resultOrThrow()
+        val supportsWildcard = resolver.supportsInterface(ENSIP_10_INTERFACE_ID).call(BlockId.LATEST).sendAwait()
 
         // add nodehash as first parameter, because it is present in all resolutions
         parameters.add(0, Bytes(nameHash))
         paramTypes.add(0, AbiType.FixedBytes(32))
-        if (supportsWildcard) {
+        if (!supportsWildcard.isError && supportsWildcard.resultOrThrow()) {
             val dnsEncoded = NameHash.dnsEncode(ensName)
             val encodedParams = abiFunction.encodeCall(parameters.toTypedArray())
 
@@ -128,9 +146,9 @@ class EnsResolver @JvmOverloads constructor(
 
             // Validate that resolver supports abiFunction
             val supportsFunction =
-                resolver.supportsInterface(Bytes(abiFunction.selector)).call(BlockId.LATEST).sendAwait().resultOrThrow()
+                resolver.supportsInterface(Bytes(abiFunction.selector)).call(BlockId.LATEST).sendAwait()
 
-            if (!supportsFunction) {
+            if (supportsFunction.isError || !supportsFunction.resultOrThrow()) {
                 return RpcResponse.error(
                     Error.UnsupportedSelector(
                         resolver.address,
@@ -476,6 +494,7 @@ class EnsResolver @JvmOverloads constructor(
         private val ENSIP_10_INTERFACE_ID = Bytes("0x9061b923")
         private val CALLBACK_FUNCTION_PARAM_TYPES = listOf(AbiType.Bytes, AbiType.Bytes)
         private val JSON_MEDIA_TYPE = "application/json".toMediaType()
+        private val ENS_DOMAIN_REVERSE_REGISTER = "addr.reverse"
 
         private val MAINNET_REGISTRY_ADDR = Address("0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e")
         private val ROPSTEN_REGISTRY_ADDR = Address("0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e")
@@ -508,6 +527,11 @@ class EnsResolver @JvmOverloads constructor(
         fun Provider.resolveText(ensName: String, key: String): CompletableFuture<RpcResponse<String>> {
             val ensResolver = EnsResolver(this)
             return ensResolver.resolveText(ensName, key)
+        }
+
+        fun Provider.reverseLookup(address: Address): CompletableFuture<RpcResponse<String>> {
+            val ensResolver = EnsResolver(this)
+            return ensResolver.reverseLookup(address)
         }
 
         private fun getParent(name: String): String {

@@ -3,6 +3,7 @@ package io.ethers.ens
 import io.ethers.core.types.Address
 import io.ethers.ens.EnsResolver.Companion.resolveName
 import io.ethers.ens.EnsResolver.Companion.resolveText
+import io.ethers.ens.EnsResolver.Companion.reverseLookup
 import io.ethers.providers.HttpClient
 import io.ethers.providers.Provider
 import io.ethers.providers.types.RpcResponse
@@ -15,7 +16,7 @@ private const val MAINNET_HTTP_RPC = "https://ethereum.publicnode.com"
 
 class EnsResolverTest : FunSpec({
     data class EnsNameTestData(
-        val ensName: String,
+        val ensName: String = "",
         val nameHash: String = "",
         val resolverAddr: Address = Address.ZERO,
         val resolvedAddr: Address = Address.ZERO,
@@ -99,8 +100,25 @@ class EnsResolverTest : FunSpec({
             }
         }
 
+        context("Reverse resolution") {
+            context("Valid reverse lookup addresses") {
+                withData(
+                    listOf(
+                        EnsNameTestData(
+                            ensName = "registrar.firefly.eth",
+                            resolvedAddr = Address("0x6fC21092DA55B392b045eD78F4732bff3C580e2c"),
+                        ),
+                    ),
+                ) {
+                    ensResolver.reverseLookup(it.resolvedAddr).get().resultOrThrow() shouldBe it.ensName
+                    provider.reverseLookup(it.resolvedAddr).get().resultOrThrow() shouldBe it.ensName
+                }
+            }
+        }
+
         context("Testing errors") {
             val key = "email"
+
             /**
              * Testing [EnsResolver.Error.EnsNameInvalid]
              */
@@ -150,13 +168,35 @@ class EnsResolverTest : FunSpec({
                         .get().error.shouldBeInstanceOf<EnsResolver.Error.UnknownResolver>()
                     provider.resolveText(it.ensName, key)
                         .get().error.shouldBeInstanceOf<EnsResolver.Error.UnknownResolver>()
+
+                    ensResolver.reverseLookup(Address.ZERO).get().error.shouldBeInstanceOf<EnsResolver.Error.UnknownResolver>()
+                    provider.reverseLookup(Address.ZERO).get().error.shouldBeInstanceOf<EnsResolver.Error.UnknownResolver>()
+                }
+            }
+
+            /**
+             * Testing [EnsResolver.Error.UnsupportedSelector]
+             */
+            context("Unsupported selector") {
+                withData(
+                    listOf(
+                        EnsNameTestData(
+                            nameHash = "0x469fbad6482d86a40a35d188cb7f8256302a5d6c50e9071c4f4e9f7604b2cac8",
+                        ),
+                    ),
+                ) {
+                    // TODO: tests for other resolutions when mocking
+                    // address with invalid resolver (WETH token 0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2 as resolver)
+                    val addr = Address("0x30c9223d9e3d23e0af1073a38e0834b055bf68ed")
+                    ensResolver.reverseLookup(addr).get().error.shouldBeInstanceOf<EnsResolver.Error.UnsupportedSelector>()
+                    provider.reverseLookup(addr).get().error.shouldBeInstanceOf<EnsResolver.Error.UnsupportedSelector>()
                 }
             }
 
             /**
              * Testing unknown ENS name (zero address, empty record)
              */
-            context("Resolve to empty address") {
+            context("Resolve to NULL") {
                 fun testError(error: RpcResponse.Error?, testData: EnsNameTestData) {
                     error.shouldBeInstanceOf<EnsResolver.Error.UnknownEnsName>()
                     error.resolverAddr shouldBe testData.resolverAddr
@@ -172,7 +212,6 @@ class EnsResolverTest : FunSpec({
                         ),
                     ),
                 ) {
-                    //
                     testError(ensResolver.resolveName(it.ensName).get().error, it)
                     testError(provider.resolveName(it.ensName).get().error, it)
 
