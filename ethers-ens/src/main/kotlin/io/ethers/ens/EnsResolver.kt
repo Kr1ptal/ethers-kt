@@ -53,7 +53,7 @@ class EnsResolver @JvmOverloads constructor(
      * - [Wildcard resolution](https://docs.ens.domains/ens-improvement-proposals/ensip-10-wildcard-resolution)
      * - [Offchain metadata](https://docs.ens.domains/ens-improvement-proposals/ensip-16-offchain-metadata)
      */
-    fun resolveName(ensName: String): CompletableFuture<RpcResponse<Address>> = CompletableFuture.supplyAsync {
+    fun resolveAddress(ensName: String): CompletableFuture<RpcResponse<Address>> = CompletableFuture.supplyAsync {
         resolveWithParameters(
             ensName,
             OffchainResolver.FUNCTION_ADDR,
@@ -80,7 +80,7 @@ class EnsResolver @JvmOverloads constructor(
      *
      * On error return [RpcResponse] as error.
      */
-    fun reverseLookup(address: Address): CompletableFuture<RpcResponse<String>> =
+    fun resolveEnsName(address: Address): CompletableFuture<RpcResponse<String>> =
         CompletableFuture.supplyAsync {
             val res = resolveWithParameters(
                 "${address.toString().substring(2)}.$ENS_DOMAIN_REVERSE_REGISTER",
@@ -89,7 +89,7 @@ class EnsResolver @JvmOverloads constructor(
 
             // To be certain of reverse lookup ENS name, forward resolution must resolve to the original address
             if (!res.isError) {
-                val forwardResolution = resolveName(res.resultOrThrow()).get()
+                val forwardResolution = resolveAddress(res.resultOrThrow()).get()
                 if (!forwardResolution.isError && forwardResolution.resultOrThrow() == address) {
                     return@supplyAsync res
                 } else {
@@ -537,9 +537,9 @@ class EnsResolver @JvmOverloads constructor(
         }
 
         // TODO: structure differently, new Middleware?
-        fun Provider.resolveName(ensName: String): CompletableFuture<RpcResponse<Address>> {
+        fun Provider.resolveAddress(ensName: String): CompletableFuture<RpcResponse<Address>> {
             val ensResolver = EnsResolver(this)
-            return ensResolver.resolveName(ensName)
+            return ensResolver.resolveAddress(ensName)
         }
 
         fun Provider.resolveText(ensName: String, key: String): CompletableFuture<RpcResponse<String>> {
@@ -547,9 +547,9 @@ class EnsResolver @JvmOverloads constructor(
             return ensResolver.resolveText(ensName, key)
         }
 
-        fun Provider.reverseLookup(address: Address): CompletableFuture<RpcResponse<String>> {
+        fun Provider.resolveEnsName(address: Address): CompletableFuture<RpcResponse<String>> {
             val ensResolver = EnsResolver(this)
-            return ensResolver.reverseLookup(address)
+            return ensResolver.resolveEnsName(address)
         }
 
         private fun getParent(name: String): String {
