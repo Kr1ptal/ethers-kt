@@ -219,6 +219,12 @@ class EnsResolverTest : FunSpec({
                     provider.resolveText(it.ensName, "").get().resultOrThrow() shouldBe ""
                 }
             }
+
+            /**
+             * Testing [EnsResolver.Error.InvalidReverseENSName]
+             */
+            // TODO: when mocking
+            context("Invalid reverse ENS name")
         }
     }
 })

@@ -82,10 +82,22 @@ class EnsResolver @JvmOverloads constructor(
      */
     fun reverseLookup(address: Address): CompletableFuture<RpcResponse<String>> =
         CompletableFuture.supplyAsync {
-            return@supplyAsync resolveWithParameters(
+            val res = resolveWithParameters(
                 "${address.toString().substring(2)}.$ENS_DOMAIN_REVERSE_REGISTER",
                 PublicResolver.FUNCTION_NAME,
             ).map { AbiCodec.decode(AbiType.String, it.value) as String }
+
+            // To be certain of reverse lookup ENS name, forward resolution must resolve to the original address
+            if (!res.isError) {
+                val forwardResolution = resolveName(res.resultOrThrow()).get()
+                if (!forwardResolution.isError && forwardResolution.resultOrThrow() == address) {
+                    return@supplyAsync res
+                } else {
+                    return@supplyAsync RpcResponse.error(Error.InvalidReverseENSName)
+                }
+            }
+
+            return@supplyAsync res
         }
 
     private fun resolveWithParameters(
@@ -459,6 +471,12 @@ class EnsResolver @JvmOverloads constructor(
                 throw RuntimeException("Failed to resolve ens name: $ensName with resolver $resolverAddr.")
             }
         }
+
+        // Reverse lookup specific errors
+        /**
+         * Reverse lookup ENS name does not resolve to original address.
+         */
+        data object InvalidReverseENSName : Error()
 
         // CCIP specific errors
         /**
