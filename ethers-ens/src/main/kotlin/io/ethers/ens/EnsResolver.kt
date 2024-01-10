@@ -56,7 +56,7 @@ class EnsResolver @JvmOverloads constructor(
     fun resolveAddress(ensName: String): CompletableFuture<RpcResponse<Address>> = CompletableFuture.supplyAsync {
         resolveWithParameters(
             ensName,
-            OffchainResolver.FUNCTION_ADDR,
+            ExtendedResolver.FUNCTION_ADDR,
         ).map { AbiCodec.decode(AbiType.Address, it.value) as Address }
     }
 
@@ -69,7 +69,7 @@ class EnsResolver @JvmOverloads constructor(
         CompletableFuture.supplyAsync {
             return@supplyAsync resolveWithParameters(
                 ensName,
-                PublicResolver.FUNCTION_TEXT,
+                ExtendedResolver.FUNCTION_TEXT,
                 mutableListOf(key),
                 mutableListOf(AbiType.String),
             ).map { AbiCodec.decode(AbiType.String, it.value) as String }
@@ -83,8 +83,8 @@ class EnsResolver @JvmOverloads constructor(
     fun resolveEnsName(address: Address): CompletableFuture<RpcResponse<String>> =
         CompletableFuture.supplyAsync {
             val res = resolveWithParameters(
-                "${address.toString().substring(2)}.$ENS_DOMAIN_REVERSE_REGISTER",
-                PublicResolver.FUNCTION_NAME,
+                "${address.toString().lowercase().substring(2)}.$ENS_DOMAIN_REVERSE_REGISTER",
+                ExtendedResolver.FUNCTION_NAME,
             ).map { AbiCodec.decode(AbiType.String, it.value) as String }
 
             // To be certain of reverse lookup ENS name, forward resolution must resolve to the original address
@@ -139,7 +139,7 @@ class EnsResolver @JvmOverloads constructor(
                 .sendAwait()
 
             // try to decode OffchainLookup error
-            val resolveLookupRevert = resolveResult.error?.asTypeOrNull<OffchainResolver.OffchainLookup>()
+            val resolveLookupRevert = resolveResult.error?.asTypeOrNull<ExtendedResolver.OffchainLookup>()
 
             return if (resolveLookupRevert == null) {
                 // result is resolved ens name
@@ -187,7 +187,7 @@ class EnsResolver @JvmOverloads constructor(
                     // Return different errors on empty address and failure to resolve
                     it.isError -> RpcResponse.error(Error.FailedToResolve(resolver.address, ensName))
                     // TODO - handle differently
-                    abiFunction.selector.contentEquals(PublicResolver.FUNCTION_ADDR.selector) &&
+                    abiFunction.selector.contentEquals(ExtendedResolver.FUNCTION_ADDR.selector) &&
                         (AbiCodec.decode(AbiType.Address, it.resultOrThrow().value) as Address) == Address.ZERO ->
                         RpcResponse.error(
                             Error.UnknownEnsName(
@@ -203,12 +203,12 @@ class EnsResolver @JvmOverloads constructor(
     }
 
     /**
-     * If result of resolver.resolve() call is [OffchainResolver.OffchainLookup] error, try to resolve the name using
+     * If result of resolver.resolve() call is [ExtendedResolver.OffchainLookup] error, try to resolve the name using
      * [ERC-3668: CCIP offchain data retrieval](https://eips.ethereum.org/EIPS/eip-3668)
      */
     private fun resolveOffchain(
-        revert: OffchainResolver.OffchainLookup,
-        resolver: OffchainResolver,
+        revert: ExtendedResolver.OffchainLookup,
+        resolver: ExtendedResolver,
         lookupLimit: Int,
     ): RpcResponse<Bytes> {
         // OffchainLookup.sender has to be resolver address
@@ -240,7 +240,7 @@ class EnsResolver @JvmOverloads constructor(
         ).sendAwait()
 
         // If callbackResult is OffchainLookup error, resolve using recursive CCIP calls
-        val callbackLookupRevert = callbackResult.error?.asTypeOrNull<OffchainResolver.OffchainLookup>()
+        val callbackLookupRevert = callbackResult.error?.asTypeOrNull<ExtendedResolver.OffchainLookup>()
         if (callbackLookupRevert != null) {
             if (lookupLimit <= 0) return RpcResponse.error(Error.CcipLookupLimit)
 
@@ -256,9 +256,9 @@ class EnsResolver @JvmOverloads constructor(
      * Executes Cross-Chain Interoperability Protocol (CCIP-Read) request and returns opaque gateway response as [Bytes]
      * which is sent to the callbackFunction on Offchain Resolver contract.
      *
-     * @param urls urls parameter of Offchain revert [OffchainResolver.OffchainLookup]
-     * @param sender sender parameter of [OffchainResolver.OffchainLookup] - replacing {sender} RPC call parameter
-     * @param calldata calldata parameter of [OffchainResolver.OffchainLookup] - replacing {data} RPC call parameter
+     * @param urls urls parameter of Offchain revert [ExtendedResolver.OffchainLookup]
+     * @param sender sender parameter of [ExtendedResolver.OffchainLookup] - replacing {sender} RPC call parameter
+     * @param calldata calldata parameter of [ExtendedResolver.OffchainLookup] - replacing {data} RPC call parameter
      */
     private fun httpCall(urls: Array<String>, sender: Address, calldata: Bytes): RpcResponse<Bytes> {
         if (urls.isEmpty()) return RpcResponse.error(Error.CcipCallFailed("No urls to resolve ens name!", null))
@@ -349,14 +349,14 @@ class EnsResolver @JvmOverloads constructor(
     }
 
     /**
-     * Get [OffchainResolver] for [ensName] using [ENSRegistryWithFallback] of current chain.
+     * Get [ExtendedResolver] for [ensName] using [EnsRegistry] of current chain.
      */
-    private fun getResolver(ensName: String): RpcResponse<OffchainResolver> {
-        return getResolverAddress(ensName).map { OffchainResolver(provider, it) }
+    private fun getResolver(ensName: String): RpcResponse<ExtendedResolver> {
+        return getResolverAddress(ensName).map { ExtendedResolver(provider, it) }
     }
 
     /**
-     * Get resolver address for [ensName] from [ENSRegistryWithFallback].
+     * Get resolver address for [ensName] from [EnsRegistry].
      */
     private fun getResolverAddress(ensName: String): RpcResponse<Address> {
         val nameHash: ByteArray
@@ -370,7 +370,7 @@ class EnsResolver @JvmOverloads constructor(
             return RpcResponse.error(Error.UnknownResolver)
         }
 
-        val registryContract = ENSRegistryWithFallback(provider, registryAddress)
+        val registryContract = EnsRegistry(provider, registryAddress)
         val address = registryContract.resolver(Bytes(nameHash))
             .call(BlockId.LATEST)
             .map {
