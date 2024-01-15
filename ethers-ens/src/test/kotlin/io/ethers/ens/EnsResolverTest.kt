@@ -2,8 +2,8 @@ package io.ethers.ens
 
 import io.ethers.core.types.Address
 import io.ethers.ens.EnsResolver.Companion.resolveAddress
-import io.ethers.ens.EnsResolver.Companion.resolveText
 import io.ethers.ens.EnsResolver.Companion.resolveEnsName
+import io.ethers.ens.EnsResolver.Companion.resolveText
 import io.ethers.providers.HttpClient
 import io.ethers.providers.Provider
 import io.ethers.providers.types.RpcResponse
@@ -11,6 +11,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import java.net.URI
 
 private const val MAINNET_HTTP_RPC = "https://ethereum.publicnode.com"
 
@@ -22,6 +23,7 @@ class EnsResolverTest : FunSpec({
         val resolvedAddr: Address = Address.ZERO,
         val key: String = "",
         val resolvedRecord: String = "",
+        val resolvedUri: URI? = null,
     )
 
     context("Init provider and resolver") {
@@ -101,7 +103,7 @@ class EnsResolverTest : FunSpec({
         }
 
         context("Reverse resolution") {
-            context("Valid reverse lookup addresses") {
+            context("Valid - No wildcard") {
                 withData(
                     listOf(
                         EnsNameTestData(
@@ -112,6 +114,50 @@ class EnsResolverTest : FunSpec({
                 ) {
                     ensResolver.resolveEnsName(it.resolvedAddr).get().resultOrThrow() shouldBe it.ensName
                     provider.resolveEnsName(it.resolvedAddr).get().resultOrThrow() shouldBe it.ensName
+                }
+            }
+        }
+
+        context("Avatars") {
+            context("Valid avatar - ENS to Avatar") {
+                withData(
+                    listOf(
+                        // HTTPS
+                        EnsNameTestData(
+                            ensName = "parishilton.eth",
+                            resolvedUri = URI("https://i.imgur.com/YW3Hzph.jpg"),
+                        ),
+                        // IPFS
+                        EnsNameTestData(
+                            ensName = "cdixon.eth",
+                            resolvedUri = URI("https://ipfs.io/ipfs/QmYA6ZpEARgHvRHZQdFPynMMX8NtdL2JCadvyuyG2oA88u"),
+                        ),
+                        // ERC-1155 with IPFS link
+                        EnsNameTestData(
+                            ensName = "vitalik.eth",
+                            resolvedUri = URI("https://ipfs.io/ipfs/QmSP4nq9fnN9dAiCj42ug9Wa79rqmQerZXZch82VqpiH7U/image.gif"),
+                        ),
+                        // Data
+                        EnsNameTestData(
+                            ensName = "0age.eth",
+                            resolvedUri = URI("data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz48c3ZnIHN0eWxlPSJiYWNrZ3JvdW5kLWNvbG9yOmJsYWNrIiB2aWV3Qm94PSIwIDAgNTAwIDUwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB4PSIxNTUiIHk9IjYwIiB3aWR0aD0iMTkwIiBoZWlnaHQ9IjM5MCIgZmlsbD0iIzY5ZmYzNyIvPjwvc3ZnPg=="),
+                        ),
+                    ),
+                ) {
+                    ensResolver.resolveAvatar(it.ensName).get().resultOrThrow() shouldBe it.resolvedUri
+                }
+            }
+            context("Valid avatar - Address to avatar") {
+                withData(
+                    listOf(
+                        // ERC-721 - with IPFS link
+                        EnsNameTestData(
+                            resolvedAddr = Address("0x9Df11Fd2971eBD0d342d5f3E250A18bb7E6CFA3d"),
+                            resolvedUri = URI("https://ipfs.io/ipfs/QmaBHu7XS3Pk6hr5bXF52AuBSexX9X6LfeMgyfjKi3X8Xn/83b6379343d91f4d5178e8ba7cac1120"),
+                        ),
+                    ),
+                ) {
+                    ensResolver.resolveAvatar(it.resolvedAddr).get().resultOrThrow() shouldBe it.resolvedUri
                 }
             }
         }
@@ -194,7 +240,30 @@ class EnsResolverTest : FunSpec({
             }
 
             /**
-             * Testing unknown ENS name (zero address, empty record)
+             * Testing [EnsResolver.Error.IncorrectOwner]
+             */
+            context("Incorrect owner") {
+                context("Avatars - is not NFT owner") {
+                    withData(
+                        listOf(
+                            // ERC-721 with IPFS link
+                            EnsNameTestData(
+                                ensName = "ikehaya-nft.eth",
+                                resolvedUri = URI("https://ipfs.io/ipfs/QmdKkwCE8uVhgYd7tWBfhtHdQZDnbNukWJ8bvQmR6nZKsk"),
+                            ),
+                        ),
+                    ) {
+                        ensResolver.resolveAvatar(it.ensName)
+                            .get().error.shouldBeInstanceOf<EnsResolver.Error.IncorrectOwner>()
+                    }
+                }
+
+                // TODO: when mocking
+                context("Reverse resolve - Incorrect owner")
+            }
+
+            /**
+             * Testing unknown ENS name - zero address, empty record (resolveAddress, resolveText)
              */
             context("Resolve to NULL") {
                 fun testError(error: RpcResponse.Error?, testData: EnsNameTestData) {
@@ -221,10 +290,16 @@ class EnsResolverTest : FunSpec({
             }
 
             /**
-             * Testing [EnsResolver.Error.InvalidReverseENSName]
+             * Testing [EnsResolver.Error.UnsupportedScheme]
              */
             // TODO: when mocking
-            context("Invalid reverse ENS name")
+            context("Avatars - UnsupportedScheme")
+
+            /**
+             * Testing [EnsResolver.Error.AvatarParsing]
+             */
+            // TODO: when mocking
+            context("Avatars - AvatarParsing")
         }
     }
 })
