@@ -201,7 +201,6 @@ class EnsResolverTest : FunSpec({
                     listOf(
                         EnsNameTestData(
                             ensName = "123.kriptalABC.et",
-                            nameHash = "0x469fbad6482d86a40a35d188cb7f8256302a5d6c50e9071c4f4e9f7604b2cac8",
                         ),
                     ),
                 ) {

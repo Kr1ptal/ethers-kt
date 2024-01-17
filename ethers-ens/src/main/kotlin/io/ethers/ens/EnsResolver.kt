@@ -21,7 +21,6 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import java.math.BigInteger
 import java.net.URI
-import java.net.URISyntaxException
 import java.net.URL
 import java.util.concurrent.CompletableFuture
 
@@ -48,7 +47,7 @@ class EnsResolver @JvmOverloads constructor(
     /**
      * Resolve ENS name to [Address], as per [specification](https://docs.ens.domains/dapp-developer-guide/resolving-names).
      *
-     * On error return [RpcResponse] as error.
+     * Returns [RpcResponse] as [CompletableFuture]. Returns error [RpcResponse.Error].
      *
      * Additional support for:
      * - [Wildcard resolution](https://docs.ens.domains/ens-improvement-proposals/ensip-10-wildcard-resolution)
@@ -64,7 +63,7 @@ class EnsResolver @JvmOverloads constructor(
     /**
      * Resolve ENS name to a text record associated with a [key], as per [specification](https://docs.ens.domains/ens-improvement-proposals/ensip-5-text-records).
      *
-     * On error return [RpcResponse] as error.
+     * Returns [RpcResponse] as [CompletableFuture]. Returns error [RpcResponse.Error].
      */
     fun resolveText(ensName: String, key: String): CompletableFuture<RpcResponse<String>> =
         CompletableFuture.supplyAsync {
@@ -79,7 +78,7 @@ class EnsResolver @JvmOverloads constructor(
     /**
      * Reverse ENS name resolution, as per [specification](https://docs.ens.domains/ens-improvement-proposals/ensip-3-reverse-resolution).
      *
-     * On error return [RpcResponse] as error.
+     * Returns [RpcResponse] as [CompletableFuture]. Returns error [RpcResponse.Error].
      */
     fun resolveEnsName(address: Address): CompletableFuture<RpcResponse<String>> =
         CompletableFuture.supplyAsync {
@@ -107,7 +106,7 @@ class EnsResolver @JvmOverloads constructor(
      * Resolve avatar of [ensName], as per
      * [specification](https://docs.ens.domains/ens-improvement-proposals/ensip-12-avatar-text-records).
      *
-     * On error return [RpcResponse] as error.
+     * Returns [RpcResponse] as [CompletableFuture]. Returns error [RpcResponse.Error].
      */
     fun resolveAvatar(ensName: String): CompletableFuture<RpcResponse<URI>> = CompletableFuture.supplyAsync {
         val uriRes = getAvatarUri(ensName)
@@ -124,7 +123,7 @@ class EnsResolver @JvmOverloads constructor(
      * Resolve avatar of [address], as per
      * [specification](https://docs.ens.domains/ens-improvement-proposals/ensip-12-avatar-text-records).
      *
-     * On error return [RpcResponse] as error.
+     * Returns [RpcResponse] as [CompletableFuture]. Returns error [RpcResponse.Error].
      */
     fun resolveAvatar(address: Address): CompletableFuture<RpcResponse<URI>> = CompletableFuture.supplyAsync {
         val uriRes = getAvatarUri(address)
@@ -136,19 +135,6 @@ class EnsResolver @JvmOverloads constructor(
     /**
      * Resolves [ensName] with provided [abiFunction] (eg. addr(bytes32), text(bytes32,string), name(bytes32), ...)
      * and corresponding parameters and parameter types.
-     *
-     * Returns errors:
-     * - [Error.EnsNameInvalid]
-     * - [Error.Normalisation]
-     * - [Error.UnsupportedSelector]
-     * - [Error.FailedToResolve]
-     * - [Error.UnknownEnsName]
-     * - [Error.UnknownResolver]
-     * - [Error.ResolvingResolver]
-     * - [Error.NestedOffchainLookup]
-     * - [Error.CcipRevertDataInvalid]
-     * - [Error.CcipLookupLimit]
-     * - [Error.CcipCallFailed]
      */
     private fun resolveWithParameters(
         ensName: String,
@@ -161,12 +147,8 @@ class EnsResolver @JvmOverloads constructor(
             return RpcResponse.error(Error.EnsNameInvalid)
         }
 
-        val nameHash: ByteArray
-        try {
-            nameHash = NameHash.nameHash(ensName)
-        } catch (e: Exception) {
-            return RpcResponse.error(Error.Normalisation(e))
-        }
+        val nameHash = runCatching { NameHash.nameHash(ensName) }
+            .getOrElse { return RpcResponse.error(Error.Normalisation(Exception(it))) }
 
         val resolverResponse = getResolver(ensName)
         if (resolverResponse.isError) return resolverResponse.propagateError()
@@ -254,11 +236,6 @@ class EnsResolver @JvmOverloads constructor(
 
     /**
      * Get [ExtendedResolver] for [ensName] using [EnsRegistry] of current chain.
-     *
-     * Returns errors:
-     * - [Error.Normalisation]
-     * - [Error.UnknownResolver]
-     * - [Error.ResolvingResolver]
      */
     private fun getResolver(ensName: String): RpcResponse<ExtendedResolver> {
         return getResolverAddress(ensName).map { ExtendedResolver(provider, it) }
@@ -268,16 +245,9 @@ class EnsResolver @JvmOverloads constructor(
      * Get resolver address for [ensName] from [EnsRegistry].
      */
     private fun getResolverAddress(ensName: String): RpcResponse<Address> {
-        val nameHash: ByteArray
-        try {
-            nameHash = NameHash.nameHash(ensName)
-        } catch (e: Exception) {
-            return RpcResponse.error(Error.Normalisation(e))
-        }
-
-        if (ensName.isEmpty()) {
-            return RpcResponse.error(Error.UnknownResolver)
-        }
+        val nameHash: ByteArray = runCatching { NameHash.nameHash(ensName) }
+            .getOrElse { return RpcResponse.error(Error.Normalisation(Exception(it))) }
+            .also { if (ensName.isEmpty()) return RpcResponse.error(Error.UnknownResolver) }
 
         val registryContract = EnsRegistry(provider, registryAddress)
         val address = registryContract.resolver(Bytes(nameHash))
@@ -310,12 +280,6 @@ class EnsResolver @JvmOverloads constructor(
     /**
      * If result of resolver.resolve() call is [ExtendedResolver.OffchainLookup] error, try to resolve the name using
      * [ERC-3668: CCIP offchain data retrieval](https://eips.ethereum.org/EIPS/eip-3668)
-     *
-     * Returns errors:
-     * - [Error.NestedOffchainLookup]
-     * - [Error.CcipRevertDataInvalid]
-     * - [Error.CcipLookupLimit]
-     * - [Error.CcipCallFailed]
      */
     private fun resolveOffchain(
         revert: ExtendedResolver.OffchainLookup,
@@ -399,9 +363,6 @@ class EnsResolver @JvmOverloads constructor(
      * - is successful, decode it and return [Bytes].
      * - has status code 4xx, return error. Execution is stopped.
      * - has status code 5xx, return null and try another url, if present.
-     *
-     * Returns errors:
-     * - [Error.CcipCallFailed]
      */
     private fun handleCcipResponse(
         response: Response,
@@ -473,19 +434,24 @@ class EnsResolver @JvmOverloads constructor(
     private fun matchAvatarUri(avatarUri: URI, ensOwner: Address): RpcResponse<URI> {
         return when (val scheme = avatarUri.scheme) {
             "https", "data" -> RpcResponse.result(avatarUri)
-            "ipfs" -> RpcResponse.result(joinWithIPFSGateway(avatarUri))
+            "ipfs" -> joinWithIPFSGateway(avatarUri)
             "eip155" -> {
                 val token = getAvatarNFT(avatarUri, ensOwner)
                 if (token.isError) return token.propagateError()
 
-                val imageUri = resolveNftMetadata(token.resultOrThrow())
+                val imageUriRes = resolveNftMetadata(token.resultOrThrow())
 
-                return imageUri.map {
-                    when (it.scheme) {
-                        "ipfs" -> joinWithIPFSGateway(imageUri.resultOrThrow())
-                        else -> it
-                    }
+                if (imageUriRes.isError) {
+                    return imageUriRes.propagateError()
                 }
+
+                val imageUri = imageUriRes.resultOrThrow()
+                if (imageUri.scheme == "ipfs") {
+                    val httpsImageUrlRes = joinWithIPFSGateway(imageUriRes.resultOrThrow())
+                    if (httpsImageUrlRes.isError) return httpsImageUrlRes.propagateError()
+                    return httpsImageUrlRes
+                }
+                return imageUriRes
             }
 
             else -> RpcResponse.error(Error.UnsupportedScheme(scheme))
@@ -494,10 +460,6 @@ class EnsResolver @JvmOverloads constructor(
 
     /**
      * Retrieves [AvatarNFT] from [avatarUri] and returns it as [RpcResponse]. Performs NFT ownership validation.
-     *
-     * Returns errors:
-     * - [Error.AvatarParsing]
-     * - [Error.IncorrectOwner]
      */
     private fun getAvatarNFT(avatarUri: URI, ensOwner: Address): RpcResponse<AvatarNFT> {
         val parseResult = AvatarNFT.parse(avatarUri)
@@ -579,16 +541,16 @@ class EnsResolver @JvmOverloads constructor(
             )
         }
 
-        var metadataUri = URI(metadataUriStr)
-
-        // Convert IPFS URL into HTTPS, by wrapping it with gateway
-        try {
-            if (metadataUri.scheme == "ipfs") {
-                metadataUri = joinWithIPFSGateway(metadataUri)
-            }
-        } catch (e: URISyntaxException) {
-            return RpcResponse.error(Error.AvatarParsing("Error on parsing NFT metadata URL: $metadataUriStr", e))
+        val metadataUri = runCatching {
+            val uri = URI(metadataUriStr)
+            if (uri.scheme == "ipfs") joinWithIPFSGateway(uri).resultOrThrow()
+            else uri
         }
+            .getOrElse {
+                return RpcResponse.error(
+                    Error.AvatarParsing("Error on parsing NFT metadata URL: $metadataUriStr", it),
+                )
+            }
 
         // Execute metadataUri request and extract "image" attribute
         val request = Request.Builder().url(metadataUri.toURL()).build()
@@ -598,22 +560,19 @@ class EnsResolver @JvmOverloads constructor(
             val responseBody = response.body
                 ?: return RpcResponse.error(Error.AvatarParsing("Response body is null (url: $metadataUri)", null))
 
-            val metadataDTO = try {
+            val metadataDTO = runCatching {
                 Jackson.MAPPER.readValue(
                     responseBody.byteStream(),
                     MetadataDTO::class.java,
                 )
-            } catch (e: Exception) {
-                return RpcResponse.error(Error.AvatarParsing("Failed to parse response body", e))
-            }
+            }.getOrElse { return RpcResponse.error(Error.AvatarParsing("Failed to parse response body", it)) }
 
-            try {
-                RpcResponse.result(URI(metadataDTO.image))
-            } catch (e: Exception) {
-                return RpcResponse.error(
-                    Error.AvatarParsing("Failed to convert metadata image: ${metadataDTO.image} to URI", e),
-                )
-            }
+            runCatching { RpcResponse.result(URI(metadataDTO.image)) }
+                .getOrElse {
+                    RpcResponse.error(
+                        Error.AvatarParsing("Failed to convert metadata image: ${metadataDTO.image} to URI", it),
+                    )
+                }
         } else {
             RpcResponse.error(
                 Error.AvatarParsing(
@@ -636,10 +595,9 @@ class EnsResolver @JvmOverloads constructor(
             return RpcResponse.error(Error.FailedToResolve("Failed to resolve avatar of ens name: $ensName"))
         }
 
-        return uriRes
-            .map { URI(it) }
-            .mapError {
-                Error.AvatarParsing("Error on parsing URI: ${uriRes.resultOrThrow()}", null)
+        return runCatching { uriRes.map { URI(it) } }
+            .getOrElse {
+                RpcResponse.error(Error.AvatarParsing("Error on parsing URI: ${uriRes.resultOrThrow()}", it))
             }
     }
 
@@ -683,10 +641,9 @@ class EnsResolver @JvmOverloads constructor(
             return getAvatarUri(ensName)
         }
 
-        return uriRes
-            .map { URI(it) }
-            .mapError {
-                Error.AvatarParsing("Error on parsing URI: ${uriRes.resultOrThrow()}", null)
+        return runCatching { uriRes.map { URI(it) } }
+            .getOrElse {
+                RpcResponse.error(Error.AvatarParsing("Error on parsing URI: ${uriRes.resultOrThrow()}", it))
             }
     }
 
@@ -701,9 +658,9 @@ class EnsResolver @JvmOverloads constructor(
      * Convert IPFS native URL into HTTPS using [IPFS_GATEWAY], as per
      * [specification](https://docs-ipfs-tech.ipns.dweb.link/how-to/address-ipfs-on-web/#ipfs-addressing-in-brief).
      */
-    private fun joinWithIPFSGateway(uri: URI): URI {
+    private fun joinWithIPFSGateway(uri: URI): RpcResponse<URI> {
         val path = uri.toString().removePrefix("ipfs://").removePrefix("ipfs/")
-        return URL(URL(IPFS_GATEWAY), path).toURI()
+        return RpcResponse.result(URL(URL(IPFS_GATEWAY), path).toURI())
     }
 
     /**
@@ -718,7 +675,7 @@ class EnsResolver @JvmOverloads constructor(
         /**
          * Error on ens name normalisation attempt.
          */
-        data class Normalisation(val cause: Exception) : Error() {
+        data class Normalisation(val cause: Throwable?) : Error() {
             override fun doThrow() {
                 throw RuntimeException("Normalisation failed: $cause")
             }
