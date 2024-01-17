@@ -18,14 +18,59 @@ interface RpcSubscribe<T> {
     fun sendAsync(): CompletableFuture<RpcResponse<SubscriptionStream<T>>>
 
     /**
-     * Remap the returned [SubscriptionStream] if the call was successful.
+     * Map the returned response if the call was successful, skipping if it failed.
+     *
+     * The function will be executed asynchronously after the request is sent and response received.
      */
-    fun <R> map(mapper: Function<SubscriptionStream<T>, RpcResponse<SubscriptionStream<R>>>): RpcSubscribe<R> {
-        return MappingRpcSubscribe(this) {
-            if (it.isError) {
-                it.propagateError()
-            } else {
-                mapper.apply(it.resultOrThrow())
+    fun <R> map(mapper: Function<SubscriptionStream<T>, SubscriptionStream<R>>): RpcSubscribe<R> {
+        return MappingRpcSubscribe(this) { response ->
+            when {
+                response.isError -> response.propagateError()
+                else -> RpcResponse.result(mapper.apply(response.result!!))
+            }
+        }
+    }
+
+    /**
+     * Map the returned response if the call has failed with an error, skipping if it succeeded.
+     *
+     * The function will be executed asynchronously after the request is sent and response received.
+     */
+    fun mapError(mapper: Function<RpcResponse.Error, RpcResponse.Error>): RpcSubscribe<T> {
+        return MappingRpcSubscribe(this) { response ->
+            when {
+                response.isError -> RpcResponse.error(mapper.apply(response.error!!))
+                else -> response
+            }
+        }
+    }
+
+    /**
+     * Call the function with response if the call was successful, skipping if it failed. Useful when
+     * chaining multiple fallible operations on the result.
+     *
+     * The function will be executed asynchronously after the request is sent and response received.
+     */
+    fun <R> andThen(mapper: Function<SubscriptionStream<T>, RpcResponse<SubscriptionStream<R>>>): RpcSubscribe<R> {
+        return MappingRpcSubscribe(this) { response ->
+            when {
+                response.isError -> response.propagateError()
+                else -> mapper.apply(response.result!!)
+            }
+        }
+    }
+
+    /**
+     * Call the function with response if the call has failed with an error, skipping if it succeeded. Useful
+     * when chaining multiple fallible operations on the error (e.g. trying to recover from an error).
+     *
+     * The function will be executed asynchronously after the request is sent and response received.
+     */
+    fun orElse(mapper: Function<RpcResponse.Error, RpcResponse<SubscriptionStream<T>>>): RpcSubscribe<T> {
+        return MappingRpcSubscribe(this) { response ->
+            when {
+                response.isError -> mapper.apply(response.error!!)
+                else -> response
             }
         }
     }

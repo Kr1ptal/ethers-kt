@@ -53,18 +53,12 @@ abstract class ReadWriteContractCall<C, S : PendingInclusion<*>, B : ReadWriteCo
         // if all params are set on "call", create signed tx directly
         val signed = sign(signer)
         if (signed != null) {
-            return provider.sendRawTransaction(signed).map {
-                if (it.isError) return@map it.propagateError()
-
-                RpcResponse.result(handleSendResult(it.resultOrThrow()))
-            }
+            return provider.sendRawTransaction(signed).map(::handleSendResult)
         }
 
-        return provider.fillTransaction(call).map { result ->
-            if (result.isError) return@map result.propagateError()
-
-            val tx = signer.signTransaction(result.resultOrThrow())
-            provider.sendRawTransaction(tx).sendAwait().map(::handleSendResult)
+        return provider.fillTransaction(call).andThen { unsigned ->
+            val tx = signer.signTransaction(unsigned)
+            provider.sendRawTransaction(tx).map(::handleSendResult).sendAwait()
         }
     }
 
@@ -145,33 +139,9 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
         stateOverride: Map<Address, AccountOverride>? = null,
         blockOverride: BlockOverride? = null,
     ): RpcRequest<C> {
-        return provider.call(call, blockId, stateOverride, blockOverride).map { response ->
-            // "eth_call" execution reverts are included in "error" field of the json-rpc response
-            if (response.isError) {
-                val err = response.error?.asTypeOrNull<RpcResponse.RpcError>()
-                if (err != null && err.isExecutionError && err.data != null) {
-                    // if data is not a valid hex string, it's an already decoded revert error
-                    if (!FastHex.isValidHex(err.data!!)) {
-                        return@map RpcResponse.error(RevertError(err.data!!))
-                    }
-
-                    // otherwise it could be a custom error
-                    val error = ContractError.getOrNull(Bytes(err.data!!))
-                    if (error != null) {
-                        return@map RpcResponse.error(error)
-                    }
-                }
-
-                return@map response.propagateError()
-            }
-
-            val result = response.resultOrThrow()
-            try {
-                return@map handleCallResult(result)
-            } catch (e: Exception) {
-                return@map RpcResponse.error(DecodingError(result, e))
-            }
-        }
+        return provider.call(call, blockId, stateOverride, blockOverride)
+            .andThen(::safelyHandleCallResult)
+            .mapError(::tryDecodingContractRevert)
     }
 
     /**
@@ -180,6 +150,32 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
      * */
     fun <T> traceCall(blockId: BlockId, config: TracerConfig<T>): RpcRequest<T> {
         return provider.traceCall(call, blockId, config)
+    }
+
+    private fun safelyHandleCallResult(result: Bytes): RpcResponse<C> {
+        return try {
+            handleCallResult(result)
+        } catch (e: Exception) {
+            RpcResponse.error(DecodingError(result, e))
+        }
+    }
+
+    private fun tryDecodingContractRevert(error: RpcResponse.Error): RpcResponse.Error {
+        // "eth_call" execution reverts are included in "error" field of the json-rpc response
+        val err = error.asTypeOrNull<RpcResponse.RpcError>()
+        if (err != null && err.isExecutionError && err.data != null) {
+            // if data is not a valid hex string, it's an already decoded revert error
+            if (!FastHex.isValidHex(err.data!!)) {
+                return RevertError(err.data!!)
+            }
+
+            // otherwise it could be a custom error
+            val contractError = ContractError.getOrNull(Bytes(err.data!!))
+            if (contractError != null) {
+                return contractError
+            }
+        }
+        return error
     }
 
     protected abstract val self: B

@@ -10,7 +10,6 @@ import io.ethers.providers.SubscriptionStream
 import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.FilterPoller
 import io.ethers.providers.types.RpcRequest
-import io.ethers.providers.types.RpcResponse
 import io.ethers.providers.types.RpcSubscribe
 
 /**
@@ -72,11 +71,7 @@ abstract class EventFilterBase<T : ContractEvent, F : EventFilterBase<T, F>>(
      * subscriptions. If the provider supports subscriptions, [subscribe] should be used instead.
      * */
     fun watch(): RpcRequest<FilterPoller<T>> {
-        return provider.watchLogs(filter).map { poller ->
-            if (poller.isError) return@map poller.propagateError()
-
-            RpcResponse.result(poller.resultOrThrow().mapPoller(::decodeMatchingLogs))
-        }
+        return provider.watchLogs(filter).map { it.mapPoller(::decodeMatchingLogs) }
     }
 
     /**
@@ -87,8 +82,7 @@ abstract class EventFilterBase<T : ContractEvent, F : EventFilterBase<T, F>>(
         return provider.subscribeLogs(filter).map { stream ->
             // safe cast because we filtered nulls
             @Suppress("UNCHECKED_CAST")
-            val ret = stream.map { factory.decode(it) }.filter { it != null } as SubscriptionStream<T>
-            RpcResponse.result(ret)
+            stream.map { factory.decode(it) }.filter { it != null } as SubscriptionStream<T>
         }
     }
 
@@ -96,11 +90,7 @@ abstract class EventFilterBase<T : ContractEvent, F : EventFilterBase<T, F>>(
      * Query for events matching this filter.
      * */
     fun query(): RpcRequest<List<T>> {
-        return provider.getLogs(filter).map {
-            if (it.isError) return@map it.propagateError()
-
-            RpcResponse.result(decodeMatchingLogs(it.resultOrThrow()))
-        }
+        return provider.getLogs(filter).map(::decodeMatchingLogs)
     }
 
     /**
