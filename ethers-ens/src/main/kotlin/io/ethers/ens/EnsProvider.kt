@@ -13,6 +13,7 @@ import io.ethers.logger.err
 import io.ethers.logger.getLogger
 import io.ethers.logger.wrn
 import io.ethers.providers.Provider
+import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.RpcResponse
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -24,12 +25,12 @@ import java.net.URI
 import java.net.URL
 import java.util.concurrent.CompletableFuture
 
-class EnsResolver @JvmOverloads constructor(
-    private val provider: Provider,
+class EnsProvider @JvmOverloads constructor(
+    provider: Provider,
     private val registryAddress: Address,
     private val ccipLookupLimit: Int = 4,
-    private val client: OkHttpClient = OkHttpClient(),
-) {
+    private val httpClient: OkHttpClient = OkHttpClient(),
+) : Middleware by provider {
     private val LOG = getLogger()
 
     @JvmOverloads
@@ -343,7 +344,7 @@ class EnsResolver @JvmOverloads constructor(
             val request = buildCcipRequest(url, sender, calldata) ?: continue
 
             return try {
-                val response = client.newCall(request).execute().use { handleCcipResponse(it, url) } ?: continue
+                val response = httpClient.newCall(request).execute().use { handleCcipResponse(it, url) } ?: continue
 
                 if (response.isError) {
                     return response.propagateError()
@@ -554,7 +555,7 @@ class EnsResolver @JvmOverloads constructor(
 
         // Execute metadataUri request and extract "image" attribute
         val request = Request.Builder().url(metadataUri.toURL()).build()
-        val response = client.newCall(request).execute()
+        val response = httpClient.newCall(request).execute()
 
         return if (response.isSuccessful) {
             val responseBody = response.body
@@ -818,22 +819,6 @@ class EnsResolver @JvmOverloads constructor(
         private fun getRegistryAddressOrThrow(chainId: Long): Address {
             return getRegistryAddress(chainId)
                 ?: throw IllegalArgumentException("No registry address found for chain id: $chainId")
-        }
-
-        // TODO: structure differently, new Middleware?
-        fun Provider.resolveAddress(ensName: String): CompletableFuture<RpcResponse<Address>> {
-            val ensResolver = EnsResolver(this)
-            return ensResolver.resolveAddress(ensName)
-        }
-
-        fun Provider.resolveText(ensName: String, key: String): CompletableFuture<RpcResponse<String>> {
-            val ensResolver = EnsResolver(this)
-            return ensResolver.resolveText(ensName, key)
-        }
-
-        fun Provider.resolveEnsName(address: Address): CompletableFuture<RpcResponse<String>> {
-            val ensResolver = EnsResolver(this)
-            return ensResolver.resolveEnsName(address)
         }
 
         private fun getParent(name: String): String {
