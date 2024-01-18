@@ -23,37 +23,37 @@ internal class AvatarNFT private constructor(
         /**
          * Converts avatar URI into [AvatarNFT].
          *
-         * Returns error [EnsProvider.Error.AvatarParsing].
+         * Returns error [EnsMiddleware.Error.AvatarParsing].
          */
         fun parse(avatarUri: URI): RpcResponse<AvatarNFT> {
             val dataArr = avatarUri.toString().removePrefix("eip155:1/").split(":")
             if (dataArr.size != 2) {
-                return RpcResponse.error(EnsProvider.Error.AvatarParsing("Unsupported URI link: $avatarUri", null))
+                return RpcResponse.error(EnsMiddleware.Error.AvatarParsing("Unsupported URI link: $avatarUri", null))
             }
 
             val nftType = runCatching { AvatarNFTType.valueOf(dataArr[0].uppercase()) }
                 .getOrElse {
                     return RpcResponse.error(
-                        EnsProvider.Error.AvatarParsing("Unsupported URI token type: ${dataArr[0]}", null),
+                        EnsMiddleware.Error.AvatarParsing("Unsupported URI token type: ${dataArr[0]}", null),
                     )
                 }
 
             val innerDataArr = dataArr[1].split("/")
             if (innerDataArr.size != 2) {
-                return RpcResponse.error(EnsProvider.Error.AvatarParsing("Unsupported URI link path: $avatarUri", null))
+                return RpcResponse.error(EnsMiddleware.Error.AvatarParsing("Unsupported URI link path: $avatarUri", null))
             }
 
             val nftAddr = runCatching { Address(innerDataArr[0]) }
                 .getOrElse {
                     return RpcResponse.error(
-                        EnsProvider.Error.AvatarParsing("Invalid URI NFT contract address: ${innerDataArr[0]}", it),
+                        EnsMiddleware.Error.AvatarParsing("Invalid URI NFT contract address: ${innerDataArr[0]}", it),
                     )
                 }
 
             val tokenId = runCatching { BigInteger(innerDataArr[1]) }
                 .getOrElse {
                     return RpcResponse.error(
-                        EnsProvider.Error.AvatarParsing("Unsupported URI token id type: ${innerDataArr[1]}", it),
+                        EnsMiddleware.Error.AvatarParsing("Unsupported URI token id type: ${innerDataArr[1]}", it),
                     )
                 }
 

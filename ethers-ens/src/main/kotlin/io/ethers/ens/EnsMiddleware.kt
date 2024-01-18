@@ -25,7 +25,7 @@ import java.net.URI
 import java.net.URL
 import java.util.concurrent.CompletableFuture
 
-class EnsProvider @JvmOverloads constructor(
+class EnsMiddleware @JvmOverloads constructor(
     provider: Provider,
     private val registryAddress: Address,
     private val ccipLookupLimit: Int = 4,

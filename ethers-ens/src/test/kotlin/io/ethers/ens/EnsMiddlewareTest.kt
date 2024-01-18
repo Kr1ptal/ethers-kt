@@ -12,7 +12,7 @@ import java.net.URI
 
 private const val MAINNET_HTTP_RPC = "https://ethereum.publicnode.com"
 
-class EnsProviderTest : FunSpec({
+class EnsMiddlewareTest : FunSpec({
     data class EnsNameTestData(
         val ensName: String = "",
         val nameHash: String = "",
@@ -24,7 +24,7 @@ class EnsProviderTest : FunSpec({
     )
 
     context("Init provider and resolver") {
-        val ensProvider = EnsProvider(Provider(HttpClient(MAINNET_HTTP_RPC)))
+        val ensMiddleware = EnsMiddleware(Provider(HttpClient(MAINNET_HTTP_RPC)))
 
         context("To address") {
             context("Valid ENS names - No wildcard") {
@@ -47,7 +47,7 @@ class EnsProviderTest : FunSpec({
                         ),
                     ),
                 ) {
-                    ensProvider.resolveAddress(it.ensName).get().resultOrThrow() shouldBe it.resolvedAddr
+                    ensMiddleware.resolveAddress(it.ensName).get().resultOrThrow() shouldBe it.resolvedAddr
                 }
             }
 
@@ -60,7 +60,7 @@ class EnsProviderTest : FunSpec({
                         ),
                     ),
                 ) {
-                    ensProvider.resolveAddress(it.ensName).get().resultOrThrow() shouldBe it.resolvedAddr
+                    ensMiddleware.resolveAddress(it.ensName).get().resultOrThrow() shouldBe it.resolvedAddr
                 }
             }
         }
@@ -76,7 +76,7 @@ class EnsProviderTest : FunSpec({
                         ),
                     ),
                 ) {
-                    ensProvider.resolveText(it.ensName, it.key).get().resultOrThrow() shouldBe it.resolvedRecord
+                    ensMiddleware.resolveText(it.ensName, it.key).get().resultOrThrow() shouldBe it.resolvedRecord
                 }
             }
 
@@ -90,7 +90,7 @@ class EnsProviderTest : FunSpec({
                         ),
                     ),
                 ) {
-                    ensProvider.resolveText(it.ensName, it.key).get().resultOrThrow() shouldBe it.resolvedRecord
+                    ensMiddleware.resolveText(it.ensName, it.key).get().resultOrThrow() shouldBe it.resolvedRecord
                 }
             }
         }
@@ -105,7 +105,7 @@ class EnsProviderTest : FunSpec({
                         ),
                     ),
                 ) {
-                    ensProvider.resolveEnsName(it.resolvedAddr).get().resultOrThrow() shouldBe it.ensName
+                    ensMiddleware.resolveEnsName(it.resolvedAddr).get().resultOrThrow() shouldBe it.ensName
                 }
             }
         }
@@ -136,7 +136,7 @@ class EnsProviderTest : FunSpec({
                         ),
                     ),
                 ) {
-                    ensProvider.resolveAvatar(it.ensName).get().resultOrThrow() shouldBe it.resolvedUri
+                    ensMiddleware.resolveAvatar(it.ensName).get().resultOrThrow() shouldBe it.resolvedUri
                 }
             }
             context("Valid avatar - Address to avatar") {
@@ -149,7 +149,7 @@ class EnsProviderTest : FunSpec({
                         ),
                     ),
                 ) {
-                    ensProvider.resolveAvatar(it.resolvedAddr).get().resultOrThrow() shouldBe it.resolvedUri
+                    ensMiddleware.resolveAvatar(it.resolvedAddr).get().resultOrThrow() shouldBe it.resolvedUri
                 }
             }
         }
@@ -158,29 +158,29 @@ class EnsProviderTest : FunSpec({
             val key = "email"
 
             /**
-             * Testing [EnsProvider.Error.EnsNameInvalid]
+             * Testing [EnsMiddleware.Error.EnsNameInvalid]
              */
             test("Invalid ENS names") {
                 listOf("", "\t", ".", "\n.").forEach {
-                    ensProvider.resolveAddress(it).get().error.shouldBeInstanceOf<EnsProvider.Error.EnsNameInvalid>()
+                    ensMiddleware.resolveAddress(it).get().error.shouldBeInstanceOf<EnsMiddleware.Error.EnsNameInvalid>()
 
-                    ensProvider.resolveText(it, key).get().error.shouldBeInstanceOf<EnsProvider.Error.EnsNameInvalid>()
+                    ensMiddleware.resolveText(it, key).get().error.shouldBeInstanceOf<EnsMiddleware.Error.EnsNameInvalid>()
                 }
             }
 
             /**
-             * Testing [EnsProvider.Error.Normalisation]
+             * Testing [EnsMiddleware.Error.Normalisation]
              */
             test("Failed normalisation") {
-                ensProvider.resolveAddress("xn--u-ccb.com")
-                    .get().error.shouldBeInstanceOf<EnsProvider.Error.Normalisation>()
+                ensMiddleware.resolveAddress("xn--u-ccb.com")
+                    .get().error.shouldBeInstanceOf<EnsMiddleware.Error.Normalisation>()
 
-                ensProvider.resolveText("xn--u-ccb.com", key)
-                    .get().error.shouldBeInstanceOf<EnsProvider.Error.Normalisation>()
+                ensMiddleware.resolveText("xn--u-ccb.com", key)
+                    .get().error.shouldBeInstanceOf<EnsMiddleware.Error.Normalisation>()
             }
 
             /**
-             * Testing [EnsProvider.Error.UnknownResolver]
+             * Testing [EnsMiddleware.Error.UnknownResolver]
              */
             context("Resolver not found") {
                 withData(
@@ -190,18 +190,18 @@ class EnsProviderTest : FunSpec({
                         ),
                     ),
                 ) {
-                    ensProvider.resolveAddress(it.ensName)
-                        .get().error.shouldBeInstanceOf<EnsProvider.Error.UnknownResolver>()
+                    ensMiddleware.resolveAddress(it.ensName)
+                        .get().error.shouldBeInstanceOf<EnsMiddleware.Error.UnknownResolver>()
 
-                    ensProvider.resolveText(it.ensName, key)
-                        .get().error.shouldBeInstanceOf<EnsProvider.Error.UnknownResolver>()
+                    ensMiddleware.resolveText(it.ensName, key)
+                        .get().error.shouldBeInstanceOf<EnsMiddleware.Error.UnknownResolver>()
 
-                    ensProvider.resolveEnsName(Address.ZERO).get().error.shouldBeInstanceOf<EnsProvider.Error.UnknownResolver>()
+                    ensMiddleware.resolveEnsName(Address.ZERO).get().error.shouldBeInstanceOf<EnsMiddleware.Error.UnknownResolver>()
                 }
             }
 
             /**
-             * Testing [EnsProvider.Error.UnsupportedSelector]
+             * Testing [EnsMiddleware.Error.UnsupportedSelector]
              */
             context("Unsupported selector") {
                 withData(
@@ -214,12 +214,12 @@ class EnsProviderTest : FunSpec({
                     // TODO: tests for other resolutions when mocking
                     // address with invalid resolver (WETH token 0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2 as resolver)
                     val addr = Address("0x30c9223d9e3d23e0af1073a38e0834b055bf68ed")
-                    ensProvider.resolveEnsName(addr).get().error.shouldBeInstanceOf<EnsProvider.Error.UnsupportedSelector>()
+                    ensMiddleware.resolveEnsName(addr).get().error.shouldBeInstanceOf<EnsMiddleware.Error.UnsupportedSelector>()
                 }
             }
 
             /**
-             * Testing [EnsProvider.Error.IncorrectOwner]
+             * Testing [EnsMiddleware.Error.IncorrectOwner]
              */
             context("Incorrect owner") {
                 context("Avatars - is not NFT owner") {
@@ -232,8 +232,8 @@ class EnsProviderTest : FunSpec({
                             ),
                         ),
                     ) {
-                        ensProvider.resolveAvatar(it.ensName)
-                            .get().error.shouldBeInstanceOf<EnsProvider.Error.IncorrectOwner>()
+                        ensMiddleware.resolveAvatar(it.ensName)
+                            .get().error.shouldBeInstanceOf<EnsMiddleware.Error.IncorrectOwner>()
                     }
                 }
 
@@ -246,7 +246,7 @@ class EnsProviderTest : FunSpec({
              */
             context("Resolve to NULL") {
                 fun testError(error: RpcResponse.Error?, testData: EnsNameTestData) {
-                    error.shouldBeInstanceOf<EnsProvider.Error.UnknownEnsName>()
+                    error.shouldBeInstanceOf<EnsMiddleware.Error.UnknownEnsName>()
                     error.resolverAddr shouldBe testData.resolverAddr
                     error.nameHash shouldBe testData.nameHash
                 }
@@ -260,20 +260,20 @@ class EnsProviderTest : FunSpec({
                         ),
                     ),
                 ) {
-                    testError(ensProvider.resolveAddress(it.ensName).get().error, it)
+                    testError(ensMiddleware.resolveAddress(it.ensName).get().error, it)
 
-                    ensProvider.resolveText(it.ensName, "").get().resultOrThrow() shouldBe ""
+                    ensMiddleware.resolveText(it.ensName, "").get().resultOrThrow() shouldBe ""
                 }
             }
 
             /**
-             * Testing [EnsProvider.Error.UnsupportedScheme]
+             * Testing [EnsMiddleware.Error.UnsupportedScheme]
              */
             // TODO: when mocking
             context("Avatars - UnsupportedScheme")
 
             /**
-             * Testing [EnsProvider.Error.AvatarParsing]
+             * Testing [EnsMiddleware.Error.AvatarParsing]
              */
             // TODO: when mocking
             context("Avatars - AvatarParsing")
