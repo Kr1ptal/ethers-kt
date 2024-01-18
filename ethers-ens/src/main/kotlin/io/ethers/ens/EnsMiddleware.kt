@@ -552,7 +552,12 @@ class EnsMiddleware @JvmOverloads constructor(
 
         // Execute metadataUri request and extract "image" attribute
         val request = Request.Builder().url(metadataUri.toURL()).build()
-        val response = httpClient.newCall(request).execute()
+        val response = runCatching { httpClient.newCall(request).execute() }
+            .getOrElse {
+                return RpcResponse.error(
+                    Error.AvatarParsing("Error while execution metadata request for url: $metadataUri", it),
+                )
+            }
 
         return if (response.isSuccessful) {
             val responseBody = response.body
