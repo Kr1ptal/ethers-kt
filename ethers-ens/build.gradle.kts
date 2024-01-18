@@ -1,7 +1,7 @@
 plugins {
     `project-conventions`
     `maven-publish-conventions`
-    id("io.kriptal.ethers.abigen-plugin") version "0.2.0"
+    id("io.kriptal.ethers.abigen-plugin") version libs.versions.ethers.get()
 }
 
 repositories {
@@ -10,9 +10,9 @@ repositories {
 
 dependencies {
     implementation(project(":ethers-core"))
-    implementation(libs.ethers.abi)
-    implementation(libs.ethers.providers)
-    implementation(libs.ethers.logger)
+    implementation(project(":ethers-abi"))
+    implementation(project(":ethers-providers"))
+    implementation(project(":logger"))
     implementation(libs.ens.normalise)
 
     testImplementation(libs.bundles.junit)

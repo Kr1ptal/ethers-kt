@@ -42,10 +42,8 @@ kotlinpoet = { module = "com.squareup:kotlinpoet", version = "1.15.3" }
 
 bouncycastle-provider = { module = "org.bouncycastle:bcprov-jdk15to18", version = "1.77" }
 
-ethers-abi = { module = "io.kriptal.ethers:ethers-abi", version.ref = "ethers" }
-ethers-providers = { module = "io.kriptal.ethers:ethers-providers", version.ref = "ethers" }
-ethers-logger = { module = "io.kriptal.ethers:logger", version.ref = "ethers" }
 ens-normalise = { module = "io.github.adraffy:ens-normalize", version = "0.2.0" }
+kotlinx-cli = { module = "org.jetbrains.kotlinx:kotlinx-cli", version = "0.3.6" }
 
 ##################### TEST #####################
 junit-api = { module = "org.junit.jupiter:junit-jupiter-api", version.ref = "junit" }
