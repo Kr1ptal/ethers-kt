@@ -10,10 +10,10 @@ repositories {
 
 dependencies {
     implementation(project(":ethers-core"))
-    implementation(project(":ethers-abi"))
-    implementation(project(":ethers-providers"))
-    implementation(project(":logger"))
-    implementation("io.github.adraffy:ens-normalize:0.2.0")
+    implementation(libs.ethers.abi)
+    implementation(libs.ethers.providers)
+    implementation(libs.ethers.logger)
+    implementation(libs.ens.normalise)
 
     testImplementation(libs.bundles.junit)
     testImplementation(libs.bundles.kotest)

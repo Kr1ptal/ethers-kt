@@ -11,6 +11,7 @@ okhttp3 = "4.12.0"
 slf4j = "2.0.11"
 ktlint-tool = "1.0.1"
 web3j = "4.10.3"
+ethers = "0.2.0"
 
 [libraries]
 kotlin-bom = { module = "org.jetbrains.kotlin:kotlin-bom", version.ref = "kotlin" }
@@ -40,6 +41,11 @@ okhttp3-mockwebserver = { module = "com.squareup.okhttp3:mockwebserver", version
 kotlinpoet = { module = "com.squareup:kotlinpoet", version = "1.15.3" }
 
 bouncycastle-provider = { module = "org.bouncycastle:bcprov-jdk15to18", version = "1.77" }
+
+ethers-abi = { module = "io.kriptal.ethers:ethers-abi", version.ref = "ethers" }
+ethers-providers = { module = "io.kriptal.ethers:ethers-providers", version.ref = "ethers" }
+ethers-logger = { module = "io.kriptal.ethers:logger", version.ref = "ethers" }
+ens-normalise = { module = "io.github.adraffy:ens-normalize", version = "0.2.0" }
 
 ##################### TEST #####################
 junit-api = { module = "org.junit.jupiter:junit-jupiter-api", version.ref = "junit" }

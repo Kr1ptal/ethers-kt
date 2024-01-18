@@ -163,7 +163,7 @@ class EnsProvider @JvmOverloads constructor(
         // add nodehash as first parameter, because it is present in all resolutions
         parameters.add(0, Bytes(nameHash))
         paramTypes.add(0, AbiType.FixedBytes(32))
-        if (!supportsWildcard.isError && supportsWildcard.resultOrThrow()) {
+        if (supportsWildcard.resultOr(false)) {
             val dnsEncoded = NameHash.dnsEncode(ensName)
             val encodedParams = abiFunction.encodeCall(parameters.toTypedArray())
 
@@ -193,7 +193,7 @@ class EnsProvider @JvmOverloads constructor(
             val supportsFunction =
                 resolver.supportsInterface(Bytes(abiFunction.selector)).call(BlockId.LATEST).sendAwait()
 
-            if (supportsFunction.isError || !supportsFunction.resultOrThrow()) {
+            if (!supportsFunction.resultOr(false)) {
                 return RpcResponse.error(
                     Error.UnsupportedSelector(
                         resolver.address,
@@ -268,11 +268,8 @@ class EnsProvider @JvmOverloads constructor(
             }
             .sendAwait()
 
-        if (address.isError) {
-            if (address.error is Error.UnknownResolver) {
-                return getResolverAddress(getParent(ensName))
-            }
-            return address.propagateError()
+        if (address.error?.asTypeOrNull<Error.UnknownResolver>() != null) {
+            return getResolverAddress(getParent(ensName))
         }
 
         return address
@@ -728,8 +725,7 @@ class EnsProvider @JvmOverloads constructor(
         /**
          * Resolver for ensName exists, but was not able to resolve it.
          */
-        data class FailedToResolve(val message: String) :
-            Error() {
+        data class FailedToResolve(val message: String) : Error() {
             override fun doThrow() {
                 throw RuntimeException(message)
             }

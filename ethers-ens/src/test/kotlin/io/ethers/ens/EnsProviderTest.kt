@@ -12,7 +12,7 @@ import java.net.URI
 
 private const val MAINNET_HTTP_RPC = "https://ethereum.publicnode.com"
 
-class EnsResolverTest : FunSpec({
+class EnsProviderTest : FunSpec({
     data class EnsNameTestData(
         val ensName: String = "",
         val nameHash: String = "",
