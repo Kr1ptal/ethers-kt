@@ -552,37 +552,46 @@ class EnsMiddleware @JvmOverloads constructor(
 
         // Execute metadataUri request and extract "image" attribute
         val request = Request.Builder().url(metadataUri.toURL()).build()
-        val response = runCatching { httpClient.newCall(request).execute() }
-            .getOrElse {
-                return RpcResponse.error(
-                    Error.AvatarParsing("Error while execution metadata request for url: $metadataUri", it),
-                )
-            }
+        return runCatching {
+            httpClient.newCall(request).execute().use {
+                if (it.isSuccessful) {
+                    val responseBody = it.body
+                        ?: return RpcResponse.error(
+                            Error.AvatarParsing(
+                                "Response body is null (url: $metadataUri)",
+                                null,
+                            ),
+                        )
 
-        return if (response.isSuccessful) {
-            val responseBody = response.body
-                ?: return RpcResponse.error(Error.AvatarParsing("Response body is null (url: $metadataUri)", null))
+                    val metadataDTO = runCatching {
+                        Jackson.MAPPER.readValue(
+                            responseBody.byteStream(),
+                            MetadataDTO::class.java,
+                        )
+                    }.getOrElse { return RpcResponse.error(Error.AvatarParsing("Failed to parse response body", it)) }
 
-            val metadataDTO = runCatching {
-                Jackson.MAPPER.readValue(
-                    responseBody.byteStream(),
-                    MetadataDTO::class.java,
-                )
-            }.getOrElse { return RpcResponse.error(Error.AvatarParsing("Failed to parse response body", it)) }
-
-            runCatching { RpcResponse.result(URI(metadataDTO.image)) }
-                .getOrElse {
+                    runCatching { RpcResponse.result(URI(metadataDTO.image)) }
+                        .getOrElse {
+                            RpcResponse.error(
+                                Error.AvatarParsing(
+                                    "Failed to convert metadata image: ${metadataDTO.image} to URI",
+                                    it,
+                                ),
+                            )
+                        }
+                } else {
                     RpcResponse.error(
-                        Error.AvatarParsing("Failed to convert metadata image: ${metadataDTO.image} to URI", it),
+                        Error.AvatarParsing(
+                            "Error on executing NFT metadata URL: $metadataUri for token: ${token.tokenId} of " +
+                                "NFT: ${token.nftAddr} (${it.message})",
+                            null,
+                        ),
                     )
                 }
-        } else {
-            RpcResponse.error(
-                Error.AvatarParsing(
-                    "Error on executing NFT metadata URL: $metadataUri for token: ${token.tokenId} of " +
-                        "NFT: ${token.nftAddr} (${response.message})",
-                    null,
-                ),
+            }
+        }.getOrElse {
+            return RpcResponse.error(
+                Error.AvatarParsing("Error while execution metadata request for url: $metadataUri", it),
             )
         }
     }
