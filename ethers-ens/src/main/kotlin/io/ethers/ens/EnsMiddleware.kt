@@ -32,6 +32,7 @@ class EnsMiddleware @JvmOverloads constructor(
     private val httpClient: OkHttpClient = OkHttpClient(),
 ) : Middleware by provider {
     private val LOG = getLogger()
+    private val registryContract = EnsRegistry(provider, registryAddress)
 
     @JvmOverloads
     constructor(
@@ -148,8 +149,9 @@ class EnsMiddleware @JvmOverloads constructor(
             return RpcResponse.error(Error.EnsNameInvalid)
         }
 
-        val nameHash = runCatching { NameHash.nameHash(ensName) }
-            .getOrElse { return RpcResponse.error(Error.Normalisation(Exception(it))) }
+        val nameHash = runCatching { NameHash.nameHash(ensName) }.getOrElse {
+            return RpcResponse.error(Error.Normalisation(Exception(it)))
+        }
 
         val resolverResponse = getResolver(ensName)
         if (resolverResponse.isError) return resolverResponse.propagateError()
@@ -250,7 +252,6 @@ class EnsMiddleware @JvmOverloads constructor(
             .getOrElse { return RpcResponse.error(Error.Normalisation(Exception(it))) }
             .also { if (ensName.isEmpty()) return RpcResponse.error(Error.UnknownResolver) }
 
-        val registryContract = EnsRegistry(provider, registryAddress)
         val address = registryContract.resolver(Bytes(nameHash))
             .call(BlockId.LATEST)
             .map {
@@ -370,13 +371,18 @@ class EnsMiddleware @JvmOverloads constructor(
             val responseBody = response.body
                 ?: return RpcResponse.error(Error.CcipCallFailed("Response body is null (url: $url)", null))
 
-            val gatewayRequestDTO = Jackson.MAPPER.readValue(
-                responseBody.byteStream(),
-                EnsGatewayResponseDTO::class.java,
-            )
-            val data = gatewayRequestDTO.data
+            val gatewayRequestDTO = runCatching {
+                Jackson.MAPPER.readValue(
+                    responseBody.byteStream(),
+                    EnsGatewayResponseDTO::class.java,
+                )
+            }.getOrElse {
+                return RpcResponse.error(
+                    Error.CcipCallFailed("Error when parsing gateway response 'data' value (response: $response", it),
+                )
+            }
 
-            return RpcResponse.result(data)
+            return RpcResponse.result(gatewayRequestDTO.data)
         }
 
         return if (response.code in 400..499) {
@@ -543,17 +549,16 @@ class EnsMiddleware @JvmOverloads constructor(
             val uri = URI(metadataUriStr)
             if (uri.scheme == "ipfs") joinWithIPFSGateway(uri).resultOrThrow()
             else uri
+        }.getOrElse {
+            return RpcResponse.error(
+                Error.AvatarParsing("Error on parsing NFT metadata URL: $metadataUriStr", it),
+            )
         }
-            .getOrElse {
-                return RpcResponse.error(
-                    Error.AvatarParsing("Error on parsing NFT metadata URL: $metadataUriStr", it),
-                )
-            }
 
         // Execute metadataUri request and extract "image" attribute
         val request = Request.Builder().url(metadataUri.toURL()).build()
         return runCatching {
-            httpClient.newCall(request).execute().use {
+            httpClient.newCall(request).execute().use { it ->
                 if (it.isSuccessful) {
                     val responseBody = it.body
                         ?: return RpcResponse.error(
@@ -568,17 +573,18 @@ class EnsMiddleware @JvmOverloads constructor(
                             responseBody.byteStream(),
                             MetadataDTO::class.java,
                         )
-                    }.getOrElse { return RpcResponse.error(Error.AvatarParsing("Failed to parse response body", it)) }
+                    }.getOrElse {
+                        return RpcResponse.error(Error.AvatarParsing("Failed to parse response body", it))
+                    }
 
-                    runCatching { RpcResponse.result(URI(metadataDTO.image)) }
-                        .getOrElse {
-                            RpcResponse.error(
-                                Error.AvatarParsing(
-                                    "Failed to convert metadata image: ${metadataDTO.image} to URI",
-                                    it,
-                                ),
-                            )
-                        }
+                    runCatching { RpcResponse.result(URI(metadataDTO.image)) }.getOrElse {
+                        RpcResponse.error(
+                            Error.AvatarParsing(
+                                "Failed to convert metadata image: ${metadataDTO.image} to URI",
+                                it,
+                            ),
+                        )
+                    }
                 } else {
                     RpcResponse.error(
                         Error.AvatarParsing(
@@ -607,10 +613,9 @@ class EnsMiddleware @JvmOverloads constructor(
             return RpcResponse.error(Error.FailedToResolve("Failed to resolve avatar of ens name: $ensName"))
         }
 
-        return runCatching { uriRes.map { URI(it) } }
-            .getOrElse {
-                RpcResponse.error(Error.AvatarParsing("Error on parsing URI: ${uriRes.resultOrThrow()}", it))
-            }
+        return runCatching { uriRes.map { URI(it) } }.getOrElse {
+            RpcResponse.error(Error.AvatarParsing("Error on parsing URI: ${uriRes.resultOrThrow()}", it))
+        }
     }
 
     /**
@@ -653,10 +658,9 @@ class EnsMiddleware @JvmOverloads constructor(
             return getAvatarUri(ensName)
         }
 
-        return runCatching { uriRes.map { URI(it) } }
-            .getOrElse {
-                RpcResponse.error(Error.AvatarParsing("Error on parsing URI: ${uriRes.resultOrThrow()}", it))
-            }
+        return runCatching { uriRes.map { URI(it) } }.getOrElse {
+            RpcResponse.error(Error.AvatarParsing("Error on parsing URI: ${uriRes.resultOrThrow()}", it))
+        }
     }
 
     /**
