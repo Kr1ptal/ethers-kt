@@ -1,11 +1,11 @@
 plugins {
     `project-conventions`
-    id("io.kriptal.ethers.abigen-plugin") version "0.2.0"
+    id("io.kriptal.ethers.abigen-plugin") version libs.versions.ethers.get()
 }
 
 dependencies {
     // ArgParser
-    implementation("org.jetbrains.kotlinx:kotlinx-cli:0.3.6")
+    implementation(libs.kotlinx.cli)
 
     // Define any required artifacts without version
     implementation(project(":ethers-abi"))
