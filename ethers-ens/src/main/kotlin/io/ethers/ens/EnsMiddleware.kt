@@ -217,23 +217,22 @@ class EnsMiddleware @JvmOverloads constructor(
                     data = Bytes(callbackData)
                 },
                 BlockId.LATEST,
-            ).map {
-                return@map when {
+            )
+                .mapError { Error.FailedToResolve("Failed to resolve ens name: $ensName with resolver ${resolver.address}.") }
+                .andThen {
                     // Return different errors on empty address and failure to resolve
-                    it.isError -> RpcResponse.error(Error.FailedToResolve("Failed to resolve ens name: $ensName with resolver ${resolver.address}."))
                     // TODO - handle differently
-                    abiFunction.selector.contentEquals(ExtendedResolver.FUNCTION_ADDR.selector) &&
-                        (AbiCodec.decode(AbiType.Address, it.resultOrThrow().value) as Address) == Address.ZERO ->
-                        RpcResponse.error(
+                    val isAddrCall = abiFunction.selector.contentEquals(ExtendedResolver.FUNCTION_ADDR.selector)
+                    if (isAddrCall && (AbiCodec.decode(AbiType.Address, it.value) as Address) == Address.ZERO) {
+                        return@andThen RpcResponse.error(
                             Error.UnknownEnsName(
                                 resolver.address,
                                 FastHex.encodeWithPrefix(nameHash),
                             ),
                         )
-
-                    else -> it
-                }
-            }.sendAwait()
+                    }
+                    RpcResponse.result(it)
+                }.sendAwait()
         }
     }
 
@@ -254,19 +253,8 @@ class EnsMiddleware @JvmOverloads constructor(
 
         val address = registryContract.resolver(Bytes(nameHash))
             .call(BlockId.LATEST)
-            .map {
-                return@map when {
-                    it.isError -> RpcResponse.error(
-                        Error.ResolvingResolver(
-                            registryAddress,
-                            FastHex.encodeWithPrefix(nameHash),
-                        ),
-                    )
-
-                    it.resultOrThrow() == Address.ZERO -> RpcResponse.error(Error.UnknownResolver)
-                    else -> it
-                }
-            }
+            .mapError { Error.ResolvingResolver(registryAddress, FastHex.encodeWithPrefix(nameHash)) }
+            .andThen { if (it == Address.ZERO) RpcResponse.error(Error.UnknownResolver) else RpcResponse.result(it) }
             .sendAwait()
 
         if (address.error?.asTypeOrNull<Error.UnknownResolver>() != null) {
