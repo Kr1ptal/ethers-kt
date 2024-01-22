@@ -1,5 +1,7 @@
-package io.ethers.providers.types
+package io.ethers.core
 
+import io.ethers.core.Result.Failure
+import io.ethers.core.Result.Success
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
