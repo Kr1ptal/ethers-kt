@@ -38,7 +38,7 @@ eclipse-collections-api = { module = "org.eclipse.collections:eclipse-collection
 okhttp3-core = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp3" }
 okhttp3-logging = { module = "com.squareup.okhttp3:logging-interceptor", version.ref = "okhttp3" }
 okhttp3-mockwebserver = { module = "com.squareup.okhttp3:mockwebserver", version.ref = "okhttp3" }
-kotlinpoet = { module = "com.squareup:kotlinpoet", version = "1.15.3" }
+kotlinpoet = { module = "com.squareup:kotlinpoet", version = "1.16.0" }
 
 bouncycastle-provider = { module = "org.bouncycastle:bcprov-jdk15to18", version = "1.77" }
 
