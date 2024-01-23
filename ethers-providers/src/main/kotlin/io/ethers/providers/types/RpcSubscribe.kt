@@ -2,7 +2,6 @@ package io.ethers.providers.types
 
 import com.fasterxml.jackson.core.JsonParser
 import io.ethers.core.Result
-import io.ethers.core.ResultTransformer
 import io.ethers.providers.JsonPubSubClient
 import io.ethers.providers.RpcError
 import io.ethers.providers.SubscriptionStream
@@ -25,7 +24,7 @@ interface RpcSubscribe<T, E : Result.Error> {
      *
      * The function will be executed asynchronously after the request is sent and response received.
      */
-    fun <R> map(mapper: ResultTransformer<SubscriptionStream<T>, SubscriptionStream<R>>): RpcSubscribe<R, E> {
+    fun <R> map(mapper: Result.Transformer<SubscriptionStream<T>, SubscriptionStream<R>>): RpcSubscribe<R, E> {
         return MappingRpcSubscribe(this) { it.map(mapper) }
     }
 
@@ -34,7 +33,7 @@ interface RpcSubscribe<T, E : Result.Error> {
      *
      * The function will be executed asynchronously after the request is sent and response received.
      */
-    fun <R : Result.Error> mapError(mapper: ResultTransformer<E, R>): RpcSubscribe<T, R> {
+    fun <R : Result.Error> mapError(mapper: Result.Transformer<E, R>): RpcSubscribe<T, R> {
         return MappingRpcSubscribe(this) { it.mapError(mapper) }
     }
 
@@ -44,7 +43,7 @@ interface RpcSubscribe<T, E : Result.Error> {
      *
      * The function will be executed asynchronously after the request is sent and response received.
      */
-    fun <R> andThen(mapper: ResultTransformer<SubscriptionStream<T>, Result<SubscriptionStream<R>, E>>): RpcSubscribe<R, E> {
+    fun <R> andThen(mapper: Result.Transformer<SubscriptionStream<T>, Result<SubscriptionStream<R>, E>>): RpcSubscribe<R, E> {
         return MappingRpcSubscribe(this) { it.andThen(mapper) }
     }
 
@@ -54,7 +53,7 @@ interface RpcSubscribe<T, E : Result.Error> {
      *
      * The function will be executed asynchronously after the request is sent and response received.
      */
-    fun <R : Result.Error> orElse(mapper: ResultTransformer<E, Result<SubscriptionStream<T>, R>>): RpcSubscribe<T, R> {
+    fun <R : Result.Error> orElse(mapper: Result.Transformer<E, Result<SubscriptionStream<T>, R>>): RpcSubscribe<T, R> {
         return MappingRpcSubscribe(this) { it.orElse(mapper) }
     }
 }

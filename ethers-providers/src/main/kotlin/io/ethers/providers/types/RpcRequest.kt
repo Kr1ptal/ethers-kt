@@ -2,7 +2,6 @@ package io.ethers.providers.types
 
 import com.fasterxml.jackson.core.JsonParser
 import io.ethers.core.Result
-import io.ethers.core.ResultTransformer
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import java.util.concurrent.CompletableFuture
@@ -29,7 +28,7 @@ abstract class RpcRequest<T, E : Result.Error> {
      *
      * The function will be executed asynchronously after the request is sent and response received.
      */
-    fun <R> map(mapper: ResultTransformer<T, R>): RpcRequest<R, E> {
+    fun <R> map(mapper: Result.Transformer<T, R>): RpcRequest<R, E> {
         return MappingRpcRequest(this) { it.map(mapper) }
     }
 
@@ -38,7 +37,7 @@ abstract class RpcRequest<T, E : Result.Error> {
      *
      * The function will be executed asynchronously after the request is sent and response received.
      */
-    fun <R : Result.Error> mapError(mapper: ResultTransformer<E, R>): RpcRequest<T, R> {
+    fun <R : Result.Error> mapError(mapper: Result.Transformer<E, R>): RpcRequest<T, R> {
         return MappingRpcRequest(this) { it.mapError(mapper) }
     }
 
@@ -48,7 +47,7 @@ abstract class RpcRequest<T, E : Result.Error> {
      *
      * The function will be executed asynchronously after the request is sent and response received.
      */
-    fun <R> andThen(mapper: ResultTransformer<T, Result<R, E>>): RpcRequest<R, E> {
+    fun <R> andThen(mapper: Result.Transformer<T, Result<R, E>>): RpcRequest<R, E> {
         return MappingRpcRequest(this) { it.andThen(mapper) }
     }
 
@@ -58,7 +57,7 @@ abstract class RpcRequest<T, E : Result.Error> {
      *
      * The function will be executed asynchronously after the request is sent and response received.
      */
-    fun <R : Result.Error> orElse(mapper: ResultTransformer<E, Result<T, R>>): RpcRequest<T, R> {
+    fun <R : Result.Error> orElse(mapper: Result.Transformer<E, Result<T, R>>): RpcRequest<T, R> {
         return MappingRpcRequest(this) { it.orElse(mapper) }
     }
 }
