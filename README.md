@@ -33,32 +33,32 @@ It's recommended to define BOM platform dependency to ensure that ethers-kt arti
 
 ```kotlin
 plugins {
-  id("io.kriptal.ethers.abigen-plugin") version "0.2.0"
+    id("io.kriptal.ethers.abigen-plugin") version "0.2.0"
 }
 
 // default values
 ethersAbigen {
-  directorySource("src/main/abi")
-  outputDir = "generated/source/ethers/main/kotlin"
+    directorySource("src/main/abi")
+    outputDir = "generated/source/ethers/main/kotlin"
 }
 
 // Define a maven repository where the library is published
 repositories {
-  mavenCentral()
+    mavenCentral()
 
-  // for snapshot versions, use the following repository
-  //maven { url = uri("https://s01.oss.sonatype.org/content/repositories/snapshots/") }
+    // for snapshot versions, use the following repository
+    //maven { url = uri("https://s01.oss.sonatype.org/content/repositories/snapshots/") }
 }
 
 dependencies {
-  // Define a BOM and its version
-  implementation(platform("io.kriptal.ethers:ethers-bom:0.2.0"))
+    // Define a BOM and its version
+    implementation(platform("io.kriptal.ethers:ethers-bom:0.2.0"))
 
-  // Define any required artifacts without version
-  implementation("io.kriptal.ethers:ethers-abi")
-  implementation("io.kriptal.ethers:ethers-core")
-  implementation("io.kriptal.ethers:ethers-providers")
-  implementation("io.kriptal.ethers:ethers-signers")
+    // Define any required artifacts without version
+    implementation("io.kriptal.ethers:ethers-abi")
+    implementation("io.kriptal.ethers:ethers-core")
+    implementation("io.kriptal.ethers:ethers-providers")
+    implementation("io.kriptal.ethers:ethers-signers")
 }
 ```
 
@@ -94,6 +94,9 @@ a more in-depth explanation, please refer to the individual module's *README.md*
 
 - **[crypto][crypto-module]**: Includes cryptographic utilities for signing and verifying **ECDSA** signatures on the
   **secp256k1** curve.
+
+- **[ens][ens-module]**: Full support for **ENS** names and avatars, with wildcard resolution and offchain resolution
+  via CCIP-Read.
 
 - **[providers][providers-module]**: Logic for interacting with **JSON-RPC API** using various transports (**HTTP**,
   **WebSocket**).
@@ -151,6 +154,8 @@ This library has been made possible thanks to the inspiration provided by the fo
 [core-module]: https://github.com/Kr1ptal/ethers-kt/blob/master/ethers-core/
 
 [crypto-module]: https://github.com/Kr1ptal/ethers-kt/blob/master/ethers-crypto/
+
+[ens-module]: https://github.com/Kr1ptal/ethers-kt/blob/master/ethers-ens/
 
 [providers-module]: https://github.com/Kr1ptal/ethers-kt/blob/master/ethers-providers/
 
