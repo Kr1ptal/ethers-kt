@@ -14,9 +14,29 @@ data class EthUnit(val decimals: Int) {
     fun toWei(amount: String): BigDecimal = this.convert(amount, WEI)
 
     /**
+     * Convert an [amount] of the current unit to [WEI], truncating values less than 1 Wei.
+     */
+    fun toWei(amount: BigInteger): BigDecimal = this.convert(amount, WEI)
+
+    /**
+     * Convert an [amount] of the current unit to [WEI], truncating values less than 1 Wei.
+     */
+    fun toWei(amount: BigDecimal): BigDecimal = this.convert(amount, WEI)
+
+    /**
      * Convert an [amount] of the current unit to [GWEI], truncating values less than 1 Wei.
      */
     fun toGwei(amount: String): BigDecimal = this.convert(amount, GWEI)
+
+    /**
+     * Convert an [amount] of the current unit to [GWEI], truncating values less than 1 Wei.
+     */
+    fun toGwei(amount: BigInteger): BigDecimal = this.convert(amount, GWEI)
+
+    /**
+     * Convert an [amount] of the current unit to [GWEI], truncating values less than 1 Wei.
+     */
+    fun toGwei(amount: BigDecimal): BigDecimal = this.convert(amount, GWEI)
 
     /**
      * Convert an [amount] of the current unit to [ETHER], truncating values less than 1 Wei.
@@ -24,9 +44,31 @@ data class EthUnit(val decimals: Int) {
     fun toEther(amount: String): BigDecimal = this.convert(amount, ETHER)
 
     /**
+     * Convert an [amount] of the current unit to [ETHER], truncating values less than 1 Wei.
+     */
+
+    fun toEther(amount: BigInteger): BigDecimal = this.convert(amount, ETHER)
+
+    /**
+     * Convert an [amount] of the current unit to [ETHER], truncating values less than 1 Wei.
+     */
+
+    fun toEther(amount: BigDecimal): BigDecimal = this.convert(amount, ETHER)
+
+    /**
      * Convert an [amount] of Wei to the current unit, truncating values less than 1 Wei.
      */
     fun fromWei(amount: String): BigDecimal = WEI.convert(amount, this)
+
+    /**
+     * Convert an [amount] of Wei to the current unit, truncating values less than 1 Wei.
+     */
+    fun fromWei(amount: BigInteger): BigDecimal = WEI.convert(amount, this)
+
+    /**
+     * Convert an [amount] of Wei to the current unit, truncating values less than 1 Wei.
+     */
+    fun fromWei(amount: BigDecimal): BigDecimal = WEI.convert(amount, this)
 
     /**
      * Convert an [amount] of [GWEI] to the current unit, truncating values less than 1 Wei.
@@ -34,15 +76,35 @@ data class EthUnit(val decimals: Int) {
     fun fromGwei(amount: String): BigDecimal = GWEI.convert(amount, this)
 
     /**
+     * Convert an [amount] of [GWEI] to the current unit, truncating values less than 1 Wei.
+     */
+    fun fromGwei(amount: BigInteger): BigDecimal = GWEI.convert(amount, this)
+
+    /**
+     * Convert an [amount] of [GWEI] to the current unit, truncating values less than 1 Wei.
+     */
+    fun fromGwei(amount: BigDecimal): BigDecimal = GWEI.convert(amount, this)
+
+    /**
      * Convert an [amount] of [ETHER] to the current unit, truncating values less than 1 Wei.
      */
     fun fromEther(amount: String): BigDecimal = ETHER.convert(amount, this)
 
     /**
+     * Convert an [amount] of [ETHER] to the current unit, truncating values less than 1 Wei.
+     */
+    fun fromEther(amount: BigInteger): BigDecimal = ETHER.convert(amount, this)
+
+    /**
+     * Convert an [amount] of [ETHER] to the current unit, truncating values less than 1 Wei.
+     */
+    fun fromEther(amount: BigDecimal): BigDecimal = ETHER.convert(amount, this)
+
+    /**
      * Convert an [amount] from the current unit to [toUnit], truncating values less than 1 Wei.
      */
-    fun convert(amount: BigDecimal, toUnit: EthUnit): BigDecimal {
-        return amount.movePointRight(this.decimals - toUnit.decimals).setScale(toUnit.decimals, RoundingMode.DOWN)
+    fun convert(amount: String, toUnit: EthUnit): BigDecimal {
+        return convert(amount.toBigDecimal(), toUnit)
     }
 
     /**
@@ -55,8 +117,8 @@ data class EthUnit(val decimals: Int) {
     /**
      * Convert an [amount] from the current unit to [toUnit], truncating values less than 1 Wei.
      */
-    fun convert(amount: String, toUnit: EthUnit): BigDecimal {
-        return convert(amount.toBigDecimal(), toUnit)
+    fun convert(amount: BigDecimal, toUnit: EthUnit): BigDecimal {
+        return amount.movePointRight(this.decimals - toUnit.decimals).setScale(toUnit.decimals, RoundingMode.DOWN)
     }
 
     companion object {
