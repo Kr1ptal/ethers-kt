@@ -1,9 +1,12 @@
 package io.ethers.abi.call
 
 import io.ethers.abi.error.ContractError
+import io.ethers.abi.error.ContractRpcError
 import io.ethers.abi.error.DecodingError
 import io.ethers.abi.error.RevertError
 import io.ethers.core.FastHex
+import io.ethers.core.Result
+import io.ethers.core.failure
 import io.ethers.core.types.AccessList
 import io.ethers.core.types.AccountOverride
 import io.ethers.core.types.Address
@@ -17,11 +20,11 @@ import io.ethers.core.types.transaction.TransactionUnsigned
 import io.ethers.core.types.transaction.TxAccessList
 import io.ethers.core.types.transaction.TxDynamicFee
 import io.ethers.core.types.transaction.TxLegacy
+import io.ethers.providers.RpcError
 import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.PendingInclusion
 import io.ethers.providers.types.PendingTransaction
 import io.ethers.providers.types.RpcRequest
-import io.ethers.providers.types.RpcResponse
 import io.ethers.signers.Signer
 import java.math.BigInteger
 
@@ -49,7 +52,7 @@ abstract class ReadWriteContractCall<C, S : PendingInclusion<*>, B : ReadWriteCo
      * Sign the call using the [signer] and send it to the network. If call does not have all the required fields
      * set (see [sign] function), it will be filled using [Middleware.fillTransaction] before signing and sending.
      * */
-    fun send(signer: Signer): RpcRequest<S> {
+    fun send(signer: Signer): RpcRequest<S, RpcError> {
         // if all params are set on "call", create signed tx directly
         val signed = sign(signer)
         if (signed != null) {
@@ -138,32 +141,31 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
         blockId: BlockId,
         stateOverride: Map<Address, AccountOverride>? = null,
         blockOverride: BlockOverride? = null,
-    ): RpcRequest<C> {
+    ): RpcRequest<C, ContractError> {
         return provider.call(call, blockId, stateOverride, blockOverride)
-            .andThen(::safelyHandleCallResult)
             .mapError(::tryDecodingContractRevert)
+            .andThen(::safelyHandleCallResult)
     }
 
     /**
      * Execute "debug_traceCall" at the given [BlockId] using the provided [TracerConfig], returning the result of
      * the tracer. Similar to [call] function, this is a read-only call, and it will not modify the blockchain state.
      * */
-    fun <T> traceCall(blockId: BlockId, config: TracerConfig<T>): RpcRequest<T> {
+    fun <T> traceCall(blockId: BlockId, config: TracerConfig<T>): RpcRequest<T, RpcError> {
         return provider.traceCall(call, blockId, config)
     }
 
-    private fun safelyHandleCallResult(result: Bytes): RpcResponse<C> {
+    private fun safelyHandleCallResult(result: Bytes): Result<C, ContractError> {
         return try {
             handleCallResult(result)
         } catch (e: Exception) {
-            RpcResponse.error(DecodingError(result, e))
+            failure(DecodingError(result, e))
         }
     }
 
-    private fun tryDecodingContractRevert(error: RpcResponse.Error): RpcResponse.Error {
+    private fun tryDecodingContractRevert(err: RpcError): ContractError {
         // "eth_call" execution reverts are included in "error" field of the json-rpc response
-        val err = error.asTypeOrNull<RpcResponse.RpcError>()
-        if (err != null && err.isExecutionError && err.data != null) {
+        if (err.isExecutionError && err.data != null) {
             // if data is not a valid hex string, it's an already decoded revert error
             if (!FastHex.isValidHex(err.data!!)) {
                 return RevertError(err.data!!)
@@ -175,12 +177,13 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
                 return contractError
             }
         }
-        return error
+
+        return ContractRpcError(err)
     }
 
     protected abstract val self: B
 
-    protected abstract fun handleCallResult(result: Bytes): RpcResponse<C>
+    protected abstract fun handleCallResult(result: Bytes): Result<C, ContractError>
 
     var from: Address?
         get() = call.from

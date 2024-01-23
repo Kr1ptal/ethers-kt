@@ -15,6 +15,7 @@ import io.ethers.core.readListOfHashes
 import io.ethers.core.readOptionalValue
 import io.ethers.core.types.AccountOverride
 import io.ethers.core.types.Address
+import io.ethers.core.types.Block
 import io.ethers.core.types.BlockId
 import io.ethers.core.types.BlockOverride
 import io.ethers.core.types.BlockWithHashes
@@ -60,17 +61,17 @@ class Provider(override val client: JsonRpcClient) : Middleware {
     //-----------------------------------------------------------------------------------------------------------------
     override val chainId = RpcCall(client, "eth_chainId", emptyArray<Any>(), { it.readHexLong() })
         .sendAwait()
-        .resultOrThrow()
+        .unwrap()
 
-    override fun getBlockNumber(): RpcRequest<Long> {
+    override fun getBlockNumber(): RpcRequest<Long, RpcError> {
         return RpcCall(client, "eth_blockNumber", emptyArray<Any>()) { it.readHexLong() }
     }
 
-    override fun getBalance(address: Address, blockId: BlockId): RpcRequest<BigInteger> {
+    override fun getBalance(address: Address, blockId: BlockId): RpcRequest<BigInteger, RpcError> {
         return RpcCall(client, "eth_getBalance", arrayOf(address, blockId.id)) { it.readHexBigInteger() }
     }
 
-    override fun getBlockHeader(blockId: BlockId): RpcRequest<BlockWithHashes> {
+    override fun getBlockHeader(blockId: BlockId): RpcRequest<BlockWithHashes, RpcError> {
         val params = arrayOf(blockId.id)
         val method = when (blockId) {
             is BlockId.Hash -> "eth_getHeaderByHash"
@@ -79,19 +80,19 @@ class Provider(override val client: JsonRpcClient) : Middleware {
         return RpcCall(client, method, params, BlockWithHashes::class.java)
     }
 
-    override fun getBlockWithHashes(blockId: BlockId): RpcRequest<BlockWithHashes> {
+    override fun getBlockWithHashes(blockId: BlockId): RpcRequest<BlockWithHashes, RpcError> {
         return getBlock(blockId, false, BlockWithHashes::class.java)
     }
 
-    override fun getBlockWithTransactions(blockId: BlockId): RpcRequest<BlockWithTransactions> {
+    override fun getBlockWithTransactions(blockId: BlockId): RpcRequest<BlockWithTransactions, RpcError> {
         return getBlock(blockId, true, BlockWithTransactions::class.java)
     }
 
-    protected fun <T> getBlock(
+    protected fun <T, B : Block<T>> getBlock(
         blockId: BlockId,
         fullTransactions: Boolean,
-        responseType: Class<T>,
-    ): RpcRequest<T> {
+        responseType: Class<B>,
+    ): RpcRequest<B, RpcError> {
         val params = arrayOf(blockId.id, fullTransactions)
         val method = when (blockId) {
             is BlockId.Hash -> "eth_getBlockByHash"
@@ -100,7 +101,7 @@ class Provider(override val client: JsonRpcClient) : Middleware {
         return RpcCall(client, method, params, responseType)
     }
 
-    override fun getUncleBlockHeader(blockId: BlockId, index: Long): RpcRequest<BlockWithHashes> {
+    override fun getUncleBlockHeader(blockId: BlockId, index: Long): RpcRequest<BlockWithHashes, RpcError> {
         val params = arrayOf(blockId.id, FastHex.encodeWithPrefix(index))
         val method = when (blockId) {
             is BlockId.Hash -> "eth_getUncleByBlockHashAndIndex"
@@ -109,7 +110,7 @@ class Provider(override val client: JsonRpcClient) : Middleware {
         return RpcCall(client, method, params, BlockWithHashes::class.java)
     }
 
-    override fun getUncleBlocksCount(blockId: BlockId): RpcRequest<Long> {
+    override fun getUncleBlocksCount(blockId: BlockId): RpcRequest<Long, RpcError> {
         val params = arrayOf(blockId.id)
         val method = when (blockId) {
             is BlockId.Hash -> "eth_getUncleCountByBlockHash"
@@ -118,12 +119,12 @@ class Provider(override val client: JsonRpcClient) : Middleware {
         return RpcCall(client, method, params) { it.readHexLong() }
     }
 
-    override fun getCode(address: Address, blockId: BlockId): RpcRequest<Bytes> {
+    override fun getCode(address: Address, blockId: BlockId): RpcRequest<Bytes, RpcError> {
         val params = arrayOf(address, blockId.id)
         return RpcCall(client, "eth_getCode", params, Bytes::class.java)
     }
 
-    override fun getStorage(address: Address, key: Hash, blockId: BlockId): RpcRequest<Hash> {
+    override fun getStorage(address: Address, key: Hash, blockId: BlockId): RpcRequest<Hash, RpcError> {
         val params = arrayOf(address, key, blockId.id)
         return RpcCall(client, "eth_getStorageAt", params, Hash::class.java)
     }
@@ -133,7 +134,7 @@ class Provider(override val client: JsonRpcClient) : Middleware {
         blockId: BlockId,
         stateOverride: Map<Address, AccountOverride>?,
         blockOverride: BlockOverride?,
-    ): RpcRequest<Bytes> {
+    ): RpcRequest<Bytes, RpcError> {
         // create minimal params array - some RPC's don't support stateOverride or blockOverride
         val params = when {
             blockOverride != null -> arrayOf(call, blockId.id, stateOverride, blockOverride)
@@ -144,21 +145,21 @@ class Provider(override val client: JsonRpcClient) : Middleware {
         return RpcCall(client, "eth_call", params, Bytes::class.java)
     }
 
-    override fun estimateGas(call: CallRequest, blockId: BlockId): RpcRequest<BigInteger> {
+    override fun estimateGas(call: CallRequest, blockId: BlockId): RpcRequest<BigInteger, RpcError> {
         val params = arrayOf(call, blockId.id)
         return RpcCall(client, "eth_estimateGas", params) { it.readHexBigInteger() }
     }
 
-    override fun createAccessList(call: CallRequest, blockId: BlockId): RpcRequest<CreateAccessList> {
+    override fun createAccessList(call: CallRequest, blockId: BlockId): RpcRequest<CreateAccessList, RpcError> {
         val params = arrayOf(call, blockId.id)
         return RpcCall(client, "eth_createAccessList", params, CreateAccessList::class.java)
     }
 
-    override fun getGasPrice(): RpcRequest<BigInteger> {
+    override fun getGasPrice(): RpcRequest<BigInteger, RpcError> {
         return RpcCall(client, "eth_gasPrice", emptyArray<Any>()) { it.readHexBigInteger() }
     }
 
-    override fun getMaxPriorityFeePerGas(): RpcRequest<BigInteger> {
+    override fun getMaxPriorityFeePerGas(): RpcRequest<BigInteger, RpcError> {
         return RpcCall(client, "eth_maxPriorityFeePerGas", emptyArray<Any>()) { it.readHexBigInteger() }
     }
 
@@ -166,16 +167,16 @@ class Provider(override val client: JsonRpcClient) : Middleware {
         blockCount: Long,
         lastBlockNumber: Long,
         rewardPercentiles: List<BigInteger>,
-    ): RpcRequest<FeeHistory> {
+    ): RpcRequest<FeeHistory, RpcError> {
         val params = arrayOf(blockCount, FastHex.encodeWithPrefix(lastBlockNumber), rewardPercentiles)
         return RpcCall(client, "eth_feeHistory", params, FeeHistory::class.java)
     }
 
-    override fun isNodeSyncing(): RpcRequest<SyncStatus> {
+    override fun isNodeSyncing(): RpcRequest<SyncStatus, RpcError> {
         return RpcCall(client, "eth_syncing", emptyArray<Any>()) { it.readValueAs(SyncStatus::class.java) }
     }
 
-    override fun getBlockTransactionCount(blockId: BlockId): RpcRequest<Long> {
+    override fun getBlockTransactionCount(blockId: BlockId): RpcRequest<Long, RpcError> {
         val params = arrayOf(blockId.id)
         val method = when (blockId) {
             is BlockId.Hash -> "eth_getBlockTransactionCountByHash"
@@ -184,7 +185,7 @@ class Provider(override val client: JsonRpcClient) : Middleware {
         return RpcCall(client, method, params) { it.readHexLong() }
     }
 
-    override fun getTransactionByBlockAndIndex(blockId: BlockId, index: Long): RpcRequest<RPCTransaction> {
+    override fun getTransactionByBlockAndIndex(blockId: BlockId, index: Long): RpcRequest<RPCTransaction, RpcError> {
         val params = arrayOf(blockId.id, FastHex.encodeWithPrefix(index))
         val method = when (blockId) {
             is BlockId.Hash -> "eth_getTransactionByBlockHashAndIndex"
@@ -193,7 +194,7 @@ class Provider(override val client: JsonRpcClient) : Middleware {
         return RpcCall(client, method, params, RPCTransaction::class.java)
     }
 
-    override fun getRawTransactionByBlockAndIndex(blockId: BlockId, index: Long): RpcRequest<Bytes> {
+    override fun getRawTransactionByBlockAndIndex(blockId: BlockId, index: Long): RpcRequest<Bytes, RpcError> {
         val params = arrayOf(blockId.id, FastHex.encodeWithPrefix(index))
         val method = when (blockId) {
             is BlockId.Hash -> "eth_getRawTransactionByBlockHashAndIndex"
@@ -202,11 +203,11 @@ class Provider(override val client: JsonRpcClient) : Middleware {
         return RpcCall(client, method, params, Bytes::class.java)
     }
 
-    override fun getTransactionCount(address: Address, blockId: BlockId): RpcRequest<Long> {
+    override fun getTransactionCount(address: Address, blockId: BlockId): RpcRequest<Long, RpcError> {
         return RpcCall(client, "eth_getTransactionCount", arrayOf(address, blockId.id)) { it.readHexLong() }
     }
 
-    override fun getTransactionByHash(hash: Hash): RpcRequest<Optional<RPCTransaction>> {
+    override fun getTransactionByHash(hash: Hash): RpcRequest<Optional<RPCTransaction>, RpcError> {
         return RpcCall(
             client,
             "eth_getTransactionByHash",
@@ -215,7 +216,7 @@ class Provider(override val client: JsonRpcClient) : Middleware {
         )
     }
 
-    override fun getTransactionReceipt(hash: Hash): RpcRequest<Optional<TransactionReceipt>> {
+    override fun getTransactionReceipt(hash: Hash): RpcRequest<Optional<TransactionReceipt>, RpcError> {
         return RpcCall(
             client,
             "eth_getTransactionReceipt",
@@ -224,7 +225,7 @@ class Provider(override val client: JsonRpcClient) : Middleware {
         )
     }
 
-    override fun sendRawTransaction(signedTransaction: ByteArray): RpcRequest<PendingTransaction> {
+    override fun sendRawTransaction(signedTransaction: ByteArray): RpcRequest<PendingTransaction, RpcError> {
         return RpcCall(
             client,
             "eth_sendRawTransaction",
@@ -233,7 +234,7 @@ class Provider(override val client: JsonRpcClient) : Middleware {
         )
     }
 
-    override fun fillTransaction(call: CallRequest): RpcRequest<TransactionUnsigned> {
+    override fun fillTransaction(call: CallRequest): RpcRequest<TransactionUnsigned, RpcError> {
         return RpcCall(
             client,
             "eth_fillTransaction",
@@ -252,7 +253,7 @@ class Provider(override val client: JsonRpcClient) : Middleware {
         )
     }
 
-    override fun getLogs(filter: LogFilter): RpcRequest<List<Log>> {
+    override fun getLogs(filter: LogFilter): RpcRequest<List<Log>, RpcError> {
         return RpcCall(
             client,
             "eth_getLogs",
@@ -261,7 +262,7 @@ class Provider(override val client: JsonRpcClient) : Middleware {
         )
     }
 
-    override fun watchLogs(filter: LogFilter): RpcRequest<FilterPoller<Log>> {
+    override fun watchLogs(filter: LogFilter): RpcRequest<FilterPoller<Log>, RpcError> {
         return RpcCall(
             client,
             "eth_newFilter",
@@ -270,7 +271,7 @@ class Provider(override val client: JsonRpcClient) : Middleware {
         )
     }
 
-    override fun watchNewBlocks(): RpcRequest<FilterPoller<Hash>> {
+    override fun watchNewBlocks(): RpcRequest<FilterPoller<Hash>, RpcError> {
         return RpcCall(
             client,
             "eth_newBlockFilter",
@@ -279,7 +280,7 @@ class Provider(override val client: JsonRpcClient) : Middleware {
         )
     }
 
-    override fun watchNewPendingTransactionHashes(): RpcRequest<FilterPoller<Hash>> {
+    override fun watchNewPendingTransactionHashes(): RpcRequest<FilterPoller<Hash>, RpcError> {
         return RpcCall(
             client,
             "eth_newPendingTransactionFilter",
@@ -288,7 +289,7 @@ class Provider(override val client: JsonRpcClient) : Middleware {
         )
     }
 
-    override fun watchNewPendingTransactions(): RpcRequest<FilterPoller<RPCTransaction>> {
+    override fun watchNewPendingTransactions(): RpcRequest<FilterPoller<RPCTransaction>, RpcError> {
         return RpcCall(
             client,
             "eth_newPendingTransactionFilter",
@@ -297,26 +298,26 @@ class Provider(override val client: JsonRpcClient) : Middleware {
         )
     }
 
-    override fun subscribeNewPendingTransactionHashes(): RpcSubscribe<Hash> {
+    override fun subscribeNewPendingTransactionHashes(): RpcSubscribe<Hash, RpcError> {
         return subscribe(arrayOf("newPendingTransactions"), { it.readHash() })
     }
 
-    override fun subscribeNewPendingTransactions(): RpcSubscribe<RPCTransaction> {
+    override fun subscribeNewPendingTransactions(): RpcSubscribe<RPCTransaction, RpcError> {
         return subscribe(arrayOf("newPendingTransactions", true), { it.readValueAs(RPCTransaction::class.java) })
     }
 
-    override fun subscribeNewHeads(): RpcSubscribe<BlockWithHashes> {
+    override fun subscribeNewHeads(): RpcSubscribe<BlockWithHashes, RpcError> {
         return subscribe(arrayOf("newHeads"), { it.readValueAs(BlockWithHashes::class.java) })
     }
 
-    override fun subscribeLogs(filter: LogFilter): RpcSubscribe<Log> {
+    override fun subscribeLogs(filter: LogFilter): RpcSubscribe<Log, RpcError> {
         return subscribe(arrayOf("logs", filter), { it.readValueAs(Log::class.java) })
     }
 
     private fun <T> subscribe(
         params: Array<*>,
         decoder: Function<JsonParser, T>,
-    ): RpcSubscribe<T> {
+    ): RpcSubscribe<T, RpcError> {
         if (!isPubSub) {
             throw UnsupportedOperationException("Pub/sub is not supported by this provider")
         }
@@ -327,22 +328,22 @@ class Provider(override val client: JsonRpcClient) : Middleware {
     //-----------------------------------------------------------------------------------------------------------------
     //                                  DebugApi implementation
     //-----------------------------------------------------------------------------------------------------------------
-    override fun getRawBlockHeader(blockId: BlockId): RpcRequest<Bytes> {
+    override fun getRawBlockHeader(blockId: BlockId): RpcRequest<Bytes, RpcError> {
         val params = arrayOf(blockId.id)
         return RpcCall(client, "debug_getRawHeader", params, Bytes::class.java)
     }
 
-    override fun getRawBlockWithTransactions(blockId: BlockId): RpcRequest<Bytes> {
+    override fun getRawBlockWithTransactions(blockId: BlockId): RpcRequest<Bytes, RpcError> {
         val params = arrayOf(blockId.id)
         return RpcCall(client, "debug_getRawBlock", params, Bytes::class.java)
     }
 
-    override fun getRawReceipts(blockId: BlockId): RpcRequest<List<Bytes>> {
+    override fun getRawReceipts(blockId: BlockId): RpcRequest<List<Bytes>, RpcError> {
         val params = arrayOf(blockId.id)
         return RpcCall(client, "debug_getRawReceipts", params) { it.readListOf(Bytes::class.java) }
     }
 
-    override fun getRawTransaction(hash: Hash): RpcRequest<Optional<Bytes>> {
+    override fun getRawTransaction(hash: Hash): RpcRequest<Optional<Bytes>, RpcError> {
         return RpcCall(
             client,
             "debug_getRawTransaction",
@@ -358,22 +359,25 @@ class Provider(override val client: JsonRpcClient) : Middleware {
         )
     }
 
-    override fun printBlock(number: Long): RpcRequest<String> {
+    override fun printBlock(number: Long): RpcRequest<String, RpcError> {
         val params = arrayOf(number)
         return RpcCall(client, "debug_printBlock", params, String::class.java)
     }
 
-    override fun <T> traceCall(call: CallRequest, blockId: BlockId, config: TracerConfig<T>): RpcRequest<T> {
+    override fun <T> traceCall(call: CallRequest, blockId: BlockId, config: TracerConfig<T>): RpcRequest<T, RpcError> {
         val params = arrayOf(call, blockId.id, config)
         return RpcCall(client, "debug_traceCall", params, { config.tracer.decodeResult(it) })
     }
 
-    override fun <T> traceTransaction(txHash: Hash, config: TracerConfig<T>): RpcRequest<T> {
+    override fun <T> traceTransaction(txHash: Hash, config: TracerConfig<T>): RpcRequest<T, RpcError> {
         val params = arrayOf(txHash, config)
         return RpcCall(client, "debug_traceTransaction", params, { config.tracer.decodeResult(it) })
     }
 
-    override fun <T> traceBlock(blockId: BlockId, config: TracerConfig<T>): RpcRequest<List<TxTraceResult<T>>> {
+    override fun <T> traceBlock(
+        blockId: BlockId,
+        config: TracerConfig<T>,
+    ): RpcRequest<List<TxTraceResult<T>>, RpcError> {
         val params = arrayOf(blockId.id, config)
         val method = when (blockId) {
             is BlockId.Hash -> "debug_traceBlockByHash"
@@ -400,35 +404,35 @@ class Provider(override val client: JsonRpcClient) : Middleware {
     //-----------------------------------------------------------------------------------------------------------------
     //                                  NetApi implementation
     //-----------------------------------------------------------------------------------------------------------------
-    override fun isListening(): RpcRequest<Boolean> {
+    override fun isListening(): RpcRequest<Boolean, RpcError> {
         return RpcCall(client, "net_listening", emptyArray<Any>()) { it.readValueAs(Boolean::class.java) }
     }
 
-    override fun getPeerCount(): RpcRequest<Long> {
+    override fun getPeerCount(): RpcRequest<Long, RpcError> {
         return RpcCall(client, "net_peerCount", emptyArray<Any>()) { it.readHexLong() }
     }
 
-    override fun getVersion(): RpcRequest<String> {
+    override fun getVersion(): RpcRequest<String, RpcError> {
         return RpcCall(client, "net_version", emptyArray<Any>(), String::class.java)
     }
 
     //-----------------------------------------------------------------------------------------------------------------
     //                                  TxpoolApi implementation
     //-----------------------------------------------------------------------------------------------------------------
-    override fun txpoolContent(): RpcRequest<TxpoolContent> {
+    override fun txpoolContent(): RpcRequest<TxpoolContent, RpcError> {
         return RpcCall(client, "txpool_content", emptyArray<Any>(), TxpoolContent::class.java)
     }
 
-    override fun txpoolContentFrom(address: Address): RpcRequest<TxpoolContentFromAddress> {
+    override fun txpoolContentFrom(address: Address): RpcRequest<TxpoolContentFromAddress, RpcError> {
         val params = arrayOf(address)
         return RpcCall(client, "txpool_contentFrom", params, TxpoolContentFromAddress::class.java)
     }
 
-    override fun txpoolStatus(): RpcRequest<TxpoolStatus> {
+    override fun txpoolStatus(): RpcRequest<TxpoolStatus, RpcError> {
         return RpcCall(client, "txpool_status", emptyArray<Any>(), TxpoolStatus::class.java)
     }
 
-    override fun txpoolInspect(): RpcRequest<TxpoolInspectResult> {
+    override fun txpoolInspect(): RpcRequest<TxpoolInspectResult, RpcError> {
         return RpcCall(client, "txpool_inspect", emptyArray<Any>(), TxpoolInspectResult::class.java)
     }
 }

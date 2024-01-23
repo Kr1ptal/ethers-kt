@@ -34,11 +34,11 @@ class TransferERC20(
         val pendingTransaction = token.transfer(Address(receiver), amount)
             .send(signer)
             .sendAwait()
-            .resultOrThrow()
+            .unwrap()
 
         // Wait for transaction to be included in a block.
         // Wait for tx inclusion: 2 block confirmation (default 1) for 12 retries, retry every 10 seconds (default 6 seconds)
-        val receipt = pendingTransaction.awaitInclusion(12, Duration.ofSeconds(8), 2).resultOrThrow()
+        val receipt = pendingTransaction.awaitInclusion(12, Duration.ofSeconds(8), 2).unwrap()
 
         println("Tx ${receipt.transactionHash} was included in block ${receipt.blockNumber}")
     }

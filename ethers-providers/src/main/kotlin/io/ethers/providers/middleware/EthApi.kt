@@ -17,6 +17,7 @@ import io.ethers.core.types.SyncStatus
 import io.ethers.core.types.TransactionReceipt
 import io.ethers.core.types.transaction.TransactionSigned
 import io.ethers.core.types.transaction.TransactionUnsigned
+import io.ethers.providers.RpcError
 import io.ethers.providers.types.FilterPoller
 import io.ethers.providers.types.PendingTransaction
 import io.ethers.providers.types.RpcRequest
@@ -33,7 +34,7 @@ interface EthApi {
     /**
      * Get latest block number.
      */
-    fun getBlockNumber(): RpcRequest<Long>
+    fun getBlockNumber(): RpcRequest<Long, RpcError>
 
     /**
      * Get [address] balance at [hash].
@@ -48,7 +49,7 @@ interface EthApi {
     /**
      * Get [address] balance at [blockId].
      */
-    fun getBalance(address: Address, blockId: BlockId): RpcRequest<BigInteger>
+    fun getBalance(address: Address, blockId: BlockId): RpcRequest<BigInteger, RpcError>
 
     /**
      * Get block header by [hash].
@@ -63,7 +64,7 @@ interface EthApi {
     /**
      * Get block header by [blockId].
      */
-    fun getBlockHeader(blockId: BlockId): RpcRequest<BlockWithHashes>
+    fun getBlockHeader(blockId: BlockId): RpcRequest<BlockWithHashes, RpcError>
 
     /**
      * Get block by [hash] with transaction hashes.
@@ -78,7 +79,7 @@ interface EthApi {
     /**
      * Get block by [blockId] with transaction hashes.
      */
-    fun getBlockWithHashes(blockId: BlockId): RpcRequest<BlockWithHashes>
+    fun getBlockWithHashes(blockId: BlockId): RpcRequest<BlockWithHashes, RpcError>
 
     /**
      * Get block by [hash] with full transaction objects.
@@ -93,7 +94,7 @@ interface EthApi {
     /**
      * Get block by [blockId] with full transaction objects.
      */
-    fun getBlockWithTransactions(blockId: BlockId): RpcRequest<BlockWithTransactions>
+    fun getBlockWithTransactions(blockId: BlockId): RpcRequest<BlockWithTransactions, RpcError>
 
     /**
      * Get uncle block header by [hash] and [index].
@@ -108,7 +109,7 @@ interface EthApi {
     /**
      * Get uncle block header by [blockId] and [index].
      */
-    fun getUncleBlockHeader(blockId: BlockId, index: Long): RpcRequest<BlockWithHashes>
+    fun getUncleBlockHeader(blockId: BlockId, index: Long): RpcRequest<BlockWithHashes, RpcError>
 
     /**
      * Get uncle blocks count by [hash].
@@ -123,7 +124,7 @@ interface EthApi {
     /**
      * Get uncle blocks count by [blockId].
      */
-    fun getUncleBlocksCount(blockId: BlockId): RpcRequest<Long>
+    fun getUncleBlocksCount(blockId: BlockId): RpcRequest<Long, RpcError>
 
     /**
      * Get code stored at given [address] in the state for given block [hash].
@@ -138,7 +139,7 @@ interface EthApi {
     /**
      * Get code stored at given [address] in the state for given [blockId].
      */
-    fun getCode(address: Address, blockId: BlockId): RpcRequest<Bytes>
+    fun getCode(address: Address, blockId: BlockId): RpcRequest<Bytes, RpcError>
 
     /**
      * Get storage value stored at given [address] and [key] in the state for given block [hash].
@@ -153,7 +154,7 @@ interface EthApi {
     /**
      * Get storage value stored at given [address] and [key] in the state for given block [blockId].
      */
-    fun getStorage(address: Address, key: Hash, blockId: BlockId): RpcRequest<Hash>
+    fun getStorage(address: Address, key: Hash, blockId: BlockId): RpcRequest<Hash, RpcError>
 
     /**
      * Execute [call] on given [blockId].
@@ -180,7 +181,7 @@ interface EthApi {
         blockId: BlockId,
         stateOverride: Map<Address, AccountOverride>? = null,
         blockOverride: BlockOverride? = null,
-    ): RpcRequest<Bytes>
+    ): RpcRequest<Bytes, RpcError>
 
     /**
      * Estimate gas required to execute [call] on given block [hash].
@@ -195,7 +196,7 @@ interface EthApi {
     /**
      * Estimate gas required to execute [call] on given [blockId].
      */
-    fun estimateGas(call: CallRequest, blockId: BlockId): RpcRequest<BigInteger>
+    fun estimateGas(call: CallRequest, blockId: BlockId): RpcRequest<BigInteger, RpcError>
 
     /**
      * Create access list for a given transaction [call] on a given block [hash].
@@ -210,17 +211,17 @@ interface EthApi {
     /**
      * Create access list for a given transaction [call] on a given block [blockId].
      */
-    fun createAccessList(call: CallRequest, blockId: BlockId): RpcRequest<*>
+    fun createAccessList(call: CallRequest, blockId: BlockId): RpcRequest<*, RpcError>
 
     /**
      * Get gas price suggestion for legacy transaction.
      */
-    fun getGasPrice(): RpcRequest<BigInteger>
+    fun getGasPrice(): RpcRequest<BigInteger, RpcError>
 
     /**
      * Get gas tip cap suggestion for dynamic fee transaction.
      */
-    fun getMaxPriorityFeePerGas(): RpcRequest<BigInteger>
+    fun getMaxPriorityFeePerGas(): RpcRequest<BigInteger, RpcError>
 
     /**
      * Get gas fee history for block range between [lastBlockNumber] and ([lastBlockNumber] - [blockCount] + 1).
@@ -237,12 +238,12 @@ interface EthApi {
         blockCount: Long,
         lastBlockNumber: Long,
         rewardPercentiles: List<BigInteger> = emptyList(),
-    ): RpcRequest<FeeHistory>
+    ): RpcRequest<FeeHistory, RpcError>
 
     /**
      * Check if node is syncing with the network.
      */
-    fun isNodeSyncing(): RpcRequest<SyncStatus>
+    fun isNodeSyncing(): RpcRequest<SyncStatus, RpcError>
 
     /**
      * Get transaction count in a block by [number].
@@ -257,7 +258,7 @@ interface EthApi {
     /**
      * Get transaction count in a block by [blockId].
      */
-    fun getBlockTransactionCount(blockId: BlockId): RpcRequest<Long>
+    fun getBlockTransactionCount(blockId: BlockId): RpcRequest<Long, RpcError>
 
     /**
      * Get transaction at [index] in a given block [number].
@@ -274,7 +275,7 @@ interface EthApi {
     /**
      * Get transaction at [index] in a given block [blockId].
      */
-    fun getTransactionByBlockAndIndex(blockId: BlockId, index: Long): RpcRequest<RPCTransaction>
+    fun getTransactionByBlockAndIndex(blockId: BlockId, index: Long): RpcRequest<RPCTransaction, RpcError>
 
     /**
      * Get RLP encoded transaction at [index] in a given block [number].
@@ -291,7 +292,7 @@ interface EthApi {
     /**
      * Get RLP encoded transaction at [index] in a given block [blockId].
      */
-    fun getRawTransactionByBlockAndIndex(blockId: BlockId, index: Long): RpcRequest<Bytes>
+    fun getRawTransactionByBlockAndIndex(blockId: BlockId, index: Long): RpcRequest<Bytes, RpcError>
 
     /**
      * Count the transactions sent by [address] up to and including the current block [number].
@@ -306,17 +307,17 @@ interface EthApi {
     /**
      * Count the transactions sent by [address] up to and including the current block [blockId].
      */
-    fun getTransactionCount(address: Address, blockId: BlockId): RpcRequest<Long>
+    fun getTransactionCount(address: Address, blockId: BlockId): RpcRequest<Long, RpcError>
 
     /**
      * Get transaction by [hash], returning empty [Optional] if none exists.
      */
-    fun getTransactionByHash(hash: Hash): RpcRequest<Optional<RPCTransaction>>
+    fun getTransactionByHash(hash: Hash): RpcRequest<Optional<RPCTransaction>, RpcError>
 
     /**
      * Get transaction receipt by [hash], returning empty [Optional] if none exists.
      */
-    fun getTransactionReceipt(hash: Hash): RpcRequest<Optional<TransactionReceipt>>
+    fun getTransactionReceipt(hash: Hash): RpcRequest<Optional<TransactionReceipt>, RpcError>
 
     /**
      * RLP encode and submit [signedTransaction].
@@ -326,28 +327,28 @@ interface EthApi {
     /**
      * Submit signed transaction bytes.
      */
-    fun sendRawTransaction(signedTransaction: ByteArray): RpcRequest<PendingTransaction>
+    fun sendRawTransaction(signedTransaction: ByteArray): RpcRequest<PendingTransaction, RpcError>
 
     /**
      * Fill the defaults (nonce, gas, gasPrice or 1559 fields) and return unsigned transaction for further
      * processing (signing + submission).
      */
-    fun fillTransaction(call: CallRequest): RpcRequest<TransactionUnsigned>
+    fun fillTransaction(call: CallRequest): RpcRequest<TransactionUnsigned, RpcError>
 
     /**
      * Get logs by block [blockHash].
      */
-    fun getLogs(blockHash: Hash): RpcRequest<List<Log>> = getLogs(BlockId.Hash(blockHash))
+    fun getLogs(blockHash: Hash): RpcRequest<List<Log>, RpcError> = getLogs(BlockId.Hash(blockHash))
 
     /**
      * Get logs by block [blockNumber].
      */
-    fun getLogs(blockNumber: Long): RpcRequest<List<Log>> = getLogs(BlockId.Number(blockNumber))
+    fun getLogs(blockNumber: Long): RpcRequest<List<Log>, RpcError> = getLogs(BlockId.Number(blockNumber))
 
     /**
      * Get logs by block [blockId].
      */
-    fun getLogs(blockId: BlockId): RpcRequest<List<Log>> {
+    fun getLogs(blockId: BlockId): RpcRequest<List<Log>, RpcError> {
         val filter = when (blockId) {
             is BlockId.Hash -> LogFilter().atBlock(blockId)
             is BlockId.Name -> LogFilter().blockRange(blockId, blockId)
@@ -359,57 +360,57 @@ interface EthApi {
     /**
      * Get logs matching [filter].
      */
-    fun getLogs(filter: LogFilter): RpcRequest<List<Log>>
+    fun getLogs(filter: LogFilter): RpcRequest<List<Log>, RpcError>
 
     /**
      * Watch for logs matching [filter]. Compared to [subscribeLogs], this function installs a filter and
      * intermittently polls it for new logs. It can be used to achieve streaming-like behavior if the provider
      * does not support subscriptions.
      * */
-    fun watchLogs(filter: LogFilter): RpcRequest<FilterPoller<Log>>
+    fun watchLogs(filter: LogFilter): RpcRequest<FilterPoller<Log>, RpcError>
 
     /**
      * Watch for new blocks. Compared to [subscribeNewHeads], this function installs a filter and intermittently
      * polls it for new logs. It can be used to achieve streaming-like behavior if the provider does not support
      * subscriptions.
      * */
-    fun watchNewBlocks(): RpcRequest<FilterPoller<Hash>>
+    fun watchNewBlocks(): RpcRequest<FilterPoller<Hash>, RpcError>
 
     /**
      * Watch for new pending transaction hashes. Compared to [subscribeNewPendingTransactionHashes], this function
      * installs a filter and intermittently polls it for new logs. It can be used to achieve streaming-like behavior
      * if the provider does not support subscriptions.
      * */
-    fun watchNewPendingTransactionHashes(): RpcRequest<FilterPoller<Hash>>
+    fun watchNewPendingTransactionHashes(): RpcRequest<FilterPoller<Hash>, RpcError>
 
     /**
      * Watch for new pending transactions. Compared to [subscribeNewPendingTransactions], this function installs
      * a filter and intermittently polls it for new logs. It can be used to achieve streaming-like behavior if the
      * provider does not support subscriptions.
      * */
-    fun watchNewPendingTransactions(): RpcRequest<FilterPoller<RPCTransaction>>
+    fun watchNewPendingTransactions(): RpcRequest<FilterPoller<RPCTransaction>, RpcError>
 
     /**
      * Subscribe to logs matching [filter]. This function should be used instead of [watchLogs] if the
      * provider supports subscriptions.
      * */
-    fun subscribeLogs(filter: LogFilter): RpcSubscribe<Log>
+    fun subscribeLogs(filter: LogFilter): RpcSubscribe<Log, RpcError>
 
     /**
      * Subscribe to new block heads. This function should be used instead of [watchNewBlocks] if the
      * provider supports subscriptions.
      * */
-    fun subscribeNewHeads(): RpcSubscribe<BlockWithHashes>
+    fun subscribeNewHeads(): RpcSubscribe<BlockWithHashes, RpcError>
 
     /**
      * Subscribe to new pending transactions. This function should be used instead of [watchNewPendingTransactions]
      * if the provider supports subscriptions.
      * */
-    fun subscribeNewPendingTransactions(): RpcSubscribe<RPCTransaction>
+    fun subscribeNewPendingTransactions(): RpcSubscribe<RPCTransaction, RpcError>
 
     /**
      * Subscribe to new pending transaction hashes. This function should be used instead of [watchNewPendingTransactions]
      * if the provider supports subscriptions.
      * */
-    fun subscribeNewPendingTransactionHashes(): RpcSubscribe<Hash>
+    fun subscribeNewPendingTransactionHashes(): RpcSubscribe<Hash, RpcError>
 }

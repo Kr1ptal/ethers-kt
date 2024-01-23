@@ -1,6 +1,7 @@
 package io.ethers.providers.types
 
 import io.ethers.core.Jackson
+import io.ethers.core.isFailure
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bloom
 import io.ethers.core.types.Bytes
@@ -41,7 +42,7 @@ class PendingTransactionTest : FunSpec({
             enqueueEmptyResponses(mockWebServer, retries - 1)
             mockWebServer.enqueue(generateMockResponse(body = TX_RECEIPT_RESPONSE))
 
-            val response = pendingTransaction.awaitInclusion(retries, Duration.ofMillis(50), 0).resultOrThrow()
+            val response = pendingTransaction.awaitInclusion(retries, Duration.ofMillis(50), 0).unwrap()
             response shouldBe TX_RECEIPT
         }
 
@@ -56,8 +57,7 @@ class PendingTransactionTest : FunSpec({
                 mockWebServer.enqueue(generateMockResponse(body = MINED_BLOCK_RESPONSE_FACTORY(minedBlockNumber + i)))
             }
 
-            val response =
-                pendingTransaction.awaitInclusion(retries, Duration.ofMillis(50), confirmations).resultOrThrow()
+            val response = pendingTransaction.awaitInclusion(retries, Duration.ofMillis(50), confirmations).unwrap()
             response shouldBe TX_RECEIPT
         }
 
@@ -67,8 +67,8 @@ class PendingTransactionTest : FunSpec({
             enqueueEmptyResponses(mockWebServer, retries)
 
             val response = pendingTransaction.awaitInclusion(retries, Duration.ofMillis(50), 0)
-            response.isError shouldBe true
-            response.error.shouldBeInstanceOf<InclusionError>()
+            response.isFailure() shouldBe true
+            response.unwrapError().shouldBeInstanceOf<PendingInclusion.Error>()
         }
 
         test("inclusion response returns error") {
@@ -77,9 +77,11 @@ class PendingTransactionTest : FunSpec({
             mockWebServer.enqueue(generateMockResponse(body = ERROR_RESPONSE_FACTORY(errorMessage)))
 
             val response = pendingTransaction.awaitInclusion(1, Duration.ofMillis(50), 0)
-            response.isError shouldBe true
-            response.error.shouldBeInstanceOf<RpcResponse.RpcError>()
-            (response.error as RpcResponse.RpcError).message shouldBe errorMessage
+            response.isFailure() shouldBe true
+
+            val error = response.unwrapError()
+            error.shouldBeInstanceOf<PendingInclusion.Error.RpcError>()
+            error.error.message shouldBe errorMessage
         }
 
         test("confirmation response returns error") {
@@ -91,9 +93,11 @@ class PendingTransactionTest : FunSpec({
             mockWebServer.enqueue(generateMockResponse(body = ERROR_RESPONSE_FACTORY(errorMessage)))
 
             val response = pendingTransaction.awaitInclusion(1, Duration.ofMillis(50), 10)
-            response.isError shouldBe true
-            response.error.shouldBeInstanceOf<RpcResponse.RpcError>()
-            (response.error as RpcResponse.RpcError).message shouldBe errorMessage
+            response.isFailure() shouldBe true
+
+            val error = response.unwrapError()
+            error.shouldBeInstanceOf<PendingInclusion.Error.RpcError>()
+            error.error.message shouldBe errorMessage
         }
     }
 })

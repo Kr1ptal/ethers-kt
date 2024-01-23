@@ -6,6 +6,7 @@ import io.ethers.core.types.Hash
 import io.ethers.core.types.Log
 import io.ethers.core.types.LogFilter
 import io.ethers.core.types.Topic
+import io.ethers.providers.RpcError
 import io.ethers.providers.SubscriptionStream
 import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.FilterPoller
@@ -70,7 +71,7 @@ abstract class EventFilterBase<T : ContractEvent, F : EventFilterBase<T, F>>(
      * polls it for new events. It can be used to achieve streaming-like behavior if the provider does not support
      * subscriptions. If the provider supports subscriptions, [subscribe] should be used instead.
      * */
-    fun watch(): RpcRequest<FilterPoller<T>> {
+    fun watch(): RpcRequest<FilterPoller<T>, RpcError> {
         return provider.watchLogs(filter).map { it.mapPoller(::decodeMatchingLogs) }
     }
 
@@ -78,7 +79,7 @@ abstract class EventFilterBase<T : ContractEvent, F : EventFilterBase<T, F>>(
      * Subscribe to events matching this filter. This function should be used instead of [watch] if the provider supports
      * subscriptions.
      * */
-    fun subscribe(): RpcSubscribe<T> {
+    fun subscribe(): RpcSubscribe<T, RpcError> {
         return provider.subscribeLogs(filter).map { stream ->
             // safe cast because we filtered nulls
             @Suppress("UNCHECKED_CAST")
@@ -89,7 +90,7 @@ abstract class EventFilterBase<T : ContractEvent, F : EventFilterBase<T, F>>(
     /**
      * Query for events matching this filter.
      * */
-    fun query(): RpcRequest<List<T>> {
+    fun query(): RpcRequest<List<T>, RpcError> {
         return provider.getLogs(filter).map(::decodeMatchingLogs)
     }
 

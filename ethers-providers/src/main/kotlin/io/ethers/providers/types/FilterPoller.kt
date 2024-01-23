@@ -2,10 +2,13 @@ package io.ethers.providers.types
 
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.core.JsonToken
+import io.ethers.core.asTypeOrNull
+import io.ethers.core.isFailure
 import io.ethers.logger.err
 import io.ethers.logger.getLogger
 import io.ethers.logger.inf
 import io.ethers.providers.BlockingSubscriptionStream
+import io.ethers.providers.RpcError
 import io.ethers.providers.SubscriptionStream
 import io.ethers.providers.middleware.Middleware
 import java.time.Duration
@@ -92,7 +95,7 @@ class FilterPoller<T>(
                 var filterExists = true
                 while (!unsubscribed) {
                     val response = getChangesCall.sendAwait()
-                    if (response.isError) {
+                    if (response.isFailure()) {
                         LOG.err { "Error polling filter '$id': ${response.error}" }
 
                         // The filters persist on the node for some time if there were no polling requests made to it.
@@ -100,7 +103,7 @@ class FilterPoller<T>(
                         // return all of them at the next polling request. If the filter is not found, it means it has
                         // expired, and we should stop polling it.
 
-                        val error = response.error?.asTypeOrNull<RpcResponse.RpcError>()
+                        val error = response.error.asTypeOrNull<RpcError>()
                         if (error?.message?.contains("filter not found") == true) {
                             LOG.err { "Filter '$id' expired, stopping polling thread and unsubscribing" }
 
@@ -110,7 +113,7 @@ class FilterPoller<T>(
                             break
                         }
                     } else {
-                        val result = response.resultOrThrow()
+                        val result = response.unwrap()
                         for (i in result.indices) {
                             stream.pushEvent(result[i])
                         }
@@ -127,7 +130,7 @@ class FilterPoller<T>(
                     ) { it.currentToken() == JsonToken.VALUE_TRUE }
 
                     val response = uninstallCall.sendAwait()
-                    if (response.isError) {
+                    if (response.isFailure()) {
                         LOG.err { "Error uninstalling filter '$id': ${response.error}" }
                     } else {
                         LOG.inf { "Uninstalled filter '$id'" }

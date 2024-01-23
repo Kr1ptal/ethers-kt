@@ -1,6 +1,8 @@
 package io.ethers.providers.types
 
+import io.ethers.core.Result
 import io.ethers.providers.JsonRpcClient
+import io.ethers.providers.RpcError
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -14,8 +16,8 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) {
     private val _requests = ArrayList<RpcCall<*>>(defaultSize)
     internal val requests: List<RpcCall<*>> get() = _requests
 
-    private val _responses = ArrayList<CompletableFuture<RpcResponse<*>>>(defaultSize)
-    internal val responses: List<CompletableFuture<RpcResponse<*>>> get() = _responses
+    private val _responses = ArrayList<CompletableFuture<Result<*, RpcError>>>(defaultSize)
+    internal val responses: List<CompletableFuture<Result<*, RpcError>>> get() = _responses
 
     private var client: JsonRpcClient? = null
 
@@ -25,17 +27,17 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) {
      * NOTE: The returned CompletableFuture should not be awaited until the batch is sent.
      * Doing so will throw an exception to prevent blocking indefinitely.
      */
-    fun <T> addRpcCall(request: RpcCall<T>): CompletableFuture<RpcResponse<T>> {
+    fun <T> addRpcCall(request: RpcCall<T>): CompletableFuture<Result<T, RpcError>> {
         if (client == null) {
             client = request.client
         } else if (client !== request.client) {
             throw IllegalArgumentException("All requests must use the same client")
         }
 
-        val future = BatchCompletableFuture<RpcResponse<T>>(this)
+        val future = BatchCompletableFuture<Result<T, RpcError>>(this)
 
         _requests.add(request)
-        _responses.add(future as CompletableFuture<RpcResponse<*>>)
+        _responses.add(future as CompletableFuture<Result<*, RpcError>>)
 
         return future
     }
@@ -97,13 +99,13 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) {
         // Provide custom JVM names for these function because the name gets mangled due to inline class return type
         @JvmStatic
         @JvmName("sendAwait")
-        fun <T> sendAwait(requests: Iterable<RpcRequest<out T>>): BatchResponse<T> {
+        fun <T, E : Result.Error> sendAwait(requests: Iterable<RpcRequest<out T, E>>): BatchResponse<T, E> {
             return requests.sendAwait()
         }
 
         @JvmStatic
         @JvmName("sendAsync")
-        fun <T> sendAsync(requests: Iterable<RpcRequest<out T>>): BatchResponseAsync<T> {
+        fun <T, E : Result.Error> sendAsync(requests: Iterable<RpcRequest<T, E>>): BatchResponseAsync<T, E> {
             return requests.sendAsync()
         }
     }
@@ -112,7 +114,7 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) {
 /**
  * Unwrap all responses, throwing an exception if any of them is an error.
  * */
-fun <T> Iterable<RpcResponse<out T>>.resultOrThrow(): UnwrappedBatchResponse<T> {
+fun <T, E : Result.Error> Iterable<Result<T, E>>.unwrap(): UnwrappedBatchResponse<T> {
     val iter = this.iterator()
     if (!iter.hasNext()) {
         return UnwrappedBatchResponse(emptyList())
@@ -121,7 +123,7 @@ fun <T> Iterable<RpcResponse<out T>>.resultOrThrow(): UnwrappedBatchResponse<T> 
     val size = if (this is Collection<*>) this.size else 10
     val ret = ArrayList<T>(size)
     while (iter.hasNext()) {
-        ret.add(iter.next().resultOrThrow())
+        ret.add(iter.next().unwrap())
     }
 
     return UnwrappedBatchResponse(ret)
@@ -130,9 +132,9 @@ fun <T> Iterable<RpcResponse<out T>>.resultOrThrow(): UnwrappedBatchResponse<T> 
 /**
  * Batch-send all requests, awaiting the result by blocking the calling thread.
  */
-fun <T> Iterable<RpcRequest<out T>>.sendAwait(): BatchResponse<T> {
+fun <T, E : Result.Error> Iterable<RpcRequest<out T, E>>.sendAwait(): BatchResponse<T, E> {
     val async = sendAsync()
-    val ret = ArrayList<RpcResponse<T>>(async.size)
+    val ret = ArrayList<Result<T, E>>(async.size)
     for (future in async) {
         ret.add(future.join())
     }
@@ -143,17 +145,17 @@ fun <T> Iterable<RpcRequest<out T>>.sendAwait(): BatchResponse<T> {
 /**
  * Batch-send all requests asynchronously.
  */
-fun <T> Iterable<RpcRequest<out T>>.sendAsync(): BatchResponseAsync<T> {
+fun <T, E : Result.Error> Iterable<RpcRequest<out T, E>>.sendAsync(): BatchResponseAsync<T, E> {
     val iter = this.iterator()
     if (!iter.hasNext()) {
         return BatchResponseAsync(emptyList())
     }
 
     val size = if (this is Collection<*>) this.size else 10
-    val futures = ArrayList<CompletableFuture<RpcResponse<T>>>(size)
+    val futures = ArrayList<CompletableFuture<Result<T, E>>>(size)
     val batch = BatchRpcRequest()
     while (iter.hasNext()) {
-        futures.add(iter.next().batch(batch) as CompletableFuture<RpcResponse<T>>)
+        futures.add(iter.next().batch(batch) as CompletableFuture<Result<T, E>>)
     }
 
     batch.sendAsync()
@@ -165,39 +167,39 @@ fun <T> Iterable<RpcRequest<out T>>.sendAsync(): BatchResponseAsync<T> {
 // it gets boxed (e.g. `map`, `forEach`, etc...). But since we're just wrapping and delegating a `List`,
 // it's still pretty cheap.
 @JvmInline
-value class BatchResponseAsync<T>(
-    private val responses: List<CompletableFuture<RpcResponse<T>>>,
-) : List<CompletableFuture<RpcResponse<T>>> by responses {
-    operator fun <O> component1() = responses[0] as CompletableFuture<RpcResponse<O>>
-    operator fun <O> component2() = responses[1] as CompletableFuture<RpcResponse<O>>
-    operator fun <O> component3() = responses[2] as CompletableFuture<RpcResponse<O>>
-    operator fun <O> component4() = responses[3] as CompletableFuture<RpcResponse<O>>
-    operator fun <O> component5() = responses[4] as CompletableFuture<RpcResponse<O>>
-    operator fun <O> component6() = responses[5] as CompletableFuture<RpcResponse<O>>
-    operator fun <O> component7() = responses[6] as CompletableFuture<RpcResponse<O>>
-    operator fun <O> component8() = responses[7] as CompletableFuture<RpcResponse<O>>
-    operator fun <O> component9() = responses[8] as CompletableFuture<RpcResponse<O>>
-    operator fun <O> component10() = responses[9] as CompletableFuture<RpcResponse<O>>
-    operator fun <O> component11() = responses[10] as CompletableFuture<RpcResponse<O>>
-    operator fun <O> component12() = responses[11] as CompletableFuture<RpcResponse<O>>
+value class BatchResponseAsync<T, E : Result.Error>(
+    private val responses: List<CompletableFuture<Result<T, E>>>,
+) : List<CompletableFuture<Result<T, E>>> by responses {
+    operator fun <O, U : Result.Error> component1() = responses[0] as CompletableFuture<Result<O, U>>
+    operator fun <O, U : Result.Error> component2() = responses[1] as CompletableFuture<Result<O, U>>
+    operator fun <O, U : Result.Error> component3() = responses[2] as CompletableFuture<Result<O, U>>
+    operator fun <O, U : Result.Error> component4() = responses[3] as CompletableFuture<Result<O, U>>
+    operator fun <O, U : Result.Error> component5() = responses[4] as CompletableFuture<Result<O, U>>
+    operator fun <O, U : Result.Error> component6() = responses[5] as CompletableFuture<Result<O, U>>
+    operator fun <O, U : Result.Error> component7() = responses[6] as CompletableFuture<Result<O, U>>
+    operator fun <O, U : Result.Error> component8() = responses[7] as CompletableFuture<Result<O, U>>
+    operator fun <O, U : Result.Error> component9() = responses[8] as CompletableFuture<Result<O, U>>
+    operator fun <O, U : Result.Error> component10() = responses[9] as CompletableFuture<Result<O, U>>
+    operator fun <O, U : Result.Error> component11() = responses[10] as CompletableFuture<Result<O, U>>
+    operator fun <O, U : Result.Error> component12() = responses[11] as CompletableFuture<Result<O, U>>
 }
 
 @JvmInline
-value class BatchResponse<T>(
-    private val responses: List<RpcResponse<T>>,
-) : List<RpcResponse<T>> by responses {
-    operator fun <O> component1() = responses[0] as RpcResponse<O>
-    operator fun <O> component2() = responses[1] as RpcResponse<O>
-    operator fun <O> component3() = responses[2] as RpcResponse<O>
-    operator fun <O> component4() = responses[3] as RpcResponse<O>
-    operator fun <O> component5() = responses[4] as RpcResponse<O>
-    operator fun <O> component6() = responses[5] as RpcResponse<O>
-    operator fun <O> component7() = responses[6] as RpcResponse<O>
-    operator fun <O> component8() = responses[7] as RpcResponse<O>
-    operator fun <O> component9() = responses[8] as RpcResponse<O>
-    operator fun <O> component10() = responses[9] as RpcResponse<O>
-    operator fun <O> component11() = responses[10] as RpcResponse<O>
-    operator fun <O> component12() = responses[11] as RpcResponse<O>
+value class BatchResponse<T, E : Result.Error>(
+    private val responses: List<Result<T, E>>,
+) : List<Result<T, E>> by responses {
+    operator fun <O, U : Result.Error> component1() = responses[0] as Result<O, U>
+    operator fun <O, U : Result.Error> component2() = responses[1] as Result<O, U>
+    operator fun <O, U : Result.Error> component3() = responses[2] as Result<O, U>
+    operator fun <O, U : Result.Error> component4() = responses[3] as Result<O, U>
+    operator fun <O, U : Result.Error> component5() = responses[4] as Result<O, U>
+    operator fun <O, U : Result.Error> component6() = responses[5] as Result<O, U>
+    operator fun <O, U : Result.Error> component7() = responses[6] as Result<O, U>
+    operator fun <O, U : Result.Error> component8() = responses[7] as Result<O, U>
+    operator fun <O, U : Result.Error> component9() = responses[8] as Result<O, U>
+    operator fun <O, U : Result.Error> component10() = responses[9] as Result<O, U>
+    operator fun <O, U : Result.Error> component11() = responses[10] as Result<O, U>
+    operator fun <O, U : Result.Error> component12() = responses[11] as Result<O, U>
 }
 
 @JvmInline

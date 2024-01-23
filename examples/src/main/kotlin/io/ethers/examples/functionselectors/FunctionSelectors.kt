@@ -24,7 +24,7 @@ class FunctionSelectors(
     private val wsProvider = Provider(wsClient)
     fun run() {
         // Get current block number
-        val blockNumber = wsProvider.getBlockNumber().sendAwait().resultOrThrow()
+        val blockNumber = wsProvider.getBlockNumber().sendAwait().unwrap()
 
         // Function selector obtained from smart contract wrapper
         val wrapperSelector = abiFunction.selector
@@ -36,7 +36,7 @@ class FunctionSelectors(
         println("Searching for selector from signature:  ${FastHex.encodeWithPrefix(abiFunction.selector)}")
         var blockCounter = blockNumber
         while (blockCounter > blockNumber - maxBlocks) {
-            val block = wsProvider.getBlockWithTransactions(blockCounter).sendAwait().resultOrThrow()
+            val block = wsProvider.getBlockWithTransactions(blockCounter).sendAwait().unwrap()
             println("Searching block: ${block.number}")
 
             // # Searching for transactions with selector from SC wrapper

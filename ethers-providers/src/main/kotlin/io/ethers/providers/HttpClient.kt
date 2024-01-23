@@ -3,13 +3,15 @@ package io.ethers.providers
 import com.fasterxml.jackson.core.JsonParser
 import io.ethers.core.Jackson
 import io.ethers.core.Jackson.createAndInitParser
+import io.ethers.core.Result
+import io.ethers.core.failure
 import io.ethers.core.forEachArrayElement
 import io.ethers.core.forEachObjectField
+import io.ethers.core.success
 import io.ethers.logger.err
 import io.ethers.logger.getLogger
 import io.ethers.logger.trc
 import io.ethers.providers.types.BatchRpcRequest
-import io.ethers.providers.types.RpcResponse
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -64,7 +66,7 @@ class HttpClient @JvmOverloads constructor(
                         if (responseBody == null) {
                             // complete all requests and the batch future
                             for (i in batch.responses.indices) {
-                                batch.responses[i].complete(RESPONSE_NO_RESPONSE_BODY)
+                                batch.responses[i].complete(ERROR_NO_RESPONSE)
                             }
 
                             ret.complete(false)
@@ -83,25 +85,24 @@ class HttpClient @JvmOverloads constructor(
                         Jackson.MAPPER.createAndInitParser(stream).use { p ->
                             var index = 0
                             p.forEachArrayElement {
-                                var result: RpcResponse<*>? = null
+                                var result: Result<*, RpcError>? = null
 
                                 p.forEachObjectField { field ->
                                     when (field) {
                                         "id" -> {}
                                         "jsonrpc" -> {}
                                         "result" -> {
-                                            result = RpcResponse.result(batch.requests[index].resultDecoder.apply(p))
+                                            result = success(batch.requests[index].resultDecoder.apply(p))
                                         }
 
                                         "error" -> {
-                                            val err = Jackson.MAPPER.readValue(p, RpcResponse.RpcError::class.java)
-                                            result = RpcResponse.error<Any>(err)
+                                            result = failure(Jackson.MAPPER.readValue(p, RpcError::class.java))
                                         }
                                     }
                                 }
 
                                 if (result == null) {
-                                    batch.responses[index].complete(RESPONSE_NO_RESULT_OR_ERROR)
+                                    batch.responses[index].complete(ERROR_INVALID_RESPONSE)
                                     return
                                 }
 
@@ -135,8 +136,8 @@ class HttpClient @JvmOverloads constructor(
         method: String,
         params: Array<*>,
         resultDecoder: Function<JsonParser, T>,
-    ): CompletableFuture<RpcResponse<T>> {
-        val ret = CompletableFuture<RpcResponse<T>>()
+    ): CompletableFuture<Result<T, RpcError>> {
+        val ret = CompletableFuture<Result<T, RpcError>>()
 
         val body = createJsonRpcRequestBody(method, params)
         val call = client.newCall(Request.Builder().url(httpUrl).post(body).build())
@@ -145,8 +146,7 @@ class HttpClient @JvmOverloads constructor(
             override fun onFailure(call: Call, e: IOException) {
                 LOG.err(e) { "Error sending request for method=$method, params=${params.contentToString()}" }
 
-                @Suppress("UNCHECKED_CAST")
-                ret.complete(getResponseFromException(e) as RpcResponse<T>)
+                ret.complete(getResponseFromException(e))
             }
 
             override fun onResponse(call: Call, response: Response) {
@@ -154,8 +154,7 @@ class HttpClient @JvmOverloads constructor(
                     try {
                         val responseBody = it.body
                         if (responseBody == null) {
-                            @Suppress("UNCHECKED_CAST")
-                            ret.complete(RESPONSE_NO_RESPONSE_BODY as RpcResponse<T>)
+                            ret.complete(ERROR_NO_RESPONSE)
                             return
                         }
 
@@ -168,22 +167,20 @@ class HttpClient @JvmOverloads constructor(
                         }
 
                         Jackson.MAPPER.createAndInitParser(stream).use { p ->
-                            var result: RpcResponse<T>? = null
+                            var result: Result<T, RpcError>? = null
                             p.forEachObjectField { field ->
                                 when (field) {
                                     "id" -> {}
                                     "jsonrpc" -> {}
-                                    "result" -> result = RpcResponse.result(resultDecoder.apply(p))
+                                    "result" -> result = success(resultDecoder.apply(p))
                                     "error" -> {
-                                        val err = Jackson.MAPPER.readValue(p, RpcResponse.RpcError::class.java)
-                                        result = RpcResponse.error(err)
+                                        result = failure(Jackson.MAPPER.readValue(p, RpcError::class.java))
                                     }
                                 }
                             }
 
                             if (result == null) {
-                                @Suppress("UNCHECKED_CAST")
-                                ret.complete(RESPONSE_NO_RESULT_OR_ERROR as RpcResponse<T>)
+                                ret.complete(ERROR_INVALID_RESPONSE)
                                 return
                             }
 
@@ -192,8 +189,7 @@ class HttpClient @JvmOverloads constructor(
                     } catch (e: Exception) {
                         LOG.err(e) { "Error processing response for method=$method, params=${params.contentToString()}" }
 
-                        @Suppress("UNCHECKED_CAST")
-                        ret.complete(getResponseFromException(e) as RpcResponse<T>)
+                        ret.complete(getResponseFromException(e))
                         return
                     }
                 }
@@ -243,21 +239,29 @@ class HttpClient @JvmOverloads constructor(
     companion object {
         private val JSON_MEDIA_TYPE = "application/json".toMediaType()
 
-        internal val RESPONSE_NO_RESULT_OR_ERROR = RpcResponse.error<Any>(
-            CallFailedError("No 'result' or 'error' fields in response", null),
+        internal val ERROR_INVALID_RESPONSE = failure(
+            RpcError(
+                RpcError.CODE_INVALID_RESPONSE,
+                "No 'result' or 'error' fields in response",
+                null,
+            ),
         )
 
-        internal val RESPONSE_NO_RESPONSE_BODY = RpcResponse.error<Any>(
-            CallFailedError("Response body is null", null),
+        internal val ERROR_NO_RESPONSE = failure(
+            RpcError(
+                RpcError.CODE_NO_RESPONSE,
+                "Response body is null",
+                null,
+            ),
         )
 
-        internal val RESPONSE_CALL_TIMEOUT = RpcResponse.error<Any>(CallTimeoutError)
+        internal val ERROR_CALL_TIMEOUT = failure(RpcError(RpcError.CODE_CALL_TIMEOUT, "Call timeout", null))
 
-        private fun getResponseFromException(e: Exception): RpcResponse<*> {
+        private fun getResponseFromException(e: Exception): Result<Nothing, RpcError> {
             val msg = e.message
             return when {
-                msg != null && msg.contains("timeout") -> RESPONSE_CALL_TIMEOUT
-                else -> RpcResponse.error<Any>(CallFailedError(msg ?: "call failed", e))
+                msg != null && msg.contains("timeout") -> ERROR_CALL_TIMEOUT
+                else -> failure(RpcError(RpcError.CODE_CALL_FAILED, msg ?: "call failed", null, e))
             }
         }
     }

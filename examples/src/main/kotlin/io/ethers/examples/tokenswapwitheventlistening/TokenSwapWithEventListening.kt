@@ -12,7 +12,6 @@ import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
 import kotlinx.cli.default
 import kotlinx.cli.required
-import java.lang.Exception
 import java.math.BigInteger
 
 /**
@@ -35,12 +34,12 @@ class TokenSwapWithEventListening(
 
     fun run() {
         // Get pool address via factory
-        val factoryAddress = router.factory().call(BlockId.LATEST).sendAwait().resultOrThrow()
+        val factoryAddress = router.factory().call(BlockId.LATEST).sendAwait().unwrap()
         val pairAddress = UniswapV2Factory(provider, factoryAddress)
             .getPair(Address(wethAddress), Address(tokenAddress))
             .call(BlockId.LATEST)
             .sendAwait()
-            .resultOrThrow()
+            .unwrap()
 
         if (pairAddress == Address.ZERO) {
             throw Exception("Pair does not exist!")
@@ -55,7 +54,7 @@ class TokenSwapWithEventListening(
             .address(pairAddress)
             .subscribe()
             .sendAwait()
-            .resultOrThrow()
+            .unwrap()
 
         // We use forEachAsync which listens to events in a separate thread, to avoid blocking the caller
         stream.forEachAsync {
@@ -71,10 +70,10 @@ class TokenSwapWithEventListening(
             signer.address, // to
             deadline,
         )
-        val pendingTx = call.value(ethAmount).send(signer).sendAwait().resultOrThrow()
+        val pendingTx = call.value(ethAmount).send(signer).sendAwait().unwrap()
 
         println("Wait for transaction: ${pendingTx.hash} to be included in a block...")
-        val receipt = pendingTx.awaitInclusion(retries = 10).resultOrThrow()
+        val receipt = pendingTx.awaitInclusion(retries = 10).unwrap()
         println("Buy tx ${receipt.transactionHash} was included in block ${receipt.blockNumber}")
 
         // We don't close the wsClient to keep listening to events
