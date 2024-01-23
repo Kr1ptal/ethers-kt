@@ -33,31 +33,19 @@ sealed class Result<out T : Any?, out E : Result.Error> {
         override fun toString() = "Failure($error)"
     }
 
-    // ideally, "isSuccess"/"isFailure" would be properties, but we cannot define contracts for properties
+    /**
+     * Java bridge for [isSuccess] function. Should not be used from kotlin, use extension function instead since
+     * it provides smart casting.
+     * */
+    @JvmName("isSuccess")
+    fun isInstanceOfSuccessJavaBridge(): Boolean = this.isSuccess()
 
     /**
-     * Returns true if [Result] is [Success], false otherwise.
+     * Java bridge for [isFailure] function. Should not be used from kotlin, use extension function instead since
+     * it provides smart casting.
      * */
-    @OptIn(ExperimentalContracts::class)
-    fun isSuccess(): Boolean {
-        contract {
-            returns(true) implies (this@Result is Success<*>)
-            returns(false) implies (this@Result is Failure<*>)
-        }
-        return this is Success<T>
-    }
-
-    /**
-     * Returns true if [Result] is [Failure], false otherwise.
-     * */
-    @OptIn(ExperimentalContracts::class)
-    fun isFailure(): Boolean {
-        contract {
-            returns(false) implies (this@Result is Success<*>)
-            returns(true) implies (this@Result is Failure<*>)
-        }
-        return this is Failure<E>
-    }
+    @JvmName("isFailure")
+    fun isInstanceOfFailureJavaBridge(): Boolean = this.isFailure()
 
     /**
      * Maps a [Result]<[T], [E]> to [Result]<[R], [E]> by applying a function to a [Success] value, leaving a
@@ -69,7 +57,7 @@ sealed class Result<out T : Any?, out E : Result.Error> {
      * Maps a [Result]<[T], [E]> to [Result]<[T], [R]> by applying a function to a [Failure], leaving a
      * [Success] value untouched.
      * */
-    fun <R : Error> mapError(mapper: ResultTransformer<in E, out R>): Result<T, R> {
+    fun <R : Error> mapError(mapper: ResultTransformer<in E, R>): Result<T, R> {
         return fold({ it }, { Failure(mapper(it.error)) })
     }
 
@@ -95,6 +83,11 @@ sealed class Result<out T : Any?, out E : Result.Error> {
     fun unwrap(): T = fold({ it.value }, { it.error.doThrow() })
 
     /**
+     * Unwrap the value if [Result] is [Success], or return null if [Result] is [Failure].
+     * */
+    fun unwrapOrNull(): T? = fold({ it.value }, { null })
+
+    /**
      * Unwrap the value if [Result] is [Success], or return [default] if [Result] is [Failure].
      * */
     fun unwrapElse(default: @UnsafeVariance T): T = fold({ it.value }, { default })
@@ -110,6 +103,11 @@ sealed class Result<out T : Any?, out E : Result.Error> {
      * Unwrap the error if [Result] is [Failure], or throw an exception if [Result] is [Success].
      * */
     fun unwrapError(): E = fold({ throw IllegalStateException("Cannot unwrap success as error") }, { it.error })
+
+    /**
+     * Unwrap the error if [Result] is [Failure], or return null if [Result] is [Success].
+     * */
+    fun unwrapErrorOrNull(): E? = fold({ null }, { it.error })
 
     /**
      * Unwrap the error if [Result] is [Failure], or return [default] if [Result] is [Success].
@@ -164,14 +162,6 @@ sealed class Result<out T : Any?, out E : Result.Error> {
         }
     }
 
-    /**
-     * Cast [Error] to [T] or return null if error is not of type [T].
-     * Useful for accessing details of specific error subclass.
-     */
-    inline fun <reified T : Error> Error.asTypeOrNull(): T? {
-        return asTypeOrNull(T::class.java)
-    }
-
     companion object {
         /**
          * Return a [Result.Success] with the given [value].
@@ -185,6 +175,44 @@ sealed class Result<out T : Any?, out E : Result.Error> {
         @JvmStatic
         fun <T : Any?, E : Error> failure(error: E): Result<T, E> = Failure(error)
     }
+}
+
+// Ideally, "isSuccess"/"isFailure" would be properties, but we cannot define contracts for properties.
+// They would also be defined as a methods on Result, but due to a compiler bug, the "implies" in contracts
+// would not work. We use extension functions in kotlin, and normal methods from java.
+//
+// see: https://youtrack.jetbrains.com/issue/KT-57869/Unresolved-reference-from-kotlin-contract-when-building-project#focus=Comments-27-7316591.0-0
+
+/**
+ * Returns true if [Result] is [Success], false otherwise.
+ * */
+@OptIn(ExperimentalContracts::class)
+fun <T, E : Result.Error> Result<T, E>.isSuccess(): Boolean {
+    contract {
+        returns(true) implies (this@isSuccess is Success<T>)
+        returns(false) implies (this@isSuccess is Failure<E>)
+    }
+    return this is Success<T>
+}
+
+/**
+ * Returns true if [Result] is [Failure], false otherwise.
+ * */
+@OptIn(ExperimentalContracts::class)
+fun <T, E : Result.Error> Result<T, E>.isFailure(): Boolean {
+    contract {
+        returns(false) implies (this@isFailure is Success<T>)
+        returns(true) implies (this@isFailure is Failure<E>)
+    }
+    return this is Failure<E>
+}
+
+/**
+ * Cast [Error] to [T] or return null if error is not of type [T].
+ * Useful for accessing details of specific error subclass.
+ */
+inline fun <reified T : Result.Error> Result.Error.asTypeOrNull(): T? {
+    return asTypeOrNull(T::class.java)
 }
 
 /**
@@ -214,6 +242,29 @@ fun <T : Any?> success(value: T): Result<T, Nothing> = Result.success(value)
  * */
 @JvmSynthetic
 fun <E : Result.Error> failure(error: E) = Result.failure<Nothing, E>(error)
+
+/**
+ * Unwrap the value if [Result] is [Success], or call the [onFailure] function which must either
+ * throw or return from the enclosing function. This is useful when short-circuiting execution by
+ * returning from a function on error, e.g.:
+ *
+ * ```kotlin
+ * val input = "invalid input"
+ * val addr = response.unwrapOrReturn { cause ->
+ *     return failure(CustomError.InvalidAddress(input, cause))
+ * }
+ * ```
+ * */
+@OptIn(ExperimentalContracts::class)
+inline fun <R, T : R, E : Result.Error> Result<T, E>.unwrapOrReturn(onFailure: (E) -> Nothing): R {
+    contract { callsInPlace(onFailure, InvocationKind.AT_MOST_ONCE) }
+
+    if (isSuccess()) {
+        return this.value
+    } else {
+        onFailure(this.unwrapError())
+    }
+}
 
 /**
  * An error that wraps an exception.
