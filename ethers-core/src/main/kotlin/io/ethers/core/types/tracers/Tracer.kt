@@ -28,8 +28,8 @@ data class TracerConfig<T> @JvmOverloads constructor(
     val tracer: Tracer<T>,
     val timeoutMs: Long = -1L,
     val reexec: Long = -1L,
-    val stateOverride: Map<Address, AccountOverride>? = null,
-    val blockOverride: BlockOverride? = null,
+    val stateOverrides: Map<Address, AccountOverride>? = null,
+    val blockOverrides: BlockOverride? = null,
 )
 
 private class TracerConfigSerializer : JsonSerializer<TracerConfig<*>>() {
@@ -52,11 +52,11 @@ private class TracerConfigSerializer : JsonSerializer<TracerConfig<*>>() {
         if (value.reexec >= 0) {
             gen.writeNumberField("reexec", value.reexec)
         }
-        if (!value.stateOverride.isNullOrEmpty()) {
-            gen.writeObjectField("stateOverride", value.stateOverride)
+        if (!value.stateOverrides.isNullOrEmpty()) {
+            gen.writeObjectField("stateOverrides", value.stateOverrides)
         }
-        if (value.blockOverride != null) {
-            gen.writeObjectField("blockOverride", value.blockOverride)
+        if (value.blockOverrides != null) {
+            gen.writeObjectField("blockOverrides", value.blockOverrides)
         }
 
         gen.writeEndObject()

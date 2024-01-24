@@ -33,7 +33,7 @@ class TracerTest : FunSpec({
                         nonce(5)
                     },
                 ),
-                blockOverride = BlockOverride {
+                blockOverrides = BlockOverride {
                     number(1L)
                 },
             )
@@ -49,8 +49,8 @@ class TracerTest : FunSpec({
                   "overrides": ${Jackson.MAPPER.writeValueAsString(structTracer.overrides)},
                   "timeout": "${config.timeoutMs}ms",
                   "reexec": ${config.reexec},
-                  "stateOverride": ${Jackson.MAPPER.writeValueAsString(config.stateOverride)},
-                  "blockOverride": ${Jackson.MAPPER.writeValueAsString(config.blockOverride)}
+                  "stateOverrides": ${Jackson.MAPPER.writeValueAsString(config.stateOverrides)},
+                  "blockOverrides": ${Jackson.MAPPER.writeValueAsString(config.blockOverrides)}
                 }
             """
         }
@@ -65,7 +65,7 @@ class TracerTest : FunSpec({
                         nonce(5)
                     },
                 ),
-                blockOverride = BlockOverride {
+                blockOverrides = BlockOverride {
                     number(1L)
                 },
             )
@@ -76,8 +76,8 @@ class TracerTest : FunSpec({
                   "tracerConfig": {},
                   "timeout": "${config.timeoutMs}ms",
                   "reexec": ${config.reexec},
-                  "stateOverride": ${Jackson.MAPPER.writeValueAsString(config.stateOverride)},
-                  "blockOverride": ${Jackson.MAPPER.writeValueAsString(config.blockOverride)}
+                  "stateOverrides": ${Jackson.MAPPER.writeValueAsString(config.stateOverrides)},
+                  "blockOverrides": ${Jackson.MAPPER.writeValueAsString(config.blockOverrides)}
                 }
             """
         }
