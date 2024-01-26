@@ -26,7 +26,7 @@ jobs:
       - uses: ./.github/actions/environment-setup
 
       - name: Gradle test
-        run: ./gradlew test --no-watch-fs --stacktrace -Dlog.level=debug
+        run: ./gradlew test --no-watch-fs --stacktrace --continue -Dlog.level=debug
 
       - name: Gradle ktlint
         run: ./gradlew ktlintCheck --no-watch-fs --stacktrace
@@ -35,4 +35,4 @@ jobs:
         if: failure()
         with:
           name: report-unit-test
-          path: build/reports/unit-test/
+          path: build/reports/tests/unit-test/

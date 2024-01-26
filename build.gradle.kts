@@ -1,22 +1,36 @@
 plugins {
     `project-conventions`
     `jacoco-report-aggregation`
+    id("test-report-aggregation")
 }
 
 dependencies {
-    jacocoAggregation(project(":ethers-abi"))
-    jacocoAggregation(project(":ethers-abigen"))
-    jacocoAggregation(project(":ethers-abigen-plugin"))
-    jacocoAggregation(project(":ethers-core"))
-    jacocoAggregation(project(":ethers-crypto"))
-    jacocoAggregation(project(":ethers-providers"))
-    jacocoAggregation(project(":ethers-rlp"))
-    jacocoAggregation(project(":ethers-signers"))
-    jacocoAggregation(project(":logger"))
+    // contains only submodules that are released
+    val releasedSubmodules = listOf(
+        ":ethers-abi",
+        ":ethers-abigen",
+        ":ethers-abigen-plugin",
+        ":ethers-core",
+        ":ethers-crypto",
+        ":ethers-ens",
+        ":ethers-providers",
+        ":ethers-rlp",
+        ":ethers-signers",
+        ":logger",
+    )
+
+    releasedSubmodules.forEach {
+        jacocoAggregation(project(it))
+        testReportAggregation(project(it))
+    }
 }
 
 tasks.withType<Test> {
     finalizedBy(tasks.named<JacocoReport>("testCodeCoverageReport"))
+}
+
+tasks.check {
+    dependsOn(tasks.named<TestReport>("testAggregateTestReport"))
 }
 
 allprojects {
