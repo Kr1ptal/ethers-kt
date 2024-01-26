@@ -1,8 +1,11 @@
 package io.ethers.ens
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+import io.ethers.core.Result
+import io.ethers.core.failure
+import io.ethers.core.success
 import io.ethers.core.types.Address
-import io.ethers.providers.types.RpcResponse
+import io.ethers.core.unwrapOrReturn
 import java.math.BigInteger
 import java.net.URI
 
@@ -25,39 +28,30 @@ internal class AvatarNFT private constructor(
          *
          * Returns error [EnsMiddleware.Error.AvatarParsing].
          */
-        fun parse(avatarUri: URI): RpcResponse<AvatarNFT> {
-            val dataArr = avatarUri.toString().removePrefix("eip155:1/").split(":")
-            if (dataArr.size != 2) {
-                return RpcResponse.error(EnsMiddleware.Error.AvatarParsing("Unsupported URI link: $avatarUri", null))
+        fun parse(avatarUri: URI): Result<AvatarNFT, EnsMiddleware.Error> {
+            val data = avatarUri.toString().removePrefix("eip155:1/").split(":")
+            if (data.size != 2) {
+                return failure(EnsMiddleware.Error.AvatarParsing("Unsupported URI link: $avatarUri", null))
             }
 
-            val nftType = runCatching { AvatarNFTType.valueOf(dataArr[0].uppercase()) }
-                .getOrElse {
-                    return RpcResponse.error(
-                        EnsMiddleware.Error.AvatarParsing("Unsupported URI token type: ${dataArr[0]}", null),
-                    )
-                }
-
-            val innerDataArr = dataArr[1].split("/")
-            if (innerDataArr.size != 2) {
-                return RpcResponse.error(EnsMiddleware.Error.AvatarParsing("Unsupported URI link path: $avatarUri", null))
+            val inner = data[1].split("/")
+            if (inner.size != 2) {
+                return failure(EnsMiddleware.Error.AvatarParsing("Unsupported URI link path: $avatarUri", null))
             }
 
-            val nftAddr = runCatching { Address(innerDataArr[0]) }
-                .getOrElse {
-                    return RpcResponse.error(
-                        EnsMiddleware.Error.AvatarParsing("Invalid URI NFT contract address: ${innerDataArr[0]}", it),
-                    )
-                }
+            val nftType = runCatching { AvatarNFTType.valueOf(data[0].uppercase()) }.unwrapOrReturn {
+                return failure(EnsMiddleware.Error.AvatarParsing("Unsupported URI token type: ${data[0]}", it))
+            }
 
-            val tokenId = runCatching { BigInteger(innerDataArr[1]) }
-                .getOrElse {
-                    return RpcResponse.error(
-                        EnsMiddleware.Error.AvatarParsing("Unsupported URI token id type: ${innerDataArr[1]}", it),
-                    )
-                }
+            val nftAddr = runCatching { Address(inner[0]) }.unwrapOrReturn {
+                return failure(EnsMiddleware.Error.AvatarParsing("Invalid URI NFT contract address: ${inner[0]}", it))
+            }
 
-            return RpcResponse.result(AvatarNFT(nftType, nftAddr, tokenId))
+            val tokenId = runCatching { BigInteger(inner[1]) }.unwrapOrReturn {
+                return failure(EnsMiddleware.Error.AvatarParsing("Unsupported URI token id type: ${inner[1]}", it))
+            }
+
+            return success(AvatarNFT(nftType, nftAddr, tokenId))
         }
     }
 }

@@ -1,7 +1,11 @@
 package io.ethers.abi.call
 
 import io.ethers.abi.AbiContract
+import io.ethers.abi.error.ContractError
 import io.ethers.abi.error.DeployError
+import io.ethers.core.Result
+import io.ethers.core.failure
+import io.ethers.core.success
 import io.ethers.core.types.AccountOverride
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
@@ -10,7 +14,6 @@ import io.ethers.core.types.Hash
 import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.PendingInclusion
 import io.ethers.providers.types.PendingTransaction
-import io.ethers.providers.types.RpcResponse
 import java.math.BigInteger
 import java.time.Duration
 import java.util.function.BiFunction
@@ -80,14 +83,14 @@ data class CallDeploy(val address: Address, val deployedBytecode: Bytes) {
     }
 }
 
-private fun handleCallResult(call: CallRequest, result: Bytes): RpcResponse<CallDeploy> {
+private fun handleCallResult(call: CallRequest, result: Bytes): Result<CallDeploy, ContractError> {
     if (result.size == 0) {
-        return RpcResponse.error(DeployError.NO_BYTECODE)
+        return failure(DeployError.NoBytecode)
     }
 
     val nonce = if (call.nonce == -1L) 0L else call.nonce
     val deployAddress: Address = Address.computeCreate(call.from ?: Address.ZERO, nonce)
-    return RpcResponse.result(CallDeploy(deployAddress, result))
+    return success(CallDeploy(deployAddress, result))
 }
 
 private fun <T : AbiContract> handleSendResult(
@@ -106,18 +109,17 @@ class PendingContractDeploy<T : AbiContract>(
     val hash: Hash
         get() = result.hash
 
-    override fun awaitInclusion(retries: Int, interval: Duration, confirmations: Int): RpcResponse<T> {
-        val pending = result.awaitInclusion(retries, interval, confirmations)
-        if (pending.isError) {
-            return pending.propagateError()
+    override fun awaitInclusion(
+        retries: Int,
+        interval: Duration,
+        confirmations: Int,
+    ): Result<T, PendingInclusion.Error> {
+        return result.awaitInclusion(retries, interval, confirmations).andThen {
+            when {
+                !it.isSuccessful || it.contractAddress == null -> failure(PendingInclusion.Error.TxFailed(hash, it))
+                else -> success(constructor.apply(provider, it.contractAddress!!))
+            }
         }
-
-        val receipt = pending.resultOrThrow()
-        if (!receipt.isSuccessful || receipt.contractAddress == null) {
-            return RpcResponse.error(DeployError.TX_FAILED)
-        }
-
-        return RpcResponse.result(constructor.apply(provider, receipt.contractAddress!!))
     }
 
     override fun toString(): String {

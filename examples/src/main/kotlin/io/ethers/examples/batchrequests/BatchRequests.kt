@@ -8,7 +8,7 @@ import io.ethers.providers.Provider
 import io.ethers.providers.types.BatchRpcRequest
 import io.ethers.providers.types.await
 import io.ethers.providers.types.batchRequest
-import io.ethers.providers.types.resultOrThrow
+import io.ethers.providers.types.unwrap
 import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
 import kotlinx.cli.default
@@ -39,7 +39,7 @@ class BatchRequests(
         var (uniReserves, sushiReserves) = batchRequest(
             uniPool.getReserves().call(BlockId.LATEST),
             sushiPool.getReserves().call(BlockId.LATEST),
-        ).await().resultOrThrow()
+        ).await().unwrap()
 
         uniWethPrice = uniReserves._reserve0.toBigDecimal(6) / uniReserves._reserve1.toBigDecimal(18)
         sushiWethPrice = sushiReserves._reserve0.toBigDecimal(6) / sushiReserves._reserve1.toBigDecimal(18)
@@ -63,10 +63,10 @@ class BatchRequests(
 
         if (batch.sendAwait()) {
             // success
-            uniReserves = uniFuture.get().resultOrThrow()
+            uniReserves = uniFuture.get().unwrap()
             uniWethPrice = uniReserves._reserve0.toBigDecimal(6) / uniReserves._reserve1.toBigDecimal(18)
 
-            sushiReserves = sushiFuture.get().resultOrThrow()
+            sushiReserves = sushiFuture.get().unwrap()
             sushiWethPrice = sushiReserves._reserve0.toBigDecimal(6) / sushiReserves._reserve1.toBigDecimal(18)
 
             println(

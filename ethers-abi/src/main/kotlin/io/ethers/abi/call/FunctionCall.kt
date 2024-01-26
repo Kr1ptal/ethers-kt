@@ -1,10 +1,10 @@
 package io.ethers.abi.call
 
+import io.ethers.core.success
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.PendingTransaction
-import io.ethers.providers.types.RpcResponse
 import java.math.BigInteger
 import java.util.function.Function
 
@@ -23,7 +23,7 @@ class FunctionCall<T>(
     override val self: FunctionCall<T>
         get() = this
 
-    override fun handleCallResult(result: Bytes) = RpcResponse.result(decoder.apply(result))
+    override fun handleCallResult(result: Bytes) = success(decoder.apply(result))
     override fun handleSendResult(result: PendingTransaction) = result
 }
 
@@ -42,7 +42,7 @@ class ReadFunctionCall<T>(
     override val self: ReadFunctionCall<T>
         get() = this
 
-    override fun handleCallResult(result: Bytes) = RpcResponse.result(decoder.apply(result))
+    override fun handleCallResult(result: Bytes) = success(decoder.apply(result))
 }
 
 class PayableFunctionCall<T>(
@@ -60,7 +60,7 @@ class PayableFunctionCall<T>(
     override val self: PayableFunctionCall<T>
         get() = this
 
-    override fun handleCallResult(result: Bytes) = RpcResponse.result(decoder.apply(result))
+    override fun handleCallResult(result: Bytes) = success(decoder.apply(result))
     override fun handleSendResult(result: PendingTransaction) = result
 
     var value: BigInteger?
@@ -75,7 +75,7 @@ class PayableFunctionCall<T>(
     }
 }
 
-private val UNIT_RESPONSE = RpcResponse.result(Unit)
+private val UNIT_RESPONSE = success(Unit)
 
 class ReceiveFunctionCall(
     provider: Middleware,

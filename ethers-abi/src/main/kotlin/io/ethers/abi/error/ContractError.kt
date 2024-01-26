@@ -3,15 +3,16 @@ package io.ethers.abi.error
 import io.ethers.abi.AbiCodec
 import io.ethers.abi.AbiFunction
 import io.ethers.abi.AbiType
+import io.ethers.core.Result
 import io.ethers.core.types.Bytes
-import io.ethers.providers.types.RpcResponse
+import io.ethers.providers.RpcError
 import java.math.BigInteger
 import java.util.Arrays
 
 /**
  * Error returned from a contract call.
  * */
-sealed class ContractError : RpcResponse.Error() {
+sealed class ContractError : Result.Error {
     companion object {
         /**
          * Try to get either [PanicError], [RevertError], or [CustomContractError] from provided [data].
@@ -176,7 +177,7 @@ interface CustomErrorFactory<T : CustomContractError> {
  * Error returned when decoding the result of a contract call fails.
  * */
 data class DecodingError(val result: Bytes, val exception: Exception) : ContractError() {
-    override fun doThrow() {
+    override fun doThrow(): Nothing {
         throw RuntimeException("Unable to decode result", exception)
     }
 }
@@ -185,9 +186,15 @@ data class DecodingError(val result: Bytes, val exception: Exception) : Contract
  * Error returned when a contract deploy fails. This happens when no response is returned by the RPC when deploying a
  * contract.
  * */
-data class DeployError(val msg: String) : ContractError() {
-    companion object {
-        val TX_FAILED = DeployError("Transaction failed")
-        val NO_BYTECODE = DeployError("No deployed bytecode returned by the RPC")
+sealed class DeployError(val msg: String) : ContractError() {
+    data object NoBytecode : DeployError("No bytecode returned by the RPC")
+}
+
+/**
+ * Error returned when a contract RPC call fails.
+ * */
+data class ContractRpcError(val cause: RpcError) : ContractError() {
+    override fun doThrow(): Nothing {
+        throw RuntimeException("RPC error while calling contract function: $cause")
     }
 }

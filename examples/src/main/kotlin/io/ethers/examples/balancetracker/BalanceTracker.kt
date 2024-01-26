@@ -6,6 +6,7 @@ import io.ethers.examples.gen.ERC20
 import io.ethers.providers.Provider
 import io.ethers.providers.WsClient
 import io.ethers.providers.types.sendAwait
+import io.ethers.providers.types.unwrap
 import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
 import kotlinx.cli.default
@@ -30,21 +31,21 @@ class BalanceTracker(
 
         // Get symbols and decimals for each token
         // When using .sendAwait on a list of RpcRequests, it returns a BatchResponse that we can iterate through to retrieve the results
-        val symbols = tokens.map { it.symbol().call(BlockId.LATEST) }.sendAwait().map { it.resultOrThrow() }
-        val decimals = tokens.map { it.decimals().call(BlockId.LATEST) }.sendAwait().map { it.resultOrThrow() }
+        val symbols = tokens.map { it.symbol().call(BlockId.LATEST) }.sendAwait().unwrap()
+        val decimals = tokens.map { it.decimals().call(BlockId.LATEST) }.sendAwait().unwrap()
 
         // Get balances for ETH and each token
-        var balanceEth = provider.getBalance(address, BlockId.LATEST).sendAwait().resultOrThrow()
-        var balances = tokens.map { it.balanceOf(address).call(BlockId.LATEST) }.sendAwait().map { it.resultOrThrow() }
+        var balanceEth = provider.getBalance(address, BlockId.LATEST).sendAwait().unwrap()
+        var balances = tokens.map { it.balanceOf(address).call(BlockId.LATEST) }.sendAwait().unwrap()
 
-        println("Balances for block ${provider.getBlockNumber().sendAwait().resultOrThrow()}")
+        println("Balances for block ${provider.getBlockNumber().sendAwait().unwrap()}")
         println("ETH - ${balanceEth.toBigDecimal(18).toPlainString()}")
         displayTokenBalances(symbols, decimals, balances)
 
         // For each new block, update token balances and display them
-        provider.subscribeNewHeads().sendAwait().resultOrThrow().forEach { head ->
-            balanceEth = provider.getBalance(address, BlockId.LATEST).sendAwait().resultOrThrow()
-            balances = tokens.map { it.balanceOf(address).call(BlockId.LATEST) }.sendAwait().map { it.resultOrThrow() }
+        provider.subscribeNewHeads().sendAwait().unwrap().forEach { head ->
+            balanceEth = provider.getBalance(address, BlockId.LATEST).sendAwait().unwrap()
+            balances = tokens.map { it.balanceOf(address).call(BlockId.LATEST) }.sendAwait().unwrap()
 
             println("\nBalances for block ${head.number}")
             println("ETH - ${balanceEth.toBigDecimal(18).toPlainString()}")

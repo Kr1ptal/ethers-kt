@@ -1,7 +1,7 @@
 package io.ethers.providers
 
 import com.fasterxml.jackson.core.JsonParser
-import io.ethers.providers.types.RpcResponse
+import io.ethers.core.Result
 import org.jctools.queues.SpscUnboundedArrayQueue
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ThreadFactory
@@ -22,7 +22,7 @@ interface JsonPubSubClient : JsonRpcClient {
     fun <T> subscribe(
         params: Array<*>,
         resultType: Class<T>,
-    ): CompletableFuture<RpcResponse<SubscriptionStream<T>>> {
+    ): CompletableFuture<Result<SubscriptionStream<T>, RpcError>> {
         return subscribe(params) { p -> p.readValueAs(resultType) }
     }
 
@@ -35,7 +35,7 @@ interface JsonPubSubClient : JsonRpcClient {
     fun <T> subscribe(
         params: Array<*>,
         resultDecoder: Function<JsonParser, T>,
-    ): CompletableFuture<RpcResponse<SubscriptionStream<T>>>
+    ): CompletableFuture<Result<SubscriptionStream<T>, RpcError>>
 }
 
 private val STREAM_DAEMON_FACTORY = ThreadFactory { r ->

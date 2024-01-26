@@ -1,34 +1,31 @@
 package io.ethers.providers.types
 
 import com.fasterxml.jackson.core.JsonParser
+import io.ethers.core.Result
 import io.ethers.providers.JsonPubSubClient
+import io.ethers.providers.RpcError
 import io.ethers.providers.SubscriptionStream
 import java.util.concurrent.CompletableFuture
 import java.util.function.Function
 
-interface RpcSubscribe<T> {
+interface RpcSubscribe<T, E : Result.Error> {
     /**
      * Subscribe to stream via RPC and await the subscription response by blocking calling thread.
      */
-    fun sendAwait(): RpcResponse<SubscriptionStream<T>>
+    fun sendAwait(): Result<SubscriptionStream<T>, E>
 
     /**
      * Asynchronously subscribe to stream via RPC.
      */
-    fun sendAsync(): CompletableFuture<RpcResponse<SubscriptionStream<T>>>
+    fun sendAsync(): CompletableFuture<Result<SubscriptionStream<T>, E>>
 
     /**
      * Map the returned response if the call was successful, skipping if it failed.
      *
      * The function will be executed asynchronously after the request is sent and response received.
      */
-    fun <R> map(mapper: Function<SubscriptionStream<T>, SubscriptionStream<R>>): RpcSubscribe<R> {
-        return MappingRpcSubscribe(this) { response ->
-            when {
-                response.isError -> response.propagateError()
-                else -> RpcResponse.result(mapper.apply(response.result!!))
-            }
-        }
+    fun <R> map(mapper: Result.Transformer<SubscriptionStream<T>, SubscriptionStream<R>>): RpcSubscribe<R, E> {
+        return MappingRpcSubscribe(this) { it.map(mapper) }
     }
 
     /**
@@ -36,13 +33,8 @@ interface RpcSubscribe<T> {
      *
      * The function will be executed asynchronously after the request is sent and response received.
      */
-    fun mapError(mapper: Function<RpcResponse.Error, RpcResponse.Error>): RpcSubscribe<T> {
-        return MappingRpcSubscribe(this) { response ->
-            when {
-                response.isError -> RpcResponse.error(mapper.apply(response.error!!))
-                else -> response
-            }
-        }
+    fun <R : Result.Error> mapError(mapper: Result.Transformer<E, R>): RpcSubscribe<T, R> {
+        return MappingRpcSubscribe(this) { it.mapError(mapper) }
     }
 
     /**
@@ -51,13 +43,8 @@ interface RpcSubscribe<T> {
      *
      * The function will be executed asynchronously after the request is sent and response received.
      */
-    fun <R> andThen(mapper: Function<SubscriptionStream<T>, RpcResponse<SubscriptionStream<R>>>): RpcSubscribe<R> {
-        return MappingRpcSubscribe(this) { response ->
-            when {
-                response.isError -> response.propagateError()
-                else -> mapper.apply(response.result!!)
-            }
-        }
+    fun <R> andThen(mapper: Result.Transformer<SubscriptionStream<T>, Result<SubscriptionStream<R>, E>>): RpcSubscribe<R, E> {
+        return MappingRpcSubscribe(this) { it.andThen(mapper) }
     }
 
     /**
@@ -66,13 +53,8 @@ interface RpcSubscribe<T> {
      *
      * The function will be executed asynchronously after the request is sent and response received.
      */
-    fun orElse(mapper: Function<RpcResponse.Error, RpcResponse<SubscriptionStream<T>>>): RpcSubscribe<T> {
-        return MappingRpcSubscribe(this) { response ->
-            when {
-                response.isError -> mapper.apply(response.error!!)
-                else -> response
-            }
-        }
+    fun <R : Result.Error> orElse(mapper: Result.Transformer<E, Result<SubscriptionStream<T>, R>>): RpcSubscribe<T, R> {
+        return MappingRpcSubscribe(this) { it.orElse(mapper) }
     }
 }
 
@@ -83,7 +65,7 @@ class RpcSubscribeCall<T>(
     private val client: JsonPubSubClient,
     private val params: Array<*>,
     private val resultDecoder: Function<JsonParser, T>,
-) : RpcSubscribe<T> {
+) : RpcSubscribe<T, RpcError> {
     constructor(
         client: JsonPubSubClient,
         params: Array<*>,
@@ -91,7 +73,7 @@ class RpcSubscribeCall<T>(
     ) : this(client, params, { p -> p.readValueAs(resultType) })
 
     override fun sendAwait() = sendAsync().join()
-    override fun sendAsync(): CompletableFuture<RpcResponse<SubscriptionStream<T>>> {
+    override fun sendAsync(): CompletableFuture<Result<SubscriptionStream<T>, RpcError>> {
         return client.subscribe(params, resultDecoder)
     }
 
@@ -103,13 +85,13 @@ class RpcSubscribeCall<T>(
 /**
  * Stream subscription via RPC which uses [mapper] function to remap [SubscriptionStream].
  */
-private class MappingRpcSubscribe<I, O>(
-    private val request: RpcSubscribe<I>,
-    private val mapper: Function<RpcResponse<SubscriptionStream<I>>, RpcResponse<SubscriptionStream<O>>>,
-) : RpcSubscribe<O> {
-    override fun sendAwait(): RpcResponse<SubscriptionStream<O>> = sendAsync().join()
+private class MappingRpcSubscribe<I, O, E : Result.Error, U : Result.Error>(
+    private val request: RpcSubscribe<I, E>,
+    private val mapper: Function<Result<SubscriptionStream<I>, E>, Result<SubscriptionStream<O>, U>>,
+) : RpcSubscribe<O, U> {
+    override fun sendAwait(): Result<SubscriptionStream<O>, U> = sendAsync().join()
 
-    override fun sendAsync(): CompletableFuture<RpcResponse<SubscriptionStream<O>>> =
+    override fun sendAsync(): CompletableFuture<Result<SubscriptionStream<O>, U>> =
         request.sendAsync().thenApplyAsync(mapper)
 
     override fun toString(): String {

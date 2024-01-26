@@ -7,8 +7,11 @@ import com.fasterxml.jackson.core.util.BufferRecycler
 import com.fasterxml.jackson.databind.util.TokenBuffer
 import io.ethers.core.Jackson
 import io.ethers.core.Jackson.createAndInitParser
+import io.ethers.core.Result
+import io.ethers.core.failure
 import io.ethers.core.forEachObjectField
 import io.ethers.core.isNextTokenArrayEnd
+import io.ethers.core.success
 import io.ethers.logger.dbg
 import io.ethers.logger.err
 import io.ethers.logger.getLogger
@@ -16,7 +19,6 @@ import io.ethers.logger.inf
 import io.ethers.logger.trc
 import io.ethers.logger.wrn
 import io.ethers.providers.types.BatchRpcRequest
-import io.ethers.providers.types.RpcResponse
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -342,7 +344,7 @@ class WsClient @JvmOverloads constructor(
             var method: String? = null
             var resultBuffer: TokenBuffer? = null
             var paramsBuffer: TokenBuffer? = null
-            var error: RpcResponse.RpcError? = null
+            var error: RpcError? = null
 
             parser.forEachObjectField { field ->
                 when (field) {
@@ -371,7 +373,7 @@ class WsClient @JvmOverloads constructor(
                         paramsBuffer!!.copyCurrentStructure(parser)
                     }
 
-                    "error" -> error = Jackson.MAPPER.readValue(parser, RpcResponse.RpcError::class.java)
+                    "error" -> error = Jackson.MAPPER.readValue(parser, RpcError::class.java)
 
                     // TODO if we have id, complete the request with error
                     else -> throw Exception("Invalid response: $text")
@@ -413,7 +415,7 @@ class WsClient @JvmOverloads constructor(
                 // result after we identify the batch.
 
                 var result: Any? = null
-                var error: RpcResponse.RpcError? = null
+                var error: RpcError? = null
                 var buffer: TokenBuffer? = null
                 p.forEachObjectField { field ->
                     when (field) {
@@ -428,7 +430,7 @@ class WsClient @JvmOverloads constructor(
                             }
                         }
 
-                        "error" -> error = Jackson.MAPPER.readValue(p, RpcResponse.RpcError::class.java)
+                        "error" -> error = Jackson.MAPPER.readValue(p, RpcError::class.java)
                         else -> throw Exception("Invalid response: $text")
                     }
                 }
@@ -443,11 +445,11 @@ class WsClient @JvmOverloads constructor(
                 }
 
                 if (result == null && error == null) {
-                    batch!!.request.responses[responseIndex].complete(HttpClient.RESPONSE_NO_RESULT_OR_ERROR)
+                    batch!!.request.responses[responseIndex].complete(HttpClient.ERROR_INVALID_RESPONSE)
                 } else {
                     val response = when {
-                        result != null -> RpcResponse.result(result)
-                        else -> RpcResponse.error(error!!)
+                        result != null -> success(result)
+                        else -> failure(error!!)
                     }
 
                     batch!!.request.responses[responseIndex].complete(response)
@@ -459,23 +461,23 @@ class WsClient @JvmOverloads constructor(
             }
 
             var result: Any? = null
-            var error: RpcResponse.RpcError? = null
+            var error: RpcError? = null
             p.forEachObjectField { field ->
                 when (field) {
                     "id" -> {}
                     "jsonrpc" -> {}
                     "result" -> result = batch!!.request.requests[responseIndex].resultDecoder.apply(p)
-                    "error" -> error = Jackson.MAPPER.readValue(p, RpcResponse.RpcError::class.java)
+                    "error" -> error = Jackson.MAPPER.readValue(p, RpcError::class.java)
                     else -> throw Exception("Invalid response: $text")
                 }
             }
 
             if (result == null && error == null) {
-                batch!!.request.responses[responseIndex].complete(HttpClient.RESPONSE_NO_RESULT_OR_ERROR)
+                batch!!.request.responses[responseIndex].complete(HttpClient.ERROR_INVALID_RESPONSE)
             } else {
                 val response = when {
-                    result != null -> RpcResponse.result(result)
-                    else -> RpcResponse.error(error!!)
+                    result != null -> success(result)
+                    else -> failure(error!!)
                 }
                 batch!!.request.responses[responseIndex].complete(response)
             }
@@ -486,7 +488,7 @@ class WsClient @JvmOverloads constructor(
         batch!!.future.complete(true)
     }
 
-    private fun handleResponse(id: Long, resultParser: JsonParser, error: RpcResponse.RpcError?) {
+    private fun handleResponse(id: Long, resultParser: JsonParser, error: RpcError?) {
         val request = inFlightRequests.remove(id)
         if (request != null) {
             handleRequestResponse(id, request, resultParser, error)
@@ -509,16 +511,15 @@ class WsClient @JvmOverloads constructor(
         id: Long,
         request: CompletableRequest<T>,
         resultParser: JsonParser,
-        error: RpcResponse.RpcError?,
+        error: RpcError?,
     ) {
         val result = if (error == null) request.resultDecoder.apply(resultParser) else null
 
         val response = if (result == null && error == null) {
-            @Suppress("UNCHECKED_CAST")
-            HttpClient.RESPONSE_NO_RESULT_OR_ERROR as RpcResponse<T>
+            HttpClient.ERROR_INVALID_RESPONSE
         } else when {
-            result != null -> RpcResponse.result<T>(result)
-            else -> RpcResponse.error(error!!)
+            result != null -> success<T>(result)
+            else -> failure(error!!)
         }
 
         LOG.trc { "Handled response for request $id: $response" }
@@ -530,10 +531,10 @@ class WsClient @JvmOverloads constructor(
         id: Long,
         request: CompletableSubscriptionRequest<T>,
         resultParser: JsonParser,
-        error: RpcResponse.RpcError?,
+        error: RpcError?,
     ) {
         if (error != null) {
-            request.future.complete(RpcResponse.error(error))
+            request.future.complete(failure(error))
         } else {
             val subscription = Subscription(
                 serverId = resultParser.text,
@@ -554,7 +555,7 @@ class WsClient @JvmOverloads constructor(
             requestIdToSubscription[id] = subscription
             serverIdToSubscription[subscription.serverId] = subscription
 
-            request.future.complete(RpcResponse.result(subscription.stream))
+            request.future.complete(success(subscription.stream))
         }
 
         LOG.trc { "Handled response for subscription request $id" }
@@ -564,7 +565,7 @@ class WsClient @JvmOverloads constructor(
         id: Long,
         subscription: Subscription<T>,
         resultParser: JsonParser,
-        error: RpcResponse.RpcError?,
+        error: RpcError?,
     ) {
         if (error != null) {
             // will cause re-subscription to be attempted again
@@ -636,7 +637,7 @@ class WsClient @JvmOverloads constructor(
         method: String,
         params: Array<*>,
         resultDecoder: Function<JsonParser, T>,
-    ): CompletableFuture<RpcResponse<T>> {
+    ): CompletableFuture<Result<T, RpcError>> {
         val request = CompletableRequest(
             method,
             params,
@@ -652,7 +653,7 @@ class WsClient @JvmOverloads constructor(
     override fun <T> subscribe(
         params: Array<*>,
         resultDecoder: Function<JsonParser, T>,
-    ): CompletableFuture<RpcResponse<SubscriptionStream<T>>> {
+    ): CompletableFuture<Result<SubscriptionStream<T>, RpcError>> {
         val request = CompletableSubscriptionRequest(
             params,
             resultDecoder,
@@ -683,11 +684,10 @@ class WsClient @JvmOverloads constructor(
         val method: String,
         val params: Array<*>,
         val resultDecoder: Function<JsonParser, T>,
-        val future: CompletableFuture<RpcResponse<T>>,
+        val future: CompletableFuture<Result<T, RpcError>>,
     ) : ExpiringRequest() {
         override fun expireRequest() {
-            @Suppress("UNCHECKED_CAST")
-            future.complete(HttpClient.RESPONSE_CALL_TIMEOUT as RpcResponse<T>)
+            future.complete(HttpClient.ERROR_CALL_TIMEOUT)
         }
     }
 
@@ -698,7 +698,7 @@ class WsClient @JvmOverloads constructor(
         override fun expireRequest() {
             for (i in request.responses.indices) {
                 val response = request.responses[i]
-                response.complete(HttpClient.RESPONSE_CALL_TIMEOUT)
+                response.complete(HttpClient.ERROR_CALL_TIMEOUT)
             }
 
             future.complete(false)
@@ -708,11 +708,10 @@ class WsClient @JvmOverloads constructor(
     private class CompletableSubscriptionRequest<T>(
         val params: Array<*>,
         val resultDecoder: Function<JsonParser, T>,
-        val future: CompletableFuture<RpcResponse<SubscriptionStream<T>>>,
+        val future: CompletableFuture<Result<SubscriptionStream<T>, RpcError>>,
     ) : ExpiringRequest() {
         override fun expireRequest() {
-            @Suppress("UNCHECKED_CAST")
-            future.complete(HttpClient.RESPONSE_CALL_TIMEOUT as RpcResponse<SubscriptionStream<T>>)
+            future.complete(HttpClient.ERROR_CALL_TIMEOUT)
         }
     }
 
