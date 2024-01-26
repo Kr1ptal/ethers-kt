@@ -17,16 +17,16 @@ project.pluginManager.withPlugin("java") {
         val defaultArgs = listOf(
             "-progressive",
             "-Xjvm-default=all",
-            "-opt-in=kotlin.RequiresOptIn",
             "-Xbackend-threads=0", // use all available processors
         )
 
         val specificArgs = if (isTestTask) {
             listOf(
-                "-opt-in=kotlin.ExperimentalStdlibApi,io.kotest.common.ExperimentalKotest",
+                "-opt-in=kotlin.RequiresOptIn,kotlin.ExperimentalStdlibApi,io.kotest.common.ExperimentalKotest",
             )
         } else {
             listOf(
+                "-opt-in=kotlin.RequiresOptIn",
                 "-Xno-param-assertions",
                 "-Xno-call-assertions",
                 "-Xno-receiver-assertions",
