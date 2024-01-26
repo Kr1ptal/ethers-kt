@@ -22,10 +22,61 @@ abstract class RpcRequest<T> {
     abstract fun batch(batch: BatchRpcRequest): CompletableFuture<RpcResponse<T>>
 
     /**
-     * Remap the returned RPC response if the call was successful.
+     * Map the returned response if the call was successful, skipping if it failed.
+     *
+     * The function will be executed asynchronously after the request is sent and response received.
      */
-    fun <R> map(mapper: Function<RpcResponse<T>, RpcResponse<R>>): RpcRequest<R> {
-        return MappingRpcRequest(this, mapper)
+    fun <R> map(mapper: Function<T, R>): RpcRequest<R> {
+        return MappingRpcRequest(this) { response ->
+            when {
+                response.isError -> response.propagateError()
+                else -> RpcResponse.result(mapper.apply(response.result!!))
+            }
+        }
+    }
+
+    /**
+     * Map the returned response if the call has failed with an error, skipping if it succeeded.
+     *
+     * The function will be executed asynchronously after the request is sent and response received.
+     */
+    fun mapError(mapper: Function<RpcResponse.Error, RpcResponse.Error>): RpcRequest<T> {
+        return MappingRpcRequest(this) { response ->
+            when {
+                response.isError -> RpcResponse.error(mapper.apply(response.error!!))
+                else -> response
+            }
+        }
+    }
+
+    /**
+     * Call the function with response if the call was successful, skipping if it failed. Useful when
+     * chaining multiple fallible operations on the result.
+     *
+     * The function will be executed asynchronously after the request is sent and response received.
+     */
+    fun <R> andThen(mapper: Function<T, RpcResponse<R>>): RpcRequest<R> {
+        return MappingRpcRequest(this) { response ->
+            when {
+                response.isError -> response.propagateError()
+                else -> mapper.apply(response.result!!)
+            }
+        }
+    }
+
+    /**
+     * Call the function with response if the call has failed with an error, skipping if it succeeded. Useful
+     * when chaining multiple fallible operations on the error (e.g. trying to recover from an error).
+     *
+     * The function will be executed asynchronously after the request is sent and response received.
+     */
+    fun orElse(mapper: Function<RpcResponse.Error, RpcResponse<T>>): RpcRequest<T> {
+        return MappingRpcRequest(this) { response ->
+            when {
+                response.isError -> mapper.apply(response.error!!)
+                else -> response
+            }
+        }
     }
 }
 
