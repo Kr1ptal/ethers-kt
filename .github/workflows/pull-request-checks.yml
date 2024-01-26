@@ -26,13 +26,10 @@ jobs:
       - uses: ./.github/actions/environment-setup
 
       - name: Gradle test
-        run: ./gradlew test --no-watch-fs --stacktrace --continue -Dlog.level=debug
-
-      - name: Gradle ktlint
-        run: ./gradlew ktlintCheck --no-watch-fs --stacktrace
+        run: ./gradlew check --no-watch-fs --stacktrace --continue -Dlog.level=debug
 
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: report-unit-test
-          path: build/reports/tests/unit-test/
+          path: build/reports/
