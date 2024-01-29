@@ -18,6 +18,30 @@ Sections:
 ### Security = Security patches.
 -->
 
+## [0.3.0] - 2024-01-29
+
+### Bug Fixes
+
+- TracerConfig state/block overrides field name
+- Don't override kotlin compiler arg "-opt-in" in tests
+
+### Features
+
+- Full support for **ENS** names and avatars, with wildcard resolution and offchain resolution
+  via CCIP-Read (#59)
+- Add additional conversion methods to `EthUnit`
+- Improve functional operators on `RpcRequest`/`RpcResponse` (#60)
+- New Result type (#62)
+- [**breaking**] Migrate the project to use new `Result` type (#63)
+
+### Miscellaneous Tasks
+
+- Update ktlint-gradle plugin to v12.1.0
+- Add ens section to README.md
+- Fix gradle unit-test report aggregation and GH actions upload
+- Join lint and test runs via gradle check
+
+
 ## [0.2.0] - 2024-01-02
 
 ### Bug Fixes
