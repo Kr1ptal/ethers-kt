@@ -15,7 +15,7 @@ object TxAccessListFactory {
         gas: Long = 0,
         gasPrice: BigInteger = BigInteger.ZERO,
         data: Bytes? = null,
-        accessList: List<AccessList.Item>? = null,
+        accessList: List<AccessList.Item> = emptyList(),
     ): TxAccessList {
         return TxAccessList(to, value, nonce, gas, gasPrice, data, chainId, accessList)
     }

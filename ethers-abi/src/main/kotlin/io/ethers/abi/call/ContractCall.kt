@@ -94,7 +94,7 @@ abstract class ReadWriteContractCall<C, S : PendingInclusion<*>, B : ReadWriteCo
         }
 
         if (gasPrice != null) {
-            if (accessList != null) {
+            if (accessList.isNotEmpty()) {
                 return TxAccessList(
                     to = to,
                     value = value ?: BigInteger.ZERO,
@@ -103,7 +103,7 @@ abstract class ReadWriteContractCall<C, S : PendingInclusion<*>, B : ReadWriteCo
                     gasPrice = gasPrice!!,
                     data = data,
                     chainId = chainId,
-                    accessList = accessList!!,
+                    accessList = accessList,
                 )
             }
 
@@ -221,7 +221,7 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
             call.nonce = value
         }
 
-    var accessList: List<AccessList.Item>?
+    var accessList: List<AccessList.Item>
         get() = call.accessList
         @JvmSynthetic set(value) {
             call.accessList = value
@@ -257,7 +257,7 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
         return self
     }
 
-    fun accessList(value: List<AccessList.Item>?): B {
+    fun accessList(value: List<AccessList.Item>): B {
         call.accessList = value
         return self
     }

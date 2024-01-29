@@ -24,8 +24,8 @@ data class TxLegacy(
     override val gasFeeCap: BigInteger
         get() = gasPrice
 
-    override val accessList: List<AccessList.Item>?
-        get() = null
+    override val accessList: List<AccessList.Item>
+        get() = emptyList()
 
     override val type: TxType
         get() = TxType.Legacy

@@ -23,7 +23,7 @@ class TxDynamicFee(
     override val gasTipCap: BigInteger,
     override val data: Bytes?,
     override val chainId: Long,
-    override var accessList: List<AccessList.Item>?,
+    override var accessList: List<AccessList.Item>,
 ) : TransactionUnsigned {
     init {
         if (!ChainId.isValid(chainId)) {
@@ -70,7 +70,7 @@ class TxDynamicFee(
         gasTipCap: BigInteger = this.gasTipCap,
         data: Bytes? = this.data,
         chainId: Long = this.chainId,
-        accessList: List<AccessList.Item>? = this.accessList,
+        accessList: List<AccessList.Item> = this.accessList,
     ): TxDynamicFee {
         return TxDynamicFee(
             to = to,
@@ -113,7 +113,7 @@ class TxDynamicFee(
         result = 31 * result + gasTipCap.hashCode()
         result = 31 * result + (data?.hashCode() ?: 0)
         result = 31 * result + chainId.hashCode()
-        result = 31 * result + (accessList?.hashCode() ?: 0)
+        result = 31 * result + accessList.hashCode()
         return result
     }
 

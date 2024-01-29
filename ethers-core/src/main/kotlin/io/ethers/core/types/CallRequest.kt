@@ -28,7 +28,7 @@ class CallRequest {
         @JvmSynthetic set
     var data: Bytes? = null
         @JvmSynthetic set
-    var accessList: List<AccessList.Item>? = null
+    var accessList: List<AccessList.Item> = emptyList()
         @JvmSynthetic set
     var chainId: Long = -1L
         @JvmSynthetic set
@@ -129,9 +129,9 @@ private class CallRequestSerializer : JsonSerializer<CallRequest>() {
         if (value.data != null) {
             gen.writeStringField("input", value.data.toString())
         }
-        if (value.accessList != null) {
+        if (value.accessList.isNotEmpty()) {
             gen.writeArrayFieldStart("accessList")
-            for (item in value.accessList!!) {
+            for (item in value.accessList) {
                 // delegate to AccessList.Item serializer
                 gen.writeObject(item)
             }

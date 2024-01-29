@@ -16,7 +16,7 @@ object TxDynamicFeeFactory {
         gasFeeCap: BigInteger = BigInteger.ZERO,
         gasTipCap: BigInteger = BigInteger.ZERO,
         data: Bytes? = null,
-        accessList: List<AccessList.Item>? = null,
+        accessList: List<AccessList.Item> = emptyList(),
     ): TxDynamicFee {
         return TxDynamicFee(to, value, nonce, gas, gasFeeCap, gasTipCap, data, chainId, accessList)
     }
