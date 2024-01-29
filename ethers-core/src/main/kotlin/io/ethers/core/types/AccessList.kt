@@ -39,7 +39,7 @@ object AccessList {
             override fun rlpDecode(rlp: RlpDecoder): Item? {
                 return rlp.decodeList {
                     val address = rlp.decode(Address) ?: return null
-                    val storageKeys = rlp.decodeAsList(Hash) ?: return null
+                    val storageKeys = rlp.decodeAsList(Hash)
 
                     Item(address, storageKeys)
                 }

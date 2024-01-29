@@ -194,7 +194,7 @@ class EnsMiddlewareTest : FunSpec({
                 withData(
                     listOf(
                         EnsNameTestData(
-                            ensName = "123.kriptalABC.et",
+                            ensName = "123.kriptalABC.ethereum",
                         ),
                     ),
                 ) {

@@ -22,7 +22,7 @@ class TxAccessList(
     override val gasPrice: BigInteger,
     override val data: Bytes?,
     override val chainId: Long,
-    override var accessList: List<AccessList.Item>?,
+    override var accessList: List<AccessList.Item>,
 ) : TransactionUnsigned {
     init {
         if (!ChainId.isValid(chainId)) {
@@ -67,7 +67,7 @@ class TxAccessList(
         gasPrice: BigInteger = this.gasPrice,
         data: Bytes? = this.data,
         chainId: Long = this.chainId,
-        accessList: List<AccessList.Item>? = this.accessList,
+        accessList: List<AccessList.Item> = this.accessList,
     ): TxAccessList {
         return TxAccessList(
             to = to,
@@ -107,7 +107,7 @@ class TxAccessList(
         result = 31 * result + gasPrice.hashCode()
         result = 31 * result + (data?.hashCode() ?: 0)
         result = 31 * result + chainId.hashCode()
-        result = 31 * result + (accessList?.hashCode() ?: 0)
+        result = 31 * result + accessList.hashCode()
         return result
     }
 

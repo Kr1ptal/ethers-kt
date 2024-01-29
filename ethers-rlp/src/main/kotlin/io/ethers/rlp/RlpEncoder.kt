@@ -37,12 +37,10 @@ class RlpEncoder(array: ByteArray) {
     /**
      * RLP encode list of [T] objects.
      */
-    fun <T : RlpEncodable> encodeList(list: List<T>?): RlpEncoder {
+    fun <T : RlpEncodable> encodeList(list: List<T>): RlpEncoder {
         return encodeList {
-            if (list != null) {
-                for (i in list.indices) {
-                    list[i].rlpEncode(this)
-                }
+            for (i in list.indices) {
+                list[i].rlpEncode(this)
             }
         }
     }

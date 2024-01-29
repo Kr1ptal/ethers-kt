@@ -36,7 +36,7 @@ data class RPCTransaction(
     override val gasFeeCap: BigInteger,
     override val gasTipCap: BigInteger,
     override val data: Bytes?,
-    override val accessList: List<AccessList.Item>?,
+    override val accessList: List<AccessList.Item>,
     override val chainId: Long,
     override val type: TxType,
     val v: Long,
@@ -68,7 +68,7 @@ private class RPCTransactionDeserializer : JsonDeserializer<RPCTransaction>() {
         var gasTipCap: BigInteger? = null
         var data: Bytes? = null
         var type = -1L
-        var accessList: List<AccessList.Item>? = null
+        var accessList: List<AccessList.Item> = emptyList()
         var chainId: Long = ChainId.NONE
         var v = -1L
         lateinit var r: BigInteger
@@ -95,7 +95,7 @@ private class RPCTransactionDeserializer : JsonDeserializer<RPCTransaction>() {
                 "input" -> data = p.readBytesEmptyAsNull()
                 "type" -> type = p.readHexLong()
                 "accessList" -> accessList = p.readListOf(AccessList.Item::class.java)
-                "chainId" -> chainId = p.readHexLong()
+                "chainId" -> p.ifNotNull { chainId = p.readHexLong() }
                 "v" -> v = p.readHexLong()
                 "r" -> r = p.readHexBigInteger()
                 "s" -> s = p.readHexBigInteger()

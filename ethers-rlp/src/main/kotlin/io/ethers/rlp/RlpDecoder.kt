@@ -46,7 +46,7 @@ class RlpDecoder(private val array: ByteArray) {
      * @return list of results returned by [decodable], or null if the list is empty.
      * @throws IllegalStateException if RLP element is not a list or if list was not decoded correctly.
      * */
-    fun <T> decodeAsList(decodable: RlpDecodable<T>): List<T>? {
+    fun <T> decodeAsList(decodable: RlpDecodable<T>): List<T> {
         return decodeAsList { decode(decodable) }
     }
 
@@ -60,10 +60,10 @@ class RlpDecoder(private val array: ByteArray) {
      * @return list of results returned by [consumer], or null if the list is empty.
      * @throws IllegalStateException if RLP element is not a list or if list was not decoded correctly.
      * */
-    inline fun <T> decodeAsList(consumer: RlpDecoder.() -> T?): List<T>? {
+    inline fun <T> decodeAsList(consumer: RlpDecoder.() -> T?): List<T> {
         val listEndPosition = startList()
         if (position == listEndPosition) {
-            return null
+            return emptyList()
         }
 
         val ret = ArrayList<T>()
@@ -73,11 +73,6 @@ class RlpDecoder(private val array: ByteArray) {
         }
 
         finishList(listEndPosition)
-
-        if (ret.isEmpty()) {
-            return null
-        }
-
         return ret
     }
 

@@ -28,7 +28,7 @@ class TxBlob(
     override val gasTipCap: BigInteger,
     override val data: Bytes?,
     override val chainId: Long,
-    override var accessList: List<AccessList.Item>?,
+    override var accessList: List<AccessList.Item>,
     override val blobFeeCap: BigInteger,
     override val blobVersionedHashes: List<Hash>,
     val sidecar: Sidecar? = null,
@@ -42,7 +42,7 @@ class TxBlob(
         gasTipCap: BigInteger,
         data: Bytes?,
         chainId: Long,
-        accessList: List<AccessList.Item>?,
+        accessList: List<AccessList.Item>,
         blobFeeCap: BigInteger,
         sidecar: Sidecar,
     ) : this(
@@ -101,7 +101,7 @@ class TxBlob(
         gasTipCap: BigInteger = this.gasTipCap,
         data: Bytes? = this.data,
         chainId: Long = this.chainId,
-        accessList: List<AccessList.Item>? = this.accessList,
+        accessList: List<AccessList.Item> = this.accessList,
         blobFeeCap: BigInteger = this.blobFeeCap,
         blobHashes: List<Hash> = this.blobVersionedHashes,
         sidecar: Sidecar? = this.sidecar,
@@ -153,7 +153,7 @@ class TxBlob(
         result = 31 * result + gasTipCap.hashCode()
         result = 31 * result + (data?.hashCode() ?: 0)
         result = 31 * result + chainId.hashCode()
-        result = 31 * result + (accessList?.hashCode() ?: 0)
+        result = 31 * result + (accessList.hashCode())
         result = 31 * result + blobFeeCap.hashCode()
         result = 31 * result + blobVersionedHashes.hashCode()
         result = 31 * result + (sidecar?.hashCode() ?: 0)
@@ -202,11 +202,11 @@ class TxBlob(
             const val COMMITMENT_LENGTH = 48
             const val PROOF_LENGTH = 48
 
-            override fun rlpDecode(rlp: RlpDecoder): Sidecar? {
+            override fun rlpDecode(rlp: RlpDecoder): Sidecar {
                 return Sidecar(
-                    blobs = rlp.decodeAsList(Bytes) ?: return null,
-                    commitments = rlp.decodeAsList(Bytes) ?: return null,
-                    proofs = rlp.decodeAsList(Bytes) ?: return null,
+                    blobs = rlp.decodeAsList(Bytes),
+                    commitments = rlp.decodeAsList(Bytes),
+                    proofs = rlp.decodeAsList(Bytes),
                 )
             }
         }
@@ -228,7 +228,7 @@ class TxBlob(
                 data = rlp.decode(Bytes),
                 accessList = rlp.decodeAsList(AccessList.Item),
                 blobFeeCap = rlp.decodeBigIntegerElse(BigInteger.ZERO),
-                blobVersionedHashes = rlp.decodeAsList(Hash) ?: emptyList(),
+                blobVersionedHashes = rlp.decodeAsList(Hash),
             )
         }
     }

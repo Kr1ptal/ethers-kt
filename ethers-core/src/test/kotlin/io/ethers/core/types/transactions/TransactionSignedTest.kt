@@ -1,5 +1,6 @@
 package io.ethers.core.types.transactions
 
+import io.ethers.core.Jackson
 import io.ethers.core.types.AccessList
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
@@ -11,8 +12,12 @@ import io.ethers.core.types.transaction.TxBlob
 import io.ethers.core.types.transaction.TxDynamicFee
 import io.ethers.core.types.transaction.TxLegacy
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.datatest.WithDataTestName
+import io.kotest.datatest.withData
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldBeEqualIgnoringCase
+import java.io.File
 
 class TransactionSignedTest : FunSpec({
     test("rlp encode/decode TxLegacy without chain ID") {
@@ -147,7 +152,7 @@ class TransactionSignedTest : FunSpec({
             gasTipCap = "21000000000".toBigInteger(),
             data = Bytes("0x1214abcdef12445980"),
             chainId = 1L,
-            accessList = null,
+            accessList = emptyList(),
             blobFeeCap = "21000000000".toBigInteger(),
             blobVersionedHashes = listOf(Hash("0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014")),
         )
@@ -178,7 +183,7 @@ class TransactionSignedTest : FunSpec({
             gasTipCap = "21000000000".toBigInteger(),
             data = Bytes("0x1214abcdef12445980"),
             chainId = 1L,
-            accessList = null,
+            accessList = emptyList(),
             blobFeeCap = "21000000000".toBigInteger(),
             sidecar = TxBlob.Sidecar(
                 blobs = listOf(Bytes(ByteArray(TxBlob.Sidecar.BLOB_LENGTH))),
@@ -202,4 +207,46 @@ class TransactionSignedTest : FunSpec({
         val decoded = TransactionSigned.rlpDecode(rlp)
         decoded shouldBe signed
     }
-})
+
+    context("RLP roundtrip encode/decode test") {
+        val reader = Jackson.MAPPER.readerFor(RoundtripCase::class.java)
+        val rlpBatches = TransactionSignedTest::class.java.getResource("/testdata/txsigned")!!
+            .file
+            .let(::File)
+            .walkTopDown()
+            .filter { it.isFile && it.name.endsWith(".json") }
+            .map { it.name to reader.readValues<RoundtripCase>(it).readAll() }
+
+        rlpBatches.forEach { (dumpName, cases) ->
+            context(dumpName) {
+                withData(cases) {
+                    val decoded = TransactionSigned.rlpDecode(it.rlp.value)
+
+                    // it's enough to check that "hash" and "from" have expected values:
+                    // - if any value was different from original tx, the "hash" will be different
+                    // - if signature is different from original tx, the "from" will fail or will be different
+                    decoded shouldNotBe null
+                    decoded!!.hash shouldBe it.hash
+                    decoded.from shouldBe it.from
+
+                    val rlpEncoded = Bytes(decoded.toRlp())
+                    rlpEncoded shouldBe it.rlp
+                }
+            }
+        }
+    }
+}) {
+    data class RoundtripCase(val hash: Hash, val from: Address, val rlp: Bytes) : WithDataTestName {
+        override fun dataTestName() = hash.toString()
+    }
+}
+
+// Used to dump additional roundtrip test cases, need to run from providers module
+/*fun main() {
+    val provider = Provider(HttpClient("RPC_URL"))
+    val block = provider.getBlockWithTransactions(19111477).sendAwait().unwrap()
+    val encoded = block.transactions.map { TransactionSignedTest.RoundtripCase(it.hash, it.from, Bytes(it.toSignedTransaction().toRlp())) }
+
+    // copy the result to resource folder
+    Jackson.MAPPER.writeValue(File("./transactions-${block.number}.json"), encoded)
+}*/

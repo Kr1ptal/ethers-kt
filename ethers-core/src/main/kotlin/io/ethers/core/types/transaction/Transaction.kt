@@ -28,7 +28,7 @@ interface Transaction {
     val gasFeeCap: BigInteger
     val data: Bytes?
     val chainId: Long
-    val accessList: List<AccessList.Item>?
+    val accessList: List<AccessList.Item>
     val type: TxType
     val blobFeeCap: BigInteger?
     val blobVersionedHashes: List<Hash>?

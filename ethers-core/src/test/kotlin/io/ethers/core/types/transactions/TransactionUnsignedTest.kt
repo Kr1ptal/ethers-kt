@@ -65,7 +65,7 @@ class TransactionUnsignedTest : FunSpec({
                 gasPrice = "21000000000".toBigInteger(),
                 data = Bytes("0x1214abcdef12445980"),
                 chainId = 1L,
-                accessList = null,
+                accessList = emptyList(),
             )
 
             tx.signatureHash().toHexString() shouldBe "9cac944f150142405ab1873c80b72f75368664e417a87b90455d1f2e83178157"
@@ -96,7 +96,7 @@ class TransactionUnsignedTest : FunSpec({
                 gasTipCap = "21000000000".toBigInteger(),
                 data = Bytes("0x1214abcdef12445980"),
                 chainId = 1L,
-                accessList = null,
+                accessList = emptyList(),
             )
 
             tx.signatureHash().toHexString() shouldBe "af6891de644ea94fb026f73fe8716d9e5aac2e374e81bea8aaa4e4f1e7ab50b5"
@@ -128,7 +128,7 @@ class TransactionUnsignedTest : FunSpec({
                 gasTipCap = "21000000000".toBigInteger(),
                 data = Bytes("0x1214abcdef12445980"),
                 chainId = 1L,
-                accessList = null,
+                accessList = emptyList(),
                 blobFeeCap = "21000000000".toBigInteger(),
                 blobVersionedHashes = listOf(Hash("0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014")),
             )
@@ -142,7 +142,7 @@ class TransactionUnsignedTest : FunSpec({
                 gasTipCap = "21000000000".toBigInteger(),
                 data = Bytes("0x1214abcdef12445980"),
                 chainId = 1L,
-                accessList = null,
+                accessList = emptyList(),
                 blobFeeCap = "21000000000".toBigInteger(),
                 sidecar = TxBlob.Sidecar(
                     blobs = listOf(Bytes(ByteArray(TxBlob.Sidecar.BLOB_LENGTH))),
