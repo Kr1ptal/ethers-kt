@@ -235,13 +235,11 @@ class TransactionSignedTest : FunSpec({
             }
         }
     }
-
 }) {
     data class RoundtripCase(val hash: Hash, val from: Address, val rlp: Bytes) : WithDataTestName {
         override fun dataTestName() = hash.toString()
     }
 }
-
 
 // Used to dump additional roundtrip test cases, need to run from providers module
 /*fun main() {
