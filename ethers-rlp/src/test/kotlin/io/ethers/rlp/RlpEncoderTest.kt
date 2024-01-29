@@ -13,6 +13,7 @@ class RlpEncoderTest : FunSpec({
             withData(
                 null to "80",
                 BigInteger.ZERO to "80",
+                "130".toBigInteger() to "8182",
                 "73".toBigInteger(16) to "73",
                 "abc12841ff".toBigInteger(16) to "85abc12841ff",
                 maxUint256 to "a0ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",

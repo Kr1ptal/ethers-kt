@@ -177,8 +177,8 @@ class RlpEncoder(array: ByteArray) {
         }
 
         when {
-            nonZeroLength == 1 && bytes[0].toUByte().toInt() < RLP_STRING_SHORT -> {
-                buffer.ensureCapacity(1).put(bytes[0])
+            nonZeroLength == 1 && bytes[offset].toUByte().toInt() < RLP_STRING_SHORT -> {
+                buffer.ensureCapacity(1).put(bytes[offset])
             }
 
             // always true, number can have max 32 bytes (uint256):
