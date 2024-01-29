@@ -2,6 +2,7 @@ package io.ethers.providers
 
 import com.fasterxml.jackson.core.JsonParser
 import io.ethers.core.FastHex
+import io.ethers.core.Result
 import io.ethers.core.forEachObjectField
 import io.ethers.core.isField
 import io.ethers.core.isNextTokenObjectEnd
@@ -13,6 +14,7 @@ import io.ethers.core.readHexLong
 import io.ethers.core.readListOf
 import io.ethers.core.readListOfHashes
 import io.ethers.core.readOptionalValue
+import io.ethers.core.success
 import io.ethers.core.types.AccountOverride
 import io.ethers.core.types.Address
 import io.ethers.core.types.Block
@@ -434,5 +436,29 @@ class Provider(override val client: JsonRpcClient) : Middleware {
 
     override fun txpoolInspect(): RpcRequest<TxpoolInspectResult, RpcError> {
         return RpcCall(client, "txpool_inspect", emptyArray<Any>(), TxpoolInspectResult::class.java)
+    }
+
+    /**
+     * Error indicating the provided [url] has an unsupported protocol.
+     * */
+    data class UnsupportedUrlProtocol(val url: String) : Result.Error
+
+    companion object {
+        private val PROTO_HTTPS = "^(https?)://.+$".toRegex()
+        private val PROTO_WSS = "^(wss?)://.+$".toRegex()
+
+        /**
+         * Create a new [Provider] from the given [url]. Supported URL protocols:
+         * - http/https
+         * - ws/wss
+         * */
+        @JvmStatic
+        fun fromUrl(url: String): Result<Provider, UnsupportedUrlProtocol> {
+            return when {
+                url.matches(PROTO_HTTPS) -> success(Provider(HttpClient(url)))
+                url.matches(PROTO_WSS) -> success(Provider(WsClient(url)))
+                else -> throw IllegalArgumentException("URL with unknown protocol: $url")
+            }
+        }
     }
 }
