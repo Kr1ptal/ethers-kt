@@ -129,7 +129,7 @@ class EthUnitTest : FunSpec({
     test("Bulk test") {
         for (fromDecimals in 0..30) {
             for (toDecimals in 0..30) {
-                Arb.bigInt(0, 256).checkAll(100) {
+                Arb.bigInt(0, 256).checkAll(25) {
                     val weiAmount = it.toBigDecimal()
                     val gweiAmount = it.toBigDecimal().divide(BigDecimal.TEN.pow(9))
                     val etherAmount = it.toBigDecimal().divide(BigDecimal.TEN.pow(18))

@@ -242,10 +242,6 @@ class RlpEncoder(array: ByteArray) {
         }
 
         when {
-            bytes.size == 1 && bytes[0] == 0.toByte() -> {
-                buffer.ensureCapacity(1).put(RLP_NULL.toByte())
-            }
-
             bytes.size == 1 && bytes[0].toUByte().toInt() < RLP_STRING_SHORT -> {
                 buffer.ensureCapacity(1).put(bytes[0])
             }

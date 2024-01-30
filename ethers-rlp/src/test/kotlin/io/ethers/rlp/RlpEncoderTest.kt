@@ -65,7 +65,7 @@ class RlpEncoderTest : FunSpec({
         withData(
             null to RLP_NULL.toByte().toHexString(),
             byteArrayOf() to RLP_NULL.toByte().toHexString(),
-            byteArrayOf(0) to RLP_NULL.toByte().toHexString(),
+            byteArrayOf(0) to "0",
             byteArrayOf(123) to "7b",
             byteArrayOf(-128) to "8180",
             byteArrayOf(-85, -70) to "82abba",
