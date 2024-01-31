@@ -25,9 +25,10 @@ dependencies {
     }
 }
 
-tasks.withType<Test> {
+// TODO, see: https://github.com/Kr1ptal/ethers-kt/issues/66
+/*tasks.withType<Test> {
     finalizedBy(tasks.named<JacocoReport>("testCodeCoverageReport"))
-}
+}*/
 
 tasks.check {
     dependsOn(tasks.named<TestReport>("testAggregateTestReport"))

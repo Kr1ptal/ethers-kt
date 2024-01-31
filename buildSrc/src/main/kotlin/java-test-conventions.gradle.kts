@@ -23,6 +23,7 @@ project.pluginManager.withPlugin("java") {
 
     tasks.withType<Test>().configureEach {
         useJUnitPlatform()
-        finalizedBy("jacocoTestReport")
+        // TODO, see: https://github.com/Kr1ptal/ethers-kt/issues/66
+        //finalizedBy("jacocoTestReport")
     }
 }
