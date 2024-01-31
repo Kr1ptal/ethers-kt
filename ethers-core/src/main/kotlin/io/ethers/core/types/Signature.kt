@@ -90,6 +90,39 @@ class Signature(
         }
     }
 
+    /**
+     * Convert this signature to an RSV byte array. The returned [ByteArray] is exactly 65 bytes long and
+     * the [v] value is normalized to either 27 or 28.
+     * */
+    fun toByteArray(): ByteArray {
+        val ret = ByteArray(65)
+
+        // BigInteger is a signed value, and the first byte is used a sign bit.
+        // If the array is larger than 32 bytes, we need to remove the sign bit.
+        val rBytes = r.toByteArray()
+        System.arraycopy(
+            rBytes,
+            if (rBytes.size > 32) 1 else 0,
+            ret,
+            if (rBytes.size > 32) 0 else 32 - rBytes.size,
+            if (rBytes.size > 32) 32 else rBytes.size
+        )
+
+        val sBytes = s.toByteArray()
+        System.arraycopy(
+            sBytes,
+            if (sBytes.size > 32) 1 else 0,
+            ret,
+            if (sBytes.size > 32) 32 else 64 - sBytes.size,
+            if (sBytes.size > 32) 32 else sBytes.size
+        )
+
+        // normalize EIP-155 v value, and turn into legacy format
+        ret[64] = (recoveryId() + V_ELECTRUM_OFFSET).toByte()
+
+        return ret
+    }
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
