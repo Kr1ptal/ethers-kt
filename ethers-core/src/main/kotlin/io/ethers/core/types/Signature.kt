@@ -105,7 +105,7 @@ class Signature(
             if (rBytes.size > 32) 1 else 0,
             ret,
             if (rBytes.size > 32) 0 else 32 - rBytes.size,
-            if (rBytes.size > 32) 32 else rBytes.size
+            if (rBytes.size > 32) 32 else rBytes.size,
         )
 
         val sBytes = s.toByteArray()
@@ -114,7 +114,7 @@ class Signature(
             if (sBytes.size > 32) 1 else 0,
             ret,
             if (sBytes.size > 32) 32 else 64 - sBytes.size,
-            if (sBytes.size > 32) 32 else sBytes.size
+            if (sBytes.size > 32) 32 else sBytes.size,
         )
 
         // normalize EIP-155 v value, and turn into legacy format
