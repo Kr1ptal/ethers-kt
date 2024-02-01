@@ -153,7 +153,7 @@ class Bytes(val value: ByteArray) : RlpEncodable {
 
     companion object : RlpDecodable<Bytes> {
         @JvmField
-        val ZERO = Bytes(ByteArray(0))
+        val EMPTY = Bytes(ByteArray(0))
 
         override fun rlpDecode(rlp: RlpDecoder): Bytes? {
             return rlp.decodeByteArray(::Bytes)
