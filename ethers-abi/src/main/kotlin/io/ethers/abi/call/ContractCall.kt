@@ -14,6 +14,7 @@ import io.ethers.core.types.BlockId
 import io.ethers.core.types.BlockOverride
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.CallRequest
+import io.ethers.core.types.Hash
 import io.ethers.core.types.tracers.TracerConfig
 import io.ethers.core.types.transaction.TransactionSigned
 import io.ethers.core.types.transaction.TransactionUnsigned
@@ -132,6 +133,32 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
     protected val call = CallRequest().apply { chainId = provider.chainId }
 
     /**
+     * Execute "eth_call" at the given [blockHash] and return the result of the call. This is a read-only call, and it
+     * will not modify the blockchain state. Optionally, the [stateOverride] and [blockOverride] can be provided to
+     * override the state on which the call is executed.
+     * */
+    fun call(
+        blockHash: Hash,
+        stateOverride: Map<Address, AccountOverride>? = null,
+        blockOverride: BlockOverride? = null,
+    ): RpcRequest<C, ContractError> {
+        return call(BlockId.Hash(blockHash), stateOverride, blockOverride)
+    }
+
+    /**
+     * Execute "eth_call" at the given [blockNumber] and return the result of the call. This is a read-only call, and it
+     * will not modify the blockchain state. Optionally, the [stateOverride] and [blockOverride] can be provided to
+     * override the state on which the call is executed.
+     * */
+    fun call(
+        blockNumber: Long,
+        stateOverride: Map<Address, AccountOverride>? = null,
+        blockOverride: BlockOverride? = null,
+    ): RpcRequest<C, ContractError> {
+        return call(BlockId.Number(blockNumber), stateOverride, blockOverride)
+    }
+
+    /**
      * Execute "eth_call" at the given [BlockId] and return the result of the call. This is a read-only call, and it
      * will not modify the blockchain state. Optionally, the [stateOverride] and [blockOverride] can be provided to
      * override the state on which the call is executed.
@@ -145,6 +172,22 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
         return provider.call(call, blockId, stateOverride, blockOverride)
             .mapError(::tryDecodingContractRevert)
             .andThen(::safelyHandleCallResult)
+    }
+
+    /**
+     * Execute "debug_traceCall" at the given [blockHash] using the provided [TracerConfig], returning the result of
+     * the tracer. Similar to [call] function, this is a read-only call, and it will not modify the blockchain state.
+     * */
+    fun <T> traceCall(blockHash: Hash, config: TracerConfig<T>): RpcRequest<T, RpcError> {
+        return traceCall(BlockId.Hash(blockHash), config)
+    }
+
+    /**
+     * Execute "debug_traceCall" at the given [blockNumber] using the provided [TracerConfig], returning the result of
+     * the tracer. Similar to [call] function, this is a read-only call, and it will not modify the blockchain state.
+     * */
+    fun <T> traceCall(blockNumber: Long, config: TracerConfig<T>): RpcRequest<T, RpcError> {
+        return traceCall(BlockId.Number(blockNumber), config)
     }
 
     /**
