@@ -95,7 +95,7 @@ fun JsonParser.readAddress(): Address {
 fun JsonParser.readBytes(): Bytes {
     val arr = readHexByteArray()
     if (arr.isEmpty()) {
-        return Bytes.ZERO
+        return Bytes.EMPTY
     }
     return Bytes(arr)
 }
