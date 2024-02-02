@@ -81,6 +81,21 @@ class HttpClient @JvmOverloads constructor(
                             "Response: ${String(arr)}}"
                         }
 
+                        if (!it.isSuccessful) {
+                            // complete all requests and the batch future
+                            val error = RpcError(RpcError.CODE_CALL_FAILED, it.message, String(stream.readAllBytes()))
+                            val failure = failure(error)
+
+                            LOG.err { "Batch request failed: $error" }
+
+                            for (i in batch.responses.indices) {
+                                batch.responses[i].complete(failure)
+                            }
+
+                            ret.complete(false)
+                            return
+                        }
+
                         // TODO per the specification, json-rpc batch responses can be returned in any order
                         Jackson.MAPPER.createAndInitParser(stream).use { p ->
                             var index = 0
@@ -164,6 +179,14 @@ class HttpClient @JvmOverloads constructor(
                             val arr = stream.readAllBytes()
                             stream = BufferedInputStream(ByteArrayInputStream(arr))
                             "Response: ${String(arr)}}"
+                        }
+
+                        if (!it.isSuccessful) {
+                            val error = RpcError(RpcError.CODE_CALL_FAILED, it.message, String(stream.readAllBytes()))
+                            LOG.err { "Call failed for method=$method, params=${params.contentToString()}: $error" }
+
+                            ret.complete(failure(error))
+                            return
                         }
 
                         Jackson.MAPPER.createAndInitParser(stream).use { p ->
