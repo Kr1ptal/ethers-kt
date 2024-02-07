@@ -4,7 +4,6 @@ import io.ethers.core.Result
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import java.util.concurrent.CompletableFuture
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -34,7 +33,7 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) {
             throw IllegalArgumentException("All requests must use the same client")
         }
 
-        val future = BatchCompletableFuture<Result<T, RpcError>>(this)
+        val future = ConditionalCompletableFuture<Result<T, RpcError>>(batchSent)
 
         _requests.add(request)
         _responses.add(future as CompletableFuture<Result<*, RpcError>>)
@@ -62,37 +61,6 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) {
         }
 
         return client!!.requestBatch(this)
-    }
-
-    /**
-     * Helper class to prevent awaiting the response until the batch has been sent.
-     * */
-    private class BatchCompletableFuture<T>(private val batch: BatchRpcRequest) : CompletableFuture<T>() {
-        override fun get(): T {
-            verifyBatchSent()
-            return super.get()
-        }
-
-        override fun get(timeout: Long, unit: TimeUnit): T {
-            verifyBatchSent()
-            return super.get(timeout, unit)
-        }
-
-        override fun getNow(valueIfAbsent: T): T {
-            verifyBatchSent()
-            return super.getNow(valueIfAbsent)
-        }
-
-        override fun join(): T {
-            verifyBatchSent()
-            return super.join()
-        }
-
-        private fun verifyBatchSent() {
-            if (!batch.batchSent.get()) {
-                throw IllegalStateException("Batch has not been sent yet. Awaiting would block indefinitely.")
-            }
-        }
     }
 
     companion object {
