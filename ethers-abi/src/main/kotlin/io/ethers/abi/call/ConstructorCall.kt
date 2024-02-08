@@ -22,7 +22,7 @@ class ConstructorCall<T : AbiContract>(
     provider: Middleware,
     bytecode: Bytes,
     private val constructor: BiFunction<Middleware, Address, T>,
-) : ReadWriteContractCall<CallDeploy, PendingContractDeploy<T>, ConstructorCall<T>>(provider) {
+) : ReadWriteContractCall<CallDeploy<T>, PendingContractDeploy<T>, ConstructorCall<T>>(provider) {
 
     init {
         // create a random address for each ConstructorCall instance, so multiple deploys can be made via "call",
@@ -36,7 +36,7 @@ class ConstructorCall<T : AbiContract>(
     override val self: ConstructorCall<T>
         get() = this
 
-    override fun handleCallResult(result: Bytes) = handleCallResult(call, result)
+    override fun handleCallResult(result: Bytes) = handleCallResult(provider, constructor, call, result)
     override fun handleSendResult(result: PendingTransaction) = handleSendResult(provider, result, constructor)
 }
 
@@ -44,7 +44,7 @@ class PayableConstructorCall<T : AbiContract>(
     provider: Middleware,
     bytecode: Bytes,
     private val constructor: BiFunction<Middleware, Address, T>,
-) : ReadWriteContractCall<CallDeploy, PendingContractDeploy<T>, PayableConstructorCall<T>>(provider) {
+) : ReadWriteContractCall<CallDeploy<T>, PendingContractDeploy<T>, PayableConstructorCall<T>>(provider) {
 
     init {
         // create a random address for each ConstructorCall instance, so multiple deploys can be made via "call",
@@ -58,7 +58,7 @@ class PayableConstructorCall<T : AbiContract>(
     override val self: PayableConstructorCall<T>
         get() = this
 
-    override fun handleCallResult(result: Bytes) = handleCallResult(call, result)
+    override fun handleCallResult(result: Bytes) = handleCallResult(provider, constructor, call, result)
     override fun handleSendResult(result: PendingTransaction) = handleSendResult(provider, result, constructor)
 
     var value: BigInteger?
@@ -73,7 +73,20 @@ class PayableConstructorCall<T : AbiContract>(
     }
 }
 
-data class CallDeploy(val address: Address, val deployedBytecode: Bytes) {
+class CallDeploy<T : AbiContract>(
+    private val provider: Middleware,
+    private val constructor: BiFunction<Middleware, Address, T>,
+    val address: Address,
+    val deployedBytecode: Bytes,
+) {
+    @JvmSynthetic
+    operator fun component1(): T = toContract()
+
+    @JvmSynthetic
+    operator fun component2(): Map<Address, AccountOverride> = toStateOverride()
+
+    fun toContract(): T = constructor.apply(provider, address)
+
     fun toStateOverride(): Map<Address, AccountOverride> {
         return HashMap<Address, AccountOverride>(1).apply { addStateOverride(this) }
     }
@@ -83,14 +96,19 @@ data class CallDeploy(val address: Address, val deployedBytecode: Bytes) {
     }
 }
 
-private fun handleCallResult(call: CallRequest, result: Bytes): Result<CallDeploy, ContractError> {
+private fun <T : AbiContract> handleCallResult(
+    provider: Middleware,
+    constructor: BiFunction<Middleware, Address, T>,
+    call: CallRequest,
+    result: Bytes,
+): Result<CallDeploy<T>, ContractError> {
     if (result.size == 0) {
         return failure(DeployError.NoBytecode)
     }
 
     val nonce = if (call.nonce == -1L) 0L else call.nonce
     val deployAddress: Address = Address.computeCreate(call.from ?: Address.ZERO, nonce)
-    return success(CallDeploy(deployAddress, result))
+    return success(CallDeploy(provider, constructor, deployAddress, result))
 }
 
 private fun <T : AbiContract> handleSendResult(
