@@ -25,8 +25,10 @@ class ConstructorCall<T : AbiContract>(
 ) : ReadWriteContractCall<CallDeploy, PendingContractDeploy<T>, ConstructorCall<T>>(provider) {
 
     init {
+        // create a random address for each ConstructorCall instance, so multiple deploys can be made via "call",
+        // all on a different address, so they don't override each other in state overrides.
+        call.from = Address.random()
         call.to = null
-        call.from = Address.ZERO
         call.nonce = 0L
         call.data = bytecode
     }
@@ -35,9 +37,7 @@ class ConstructorCall<T : AbiContract>(
         get() = this
 
     override fun handleCallResult(result: Bytes) = handleCallResult(call, result)
-    override fun handleSendResult(result: PendingTransaction): PendingContractDeploy<T> {
-        return handleSendResult(provider, result, constructor)
-    }
+    override fun handleSendResult(result: PendingTransaction) = handleSendResult(provider, result, constructor)
 }
 
 class PayableConstructorCall<T : AbiContract>(
@@ -47,8 +47,10 @@ class PayableConstructorCall<T : AbiContract>(
 ) : ReadWriteContractCall<CallDeploy, PendingContractDeploy<T>, PayableConstructorCall<T>>(provider) {
 
     init {
+        // create a random address for each ConstructorCall instance, so multiple deploys can be made via "call",
+        // all on a different address, so they don't override each other in state overrides.
+        call.from = Address.random()
         call.to = null
-        call.from = Address.ZERO
         call.nonce = 0L
         call.data = bytecode
     }
@@ -57,9 +59,7 @@ class PayableConstructorCall<T : AbiContract>(
         get() = this
 
     override fun handleCallResult(result: Bytes) = handleCallResult(call, result)
-    override fun handleSendResult(result: PendingTransaction): PendingContractDeploy<T> {
-        return handleSendResult(provider, result, constructor)
-    }
+    override fun handleSendResult(result: PendingTransaction) = handleSendResult(provider, result, constructor)
 
     var value: BigInteger?
         get() = call.value
