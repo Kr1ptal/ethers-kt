@@ -17,8 +17,8 @@ class Multicall3(
     provider: Middleware,
     address: Address,
 ) : AbiContract(provider, address) {
-    fun aggregate(vararg calls: AggregateableCall<*>): AggregateFunctionCall {
-        val ret = AggregateFunctionCall(provider, address)
+    fun <T> aggregate(vararg calls: AggregateableCall<out T>): AggregateFunctionCall<T> {
+        val ret = AggregateFunctionCall<T>(provider, address)
         for (call in calls) {
             ret.addCall(call)
         }
