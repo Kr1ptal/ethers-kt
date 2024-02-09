@@ -128,9 +128,9 @@ abstract class ReadWriteContractCall<C, S : PendingInclusion<*>, B : ReadWriteCo
  * functions in Solidity.
  * */
 abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
-    protected val provider: Middleware,
+    val provider: Middleware,
 ) {
-    protected val call = CallRequest().apply { chainId = provider.chainId }
+    protected open val call = CallRequest().apply { chainId = provider.chainId }
 
     /**
      * Execute "eth_call" at the given [blockHash] and return the result of the call. This is a read-only call, and it
@@ -171,7 +171,7 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
     ): RpcRequest<C, ContractError> {
         return provider.call(call, blockId, stateOverride, blockOverride)
             .mapError(::tryDecodingContractRevert)
-            .andThen(::safelyHandleCallResult)
+            .andThen(::decodeCallResult)
     }
 
     /**
@@ -198,11 +198,14 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
         return provider.traceCall(call, blockId, config)
     }
 
-    private fun safelyHandleCallResult(result: Bytes): Result<C, ContractError> {
+    /**
+     * Safely decode the result of the call, returning the decoded value or a [ContractError] if decoding fails.
+     * */
+    fun decodeCallResult(result: Bytes): Result<C, ContractError> {
         return try {
             handleCallResult(result)
         } catch (e: Exception) {
-            failure(DecodingError(result, e))
+            failure(DecodingError(result, "Unable to decode result", e))
         }
     }
 
@@ -234,6 +237,12 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
             call.from = value
         }
 
+    val to: Address?
+        get() = call.to
+
+    open val value: BigInteger?
+        get() = call.value
+
     var gas: Long
         get() = call.gas
         @JvmSynthetic set(value) {
@@ -263,6 +272,9 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
         @JvmSynthetic set(value) {
             call.nonce = value
         }
+
+    val data: Bytes?
+        get() = call.data
 
     var accessList: List<AccessList.Item>
         get() = call.accessList

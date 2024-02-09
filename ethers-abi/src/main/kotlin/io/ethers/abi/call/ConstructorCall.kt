@@ -61,7 +61,7 @@ class PayableConstructorCall<T : AbiContract>(
     override fun handleCallResult(result: Bytes) = handleCallResult(provider, constructor, call, result)
     override fun handleSendResult(result: PendingTransaction) = handleSendResult(provider, result, constructor)
 
-    var value: BigInteger?
+    override var value: BigInteger?
         get() = call.value
         @JvmSynthetic set(value) {
             call.value = value
@@ -70,29 +70,6 @@ class PayableConstructorCall<T : AbiContract>(
     fun value(value: BigInteger?): PayableConstructorCall<T> {
         call.value = value
         return this
-    }
-}
-
-class CallDeploy<T : AbiContract>(
-    private val provider: Middleware,
-    private val constructor: BiFunction<Middleware, Address, T>,
-    val address: Address,
-    val deployedBytecode: Bytes,
-) {
-    @JvmSynthetic
-    operator fun component1(): T = toContract()
-
-    @JvmSynthetic
-    operator fun component2(): Map<Address, AccountOverride> = toStateOverride()
-
-    fun toContract(): T = constructor.apply(provider, address)
-
-    fun toStateOverride(): Map<Address, AccountOverride> {
-        return HashMap<Address, AccountOverride>(1).apply { addStateOverride(this) }
-    }
-
-    fun addStateOverride(stateOverride: MutableMap<Address, AccountOverride>) {
-        stateOverride[address] = AccountOverride().code(deployedBytecode)
     }
 }
 
@@ -117,6 +94,29 @@ private fun <T : AbiContract> handleSendResult(
     constructor: BiFunction<Middleware, Address, T>,
 ): PendingContractDeploy<T> {
     return PendingContractDeploy(provider, result, constructor)
+}
+
+class CallDeploy<T : AbiContract>(
+    private val provider: Middleware,
+    private val constructor: BiFunction<Middleware, Address, T>,
+    val address: Address,
+    val deployedBytecode: Bytes,
+) {
+    @JvmSynthetic
+    operator fun component1(): T = toContract()
+
+    @JvmSynthetic
+    operator fun component2(): Map<Address, AccountOverride> = toStateOverride()
+
+    fun toContract(): T = constructor.apply(provider, address)
+
+    fun toStateOverride(): Map<Address, AccountOverride> {
+        return HashMap<Address, AccountOverride>(1).apply { addStateOverride(this) }
+    }
+
+    fun addStateOverride(stateOverride: MutableMap<Address, AccountOverride>) {
+        stateOverride[address] = AccountOverride().code(deployedBytecode)
+    }
 }
 
 class PendingContractDeploy<T : AbiContract>(
