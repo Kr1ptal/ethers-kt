@@ -13,7 +13,7 @@ class FunctionCall<T>(
     to: Address,
     data: Bytes?,
     private val decoder: Function<Bytes, T>,
-) : ReadWriteContractCall<T, PendingTransaction, FunctionCall<T>>(provider), AggregateableCall<T> {
+) : ReadWriteContractCall<T, PendingTransaction, FunctionCall<T>>(provider), Multicall3Aggregatable<T> {
 
     init {
         call.to = to
@@ -32,7 +32,7 @@ class ReadFunctionCall<T>(
     to: Address,
     data: Bytes?,
     private val decoder: Function<Bytes, T>,
-) : ReadContractCall<T, ReadFunctionCall<T>>(provider), AggregateableCall<T> {
+) : ReadContractCall<T, ReadFunctionCall<T>>(provider), Multicall3Aggregatable<T> {
 
     init {
         call.to = to
@@ -50,7 +50,7 @@ class PayableFunctionCall<T>(
     to: Address,
     data: Bytes?,
     private val decoder: Function<Bytes, T>,
-) : ReadWriteContractCall<T, PendingTransaction, PayableFunctionCall<T>>(provider), AggregateableCall<T> {
+) : ReadWriteContractCall<T, PendingTransaction, PayableFunctionCall<T>>(provider), Multicall3Aggregatable<T> {
 
     init {
         call.to = to
@@ -81,7 +81,7 @@ class ReceiveFunctionCall(
     provider: Middleware,
     to: Address,
     value: BigInteger,
-) : ReadWriteContractCall<Unit, PendingTransaction, ReceiveFunctionCall>(provider), AggregateableCall<Unit> {
+) : ReadWriteContractCall<Unit, PendingTransaction, ReceiveFunctionCall>(provider), Multicall3Aggregatable<Unit> {
 
     init {
         call.to = to
