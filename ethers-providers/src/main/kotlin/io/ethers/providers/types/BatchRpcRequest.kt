@@ -131,6 +131,29 @@ fun <T, E : Result.Error> Iterable<RpcRequest<out T, E>>.sendAsync(): BatchRespo
     return BatchResponseAsync(futures)
 }
 
+/**
+ * Await all [CompletableFuture]s in the list, returning a list of results.
+ * */
+fun <T> List<CompletableFuture<T>>.await(): List<T> {
+    val ret = ArrayList<T>(size)
+    for (future in this) {
+        future.join()
+    }
+    return ret
+}
+
+/**
+ * Unwrap all [Result]'s, throwing an exception if any of them is an error, otherwise returning a list
+ * of success values.
+ * */
+fun <T, E : Result.Error> List<Result<T, E>>.unwrap(): List<T> {
+    val ret = ArrayList<T>(size)
+    for (result in this) {
+        ret.add(result.unwrap())
+    }
+    return ret
+}
+
 // Zero-cost typed response classes to provide specialized "component" operators. In case it's used as a different type
 // it gets boxed (e.g. `map`, `forEach`, etc...). But since we're just wrapping and delegating a `List`,
 // it's still pretty cheap.
