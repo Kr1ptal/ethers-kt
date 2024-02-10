@@ -12,33 +12,55 @@ class CallRequest {
     // make property setters unavailable from Java since we provide custom chained functions
     var from: Address? = null
         @JvmSynthetic set
+
     var to: Address? = null
         @JvmSynthetic set
+
     var gas: Long = -1L
         @JvmSynthetic set
+
     var gasPrice: BigInteger? = null
-        @JvmSynthetic set
+        @JvmSynthetic set(value) {
+            require(value == null || value >= BigInteger.ZERO) { "GasPrice must be non-negative" }
+            field = value
+        }
+
     var gasFeeCap: BigInteger? = null
-        @JvmSynthetic set
+        @JvmSynthetic set(value) {
+            require(value == null || value >= BigInteger.ZERO) { "GasFeeCap must be non-negative" }
+            field = value
+        }
+
     var gasTipCap: BigInteger? = null
-        @JvmSynthetic set
+        @JvmSynthetic set(value) {
+            require(value == null || value >= BigInteger.ZERO) { "GasTipCap must be non-negative" }
+            field = value
+        }
+
     var value: BigInteger? = null
-        @JvmSynthetic set
+        @JvmSynthetic set(value) {
+            require(value == null || value >= BigInteger.ZERO) { "Value must be non-negative" }
+            field = value
+        }
+
     var nonce: Long = -1L
         @JvmSynthetic set
+
     var data: Bytes? = null
         @JvmSynthetic set
+
     var accessList: List<AccessList.Item> = emptyList()
         @JvmSynthetic set
+
     var chainId: Long = -1L
         @JvmSynthetic set
 
-    fun from(from: Address): CallRequest {
+    fun from(from: Address?): CallRequest {
         this.from = from
         return this
     }
 
-    fun to(to: Address): CallRequest {
+    fun to(to: Address?): CallRequest {
         this.to = to
         return this
     }
@@ -48,22 +70,22 @@ class CallRequest {
         return this
     }
 
-    fun gasPrice(gasPrice: BigInteger): CallRequest {
+    fun gasPrice(gasPrice: BigInteger?): CallRequest {
         this.gasPrice = gasPrice
         return this
     }
 
-    fun gasFeeCap(gasFeeCap: BigInteger): CallRequest {
+    fun gasFeeCap(gasFeeCap: BigInteger?): CallRequest {
         this.gasFeeCap = gasFeeCap
         return this
     }
 
-    fun gasTipCap(gasTipCap: BigInteger): CallRequest {
+    fun gasTipCap(gasTipCap: BigInteger?): CallRequest {
         this.gasTipCap = gasTipCap
         return this
     }
 
-    fun value(value: BigInteger): CallRequest {
+    fun value(value: BigInteger?): CallRequest {
         this.value = value
         return this
     }
@@ -73,7 +95,7 @@ class CallRequest {
         return this
     }
 
-    fun data(data: Bytes): CallRequest {
+    fun data(data: Bytes?): CallRequest {
         this.data = data
         return this
     }

@@ -2,6 +2,7 @@ package io.ethers.core.types
 
 import io.ethers.core.Jackson
 import io.kotest.assertions.json.shouldEqualJson
+import io.kotest.assertions.throwables.shouldThrowUnit
 import io.kotest.core.spec.style.FunSpec
 import java.math.BigInteger
 
@@ -46,17 +47,33 @@ class CallRequestTest : FunSpec({
               "input": "${callRequest.data!!}",
               "accessList": [
                 {
-                  "address": "${callRequest.accessList!![0].address}",
+                  "address": "${callRequest.accessList[0].address}",
                   "storageKeys": [
-                    "${callRequest.accessList!![0].storageKeys[0]}",
-                    "${callRequest.accessList!![0].storageKeys[1]}",
-                    "${callRequest.accessList!![0].storageKeys[2]}",
-                    "${callRequest.accessList!![0].storageKeys[3]}"
+                    "${callRequest.accessList[0].storageKeys[0]}",
+                    "${callRequest.accessList[0].storageKeys[1]}",
+                    "${callRequest.accessList[0].storageKeys[2]}",
+                    "${callRequest.accessList[0].storageKeys[3]}"
                   ]
                 }
               ],
               "chainId": "0x${callRequest.chainId.toString(16)}"
             }
         """
+    }
+
+    test("throws on negative BigInteger assignment") {
+        val request = CallRequest()
+
+        shouldThrowUnit<IllegalArgumentException> { request.gasPrice = BigInteger.ONE.negate() }
+        shouldThrowUnit<IllegalArgumentException> { request.gasPrice(BigInteger.ONE.negate()) }
+
+        shouldThrowUnit<IllegalArgumentException> { request.gasFeeCap = BigInteger.ONE.negate() }
+        shouldThrowUnit<IllegalArgumentException> { request.gasFeeCap(BigInteger.ONE.negate()) }
+
+        shouldThrowUnit<IllegalArgumentException> { request.gasTipCap = BigInteger.ONE.negate() }
+        shouldThrowUnit<IllegalArgumentException> { request.gasTipCap(BigInteger.ONE.negate()) }
+
+        shouldThrowUnit<IllegalArgumentException> { request.value = BigInteger.ONE.negate() }
+        shouldThrowUnit<IllegalArgumentException> { request.value(BigInteger.ONE.negate()) }
     }
 })
