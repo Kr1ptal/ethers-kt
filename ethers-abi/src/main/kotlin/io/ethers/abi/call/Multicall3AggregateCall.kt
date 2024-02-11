@@ -30,7 +30,7 @@ import java.util.concurrent.CompletableFuture
  *     val pool = UniswapV2Pair(provider, Address("0x0d4a11d5EEaaC28EC3F61d100daF4d40471f1852"))
  *
  *     // initialize a new aggregate call
- *     val agg = Multicall3.newAggregation<Any>(provider)
+ *     val agg = Multicall3.newAggregation(provider)
  *
  *     // add calls
  *     val name = pool.name().aggregate(agg)
@@ -46,12 +46,12 @@ import java.util.concurrent.CompletableFuture
  *     println(decimals.get())
  * ```
  * */
-class Multicall3AggregateCall<T> internal constructor(
+class Multicall3AggregateCall internal constructor(
     provider: Middleware,
     multicall3: Address,
-) : ReadWriteContractCall<Boolean, PendingTransaction, Multicall3AggregateCall<T>>(provider),
+) : ReadWriteContractCall<Boolean, PendingTransaction, Multicall3AggregateCall>(provider),
     Multicall3Aggregatable<Boolean> {
-    private val requests = ArrayList<AggregateRequest<T>>()
+    private val requests = ArrayList<AggregateRequest<*>>()
     private var lastRequestsSize = 0
     private var mixedFailureConditions = false
     private var anyPayable = false
@@ -60,7 +60,7 @@ class Multicall3AggregateCall<T> internal constructor(
         super.call.to = multicall3
     }
 
-    override val self: Multicall3AggregateCall<T>
+    override val self: Multicall3AggregateCall
         get() = this
 
     override val call: CallRequest
@@ -130,13 +130,13 @@ class Multicall3AggregateCall<T> internal constructor(
      * Add a call to the aggregate call. Only [to], [value], [data] fields are used from the call.
      * */
     @JvmOverloads
-    fun <RetType : T> addCall(
-        call: Multicall3Aggregatable<RetType>,
+    fun <T> addCall(
+        call: Multicall3Aggregatable<T>,
         allowFailure: Boolean = false,
-    ): CompletableFuture<Result<RetType, ContractError>> {
+    ): CompletableFuture<Result<T, ContractError>> {
         // TODO replace with ConditionalCompletableFuture, but the flag needs to be set when
         //  the RPC request is actually sent
-        val future = CompletableFuture<Result<RetType, ContractError>>()
+        val future = CompletableFuture<Result<T, ContractError>>()
 
         if (!mixedFailureConditions && requests.isNotEmpty()) {
             mixedFailureConditions = requests[0].allowFailure != allowFailure
@@ -146,47 +146,40 @@ class Multicall3AggregateCall<T> internal constructor(
             anyPayable = call.value != null && call.value != BigInteger.ZERO
         }
 
-        // safe cast, we're downcasting from R to T
-        @Suppress("UNCHECKED_CAST")
         requests.add(
             AggregateRequest(
                 call,
                 allowFailure,
                 future,
-            ) as AggregateRequest<T>,
+            )
         )
         return future
     }
 
     override fun handleCallResult(result: Bytes): Result<Boolean, ContractError> {
+        @Suppress("UNCHECKED_CAST")
         val decoded = Multicall3.FUNCTION_AGGREGATE3_VALUE.decodeResponse(result)[0] as Array<Multicall3.Result>
+
         for (i in requests.indices) {
             val request = requests[i]
             val callResult = decoded[i]
-            if (callResult.success) {
-                val res = request.function.decodeCallResult(callResult.returnData)
-                request.future.complete(res)
-            } else {
-                val res = failure(tryDecodingCallRevert(callResult.returnData))
-                request.future.complete(res)
-            }
+
+            handleRequestResult(request, callResult)
         }
 
         return success(true)
     }
 
-    override fun handleCallError(error: ContractError): ContractError {
-        val failure = failure(error)
-
-        // complete all futures with the same error
-        for (i in requests.indices) {
-            requests[i].future.complete(failure)
+    private fun <T> handleRequestResult(request: AggregateRequest<T>, result: Multicall3.Result) {
+        val res = if (result.success) {
+            request.function.decodeCallResult(result.returnData)
+        } else {
+            failure(tryDecodingCallRevert(result.returnData))
         }
 
-        return error
-    }
+        request.future.complete(res)
 
-    override fun handleSendResult(result: PendingTransaction) = result
+    }
 
     private fun tryDecodingCallRevert(err: Bytes): ContractError {
         val contractError = ContractError.getOrNull(err)
@@ -197,6 +190,23 @@ class Multicall3AggregateCall<T> internal constructor(
         // if we can't decode the error, just return the raw bytes as hex
         return RevertError(err.toString())
     }
+
+    override fun handleCallError(error: ContractError): ContractError {
+        val failure = failure(error)
+
+        // complete all futures with the same error
+        for (i in requests.indices) {
+            handleRequestError(requests[i], failure)
+        }
+
+        return error
+    }
+
+    private fun <T> handleRequestError(request: AggregateRequest<T>, error: Result<Nothing, ContractError>) {
+        request.future.complete(error)
+    }
+
+    override fun handleSendResult(result: PendingTransaction) = result
 
     private class AggregateRequest<T>(
         val function: Multicall3Aggregatable<T>,
@@ -227,7 +237,7 @@ interface Multicall3Aggregatable<T> {
      * waiting for itself to complete.
      * */
     fun aggregate(
-        aggregate: Multicall3AggregateCall<in T>,
+        aggregate: Multicall3AggregateCall,
         allowFailure: Boolean = false,
     ): CompletableFuture<Result<T, ContractError>> {
         return aggregate.addCall(this, allowFailure)
@@ -238,14 +248,14 @@ interface Multicall3Aggregatable<T> {
  * Aggregate all calls into a [Multicall3] call. Only [CallRequest.to], [CallRequest.value], [CallRequest.data]
  * fields are used from the calls.
  * */
-fun <T> Iterable<Multicall3Aggregatable<T>>.aggregate(allowFailure: Boolean = false): Multicall3AggregateCall<T> {
+fun <T> Iterable<Multicall3Aggregatable<T>>.aggregate(allowFailure: Boolean = false): Multicall3AggregateCall {
     val iter = iterator()
     if (!iter.hasNext()) {
         throw IllegalArgumentException("No calls to aggregate")
     }
 
     val first = iter.next()
-    val call = Multicall3.newAggregation<T>(first.provider)
+    val call = Multicall3.newAggregation(first.provider)
     call.addCall(first, allowFailure)
 
     for (req in iter) {
@@ -259,11 +269,11 @@ fun <T> Iterable<Multicall3Aggregatable<T>>.aggregate(allowFailure: Boolean = fa
  * Aggregate all calls into a [Multicall3] call via provided [agg]. Only [CallRequest.to], [CallRequest.value],
  * [CallRequest.data] fields are used from the calls.
  * */
-fun <AggType, RetType : AggType> Iterable<Multicall3Aggregatable<RetType>>.aggregate(
-    agg: Multicall3AggregateCall<AggType>,
+fun <T> Iterable<Multicall3Aggregatable<T>>.aggregate(
+    agg: Multicall3AggregateCall,
     allowFailure: Boolean = false,
-): List<CompletableFuture<Result<RetType, ContractError>>> {
-    val ret = ArrayList<CompletableFuture<Result<RetType, ContractError>>>()
+): List<CompletableFuture<Result<T, ContractError>>> {
+    val ret = ArrayList<CompletableFuture<Result<T, ContractError>>>()
     for (req in this) {
         ret.add(agg.addCall(req, allowFailure))
     }

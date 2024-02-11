@@ -410,7 +410,7 @@ class Multicall3(
          * [Multicall3Aggregatable] calls into a single [Multicall3] function call.
          * */
         @JvmStatic
-        fun <T> newAggregation(provider: Middleware): Multicall3AggregateCall<T> {
+        fun newAggregation(provider: Middleware): Multicall3AggregateCall {
             return Multicall3AggregateCall(provider, getAddressForChainId(provider.chainId))
         }
 
