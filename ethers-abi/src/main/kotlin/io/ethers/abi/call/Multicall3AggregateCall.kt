@@ -151,7 +151,7 @@ class Multicall3AggregateCall internal constructor(
                 call,
                 allowFailure,
                 future,
-            )
+            ),
         )
         return future
     }
@@ -178,7 +178,6 @@ class Multicall3AggregateCall internal constructor(
         }
 
         request.future.complete(res)
-
     }
 
     private fun tryDecodingCallRevert(err: Bytes): ContractError {
