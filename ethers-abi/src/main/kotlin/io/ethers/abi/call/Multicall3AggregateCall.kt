@@ -247,6 +247,14 @@ interface Multicall3Aggregatable<T> {
 /**
  * Aggregate all calls into a [Multicall3] call. Only [CallRequest.to], [CallRequest.value], [CallRequest.data]
  * fields are used from the calls.
+ *
+ * NOTE: This function is intended to be used when the result of the calls are not needed. This is useful if you're
+ * only interested in the side effects of the calls, either when sending/tracing the call or by adding additional
+ * calls to the returned [Multicall3AggregateCall], which depend on the state changes made by the calls in [this]
+ * Iterable.
+ *
+ * If you need the result of the calls, use the [aggregate] extension function which accepts a [Multicall3AggregateCall]
+ * as an argument.
  * */
 fun <T> Iterable<Multicall3Aggregatable<T>>.aggregate(allowFailure: Boolean = false): Multicall3AggregateCall {
     val iter = iterator()
