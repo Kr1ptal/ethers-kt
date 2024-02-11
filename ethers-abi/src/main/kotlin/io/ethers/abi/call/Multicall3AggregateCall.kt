@@ -1,7 +1,6 @@
 package io.ethers.abi.call
 
 import io.ethers.abi.error.ContractError
-import io.ethers.abi.error.DecodingError
 import io.ethers.abi.error.RevertError
 import io.ethers.core.Result
 import io.ethers.core.failure
@@ -22,13 +21,36 @@ import java.util.concurrent.CompletableFuture
  * - [Multicall3.aggregate3], if calls have mixed failure conditions (i.e. some allow failure, some don't),
  * - [Multicall3.tryAggregate], if all calls have the same failure condition, and are not payable or with zero value.
  *
+ * An instance of this class is created via [Multicall3.newAggregation], or one of the [aggregate] extension functions.
+ *
  * Aggregate calls can be nested, i.e. an aggregate call can contain other aggregate calls.
+ *
+ * Usage example:
+ * ```kotlin
+ *     val pool = UniswapV2Pair(provider, Address("0x0d4a11d5EEaaC28EC3F61d100daF4d40471f1852"))
+ *
+ *     // initialize a new aggregate call
+ *     val agg = Multicall3.newAggregation<Any>(provider)
+ *
+ *     // add calls
+ *     val name = pool.name().aggregate(agg)
+ *     val symbol = pool.symbol().aggregate(agg)
+ *     val decimals = pool.decimals().aggregate(agg)
+ *
+ *     // send the aggregate call
+ *     agg.call(BlockId.LATEST).sendAwait()
+ *
+ *      // get the results of function calls
+ *     println(name.get())
+ *     println(symbol.get())
+ *     println(decimals.get())
+ * ```
  * */
 class Multicall3AggregateCall<T> internal constructor(
     provider: Middleware,
     multicall3: Address,
-) : ReadWriteContractCall<List<Result<T, ContractError>>, PendingTransaction, Multicall3AggregateCall<T>>(provider),
-    Multicall3Aggregatable<List<Result<T, ContractError>>> {
+) : ReadWriteContractCall<Boolean, PendingTransaction, Multicall3AggregateCall<T>>(provider),
+    Multicall3Aggregatable<Boolean> {
     private val requests = ArrayList<AggregateRequest<T>>()
     private var lastRequestsSize = 0
     private var mixedFailureConditions = false
@@ -136,41 +158,32 @@ class Multicall3AggregateCall<T> internal constructor(
         return future
     }
 
-    override fun handleCallResult(result: Bytes): Result<List<Result<T, ContractError>>, ContractError> {
+    override fun handleCallResult(result: Bytes): Result<Boolean, ContractError> {
         val decoded = Multicall3.FUNCTION_AGGREGATE3_VALUE.decodeResponse(result)[0] as Array<Multicall3.Result>
-        if (decoded.size != requests.size) {
-            val ret = failure(
-                DecodingError(
-                    result,
-                    "Multicall returned ${decoded.size} results, expected ${requests.size}",
-                    null,
-                ),
-            )
-
-            // complete all futures with the same error
-            for (i in requests.indices) {
-                requests[i].future.complete(ret)
-            }
-
-            return ret
-        }
-
-        val ret = ArrayList<Result<T, ContractError>>(requests.size)
         for (i in requests.indices) {
             val request = requests[i]
             val callResult = decoded[i]
             if (callResult.success) {
                 val res = request.function.decodeCallResult(callResult.returnData)
                 request.future.complete(res)
-                ret.add(res)
             } else {
                 val res = failure(tryDecodingCallRevert(callResult.returnData))
                 request.future.complete(res)
-                ret.add(res)
             }
         }
 
-        return success(ret)
+        return success(true)
+    }
+
+    override fun handleCallError(error: ContractError): ContractError {
+        val failure = failure(error)
+
+        // complete all futures with the same error
+        for (i in requests.indices) {
+            requests[i].future.complete(failure)
+        }
+
+        return error
     }
 
     override fun handleSendResult(result: PendingTransaction) = result

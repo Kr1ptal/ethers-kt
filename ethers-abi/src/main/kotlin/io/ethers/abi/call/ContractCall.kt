@@ -210,26 +210,32 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
     }
 
     private fun tryDecodingContractRevert(err: RpcError): ContractError {
+        var error: ContractError? = null
+
         // "eth_call" execution reverts are included in "error" field of the json-rpc response
         if (err.isExecutionError && err.data != null) {
-            // if data is not a valid hex string, it's an already decoded revert error
-            if (!FastHex.isValidHex(err.data!!)) {
-                return RevertError(err.data!!)
-            }
+            error = when {
+                // if data is not a valid hex string, it's an already decoded revert error
+                !FastHex.isValidHex(err.data!!) -> RevertError(err.data!!)
 
-            // otherwise it could be a custom error
-            val contractError = ContractError.getOrNull(Bytes(err.data!!))
-            if (contractError != null) {
-                return contractError
+                // otherwise it could be a custom error
+                else -> ContractError.getOrNull(Bytes(err.data!!))
             }
         }
 
-        return ContractRpcError(err)
+        // if we couldn't decode the error, just return the RPC error
+        if (error == null) {
+            error = ContractRpcError(err)
+        }
+
+        return handleCallError(error)
     }
 
     protected abstract val self: B
 
     protected abstract fun handleCallResult(result: Bytes): Result<C, ContractError>
+
+    protected open fun handleCallError(error: ContractError) = error
 
     var from: Address?
         get() = call.from
