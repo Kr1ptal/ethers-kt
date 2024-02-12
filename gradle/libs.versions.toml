@@ -9,7 +9,7 @@ kotest = "5.8.0"
 jmh = "1.37"
 okhttp3 = "4.12.0"
 slf4j = "2.0.12"
-ktlint-tool = "1.0.1"
+ktlint-tool = "1.1.1"
 web3j = "4.10.3"
 ethers = "0.3.0"
 
