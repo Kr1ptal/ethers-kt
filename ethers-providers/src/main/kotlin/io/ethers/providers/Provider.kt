@@ -61,12 +61,12 @@ class Provider(override val client: JsonRpcClient) : Middleware {
     //-----------------------------------------------------------------------------------------------------------------
     //                                  EthApi implementation
     //-----------------------------------------------------------------------------------------------------------------
-    override val chainId = RpcCall(client, "eth_chainId", emptyArray<Any>(), { it.readHexLong() })
+    override val chainId = RpcCall(client, "eth_chainId", EMPTY_ARRAY, { it.readHexLong() })
         .sendAwait()
         .unwrap()
 
     override fun getBlockNumber(): RpcRequest<Long, RpcError> {
-        return RpcCall(client, "eth_blockNumber", emptyArray<Any>()) { it.readHexLong() }
+        return RpcCall(client, "eth_blockNumber", EMPTY_ARRAY) { it.readHexLong() }
     }
 
     override fun getBalance(address: Address, blockId: BlockId): RpcRequest<BigInteger, RpcError> {
@@ -158,11 +158,15 @@ class Provider(override val client: JsonRpcClient) : Middleware {
     }
 
     override fun getGasPrice(): RpcRequest<BigInteger, RpcError> {
-        return RpcCall(client, "eth_gasPrice", emptyArray<Any>()) { it.readHexBigInteger() }
+        return RpcCall(client, "eth_gasPrice", EMPTY_ARRAY) { it.readHexBigInteger() }
+    }
+
+    override fun getBlobBaseFee(): RpcRequest<BigInteger, RpcError> {
+        return RpcCall(client, "eth_blobBaseFee", EMPTY_ARRAY) { it.readHexBigInteger() }
     }
 
     override fun getMaxPriorityFeePerGas(): RpcRequest<BigInteger, RpcError> {
-        return RpcCall(client, "eth_maxPriorityFeePerGas", emptyArray<Any>()) { it.readHexBigInteger() }
+        return RpcCall(client, "eth_maxPriorityFeePerGas", EMPTY_ARRAY) { it.readHexBigInteger() }
     }
 
     override fun getFeeHistory(
@@ -175,7 +179,7 @@ class Provider(override val client: JsonRpcClient) : Middleware {
     }
 
     override fun isNodeSyncing(): RpcRequest<SyncStatus, RpcError> {
-        return RpcCall(client, "eth_syncing", emptyArray<Any>()) { it.readValueAs(SyncStatus::class.java) }
+        return RpcCall(client, "eth_syncing", EMPTY_ARRAY) { it.readValueAs(SyncStatus::class.java) }
     }
 
     override fun getBlockTransactionCount(blockId: BlockId): RpcRequest<Long, RpcError> {
@@ -277,7 +281,7 @@ class Provider(override val client: JsonRpcClient) : Middleware {
         return RpcCall(
             client,
             "eth_newBlockFilter",
-            emptyArray<Any>(),
+            EMPTY_ARRAY,
             { p -> FilterPoller(p.text, this, { it.readListOfHashes() }) },
         )
     }
@@ -286,7 +290,7 @@ class Provider(override val client: JsonRpcClient) : Middleware {
         return RpcCall(
             client,
             "eth_newPendingTransactionFilter",
-            emptyArray<Any>(),
+            EMPTY_ARRAY,
             { p -> FilterPoller(p.text, this, { it.readListOfHashes() }) },
         )
     }
@@ -407,22 +411,22 @@ class Provider(override val client: JsonRpcClient) : Middleware {
     //                                  NetApi implementation
     //-----------------------------------------------------------------------------------------------------------------
     override fun isListening(): RpcRequest<Boolean, RpcError> {
-        return RpcCall(client, "net_listening", emptyArray<Any>()) { it.readValueAs(Boolean::class.java) }
+        return RpcCall(client, "net_listening", EMPTY_ARRAY) { it.readValueAs(Boolean::class.java) }
     }
 
     override fun getPeerCount(): RpcRequest<Long, RpcError> {
-        return RpcCall(client, "net_peerCount", emptyArray<Any>()) { it.readHexLong() }
+        return RpcCall(client, "net_peerCount", EMPTY_ARRAY) { it.readHexLong() }
     }
 
     override fun getVersion(): RpcRequest<String, RpcError> {
-        return RpcCall(client, "net_version", emptyArray<Any>(), String::class.java)
+        return RpcCall(client, "net_version", EMPTY_ARRAY, String::class.java)
     }
 
     //-----------------------------------------------------------------------------------------------------------------
     //                                  TxpoolApi implementation
     //-----------------------------------------------------------------------------------------------------------------
     override fun txpoolContent(): RpcRequest<TxpoolContent, RpcError> {
-        return RpcCall(client, "txpool_content", emptyArray<Any>(), TxpoolContent::class.java)
+        return RpcCall(client, "txpool_content", EMPTY_ARRAY, TxpoolContent::class.java)
     }
 
     override fun txpoolContentFrom(address: Address): RpcRequest<TxpoolContentFromAddress, RpcError> {
@@ -431,11 +435,11 @@ class Provider(override val client: JsonRpcClient) : Middleware {
     }
 
     override fun txpoolStatus(): RpcRequest<TxpoolStatus, RpcError> {
-        return RpcCall(client, "txpool_status", emptyArray<Any>(), TxpoolStatus::class.java)
+        return RpcCall(client, "txpool_status", EMPTY_ARRAY, TxpoolStatus::class.java)
     }
 
     override fun txpoolInspect(): RpcRequest<TxpoolInspectResult, RpcError> {
-        return RpcCall(client, "txpool_inspect", emptyArray<Any>(), TxpoolInspectResult::class.java)
+        return RpcCall(client, "txpool_inspect", EMPTY_ARRAY, TxpoolInspectResult::class.java)
     }
 
     /**
@@ -444,6 +448,7 @@ class Provider(override val client: JsonRpcClient) : Middleware {
     data class UnsupportedUrlProtocol(val url: String) : Result.Error
 
     companion object {
+        private val EMPTY_ARRAY = emptyArray<Any>()
         private val PROTO_HTTPS = "^(https?)://.+$".toRegex()
         private val PROTO_WSS = "^(wss?)://.+$".toRegex()
 

@@ -219,6 +219,11 @@ interface EthApi {
     fun getGasPrice(): RpcRequest<BigInteger, RpcError>
 
     /**
+     * Returns the base fee per blob gas in wei.
+     * */
+    fun getBlobBaseFee(): RpcRequest<BigInteger, RpcError>
+
+    /**
      * Get gas tip cap suggestion for dynamic fee transaction.
      */
     fun getMaxPriorityFeePerGas(): RpcRequest<BigInteger, RpcError>
