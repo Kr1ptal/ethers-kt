@@ -29,7 +29,6 @@ class ConstructorCall<T : AbiContract>(
         // all on a different address, so they don't override each other in state overrides.
         call.from = Address.random()
         call.to = null
-        call.nonce = 0L
         call.data = bytecode
     }
 
@@ -51,7 +50,6 @@ class PayableConstructorCall<T : AbiContract>(
         // all on a different address, so they don't override each other in state overrides.
         call.from = Address.random()
         call.to = null
-        call.nonce = 0L
         call.data = bytecode
     }
 

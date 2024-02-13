@@ -280,7 +280,8 @@ fun <T> Iterable<Multicall3Aggregatable<T>>.aggregate(
     agg: Multicall3AggregateCall,
     allowFailure: Boolean = false,
 ): List<CompletableFuture<Result<T, ContractError>>> {
-    val ret = ArrayList<CompletableFuture<Result<T, ContractError>>>()
+    val size = if (this is Collection<*>) this.size else 10
+    val ret = ArrayList<CompletableFuture<Result<T, ContractError>>>(size)
     for (req in this) {
         ret.add(agg.addCall(req, allowFailure))
     }
