@@ -17,6 +17,8 @@ data class FeeHistory(
     val baseFeePerGas: List<BigInteger>,
     val gasUsedRatio: List<Double>,
     val rewards: List<List<BigInteger>>?,
+    val baseFeePerBlobGas: List<BigInteger>?,
+    val blobGasUsedRatio: List<Double>?,
 )
 
 class FeeHistoryDeserializer : JsonDeserializer<FeeHistory>() {
@@ -25,6 +27,8 @@ class FeeHistoryDeserializer : JsonDeserializer<FeeHistory>() {
         var baseFeePerGas: List<BigInteger> = emptyList()
         var gasUsedRatio: List<Double> = emptyList()
         var rewards: List<List<BigInteger>>? = null
+        var baseFeePerBlobGas: List<BigInteger>? = null
+        var blobGasUsedRatio: List<Double>? = null
 
         p.forEachObjectField { field ->
             when (field) {
@@ -32,10 +36,12 @@ class FeeHistoryDeserializer : JsonDeserializer<FeeHistory>() {
                 "baseFeePerGas" -> baseFeePerGas = p.readListOf { readHexBigInteger() }
                 "gasUsedRatio" -> gasUsedRatio = p.readListOf { p.doubleValue }
                 "reward" -> rewards = p.readOrNull { p.readListOf { p.readListOf { readHexBigInteger() } } }
-                else -> throw IllegalArgumentException("Unknown field $field")
+                "baseFeePerBlobGas" -> baseFeePerBlobGas = p.readOrNull { p.readListOf { readHexBigInteger() } }
+                "blobGasUsedRatio" -> blobGasUsedRatio = p.readOrNull { p.readListOf { p.doubleValue } }
+                else -> p.skipChildren()
             }
         }
 
-        return FeeHistory(oldestBlock, baseFeePerGas, gasUsedRatio, rewards)
+        return FeeHistory(oldestBlock, baseFeePerGas, gasUsedRatio, rewards, baseFeePerBlobGas, blobGasUsedRatio)
     }
 }

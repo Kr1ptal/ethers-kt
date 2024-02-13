@@ -26,7 +26,13 @@ class FeeHistoryTest : FunSpec({
                 0.5111568446588093,
                 0.4333269044384441,
                 0.3938401
-              ]
+              ],
+              "baseFeePerBlobGas": ["0x1", "0x2"],
+              "blobGasUsedRatio": [0.5],
+              "unknownFieldIsSkipped":  {
+                "field1": "value1",
+                "field2": "value2"
+              }
             }
         """.trimIndent()
         val result = Jackson.MAPPER.readValue(jsonString, FeeHistory::class.java)
@@ -60,6 +66,11 @@ class FeeHistoryTest : FunSpec({
                     BigInteger("100000000"),
                 ),
             ),
+            baseFeePerBlobGas = listOf(
+                BigInteger("1"),
+                BigInteger("2"),
+            ),
+            blobGasUsedRatio = listOf(0.5),
         )
 
         result shouldBe expectedResult
@@ -119,6 +130,8 @@ class FeeHistoryTest : FunSpec({
                     BigInteger("100000000"),
                 ),
             ),
+            baseFeePerBlobGas = null,
+            blobGasUsedRatio = null,
         )
 
         result shouldBe expectedResult
