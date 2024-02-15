@@ -28,6 +28,8 @@ ktlint {
             "ktlint_standard_property-naming" to "disabled",
             "ktlint_standard_spacing-between-declarations-with-annotations" to "disabled",
             "ktlint_standard_multiline-if-else" to "disabled",
+            "ktlint_standard_value-argument-comment" to "disabled",
+            "ktlint_standard_value-parameter-comment" to "disabled",
         )
     )
 }
