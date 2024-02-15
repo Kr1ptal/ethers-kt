@@ -5,18 +5,88 @@ import io.ethers.abi.AbiFunction
 import io.ethers.abi.AbiType
 import io.ethers.abi.ContractStruct
 import io.ethers.abi.StructFactory
+import io.ethers.abi.call.Multicall3.Aggregatable
+import io.ethers.abi.call.Multicall3.Companion.DEFAULT_ADDRESS
+import io.ethers.abi.call.Multicall3.Companion.STATE_OVERRIDE
+import io.ethers.abi.error.ContractError
+import io.ethers.abi.error.RevertError
 import io.ethers.core.Jackson
+import io.ethers.core.Result
+import io.ethers.core.failure
 import io.ethers.core.types.AccountOverride
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
+import io.ethers.core.types.CallRequest
 import io.ethers.providers.middleware.Middleware
 import java.math.BigInteger
 import java.util.concurrent.ConcurrentHashMap
 
+private typealias EthersResult<T, E> = Result<T, E>
+
+/**
+ * [Multicall3](https://www.multicall3.com/) implementation for executing batch contracts calls on multiple EVM-based
+ * chains, via single contract call.
+ *
+ * Instances of this class are chain-specific, and should be obtained via [Multicall3.getInstance], which returns a
+ * cached instance. If querying on chains with no [Multicall3] contract deployed - or on blocks before it was
+ * deployed -, you can use the [STATE_OVERRIDE] when calling/tracing to "deploy" it for the duration of the calls
+ * on [DEFAULT_ADDRESS].
+ *
+ * It can be used to aggregate function calls of other abi-generated contracts as long as they implement the
+ * [Aggregatable] interface. Aggregate calls can also be nested, i.e. an aggregate call can contain other
+ * aggregate calls.
+ *
+ * Example usage:
+ * ```kotlin
+ *    // two nested aggregate calls, and a regular one
+ *    val agg = Multicall3.aggregate(
+ *        ticks.map { bitmap.flipTick(it.toBigInteger(), spacing.toBigInteger()) }.aggregate(),
+ *        ticks.map { bitmap.isTickSet(it.toBigInteger(), spacing.toBigInteger()) }.aggregate(),
+ *        router.quote("100000".toBigInteger(), "12415235134".toBigInteger(), "982341485157841".toBigInteger())
+ *    )
+ *
+ *    // execute the call
+ *    val response = agg.call(BlockId.LATEST).sendAwait().unwrap()
+ *
+ *    // nested aggregate calls are returned as an instance AggregationResult
+ *    val areTicksSet = response.getAsAggregation<Boolean>(1)
+ *    val swapResult = response.getAs<BigInteger>(2)
+ * ```
+ * */
 class Multicall3(
     provider: Middleware,
     address: Address,
 ) : AbiContract(provider, address) {
+    /**
+     * Contract call that aggregates multiple [Aggregatable] calls into a single [Multicall3] contract call. The calls
+     * will be aggregated using as few calldata as possible, depending on the calls' properties. One of the following
+     * aggregation functions will be used:
+     * - [aggregate3Value], if any call is payable with non-zero value set,
+     * - [aggregate3], if calls have mixed failure conditions (i.e. some allow failure, some don't),
+     * - [tryAggregate], if all calls have the same failure condition, and are not payable or with zero value.
+     *
+     * Aggregate calls can be nested, i.e. an aggregate call can contain other aggregate calls.
+     * */
+    @Suppress("UNCHECKED_CAST")
+    fun <T> aggregateCalls(vararg calls: Aggregatable<out T>): FunctionCall<AggregationResult<T>> {
+        return calls.withDataAndValue { data, value ->
+            FunctionCall(this.provider, this.address, value, data) {
+                val decoded = FUNCTION_AGGREGATE3_VALUE.decodeResponse(it)[0] as Array<Result>
+
+                val ret = arrayOfNulls<EthersResult<*, ContractError>>(decoded.size)
+                for (i in decoded.indices) {
+                    val request = calls[i]
+                    val callResult = decoded[i]
+
+                    ret[i] = handleRequestResult(request, callResult)
+                }
+
+                AggregationResult(ret as Array<EthersResult<T, ContractError>>)
+            }
+        }
+    }
+
+    @Suppress("UNCHECKED_CAST")
     fun aggregate(vararg calls: Call): PayableFunctionCall<AggregateResult> =
         PayableFunctionCall(
             this.provider,
@@ -27,6 +97,7 @@ class Multicall3(
             AggregateResult(data[0] as BigInteger, data[1] as Array<Bytes>)
         }
 
+    @Suppress("UNCHECKED_CAST")
     fun aggregate3(vararg calls: Call3): PayableFunctionCall<Array<Result>> =
         PayableFunctionCall(
             this.provider,
@@ -37,6 +108,7 @@ class Multicall3(
             data[0] as Array<Result>
         }
 
+    @Suppress("UNCHECKED_CAST")
     fun aggregate3Value(vararg calls: Call3Value): PayableFunctionCall<Array<Result>> =
         PayableFunctionCall(
             this.provider,
@@ -47,6 +119,7 @@ class Multicall3(
             data[0] as Array<Result>
         }
 
+    @Suppress("UNCHECKED_CAST")
     fun blockAndAggregate(vararg calls: Call): PayableFunctionCall<BlockAndAggregateResult> =
         PayableFunctionCall(
             this.provider,
@@ -157,6 +230,7 @@ class Multicall3(
         data[0] as Bytes
     }
 
+    @Suppress("UNCHECKED_CAST")
     fun tryAggregate(requireSuccess: Boolean, vararg calls: Call): PayableFunctionCall<Array<Result>> =
         PayableFunctionCall(
             this.provider,
@@ -167,6 +241,7 @@ class Multicall3(
             data[0] as Array<Result>
         }
 
+    @Suppress("UNCHECKED_CAST")
     fun tryBlockAndAggregate(
         requireSuccess: Boolean,
         vararg calls: Call,
@@ -181,6 +256,29 @@ class Multicall3(
             data[1] as Bytes,
             data[2] as Array<Result>,
         )
+    }
+
+    private fun <T> handleRequestResult(
+        request: Aggregatable<T>,
+        result: Result,
+    ): EthersResult<T, ContractError> {
+        val res = if (result.success) {
+            request.decodeCallResult(result.returnData)
+        } else {
+            failure(tryDecodingCallRevert(result.returnData))
+        }
+
+        return res
+    }
+
+    private fun tryDecodingCallRevert(err: Bytes): ContractError {
+        val contractError = ContractError.getOrNull(err)
+        if (contractError != null) {
+            return contractError
+        }
+
+        // if we can't decode the error, just return the raw bytes as hex
+        return RevertError(err.toString())
     }
 
     data class BlockAndAggregateResult(
@@ -375,6 +473,41 @@ class Multicall3(
         }
     }
 
+    /**
+     * A contract call that can be aggregated via [Multicall3] contract function call.
+     * */
+    interface Aggregatable<T> {
+        val provider: Middleware
+
+        val to: Address?
+        val value: BigInteger?
+        val data: Bytes?
+
+        /**
+         * Whether this call can fail without reverting the whole aggregate call. Defaults to false, can be set
+         * to true by calling [allowFailure] function.
+         * */
+        val allowFailure: Boolean
+            get() = false
+
+        fun decodeCallResult(result: Bytes): io.ethers.core.Result<T, ContractError>
+
+        /**
+         * Mark this call as allowing failure, by wrapping it in a new instance of [Aggregatable] that allows failure.
+         * */
+        fun allowFailure(): Aggregatable<T> {
+            if (this.allowFailure) {
+                return this
+            }
+
+            // delegate to this instance, but override allowFailure
+            return object : Aggregatable<T> by this {
+                override val allowFailure: Boolean
+                    get() = true
+            }
+        }
+    }
+
     companion object {
         private val INSTANCE_PER_CHAIN_ID = ConcurrentHashMap<Long, Multicall3>()
         private val DEFAULT_ADDRESS = Address("0xcA11bde05977b3631167028862bE2a173976CA11")
@@ -406,12 +539,23 @@ class Multicall3(
         }
 
         /**
-         * Create and return a new [Multicall3AggregateCall], which can be used to aggregate multiple
-         * [Multicall3Aggregatable] calls into a single [Multicall3] function call.
+         * Aggregate multiple [Aggregatable] calls into a single [Multicall3] contract call. The calls will be
+         * aggregated using as few calldata as possible, depending on the calls' properties. One of the following
+         * aggregation functions will be used:
+         * - [aggregate3Value], if any call is payable with non-zero value set,
+         * - [aggregate3], if calls have mixed failure conditions (i.e. some allow failure, some don't),
+         * - [tryAggregate], if all calls have the same failure condition, and are not payable or with zero value.
+         *
+         * Aggregate calls can be nested, i.e. an aggregate call can contain other aggregate calls.
          * */
         @JvmStatic
-        fun newAggregation(provider: Middleware): Multicall3AggregateCall {
-            return Multicall3AggregateCall(provider, getAddressForChainId(provider.chainId))
+        fun <T> aggregate(vararg calls: Aggregatable<out T>): FunctionCall<AggregationResult<T>> {
+            if (calls.isEmpty()) {
+                throw IllegalArgumentException("No calls to aggregate")
+            }
+
+            val provider = calls.first().provider
+            return getInstance(provider).aggregateCalls(*calls)
         }
 
         private data class MulticallDeployment(
@@ -559,4 +703,73 @@ class Multicall3(
             listOf(AbiType.UInt(256)),
         )
     }
+}
+
+/**
+ * Encode the [Multicall3.Aggregatable] calls into as few calldata as possible. All the functions return the same
+ * type: array of [Multicall3.Result]'s.
+ * */
+private inline fun <T> Array<out Multicall3.Aggregatable<*>>.withDataAndValue(consumer: (Bytes, BigInteger?) -> T): T {
+    if (this.isEmpty()) {
+        return consumer(Bytes.EMPTY, null)
+    }
+
+    var anyPayable = false
+    var mixedFailureConditions = false
+    for (i in this.indices) {
+        val call = this[i]
+        if (call.value != null && call.value != BigInteger.ZERO) {
+            anyPayable = true
+            break
+        }
+
+        if (i > 0 && call.allowFailure != this[0].allowFailure) {
+            mixedFailureConditions = true
+            break
+        }
+    }
+
+    // try to pack the calls using as few calldata as possible
+    return when {
+        anyPayable -> {
+            var totalValue = BigInteger.ZERO
+            val arr = Array(this.size) {
+                val req = this[it]
+                val value = req.value ?: BigInteger.ZERO
+                totalValue += value
+
+                Multicall3.Call3Value(req.to!!, req.allowFailure, value, req.data ?: Bytes.EMPTY)
+            }
+
+            consumer(Multicall3.FUNCTION_AGGREGATE3_VALUE.encodeCall(arrayOf(arr)), totalValue)
+        }
+
+        mixedFailureConditions -> {
+            val arr = Array(this.size) {
+                val req = this[it]
+                Multicall3.Call3(req.to!!, req.allowFailure, req.data ?: Bytes.EMPTY)
+            }
+
+            consumer(Multicall3.FUNCTION_AGGREGATE3.encodeCall(arrayOf(arr)), null)
+        }
+
+        else -> {
+            val allowFailure = this[0].allowFailure
+            val arr = Array(this.size) {
+                val req = this[it]
+                Multicall3.Call(req.to!!, req.data ?: Bytes.EMPTY)
+            }
+
+            consumer(Multicall3.FUNCTION_TRY_AGGREGATE.encodeCall(arrayOf(!allowFailure, arr)), null)
+        }
+    }
+}
+
+/**
+ * Aggregate all calls into a [Multicall3] call. Only [CallRequest.to], [CallRequest.value], [CallRequest.data]
+ * fields are used from the calls.
+ * */
+fun <T> Iterable<Multicall3.Aggregatable<T>>.aggregate(): FunctionCall<AggregationResult<T>> {
+    val collection = if (this is Collection<Multicall3.Aggregatable<T>>) this else toList()
+    return Multicall3.aggregate(*collection.toTypedArray())
 }

@@ -13,7 +13,16 @@ class FunctionCall<T>(
     to: Address,
     data: Bytes?,
     private val decoder: Function<Bytes, T>,
-) : ReadWriteContractCall<T, PendingTransaction, FunctionCall<T>>(provider), Multicall3Aggregatable<T> {
+) : ReadWriteContractCall<T, PendingTransaction, FunctionCall<T>>(provider), Multicall3.Aggregatable<T> {
+    internal constructor(
+        provider: Middleware,
+        to: Address,
+        value: BigInteger?,
+        data: Bytes?,
+        decoder: Function<Bytes, T>,
+    ) : this(provider, to, data, decoder) {
+        call.value = value
+    }
 
     init {
         call.to = to
@@ -32,7 +41,7 @@ class ReadFunctionCall<T>(
     to: Address,
     data: Bytes?,
     private val decoder: Function<Bytes, T>,
-) : ReadContractCall<T, ReadFunctionCall<T>>(provider), Multicall3Aggregatable<T> {
+) : ReadContractCall<T, ReadFunctionCall<T>>(provider), Multicall3.Aggregatable<T> {
 
     init {
         call.to = to
@@ -50,7 +59,7 @@ class PayableFunctionCall<T>(
     to: Address,
     data: Bytes?,
     private val decoder: Function<Bytes, T>,
-) : ReadWriteContractCall<T, PendingTransaction, PayableFunctionCall<T>>(provider), Multicall3Aggregatable<T> {
+) : ReadWriteContractCall<T, PendingTransaction, PayableFunctionCall<T>>(provider), Multicall3.Aggregatable<T> {
 
     init {
         call.to = to
@@ -81,7 +90,7 @@ class ReceiveFunctionCall(
     provider: Middleware,
     to: Address,
     value: BigInteger,
-) : ReadWriteContractCall<Unit, PendingTransaction, ReceiveFunctionCall>(provider), Multicall3Aggregatable<Unit> {
+) : ReadWriteContractCall<Unit, PendingTransaction, ReceiveFunctionCall>(provider), Multicall3.Aggregatable<Unit> {
 
     init {
         call.to = to

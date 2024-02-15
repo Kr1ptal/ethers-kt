@@ -130,13 +130,14 @@ abstract class ReadWriteContractCall<C, S : PendingInclusion<*>, B : ReadWriteCo
 abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
     val provider: Middleware,
 ) {
-    protected open val call = CallRequest().apply { chainId = provider.chainId }
+    protected val call = CallRequest().apply { chainId = provider.chainId }
 
     /**
      * Execute "eth_call" at the given [blockHash] and return the result of the call. This is a read-only call, and it
      * will not modify the blockchain state. Optionally, the [stateOverride] and [blockOverride] can be provided to
      * override the state on which the call is executed.
      * */
+    @JvmOverloads
     fun call(
         blockHash: Hash,
         stateOverride: Map<Address, AccountOverride>? = null,
@@ -150,6 +151,7 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
      * will not modify the blockchain state. Optionally, the [stateOverride] and [blockOverride] can be provided to
      * override the state on which the call is executed.
      * */
+    @JvmOverloads
     fun call(
         blockNumber: Long,
         stateOverride: Map<Address, AccountOverride>? = null,
@@ -209,33 +211,26 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
         }
     }
 
+    protected abstract fun handleCallResult(result: Bytes): Result<C, ContractError>
+
     private fun tryDecodingContractRevert(err: RpcError): ContractError {
-        var error: ContractError? = null
-
-        // "eth_call" execution reverts are included in "error" field of the json-rpc response
         if (err.isExecutionError && err.data != null) {
-            error = when {
-                // if data is not a valid hex string, it's an already decoded revert error
-                !FastHex.isValidHex(err.data!!) -> RevertError(err.data!!)
+            // if data is not a valid hex string, it's an already decoded revert error
+            if (!FastHex.isValidHex(err.data!!)) {
+                return RevertError(err.data!!)
+            }
 
-                // otherwise it could be a custom error
-                else -> ContractError.getOrNull(Bytes(err.data!!))
+            // otherwise it could be a custom error
+            val contractError = ContractError.getOrNull(Bytes(err.data!!))
+            if (contractError != null) {
+                return contractError
             }
         }
 
-        // if we couldn't decode the error, just return the RPC error
-        if (error == null) {
-            error = ContractRpcError(err)
-        }
-
-        return handleCallError(error)
+        return ContractRpcError(err)
     }
 
     protected abstract val self: B
-
-    protected abstract fun handleCallResult(result: Bytes): Result<C, ContractError>
-
-    protected open fun handleCallError(error: ContractError) = error
 
     var from: Address?
         get() = call.from
