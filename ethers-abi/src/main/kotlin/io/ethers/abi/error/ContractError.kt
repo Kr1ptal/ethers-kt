@@ -112,7 +112,7 @@ data class PanicError(val kind: Kind) : ContractError() {
         @JvmStatic
         fun getOrNull(data: Bytes): PanicError? {
             if (data.size < 4) return null
-            if (!Arrays.equals(data.value, 0, 4, FUNCTION.selector, 0, 4)) return null
+            if (!Arrays.equals(data.value, 0, 4, FUNCTION.selector.value, 0, 4)) return null
 
             val decoded = AbiCodec.decodeWithPrefix(FUNCTION.selector.size, FUNCTION.inputs, data.value)
             val errorCode = decoded[0] as BigInteger
@@ -145,7 +145,7 @@ data class RevertError(val reason: String) : ContractError() {
         @JvmStatic
         fun getOrNull(data: Bytes): RevertError? {
             if (data.size < 4) return null
-            if (!Arrays.equals(data.value, 0, 4, FUNCTION.selector, 0, 4)) return null
+            if (!Arrays.equals(data.value, 0, 4, FUNCTION.selector.value, 0, 4)) return null
             val decoded = AbiCodec.decodeWithPrefix(FUNCTION.selector.size, FUNCTION.inputs, data.value)
             return RevertError(decoded[0] as String)
         }
@@ -165,7 +165,7 @@ interface CustomErrorFactory<T : CustomContractError> {
 
     fun decode(data: Bytes): T? {
         if (data.size < 4) return null
-        if (!Arrays.equals(data.value, 0, 4, abi.selector, 0, 4)) return null
+        if (!Arrays.equals(data.value, 0, 4, abi.selector.value, 0, 4)) return null
 
         return decode(abi.decodeCall(data))
     }

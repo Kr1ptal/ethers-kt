@@ -82,7 +82,7 @@ class AbiFunctionTest : FunSpec({
         "noBitsInts(int,uint,int16)" to "81c9c8a5",
     ).forAll { (signature, selector) ->
         test("4byte selector of '$signature': '$selector'") {
-            AbiFunction.parseSignature(signature).selector.toHexString() shouldBe selector
+            AbiFunction.parseSignature(signature).selector.value.toHexString() shouldBe selector
         }
     }
 

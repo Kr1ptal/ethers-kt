@@ -38,7 +38,7 @@ class ErrorsTest : FunSpec({
             val detailsStruct2 = detailsClass.primaryConstructor!!.call(false, Bytes("0xabcdef"))
 
             val encoded = AbiCodec.encodeWithPrefix(
-                structArgsError.abi.selector,
+                structArgsError.abi.selector.value,
                 listOf(
                     AbiType.UInt(256),
                     AbiType.Array(

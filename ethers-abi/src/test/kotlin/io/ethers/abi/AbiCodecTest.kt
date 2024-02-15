@@ -19,7 +19,7 @@ class AbiCodecTest : FunSpec({
     context("encoding") {
         test("function without arguments") {
             val function = AbiFunction.parseSignature("oracle()")
-            val result = AbiCodec.encodeWithPrefix(function.selector, emptyList(), emptyArray()).toHexString()
+            val result = AbiCodec.encodeWithPrefix(function.selector.value, emptyList(), emptyArray()).toHexString()
 
             result shouldBe "7dc0d1d0"
         }
@@ -39,7 +39,7 @@ class AbiCodecTest : FunSpec({
             )
 
             val encoded = AbiCodec.encodeWithPrefix(
-                function.selector,
+                function.selector.value,
                 function.inputs,
                 params,
             ).toHexString()
@@ -230,7 +230,7 @@ class AbiCodecTest : FunSpec({
             )
 
             val encoded = AbiCodec.encodeWithPrefix(
-                function.selector,
+                function.selector.value,
                 function.inputs,
                 params,
             ).toHexString()
