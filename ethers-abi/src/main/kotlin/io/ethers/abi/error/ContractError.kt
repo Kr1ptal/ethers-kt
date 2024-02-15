@@ -176,9 +176,13 @@ interface CustomErrorFactory<T : CustomContractError> {
 /**
  * Error returned when decoding the result of a contract call fails.
  * */
-data class DecodingError(val result: Bytes, val exception: Exception) : ContractError() {
+data class DecodingError(
+    val result: Bytes,
+    val message: String,
+    val exception: Exception?,
+) : ContractError() {
     override fun doThrow(): Nothing {
-        throw RuntimeException("Unable to decode result", exception)
+        throw RuntimeException(message, exception)
     }
 }
 

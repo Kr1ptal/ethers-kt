@@ -128,7 +128,7 @@ abstract class ReadWriteContractCall<C, S : PendingInclusion<*>, B : ReadWriteCo
  * functions in Solidity.
  * */
 abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
-    protected val provider: Middleware,
+    val provider: Middleware,
 ) {
     protected val call = CallRequest().apply { chainId = provider.chainId }
 
@@ -137,6 +137,7 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
      * will not modify the blockchain state. Optionally, the [stateOverride] and [blockOverride] can be provided to
      * override the state on which the call is executed.
      * */
+    @JvmOverloads
     fun call(
         blockHash: Hash,
         stateOverride: Map<Address, AccountOverride>? = null,
@@ -150,6 +151,7 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
      * will not modify the blockchain state. Optionally, the [stateOverride] and [blockOverride] can be provided to
      * override the state on which the call is executed.
      * */
+    @JvmOverloads
     fun call(
         blockNumber: Long,
         stateOverride: Map<Address, AccountOverride>? = null,
@@ -171,7 +173,7 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
     ): RpcRequest<C, ContractError> {
         return provider.call(call, blockId, stateOverride, blockOverride)
             .mapError(::tryDecodingContractRevert)
-            .andThen(::safelyHandleCallResult)
+            .andThen(::decodeCallResult)
     }
 
     /**
@@ -198,16 +200,20 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
         return provider.traceCall(call, blockId, config)
     }
 
-    private fun safelyHandleCallResult(result: Bytes): Result<C, ContractError> {
+    /**
+     * Safely decode the result of the call, returning the decoded value or a [ContractError] if decoding fails.
+     * */
+    fun decodeCallResult(result: Bytes): Result<C, ContractError> {
         return try {
             handleCallResult(result)
         } catch (e: Exception) {
-            failure(DecodingError(result, e))
+            failure(DecodingError(result, "Unable to decode result", e))
         }
     }
 
+    protected abstract fun handleCallResult(result: Bytes): Result<C, ContractError>
+
     private fun tryDecodingContractRevert(err: RpcError): ContractError {
-        // "eth_call" execution reverts are included in "error" field of the json-rpc response
         if (err.isExecutionError && err.data != null) {
             // if data is not a valid hex string, it's an already decoded revert error
             if (!FastHex.isValidHex(err.data!!)) {
@@ -226,13 +232,17 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
 
     protected abstract val self: B
 
-    protected abstract fun handleCallResult(result: Bytes): Result<C, ContractError>
-
     var from: Address?
         get() = call.from
         @JvmSynthetic set(value) {
             call.from = value
         }
+
+    val to: Address?
+        get() = call.to
+
+    open val value: BigInteger?
+        get() = call.value
 
     var gas: Long
         get() = call.gas
@@ -263,6 +273,9 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
         @JvmSynthetic set(value) {
             call.nonce = value
         }
+
+    val data: Bytes?
+        get() = call.data
 
     var accessList: List<AccessList.Item>
         get() = call.accessList

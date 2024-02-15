@@ -4,7 +4,6 @@ import io.ethers.core.Result
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import java.util.concurrent.CompletableFuture
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -34,7 +33,7 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) {
             throw IllegalArgumentException("All requests must use the same client")
         }
 
-        val future = BatchCompletableFuture<Result<T, RpcError>>(this)
+        val future = ConditionalCompletableFuture<Result<T, RpcError>>(batchSent)
 
         _requests.add(request)
         _responses.add(future as CompletableFuture<Result<*, RpcError>>)
@@ -62,37 +61,6 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) {
         }
 
         return client!!.requestBatch(this)
-    }
-
-    /**
-     * Helper class to prevent awaiting the response until the batch has been sent.
-     * */
-    private class BatchCompletableFuture<T>(private val batch: BatchRpcRequest) : CompletableFuture<T>() {
-        override fun get(): T {
-            verifyBatchSent()
-            return super.get()
-        }
-
-        override fun get(timeout: Long, unit: TimeUnit): T {
-            verifyBatchSent()
-            return super.get(timeout, unit)
-        }
-
-        override fun getNow(valueIfAbsent: T): T {
-            verifyBatchSent()
-            return super.getNow(valueIfAbsent)
-        }
-
-        override fun join(): T {
-            verifyBatchSent()
-            return super.join()
-        }
-
-        private fun verifyBatchSent() {
-            if (!batch.batchSent.get()) {
-                throw IllegalStateException("Batch has not been sent yet. Awaiting would block indefinitely.")
-            }
-        }
     }
 
     companion object {
@@ -161,6 +129,29 @@ fun <T, E : Result.Error> Iterable<RpcRequest<out T, E>>.sendAsync(): BatchRespo
     batch.sendAsync()
 
     return BatchResponseAsync(futures)
+}
+
+/**
+ * Await all [CompletableFuture]s in the list, returning a list of results.
+ * */
+fun <T> List<CompletableFuture<T>>.await(): List<T> {
+    val ret = ArrayList<T>(size)
+    for (future in this) {
+        future.join()
+    }
+    return ret
+}
+
+/**
+ * Unwrap all [Result]'s, throwing an exception if any of them is an error, otherwise returning a list
+ * of success values.
+ * */
+fun <T, E : Result.Error> List<Result<T, E>>.unwrap(): List<T> {
+    val ret = ArrayList<T>(size)
+    for (result in this) {
+        ret.add(result.unwrap())
+    }
+    return ret
 }
 
 // Zero-cost typed response classes to provide specialized "component" operators. In case it's used as a different type

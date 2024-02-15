@@ -11,9 +11,18 @@ import java.util.function.Function
 class FunctionCall<T>(
     provider: Middleware,
     to: Address,
-    val data: Bytes?,
+    data: Bytes?,
     private val decoder: Function<Bytes, T>,
-) : ReadWriteContractCall<T, PendingTransaction, FunctionCall<T>>(provider) {
+) : ReadWriteContractCall<T, PendingTransaction, FunctionCall<T>>(provider), Multicall3.Aggregatable<T> {
+    internal constructor(
+        provider: Middleware,
+        to: Address,
+        value: BigInteger?,
+        data: Bytes?,
+        decoder: Function<Bytes, T>,
+    ) : this(provider, to, data, decoder) {
+        call.value = value
+    }
 
     init {
         call.to = to
@@ -30,9 +39,9 @@ class FunctionCall<T>(
 class ReadFunctionCall<T>(
     provider: Middleware,
     to: Address,
-    val data: Bytes?,
+    data: Bytes?,
     private val decoder: Function<Bytes, T>,
-) : ReadContractCall<T, ReadFunctionCall<T>>(provider) {
+) : ReadContractCall<T, ReadFunctionCall<T>>(provider), Multicall3.Aggregatable<T> {
 
     init {
         call.to = to
@@ -48,9 +57,9 @@ class ReadFunctionCall<T>(
 class PayableFunctionCall<T>(
     provider: Middleware,
     to: Address,
-    val data: Bytes?,
+    data: Bytes?,
     private val decoder: Function<Bytes, T>,
-) : ReadWriteContractCall<T, PendingTransaction, PayableFunctionCall<T>>(provider) {
+) : ReadWriteContractCall<T, PendingTransaction, PayableFunctionCall<T>>(provider), Multicall3.Aggregatable<T> {
 
     init {
         call.to = to
@@ -63,7 +72,7 @@ class PayableFunctionCall<T>(
     override fun handleCallResult(result: Bytes) = success(decoder.apply(result))
     override fun handleSendResult(result: PendingTransaction) = result
 
-    var value: BigInteger?
+    override var value: BigInteger?
         get() = call.value
         @JvmSynthetic set(value) {
             call.value = value
@@ -80,8 +89,8 @@ private val UNIT_RESPONSE = success(Unit)
 class ReceiveFunctionCall(
     provider: Middleware,
     to: Address,
-    val value: BigInteger,
-) : ReadWriteContractCall<Unit, PendingTransaction, ReceiveFunctionCall>(provider) {
+    value: BigInteger,
+) : ReadWriteContractCall<Unit, PendingTransaction, ReceiveFunctionCall>(provider), Multicall3.Aggregatable<Unit> {
 
     init {
         call.to = to
