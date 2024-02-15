@@ -5,6 +5,7 @@ import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
 import io.ethers.core.types.Signature
+import io.ethers.core.utils.GasUtils
 import java.math.BigInteger
 
 /**
@@ -35,6 +36,21 @@ interface Transaction {
 
     val blobGas: Long
         get() = blobVersionedHashes?.size?.toLong()?.times(TxBlob.GAS_PER_BLOB) ?: 0
+
+    /**
+     * Get how much will be paid as transaction gas tip based on [baseFee], [gasTipCap], and [gasFeeCap] constraints.
+     * */
+    fun getEffectiveGasTip(baseFee: BigInteger): BigInteger {
+        return GasUtils.getEffectiveGasTip(baseFee, gasTipCap, gasFeeCap)
+    }
+
+    /**
+     * Get how much will be paid as transaction gas price. This is the sum of [baseFee] and
+     * [GasUtils.getEffectiveGasTip].
+     * */
+    fun getEffectiveGasPrice(baseFee: BigInteger): BigInteger {
+        return GasUtils.getEffectiveGasPrice(baseFee, gasTipCap, gasFeeCap)
+    }
 }
 
 /**
