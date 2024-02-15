@@ -19,7 +19,7 @@ ktlint {
         exclude { it.file.path.contains(layout.buildDirectory.dir("generated").get().toString()) }
     }
 
-    // format of rule keys defined at: https://pinterest.github.io/ktlint/1.0.1/rules/configuration-ktlint/#disabled-rules
+    // format of rule keys defined at: https://pinterest.github.io/ktlint/latest/rules/configuration-ktlint/#disable-rules
     additionalEditorconfig.set(
         mapOf(
             "ktlint_code_style" to "intellij_idea",
