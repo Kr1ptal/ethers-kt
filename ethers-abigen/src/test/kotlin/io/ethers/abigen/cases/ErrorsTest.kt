@@ -88,7 +88,8 @@ class ErrorsTest : FunSpec({
                         AbiType.UInt(256),
                         AbiType.Array(
                             AbiType.Tuple.struct(
-                                clazz.typedNestedClass("Details"), AbiType.Bool,
+                                clazz.typedNestedClass("Details"),
+                                AbiType.Bool,
                                 AbiType.Bytes,
                             ),
                         ),
