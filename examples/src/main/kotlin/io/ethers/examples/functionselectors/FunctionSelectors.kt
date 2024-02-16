@@ -32,8 +32,8 @@ class FunctionSelectors(
         // Function selector obtained manually from function signature
         val abiFunction = AbiFunction.parseSignature(functionSignature)
 
-        println("Searching for selector from SC wrapper: ${FastHex.encodeWithPrefix(wrapperSelector)}")
-        println("Searching for selector from signature:  ${FastHex.encodeWithPrefix(abiFunction.selector)}")
+        println("Searching for selector from SC wrapper: ${FastHex.encodeWithPrefix(wrapperSelector.value)}")
+        println("Searching for selector from signature:  ${FastHex.encodeWithPrefix(abiFunction.selector.value)}")
         var blockCounter = blockNumber
         while (blockCounter > blockNumber - maxBlocks) {
             val block = wsProvider.getBlockWithTransactions(blockCounter).sendAwait().unwrap()

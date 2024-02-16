@@ -17,12 +17,12 @@ object AbiCodec {
      * */
     @JvmStatic
     fun encodeWithPrefix(
-        prefix: ByteArray,
+        prefix: Bytes,
         types: List<AbiType>,
         data: Array<out Any>,
     ): ByteArray {
         if (types.isEmpty()) {
-            return prefix
+            return prefix.value
         }
 
         if (types.size != data.size) {
@@ -31,7 +31,7 @@ object AbiCodec {
 
         withHeadTailLengths(types, data as Array<Any>) { head, tail ->
             val ret = ByteBuffer.allocate(prefix.size + head + tail)
-            ret.put(prefix)
+            ret.put(prefix.value)
             encodeTokensHeadTail(ret, types, data, head)
             return ret.array()
         }

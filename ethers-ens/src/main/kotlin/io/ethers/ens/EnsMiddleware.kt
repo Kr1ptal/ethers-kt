@@ -187,13 +187,13 @@ class EnsMiddleware @JvmOverloads constructor(
 
             // Validate that resolver supports abiFunction
             val supportsFunction =
-                resolver.supportsInterface(Bytes(abiFunction.selector)).call(BlockId.LATEST).sendAwait()
+                resolver.supportsInterface(abiFunction.selector).call(BlockId.LATEST).sendAwait()
 
             if (!supportsFunction.unwrapElse(false)) {
                 return failure(
                     Error.UnsupportedSelector(
                         resolver.address,
-                        FastHex.encodeWithPrefix(abiFunction.selector),
+                        FastHex.encodeWithPrefix(abiFunction.selector.value),
                     ),
                 )
             }
@@ -216,7 +216,7 @@ class EnsMiddleware @JvmOverloads constructor(
                 .andThen {
                     // Return different errors on empty address and failure to resolve
                     // TODO - handle differently
-                    val isAddrCall = abiFunction.selector.contentEquals(ExtendedResolver.FUNCTION_ADDR.selector)
+                    val isAddrCall = abiFunction.selector == ExtendedResolver.FUNCTION_ADDR.selector
                     if (isAddrCall && (AbiCodec.decode(AbiType.Address, it.value) as Address) == Address.ZERO) {
                         return@andThen failure(
                             Error.UnknownEnsName(
@@ -279,7 +279,7 @@ class EnsMiddleware @JvmOverloads constructor(
 
         // call resolver.callbackFunction(gatewayResult, extraData). If this call is CCIP, repeat the procedure.
         val callbackData = AbiCodec.encodeWithPrefix(
-            revert.callbackFunction.value,
+            revert.callbackFunction,
             CALLBACK_FUNCTION_PARAM_TYPES,
             arrayOf(gatewayResult, revert.extraData),
         )
