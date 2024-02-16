@@ -10,7 +10,7 @@ data class AbiFunction(
     val selector = Bytes(AbiType.computeSignatureHash(name, inputs).copyOfRange(0, 4))
 
     fun encodeCall(args: Array<out Any>): Bytes {
-        return Bytes(AbiCodec.encodeWithPrefix(selector.value, inputs, args))
+        return Bytes(AbiCodec.encodeWithPrefix(selector, inputs, args))
     }
 
     fun decodeCall(data: Bytes): Array<Any> {

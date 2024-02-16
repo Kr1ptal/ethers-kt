@@ -200,7 +200,7 @@ class EnsMiddleware @JvmOverloads constructor(
 
             // create callback for corresponding function selector
             val callbackData = AbiCodec.encodeWithPrefix(
-                abiFunction.selector.value,
+                abiFunction.selector,
                 paramTypes,
                 parameters.toTypedArray(),
             )
@@ -279,7 +279,7 @@ class EnsMiddleware @JvmOverloads constructor(
 
         // call resolver.callbackFunction(gatewayResult, extraData). If this call is CCIP, repeat the procedure.
         val callbackData = AbiCodec.encodeWithPrefix(
-            revert.callbackFunction.value,
+            revert.callbackFunction,
             CALLBACK_FUNCTION_PARAM_TYPES,
             arrayOf(gatewayResult, revert.extraData),
         )
