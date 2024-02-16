@@ -13,7 +13,7 @@ class PrivateKeySigner(val signingKey: Secp256k1.SigningKey) : Signer {
     override val address = Address(Secp256k1.publicKeyToAddress(signingKey.publicKey))
 
     constructor(privateKey: String) : this(validHexToKey(privateKey))
-    constructor(privateKey: Bytes) : this(validByteArrayToKey(privateKey.value))
+    constructor(privateKey: Bytes) : this(validByteArrayToKey(privateKey.toByteArray()))
     constructor(privateKey: ByteArray) : this(validByteArrayToKey(privateKey))
 
     override fun signHash(hash: ByteArray): Signature {

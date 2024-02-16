@@ -20,8 +20,15 @@ import io.ethers.rlp.RlpEncoder
  * */
 @JsonDeserialize(using = BytesDeserializer::class)
 @JsonSerialize(using = BytesSerializer::class)
-class Bytes(val value: ByteArray) : RlpEncodable {
+class Bytes(private val value: ByteArray) : RlpEncodable {
     constructor(value: CharSequence) : this(FastHex.decode(value))
+
+    /**
+     * Return the internal byte array.
+     *
+     * IMPORTANT: Do not modify the returned array, it will lead to undefined behavior.
+     * */
+    fun toByteArray() = value
 
     val size: Int
         get() = value.size

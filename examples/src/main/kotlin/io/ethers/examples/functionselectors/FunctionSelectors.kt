@@ -1,7 +1,6 @@
 package io.ethers.examples.functionselectors
 
 import io.ethers.abi.AbiFunction
-import io.ethers.core.FastHex
 import io.ethers.examples.gen.UniswapV2Router02
 import io.ethers.providers.Provider
 import io.ethers.providers.WsClient
@@ -32,8 +31,8 @@ class FunctionSelectors(
         // Function selector obtained manually from function signature
         val abiFunction = AbiFunction.parseSignature(functionSignature)
 
-        println("Searching for selector from SC wrapper: ${FastHex.encodeWithPrefix(wrapperSelector.value)}")
-        println("Searching for selector from signature:  ${FastHex.encodeWithPrefix(abiFunction.selector.value)}")
+        println("Searching for selector from SC wrapper: $wrapperSelector")
+        println("Searching for selector from signature:  ${abiFunction.selector}")
         var blockCounter = blockNumber
         while (blockCounter > blockNumber - maxBlocks) {
             val block = wsProvider.getBlockWithTransactions(blockCounter).sendAwait().unwrap()

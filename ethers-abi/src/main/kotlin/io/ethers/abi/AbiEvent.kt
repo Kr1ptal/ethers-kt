@@ -74,13 +74,13 @@ data class AbiEvent(
         val offsetTopic0 = if (isAnonymous) 0 else 1
         val ret = arrayOfNulls<Any>(indexed.size)
         for (i in indexed.indices) {
-            ret[i] = AbiCodec.decode(indexed[i], topics[i + offsetTopic0].value)
+            ret[i] = AbiCodec.decode(indexed[i], topics[i + offsetTopic0].toByteArray())
         }
         return ret as Array<Any>
     }
 
     fun decodeData(data: Bytes): Array<Any> {
-        return AbiCodec.decode(this.data, data.value)
+        return AbiCodec.decode(this.data, data.toByteArray())
     }
 
     data class Token(val type: AbiType, val indexed: Boolean)

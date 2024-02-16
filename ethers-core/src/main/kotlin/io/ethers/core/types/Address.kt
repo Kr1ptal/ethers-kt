@@ -22,12 +22,19 @@ import kotlin.random.Random
  * */
 @JsonDeserialize(using = AddressDeserializer::class)
 @JsonSerialize(using = AddressSerializer::class)
-class Address(val value: ByteArray) : RlpEncodable {
+class Address(private val value: ByteArray) : RlpEncodable {
     constructor(value: CharSequence) : this(FastHex.decode(value))
 
     init {
         require(value.size == 20) { "Address must be 20 bytes long" }
     }
+
+    /**
+     * Return the internal byte array.
+     *
+     * IMPORTANT: Do not modify the returned array, it will lead to undefined behavior.
+     * */
+    fun toByteArray() = value
 
     override fun rlpEncode(rlp: RlpEncoder) {
         rlp.encode(value)
