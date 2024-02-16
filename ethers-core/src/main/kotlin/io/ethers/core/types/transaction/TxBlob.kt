@@ -188,7 +188,7 @@ class TxBlob(
          * The versioned hashes of the blobs in this sidecar.
          * */
         val versionedHashes by lazy(LazyThreadSafetyMode.NONE) {
-            commitments.map { Hash(Hashing.blobVersionedHash(it.value)) }
+            commitments.map { Hash(Hashing.blobVersionedHash(it.toByteArray())) }
         }
 
         override fun rlpEncode(rlp: RlpEncoder) {

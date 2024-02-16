@@ -33,9 +33,9 @@ class Bloom(val value: ByteArray) {
         require(value.size == BLOOM_SIZE) { "Bloom must be exactly $BLOOM_SIZE bytes long" }
     }
 
-    operator fun contains(hash: Hash) = contains(hash.value)
+    operator fun contains(hash: Hash) = contains(hash.toByteArray())
 
-    operator fun contains(address: Address) = contains(address.value)
+    operator fun contains(address: Address) = contains(address.toByteArray())
 
     operator fun contains(input: ByteArray): Boolean {
         withBloomValues(input) { b1, b2, b3, i1, i2, i3 ->
@@ -48,12 +48,12 @@ class Bloom(val value: ByteArray) {
     /**
      * Add [Hash] value to the Bloom filter.
      */
-    fun add(hash: Hash) = add(hash.value)
+    fun add(hash: Hash) = add(hash.toByteArray())
 
     /**
      * Add [Address] value to the Bloom filter.
      */
-    fun add(address: Address) = add(address.value)
+    fun add(address: Address) = add(address.toByteArray())
 
     /**
      * Add [ByteArray] value to the Bloom filter.

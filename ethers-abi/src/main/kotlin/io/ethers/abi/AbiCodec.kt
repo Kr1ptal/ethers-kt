@@ -22,7 +22,7 @@ object AbiCodec {
         data: Array<out Any>,
     ): ByteArray {
         if (types.isEmpty()) {
-            return prefix.value
+            return prefix.toByteArray()
         }
 
         if (types.size != data.size) {
@@ -31,7 +31,7 @@ object AbiCodec {
 
         withHeadTailLengths(types, data as Array<Any>) { head, tail ->
             val ret = ByteBuffer.allocate(prefix.size + head + tail)
-            ret.put(prefix.value)
+            ret.put(prefix.toByteArray())
             encodeTokensHeadTail(ret, types, data, head)
             return ret.array()
         }
@@ -160,7 +160,7 @@ object AbiCodec {
             AbiType.Address -> {
                 val value = data as Address
                 buff.position(buff.position() + 12)
-                buff.put(value.value)
+                buff.put(value.toByteArray())
             }
 
             AbiType.Bool -> {
@@ -227,9 +227,9 @@ object AbiCodec {
                     throw IllegalArgumentException("Provided value has length ${value.size}, expected ${type.length}")
                 }
 
-                val rem = WORD_SIZE_BYTES - value.value.size
+                val rem = WORD_SIZE_BYTES - value.size
 
-                buff.put(value.value)
+                buff.put(value.toByteArray())
                 if (rem > 0) {
                     buff.position(buff.position() + rem)
                 }
@@ -285,7 +285,7 @@ object AbiCodec {
 
             // head-only, bytes/string left-padded
             AbiType.Bytes -> {
-                val value = (data as Bytes).value
+                val value = (data as Bytes).toByteArray()
                 buff.position(buff.position() + 28)
                 buff.putInt(value.size)
 
@@ -432,7 +432,7 @@ object AbiCodec {
 
             AbiType.Bytes -> {
                 val value = data as Bytes
-                val numOfWords = (value.value.size + WORD_SIZE_BYTES - 1) / WORD_SIZE_BYTES
+                val numOfWords = (value.size + WORD_SIZE_BYTES - 1) / WORD_SIZE_BYTES
                 WORD_SIZE_BYTES + (numOfWords * WORD_SIZE_BYTES)
             }
 
@@ -715,7 +715,7 @@ object AbiCodec {
                 if (inArray) {
                     buff.skip(12)
                 }
-                buff.put((data as Address).value)
+                buff.put((data as Address).toByteArray())
             }
 
             AbiType.Bool -> {
@@ -731,7 +731,7 @@ object AbiCodec {
                     throw IllegalArgumentException("Provided value has length ${value.size}, expected ${type.length}")
                 }
 
-                buff.put(value.value)
+                buff.put(value.toByteArray())
 
                 // padded at the end
                 if (inArray) {
@@ -800,7 +800,7 @@ object AbiCodec {
                 }
             }
 
-            AbiType.Bytes -> buff.put((data as Bytes).value)
+            AbiType.Bytes -> buff.put((data as Bytes).toByteArray())
             AbiType.String -> buff.put((data as String).toByteArray(Charsets.UTF_8))
             is AbiType.Array -> {
                 val values = data as Array<*>

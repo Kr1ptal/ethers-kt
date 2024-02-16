@@ -76,13 +76,13 @@ class AbiFunctionTest : FunSpec({
     }
 
     listOf(
-        "hello(int8)" to "68006de4",
-        "complexSignatureWithOutput(address, int256[],  uint64[2],(string,bytes12)) ((address , string))" to "a02c8e7b",
-        "inputOutputEmpty()()" to "4a1be7ed",
-        "noBitsInts(int,uint,int16)" to "81c9c8a5",
+        "hello(int8)" to "0x68006de4",
+        "complexSignatureWithOutput(address, int256[],  uint64[2],(string,bytes12)) ((address , string))" to "0xa02c8e7b",
+        "inputOutputEmpty()()" to "0x4a1be7ed",
+        "noBitsInts(int,uint,int16)" to "0x81c9c8a5",
     ).forAll { (signature, selector) ->
         test("4byte selector of '$signature': '$selector'") {
-            AbiFunction.parseSignature(signature).selector.value.toHexString() shouldBe selector
+            AbiFunction.parseSignature(signature).selector.toString() shouldBe selector
         }
     }
 
