@@ -3,9 +3,11 @@ package io.ethers.providers
 import com.fasterxml.jackson.core.JsonParser
 import io.ethers.core.FastHex
 import io.ethers.core.Result
+import io.ethers.core.failure
 import io.ethers.core.forEachObjectField
 import io.ethers.core.isField
 import io.ethers.core.isNextTokenObjectEnd
+import io.ethers.core.readBytes
 import io.ethers.core.readBytesEmptyAsNull
 import io.ethers.core.readHash
 import io.ethers.core.readHexBigInteger
@@ -40,6 +42,9 @@ import io.ethers.core.types.tracers.TracerConfig
 import io.ethers.core.types.tracers.TxTraceResult
 import io.ethers.core.types.transaction.TransactionUnsigned
 import io.ethers.providers.middleware.Middleware
+import io.ethers.providers.types.CallFailedError
+import io.ethers.providers.types.CallManyBundle
+import io.ethers.providers.types.CallManyContext
 import io.ethers.providers.types.FilterPoller
 import io.ethers.providers.types.PendingTransaction
 import io.ethers.providers.types.RpcCall
@@ -145,6 +150,37 @@ class Provider(override val client: JsonRpcClient) : Middleware {
         }
 
         return RpcCall(client, "eth_call", params, Bytes::class.java)
+    }
+
+    override fun callMany(
+        blockId: BlockId,
+        calls: List<CallRequest>,
+        transactionIndex: Int,
+        stateOverride: Map<Address, AccountOverride>?,
+        blockOverride: BlockOverride?
+    ): RpcRequest<List<Result<Bytes, CallFailedError>>, RpcError> {
+        val bundle = CallManyBundle(calls, blockOverride)
+        val ctx = CallManyContext(blockId, transactionIndex)
+
+        return RpcCall(client, "eth_callMany", arrayOf(bundle, ctx, stateOverride)) {
+            it.readListOf {
+                var result: Result<Bytes, CallFailedError>? = null
+
+                it.forEachObjectField { field ->
+                    when (field) {
+                        "output", "result", "value" -> result = success(it.readBytes())
+                        "error" -> result = failure(CallFailedError(it.valueAsString))
+                        else -> it.skipChildren()
+                    }
+                }
+
+                if (result == null) {
+                    throw IllegalStateException("No result or error found in response")
+                }
+
+                result!!
+            }
+        }
     }
 
     override fun estimateGas(call: CallRequest, blockId: BlockId): RpcRequest<BigInteger, RpcError> {
@@ -373,6 +409,20 @@ class Provider(override val client: JsonRpcClient) : Middleware {
     override fun <T> traceCall(call: CallRequest, blockId: BlockId, config: TracerConfig<T>): RpcRequest<T, RpcError> {
         val params = arrayOf(call, blockId.id, config)
         return RpcCall(client, "debug_traceCall", params, { config.tracer.decodeResult(it) })
+    }
+
+    override fun <T> traceCallMany(
+        blockId: BlockId,
+        calls: List<CallRequest>,
+        config: TracerConfig<T>,
+        transactionIndex: Int,
+    ): RpcRequest<List<T>, RpcError> {
+        val bundle = CallManyBundle(calls, config.blockOverrides)
+        val ctx = CallManyContext(blockId, transactionIndex)
+
+        return RpcCall(client, "debug_traceCallMany", arrayOf(arrayOf(bundle), ctx, config)) {
+            it.readListOf { it.readListOf { config.tracer.decodeResult(it) } }.firstOrNull() ?: emptyList()
+        }
     }
 
     override fun <T> traceTransaction(txHash: Hash, config: TracerConfig<T>): RpcRequest<T, RpcError> {
