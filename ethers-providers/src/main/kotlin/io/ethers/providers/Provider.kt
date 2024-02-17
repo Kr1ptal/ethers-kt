@@ -157,7 +157,7 @@ class Provider(override val client: JsonRpcClient) : Middleware {
         calls: List<CallRequest>,
         transactionIndex: Int,
         stateOverride: Map<Address, AccountOverride>?,
-        blockOverride: BlockOverride?
+        blockOverride: BlockOverride?,
     ): RpcRequest<List<Result<Bytes, CallFailedError>>, RpcError> {
         val bundle = CallManyBundle(calls, blockOverride)
         val ctx = CallManyContext(blockId, transactionIndex)

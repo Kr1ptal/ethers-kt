@@ -201,7 +201,7 @@ interface EthApi {
         calls: List<CallRequest>,
         transactionIndex: Int = -1,
         stateOverride: Map<Address, AccountOverride>? = null,
-        blockOverride: BlockOverride? = null
+        blockOverride: BlockOverride? = null,
     ): RpcRequest<List<Result<Bytes, CallFailedError>>, RpcError> {
         return callMany(BlockId.Number(blockNumber), calls, transactionIndex, stateOverride, blockOverride)
     }
@@ -222,7 +222,7 @@ interface EthApi {
         calls: List<CallRequest>,
         transactionIndex: Int = -1,
         stateOverride: Map<Address, AccountOverride>? = null,
-        blockOverride: BlockOverride? = null
+        blockOverride: BlockOverride? = null,
     ): RpcRequest<List<Result<Bytes, CallFailedError>>, RpcError> {
         return callMany(BlockId.Hash(blockHash), calls, transactionIndex, stateOverride, blockOverride)
     }
@@ -243,7 +243,7 @@ interface EthApi {
         calls: List<CallRequest>,
         transactionIndex: Int = -1,
         stateOverride: Map<Address, AccountOverride>? = null,
-        blockOverride: BlockOverride? = null
+        blockOverride: BlockOverride? = null,
     ): RpcRequest<List<Result<Bytes, CallFailedError>>, RpcError>
 
     /**

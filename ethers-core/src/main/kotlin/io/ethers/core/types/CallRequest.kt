@@ -153,9 +153,9 @@ private class CallRequestSerializer : JsonSerializer<CallRequest>() {
         }
         if (value.accessList.isNotEmpty()) {
             gen.writeArrayFieldStart("accessList")
-            for (item in value.accessList) {
+            for (i in value.accessList.indices) {
                 // delegate to AccessList.Item serializer
-                gen.writeObject(item)
+                gen.writeObject(value.accessList[i])
             }
             gen.writeEndArray()
         }
