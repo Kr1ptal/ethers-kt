@@ -7,7 +7,7 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import io.ethers.core.Result
 import io.ethers.core.types.BlockId
 import io.ethers.core.types.BlockOverride
-import io.ethers.core.types.CallRequest
+import io.ethers.core.types.IntoCallRequest
 
 /**
  * Error returned for a call in `eth_callMany` that fails.
@@ -19,7 +19,7 @@ data class CallFailedError(val error: String) : Result.Error
  * */
 @JsonSerialize(using = CallManyBundleSerializer::class)
 internal data class CallManyBundle(
-    val transactions: List<CallRequest>,
+    val transactions: List<IntoCallRequest>,
     val blockOverride: BlockOverride? = null,
 )
 
@@ -39,7 +39,7 @@ private class CallManyBundleSerializer : JsonSerializer<CallManyBundle>() {
         gen.writeArrayFieldStart("transactions")
         for (i in value.transactions.indices) {
             // delegate to CallRequest serializer
-            gen.writeObject(value.transactions[i])
+            gen.writeObject(value.transactions[i].toCallRequest())
         }
         gen.writeEndArray()
 

@@ -8,7 +8,11 @@ import io.ethers.core.FastHex
 import java.math.BigInteger
 
 @JsonSerialize(using = CallRequestSerializer::class)
-class CallRequest {
+class CallRequest : IntoCallRequest {
+    override fun toCallRequest(): CallRequest {
+        return this
+    }
+
     // make property setters unavailable from Java since we provide custom chained functions
     var from: Address? = null
         @JvmSynthetic set
@@ -195,4 +199,14 @@ private class CallRequestSerializer : JsonSerializer<CallRequest>() {
         }
         gen.writeEndObject()
     }
+}
+
+/**
+ * Interface to convert a class into a [CallRequest].
+ * */
+interface IntoCallRequest {
+    /**
+     * Get the [CallRequest] representation of `this` class.
+     * */
+    fun toCallRequest(): CallRequest
 }

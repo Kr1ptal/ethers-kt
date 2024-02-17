@@ -15,6 +15,7 @@ import io.ethers.core.types.BlockOverride
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.CallRequest
 import io.ethers.core.types.Hash
+import io.ethers.core.types.IntoCallRequest
 import io.ethers.core.types.tracers.TracerConfig
 import io.ethers.core.types.transaction.TransactionSigned
 import io.ethers.core.types.transaction.TransactionUnsigned
@@ -129,8 +130,27 @@ abstract class ReadWriteContractCall<C, S : PendingInclusion<*>, B : ReadWriteCo
  * */
 abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
     val provider: Middleware,
-) {
+) : IntoCallRequest {
     protected val call = CallRequest().apply { chainId = provider.chainId }
+
+    override fun toCallRequest(): CallRequest {
+        // create a new instance to avoid modifying the original
+        return CallRequest {
+            from(call.from)
+            to(call.to)
+            gas(call.gas)
+            gasPrice(call.gasPrice)
+            gasFeeCap(call.gasFeeCap)
+            gasTipCap(call.gasTipCap)
+            value(call.value)
+            nonce(call.nonce)
+            data(call.data)
+            accessList(call.accessList)
+            chainId(call.chainId)
+            blobFeeCap(call.blobFeeCap)
+            blobVersionedHashes(call.blobVersionedHashes)
+        }
+    }
 
     /**
      * Execute "eth_call" at the given [blockHash] and return the result of the call. This is a read-only call, and it
