@@ -66,14 +66,14 @@ To interact with the chain, you need to create a `Provider` instance, which is t
 
 ```kotlin
 // create a provider, using a websocket as underlying transport
-val provider = Provider(WsClient("<WS_URL>"))
+val provider = Provider.fromUrl("<WS_URL>").unwrap()
 
 // query the latest block number
-val startBlockNum = provider.getBlockNumber().sendAwait().resultOrThrow()
+val startBlockNum = provider.getBlockNumber().sendAwait().unwrap()
 println("Starting at block $startBlockNum")
 
 // subscribe to new blocks, blocking the calling thread. Use "forEachAsync" to stream without blocking the caller.
-provider.subscribeNewHeads().sendAwait().resultOrThrow().forEach {
+provider.subscribeNewHeads().sendAwait().unwrap().forEach {
     println("New Block: ${it.number}, ${it.number - startBlockNum} blocks since start")
 }
 ```
