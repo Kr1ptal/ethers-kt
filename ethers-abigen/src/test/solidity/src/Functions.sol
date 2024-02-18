@@ -27,14 +27,26 @@ contract Functions {
     function overloaded(uint256 status, string memory msg, bool done) external {}
 
     // reserved java keywords
+
     function class(uint256 status, string memory msg) external {}
 
     function package(uint256 status, string memory msg) external {}
 
+    /////////////////////////
 
     function payableArgs(uint256 status, string memory msg) external payable {}
 
     function viewArgs(uint256 status, string memory msg) external view {}
+
+    // complex constant names
+
+    function getE2ModeCategoryData() external {}
+
+    function JsonABI() external {}
+
+    function repayWithATokens() external {}
+
+    //////////////////////////
 
     struct Details {
         bool success;

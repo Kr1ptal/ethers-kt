@@ -575,8 +575,17 @@ class AbiContractBuilder(
                 return@forEachIndexed
             }
 
-            // Split on uppercase letters only if next one is lowercase - this handles cases like "JsonABI" so that it produces ["Json", "ABI"]
-            if (char.isUpperCase() && !(this[index + 1].isUpperCase() || !this[index + 1].isLetter())) {
+            val prevChar = this[index - 1]
+            val nextChar = this[index + 1]
+
+            // getE2ModeCategoryData -> GET_E2_MODE_CATEGORY_DATA
+            val nonLetterStart = !char.isLetter() && prevChar.isLetter() && prevChar.isLowerCase()
+            // JsonABI -> JSON_ABI
+            val splitOnUppercaseStart = char.isUpperCase() && prevChar.isLetter() && !prevChar.isUpperCase()
+            // getEModeCategoryData -> GET_E_MODE_CATEGORY_DATA
+            val splitOnUppercaseEnd = char.isUpperCase() && nextChar.isLetter() && !nextChar.isUpperCase()
+
+            if (nonLetterStart || splitOnUppercaseStart || splitOnUppercaseEnd) {
                 words.add(this.substring(lastWordStartIndex, index))
                 lastWordStartIndex = index
                 return@forEachIndexed

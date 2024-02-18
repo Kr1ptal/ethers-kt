@@ -1,11 +1,13 @@
 package io.ethers.abigen.cases
 
+import io.ethers.abi.AbiFunction
 import io.ethers.abi.call.FunctionCall
 import io.ethers.abi.call.PayableFunctionCall
 import io.ethers.abi.call.ReadFunctionCall
 import io.ethers.abigen.AbigenCompiler
 import io.ethers.abigen.ArgDescriptor
 import io.ethers.abigen.FunctionDescriptor
+import io.ethers.abigen.getAbiFunctionField
 import io.ethers.abigen.getDeclaredFunctions
 import io.ethers.abigen.nestedClass
 import io.ethers.abigen.parametrizedBy
@@ -120,6 +122,26 @@ class FunctionsTest : FunSpec({
                     ),
                     ReadFunctionCall::class.parametrizedBy(Unit::class),
                 ),
+            )
+        }
+
+        test("AbiFunction fields") {
+            clazz.getAbiFunctionField("FUNCTION_GET_E2_MODE_CATEGORY_DATA") shouldBe AbiFunction(
+                "getE2ModeCategoryData",
+                emptyList(),
+                emptyList(),
+            )
+
+            clazz.getAbiFunctionField("FUNCTION_JSON_ABI") shouldBe AbiFunction(
+                "JsonABI",
+                emptyList(),
+                emptyList(),
+            )
+
+            clazz.getAbiFunctionField("FUNCTION_REPAY_WITH_A_TOKENS") shouldBe AbiFunction(
+                "repayWithATokens",
+                emptyList(),
+                emptyList(),
             )
         }
     }
