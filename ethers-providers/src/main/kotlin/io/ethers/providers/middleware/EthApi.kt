@@ -1,5 +1,6 @@
 package io.ethers.providers.middleware
 
+import io.ethers.core.Result
 import io.ethers.core.types.AccountOverride
 import io.ethers.core.types.Address
 import io.ethers.core.types.BlockId
@@ -18,6 +19,7 @@ import io.ethers.core.types.TransactionReceipt
 import io.ethers.core.types.transaction.TransactionSigned
 import io.ethers.core.types.transaction.TransactionUnsigned
 import io.ethers.providers.RpcError
+import io.ethers.providers.types.CallFailedError
 import io.ethers.providers.types.FilterPoller
 import io.ethers.providers.types.PendingTransaction
 import io.ethers.providers.types.RpcRequest
@@ -182,6 +184,67 @@ interface EthApi {
         stateOverride: Map<Address, AccountOverride>? = null,
         blockOverride: BlockOverride? = null,
     ): RpcRequest<Bytes, RpcError>
+
+    /**
+     * Execute arbitrary number of [calls] starting at an arbitrary [transactionIndex] in the block, with the
+     * option of providing state/block overrides.
+     *
+     * @param blockNumber the block state on which to execute the calls on.
+     * @param calls the list of transactions/calls to execute.
+     * @param transactionIndex the index of where in the block to start executing the calls at, with -1 meaning
+     * at the end of the block.
+     * @param stateOverride a map of account state overrides to apply to the block state.
+     * @param blockOverride a block state override to apply to the block execution environment.
+     * */
+    fun callMany(
+        blockNumber: Long,
+        calls: List<CallRequest>,
+        transactionIndex: Int = -1,
+        stateOverride: Map<Address, AccountOverride>? = null,
+        blockOverride: BlockOverride? = null,
+    ): RpcRequest<List<Result<Bytes, CallFailedError>>, RpcError> {
+        return callMany(BlockId.Number(blockNumber), calls, transactionIndex, stateOverride, blockOverride)
+    }
+
+    /**
+     * Execute arbitrary number of [calls] starting at an arbitrary [transactionIndex] in the block, with the
+     * option of providing state/block overrides.
+     *
+     * @param blockHash the block state on which to execute the calls on.
+     * @param calls the list of transactions/calls to execute.
+     * @param transactionIndex the index of where in the block to start executing the calls at, with -1 meaning
+     * at the end of the block.
+     * @param stateOverride a map of account state overrides to apply to the block state.
+     * @param blockOverride a block state override to apply to the block execution environment.
+     * */
+    fun callMany(
+        blockHash: Hash,
+        calls: List<CallRequest>,
+        transactionIndex: Int = -1,
+        stateOverride: Map<Address, AccountOverride>? = null,
+        blockOverride: BlockOverride? = null,
+    ): RpcRequest<List<Result<Bytes, CallFailedError>>, RpcError> {
+        return callMany(BlockId.Hash(blockHash), calls, transactionIndex, stateOverride, blockOverride)
+    }
+
+    /**
+     * Execute arbitrary number of [calls] starting at an arbitrary [transactionIndex] in the block, with the
+     * option of providing state/block overrides.
+     *
+     * @param blockId the block state on which to execute the calls on.
+     * @param calls the list of transactions/calls to execute.
+     * @param transactionIndex the index of where in the block to start executing the calls at, with -1 meaning
+     * at the end of the block.
+     * @param stateOverride a map of account state overrides to apply to the block state.
+     * @param blockOverride a block state override to apply to the block execution environment.
+     * */
+    fun callMany(
+        blockId: BlockId,
+        calls: List<CallRequest>,
+        transactionIndex: Int = -1,
+        stateOverride: Map<Address, AccountOverride>? = null,
+        blockOverride: BlockOverride? = null,
+    ): RpcRequest<List<Result<Bytes, CallFailedError>>, RpcError>
 
     /**
      * Estimate gas required to execute [call] on given block [hash].

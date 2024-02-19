@@ -72,6 +72,61 @@ interface DebugApi {
     fun <T> traceCall(call: CallRequest, blockId: BlockId, config: TracerConfig<T>): RpcRequest<T, RpcError>
 
     /**
+     * Execute arbitrary number of [calls] starting at an arbitrary [transactionIndex] in the block, and tracing their
+     * execution with the given tracer [config].
+     *
+     * @param blockNumber the block state on which to execute the calls on.
+     * @param calls the list of transactions/calls to execute.
+     * @param config the tracer configuration to use for tracing the calls.
+     * @param transactionIndex the index of where in the block to start executing the calls at, with -1 meaning
+     * at the end of the block.
+     * */
+    fun <T> traceCallMany(
+        blockNumber: Long,
+        calls: List<CallRequest>,
+        config: TracerConfig<T>,
+        transactionIndex: Int = -1,
+    ): RpcRequest<List<T>, RpcError> {
+        return traceCallMany(BlockId.Number(blockNumber), calls, config, transactionIndex)
+    }
+
+    /**
+     * Execute arbitrary number of [calls] starting at an arbitrary [transactionIndex] in the block, and tracing their
+     * execution with the given tracer [config].
+     *
+     * @param blockHash the block state on which to execute the calls on.
+     * @param calls the list of transactions/calls to execute.
+     * @param config the tracer configuration to use for tracing the calls.
+     * @param transactionIndex the index of where in the block to start executing the calls at, with -1 meaning
+     * at the end of the block.
+     * */
+    fun <T> traceCallMany(
+        blockHash: Hash,
+        calls: List<CallRequest>,
+        config: TracerConfig<T>,
+        transactionIndex: Int = -1,
+    ): RpcRequest<List<T>, RpcError> {
+        return traceCallMany(BlockId.Hash(blockHash), calls, config, transactionIndex)
+    }
+
+    /**
+     * Execute arbitrary number of [calls] starting at an arbitrary [transactionIndex] in the block, and tracing their
+     * execution with the given tracer [config].
+     *
+     * @param blockId the block state on which to execute the calls on.
+     * @param calls the list of transactions/calls to execute.
+     * @param config the tracer configuration to use for tracing the calls.
+     * @param transactionIndex the index of where in the block to start executing the calls at, with -1 meaning
+     * at the end of the block.
+     * */
+    fun <T> traceCallMany(
+        blockId: BlockId,
+        calls: List<CallRequest>,
+        config: TracerConfig<T>,
+        transactionIndex: Int = -1,
+    ): RpcRequest<List<T>, RpcError>
+
+    /**
      * Trace [txHash] transaction execution with given tracer [config].
      */
     fun <T> traceTransaction(txHash: Hash, config: TracerConfig<T>): RpcRequest<T, RpcError>
