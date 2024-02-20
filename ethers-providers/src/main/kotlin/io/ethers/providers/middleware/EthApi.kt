@@ -8,6 +8,7 @@ import io.ethers.core.types.BlockOverride
 import io.ethers.core.types.BlockWithHashes
 import io.ethers.core.types.BlockWithTransactions
 import io.ethers.core.types.Bytes
+import io.ethers.core.types.CreateAccessList
 import io.ethers.core.types.FeeHistory
 import io.ethers.core.types.Hash
 import io.ethers.core.types.IntoCallRequest
@@ -274,7 +275,7 @@ interface EthApi {
     /**
      * Create access list for a given transaction [call] on a given block [blockId].
      */
-    fun createAccessList(call: IntoCallRequest, blockId: BlockId): RpcRequest<*, RpcError>
+    fun createAccessList(call: IntoCallRequest, blockId: BlockId): RpcRequest<CreateAccessList, RpcError>
 
     /**
      * Get gas price suggestion for legacy transaction.
