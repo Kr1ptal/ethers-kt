@@ -67,6 +67,20 @@ interface DebugApi {
     fun printBlock(number: Long): RpcRequest<String, RpcError>
 
     /**
+     * Execute [call] on given [blockNumber] and trace its execution with given tracer [config].
+     */
+    fun <T> traceCall(call: IntoCallRequest, blockNumber: Long, config: TracerConfig<T>): RpcRequest<T, RpcError> {
+        return traceCall(call, BlockId.Number(blockNumber), config)
+    }
+
+    /**
+     * Execute [call] on given [blockHash] and trace its execution with given tracer [config].
+     */
+    fun <T> traceCall(call: IntoCallRequest, blockHash: Hash, config: TracerConfig<T>): RpcRequest<T, RpcError> {
+        return traceCall(call, BlockId.Hash(blockHash), config)
+    }
+
+    /**
      * Execute [call] on given [blockId] and trace its execution with given tracer [config].
      */
     fun <T> traceCall(call: IntoCallRequest, blockId: BlockId, config: TracerConfig<T>): RpcRequest<T, RpcError>

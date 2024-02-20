@@ -160,9 +160,31 @@ interface EthApi {
     fun getStorage(address: Address, key: Hash, blockId: BlockId): RpcRequest<Hash, RpcError>
 
     /**
+     * Execute [call] on given [blockHash].
+     */
+    fun call(call: IntoCallRequest, blockHash: Hash) = call(call, BlockId.Hash(blockHash), null, null)
+
+    /**
+     * Execute [call] on given [blockNumber].
+     */
+    fun call(call: IntoCallRequest, blockNumber: Long) = call(call, BlockId.Number(blockNumber), null, null)
+
+    /**
      * Execute [call] on given [blockId].
      */
     fun call(call: IntoCallRequest, blockId: BlockId) = call(call, blockId, null, null)
+
+    /**
+     * Execute [call] on given [blockHash] with applied state overrides.
+     */
+    fun call(call: IntoCallRequest, blockHash: Hash, stateOverride: Map<Address, AccountOverride>) =
+        call(call, BlockId.Hash(blockHash), stateOverride, null)
+
+    /**
+     * Execute [call] on given [blockNumber] with applied state overrides.
+     */
+    fun call(call: IntoCallRequest, blockNumber: Long, stateOverride: Map<Address, AccountOverride>) =
+        call(call, BlockId.Number(blockNumber), stateOverride, null)
 
     /**
      * Execute [call] on given [blockId] with applied state overrides.
@@ -171,10 +193,42 @@ interface EthApi {
         call(call, blockId, stateOverride, null)
 
     /**
+     * Execute [call] on given [blockHash] with applied block overrides.
+     */
+    fun call(call: IntoCallRequest, blockHash: Hash, blockOverride: BlockOverride) =
+        call(call, BlockId.Hash(blockHash), null, blockOverride)
+
+    /**
+     * Execute [call] on given [blockNumber] with applied block overrides.
+     */
+    fun call(call: IntoCallRequest, blockNumber: Long, blockOverride: BlockOverride) =
+        call(call, BlockId.Number(blockNumber), null, blockOverride)
+
+    /**
      * Execute [call] on given [blockId] with applied block overrides.
      */
     fun call(call: IntoCallRequest, blockId: BlockId, blockOverride: BlockOverride) =
         call(call, blockId, null, blockOverride)
+
+    /**
+     * Execute [call] on given [blockHash] with applied state and block overrides.
+     */
+    fun call(
+        call: IntoCallRequest,
+        blockHash: Hash,
+        stateOverride: Map<Address, AccountOverride>?,
+        blockOverride: BlockOverride?,
+    ): RpcRequest<Bytes, RpcError> = call(call, BlockId.Hash(blockHash), stateOverride, blockOverride)
+
+    /**
+     * Execute [call] on given [blockNumber] with applied state and block overrides.
+     */
+    fun call(
+        call: IntoCallRequest,
+        blockNumber: Long,
+        stateOverride: Map<Address, AccountOverride>?,
+        blockOverride: BlockOverride?,
+    ): RpcRequest<Bytes, RpcError> = call(call, BlockId.Number(blockNumber), stateOverride, blockOverride)
 
     /**
      * Execute [call] on given [blockId] with applied state and block overrides.
@@ -182,8 +236,8 @@ interface EthApi {
     fun call(
         call: IntoCallRequest,
         blockId: BlockId,
-        stateOverride: Map<Address, AccountOverride>? = null,
-        blockOverride: BlockOverride? = null,
+        stateOverride: Map<Address, AccountOverride>?,
+        blockOverride: BlockOverride?,
     ): RpcRequest<Bytes, RpcError>
 
     /**
