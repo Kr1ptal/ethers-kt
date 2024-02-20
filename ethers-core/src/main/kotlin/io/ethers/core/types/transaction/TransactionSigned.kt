@@ -2,6 +2,7 @@ package io.ethers.core.types.transaction
 
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
+import io.ethers.core.types.CallRequest
 import io.ethers.core.types.Hash
 import io.ethers.core.types.Signature
 import io.ethers.crypto.Hashing
@@ -27,6 +28,10 @@ class TransactionSigned @JvmOverloads constructor(
     private var _hash: Hash? = hash
     private var _from: Address? = from
     private var _isValidSignature: Int = -1
+
+    override fun toCallRequest(): CallRequest {
+        return super<TransactionRecovered>.toCallRequest()
+    }
 
     /**
      * Get the transaction hash.
@@ -134,6 +139,11 @@ class TransactionSigned @JvmOverloads constructor(
     }
 
     companion object : RlpDecodable<TransactionSigned> {
+        @JvmStatic
+        override fun rlpDecode(data: ByteArray): TransactionSigned? {
+            return super.rlpDecode(data)
+        }
+
         @JvmStatic
         override fun rlpDecode(rlp: RlpDecoder): TransactionSigned? {
             val type = rlp.peekByte().toUByte().toInt()

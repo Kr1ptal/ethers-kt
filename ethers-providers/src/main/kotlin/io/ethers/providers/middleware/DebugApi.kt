@@ -2,8 +2,8 @@ package io.ethers.providers.middleware
 
 import io.ethers.core.types.BlockId
 import io.ethers.core.types.Bytes
-import io.ethers.core.types.CallRequest
 import io.ethers.core.types.Hash
+import io.ethers.core.types.IntoCallRequest
 import io.ethers.core.types.tracers.TracerConfig
 import io.ethers.core.types.tracers.TxTraceResult
 import io.ethers.providers.RpcError
@@ -69,7 +69,7 @@ interface DebugApi {
     /**
      * Execute [call] on given [blockId] and trace its execution with given tracer [config].
      */
-    fun <T> traceCall(call: CallRequest, blockId: BlockId, config: TracerConfig<T>): RpcRequest<T, RpcError>
+    fun <T> traceCall(call: IntoCallRequest, blockId: BlockId, config: TracerConfig<T>): RpcRequest<T, RpcError>
 
     /**
      * Execute arbitrary number of [calls] starting at an arbitrary [transactionIndex] in the block, and tracing their
@@ -83,7 +83,7 @@ interface DebugApi {
      * */
     fun <T> traceCallMany(
         blockNumber: Long,
-        calls: List<CallRequest>,
+        calls: List<IntoCallRequest>,
         config: TracerConfig<T>,
         transactionIndex: Int = -1,
     ): RpcRequest<List<T>, RpcError> {
@@ -102,7 +102,7 @@ interface DebugApi {
      * */
     fun <T> traceCallMany(
         blockHash: Hash,
-        calls: List<CallRequest>,
+        calls: List<IntoCallRequest>,
         config: TracerConfig<T>,
         transactionIndex: Int = -1,
     ): RpcRequest<List<T>, RpcError> {
@@ -121,7 +121,7 @@ interface DebugApi {
      * */
     fun <T> traceCallMany(
         blockId: BlockId,
-        calls: List<CallRequest>,
+        calls: List<IntoCallRequest>,
         config: TracerConfig<T>,
         transactionIndex: Int = -1,
     ): RpcRequest<List<T>, RpcError>

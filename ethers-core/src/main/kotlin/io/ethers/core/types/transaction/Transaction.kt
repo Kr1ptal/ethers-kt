@@ -3,7 +3,9 @@ package io.ethers.core.types.transaction
 import io.ethers.core.types.AccessList
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
+import io.ethers.core.types.CallRequest
 import io.ethers.core.types.Hash
+import io.ethers.core.types.IntoCallRequest
 import io.ethers.core.types.Signature
 import io.ethers.core.utils.GasUtils
 import java.math.BigInteger
@@ -14,12 +16,16 @@ import java.math.BigInteger
 interface TransactionRecovered : Transaction {
     val hash: Hash
     val from: Address
+
+    override fun toCallRequest(): CallRequest {
+        return super.toCallRequest().from(from)
+    }
 }
 
 /**
  * Base interface with properties common to all transactions.
  * */
-interface Transaction {
+interface Transaction : IntoCallRequest {
     val to: Address?
     val value: BigInteger
     val nonce: Long
@@ -50,6 +56,29 @@ interface Transaction {
      * */
     fun getEffectiveGasPrice(baseFee: BigInteger): BigInteger {
         return GasUtils.getEffectiveGasPrice(baseFee, gasTipCap, gasFeeCap)
+    }
+
+    override fun toCallRequest(): CallRequest {
+        val tx = this
+        return CallRequest {
+            to(tx.to)
+            value(tx.value)
+            nonce(tx.nonce)
+            gas(tx.gas)
+
+            if (tx.type == TxType.Legacy) {
+                gasPrice(tx.gasPrice)
+            } else {
+                gasTipCap(tx.gasTipCap)
+                gasFeeCap(tx.gasFeeCap)
+            }
+
+            data(tx.data)
+            chainId(tx.chainId)
+            accessList(tx.accessList)
+            blobFeeCap(tx.blobFeeCap)
+            blobVersionedHashes(tx.blobVersionedHashes)
+        }
     }
 }
 

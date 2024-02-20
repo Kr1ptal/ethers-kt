@@ -75,5 +75,8 @@ class CallRequestTest : FunSpec({
 
         shouldThrowUnit<IllegalArgumentException> { request.value = BigInteger.ONE.negate() }
         shouldThrowUnit<IllegalArgumentException> { request.value(BigInteger.ONE.negate()) }
+
+        shouldThrowUnit<IllegalArgumentException> { request.blobFeeCap = BigInteger.ONE.negate() }
+        shouldThrowUnit<IllegalArgumentException> { request.blobFeeCap(BigInteger.ONE.negate()) }
     }
 })

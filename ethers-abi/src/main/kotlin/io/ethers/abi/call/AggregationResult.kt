@@ -33,4 +33,21 @@ class AggregationResult<T>(private val results: Array<Result<T, ContractError>>)
     @get:JvmSynthetic
     val indices: IntRange
         get() = results.indices
+
+    override fun toString(): String {
+        return "AggregationResult(${results.contentToString()})"
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as AggregationResult<*>
+
+        return results.contentEquals(other.results)
+    }
+
+    override fun hashCode(): Int {
+        return results.contentHashCode()
+    }
 }

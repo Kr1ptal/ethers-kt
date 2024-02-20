@@ -8,9 +8,9 @@ import io.ethers.core.types.BlockOverride
 import io.ethers.core.types.BlockWithHashes
 import io.ethers.core.types.BlockWithTransactions
 import io.ethers.core.types.Bytes
-import io.ethers.core.types.CallRequest
 import io.ethers.core.types.FeeHistory
 import io.ethers.core.types.Hash
+import io.ethers.core.types.IntoCallRequest
 import io.ethers.core.types.Log
 import io.ethers.core.types.LogFilter
 import io.ethers.core.types.RPCTransaction
@@ -161,25 +161,25 @@ interface EthApi {
     /**
      * Execute [call] on given [blockId].
      */
-    fun call(call: CallRequest, blockId: BlockId) = call(call, blockId, null, null)
+    fun call(call: IntoCallRequest, blockId: BlockId) = call(call, blockId, null, null)
 
     /**
      * Execute [call] on given [blockId] with applied state overrides.
      */
-    fun call(call: CallRequest, blockId: BlockId, stateOverride: Map<Address, AccountOverride>) =
+    fun call(call: IntoCallRequest, blockId: BlockId, stateOverride: Map<Address, AccountOverride>) =
         call(call, blockId, stateOverride, null)
 
     /**
      * Execute [call] on given [blockId] with applied block overrides.
      */
-    fun call(call: CallRequest, blockId: BlockId, blockOverride: BlockOverride) =
+    fun call(call: IntoCallRequest, blockId: BlockId, blockOverride: BlockOverride) =
         call(call, blockId, null, blockOverride)
 
     /**
      * Execute [call] on given [blockId] with applied state and block overrides.
      */
     fun call(
-        call: CallRequest,
+        call: IntoCallRequest,
         blockId: BlockId,
         stateOverride: Map<Address, AccountOverride>? = null,
         blockOverride: BlockOverride? = null,
@@ -198,7 +198,7 @@ interface EthApi {
      * */
     fun callMany(
         blockNumber: Long,
-        calls: List<CallRequest>,
+        calls: List<IntoCallRequest>,
         transactionIndex: Int = -1,
         stateOverride: Map<Address, AccountOverride>? = null,
         blockOverride: BlockOverride? = null,
@@ -219,7 +219,7 @@ interface EthApi {
      * */
     fun callMany(
         blockHash: Hash,
-        calls: List<CallRequest>,
+        calls: List<IntoCallRequest>,
         transactionIndex: Int = -1,
         stateOverride: Map<Address, AccountOverride>? = null,
         blockOverride: BlockOverride? = null,
@@ -240,7 +240,7 @@ interface EthApi {
      * */
     fun callMany(
         blockId: BlockId,
-        calls: List<CallRequest>,
+        calls: List<IntoCallRequest>,
         transactionIndex: Int = -1,
         stateOverride: Map<Address, AccountOverride>? = null,
         blockOverride: BlockOverride? = null,
@@ -249,32 +249,32 @@ interface EthApi {
     /**
      * Estimate gas required to execute [call] on given block [hash].
      */
-    fun estimateGas(call: CallRequest, hash: Hash) = estimateGas(call, BlockId.Hash(hash))
+    fun estimateGas(call: IntoCallRequest, hash: Hash) = estimateGas(call, BlockId.Hash(hash))
 
     /**
      * Estimate gas required to execute [call] on given block [number].
      */
-    fun estimateGas(call: CallRequest, number: Long) = estimateGas(call, BlockId.Number(number))
+    fun estimateGas(call: IntoCallRequest, number: Long) = estimateGas(call, BlockId.Number(number))
 
     /**
      * Estimate gas required to execute [call] on given [blockId].
      */
-    fun estimateGas(call: CallRequest, blockId: BlockId): RpcRequest<BigInteger, RpcError>
+    fun estimateGas(call: IntoCallRequest, blockId: BlockId): RpcRequest<BigInteger, RpcError>
 
     /**
      * Create access list for a given transaction [call] on a given block [hash].
      */
-    fun createAccessList(call: CallRequest, hash: Hash) = createAccessList(call, BlockId.Hash(hash))
+    fun createAccessList(call: IntoCallRequest, hash: Hash) = createAccessList(call, BlockId.Hash(hash))
 
     /**
      * Create access list for a given transaction [call] on a given block [number].
      */
-    fun createAccessList(call: CallRequest, number: Long) = createAccessList(call, BlockId.Number(number))
+    fun createAccessList(call: IntoCallRequest, number: Long) = createAccessList(call, BlockId.Number(number))
 
     /**
      * Create access list for a given transaction [call] on a given block [blockId].
      */
-    fun createAccessList(call: CallRequest, blockId: BlockId): RpcRequest<*, RpcError>
+    fun createAccessList(call: IntoCallRequest, blockId: BlockId): RpcRequest<*, RpcError>
 
     /**
      * Get gas price suggestion for legacy transaction.
@@ -401,7 +401,7 @@ interface EthApi {
      * Fill the defaults (nonce, gas, gasPrice or 1559 fields) and return unsigned transaction for further
      * processing (signing + submission).
      */
-    fun fillTransaction(call: CallRequest): RpcRequest<TransactionUnsigned, RpcError>
+    fun fillTransaction(call: IntoCallRequest): RpcRequest<TransactionUnsigned, RpcError>
 
     /**
      * Get logs by block [blockHash].

@@ -25,10 +25,10 @@ import io.ethers.core.types.BlockOverride
 import io.ethers.core.types.BlockWithHashes
 import io.ethers.core.types.BlockWithTransactions
 import io.ethers.core.types.Bytes
-import io.ethers.core.types.CallRequest
 import io.ethers.core.types.CreateAccessList
 import io.ethers.core.types.FeeHistory
 import io.ethers.core.types.Hash
+import io.ethers.core.types.IntoCallRequest
 import io.ethers.core.types.Log
 import io.ethers.core.types.LogFilter
 import io.ethers.core.types.RPCTransaction
@@ -137,16 +137,16 @@ class Provider(override val client: JsonRpcClient) : Middleware {
     }
 
     override fun call(
-        call: CallRequest,
+        call: IntoCallRequest,
         blockId: BlockId,
         stateOverride: Map<Address, AccountOverride>?,
         blockOverride: BlockOverride?,
     ): RpcRequest<Bytes, RpcError> {
         // create minimal params array - some RPC's don't support stateOverride or blockOverride
         val params = when {
-            blockOverride != null -> arrayOf(call, blockId.id, stateOverride, blockOverride)
-            stateOverride != null -> arrayOf(call, blockId.id, stateOverride)
-            else -> arrayOf(call, blockId.id)
+            blockOverride != null -> arrayOf(call.toCallRequest(), blockId.id, stateOverride, blockOverride)
+            stateOverride != null -> arrayOf(call.toCallRequest(), blockId.id, stateOverride)
+            else -> arrayOf(call.toCallRequest(), blockId.id)
         }
 
         return RpcCall(client, "eth_call", params, Bytes::class.java)
@@ -154,7 +154,7 @@ class Provider(override val client: JsonRpcClient) : Middleware {
 
     override fun callMany(
         blockId: BlockId,
-        calls: List<CallRequest>,
+        calls: List<IntoCallRequest>,
         transactionIndex: Int,
         stateOverride: Map<Address, AccountOverride>?,
         blockOverride: BlockOverride?,
@@ -183,13 +183,13 @@ class Provider(override val client: JsonRpcClient) : Middleware {
         }
     }
 
-    override fun estimateGas(call: CallRequest, blockId: BlockId): RpcRequest<BigInteger, RpcError> {
-        val params = arrayOf(call, blockId.id)
+    override fun estimateGas(call: IntoCallRequest, blockId: BlockId): RpcRequest<BigInteger, RpcError> {
+        val params = arrayOf(call.toCallRequest(), blockId.id)
         return RpcCall(client, "eth_estimateGas", params) { it.readHexBigInteger() }
     }
 
-    override fun createAccessList(call: CallRequest, blockId: BlockId): RpcRequest<CreateAccessList, RpcError> {
-        val params = arrayOf(call, blockId.id)
+    override fun createAccessList(call: IntoCallRequest, blockId: BlockId): RpcRequest<CreateAccessList, RpcError> {
+        val params = arrayOf(call.toCallRequest(), blockId.id)
         return RpcCall(client, "eth_createAccessList", params, CreateAccessList::class.java)
     }
 
@@ -276,11 +276,11 @@ class Provider(override val client: JsonRpcClient) : Middleware {
         )
     }
 
-    override fun fillTransaction(call: CallRequest): RpcRequest<TransactionUnsigned, RpcError> {
+    override fun fillTransaction(call: IntoCallRequest): RpcRequest<TransactionUnsigned, RpcError> {
         return RpcCall(
             client,
             "eth_fillTransaction",
-            arrayOf(call),
+            arrayOf(call.toCallRequest()),
             {
                 var ret: TransactionUnsigned? = null
                 while (!it.isNextTokenObjectEnd()) {
@@ -406,14 +406,18 @@ class Provider(override val client: JsonRpcClient) : Middleware {
         return RpcCall(client, "debug_printBlock", params, String::class.java)
     }
 
-    override fun <T> traceCall(call: CallRequest, blockId: BlockId, config: TracerConfig<T>): RpcRequest<T, RpcError> {
-        val params = arrayOf(call, blockId.id, config)
+    override fun <T> traceCall(
+        call: IntoCallRequest,
+        blockId: BlockId,
+        config: TracerConfig<T>,
+    ): RpcRequest<T, RpcError> {
+        val params = arrayOf(call.toCallRequest(), blockId.id, config)
         return RpcCall(client, "debug_traceCall", params, { config.tracer.decodeResult(it) })
     }
 
     override fun <T> traceCallMany(
         blockId: BlockId,
-        calls: List<CallRequest>,
+        calls: List<IntoCallRequest>,
         config: TracerConfig<T>,
         transactionIndex: Int,
     ): RpcRequest<List<T>, RpcError> {
