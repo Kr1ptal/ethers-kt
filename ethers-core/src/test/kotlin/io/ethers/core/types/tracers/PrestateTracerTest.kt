@@ -2,24 +2,24 @@ package io.ethers.core.types.tracers
 
 import io.ethers.core.Jackson
 import io.ethers.core.Jackson.createAndInitParser
+import io.ethers.core.types.AccountOverride
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
 import io.kotest.assertions.json.shouldEqualJson
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.maps.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import org.intellij.lang.annotations.Language
 import java.math.BigInteger
 
 class PrestateTracerTest : FunSpec({
-    val prestateTracer = PrestateTracer(true)
-
     test("encode tracer") {
-        Jackson.MAPPER.writeValueAsString(TracerConfig(prestateTracer)) shouldEqualJson """
+        Jackson.MAPPER.writeValueAsString(TracerConfig(PrestateTracer(true))) shouldEqualJson """
             {
               "tracer": "prestateTracer",
               "tracerConfig": {
-                "diffMode": ${prestateTracer.diffMode}
+                "diffMode": true
               }
             }
         """
@@ -53,6 +53,7 @@ class PrestateTracerTest : FunSpec({
         val result = PrestateTracer(false).decodeResult(jsonParser)
 
         val expectedResult = PrestateTracer.Result(
+            false,
             hashMapOf(
                 Address("0x1f9090aae28b8a3dceadf281b0f12828e676c326") to PrestateTracer.Account(
                     nonce = 287343L,
@@ -99,6 +100,7 @@ class PrestateTracerTest : FunSpec({
         val result = PrestateTracer(true).decodeResult(jsonParser)
 
         val expectedResult = PrestateTracer.Result(
+            true,
             hashMapOf(
                 Address("0x35a9f94af726f07b5162df7e828cc9dc8439e7d0") to PrestateTracer.Account(
                     nonce = 5,
@@ -113,5 +115,94 @@ class PrestateTracerTest : FunSpec({
         )
 
         result shouldBe expectedResult
+    }
+
+    test("Result#toStateOverride") {
+        val result = PrestateTracer.Result(
+            diffMode = true,
+            prestate = hashMapOf(
+                // nonce changed
+                Address("0x35a9f94af726f07b5162df7e828cc9dc8439e7d0") to PrestateTracer.Account(
+                    nonce = 5,
+                    balance = BigInteger("202aa8", 16),
+                ),
+                // selfdestructed - no entry in poststate
+                Address("0x98774823490094192491249129049abcdeffffff") to PrestateTracer.Account(
+                    nonce = 1,
+                    code = Bytes("0x123456786754321435678654328abcdefaaaaaaddddd1214"),
+                ),
+                // selfdestructed - empty entry in poststate
+                Address("0x74823490094192491249129049abcdeffffff112") to PrestateTracer.Account(
+                    nonce = 13,
+                    code = Bytes("0x123456786754321435678654328abcdefaaaaaaddddd1214"),
+                ),
+                // changed and cleared storage slots
+                Address("0x23490094192491249129049abcdeffffff112dde") to PrestateTracer.Account(
+                    nonce = 3,
+                    storage = hashMapOf(
+                        // changed from zero to non-zero
+                        Hash("0x0000000000000000000000000000000000000000000000000000000000000012") to Hash.ZERO,
+                        // changed from non-zero to zero
+                        Hash("0x00000000000000000000000000000000000000000000000000000000000000ff") to Hash(
+                            "0xffffff0000000000000000000000000000000000000000000000000000000000",
+                        ),
+                    ),
+                ),
+            ),
+
+            poststate = hashMapOf(
+                // nonce changed
+                Address("0x35a9f94af726f07b5162df7e828cc9dc8439e7d0") to PrestateTracer.Account(
+                    nonce = 6,
+                ),
+                // selfdestructed - empty entry in poststate
+                Address("0x74823490094192491249129049abcdeffffff112") to PrestateTracer.Account(),
+                // changed and cleared storage slots
+                Address("0x23490094192491249129049abcdeffffff112dde") to PrestateTracer.Account(
+                    nonce = 3,
+                    storage = hashMapOf(
+                        // change from zero to non-zero
+                        Hash("0x0000000000000000000000000000000000000000000000000000000000000012") to Hash(
+                            "0xeeeeeeeeee000000000000000000000000000000000000000000000000000000",
+                        ),
+                        // changed from non-zero to zero
+                        /*Hash("0x00000000000000000000000000000000000000000000000000000000000000ff") to Hash(
+                            "0xffffff0000000000000000000000000000000000000000000000000000000000"
+                        ),*/
+                    ),
+                ),
+            ),
+        )
+
+        result.toStateOverride() shouldContainExactly hashMapOf(
+            Address("0x35a9f94af726f07b5162df7e828cc9dc8439e7d0") to AccountOverride {
+                nonce = 6
+            },
+            // selfdestructed - no entry in poststate
+            Address("0x98774823490094192491249129049abcdeffffff") to AccountOverride {
+                nonce = 0
+                balance = BigInteger.ZERO
+                code = Bytes.EMPTY
+                state = emptyMap()
+            },
+            // selfdestructed - empty entry in poststate
+            Address("0x74823490094192491249129049abcdeffffff112") to AccountOverride {
+                nonce = 0
+                balance = BigInteger.ZERO
+                code = Bytes.EMPTY
+                state = emptyMap()
+            },
+            Address("0x23490094192491249129049abcdeffffff112dde") to AccountOverride {
+                nonce = 3
+                stateDiff = hashMapOf(
+                    // change from zero to non-zero
+                    Hash("0x0000000000000000000000000000000000000000000000000000000000000012") to Hash(
+                        "0xeeeeeeeeee000000000000000000000000000000000000000000000000000000",
+                    ),
+                    // changed from non-zero to zero, override needs to clear the slot
+                    Hash("0x00000000000000000000000000000000000000000000000000000000000000ff") to Hash.ZERO,
+                )
+            },
+        )
     }
 })
