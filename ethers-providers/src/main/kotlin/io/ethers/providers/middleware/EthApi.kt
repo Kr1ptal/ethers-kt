@@ -443,6 +443,21 @@ interface EthApi {
     fun getTransactionReceipt(hash: Hash): RpcRequest<Optional<TransactionReceipt>, RpcError>
 
     /**
+     * Get all transaction receipts by [blockHash], returning empty [Optional] if none exists.
+     */
+    fun getBlockReceipts(blockHash: Hash) = getBlockReceipts(BlockId.Hash(blockHash))
+
+    /**
+     * Get all transaction receipts by [blockNumber], returning empty [Optional] if none exists.
+     */
+    fun getBlockReceipts(blockNumber: Long) = getBlockReceipts(BlockId.Number(blockNumber))
+
+    /**
+     * Get all transaction receipts by [blockId], returning empty [Optional] if none exists.
+     */
+    fun getBlockReceipts(blockId: BlockId): RpcRequest<Optional<List<TransactionReceipt>>, RpcError>
+
+    /**
      * RLP encode and submit [signedTransaction].
      */
     fun sendRawTransaction(signedTransaction: TransactionSigned) = sendRawTransaction(signedTransaction.toRlp())
