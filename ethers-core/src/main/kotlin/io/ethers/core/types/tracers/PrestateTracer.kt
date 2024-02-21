@@ -127,8 +127,8 @@ data class PrestateTracer(val diffMode: Boolean) : Tracer<PrestateTracer.Result>
                             if (newDiff == null) {
                                 newDiff = when {
                                     postDiff.isEmpty() -> HashMap(preAccount.storage)
-                                    postDiff is MutableMap -> postDiff
-                                    else -> postDiff.toMap(HashMap())
+                                    postDiff is HashMap -> postDiff
+                                    else -> HashMap(postDiff)
                                 }
                             }
 

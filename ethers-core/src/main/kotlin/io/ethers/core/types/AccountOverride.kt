@@ -21,15 +21,15 @@ class AccountOverride {
 
     var state: Map<Hash, Hash>? = null
         @JvmSynthetic set(value) {
-            if (stateDiff != null) throw IllegalStateException("state and stateDiff cannot be set at the same time")
-
+            // either setting to null or stateDiff must not be set
+            require(value == null || stateDiff == null) { "state and stateDiff cannot be set at the same time" }
             field = value
         }
 
     var stateDiff: Map<Hash, Hash>? = null
         @JvmSynthetic set(value) {
-            if (state != null) throw IllegalStateException("state and stateDiff cannot be set at the same time")
-
+            // either setting to null or state must not be set
+            require(value == null || state == null) { "state and stateDiff cannot be set at the same time" }
             field = value
         }
 
@@ -97,8 +97,8 @@ class AccountOverride {
                 curr = HashMap(other.stateDiff!!.size)
             }
 
-            when {
-                curr is MutableMap -> curr.putAll(other.stateDiff!!)
+            when (curr) {
+                is HashMap -> curr.putAll(other.stateDiff!!)
                 else -> curr = HashMap(curr).apply { putAll(other.stateDiff!!) }
             }
 
