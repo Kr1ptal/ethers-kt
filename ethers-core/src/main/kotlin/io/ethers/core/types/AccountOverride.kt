@@ -12,14 +12,26 @@ class AccountOverride {
     // make property setters unavailable from Java since we provide custom chained functions
     var nonce: Long = -1L
         @JvmSynthetic set
+
     var code: Bytes? = null
         @JvmSynthetic set
+
     var balance: BigInteger? = null
         @JvmSynthetic set
+
     var state: Map<Hash, Hash>? = null
-        @JvmSynthetic set
+        @JvmSynthetic set(value) {
+            if (stateDiff != null) throw IllegalStateException("state and stateDiff cannot be set at the same time")
+
+            field = value
+        }
+
     var stateDiff: Map<Hash, Hash>? = null
-        @JvmSynthetic set
+        @JvmSynthetic set(value) {
+            if (state != null) throw IllegalStateException("state and stateDiff cannot be set at the same time")
+
+            field = value
+        }
 
     fun nonce(nonce: Long): AccountOverride {
         this.nonce = nonce
@@ -44,6 +56,54 @@ class AccountOverride {
     fun stateDiff(stateDiff: Map<Hash, Hash>?): AccountOverride {
         this.stateDiff = stateDiff
         return this
+    }
+
+    /**
+     * Merge **this** with [other], returning a new instance with the merged changes.
+     * */
+    fun mergeChanges(other: AccountOverride): AccountOverride {
+        val ret = AccountOverride()
+        ret.applyChanges(this)
+        ret.applyChanges(other)
+        return ret
+    }
+
+    /**
+     * Apply changes from [other] to **this** instance.
+     * */
+    fun applyChanges(other: AccountOverride) {
+        if (other.nonce != -1L) {
+            nonce = other.nonce
+        }
+        if (other.code != null) {
+            code = other.code
+        }
+        if (other.balance != null) {
+            balance = other.balance
+        }
+        if (other.state != null) {
+            // first clear the diff if set, then set the new state
+            stateDiff = null
+            state = other.state
+        }
+
+        if (other.stateDiff != null) {
+            val applyingOnFreshState = state != null
+
+            // if we already have a "state" override, apply diff to it. This means that the state was cleared before,
+            // and we're applying a diff to a fresh state.
+            var curr = if (applyingOnFreshState) state else stateDiff
+            if (curr == null) {
+                curr = HashMap(other.stateDiff!!.size)
+            }
+
+            when {
+                curr is MutableMap -> curr.putAll(other.stateDiff!!)
+                else -> curr = HashMap(curr).apply { putAll(other.stateDiff!!) }
+            }
+
+            if (applyingOnFreshState) state = curr else stateDiff = curr
+        }
     }
 
     override fun toString(): String {
@@ -78,6 +138,41 @@ class AccountOverride {
         inline operator fun invoke(builder: AccountOverride.() -> Unit): AccountOverride {
             return AccountOverride().apply(builder)
         }
+
+        /**
+         * Merge changes from [a] and [b], returning a new instance with the merged changes.
+         * */
+        @JvmStatic
+        fun mergeChanges(
+            a: Map<Address, AccountOverride>,
+            b: Map<Address, AccountOverride>
+        ): Map<Address, AccountOverride> {
+            val ret = HashMap(a)
+            for ((address, override) in b) {
+                val existing = ret[address]
+                if (existing == null) {
+                    ret[address] = override
+                } else {
+                    ret[address] = existing.mergeChanges(override)
+                }
+            }
+            return ret
+        }
+
+        /**
+         * Apply changes from [other] to [state].
+         * */
+        @JvmStatic
+        fun applyChanges(state: MutableMap<Address, AccountOverride>, other: Map<Address, AccountOverride>) {
+            for ((address, override) in other) {
+                val existing = state[address]
+                if (existing == null) {
+                    state[address] = override
+                } else {
+                    existing.applyChanges(override)
+                }
+            }
+        }
     }
 }
 
@@ -102,4 +197,18 @@ private class AccountOverrideSerializer : JsonSerializer<AccountOverride>() {
         }
         gen.writeEndObject()
     }
+}
+
+/**
+ * Merge **this** with [other], returning a new instance with the merged changes.
+ * */
+fun Map<Address, AccountOverride>.mergeChanges(other: Map<Address, AccountOverride>): Map<Address, AccountOverride> {
+    return AccountOverride.mergeChanges(this, other)
+}
+
+/**
+ * Apply changes from [other] to **this** instance.
+ * */
+fun MutableMap<Address, AccountOverride>.applyChanges(other: Map<Address, AccountOverride>) {
+    AccountOverride.applyChanges(this, other)
 }
