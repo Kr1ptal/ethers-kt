@@ -87,47 +87,52 @@ data class PrestateTracer(val diffMode: Boolean) : Tracer<PrestateTracer.Result>
 
             val ret = HashMap<Address, AccountOverride>(poststate.size)
 
-            // first, add all poststate account changes
+            // first, add all poststate account changes, including empty accounts which indicates that only storage
+            // slots were cleared/set to zero.
             for ((address, account) in poststate) {
-                // if account was returned as poststate, but is empty, it was selfdestructed
-                if (account.isEmpty) {
-                    ret[address] = SELFDESTRUCT_OVERRIDE
-                } else {
-                    ret[address] = AccountOverride()
-                        .nonce(account.nonce)
-                        .balance(account.balance)
-                        .code(account.code)
-                        .stateDiff(account.storage)
-                }
+                ret[address] = AccountOverride()
+                    .nonce(account.nonce)
+                    .balance(account.balance)
+                    .code(account.code)
+                    .stateDiff(account.storage)
             }
 
             // then, check for selfdestructed accounts and cleared storage slots
-            for ((address, account) in prestate) {
-                val accountSelfdestructed = !ret.containsKey(address)
-
+            for ((address, preAccount) in prestate) {
                 when {
                     // if account is in prestate but not in poststate, it selfdestructed
-                    accountSelfdestructed -> ret[address] = SELFDESTRUCT_OVERRIDE
+                    poststate[address] == null -> ret[address] = AccountOverride {
+                        nonce = 0
+                        code = Bytes.EMPTY
+                        balance = BigInteger.ZERO
+                        state = emptyMap()
+                    }
 
                     // if account is in both prestate and poststate, check if any storage slots were cleared, indicated
                     // by the poststate account's stateDiff not containing the slot
-                    !account.storage.isNullOrEmpty() -> {
-                        val postAccount = ret[address]!!
-                        val postDiff = postAccount.stateDiff ?: emptyMap()
+                    !preAccount.storage.isNullOrEmpty() -> {
+                        val postAccount = ret[address]
+                            ?: throw IllegalStateException("Should not happen: poststate account not found ($address)")
+
+                        val postDiff = postAccount.state ?: postAccount.stateDiff ?: emptyMap()
                         var newDiff: MutableMap<Hash, Hash>? = null
 
-                        for ((key, _) in account.storage) {
-                            if (!postDiff.containsKey(key)) {
-                                if (newDiff == null) {
-                                    newDiff = when {
-                                        postDiff.isEmpty() -> HashMap(account.storage)
-                                        postDiff is MutableMap -> postDiff
-                                        else -> postDiff.toMap(HashMap())
-                                    }
-                                }
-
-                                newDiff[key] = Hash.ZERO
+                        for ((key, _) in preAccount.storage) {
+                            if (postDiff.containsKey(key)) {
+                                continue
                             }
+
+                            // if key present in "pre" but not in "post", it was cleared. Initialize "newDiff" if not
+                            // already done
+                            if (newDiff == null) {
+                                newDiff = when {
+                                    postDiff.isEmpty() -> HashMap(preAccount.storage)
+                                    postDiff is MutableMap -> postDiff
+                                    else -> postDiff.toMap(HashMap())
+                                }
+                            }
+
+                            newDiff[key] = Hash.ZERO
                         }
 
                         if (newDiff != null) {
@@ -146,20 +151,5 @@ data class PrestateTracer(val diffMode: Boolean) : Tracer<PrestateTracer.Result>
         val balance: BigInteger? = null,
         val code: Bytes? = null,
         val storage: Map<Hash, Hash>? = null,
-    ) {
-        /**
-         * Return whether the account has all fields unset.
-         * */
-        val isEmpty: Boolean
-            get() = nonce == -1L && balance == null && code == null && storage == null
-    }
-
-    companion object {
-        private val SELFDESTRUCT_OVERRIDE = AccountOverride {
-            nonce = 0
-            code = Bytes.EMPTY
-            balance = BigInteger.ZERO
-            state = emptyMap()
-        }
-    }
+    )
 }

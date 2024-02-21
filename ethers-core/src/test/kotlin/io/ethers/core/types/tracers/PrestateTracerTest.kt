@@ -131,10 +131,14 @@ class PrestateTracerTest : FunSpec({
                     nonce = 1,
                     code = Bytes("0x123456786754321435678654328abcdefaaaaaaddddd1214"),
                 ),
-                // selfdestructed - empty entry in poststate
+                // only storage slots were set to zero - empty entry in poststate
                 Address("0x74823490094192491249129049abcdeffffff112") to PrestateTracer.Account(
-                    nonce = 13,
-                    code = Bytes("0x123456786754321435678654328abcdefaaaaaaddddd1214"),
+                    storage = hashMapOf(
+                        // changed from non-zero to zero
+                        Hash("0x00000000000000000000000000000000000000000000000000000000000000ff") to Hash(
+                            "0xffffff0000000000000000000000000000000000000000000000000000000000",
+                        ),
+                    ),
                 ),
                 // changed and cleared storage slots
                 Address("0x23490094192491249129049abcdeffffff112dde") to PrestateTracer.Account(
@@ -155,7 +159,7 @@ class PrestateTracerTest : FunSpec({
                 Address("0x35a9f94af726f07b5162df7e828cc9dc8439e7d0") to PrestateTracer.Account(
                     nonce = 6,
                 ),
-                // selfdestructed - empty entry in poststate
+                // only storage slots were set to zero - empty entry in poststate
                 Address("0x74823490094192491249129049abcdeffffff112") to PrestateTracer.Account(),
                 // changed and cleared storage slots
                 Address("0x23490094192491249129049abcdeffffff112dde") to PrestateTracer.Account(
@@ -187,10 +191,11 @@ class PrestateTracerTest : FunSpec({
             },
             // selfdestructed - empty entry in poststate
             Address("0x74823490094192491249129049abcdeffffff112") to AccountOverride {
-                nonce = 0
-                balance = BigInteger.ZERO
-                code = Bytes.EMPTY
-                state = emptyMap()
+                stateDiff = hashMapOf(
+                    Hash("0x00000000000000000000000000000000000000000000000000000000000000ff") to Hash(
+                        "0x0000000000000000000000000000000000000000000000000000000000000000",
+                    ),
+                )
             },
             Address("0x23490094192491249129049abcdeffffff112dde") to AccountOverride {
                 nonce = 3
