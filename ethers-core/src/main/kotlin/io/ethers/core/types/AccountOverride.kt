@@ -145,7 +145,7 @@ class AccountOverride {
         @JvmStatic
         fun mergeChanges(
             a: Map<Address, AccountOverride>,
-            b: Map<Address, AccountOverride>
+            b: Map<Address, AccountOverride>,
         ): Map<Address, AccountOverride> {
             val ret = HashMap(a)
             for ((address, override) in b) {
