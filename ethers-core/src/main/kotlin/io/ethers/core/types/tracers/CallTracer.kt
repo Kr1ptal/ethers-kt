@@ -68,8 +68,7 @@ data class CallTracer(
             // first, add logs from child calls since they are emitted before logs from current call
             calls?.let {
                 for (i in it.indices) {
-                    val call = it[i]
-                    call.addAllCallLogs(ret)
+                    it[i].addAllCallLogs(ret)
                 }
             }
 
