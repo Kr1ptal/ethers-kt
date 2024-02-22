@@ -140,15 +140,15 @@ class AccountOverride {
         }
 
         /**
-         * Merge changes from [a] and [b], returning a new instance with the merged changes.
+         * Merge changes from [other] on top of [state], returning a new instance with the merged changes.
          * */
         @JvmStatic
         fun mergeChanges(
-            a: Map<Address, AccountOverride>,
-            b: Map<Address, AccountOverride>,
+            state: Map<Address, AccountOverride>,
+            other: Map<Address, AccountOverride>,
         ): Map<Address, AccountOverride> {
-            val ret = HashMap(a)
-            for ((address, override) in b) {
+            val ret = HashMap(state)
+            for ((address, override) in other) {
                 val existing = ret[address]
                 if (existing == null) {
                     ret[address] = override
