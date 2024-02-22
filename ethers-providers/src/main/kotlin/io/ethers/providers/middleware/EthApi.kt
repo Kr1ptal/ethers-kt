@@ -317,17 +317,17 @@ interface EthApi {
     fun estimateGas(call: IntoCallRequest, blockId: BlockId): RpcRequest<BigInteger, RpcError>
 
     /**
-     * Create access list for a given transaction [call] on a given block [hash].
+     * Create access list for a given [call] on a given block [hash].
      */
     fun createAccessList(call: IntoCallRequest, hash: Hash) = createAccessList(call, BlockId.Hash(hash))
 
     /**
-     * Create access list for a given transaction [call] on a given block [number].
+     * Create access list for a given [call] on a given block [number].
      */
     fun createAccessList(call: IntoCallRequest, number: Long) = createAccessList(call, BlockId.Number(number))
 
     /**
-     * Create access list for a given transaction [call] on a given block [blockId].
+     * Create access list for a given [call] on a given block [blockId].
      */
     fun createAccessList(call: IntoCallRequest, blockId: BlockId): RpcRequest<CreateAccessList, RpcError>
 
