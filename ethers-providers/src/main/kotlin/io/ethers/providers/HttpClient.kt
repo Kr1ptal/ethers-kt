@@ -78,7 +78,7 @@ class HttpClient @JvmOverloads constructor(
                             // reading from response body consumes it, so we need to create a new one
                             val arr = stream.readAllBytes()
                             stream = BufferedInputStream(ByteArrayInputStream(arr))
-                            "Response: ${String(arr)}}"
+                            "Response: ${String(arr)}"
                         }
 
                         if (!it.isSuccessful) {
@@ -178,7 +178,7 @@ class HttpClient @JvmOverloads constructor(
                             // reading from response body consumes it, so we need to create a new one
                             val arr = stream.readAllBytes()
                             stream = BufferedInputStream(ByteArrayInputStream(arr))
-                            "Response: ${String(arr)}}"
+                            "Response: ${String(arr)}"
                         }
 
                         if (!it.isSuccessful) {

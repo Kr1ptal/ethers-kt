@@ -14,6 +14,7 @@ import io.ethers.core.types.BlockId
 import io.ethers.core.types.BlockOverride
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.CallRequest
+import io.ethers.core.types.CreateAccessList
 import io.ethers.core.types.Hash
 import io.ethers.core.types.IntoCallRequest
 import io.ethers.core.types.tracers.TracerConfig
@@ -46,8 +47,29 @@ abstract class ReadWriteContractCall<C, S : PendingInclusion<*>, B : ReadWriteCo
      * @return [TransactionSigned], or null if [call] is not ready to be signed (missing some fields).
      * */
     fun sign(signer: Signer): TransactionSigned? {
-        val tx = call.from(signer.address).toTransaction() ?: return null
+        val tx = call.toTransaction() ?: return null
         return signer.signTransaction(tx)
+    }
+
+    /**
+     * Create access list for **this** contract call on a given block [blockHash].
+     * */
+    fun createAccessList(blockHash: Hash): RpcRequest<CreateAccessList, RpcError> {
+        return provider.createAccessList(call, blockHash)
+    }
+
+    /**
+     * Create access list for **this** contract call on a given block [blockNumber].
+     * */
+    fun createAccessList(blockNumber: Long): RpcRequest<CreateAccessList, RpcError> {
+        return provider.createAccessList(call, blockNumber)
+    }
+
+    /**
+     * Create access list for **this** contract call on a given block [blockId].
+     * */
+    fun createAccessList(blockId: BlockId): RpcRequest<CreateAccessList, RpcError> {
+        return provider.createAccessList(call, blockId)
     }
 
     /**
@@ -61,6 +83,8 @@ abstract class ReadWriteContractCall<C, S : PendingInclusion<*>, B : ReadWriteCo
             return provider.sendRawTransaction(signed).map(::handleSendResult)
         }
 
+        // create a new copy to avoid modifying the original
+        val call = toCallRequest().from(signer.address)
         return provider.fillTransaction(call).andThen { unsigned ->
             val tx = signer.signTransaction(unsigned)
             provider.sendRawTransaction(tx).map(::handleSendResult).sendAwait()

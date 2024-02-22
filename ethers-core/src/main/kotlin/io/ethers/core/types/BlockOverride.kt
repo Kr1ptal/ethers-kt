@@ -68,6 +68,22 @@ class BlockOverride {
         inline operator fun invoke(builder: BlockOverride.() -> Unit): BlockOverride {
             return BlockOverride().apply(builder)
         }
+
+        /**
+         * Create a [BlockOverride] from a provided [block].
+         * */
+        @JvmStatic
+        fun from(block: Block<*>): BlockOverride {
+            return BlockOverride {
+                number = block.number
+                difficulty = block.difficulty
+                time = block.timestamp
+                gasLimit = block.gasLimit
+                coinbase = block.miner
+                random = block.mixHash
+                baseFee = block.baseFeePerGas
+            }
+        }
     }
 }
 
@@ -98,3 +114,8 @@ private class BlockOverrideSerializer : JsonSerializer<BlockOverride>() {
         gen.writeEndObject()
     }
 }
+
+/**
+ * Create a [BlockOverride] from **this** block.
+ * */
+fun Block<*>.toBlockOverride() = BlockOverride.from(this)

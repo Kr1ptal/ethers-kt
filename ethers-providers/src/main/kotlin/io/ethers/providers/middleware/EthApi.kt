@@ -317,17 +317,17 @@ interface EthApi {
     fun estimateGas(call: IntoCallRequest, blockId: BlockId): RpcRequest<BigInteger, RpcError>
 
     /**
-     * Create access list for a given transaction [call] on a given block [hash].
+     * Create access list for a given [call] on a given block [hash].
      */
     fun createAccessList(call: IntoCallRequest, hash: Hash) = createAccessList(call, BlockId.Hash(hash))
 
     /**
-     * Create access list for a given transaction [call] on a given block [number].
+     * Create access list for a given [call] on a given block [number].
      */
     fun createAccessList(call: IntoCallRequest, number: Long) = createAccessList(call, BlockId.Number(number))
 
     /**
-     * Create access list for a given transaction [call] on a given block [blockId].
+     * Create access list for a given [call] on a given block [blockId].
      */
     fun createAccessList(call: IntoCallRequest, blockId: BlockId): RpcRequest<CreateAccessList, RpcError>
 
@@ -441,6 +441,21 @@ interface EthApi {
      * Get transaction receipt by [hash], returning empty [Optional] if none exists.
      */
     fun getTransactionReceipt(hash: Hash): RpcRequest<Optional<TransactionReceipt>, RpcError>
+
+    /**
+     * Get all transaction receipts by [blockHash], returning empty [Optional] if none exists.
+     */
+    fun getBlockReceipts(blockHash: Hash) = getBlockReceipts(BlockId.Hash(blockHash))
+
+    /**
+     * Get all transaction receipts by [blockNumber], returning empty [Optional] if none exists.
+     */
+    fun getBlockReceipts(blockNumber: Long) = getBlockReceipts(BlockId.Number(blockNumber))
+
+    /**
+     * Get all transaction receipts by [blockId], returning empty [Optional] if none exists.
+     */
+    fun getBlockReceipts(blockId: BlockId): RpcRequest<Optional<List<TransactionReceipt>>, RpcError>
 
     /**
      * RLP encode and submit [signedTransaction].

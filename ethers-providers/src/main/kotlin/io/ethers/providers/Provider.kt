@@ -267,6 +267,15 @@ class Provider(override val client: JsonRpcClient) : Middleware {
         )
     }
 
+    override fun getBlockReceipts(blockId: BlockId): RpcRequest<Optional<List<TransactionReceipt>>, RpcError> {
+        return RpcCall(
+            client,
+            "eth_getBlockReceipts",
+            arrayOf(blockId.id),
+            { it.readOptionalValue { it.readListOf(TransactionReceipt::class.java) } },
+        )
+    }
+
     override fun sendRawTransaction(signedTransaction: ByteArray): RpcRequest<PendingTransaction, RpcError> {
         return RpcCall(
             client,

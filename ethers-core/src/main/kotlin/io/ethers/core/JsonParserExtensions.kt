@@ -267,6 +267,18 @@ fun <R : Any> JsonParser.readOptionalValue(clazz: Class<R>): Optional<R> {
     }
 }
 
+/**
+ * Read current token as [clazz], returning [Optional.empty] if current token is null.
+ */
+fun <R : Any> JsonParser.readOptionalValue(action: JsonParser.() -> R): Optional<R> {
+    return if (currentToken() == JsonToken.VALUE_NULL) {
+        nextToken()
+        Optional.empty()
+    } else {
+        Optional.of(action())
+    }
+}
+
 private val EMPTY_BYTES = ByteArray(0)
 
 /**
