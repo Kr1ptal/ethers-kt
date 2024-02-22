@@ -73,7 +73,7 @@ data class CallTracer(
                 }
             }
 
-            // second, add this call logs, after any child call finished executing
+            // second, add this call logs, after any child calls finished executing
             logs?.let {
                 for (i in it.indices) {
                     ret.add(it[i].toLog(ret.size))
