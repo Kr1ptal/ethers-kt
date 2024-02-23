@@ -505,6 +505,14 @@ class Provider(override val client: JsonRpcClient) : Middleware {
         return RpcCall(client, "txpool_inspect", EMPTY_ARRAY, TxpoolInspectResult::class.java)
     }
 
+    //-----------------------------------------------------------------------------------------------------------------
+    //                                       Web3Api implementation
+    //-----------------------------------------------------------------------------------------------------------------
+
+    override fun getClientVersion(): RpcRequest<String, RpcError> {
+        return RpcCall(client, "web3_clientVersion", EMPTY_ARRAY, String::class.java)
+    }
+
     /**
      * Error indicating the provided [url] has an unsupported protocol.
      * */
