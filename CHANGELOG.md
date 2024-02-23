@@ -18,6 +18,45 @@ Sections:
 ### Security = Security patches.
 -->
 
+## [0.4.0] - 2024-02-23
+
+### Bug Fixes
+
+- Rlp encoding of BigInteger where its bytearray has exactly one non-zero element but is larger than RLP_STRING_SHORT
+- RLP-encoding of ByteArray with a single, 0 element
+- [**breaking**] Make encoding/decoding RLP lists non-ambiguous by returning empty List instead of null (#65)
+- Gracefully handle unsuccessful http responses (close #68)
+- Correctly abi-generate complex constant names
+- Set missing generic result type for `EthApi#createAccessList` function
+
+### Features
+
+- Add `createAccessList` function to `ReadWriteContractCall`
+- Add helper method to initialize Provider with correct client directly from url
+- Add `Signature#toByteArray` function
+- Add additional `ContractCall#call/traceCall` overloads (#67)
+- Add `baseFeePerBlobGas` and `blobGasUsedRatio` to `FeeHistory` type
+- Add `eth_blobBaseFee` RPC call
+- Add support for aggregating contract calls into `Multicall3` (#70)
+- Add `GasUtils` for working with eip1559 gas price mechanics
+- Add `eth_callMany`/`debug_traceCallMany` RPC calls (#75)
+- Add `IntoCallRequest` interface and use it in provider function arguments (#76)
+- Add additional `call/traceCall` function overloads with block number/hash
+- Add function to `PrestateTracer.Result` to create state override from state diff (#78)
+- Add support for converting `CallTracer#CallLog` into `Log`, and returning all logs from a `CallFrame` (#79)
+- Add `Web3Api`
+
+### Miscellaneous Tasks
+
+- Temporarily disable jacoco coverage reports
+- Move `TxBlob` test RLP to a file, so it does not clutter the editor
+- Update README.md to use the new Result type functions
+
+### Refactor
+
+- [**breaking**] Make `value` property private and replace it with asByteArray/toByteArray functions for Address/Bloom/Bytes/Hash types
+- [**breaking**] Change `selector` property type of `AbiFunction` from `ByteArray` to `Bytes` 
+
 ## [0.3.0] - 2024-01-29
 
 ### Bug Fixes
