@@ -36,5 +36,5 @@ tasks.check {
 
 allprojects {
     group = "io.kriptal.ethers"
-    version = "0.4.0"
+    version = "0.4.0-SNAPSHOT"
 }

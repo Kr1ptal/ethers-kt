@@ -26,7 +26,8 @@ Sections:
 - RLP-encoding of ByteArray with a single, 0 element
 - [**breaking**] Make encoding/decoding RLP lists non-ambiguous by returning empty List instead of null (#65)
 - Gracefully handle unsuccessful http responses (close #68)
-- Correctly abi-generate complex constant names
+- [**breaking**] Correctly abi-generate complex constant names. Might break some incorrectly generated AbiFunction
+  constants
 - Set missing generic result type for `EthApi#createAccessList` function
 
 ### Features
@@ -54,8 +55,10 @@ Sections:
 
 ### Refactor
 
-- [**breaking**] Make `value` property private and replace it with asByteArray/toByteArray functions for Address/Bloom/Bytes/Hash types
-- [**breaking**] Change `selector` property type of `AbiFunction` from `ByteArray` to `Bytes` 
+- [**breaking**] Make `value` property private and replace it with asByteArray/toByteArray functions for
+  Address/Bloom/Bytes/Hash types
+- [**breaking**] Change `selector` property type of `AbiFunction` from `ByteArray` to `Bytes`
+- [**breaking**] Rename `Bytes#ZERO` to `Bytes#EMPTY`
 
 ## [0.3.0] - 2024-01-29
 
@@ -79,7 +82,6 @@ Sections:
 - Add ens section to README.md
 - Fix gradle unit-test report aggregation and GH actions upload
 - Join lint and test runs via gradle check
-
 
 ## [0.2.0] - 2024-01-02
 
