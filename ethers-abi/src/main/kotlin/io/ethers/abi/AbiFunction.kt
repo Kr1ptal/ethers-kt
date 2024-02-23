@@ -14,7 +14,7 @@ data class AbiFunction(
     }
 
     fun decodeCall(data: Bytes): Array<Any> {
-        return AbiCodec.decodeWithPrefix(selector.size, inputs, data.toByteArray())
+        return AbiCodec.decodeWithPrefix(selector.size, inputs, data.asByteArray())
     }
 
     fun encodeArgs(args: Array<out Any>): Bytes {
@@ -22,7 +22,7 @@ data class AbiFunction(
     }
 
     fun decodeArgs(data: Bytes): Array<Any> {
-        return AbiCodec.decode(inputs, data.toByteArray())
+        return AbiCodec.decode(inputs, data.asByteArray())
     }
 
     fun encodeResponse(data: Array<out Any>): Bytes {
@@ -30,7 +30,7 @@ data class AbiFunction(
     }
 
     fun decodeResponse(data: Bytes): Array<Any> {
-        return AbiCodec.decode(outputs, data.toByteArray())
+        return AbiCodec.decode(outputs, data.asByteArray())
     }
 
     companion object {

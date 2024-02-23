@@ -63,7 +63,7 @@ class EnsMiddleware @JvmOverloads constructor(
         resolveWithParameters(
             ensName,
             ExtendedResolver.FUNCTION_ADDR,
-        ).map { AbiCodec.decode(AbiType.Address, it.toByteArray()) as Address }
+        ).map { AbiCodec.decode(AbiType.Address, it.asByteArray()) as Address }
     }
 
     /**
@@ -76,7 +76,7 @@ class EnsMiddleware @JvmOverloads constructor(
                 ExtendedResolver.FUNCTION_TEXT,
                 mutableListOf(key),
                 mutableListOf(AbiType.String),
-            ).map { AbiCodec.decode(AbiType.String, it.toByteArray()) as String }
+            ).map { AbiCodec.decode(AbiType.String, it.asByteArray()) as String }
         }
 
     /**
@@ -87,7 +87,7 @@ class EnsMiddleware @JvmOverloads constructor(
             val resolvedName = resolveWithParameters(
                 reverseAddressEnsName(address),
                 ExtendedResolver.FUNCTION_NAME,
-            ).map { AbiCodec.decode(AbiType.String, it.toByteArray()) as String }
+            ).map { AbiCodec.decode(AbiType.String, it.asByteArray()) as String }
 
             return@supplyAsync resolvedName.andThen { ensName ->
                 // To be certain of reverse lookup ENS name, forward resolution must resolve to the original address
@@ -212,7 +212,7 @@ class EnsMiddleware @JvmOverloads constructor(
                     // Return different errors on empty address and failure to resolve
                     // TODO - handle differently
                     val isAddrCall = abiFunction.selector == ExtendedResolver.FUNCTION_ADDR.selector
-                    if (isAddrCall && (AbiCodec.decode(AbiType.Address, it.toByteArray()) as Address) == Address.ZERO) {
+                    if (isAddrCall && (AbiCodec.decode(AbiType.Address, it.asByteArray()) as Address) == Address.ZERO) {
                         return@andThen failure(
                             Error.UnknownEnsName(resolver.address, FastHex.encodeWithPrefix(nameHash)),
                         )
@@ -295,7 +295,7 @@ class EnsMiddleware @JvmOverloads constructor(
             return resolveOffchain(callbackLookupRevert, resolver, lookupLimit - 1)
         } else {
             // callbackResult is resolved ENS name. Decode dynamic bytes to address
-            val resolvedDecoded = AbiCodec.decode(AbiType.Bytes, callbackResult.toByteArray()) as Bytes
+            val resolvedDecoded = AbiCodec.decode(AbiType.Bytes, callbackResult.asByteArray()) as Bytes
             return success(resolvedDecoded)
         }
     }

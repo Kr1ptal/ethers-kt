@@ -25,7 +25,7 @@ private const val BLOOM_SIZE = 256
  */
 @JsonDeserialize(using = BloomDeserializer::class)
 @JsonSerialize(using = BloomSerializer::class)
-class Bloom(val value: ByteArray) {
+class Bloom(private val value: ByteArray) {
     constructor() : this(ByteArray(BLOOM_SIZE))
     constructor(value: CharSequence) : this(FastHex.decode(value))
 
@@ -33,9 +33,26 @@ class Bloom(val value: ByteArray) {
         require(value.size == BLOOM_SIZE) { "Bloom must be exactly $BLOOM_SIZE bytes long" }
     }
 
-    operator fun contains(hash: Hash) = contains(hash.toByteArray())
+    /**
+     * Return the internal byte array.
+     *
+     * If you need to modify the array, use [toByteArray] instead which returns a new copy of the array.
+     *
+     * IMPORTANT: Do not modify the returned array, it will lead to undefined behavior.
+     * */
+    fun asByteArray() = value
 
-    operator fun contains(address: Address) = contains(address.toByteArray())
+    /**
+     * Return a copy of internal byte array.
+     *
+     * If you do not need to modify the array, use [asByteArray] instead which returns the internal array
+     * without copying.
+     * */
+    fun toByteArray() = value.copyOf()
+
+    operator fun contains(hash: Hash) = contains(hash.asByteArray())
+
+    operator fun contains(address: Address) = contains(address.asByteArray())
 
     operator fun contains(input: ByteArray): Boolean {
         withBloomValues(input) { b1, b2, b3, i1, i2, i3 ->
@@ -48,12 +65,12 @@ class Bloom(val value: ByteArray) {
     /**
      * Add [Hash] value to the Bloom filter.
      */
-    fun add(hash: Hash) = add(hash.toByteArray())
+    fun add(hash: Hash) = add(hash.asByteArray())
 
     /**
      * Add [Address] value to the Bloom filter.
      */
-    fun add(address: Address) = add(address.toByteArray())
+    fun add(address: Address) = add(address.asByteArray())
 
     /**
      * Add [ByteArray] value to the Bloom filter.

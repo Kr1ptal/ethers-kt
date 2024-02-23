@@ -22,7 +22,7 @@ import io.ethers.rlp.RlpEncoder
 @JsonSerialize(using = HashSerializer::class)
 class Hash(private val value: ByteArray) : RlpEncodable {
     constructor(value: CharSequence) : this(FastHex.decode(value))
-    constructor(value: Address) : this(value.toByteArray().copyInto(ByteArray(32), 12))
+    constructor(value: Address) : this(value.asByteArray().copyInto(ByteArray(32), 12))
 
     init {
         require(value.size == 32) { "Hash must be 32 bytes long" }
@@ -31,9 +31,19 @@ class Hash(private val value: ByteArray) : RlpEncodable {
     /**
      * Return the internal byte array.
      *
+     * If you need to modify the array, use [toByteArray] instead which returns a new copy of the array.
+     *
      * IMPORTANT: Do not modify the returned array, it will lead to undefined behavior.
      * */
-    fun toByteArray() = value
+    fun asByteArray() = value
+
+    /**
+     * Return a copy of internal byte array.
+     *
+     * If you do not need to modify the array, use [asByteArray] instead which returns the internal array
+     * without copying.
+     * */
+    fun toByteArray() = value.copyOf()
 
     override fun rlpEncode(rlp: RlpEncoder) {
         rlp.encode(value)

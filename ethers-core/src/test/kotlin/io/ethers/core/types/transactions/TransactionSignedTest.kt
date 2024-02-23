@@ -222,7 +222,7 @@ class TransactionSignedTest : FunSpec({
         rlpBatches.forEach { (dumpName, cases) ->
             context(dumpName) {
                 withData(cases) {
-                    val decoded = TransactionSigned.rlpDecode(it.rlp.toByteArray())
+                    val decoded = TransactionSigned.rlpDecode(it.rlp.asByteArray())
 
                     // it's enough to check that "hash" and "from" have expected values:
                     // - if any value was different from original tx, the "hash" will be different
