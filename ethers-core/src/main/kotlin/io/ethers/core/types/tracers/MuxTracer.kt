@@ -8,13 +8,7 @@ import io.ethers.core.forEachObjectField
  * Run multiple tracers in one go.
  */
 data class MuxTracer(val tracers: List<Tracer<*>>) : Tracer<MuxTracer.Result> {
-    init {
-        for (i in tracers.indices) {
-            if (tracers[i] is StructTracer) {
-                throw IllegalArgumentException("MuxTracer can not contain StructTracer")
-            }
-        }
-    }
+    constructor(vararg tracers: Tracer<*>) : this(tracers.toList())
 
     override val name: String
         get() = "muxTracer"

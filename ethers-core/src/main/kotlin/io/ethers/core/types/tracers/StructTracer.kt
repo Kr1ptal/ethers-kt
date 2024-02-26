@@ -32,10 +32,7 @@ data class StructTracer(
     val debug: Boolean = false,
     val limit: Int = 0,
     val overrides: Map<String, Any> = emptyMap(),
-) : Tracer<StructTracer.ExecutionResult> {
-    override val name: String
-        get() = throw UnsupportedOperationException("StructTracer does not have a name")
-
+) : AnyTracer<StructTracer.ExecutionResult> {
     override fun encodeConfig(gen: JsonGenerator) {
         if (enableMemory) {
             gen.writeBooleanField("enableMemory", true)

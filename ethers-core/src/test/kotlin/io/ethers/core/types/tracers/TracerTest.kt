@@ -72,7 +72,7 @@ class TracerTest : FunSpec({
 
             Jackson.MAPPER.writeValueAsString(config) shouldEqualJson """
                 {
-                  "tracer": "${config.tracer.name}",
+                  "tracer": "${(config.tracer as Tracer<*>).name}",
                   "tracerConfig": {},
                   "timeout": "${config.timeoutMs}ms",
                   "reexec": ${config.reexec},

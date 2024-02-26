@@ -5,7 +5,6 @@ import io.ethers.core.Jackson.createAndInitParser
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
 import io.kotest.assertions.json.shouldEqualJson
-import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import org.intellij.lang.annotations.Language
@@ -24,12 +23,6 @@ class StructTracerTest : FunSpec({
             "override_3" to "value_3",
         ),
     )
-
-    test("tracer name is not supported") {
-        shouldThrow<UnsupportedOperationException> {
-            structTracer.name
-        }
-    }
 
     test("encode tracer") {
         Jackson.MAPPER.writeValueAsString(TracerConfig(structTracer)) shouldEqualJson """

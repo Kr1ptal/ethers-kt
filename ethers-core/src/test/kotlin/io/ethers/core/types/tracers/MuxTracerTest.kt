@@ -135,12 +135,6 @@ class MuxTracerTest : FunSpec({
         }
     }
 
-    test("MuxTracer can not contain StructTracer") {
-        shouldThrow<IllegalArgumentException> {
-            MuxTracer(listOf(StructTracer()))
-        }
-    }
-
     context("MuxTracer.Result") {
         val result = MuxTracer.Result(
             listOf(fourByteTracer),
