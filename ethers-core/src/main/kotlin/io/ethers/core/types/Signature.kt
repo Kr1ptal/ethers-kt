@@ -1,5 +1,8 @@
 package io.ethers.core.types
 
+import io.ethers.core.Result
+import io.ethers.core.failure
+import io.ethers.core.success
 import io.ethers.crypto.Hashing
 import io.ethers.crypto.Secp256k1
 import io.ethers.rlp.RlpDecodable
@@ -164,5 +167,28 @@ class Signature(
             val s = rlp.decodeBigInteger() ?: return null
             return Signature(r, s, v)
         }
+
+        /**
+         * Create a new [Signature] from an RSV byte array.
+         *
+         * @param byteArray the RSV byte array, must be exactly 65 bytes long.
+         * */
+        @JvmStatic
+        fun fromByteArray(byteArray: ByteArray): Result<Signature, InvalidSignatureError> {
+            if (byteArray.size != 65) {
+                return failure(InvalidSignatureError("Invalid signature length: ${byteArray.size}"))
+            }
+
+            val r = BigInteger(1, byteArray, 0, 32)
+            val s = BigInteger(1, byteArray, 32, 32)
+            val v = byteArray[64].toLong()
+            return success(Signature(r, s, v))
+        }
+    }
+}
+
+class InvalidSignatureError(val msg: String) : Result.Error {
+    override fun doThrow(): Nothing {
+        throw RuntimeException(msg)
     }
 }

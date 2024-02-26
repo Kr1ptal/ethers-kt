@@ -25,7 +25,7 @@ class SignatureTest : FunSpec({
         }
     }
 
-    context("toByteArray") {
+    context("toByteArray/fromByteArray") {
         withData(
             Signature("10".toBigInteger(), "12441241".toBigInteger(), 27L) to "000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000bdd6991b",
             Signature("10".toBigInteger(), "12441241".toBigInteger(), 28L) to "000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000bdd6991c",
@@ -34,7 +34,10 @@ class SignatureTest : FunSpec({
             Signature("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff".toBigInteger(16), "46948507304638947509940763649030358759909902576025900602547168820602576006531".toBigInteger(), 28L) to "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff67cbe9d8997f761aecb703304b3800ccf555c9f3dc64214b297fb1966a3b6d831c",
             Signature("18515461264373351373200002665853028612451056578545711640558177340181847433846".toBigInteger(), "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff".toBigInteger(16), 27L) to "28ef61340bd939bc2195fe537567866003e1a15d3c71ff63e1590620aa636276ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1b",
         ) { (signature, expected) ->
-            signature.toByteArray().toHexString() shouldBe expected
+            val bytes = signature.toByteArray()
+            bytes.toHexString() shouldBe expected
+
+            Signature.fromByteArray(bytes).unwrap() shouldBe signature
         }
     }
 })
