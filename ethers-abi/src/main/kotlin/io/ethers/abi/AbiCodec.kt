@@ -515,30 +515,15 @@ object AbiCodec {
             }
 
             is AbiType.Int -> {
-                val arr = ByteArray(32)
-                buff.get(arr)
-
-                val v = BigInteger(arr)
-                if (v.bitLength() > type.bitSize - 1) {
-                    throw IllegalArgumentException("Provided INT value has more than ${type.bitSize} bits: ${v.bitLength()}")
-                }
-
-                return v
+                val ret = BigInteger(buff.array(), buff.position(), 32)
+                buff.skip(32)
+                return ret
             }
 
             is AbiType.UInt -> {
-                val firstByte = buff.get().toInt()
-                buff.position(buff.position() - 1)
-                val arr: ByteArray
-                if (firstByte != 0) {
-                    arr = ByteArray(33)
-                    buff.get(arr, 1, 32)
-                } else {
-                    arr = ByteArray(32)
-                    buff.get(arr)
-                }
-
-                return BigInteger(arr)
+                val ret = BigInteger(1, buff.array(), buff.position(), 32)
+                buff.skip(32)
+                return ret
             }
 
             AbiType.Bytes -> {
@@ -557,10 +542,10 @@ object AbiCodec {
                 val endPosition = buff.position()
 
                 val length = buff.position(offset).skip(28).getInt()
-                val arr = ByteArray(length)
-                buff.get(arr).position(endPosition)
+                val ret = String(buff.array(), buff.position(), length, Charsets.UTF_8)
+                buff.position(endPosition)
 
-                return String(arr, Charsets.UTF_8)
+                return ret
             }
 
             is AbiType.Array -> {
