@@ -56,9 +56,34 @@ data class CallTracer(
         val value: BigInteger? = null,
     ) {
         /**
-         * Get all [Log]s from this and child calls, in the order they were emitted during execution.
+         * Flatten this call frame and all sub-calls into a list of call frames. The list is ordered such that
+         * parent call comes before child calls.
+         * */
+        fun flatten(): List<CallFrame> {
+            return addAllCallFrames(ArrayList())
+        }
+
+        private fun addAllCallFrames(ret: MutableList<CallFrame>): List<CallFrame> {
+            // first, add parent call
+            ret.add(this)
+
+            // second, add all sub-calls
+            calls?.let {
+                for (i in it.indices) {
+                    it[i].addAllCallFrames(ret)
+                }
+            }
+
+            return ret
+        }
+
+        /**
+         * Get all [Log]s from this and child calls. The logs might not be in the correct order because not
+         * enough information is received via tracer to infer the ordering. We make a best-guess effort by
+         * first adding logs from child calls, and then adding logs from parent call.
          *
-         * The logs don't have any block or transaction information, but they do have a log index.
+         * The logs don't have any block or transaction information, but they do have a log index, which
+         * corresponds to the index within the call.
          * */
         fun getAllLogs(): List<Log> {
             return addAllCallLogs(ArrayList())
@@ -78,6 +103,7 @@ data class CallTracer(
                     ret.add(it[i].toLog(ret.size))
                 }
             }
+
             return ret
         }
     }
