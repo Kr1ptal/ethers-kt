@@ -12,18 +12,30 @@ class BlockOverride {
     // make property setters unavailable from Java since we provide custom chained functions
     var number: Long = -1L
         @JvmSynthetic set
+
     var difficulty: BigInteger? = null
-        @JvmSynthetic set
+        @JvmSynthetic set(value) {
+            require(value == null || value >= BigInteger.ZERO) { "Difficulty must be non-negative" }
+            field = value
+        }
+
     var time: Long = -1L
         @JvmSynthetic set
+
     var gasLimit: Long = -1L
         @JvmSynthetic set
+
     var coinbase: Address? = null
         @JvmSynthetic set
+
     var random: Hash? = null
         @JvmSynthetic set
+
     var baseFee: BigInteger? = null
-        @JvmSynthetic set
+        @JvmSynthetic set(value) {
+            require(value == null || value >= BigInteger.ZERO) { "BaseFee must be non-negative" }
+            field = value
+        }
 
     fun number(number: Long): BlockOverride {
         this.number = number
@@ -45,17 +57,17 @@ class BlockOverride {
         return this
     }
 
-    fun coinbase(coinbase: Address): BlockOverride {
+    fun coinbase(coinbase: Address?): BlockOverride {
         this.coinbase = coinbase
         return this
     }
 
-    fun random(random: Hash): BlockOverride {
+    fun random(random: Hash?): BlockOverride {
         this.random = random
         return this
     }
 
-    fun baseFee(baseFee: BigInteger): BlockOverride {
+    fun baseFee(baseFee: BigInteger?): BlockOverride {
         this.baseFee = baseFee
         return this
     }

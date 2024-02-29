@@ -2,6 +2,7 @@ package io.ethers.core.types
 
 import io.ethers.core.Jackson
 import io.kotest.assertions.json.shouldEqualJson
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import java.math.BigInteger
 
@@ -28,5 +29,13 @@ class BlockOverrideTest : FunSpec({
               "baseFee": "0x${blockOverride.baseFee!!.toString(16)}"
             }
         """
+    }
+
+    test("fail on setting invalid values") {
+        shouldThrow<IllegalArgumentException> { BlockOverride { difficulty(BigInteger("-1")) } }
+        shouldThrow<IllegalArgumentException> { BlockOverride { difficulty = BigInteger("-1") } }
+
+        shouldThrow<IllegalArgumentException> { BlockOverride { baseFee(BigInteger("-1")) } }
+        shouldThrow<IllegalArgumentException> { BlockOverride { baseFee = BigInteger("-1") } }
     }
 })
