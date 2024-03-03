@@ -168,4 +168,10 @@ class MuxTracerTest : FunSpec({
             }
         }
     }
+
+    test("fail when multiple tracers of the same type are added") {
+        shouldThrow<IllegalArgumentException> {
+            MuxTracer(callTracer, callTracer)
+        }
+    }
 })

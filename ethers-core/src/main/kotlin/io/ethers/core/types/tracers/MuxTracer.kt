@@ -5,10 +5,22 @@ import com.fasterxml.jackson.core.JsonParser
 import io.ethers.core.forEachObjectField
 
 /**
- * Run multiple tracers in one go.
+ * Run multiple tracers in one go. Only one tracer with the same type can be nested in a single mux tracer. If you need
+ * multiple tracers of the same type - but with different configurations -, consider nesting another mux tracer.
  */
 data class MuxTracer(val tracers: List<Tracer<*>>) : Tracer<MuxTracer.Result> {
     constructor(vararg tracers: Tracer<*>) : this(tracers.toList())
+
+    init {
+        for (i in tracers.indices) {
+            val t = tracers[i]
+            for (j in i + 1 until tracers.size) {
+                if (t.name == tracers[j].name) {
+                    throw IllegalArgumentException("Multiple tracers of the same type are not allowed: ${t.javaClass}")
+                }
+            }
+        }
+    }
 
     override val name: String
         get() = "muxTracer"
