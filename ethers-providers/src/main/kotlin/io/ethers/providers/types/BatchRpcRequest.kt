@@ -137,7 +137,7 @@ fun <T, E : Result.Error> Iterable<RpcRequest<out T, E>>.sendAsync(): BatchRespo
 fun <T> List<CompletableFuture<T>>.await(): List<T> {
     val ret = ArrayList<T>(size)
     for (future in this) {
-        future.join()
+        ret.add(future.join())
     }
     return ret
 }
