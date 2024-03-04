@@ -56,6 +56,12 @@ data class CallTracer(
         val value: BigInteger? = null,
     ) {
         /**
+         * Return `true` if this call failed, false otherwise.
+         * */
+        val isError: Boolean
+            get() = error != null || revertReason != null
+
+        /**
          * Flatten this call frame and all sub-calls into a list of call frames. The list is ordered such that
          * parent call comes before child calls.
          * */
@@ -91,7 +97,7 @@ data class CallTracer(
 
         private fun addAllCallLogs(ret: MutableList<Log>): List<Log> {
             // if the call failed, skip it and all its children logs
-            if (error != null || revertReason != null) {
+            if (isError) {
                 return ret
             }
 
