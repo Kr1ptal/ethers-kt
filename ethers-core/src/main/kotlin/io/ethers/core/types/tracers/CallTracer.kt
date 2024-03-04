@@ -90,6 +90,11 @@ data class CallTracer(
         }
 
         private fun addAllCallLogs(ret: MutableList<Log>): List<Log> {
+            // if the call failed, skip it and all its children logs
+            if (error != null || revertReason != null) {
+                return ret
+            }
+
             // first, add logs from child calls since they are emitted before logs from current call
             calls?.let {
                 for (i in it.indices) {
