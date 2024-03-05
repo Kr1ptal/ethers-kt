@@ -490,6 +490,9 @@ class Multicall3(
         val allowFailure: Boolean
             get() = false
 
+        /**
+         * Safely decode the result of the call, returning the decoded value or a [ContractError] if decoding fails.
+         * */
         fun decodeCallResult(result: Bytes): io.ethers.core.Result<T, ContractError>
 
         /**
