@@ -30,6 +30,7 @@ ktlint {
             "ktlint_standard_multiline-if-else" to "disabled",
             "ktlint_standard_value-argument-comment" to "disabled",
             "ktlint_standard_value-parameter-comment" to "disabled",
+            "ktlint_standard_backing-property-naming" to "disabled",
         )
     )
 }
