@@ -8,15 +8,22 @@ import io.ethers.core.failure
 import io.ethers.core.success
 import io.ethers.core.types.AccountOverride
 import io.ethers.core.types.Address
+import io.ethers.core.types.BlockId
+import io.ethers.core.types.BlockOverride
 import io.ethers.core.types.Bytes
-import io.ethers.core.types.CallRequest
 import io.ethers.core.types.Hash
+import io.ethers.core.types.tracers.PrestateTracer
+import io.ethers.core.types.tracers.TracerConfig
 import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.PendingInclusion
 import io.ethers.providers.types.PendingTransaction
+import io.ethers.providers.types.RpcRequest
 import java.math.BigInteger
 import java.time.Duration
 import java.util.function.BiFunction
+
+private val PRESTATE_DIFF_TRACER = PrestateTracer(diffMode = true)
+private val TRACER_CONFIG_NO_OVERRIDES = TracerConfig(PRESTATE_DIFF_TRACER)
 
 class ConstructorCall<T : AbiContract>(
     provider: Middleware,
@@ -35,8 +42,43 @@ class ConstructorCall<T : AbiContract>(
     override val self: ConstructorCall<T>
         get() = this
 
-    override fun handleCallResult(result: Bytes) = handleCallResult(provider, constructor, call, result)
-    override fun handleSendResult(result: PendingTransaction) = handleSendResult(provider, result, constructor)
+    override fun doCall(
+        blockId: BlockId,
+        stateOverride: Map<Address, AccountOverride>?,
+        blockOverride: BlockOverride?,
+    ): RpcRequest<CallDeploy<T>, ContractError> {
+        val config = when {
+            stateOverride == null && blockOverride == null -> TRACER_CONFIG_NO_OVERRIDES
+            else -> TracerConfig(PRESTATE_DIFF_TRACER, stateOverrides = stateOverride, blockOverrides = blockOverride)
+        }
+
+        val sender = call.from ?: Address.ZERO
+        val nonce = if (call.nonce == -1L) 0L else call.nonce
+        val deployAddress: Address = Address.computeCreate(sender, nonce)
+
+        // deploy via traceCall to get the full state diff, which includes:
+        // - the deployed contract bytecode,
+        // - contracts that might have been created in the constructor,
+        // - storage slots that might have been written in the constructor
+        return provider.traceCall(call, blockId, config)
+            .mapError(::tryDecodingContractRevert)
+            .andThen {
+                val overrides = it.toStateOverride()
+                val deployedBytecode = overrides[deployAddress]?.code ?: return@andThen failure(DeployError.NoBytecode)
+
+                return@andThen success(
+                    CallDeploy(
+                        constructor.apply(provider, deployAddress),
+                        overrides,
+                        deployedBytecode,
+                    ),
+                )
+            }
+    }
+
+    override fun handleSendResult(result: PendingTransaction): PendingContractDeploy<T> {
+        return PendingContractDeploy(provider, result, constructor)
+    }
 }
 
 class PayableConstructorCall<T : AbiContract>(
@@ -56,8 +98,43 @@ class PayableConstructorCall<T : AbiContract>(
     override val self: PayableConstructorCall<T>
         get() = this
 
-    override fun handleCallResult(result: Bytes) = handleCallResult(provider, constructor, call, result)
-    override fun handleSendResult(result: PendingTransaction) = handleSendResult(provider, result, constructor)
+    override fun doCall(
+        blockId: BlockId,
+        stateOverride: Map<Address, AccountOverride>?,
+        blockOverride: BlockOverride?,
+    ): RpcRequest<CallDeploy<T>, ContractError> {
+        val config = when {
+            stateOverride == null && blockOverride == null -> TRACER_CONFIG_NO_OVERRIDES
+            else -> TracerConfig(PRESTATE_DIFF_TRACER, stateOverrides = stateOverride, blockOverrides = blockOverride)
+        }
+
+        val sender = call.from ?: Address.ZERO
+        val nonce = if (call.nonce == -1L) 0L else call.nonce
+        val deployAddress: Address = Address.computeCreate(sender, nonce)
+
+        // deploy via traceCall to get the full state diff, which includes:
+        // - the deployed contract bytecode,
+        // - contracts that might have been created in the constructor,
+        // - storage slots that might have been written in the constructor
+        return provider.traceCall(call, blockId, config)
+            .mapError(::tryDecodingContractRevert)
+            .andThen {
+                val overrides = it.toStateOverride()
+                val deployedBytecode = overrides[deployAddress]?.code ?: return@andThen failure(DeployError.NoBytecode)
+
+                return@andThen success(
+                    CallDeploy(
+                        constructor.apply(provider, deployAddress),
+                        overrides,
+                        deployedBytecode,
+                    ),
+                )
+            }
+    }
+
+    override fun handleSendResult(result: PendingTransaction): PendingContractDeploy<T> {
+        return PendingContractDeploy(provider, result, constructor)
+    }
 
     override var value: BigInteger?
         get() = call.value
@@ -71,52 +148,47 @@ class PayableConstructorCall<T : AbiContract>(
     }
 }
 
-private fun <T : AbiContract> handleCallResult(
-    provider: Middleware,
-    constructor: BiFunction<Middleware, Address, T>,
-    call: CallRequest,
-    result: Bytes,
-): Result<CallDeploy<T>, ContractError> {
-    if (result.size == 0) {
-        return failure(DeployError.NoBytecode)
-    }
-
-    val nonce = if (call.nonce == -1L) 0L else call.nonce
-    val deployAddress: Address = Address.computeCreate(call.from ?: Address.ZERO, nonce)
-    return success(CallDeploy(provider, constructor, deployAddress, result))
-}
-
-private fun <T : AbiContract> handleSendResult(
-    provider: Middleware,
-    result: PendingTransaction,
-    constructor: BiFunction<Middleware, Address, T>,
-): PendingContractDeploy<T> {
-    return PendingContractDeploy(provider, result, constructor)
-}
-
+/**
+ * Container for the result of a contract deploy via `eth_call`. Contains the wrapper pointing to deployed address
+ * and the state overrides produced by deploying the contract. The overrides should be set for subsequent calls to the
+ * [contract] so that the state at the time of the call contains the deployment.
+ *
+ * Example usage:
+ * ```kotlin
+ *     // deploy a contract via call
+ *     val (contract, overrides) = ERC20.deploy(provider, "TEST TOKEN", "TEST", 18)
+ *         .call(BlockId.LATEST)
+ *         .sendAwait()
+ *         .unwrap()
+ *
+ *     // set the state overrides for subsequent calls to the contract
+ *     contract.transfer(Address.ZERO, EthUnit.ETHER.toWei("1").toBigInteger())
+ *         .call(BlockId.LATEST, overrides)
+ * ```
+ *
+ * @param contract the wrapper pointing to the deployed contract address
+ * @param stateOverrides state overrides which include the changed produced by deploying the contract. Should be set
+ * for subsequent calls to the contract.
+ * @param deployedBytecode the bytecode of the deployed contract
+ * */
 class CallDeploy<T : AbiContract>(
-    private val provider: Middleware,
-    private val constructor: BiFunction<Middleware, Address, T>,
-    val address: Address,
+    val contract: T,
+    val stateOverrides: Map<Address, AccountOverride>,
     val deployedBytecode: Bytes,
 ) {
-    @JvmSynthetic
-    operator fun component1(): T = toContract()
+    val address: Address
+        get() = contract.address
 
     @JvmSynthetic
-    operator fun component2(): Map<Address, AccountOverride> = toStateOverride()
+    operator fun component1(): T = contract
 
-    fun toContract(): T = constructor.apply(provider, address)
-
-    fun toStateOverride(): Map<Address, AccountOverride> {
-        return HashMap<Address, AccountOverride>(1).apply { addStateOverride(this) }
-    }
-
-    fun addStateOverride(stateOverride: MutableMap<Address, AccountOverride>) {
-        stateOverride[address] = AccountOverride().code(deployedBytecode)
-    }
+    @JvmSynthetic
+    operator fun component2(): Map<Address, AccountOverride> = stateOverrides
 }
 
+/**
+ * Contract deploy that is pending inclusion in a block.
+ * */
 class PendingContractDeploy<T : AbiContract>(
     private val provider: Middleware,
     private val result: PendingTransaction,

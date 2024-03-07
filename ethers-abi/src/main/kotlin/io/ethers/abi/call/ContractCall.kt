@@ -2,11 +2,8 @@ package io.ethers.abi.call
 
 import io.ethers.abi.error.ContractError
 import io.ethers.abi.error.ContractRpcError
-import io.ethers.abi.error.DecodingError
 import io.ethers.abi.error.RevertError
 import io.ethers.core.FastHex
-import io.ethers.core.Result
-import io.ethers.core.failure
 import io.ethers.core.types.AccessList
 import io.ethers.core.types.AccountOverride
 import io.ethers.core.types.Address
@@ -215,10 +212,17 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
         stateOverride: Map<Address, AccountOverride>? = null,
         blockOverride: BlockOverride? = null,
     ): RpcRequest<C, ContractError> {
-        return provider.call(call, blockId, stateOverride, blockOverride)
-            .mapError(::tryDecodingContractRevert)
-            .andThen(::decodeCallResult)
+        return doCall(blockId, stateOverride, blockOverride)
     }
+
+    /**
+     * Implementation-specific logic for doing `eth_call`.
+     * */
+    protected abstract fun doCall(
+        blockId: BlockId,
+        stateOverride: Map<Address, AccountOverride>?,
+        blockOverride: BlockOverride?,
+    ): RpcRequest<C, ContractError>
 
     /**
      * Execute "debug_traceCall" at the given [blockHash] using the provided [TracerConfig], returning the result of
@@ -244,20 +248,7 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
         return provider.traceCall(call, blockId, config)
     }
 
-    /**
-     * Safely decode the result of the call, returning the decoded value or a [ContractError] if decoding fails.
-     * */
-    fun decodeCallResult(result: Bytes): Result<C, ContractError> {
-        return try {
-            handleCallResult(result)
-        } catch (e: Exception) {
-            failure(DecodingError(result, "Unable to decode result", e))
-        }
-    }
-
-    protected abstract fun handleCallResult(result: Bytes): Result<C, ContractError>
-
-    private fun tryDecodingContractRevert(err: RpcError): ContractError {
+    protected fun tryDecodingContractRevert(err: RpcError): ContractError {
         if (err.isExecutionError && err.data != null) {
             // if data is not a valid hex string, it's an already decoded revert error
             if (!FastHex.isValidHex(err.data!!)) {
