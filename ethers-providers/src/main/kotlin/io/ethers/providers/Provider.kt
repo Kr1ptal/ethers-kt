@@ -534,7 +534,7 @@ class Provider(override val client: JsonRpcClient) : Middleware {
             return when {
                 url.matches(PROTO_HTTPS) -> success(Provider(HttpClient(url, client)))
                 url.matches(PROTO_WSS) -> success(Provider(WsClient(url, client)))
-                else -> throw IllegalArgumentException("URL with unknown protocol: $url")
+                else -> failure(UnsupportedUrlProtocol(url))
             }
         }
     }
