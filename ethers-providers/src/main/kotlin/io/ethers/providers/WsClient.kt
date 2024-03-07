@@ -34,6 +34,9 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
 import java.util.function.Function
 import kotlin.concurrent.withLock
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.TimeSource
 
 /**
  * WS client implementation for RPC request submission and results parsing.
@@ -139,7 +142,7 @@ class WsClient @JvmOverloads constructor(
             var subscriptionRequest: CompletableSubscriptionRequest<*>?
 
             val bufferRecycler = BufferRecycler()
-            var lastTimeoutCheck = Stopwatch.start()
+            var lastTimeoutCheck = TimeSource.Monotonic.markNow()
 
             while (!stopping) {
                 try {
@@ -291,12 +294,12 @@ class WsClient @JvmOverloads constructor(
                     }
 
                     // check and handle timed-out requests every 1000ms
-                    if (lastTimeoutCheck.hasElapsed(1000, TimeUnit.MILLISECONDS)) {
-                        removeTimedOutRequests(inFlightRequests, client.readTimeoutMillis.toLong())
-                        removeTimedOutRequests(inFlightBatchRequests, client.readTimeoutMillis.toLong())
-                        removeTimedOutRequests(inFlightSubscriptionRequests, client.readTimeoutMillis.toLong())
+                    if (lastTimeoutCheck.elapsedNow() > 1000.milliseconds) {
+                        removeTimedOutRequests(inFlightRequests, client.readTimeoutMillis.toLong().milliseconds)
+                        removeTimedOutRequests(inFlightBatchRequests, client.readTimeoutMillis.toLong().milliseconds)
+                        removeTimedOutRequests(inFlightSubscriptionRequests, client.readTimeoutMillis.toLong().milliseconds)
 
-                        lastTimeoutCheck = Stopwatch.start()
+                        lastTimeoutCheck = TimeSource.Monotonic.markNow()
                     }
 
                     eventLock.withLock {
@@ -317,16 +320,16 @@ class WsClient @JvmOverloads constructor(
         }.start()
     }
 
-    private fun <T : ExpiringRequest> removeTimedOutRequests(requests: MutableMap<Long, T>, timeoutMillis: Long) {
+    private fun <T : ExpiringRequest> removeTimedOutRequests(requests: MutableMap<Long, T>, timeout: Duration) {
         // skip expiration if timeout is not set or requests is empty
-        if (timeoutMillis <= 0 || requests.isEmpty()) {
+        if (!timeout.isPositive() || requests.isEmpty()) {
             return
         }
 
         val iter = requests.iterator()
         while (iter.hasNext()) {
             val entry = iter.next()
-            if (entry.value.expireIfTimedOut(timeoutMillis, TimeUnit.MILLISECONDS)) {
+            if (entry.value.expireIfTimedOut(timeout)) {
                 LOG.wrn { "Request timed out: ID ${entry.key}" }
                 iter.remove()
             }
@@ -666,10 +669,10 @@ class WsClient @JvmOverloads constructor(
     }
 
     private abstract class ExpiringRequest {
-        private val initiated = Stopwatch.start()
+        private val initiated = TimeSource.Monotonic.markNow()
 
-        fun expireIfTimedOut(timeout: Long, unit: TimeUnit): Boolean {
-            if (initiated.hasElapsed(timeout, unit)) {
+        fun expireIfTimedOut(duration: Duration): Boolean {
+            if (initiated.elapsedNow() > duration) {
                 expireRequest()
                 return true
             }
