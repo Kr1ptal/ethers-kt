@@ -49,6 +49,13 @@ class WsClient(
     client: OkHttpClient,
     processorThreadFactory: ThreadFactory,
 ) : JsonPubSubClient, JsonRpcClient {
+    @JvmOverloads
+    constructor(url: String, config: RpcClientConfig = RpcClientConfig()) : this(
+        url,
+        config.client!!,
+        config.threadFactory,
+    )
+
     private val LOG = getLogger()
 
     // all of these are modified in a single thread
@@ -299,7 +306,7 @@ class WsClient(
                         removeTimedOutRequests(inFlightBatchRequests, client.readTimeoutMillis.toLong().milliseconds)
                         removeTimedOutRequests(
                             inFlightSubscriptionRequests,
-                            client.readTimeoutMillis.toLong().milliseconds
+                            client.readTimeoutMillis.toLong().milliseconds,
                         )
 
                         lastTimeoutCheck = TimeSource.Monotonic.markNow()

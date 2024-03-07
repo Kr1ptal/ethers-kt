@@ -36,6 +36,9 @@ class HttpClient(
     url: String,
     private val client: OkHttpClient,
 ) : JsonRpcClient {
+    @JvmOverloads
+    constructor(url: String, config: RpcClientConfig = RpcClientConfig()) : this(url, config.client!!)
+
     private val LOG = getLogger()
     private val httpUrl = url.toHttpUrl()
     private val requestId = AtomicLong(0)

@@ -531,11 +531,11 @@ class Provider(override val client: JsonRpcClient) : Middleware {
         @JvmStatic
         fun fromUrl(
             url: String,
-            config: RpcClientConfig = RpcClientConfig()
+            config: RpcClientConfig = RpcClientConfig(),
         ): Result<Provider, UnsupportedUrlProtocol> {
             return when {
-                url.matches(PROTO_HTTPS) -> success(Provider(HttpClient(url, config.client!!)))
-                url.matches(PROTO_WSS) -> success(Provider(WsClient(url, config.client!!, config.threadFactory)))
+                url.matches(PROTO_HTTPS) -> success(Provider(HttpClient(url, config)))
+                url.matches(PROTO_WSS) -> success(Provider(WsClient(url, config)))
                 else -> failure(UnsupportedUrlProtocol(url))
             }
         }
