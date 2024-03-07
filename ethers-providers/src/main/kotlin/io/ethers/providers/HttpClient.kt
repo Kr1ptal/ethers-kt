@@ -32,9 +32,9 @@ import java.util.function.Function
 /**
  * Http client implementation for RPC request submission and results parsing.
  */
-class HttpClient @JvmOverloads constructor(
+class HttpClient(
     url: String,
-    private val client: OkHttpClient = OkHttpClient(),
+    private val client: OkHttpClient,
 ) : JsonRpcClient {
     private val LOG = getLogger()
     private val httpUrl = url.toHttpUrl()

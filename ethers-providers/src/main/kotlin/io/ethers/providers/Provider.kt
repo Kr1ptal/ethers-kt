@@ -51,7 +51,6 @@ import io.ethers.providers.types.RpcCall
 import io.ethers.providers.types.RpcRequest
 import io.ethers.providers.types.RpcSubscribe
 import io.ethers.providers.types.RpcSubscribeCall
-import okhttp3.OkHttpClient
 import java.math.BigInteger
 import java.util.Optional
 import java.util.function.Function
@@ -525,15 +524,18 @@ class Provider(override val client: JsonRpcClient) : Middleware {
         private val PROTO_WSS = "^(wss?)://.+$".toRegex()
 
         /**
-         * Create a new [Provider] from the given [url]. Supported URL protocols:
+         * Create a new [Provider] from the given [url] and optional [RpcClientConfig]. Supported URL protocols:
          * - http/https
          * - ws/wss
          * */
         @JvmStatic
-        fun fromUrl(url: String, client: OkHttpClient = OkHttpClient()): Result<Provider, UnsupportedUrlProtocol> {
+        fun fromUrl(
+            url: String,
+            config: RpcClientConfig = RpcClientConfig()
+        ): Result<Provider, UnsupportedUrlProtocol> {
             return when {
-                url.matches(PROTO_HTTPS) -> success(Provider(HttpClient(url, client)))
-                url.matches(PROTO_WSS) -> success(Provider(WsClient(url, client)))
+                url.matches(PROTO_HTTPS) -> success(Provider(HttpClient(url, config.client!!)))
+                url.matches(PROTO_WSS) -> success(Provider(WsClient(url, config.client!!, config.threadFactory)))
                 else -> failure(UnsupportedUrlProtocol(url))
             }
         }
