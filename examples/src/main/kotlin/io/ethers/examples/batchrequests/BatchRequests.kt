@@ -3,7 +3,6 @@ package io.ethers.examples.batchrequests
 import io.ethers.core.types.Address
 import io.ethers.core.types.BlockId
 import io.ethers.examples.gen.UniswapV2Pair
-import io.ethers.providers.HttpClient
 import io.ethers.providers.Provider
 import io.ethers.providers.types.BatchRpcRequest
 import io.ethers.providers.types.await
@@ -19,13 +18,12 @@ import java.math.BigDecimal
  * showcasing both consolidated and manual batching methods.
  */
 class BatchRequests(
-    httpRpcUrl: String,
+    rpcUrl: String,
     uniPoolAddr: String,
     sushiPoolAddr: String,
 ) {
     // Init provider
-    private val httpClient = HttpClient(httpRpcUrl)
-    private val provider = Provider(httpClient)
+    private val provider = Provider.fromUrl(rpcUrl).unwrap()
 
     // Init pair contracts
     private val uniPool = UniswapV2Pair(provider, Address(uniPoolAddr))
@@ -87,7 +85,7 @@ fun main(args: Array<String>) {
     // Parse input arguments
     val argParser = ArgParser("BatchRequests")
 
-    val httpRpc by argParser.option(ArgType.String, description = "HTTP RPC URL")
+    val rpcUrl by argParser.option(ArgType.String, description = "RPC URL")
         .default("https://ethereum.publicnode.com") // Mainnet HTTP url
     val uniPoolAddr by argParser.option(ArgType.String, description = "Uniswap V2 USDC/WETH pair address")
         .default("0xb4e16d0168e52d35cacd2c6185b44281ec28c9dc") // Mainnet
@@ -96,5 +94,5 @@ fun main(args: Array<String>) {
 
     argParser.parse(args)
 
-    BatchRequests(httpRpc, uniPoolAddr, sushiPoolAddr).run()
+    BatchRequests(rpcUrl, uniPoolAddr, sushiPoolAddr).run()
 }

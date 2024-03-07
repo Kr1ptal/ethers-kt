@@ -51,6 +51,7 @@ import io.ethers.providers.types.RpcCall
 import io.ethers.providers.types.RpcRequest
 import io.ethers.providers.types.RpcSubscribe
 import io.ethers.providers.types.RpcSubscribeCall
+import okhttp3.OkHttpClient
 import java.math.BigInteger
 import java.util.Optional
 import java.util.function.Function
@@ -529,10 +530,10 @@ class Provider(override val client: JsonRpcClient) : Middleware {
          * - ws/wss
          * */
         @JvmStatic
-        fun fromUrl(url: String): Result<Provider, UnsupportedUrlProtocol> {
+        fun fromUrl(url: String, client: OkHttpClient = OkHttpClient()): Result<Provider, UnsupportedUrlProtocol> {
             return when {
-                url.matches(PROTO_HTTPS) -> success(Provider(HttpClient(url)))
-                url.matches(PROTO_WSS) -> success(Provider(WsClient(url)))
+                url.matches(PROTO_HTTPS) -> success(Provider(HttpClient(url, client)))
+                url.matches(PROTO_WSS) -> success(Provider(WsClient(url, client)))
                 else -> throw IllegalArgumentException("URL with unknown protocol: $url")
             }
         }

@@ -19,7 +19,6 @@ import io.ethers.core.unwrapOrReturn
 import io.ethers.logger.err
 import io.ethers.logger.getLogger
 import io.ethers.logger.wrn
-import io.ethers.providers.Provider
 import io.ethers.providers.middleware.Middleware
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -32,7 +31,7 @@ import java.net.URL
 import java.util.concurrent.CompletableFuture
 
 class EnsMiddleware @JvmOverloads constructor(
-    provider: Provider,
+    provider: Middleware,
     private val registryAddress: Address,
     private val ccipLookupLimit: Int = 4,
     private val httpClient: OkHttpClient = OkHttpClient(),
@@ -42,7 +41,7 @@ class EnsMiddleware @JvmOverloads constructor(
 
     @JvmOverloads
     constructor(
-        provider: Provider,
+        provider: Middleware,
         ccipLookupLimit: Int = 4,
         client: OkHttpClient = OkHttpClient(),
     ) : this(

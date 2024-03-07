@@ -2,7 +2,6 @@ package io.ethers.ens
 
 import io.ethers.core.isFailure
 import io.ethers.core.types.Address
-import io.ethers.providers.HttpClient
 import io.ethers.providers.Provider
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData
@@ -24,7 +23,7 @@ class EnsMiddlewareTest : FunSpec({
     )
 
     context("Init provider and resolver") {
-        val ensMiddleware = EnsMiddleware(Provider(HttpClient(MAINNET_HTTP_RPC)))
+        val ensMiddleware = Provider.fromUrl(MAINNET_HTTP_RPC).map(::EnsMiddleware).unwrap()
 
         context("To address") {
             context("Valid ENS names - No wildcard") {

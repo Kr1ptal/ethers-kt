@@ -9,12 +9,10 @@ import io.ethers.core.types.Hash
 import io.ethers.core.types.Log
 import io.ethers.core.types.TransactionReceipt
 import io.ethers.core.types.transaction.TxType
-import io.ethers.providers.HttpClient
 import io.ethers.providers.Provider
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
-import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.intellij.lang.annotations.Language
@@ -30,8 +28,7 @@ class PendingTransactionTest : FunSpec({
             // Immediately enqueue a response for `eth_chainId` call which is executed on Provider creation
             mockWebServer.enqueue(generateMockResponse(body = CHAIN_ID_RESPONSE))
 
-            val httpClient = HttpClient(mockWebServer.url("").toString(), OkHttpClient())
-            Provider(httpClient)
+            Provider.fromUrl(mockWebServer.url("").toString()).unwrap()
         }
         val minedBlockNumber = 18341180L
         val txHash = Hash("0xce15f8ce74845b0d254fcbfda722ba89976ca6e09936d6761a648a6492b82e9b")

@@ -1,6 +1,5 @@
 import io.ethers.core.types.Address
 import io.ethers.examples.gen.ERC20
-import io.ethers.providers.HttpClient
 import io.ethers.providers.Provider
 import io.ethers.signers.PrivateKeySigner
 import kotlinx.cli.ArgParser
@@ -22,7 +21,7 @@ class TransferERC20(
     private val amount: BigInteger,
     rpcUrl: String,
 ) {
-    private val provider = Provider(HttpClient(rpcUrl))
+    private val provider = Provider.fromUrl(rpcUrl).unwrap()
     private val signer = PrivateKeySigner(privateKey)
 
     fun run() {
