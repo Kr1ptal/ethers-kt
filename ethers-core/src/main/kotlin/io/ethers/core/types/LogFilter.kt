@@ -5,25 +5,44 @@ import com.fasterxml.jackson.databind.JsonSerializer
 import com.fasterxml.jackson.databind.SerializerProvider
 import com.fasterxml.jackson.databind.annotation.JsonSerialize
 
+private typealias TopicHashes = Array<out Hash>
+
 @JsonSerialize(using = LogFilterSerializer::class)
 class LogFilter {
-    var blocks: BlockSelector? = null
-        private set
-
-    private var _address: ArrayList<Address>? = null
-    val address: List<Address>?
-        get() = _address
-
-    var topics: Array<Topic?>? = null
+    /**
+     * Target range of blocks to filter logs from. Defaults to latest block.
+     * */
+    var blocks: BlockSelector = BlockSelector.LATEST_BLOCK
         private set
 
     /**
-     * Filter logs within provided [from] (inclusive) [to] (exclusive) block range.
+     * Filter logs emitted by set addresses. If null, logs emitted by any addresses are included.
+     * */
+    var addresses: Array<out Address>? = null
+        private set
+
+    /**
+     * Filter logs by set topics. If null, logs with any topics are included.
+     *
+     * Topics are ordered by index, where index 0 is topic0, index 1 is topic1, and so on. Each topic filter is an
+     * array of hashes, where hashes are matched by OR, and topics are matched by AND.
+     *
+     * Example:
+     * ```
+     * [[h1, h2], [h3], null, null] ==> topic0 == (h1 || h2) && topic1 == (h3)
+     * [[h1], null, [h2, h3], null] ==> topic0 == (h1) && topic2 == (h2 || h3)
+     * ```
+     */
+    var topics: Array<TopicHashes?>? = null
+        private set
+
+    /**
+     * Filter logs within provided [from] / [to] block range. Both bounds are inclusive.
      */
     fun blockRange(from: Long, to: Long): LogFilter = blockRange(BlockId.Number(from), BlockId.Number(to))
 
     /**
-     * Filter logs within provided [from] (inclusive) [to] (exclusive) block range.
+     * Filter logs within provided [from] / [to] block range. Both bounds are inclusive.
      */
     fun blockRange(from: BlockId.Number, to: BlockId.Number): LogFilter {
         blocks = BlockSelector.Range(from, to)
@@ -31,7 +50,7 @@ class LogFilter {
     }
 
     /**
-     * Filter logs within provided [from] (inclusive) [to] (exclusive) block range.
+     * Filter logs within provided [from] / [to] block range. Both bounds are inclusive.
      */
     fun blockRange(from: BlockId.Name, to: BlockId.Name): LogFilter {
         blocks = BlockSelector.Range(from, to)
@@ -39,7 +58,7 @@ class LogFilter {
     }
 
     /**
-     * Filter logs within provided [from] (inclusive) [to] (exclusive) block range.
+     * Filter logs within provided [from] / [to] block range. Both bounds are inclusive.
      */
     fun blockRange(from: BlockId.Number, to: BlockId.Name): LogFilter {
         blocks = BlockSelector.Range(from, to)
@@ -47,7 +66,7 @@ class LogFilter {
     }
 
     /**
-     * Filter logs within provided [from] (inclusive) [to] (exclusive) block range.
+     * Filter logs within provided [from] / [to] block range. Both bounds are inclusive.
      */
     fun blockRange(from: BlockId.Name, to: BlockId.Number): LogFilter {
         blocks = BlockSelector.Range(from, to)
@@ -71,10 +90,39 @@ class LogFilter {
     }
 
     /**
+     * Filter logs at provided block [number].
+     */
+    fun atBlock(number: Long): LogFilter {
+        return blockRange(number, number)
+    }
+
+    /**
+     * Filter logs at provided block [number].
+     */
+    fun atBlock(number: BlockId.Number): LogFilter {
+        return blockRange(number, number)
+    }
+
+    /**
+     * Filter logs at provided block [name].
+     */
+    fun atBlock(name: BlockId.Name): LogFilter {
+        return blockRange(name, name)
+    }
+
+    /**
      * Filter logs emitted from provided [address].
      */
     fun address(address: Address): LogFilter {
-        getOrCreateAddress().add(address)
+        this.addresses = arrayOf(address)
+        return this
+    }
+
+    /**
+     * Filter logs emitted from provided array of [addresses].
+     */
+    fun address(vararg addresses: Address): LogFilter {
+        this.addresses = arrayOf(*addresses)
         return this
     }
 
@@ -82,100 +130,141 @@ class LogFilter {
      * Filter logs emitted from provided list of [addresses].
      */
     fun address(addresses: List<Address>): LogFilter {
-        getOrCreateAddress(addresses.size).addAll(addresses)
+        this.addresses = addresses.toTypedArray()
         return this
     }
+
+    /**
+     * Get the topic0 filter, if any set.
+     * */
+    val topic0: TopicHashes?
+        get() = topics?.get(0)
 
     /**
      * Filter logs matching provided topic0 [hash].
      */
-    fun topic0(hash: Hash): LogFilter = topic0(Topic.Single(hash))
+    fun topic0(hash: Hash): LogFilter {
+        getOrCreateTopics()[0] = arrayOf(hash)
+        return this
+    }
 
     /**
      * Filter logs matching any of provided topic0 [hashes].
      */
-    fun topic0(vararg hashes: Hash): LogFilter = topic0(Topic.Array(hashes))
-
-    /**
-     * Filter logs matching provided topic0 [topic].
-     */
-    fun topic0(topic: Topic): LogFilter {
-        getOrCreateTopics()[0] = topic
+    fun topic0(vararg hashes: Hash): LogFilter {
+        getOrCreateTopics()[0] = hashes
         return this
     }
+
+    /**
+     * Filter logs matching any of provided topic0 [hashes].
+     */
+    fun topic0(hashes: List<Hash>): LogFilter {
+        getOrCreateTopics()[0] = hashes.toTypedArray()
+        return this
+    }
+
+    /**
+     * Get the topic1 filter, if any set.
+     * */
+    val topic1: TopicHashes?
+        get() = topics?.get(1)
 
     /**
      * Filter logs matching provided topic1 [hash].
      */
-    fun topic1(hash: Hash): LogFilter = topic1(Topic.Single(hash))
+    fun topic1(hash: Hash): LogFilter {
+        getOrCreateTopics()[1] = arrayOf(hash)
+        return this
+    }
 
     /**
      * Filter logs matching any of provided topic1 [hashes].
      */
-    fun topic1(vararg hashes: Hash): LogFilter = topic1(Topic.Array(hashes))
-
-    /**
-     * Filter logs matching provided topic1 [topic].
-     */
-    fun topic1(topic: Topic): LogFilter {
-        getOrCreateTopics()[1] = topic
+    fun topic1(vararg hashes: Hash): LogFilter {
+        getOrCreateTopics()[1] = hashes
         return this
     }
 
     /**
-     * Filter logs matching provided topic2 [hashes].
+     * Filter logs matching any of provided topic1 [hashes].
      */
-    fun topic2(hashes: Hash): LogFilter = topic2(Topic.Single(hashes))
+    fun topic1(hashes: List<Hash>): LogFilter {
+        getOrCreateTopics()[1] = hashes.toTypedArray()
+        return this
+    }
+
+    /**
+     * Get the topic2 filter, if any set.
+     * */
+    val topic2: TopicHashes?
+        get() = topics?.get(2)
+
+    /**
+     * Filter logs matching provided topic2 [hash].
+     */
+    fun topic2(hash: Hash): LogFilter {
+        getOrCreateTopics()[2] = arrayOf(hash)
+        return this
+    }
 
     /**
      * Filter logs matching any of provided topic2 [hashes].
      */
-    fun topic2(vararg hashes: Hash): LogFilter = topic2(Topic.Array(hashes))
-
-    /**
-     * Filter logs matching provided topic2 [topic].
-     */
-    fun topic2(topic: Topic): LogFilter {
-        getOrCreateTopics()[2] = topic
+    fun topic2(vararg hashes: Hash): LogFilter {
+        getOrCreateTopics()[2] = hashes
         return this
     }
+
+    /**
+     * Filter logs matching any of provided topic2 [hashes].
+     */
+    fun topic2(hashes: List<Hash>): LogFilter {
+        getOrCreateTopics()[2] = hashes.toTypedArray()
+        return this
+    }
+
+    /**
+     * Get the topic3 filter, if any set.
+     * */
+    val topic3: TopicHashes?
+        get() = topics?.get(3)
 
     /**
      * Filter logs matching provided topic3 [hash].
      */
-    fun topic3(hash: Hash): LogFilter = topic3(Topic.Single(hash))
+    fun topic3(hash: Hash): LogFilter {
+        getOrCreateTopics()[3] = arrayOf(hash)
+        return this
+    }
 
     /**
      * Filter logs matching any of provided topic3 [hashes].
      */
-    fun topic3(vararg hashes: Hash): LogFilter = topic3(Topic.Array(hashes))
-
-    /**
-     * Filter logs matching provided topic3 [topic].
-     */
-    fun topic3(topic: Topic): LogFilter {
-        getOrCreateTopics()[3] = topic
+    fun topic3(vararg hashes: Hash): LogFilter {
+        getOrCreateTopics()[3] = hashes
         return this
     }
 
-    private fun getOrCreateAddress(sizeHint: Int = 10): ArrayList<Address> {
-        val address = _address
-        if (address != null) {
-            return address
-        }
-        return ArrayList<Address>(sizeHint).also { this._address = it }
+    /**
+     * Filter logs matching any of provided topic3 [hashes].
+     */
+    fun topic3(hashes: List<Hash>): LogFilter {
+        getOrCreateTopics()[3] = hashes.toTypedArray()
+        return this
     }
 
-    private fun getOrCreateTopics(): Array<Topic?> {
+    private fun getOrCreateTopics(): Array<TopicHashes?> {
         val topics = topics
         if (topics != null) {
             return topics
         }
-        return arrayOfNulls<Topic>(4).also { this.topics = it }
+
+        return arrayOfNulls<TopicHashes>(4).also { this.topics = it }
     }
 
     override fun toString(): String {
-        return "LogFilter(blockSelector=$blocks, address=$_address, topics=${topics?.contentToString()})"
+        return "LogFilter(blockSelector=$blocks, address=$addresses, topics=${topics?.contentDeepToString()})"
     }
 
     companion object {
@@ -186,10 +275,16 @@ class LogFilter {
 }
 
 sealed interface BlockSelector {
-    data class Hash(val hash: io.ethers.core.types.Hash) : BlockSelector
+    val from: BlockId
+    val to: BlockId
+
+    data class Hash(val hash: io.ethers.core.types.Hash) : BlockSelector {
+        override val from = BlockId.Hash(hash)
+        override val to = from
+    }
 
     // must be either block number or name, or combination
-    class Range private constructor(val from: BlockId, val to: BlockId) : BlockSelector {
+    class Range private constructor(override val from: BlockId, override val to: BlockId) : BlockSelector {
         constructor(from: BlockId.Number, to: BlockId.Number) : this(from as BlockId, to as BlockId)
         constructor(from: BlockId.Number, to: BlockId.Name) : this(from as BlockId, to as BlockId)
         constructor(from: BlockId.Name, to: BlockId.Name) : this(from as BlockId, to as BlockId)
@@ -217,30 +312,9 @@ sealed interface BlockSelector {
             return "Range(from=$from, to=$to)"
         }
     }
-}
 
-sealed interface Topic {
-    data class Single(val hash: Hash) : Topic
-
-    class Array(val hashes: kotlin.Array<out Hash>) : Topic {
-        constructor(value: List<Hash>) : this(value.toTypedArray())
-
-        override fun equals(other: Any?): Boolean {
-            if (this === other) return true
-            if (javaClass != other?.javaClass) return false
-
-            other as Array
-
-            return hashes.contentEquals(other.hashes)
-        }
-
-        override fun hashCode(): Int {
-            return hashes.contentHashCode()
-        }
-
-        override fun toString(): String {
-            return "Array(hashes=${hashes.contentToString()})"
-        }
+    companion object {
+        val LATEST_BLOCK = Range(BlockId.LATEST, BlockId.LATEST)
     }
 }
 
@@ -249,16 +323,14 @@ private class LogFilterSerializer : JsonSerializer<LogFilter>() {
         gen.writeStartObject()
 
         when (val blocks = value.blocks) {
-            is BlockSelector.Hash -> gen.writeStringField("blockHash", blocks.hash.toString())
+            is BlockSelector.Hash -> gen.writeStringField("blockHash", blocks.from.id)
             is BlockSelector.Range -> {
                 gen.writeStringField("fromBlock", blocks.from.id)
                 gen.writeStringField("toBlock", blocks.to.id)
             }
-
-            null -> {}
         }
 
-        val address = value.address
+        val address = value.addresses
         if (address != null) {
             gen.writeArrayFieldStart("address")
             for (i in address.indices) {
@@ -274,19 +346,17 @@ private class LogFilterSerializer : JsonSerializer<LogFilter>() {
                 gen.writeArrayFieldStart("topics")
 
                 for (i in 0..lastValidIndex) {
-                    when (val topic = topics[i]) {
-                        is Topic.Single -> gen.writeString(topic.hash.toString())
-                        is Topic.Array -> {
+                    val hashes = topics[i]
+                    when {
+                        hashes == null -> gen.writeNull()
+                        hashes.size == 1 -> gen.writeString(hashes[0].toString())
+                        else -> {
                             gen.writeStartArray()
-
-                            for (j in topic.hashes.indices) {
-                                gen.writeString(topic.hashes[j].toString())
+                            for (j in hashes.indices) {
+                                gen.writeString(hashes[j].toString())
                             }
-
                             gen.writeEndArray()
                         }
-
-                        null -> gen.writeNull()
                     }
                 }
 
@@ -298,7 +368,7 @@ private class LogFilterSerializer : JsonSerializer<LogFilter>() {
     }
 }
 
-private fun getIndexOfLastNonNullTopic(topics: Array<Topic?>): Int {
+private fun getIndexOfLastNonNullTopic(topics: Array<TopicHashes?>): Int {
     for (i in topics.indices.reversed()) {
         if (topics[i] != null) {
             return i

@@ -5,7 +5,6 @@ import io.ethers.core.types.BlockId
 import io.ethers.core.types.Hash
 import io.ethers.core.types.Log
 import io.ethers.core.types.LogFilter
-import io.ethers.core.types.Topic
 import io.ethers.providers.RpcError
 import io.ethers.providers.SubscriptionStream
 import io.ethers.providers.middleware.Middleware
@@ -44,18 +43,27 @@ class AnonymousEventFilter<T : ContractEvent>(
         require(factory.abi.isAnonymous) { "Cannot create AnonymousEventFilter for non-anonymous event. Use EventFilter instead." }
     }
 
-    fun topic0(value: Hash): AnonymousEventFilter<T> {
-        filter.topic1(value)
+    /**
+     * Filter events matching provided topic0 [hash].
+     */
+    fun topic0(hash: Hash): AnonymousEventFilter<T> {
+        filter.topic1(hash)
         return this
     }
 
-    fun topic0(vararg value: Hash): AnonymousEventFilter<T> {
-        filter.topic1(*value)
+    /**
+     * Filter events matching any of provided topic0 [hashes].
+     */
+    fun topic0(vararg hashes: Hash): AnonymousEventFilter<T> {
+        filter.topic1(*hashes)
         return this
     }
 
-    fun topic0(value: Topic): AnonymousEventFilter<T> {
-        filter.topic1(value)
+    /**
+     * Filter events matching any of provided topic0 [hashes].
+     */
+    fun topic0(hashes: List<Hash>): AnonymousEventFilter<T> {
+        filter.topic1(hashes)
         return this
     }
 }
@@ -115,93 +123,176 @@ abstract class EventFilterBase<T : ContractEvent, F : EventFilterBase<T, F>>(
 
     protected abstract val self: F
 
+    /**
+     * Filter events within provided [from] / [to] block range. Both bounds are inclusive.
+     */
     fun blockRange(from: Long, to: Long): F {
         filter.blockRange(from, to)
         return self
     }
 
+    /**
+     * Filter events within provided [from] / [to] block range. Both bounds are inclusive.
+     */
     fun blockRange(from: BlockId.Number, to: BlockId.Number): F {
         filter.blockRange(from, to)
         return self
     }
 
+    /**
+     * Filter events within provided [from] / [to] block range. Both bounds are inclusive.
+     */
     fun blockRange(from: BlockId.Name, to: BlockId.Name): F {
         filter.blockRange(from, to)
         return self
     }
 
+    /**
+     * Filter events within provided [from] / [to] block range. Both bounds are inclusive.
+     */
     fun blockRange(from: BlockId.Number, to: BlockId.Name): F {
         filter.blockRange(from, to)
         return self
     }
 
+    /**
+     * Filter events within provided [from] / [to] block range. Both bounds are inclusive.
+     */
     fun blockRange(from: BlockId.Name, to: BlockId.Number): F {
         filter.blockRange(from, to)
         return self
     }
 
+    /**
+     * Filter events at provided block [hash].
+     */
     fun atBlock(hash: Hash): F {
         filter.atBlock(hash)
         return self
     }
 
+    /**
+     * Filter events at provided block [hash].
+     */
     fun atBlock(hash: BlockId.Hash): F {
         filter.atBlock(hash)
         return self
     }
 
+    /**
+     * Filter events at provided block [number].
+     */
+    fun atBlock(number: Long): F {
+        return blockRange(number, number)
+    }
+
+    /**
+     * Filter events at provided block [number].
+     */
+    fun atBlock(number: BlockId.Number): F {
+        return blockRange(number, number)
+    }
+
+    /**
+     * Filter events at provided block [name].
+     */
+    fun atBlock(name: BlockId.Name): F {
+        return blockRange(name, name)
+    }
+
+    /**
+     * Filter events emitted from provided [address].
+     */
     fun address(address: Address): F {
         filter.address(address)
         return self
     }
 
+    /**
+     * Filter events emitted from provided array of [addresses].
+     */
+    fun address(vararg addresses: Address): F {
+        filter.address(*addresses)
+        return self
+    }
+
+    /**
+     * Filter events emitted from provided list of [addresses].
+     */
     fun address(addresses: List<Address>): F {
         filter.address(addresses)
         return self
     }
 
-    fun topic1(value: Hash): F {
-        filter.topic1(value)
+    /**
+     * Filter events matching provided topic1 [hash].
+     */
+    fun topic1(hash: Hash): F {
+        filter.topic1(hash)
         return self
     }
 
-    fun topic1(vararg value: Hash): F {
-        filter.topic1(*value)
+    /**
+     * Filter events matching any of provided topic1 [hashes].
+     */
+    fun topic1(vararg hashes: Hash): F {
+        filter.topic1(*hashes)
         return self
     }
 
-    fun topic1(value: Topic): F {
-        filter.topic1(value)
+    /**
+     * Filter events matching any of provided topic1 [hashes].
+     */
+    fun topic1(hashes: List<Hash>): F {
+        filter.topic1(hashes)
         return self
     }
 
-    fun topic2(value: Hash): F {
-        filter.topic2(value)
+    /**
+     * Filter events matching provided topic2 [hash].
+     */
+    fun topic2(hash: Hash): F {
+        filter.topic2(hash)
         return self
     }
 
-    fun topic2(vararg value: Hash): F {
-        filter.topic2(*value)
+    /**
+     * Filter events matching any of provided topic2 [hashes].
+     */
+    fun topic2(vararg hashes: Hash): F {
+        filter.topic2(*hashes)
         return self
     }
 
-    fun topic2(value: Topic): F {
-        filter.topic2(value)
+    /**
+     * Filter events matching any of provided topic2 [hashes].
+     */
+    fun topic2(hashes: List<Hash>): F {
+        filter.topic2(hashes)
         return self
     }
 
-    fun topic3(value: Hash): F {
-        filter.topic3(value)
+    /**
+     * Filter events matching provided topic3 [hash].
+     */
+    fun topic3(hash: Hash): F {
+        filter.topic3(hash)
         return self
     }
 
-    fun topic3(vararg value: Hash): F {
-        filter.topic3(*value)
+    /**
+     * Filter events matching any of provided topic3 [hashes].
+     */
+    fun topic3(vararg hashes: Hash): F {
+        filter.topic3(*hashes)
         return self
     }
 
-    fun topic3(value: Topic): F {
-        filter.topic3(value)
+    /**
+     * Filter events matching any of provided topic3 [hashes].
+     */
+    fun topic3(hashes: List<Hash>): F {
+        filter.topic3(hashes)
         return self
     }
 }
