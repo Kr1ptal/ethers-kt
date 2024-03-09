@@ -4,7 +4,9 @@ import com.fasterxml.jackson.core.JsonGenerator
 import com.fasterxml.jackson.core.JsonParser
 import io.ethers.core.Result
 import io.ethers.providers.types.BatchRpcRequest
+import okhttp3.OkHttpClient
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ThreadFactory
 import java.util.function.Function
 
 interface JsonRpcClient {
@@ -163,5 +165,35 @@ data class RpcError(
         const val CODE_NO_RESPONSE = 5001
         const val CODE_CALL_TIMEOUT = 5002
         const val CODE_CALL_FAILED = 5003
+    }
+}
+
+/**
+ * Config for creating a new [JsonRpcClient]. Not all values are used by all clients.
+ * */
+class RpcClientConfig {
+    /**
+     * Client to use for making JSON-RPC requests. If not set, a default client will be used.
+     * */
+    var client: OkHttpClient? = null
+        @JvmSynthetic set
+        get() = field ?: DEFAULT_CLIENT
+
+    /**
+     * Factory for creating additional [JsonRpcClient] threads, if needed. By default, a daemon thread is created.
+     * */
+    var threadFactory: ThreadFactory = ThreadFactory { r -> Thread(r).apply { isDaemon = true } }
+        @JvmSynthetic set
+
+    fun client(client: OkHttpClient) = apply { this.client = client }
+
+    fun threadFactory(factory: ThreadFactory) = apply { this.threadFactory = factory }
+
+    companion object {
+        private val DEFAULT_CLIENT by lazy { OkHttpClient() }
+
+        inline operator fun invoke(builder: RpcClientConfig.() -> Unit): RpcClientConfig {
+            return RpcClientConfig().apply(builder)
+        }
     }
 }

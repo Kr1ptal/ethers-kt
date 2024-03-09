@@ -44,11 +44,18 @@ import kotlin.time.TimeSource
  * Reconnection happens automatically when WS connection is in dropped / fail state. All unfinished requests for which
  * the response was not received are automatically resubmitted when new connection is established.
  */
-class WsClient @JvmOverloads constructor(
+class WsClient(
     url: String,
-    client: OkHttpClient = OkHttpClient(),
-    processorThreadFactory: ThreadFactory = DefaultThreadFactory(),
+    client: OkHttpClient,
+    processorThreadFactory: ThreadFactory,
 ) : JsonPubSubClient, JsonRpcClient {
+    @JvmOverloads
+    constructor(url: String, config: RpcClientConfig = RpcClientConfig()) : this(
+        url,
+        config.client!!,
+        config.threadFactory,
+    )
+
     private val LOG = getLogger()
 
     // all of these are modified in a single thread
@@ -123,7 +130,7 @@ class WsClient @JvmOverloads constructor(
             }
         }
 
-        processorThreadFactory.newThread {
+        val processorThread = processorThreadFactory.newThread {
             LOG.inf { "Starting WebSocket processor thread and connecting to websocket" }
 
             var websocket = client.newWebSocket(wsRequest, wsListener)
@@ -297,7 +304,10 @@ class WsClient @JvmOverloads constructor(
                     if (lastTimeoutCheck.elapsedNow() > 1000.milliseconds) {
                         removeTimedOutRequests(inFlightRequests, client.readTimeoutMillis.toLong().milliseconds)
                         removeTimedOutRequests(inFlightBatchRequests, client.readTimeoutMillis.toLong().milliseconds)
-                        removeTimedOutRequests(inFlightSubscriptionRequests, client.readTimeoutMillis.toLong().milliseconds)
+                        removeTimedOutRequests(
+                            inFlightSubscriptionRequests,
+                            client.readTimeoutMillis.toLong().milliseconds,
+                        )
 
                         lastTimeoutCheck = TimeSource.Monotonic.markNow()
                     }
@@ -317,7 +327,10 @@ class WsClient @JvmOverloads constructor(
             }
 
             websocket.close(1000, "Close")
-        }.start()
+        }
+
+        processorThread.name = "WsClient-Processor-${processorThread.id}"
+        processorThread.start()
     }
 
     private fun <T : ExpiringRequest> removeTimedOutRequests(requests: MutableMap<Long, T>, timeout: Duration) {
@@ -726,15 +739,6 @@ class WsClient @JvmOverloads constructor(
     ) {
         fun handleNotification(event: JsonParser) {
             stream.pushEvent(resultDecoder.apply(event))
-        }
-    }
-
-    private class DefaultThreadFactory : ThreadFactory {
-        override fun newThread(r: Runnable): Thread {
-            val thread = Thread(r)
-            thread.name = "WsClient-Processor-${thread.id}"
-            thread.isDaemon = true
-            return thread
         }
     }
 }

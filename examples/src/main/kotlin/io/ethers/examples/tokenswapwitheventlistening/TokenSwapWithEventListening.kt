@@ -6,7 +6,6 @@ import io.ethers.examples.gen.UniswapV2Factory
 import io.ethers.examples.gen.UniswapV2Pair
 import io.ethers.examples.gen.UniswapV2Router02
 import io.ethers.providers.Provider
-import io.ethers.providers.WsClient
 import io.ethers.signers.PrivateKeySigner
 import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
@@ -20,15 +19,13 @@ import java.math.BigInteger
 class TokenSwapWithEventListening(
     privateKey: String,
     routerAddress: String,
-    wsRpcUrl: String,
+    rpcUrl: String,
     private val wethAddress: String,
     private val tokenAddress: String,
     private val ethAmount: BigInteger,
-
 ) {
     // Init provider for swap and subscription
-    private val wsClient = WsClient(wsRpcUrl)
-    private val provider = Provider(wsClient)
+    private val provider = Provider.fromUrl(rpcUrl).unwrap()
     private val signer = PrivateKeySigner(privateKey)
     private val router = UniswapV2Router02(provider, Address(routerAddress))
 
@@ -46,14 +43,17 @@ class TokenSwapWithEventListening(
         }
 
         // # Event listening
-        // We catch UniswapV2Pair Sync event when anyone triggers it on observed pairAddress
+        // We listen to UniswapV2Pair Sync events on provided pairAddress, using a subscription or polling mechanism,
+        // depending on the provider capabilities (WS or HTTP/S).
+        //
         // It is also possible to filter based on topics and block numbers
         println("Listening for Sync events on pair: $pairAddress")
-        val stream = UniswapV2Pair.Sync
-            .filter(provider)
-            .address(pairAddress)
+
+        val filter = UniswapV2Pair.Sync.filter(provider).address(pairAddress)
+        val stream = filter
             .subscribe()
             .sendAwait()
+            .orElse { filter.watch().sendAwait() } // Fallback to polling if subscription is not supported
             .unwrap()
 
         // We use forEachAsync which listens to events in a separate thread, to avoid blocking the caller
@@ -85,8 +85,7 @@ fun main(args: Array<String>) {
     val argParser = ArgParser("TokenSwapWithEventListening")
 
     val privateKey by argParser.option(ArgType.String, description = "Private key").required()
-    // Problems with public ws rpc - use your own
-    val wsRpc by argParser.option(ArgType.String, description = "WS RPC URL").required() // Goerli WS Rpc
+    val rpcUrl by argParser.option(ArgType.String, description = "RPC URL").required()
     val routerAddress by argParser.option(ArgType.String, description = "Uniswap V2 Router address")
         .default("0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D")
     val wethAddress by argParser.option(ArgType.String, description = "WETH address")
@@ -101,7 +100,7 @@ fun main(args: Array<String>) {
     TokenSwapWithEventListening(
         privateKey,
         routerAddress,
-        wsRpc,
+        rpcUrl,
         wethAddress,
         tokenAddress,
         ethAmount.toBigInteger(),
