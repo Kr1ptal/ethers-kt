@@ -28,18 +28,18 @@ class LogFilterTest : FunSpec({
 
         Jackson.MAPPER.writeValueAsString(logFilter) shouldEqualJson """
             {
-              "fromBlock": "${((logFilter.blocks!! as BlockSelector.Range).from as BlockId.Number).id}",
-              "toBlock": "${((logFilter.blocks!! as BlockSelector.Range).to as BlockId.Number).id}",
+              "fromBlock": "${logFilter.blocks.from.id}",
+              "toBlock": "${logFilter.blocks.to.id}",
               "address": [
-                "${logFilter.address!![0]}",
-                "${logFilter.address!![1]}"
+                "${logFilter.addresses!![0]}",
+                "${logFilter.addresses!![1]}"
               ],
               "topics": [
-                "${(logFilter.topics!![0] as Topic.Single).hash}",
-                "${(logFilter.topics!![1] as Topic.Single).hash}",
+                "${logFilter.topic0?.get(0)}",
+                "${logFilter.topic1?.get(0)}",
                 [
-                  "${(logFilter.topics!![2] as Topic.Array).hashes[0]}",
-                  "${(logFilter.topics!![2] as Topic.Array).hashes[1]}"
+                  "${logFilter.topic2?.get(0)}",
+                  "${logFilter.topic2?.get(1)}"
                 ]
               ]
             }
@@ -55,8 +55,8 @@ class LogFilterTest : FunSpec({
         ) { logFilter ->
             Jackson.MAPPER.writeValueAsString(logFilter) shouldEqualJson """
                 {
-                  "fromBlock": "${(logFilter.blocks!! as BlockSelector.Range).from.id}",
-                  "toBlock": "${(logFilter.blocks!! as BlockSelector.Range).to.id}"
+                  "fromBlock": "${logFilter.blocks.from.id}",
+                  "toBlock": "${logFilter.blocks.to.id}"
                 }
             """
         }
@@ -89,7 +89,9 @@ class LogFilterTest : FunSpec({
         ) { logFilter ->
             Jackson.MAPPER.writeValueAsString(logFilter) shouldEqualJson """
                 {
-                  "address": ${Jackson.MAPPER.writeValueAsString(logFilter.address)}
+                  "fromBlock": "latest",
+                  "toBlock": "latest",
+                  "address": ${Jackson.MAPPER.writeValueAsString(logFilter.addresses)}
                 }
             """
         }
@@ -107,7 +109,9 @@ class LogFilterTest : FunSpec({
                 val expectedResult = logFilter.topics!!.slice(0..indexOfTopic)
                 Jackson.MAPPER.writeValueAsString(logFilter) shouldEqualJson """
                     {
-                      "topics": ${Jackson.MAPPER.writeValueAsString(expectedResult.map { (it as Topic.Single?)?.hash })}
+                      "fromBlock": "latest",
+                      "toBlock": "latest",
+                      "topics": ${Jackson.MAPPER.writeValueAsString(expectedResult.map { it?.get(0) })}
                     }
                 """
             }
@@ -144,18 +148,20 @@ class LogFilterTest : FunSpec({
                 val expectedResult = logFilter.topics!!.slice(0..indexOfTopic)
                 Jackson.MAPPER.writeValueAsString(logFilter) shouldEqualJson """
                     {
-                      "topics": ${Jackson.MAPPER.writeValueAsString(expectedResult.map { (it as Topic.Array?)?.hashes })}
+                      "fromBlock": "latest",  
+                      "toBlock": "latest",  
+                      "topics": ${Jackson.MAPPER.writeValueAsString(expectedResult)}
                     }
                 """
             }
         }
     }
 
-    context("add address filter on the fly") {
+    context("add address filter") {
         val logFilter = LogFilter()
 
         test("no address filter") {
-            logFilter.address shouldBe null
+            logFilter.addresses shouldBe null
         }
 
         test("add addresses filter") {
@@ -164,10 +170,32 @@ class LogFilterTest : FunSpec({
                 "0xC4356aF40cc379b15925Fc8C21e52c00F474e8e9",
                 "0x8c33e6ed63886BF3288B53dDaf12B3E0B99D8aB9",
                 "0xfbBE64481ABC0CEFbA9c41C82944Dd91Cda5bA3F",
-            )
-            addresses.forEach { logFilter.address(Address(it)) }
+            ).map(::Address)
 
-            logFilter.address shouldBe addresses.map { Address(it) }
+            logFilter.address(addresses)
+            logFilter.addresses shouldBe addresses
         }
+    }
+
+    test("LogFilter copying") {
+        val original = LogFilter {
+            blockRange(18283547, 18284258)
+            address(
+                listOf(
+                    Address("0xDAFEA492D9c6733ae3d56b7Ed1ADB60692c98Bc5"),
+                    Address("0xC4356aF40cc379b15925Fc8C21e52c00F474e8e9"),
+                ),
+            )
+
+            // Dummy topic values
+            topic0(Hash("0x2c00f9fd0fcdeb1ccaf7a31d05702b578ea1b8f8feccd2cd63423cdd41e4149c"))
+            topic1(Hash("0x21a92b9ac209df2b952dcbe85dad7355ce3d9389692e7ebc6372a7cc1bc23f9b"))
+            topic2(
+                Hash("0xdcbb85a830f7fdd245f448152507f1864a34de12b6b6511f419f8a47afb4b54d"),
+                Hash("0xd634e03a494263d2fbc47bfb89d8748b10fd294e8f92f07ac067e32753372da3"),
+            )
+        }
+
+        LogFilter(original) shouldBe original
     }
 })
