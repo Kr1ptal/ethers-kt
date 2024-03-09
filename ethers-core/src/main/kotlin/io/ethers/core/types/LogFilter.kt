@@ -7,6 +7,9 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize
 
 private typealias TopicHashes = Array<out Hash>
 
+/**
+ * Filter configuration for logs emitted by smart contracts.
+ * */
 @JsonSerialize(using = LogFilterSerializer::class)
 class LogFilter() {
     /**
