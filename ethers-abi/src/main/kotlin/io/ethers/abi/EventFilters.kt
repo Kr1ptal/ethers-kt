@@ -62,7 +62,7 @@ class AnonymousEventFilter<T : ContractEvent>(
     /**
      * Filter events matching any of provided topic0 [hashes].
      */
-    fun topic0(hashes: List<Hash>): AnonymousEventFilter<T> {
+    fun topic0(hashes: Collection<Hash>): AnonymousEventFilter<T> {
         filter.topic1(hashes)
         return this
     }
@@ -219,7 +219,7 @@ abstract class EventFilterBase<T : ContractEvent, F : EventFilterBase<T, F>>(
     /**
      * Filter events emitted from provided list of [addresses].
      */
-    fun address(addresses: List<Address>): F {
+    fun address(addresses: Collection<Address>): F {
         filter.address(addresses)
         return self
     }
@@ -243,7 +243,7 @@ abstract class EventFilterBase<T : ContractEvent, F : EventFilterBase<T, F>>(
     /**
      * Filter events matching any of provided topic1 [hashes].
      */
-    fun topic1(hashes: List<Hash>): F {
+    fun topic1(hashes: Collection<Hash>): F {
         filter.topic1(hashes)
         return self
     }
@@ -267,7 +267,7 @@ abstract class EventFilterBase<T : ContractEvent, F : EventFilterBase<T, F>>(
     /**
      * Filter events matching any of provided topic2 [hashes].
      */
-    fun topic2(hashes: List<Hash>): F {
+    fun topic2(hashes: Collection<Hash>): F {
         filter.topic2(hashes)
         return self
     }
@@ -291,7 +291,7 @@ abstract class EventFilterBase<T : ContractEvent, F : EventFilterBase<T, F>>(
     /**
      * Filter events matching any of provided topic3 [hashes].
      */
-    fun topic3(hashes: List<Hash>): F {
+    fun topic3(hashes: Collection<Hash>): F {
         filter.topic3(hashes)
         return self
     }

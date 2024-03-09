@@ -157,7 +157,7 @@ class LogFilterTest : FunSpec({
         }
     }
 
-    context("add address filter on the fly") {
+    context("add address filter") {
         val logFilter = LogFilter()
 
         test("no address filter") {
@@ -175,5 +175,27 @@ class LogFilterTest : FunSpec({
             logFilter.address(addresses)
             logFilter.addresses shouldBe addresses
         }
+    }
+
+    test("LogFilter copying") {
+        val original = LogFilter {
+            blockRange(18283547, 18284258)
+            address(
+                listOf(
+                    Address("0xDAFEA492D9c6733ae3d56b7Ed1ADB60692c98Bc5"),
+                    Address("0xC4356aF40cc379b15925Fc8C21e52c00F474e8e9"),
+                ),
+            )
+
+            // Dummy topic values
+            topic0(Hash("0x2c00f9fd0fcdeb1ccaf7a31d05702b578ea1b8f8feccd2cd63423cdd41e4149c"))
+            topic1(Hash("0x21a92b9ac209df2b952dcbe85dad7355ce3d9389692e7ebc6372a7cc1bc23f9b"))
+            topic2(
+                Hash("0xdcbb85a830f7fdd245f448152507f1864a34de12b6b6511f419f8a47afb4b54d"),
+                Hash("0xd634e03a494263d2fbc47bfb89d8748b10fd294e8f92f07ac067e32753372da3"),
+            )
+        }
+
+        LogFilter(original) shouldBe original
     }
 })

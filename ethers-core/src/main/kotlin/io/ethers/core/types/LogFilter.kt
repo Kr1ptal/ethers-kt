@@ -8,7 +8,17 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize
 private typealias TopicHashes = Array<out Hash>
 
 @JsonSerialize(using = LogFilterSerializer::class)
-class LogFilter {
+class LogFilter() {
+    /**
+     * Create a copy of provided [filter].
+     * */
+    constructor(filter: LogFilter) : this() {
+        blocks = filter.blocks
+        addresses = filter.addresses?.copyOf()
+        // inner arrays are not copied since they are replaced on each set
+        topics = filter.topics?.copyOf()
+    }
+
     /**
      * Target range of blocks to filter logs from. Defaults to latest block.
      * */
@@ -129,7 +139,7 @@ class LogFilter {
     /**
      * Filter logs emitted from provided list of [addresses].
      */
-    fun address(addresses: List<Address>): LogFilter {
+    fun address(addresses: Collection<Address>): LogFilter {
         this.addresses = addresses.toTypedArray()
         return this
     }
@@ -159,7 +169,7 @@ class LogFilter {
     /**
      * Filter logs matching any of provided topic0 [hashes].
      */
-    fun topic0(hashes: List<Hash>): LogFilter {
+    fun topic0(hashes: Collection<Hash>): LogFilter {
         getOrCreateTopics()[0] = hashes.toTypedArray()
         return this
     }
@@ -189,7 +199,7 @@ class LogFilter {
     /**
      * Filter logs matching any of provided topic1 [hashes].
      */
-    fun topic1(hashes: List<Hash>): LogFilter {
+    fun topic1(hashes: Collection<Hash>): LogFilter {
         getOrCreateTopics()[1] = hashes.toTypedArray()
         return this
     }
@@ -219,7 +229,7 @@ class LogFilter {
     /**
      * Filter logs matching any of provided topic2 [hashes].
      */
-    fun topic2(hashes: List<Hash>): LogFilter {
+    fun topic2(hashes: Collection<Hash>): LogFilter {
         getOrCreateTopics()[2] = hashes.toTypedArray()
         return this
     }
@@ -249,7 +259,7 @@ class LogFilter {
     /**
      * Filter logs matching any of provided topic3 [hashes].
      */
-    fun topic3(hashes: List<Hash>): LogFilter {
+    fun topic3(hashes: Collection<Hash>): LogFilter {
         getOrCreateTopics()[3] = hashes.toTypedArray()
         return this
     }
@@ -265,6 +275,36 @@ class LogFilter {
 
     override fun toString(): String {
         return "LogFilter(blockSelector=$blocks, address=$addresses, topics=${topics?.contentDeepToString()})"
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as LogFilter
+
+        if (blocks != other.blocks) return false
+        if (addresses != null) {
+            if (other.addresses == null) return false
+            if (!addresses.contentEquals(other.addresses)) return false
+        } else if (other.addresses != null) {
+            return false
+        }
+        if (topics != null) {
+            if (other.topics == null) return false
+            if (!topics.contentDeepEquals(other.topics)) return false
+        } else if (other.topics != null) {
+            return false
+        }
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = blocks.hashCode()
+        result = 31 * result + (addresses?.contentHashCode() ?: 0)
+        result = 31 * result + (topics?.contentDeepHashCode() ?: 0)
+        return result
     }
 
     companion object {
