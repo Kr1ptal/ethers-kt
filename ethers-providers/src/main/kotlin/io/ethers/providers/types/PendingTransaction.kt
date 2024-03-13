@@ -48,10 +48,6 @@ class PendingTransaction(
             return failure(PendingInclusion.Error.NoInclusion(hash, retries))
         }
 
-        if (!included.isSuccessful) {
-            return failure(PendingInclusion.Error.TxFailed(hash, included))
-        }
-
         if (confirmations <= 1) {
             return success(included)
         }

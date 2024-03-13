@@ -2,8 +2,6 @@ package io.ethers.providers.types
 
 import io.ethers.core.Result
 import io.ethers.core.types.Hash
-import io.ethers.core.types.TransactionReceipt
-import io.ethers.providers.RpcError
 import java.time.Duration
 import java.util.concurrent.CompletableFuture
 
@@ -89,7 +87,6 @@ interface PendingInclusion<T> {
 
     sealed class Error : Result.Error {
         data class NoInclusion(val txHash: Hash, val retries: Int) : Error()
-        data class TxFailed(val txHash: Hash, val receipt: TransactionReceipt) : Error()
         data class RpcError(val txHash: Hash, val error: io.ethers.providers.RpcError) : Error()
     }
 }
