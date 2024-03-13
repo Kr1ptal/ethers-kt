@@ -3,7 +3,6 @@ package io.ethers.examples.functionselectors
 import io.ethers.abi.AbiFunction
 import io.ethers.examples.gen.UniswapV2Router02
 import io.ethers.providers.Provider
-import io.ethers.providers.WsClient
 import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
 import kotlinx.cli.default
@@ -13,17 +12,17 @@ import kotlinx.cli.default
  * We get function selector in two ways: from ABI smart contract wrapper and manually from function signature.
  */
 class FunctionSelectors(
-    wsRpcUrl: String,
+    rpcUrl: String,
     private val abiFunction: AbiFunction,
     private val functionSignature: String,
     private val maxBlocks: Int,
 ) {
     // Initialize provider
-    private val wsClient = WsClient(wsRpcUrl)
-    private val wsProvider = Provider(wsClient)
+    private val provider = Provider.fromUrl(rpcUrl).unwrap()
+
     fun run() {
         // Get current block number
-        val blockNumber = wsProvider.getBlockNumber().sendAwait().unwrap()
+        val blockNumber = provider.getBlockNumber().sendAwait().unwrap()
 
         // Function selector obtained from smart contract wrapper
         val wrapperSelector = abiFunction.selector
@@ -35,7 +34,7 @@ class FunctionSelectors(
         println("Searching for selector from signature:  ${abiFunction.selector}")
         var blockCounter = blockNumber
         while (blockCounter > blockNumber - maxBlocks) {
-            val block = wsProvider.getBlockWithTransactions(blockCounter).sendAwait().unwrap()
+            val block = provider.getBlockWithTransactions(blockCounter).sendAwait().unwrap()
             println("Searching block: ${block.number}")
 
             // # Searching for transactions with selector from SC wrapper
@@ -49,8 +48,6 @@ class FunctionSelectors(
                 .forEach { println("Tx with selector from signature:  ${it.hash}") }
             blockCounter--
         }
-
-        wsClient.close()
     }
 }
 
@@ -58,7 +55,7 @@ fun main(args: Array<String>) {
     // Parse input arguments
     val argParser = ArgParser("FunctionSelectors")
 
-    val wsRpc by argParser.option(ArgType.String, description = "WS RPC URL")
+    val rpcUrl by argParser.option(ArgType.String, description = "RPC URL")
         .default("wss://ethereum.publicnode.com") // Mainnet WS url
     val abiFunctionSignature by argParser.option(ArgType.String, description = "Function signature")
         .default("swapExactTokensForTokens(uint256,uint256,address[],address,uint256)") // selector: 0x38ed1739
@@ -68,7 +65,7 @@ fun main(args: Array<String>) {
     argParser.parse(args)
 
     FunctionSelectors(
-        wsRpc,
+        rpcUrl,
         UniswapV2Router02.FUNCTION_SWAP_EXACT_TOKENS_FOR_TOKENS,
         abiFunctionSignature,
         maxBlocks.toInt(),

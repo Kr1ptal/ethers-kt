@@ -24,11 +24,7 @@ class PendingTransactionTest : FunSpec({
         val mockWebServer = MockWebServer()
         val provider = run<Provider> {
             mockWebServer.start()
-
-            // Immediately enqueue a response for `eth_chainId` call which is executed on Provider creation
-            mockWebServer.enqueue(generateMockResponse(body = CHAIN_ID_RESPONSE))
-
-            Provider.fromUrl(mockWebServer.url("").toString()).unwrap()
+            Provider.fromUrl(mockWebServer.url("").toString(), chainId = 999999).unwrap()
         }
         val minedBlockNumber = 18341180L
         val txHash = Hash("0xce15f8ce74845b0d254fcbfda722ba89976ca6e09936d6761a648a6492b82e9b")
@@ -105,15 +101,6 @@ private val EMPTY_RESPONSE = """
             "jsonrpc": "2.0",
             "id": 1,
             "result": null
-        }
-""".trimIndent()
-
-@Language("JSON")
-private val CHAIN_ID_RESPONSE = """
-        {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "result": "0xf423f"
         }
 """.trimIndent()
 
