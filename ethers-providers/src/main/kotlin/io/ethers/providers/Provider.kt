@@ -52,6 +52,7 @@ import io.ethers.providers.types.RpcCall
 import io.ethers.providers.types.RpcRequest
 import io.ethers.providers.types.RpcSubscribe
 import io.ethers.providers.types.RpcSubscribeCall
+import io.ethers.providers.types.RpcSubscribeConstant
 import java.math.BigInteger
 import java.util.Optional
 import java.util.function.Function
@@ -367,9 +368,16 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         decoder: Function<JsonParser, T>,
     ): RpcSubscribe<T, RpcError> {
         if (!isPubSub) {
-            throw UnsupportedOperationException("Pub/sub is not supported by this provider")
+            return RpcSubscribeConstant(
+                failure(
+                    RpcError(
+                        RpcError.CODE_METHOD_NOT_FOUND,
+                        "'eth_subscribe' is available only through a WS connection",
+                        null,
+                    ),
+                ),
+            )
         }
-
         return RpcSubscribeCall(client as JsonPubSubClient, params, decoder)
     }
 

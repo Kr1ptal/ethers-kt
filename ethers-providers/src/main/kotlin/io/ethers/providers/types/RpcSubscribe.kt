@@ -59,6 +59,20 @@ interface RpcSubscribe<T, E : Result.Error> {
 }
 
 /**
+ * Internal implementation of [RpcSubscribe] which always returns the same value.
+ * */
+internal class RpcSubscribeConstant<T, E : Result.Error>(
+    private val value: Result<SubscriptionStream<T>, E>,
+) : RpcSubscribe<T, E> {
+    override fun sendAwait(): Result<SubscriptionStream<T>, E> = value
+    override fun sendAsync(): CompletableFuture<Result<SubscriptionStream<T>, E>> {
+        return CompletableFuture.completedFuture(value)
+    }
+
+    override fun toString(): String = "RpcSubscribeConstant(value=$value)"
+}
+
+/**
  * Normal stream subscription via RPC.
  */
 class RpcSubscribeCall<T>(
