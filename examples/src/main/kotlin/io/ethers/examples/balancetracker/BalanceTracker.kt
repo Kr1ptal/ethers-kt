@@ -4,7 +4,6 @@ import io.ethers.core.types.Address
 import io.ethers.core.types.BlockId
 import io.ethers.examples.gen.ERC20
 import io.ethers.providers.Provider
-import io.ethers.providers.WsClient
 import io.ethers.providers.types.sendAwait
 import io.ethers.providers.types.unwrap
 import kotlinx.cli.ArgParser
@@ -18,13 +17,11 @@ import java.math.BigInteger
  */
 
 class BalanceTracker(
+    rpcUrl: String,
     private val address: Address,
-    wsRpcUrl: String,
     private val tokenList: List<String>,
 ) {
-    // Init providers
-    private val wsClient = WsClient(wsRpcUrl)
-    private val provider = Provider(wsClient)
+    private val provider = Provider.fromUrl(rpcUrl).unwrap()
 
     fun run() {
         val tokens = tokenList.map { ERC20(provider, Address(it)) }
@@ -51,9 +48,6 @@ class BalanceTracker(
             println("ETH - ${balanceEth.toBigDecimal(18).toPlainString()}")
             displayTokenBalances(symbols, decimals, balances)
         }
-
-        // Close web socket client
-        wsClient.close()
     }
 }
 
@@ -70,7 +64,7 @@ fun main(args: Array<String>) {
     val argParser = ArgParser("BalanceTracker")
 
     // Problems with public ws rpc url - add your own
-    val wsRpc by argParser.option(ArgType.String, description = "WS RPC URL").required()
+    val rpcUrl by argParser.option(ArgType.String, description = "RPC URL").required()
     val address by argParser.option(ArgType.String, description = "Token holder address")
         .default("0x0D0707963952f2fBA59dD06f2b425ace40b492Fe") // Gate.io address
     val tokenList by argParser.option(ArgType.String, description = "Observed token list, separated by ','")
@@ -83,6 +77,6 @@ fun main(args: Array<String>) {
 
     argParser.parse(args)
 
-    val balanceTracker = BalanceTracker(Address(address), wsRpc, tokenList.split(','))
+    val balanceTracker = BalanceTracker(rpcUrl, Address(address), tokenList.split(','))
     balanceTracker.run()
 }

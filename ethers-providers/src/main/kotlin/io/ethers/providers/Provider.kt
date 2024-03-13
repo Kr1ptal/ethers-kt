@@ -41,6 +41,7 @@ import io.ethers.core.types.TxpoolStatus
 import io.ethers.core.types.tracers.TracerConfig
 import io.ethers.core.types.tracers.TxTraceResult
 import io.ethers.core.types.transaction.TransactionUnsigned
+import io.ethers.core.unwrapOrReturn
 import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.CallFailedError
 import io.ethers.providers.types.CallManyBundle
@@ -56,7 +57,7 @@ import java.util.Optional
 import java.util.function.Function
 
 @Suppress("MoveLambdaOutsideParentheses")
-class Provider(override val client: JsonRpcClient) : Middleware {
+class Provider(override val client: JsonRpcClient, override val chainId: Long) : Middleware {
     override val inner: Middleware?
         get() = null
 
@@ -66,10 +67,6 @@ class Provider(override val client: JsonRpcClient) : Middleware {
     //-----------------------------------------------------------------------------------------------------------------
     //                                  EthApi implementation
     //-----------------------------------------------------------------------------------------------------------------
-    override val chainId = RpcCall(client, "eth_chainId", EMPTY_ARRAY, { it.readHexLong() })
-        .sendAwait()
-        .unwrap()
-
     override fun getBlockNumber(): RpcRequest<Long, RpcError> {
         return RpcCall(client, "eth_blockNumber", EMPTY_ARRAY) { it.readHexLong() }
     }
@@ -514,9 +511,19 @@ class Provider(override val client: JsonRpcClient) : Middleware {
     }
 
     /**
+     * Error returned when creating a [Provider] using [fromUrl] fails.
+     * */
+    sealed interface Error : Result.Error
+
+    /**
      * Error indicating the provided [url] has an unsupported protocol.
      * */
-    data class UnsupportedUrlProtocol(val url: String) : Result.Error
+    data class UnsupportedUrlProtocol(val url: String) : Error
+
+    /**
+     * Error indicating the chain id could not be obtained from the [url] due to [error].
+     * */
+    data class UnableToGetChainId(val url: String, val error: RpcError) : Error
 
     companion object {
         private val EMPTY_ARRAY = emptyArray<Any>()
@@ -524,20 +531,37 @@ class Provider(override val client: JsonRpcClient) : Middleware {
         private val PROTO_WSS = "^(wss?)://.+$".toRegex()
 
         /**
-         * Create a new [Provider] from the given [url] and optional [RpcClientConfig]. Supported URL protocols:
+         * Create a new [Provider] from the given [url] and optional [RpcClientConfig]. If no [chainId] is provided,
+         * it tries to fetch it via `eth_chainId` RPC call.
+         *
+         * Supported URL protocols:
          * - http/https
          * - ws/wss
          * */
         @JvmStatic
+        @JvmOverloads
         fun fromUrl(
             url: String,
             config: RpcClientConfig = RpcClientConfig(),
-        ): Result<Provider, UnsupportedUrlProtocol> {
-            return when {
-                url.matches(PROTO_HTTPS) -> success(Provider(HttpClient(url, config)))
-                url.matches(PROTO_WSS) -> success(Provider(WsClient(url, config)))
-                else -> failure(UnsupportedUrlProtocol(url))
+            chainId: Long = -1L,
+        ): Result<Provider, Error> {
+            val client = when {
+                url.matches(PROTO_HTTPS) -> HttpClient(url, config)
+                url.matches(PROTO_WSS) -> WsClient(url, config)
+                else -> return failure(UnsupportedUrlProtocol(url))
             }
+
+            @Suppress("NAME_SHADOWING")
+            var chainId = chainId
+            if (chainId == -1L) {
+                chainId = getChainId(client).sendAwait().unwrapOrReturn { return failure(UnableToGetChainId(url, it)) }
+            }
+
+            return success(Provider(client, chainId))
+        }
+
+        private fun getChainId(client: JsonRpcClient): RpcRequest<Long, RpcError> {
+            return RpcCall(client, "eth_chainId", EMPTY_ARRAY, { it.readHexLong() })
         }
     }
 }
