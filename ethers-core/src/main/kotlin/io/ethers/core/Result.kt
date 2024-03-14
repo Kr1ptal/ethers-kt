@@ -11,7 +11,7 @@ import kotlin.contracts.contract
  * */
 // code is optimized to avoid branching operators (if/else) for better JIT compiler optimizations
 sealed class Result<out T : Any?, out E : Result.Error> {
-    class Success<T : Any?>(val value: T) : Result<T, Nothing>() {
+    class Success<out T : Any?>(val value: T) : Result<T, Nothing>() {
         override fun <R> fold(
             onSuccess: Transformer<Success<T>, R>,
             onFailure: Transformer<Failure<Nothing>, R>,
@@ -22,7 +22,7 @@ sealed class Result<out T : Any?, out E : Result.Error> {
         override fun toString() = "Success($value)"
     }
 
-    class Failure<E : Error>(val error: E) : Result<Nothing, E>() {
+    class Failure<out E : Error>(val error: E) : Result<Nothing, E>() {
         override fun <R> fold(
             onSuccess: Transformer<Success<Nothing>, R>,
             onFailure: Transformer<Failure<E>, R>,
@@ -51,13 +51,13 @@ sealed class Result<out T : Any?, out E : Result.Error> {
      * Maps a [Result]<[T], [E]> to [Result]<[R], [E]> by applying a function to a [Success] value, leaving a
      * [Failure] value untouched.
      * */
-    fun <R : Any?> map(mapper: Transformer<in T, R>): Result<R, E> = fold({ Success(mapper(it.value)) }, { it })
+    fun <R : Any?> map(mapper: Transformer<T, R>): Result<R, E> = fold({ Success(mapper(it.value)) }, { it })
 
     /**
      * Maps a [Result]<[T], [E]> to [Result]<[T], [R]> by applying a function to a [Failure], leaving a
      * [Success] value untouched.
      * */
-    fun <R : Error> mapError(mapper: Transformer<in E, R>): Result<T, R> {
+    fun <R : Error> mapError(mapper: Transformer<E, R>): Result<T, R> {
         return fold({ it }, { Failure(mapper(it.error)) })
     }
 
@@ -65,7 +65,7 @@ sealed class Result<out T : Any?, out E : Result.Error> {
      * Call the function with value of [Success], expecting another result, and skipping if [Result] is [Failure].
      * Useful when chaining multiple fallible operations on the result.
      * */
-    fun <R : Any?> andThen(mapper: Transformer<in T, Result<R, @UnsafeVariance E>>): Result<R, E> {
+    fun <R : Any?> andThen(mapper: Transformer<T, Result<R, @UnsafeVariance E>>): Result<R, E> {
         return fold({ mapper(it.value) }, { it })
     }
 
@@ -73,7 +73,7 @@ sealed class Result<out T : Any?, out E : Result.Error> {
      * Call the function with error of [Failure], expecting another result, and skipping if [Result] is [Success].
      * Useful when chaining multiple fallible operations on the error (e.g. trying to recover from an error).
      * */
-    fun <R : Error> orElse(mapper: Transformer<in E, Result<@UnsafeVariance T, R>>): Result<T, R> {
+    fun <R : Error> orElse(mapper: Transformer<E, Result<@UnsafeVariance T, R>>): Result<T, R> {
         return fold({ it }, { mapper(it.error) })
     }
 
@@ -95,7 +95,7 @@ sealed class Result<out T : Any?, out E : Result.Error> {
     /**
      * Unwrap the value if [Result] is [Success], or return the result of [default] function if [Result] is [Failure].
      * */
-    fun unwrapOrElse(default: Transformer<in E, @UnsafeVariance T>): T {
+    fun unwrapOrElse(default: Transformer<E, @UnsafeVariance T>): T {
         return fold({ it.value }, { default(it.error) })
     }
 
@@ -117,27 +117,27 @@ sealed class Result<out T : Any?, out E : Result.Error> {
     /**
      * Unwrap the error if [Result] is [Failure], or return the result of [default] function if [Result] is [Success].
      * */
-    fun unwrapErrorOrElse(default: Transformer<in T, @UnsafeVariance E>): E {
+    fun unwrapErrorOrElse(default: Transformer<T, @UnsafeVariance E>): E {
         return fold({ default(it.value) }, { it.error })
     }
 
     /**
      * Callback called if [Result] is [Success].
      * */
-    fun onSuccess(block: Consumer<in T>) = fold({ block(it.value) }, {})
+    fun onSuccess(block: Consumer<T>) = fold({ block(it.value) }, {})
 
     /**
      * Callback called if [Result] is [Failure].
      * */
-    fun onFailure(block: Consumer<in E>) = fold({}, { block(it.error) })
+    fun onFailure(block: Consumer<E>) = fold({}, { block(it.error) })
 
     /**
      * Call [onSuccess] if [Result] is [Success] or [onFailure] if [Result] is [Failure], returning the result of
      * the called function.
      * */
     abstract fun <R> fold(
-        onSuccess: Transformer<Success<@UnsafeVariance T>, R>,
-        onFailure: Transformer<Failure<@UnsafeVariance E>, R>,
+        onSuccess: Transformer<Success<T>, R>,
+        onFailure: Transformer<Failure<E>, R>,
     ): R
 
     /**
@@ -166,7 +166,7 @@ sealed class Result<out T : Any?, out E : Result.Error> {
      * Custom functional interface for better java interop with kotlin lambdas. Prevents the java caller having to
      * explicitly return `Unit.INSTANCE`.
      * */
-    fun interface Consumer<T> {
+    fun interface Consumer<in T> {
         operator fun invoke(t: T)
     }
 
@@ -174,7 +174,7 @@ sealed class Result<out T : Any?, out E : Result.Error> {
      * Custom functional interface for better java interop with kotlin lambdas. Prevents the java caller having to
      * explicitly return `Unit.INSTANCE`.
      * */
-    fun interface Transformer<T, R> {
+    fun interface Transformer<in T, out R> {
         operator fun invoke(t: T): R
     }
 
