@@ -950,7 +950,7 @@ class AbiCodecTest : FunSpec({
         }
 
         @Suppress("ArrayInDataClass")
-        data class FailCase(val description: String, val signature: List<AbiType>, val params: Array<Any>)
+        data class FailCase(val description: String, val signature: List<AbiType<*>>, val params: Array<Any>)
 
         listOf(
             FailCase(

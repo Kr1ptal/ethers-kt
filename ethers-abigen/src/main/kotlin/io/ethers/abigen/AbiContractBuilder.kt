@@ -629,7 +629,7 @@ class AbiContractBuilder(
                         false,
                     ).toUniqueStruct()
 
-                    var abiType: AbiType = struct.abiType
+                    var abiType: AbiType<*> = struct.abiType
                     var ret: AbiTypeParameter = struct
 
                     // if tuple has a suffix, it's an array

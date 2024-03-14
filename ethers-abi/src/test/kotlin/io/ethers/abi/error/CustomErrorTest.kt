@@ -97,13 +97,14 @@ class CustomErrorTest : FunSpec({
             )
 
             @JvmStatic
-            override fun decode(`data`: Array<Any>): ErrorWithStruct = ErrorWithStruct(
+            override fun decode(data: Array<Any>): ErrorWithStruct = ErrorWithStruct(
                 data[0] as BigInteger,
                 data[1] as ErrorMsg,
             )
         }
     }
 
+    @Suppress("UNCHECKED_CAST")
     internal data class ErrorMsg(
         val msg: String,
         val `value`: BigInteger,
@@ -152,11 +153,11 @@ class CustomErrorTest : FunSpec({
             val INSTANCE: NoArgsError = NoArgsError()
 
             @JvmStatic
-            override fun decode(`data`: Array<Any>): NoArgsError = INSTANCE
+            override fun decode(data: Array<Any>): NoArgsError = INSTANCE
         }
     }
 
-    data class InvalidFlashswapFlags(
+    internal data class InvalidFlashswapFlags(
         val flag: BigInteger,
         val name: String,
     ) : CustomContractError() {
@@ -169,7 +170,7 @@ class CustomErrorTest : FunSpec({
             )
 
             @JvmStatic
-            override fun decode(`data`: Array<Any>): InvalidFlashswapFlags = InvalidFlashswapFlags(
+            override fun decode(data: Array<Any>): InvalidFlashswapFlags = InvalidFlashswapFlags(
                 data[0] as BigInteger,
                 data[1] as String,
             )

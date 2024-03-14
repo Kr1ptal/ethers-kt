@@ -76,6 +76,8 @@ data class AbiEvent(
         for (i in indexed.indices) {
             ret[i] = AbiCodec.decode(indexed[i], topics[i + offsetTopic0].asByteArray())
         }
+
+        @Suppress("UNCHECKED_CAST")
         return ret as Array<Any>
     }
 
@@ -83,7 +85,7 @@ data class AbiEvent(
         return AbiCodec.decode(this.data, data.asByteArray())
     }
 
-    data class Token(val type: AbiType, val indexed: Boolean)
+    data class Token(val type: AbiType<*>, val indexed: Boolean)
 
     companion object {
         @JvmField
@@ -96,8 +98,8 @@ data class AbiEvent(
          * @return [type] if it can be used as an indexed parameter, or [NON_VALUE_INDEXED_TYPE] if it cannot.
          * */
         @JvmStatic
-        fun getTopicAbiType(type: AbiType): AbiType {
-            return if (type.isDynamic || type is AbiType.FixedArray || type is AbiType.Tuple) {
+        fun getTopicAbiType(type: AbiType<*>): AbiType<*> {
+            return if (type.isDynamic || type is AbiType.FixedArray<*> || type is AbiType.Tuple<*>) {
                 NON_VALUE_INDEXED_TYPE
             } else {
                 type
