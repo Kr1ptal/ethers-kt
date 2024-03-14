@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <!-- To auto-reload, set parameter monitorInterval="30" in seconds-->
-<Configuration status="warn" packages="org.apache.logging.log4j.core">
+<Configuration status="warn">
     <Properties>
         <Property name="LVL_CLR">{WARN=#CDB72E, INFO=Normal, DEBUG=white, TRACE=white}</Property>
 
