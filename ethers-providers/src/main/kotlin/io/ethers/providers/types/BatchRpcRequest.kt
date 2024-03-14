@@ -53,7 +53,7 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) {
      */
     fun sendAsync(): CompletableFuture<Boolean> {
         if (client == null) {
-            throw IllegalStateException("No requests added")
+            return CompletableFuture.completedFuture(false)
         }
 
         if (!batchSent.compareAndSet(false, true)) {
