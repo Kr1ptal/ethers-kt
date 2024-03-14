@@ -194,7 +194,7 @@ class PendingContractDeploy<T : AbiContract>(
     private val provider: Middleware,
     private val result: PendingTransaction,
     private val constructor: BiFunction<Middleware, Address, T>,
-) : PendingInclusion<ContractDeployment<T>> {
+) : PendingInclusion<ContractDeploy<T>> {
     val hash: Hash
         get() = result.hash
 
@@ -202,11 +202,11 @@ class PendingContractDeploy<T : AbiContract>(
         retries: Int,
         interval: Duration,
         confirmations: Int,
-    ): Result<ContractDeployment<T>, PendingInclusion.Error> {
+    ): Result<ContractDeploy<T>, PendingInclusion.Error> {
         return result.awaitInclusion(retries, interval, confirmations).andThen {
             when {
-                !it.isSuccessful || it.contractAddress == null -> success(ContractDeployment(null, it))
-                else -> success(ContractDeployment(constructor.apply(provider, it.contractAddress!!), it))
+                !it.isSuccessful || it.contractAddress == null -> success(ContractDeploy(null, it))
+                else -> success(ContractDeploy(constructor.apply(provider, it.contractAddress!!), it))
             }
         }
     }
@@ -216,10 +216,17 @@ class PendingContractDeploy<T : AbiContract>(
     }
 }
 
-class ContractDeployment<T : AbiContract>(
+/**
+ * Contract deployment result. Contains [TransactionReceipt] and the contract wrapper pointing to the deployed address
+ * if deploy was successful.
+ * */
+class ContractDeploy<T : AbiContract>(
     val contract: T?,
     val receipt: TransactionReceipt,
 ) {
+    /**
+     * Return whether the contract deploy was successful and the [contract] wrapper is not null.
+     * */
     val isSuccessful: Boolean
         get() = receipt.isSuccessful && contract != null
 
@@ -228,4 +235,8 @@ class ContractDeployment<T : AbiContract>(
 
     @JvmSynthetic
     operator fun component2(): TransactionReceipt = receipt
+
+    override fun toString(): String {
+        return "ContractDeploy(contract=${contract?.address}, isSuccessful=$isSuccessful)"
+    }
 }
