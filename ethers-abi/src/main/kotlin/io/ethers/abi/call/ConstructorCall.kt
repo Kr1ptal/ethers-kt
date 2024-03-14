@@ -12,6 +12,7 @@ import io.ethers.core.types.BlockId
 import io.ethers.core.types.BlockOverride
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
+import io.ethers.core.types.TransactionReceipt
 import io.ethers.core.types.tracers.PrestateTracer
 import io.ethers.core.types.tracers.TracerConfig
 import io.ethers.providers.middleware.Middleware
@@ -193,7 +194,7 @@ class PendingContractDeploy<T : AbiContract>(
     private val provider: Middleware,
     private val result: PendingTransaction,
     private val constructor: BiFunction<Middleware, Address, T>,
-) : PendingInclusion<T> {
+) : PendingInclusion<ContractDeploy<T>> {
     val hash: Hash
         get() = result.hash
 
@@ -201,16 +202,41 @@ class PendingContractDeploy<T : AbiContract>(
         retries: Int,
         interval: Duration,
         confirmations: Int,
-    ): Result<T, PendingInclusion.Error> {
+    ): Result<ContractDeploy<T>, PendingInclusion.Error> {
         return result.awaitInclusion(retries, interval, confirmations).andThen {
             when {
-                !it.isSuccessful || it.contractAddress == null -> failure(PendingInclusion.Error.TxFailed(hash, it))
-                else -> success(constructor.apply(provider, it.contractAddress!!))
+                !it.isSuccessful || it.contractAddress == null -> success(ContractDeploy(null, it))
+                else -> success(ContractDeploy(constructor.apply(provider, it.contractAddress!!), it))
             }
         }
     }
 
     override fun toString(): String {
         return "PendingContractDeploy(hash=$hash)"
+    }
+}
+
+/**
+ * Contract deployment result. Contains [TransactionReceipt] and the contract wrapper pointing to the deployed address
+ * if deploy was successful.
+ * */
+class ContractDeploy<T : AbiContract>(
+    val contract: T?,
+    val receipt: TransactionReceipt,
+) {
+    /**
+     * Return whether the contract deploy was successful and the [contract] wrapper is not null.
+     * */
+    val isSuccessful: Boolean
+        get() = receipt.isSuccessful && contract != null
+
+    @JvmSynthetic
+    operator fun component1(): T? = contract
+
+    @JvmSynthetic
+    operator fun component2(): TransactionReceipt = receipt
+
+    override fun toString(): String {
+        return "ContractDeploy(contract=${contract?.address}, isSuccessful=$isSuccessful)"
     }
 }
