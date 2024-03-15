@@ -696,6 +696,33 @@ class AbiCodecTest : FunSpec({
             decoded shouldBe expected
         }
 
+        test("array of dynamic and fixed bytes") {
+            val function = AbiFunction.parseSignature("someName()(bytes[],bytes32[3])")
+
+            val dataHex = """
+                0000000000000000000000000000000000000000000000000000000000000080
+                0101010101010101010101010101010101010101010101010101010101010101
+                0202020202020202020202020202020202020202020202020202020202020202
+                0303030303030303030303030303030303030303030303030303030303030303
+                0000000000000000000000000000000000000000000000000000000000000002
+                0000000000000000000000000000000000000000000000000000000000000040
+                0000000000000000000000000000000000000000000000000000000000000080
+                0000000000000000000000000000000000000000000000000000000000000002
+                0102000000000000000000000000000000000000000000000000000000000000
+                0000000000000000000000000000000000000000000000000000000000000002
+                0304000000000000000000000000000000000000000000000000000000000000
+            """.trimIndent().replace(System.lineSeparator(), "").hexToByteArray()
+
+            val decoded = AbiCodec.decode(function.outputs, dataHex)
+
+            val expected = arrayOf(
+                arrayOf(Bytes(byteArrayOf(1, 2)), Bytes(byteArrayOf(3, 4))),
+                arrayOf(Bytes(ByteArray(32) { 1 }), Bytes(ByteArray(32) { 2 }), Bytes(ByteArray(32) { 3 })),
+            )
+
+            decoded shouldBe expected
+        }
+
         test("nested tuple of tuples, with dynamic and static elements") {
             val function = AbiFunction.parseSignature("someName((string,bool,string,(string,string,(string,string))))")
 
