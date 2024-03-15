@@ -616,7 +616,7 @@ object AbiCodec {
         return when (elementType) {
             is AbiType.Address -> arrayOfNulls<Address>(size) as Array<Any>
             is AbiType.String -> arrayOfNulls<String>(size) as Array<Any>
-            is AbiType.FixedBytes, is AbiType.Bytes -> arrayOfNulls<ByteArray>(size) as Array<Any>
+            is AbiType.FixedBytes, is AbiType.Bytes -> arrayOfNulls<Bytes>(size) as Array<Any>
             is AbiType.Int, is AbiType.UInt -> arrayOfNulls<BigInteger>(size) as Array<Any>
             // TODO This returns an array of boxed values. We need to manually handle primitive types
             is AbiType.Bool -> arrayOfNulls<Boolean>(size) as Array<Any>
