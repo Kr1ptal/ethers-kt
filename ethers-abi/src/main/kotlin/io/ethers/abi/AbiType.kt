@@ -89,13 +89,15 @@ sealed interface AbiType<T : Any> {
 
     data class FixedArray<T : Any>(val length: kotlin.Int, val type: AbiType<T>) : AbiType<kotlin.Array<T>> {
         override val abiType: kotlin.String = "${type.abiType}[$length]"
-        override val classType = java.lang.reflect.Array.newInstance(type.classType, 0)::class.java as Class<kotlin.Array<T>>
+        @Suppress("UNCHECKED_CAST")
+        override val classType = ArrayReflect.newInstance(type.classType, 0)::class.java as Class<kotlin.Array<T>>
         override val isDynamic: Boolean = type.isDynamic
     }
 
     data class Array<T : Any>(val type: AbiType<T>) : AbiType<kotlin.Array<T>> {
         override val abiType: kotlin.String = "${type.abiType}[]"
-        override val classType = java.lang.reflect.Array.newInstance(type.classType, 0)::class.java as Class<kotlin.Array<T>>
+        @Suppress("UNCHECKED_CAST")
+        override val classType = ArrayReflect.newInstance(type.classType, 0)::class.java as Class<kotlin.Array<T>>
         override val isDynamic: Boolean = true
     }
 

@@ -38,21 +38,6 @@ object AbiCodec {
     }
 
     /**
-     * Encode [data] as a single [type].
-     * */
-    @JvmStatic
-    fun <T : Any> encode(type: AbiType<out T>, data: T): ByteArray {
-        val head = getTokenHeadLength(type, data)
-        val tail = getTokenTailLength(type, data)
-
-        val ret = ByteBuffer.allocate(head + tail)
-        encodeTokenHead(ret, type, data, head)
-        encodeTokenTail(ret, type, data)
-
-        return ret.array()
-    }
-
-    /**
      * Encode [data] as [types].
      * */
     @JvmStatic
@@ -73,12 +58,27 @@ object AbiCodec {
     }
 
     /**
+     * Encode [data] as a single [type].
+     * */
+    @JvmStatic
+    fun <T : Any> encode(type: AbiType<T>, data: T): ByteArray {
+        val head = getTokenHeadLength(type, data)
+        val tail = getTokenTailLength(type, data)
+
+        val ret = ByteBuffer.allocate(head + tail)
+        encodeTokenHead(ret, type, data, head)
+        encodeTokenTail(ret, type, data)
+
+        return ret.array()
+    }
+
+    /**
      * Decode [data] as [types], skipping [prefixSize] bytes. Prefix is usually one of:
      * - `method selector`
      * - `deploy bytecode`
      * */
     @JvmStatic
-    fun decodeWithPrefix(prefixSize: Int, types: List<AbiType<*>>, data: ByteArray): Array<Any> {
+    fun <T : Any> decodeWithPrefix(prefixSize: Int, types: List<AbiType<out T>>, data: ByteArray): Array<T> {
         if (data.size < prefixSize) {
             throw IllegalArgumentException("Data is too short: ${data.size}")
         }
@@ -92,32 +92,19 @@ object AbiCodec {
         }
 
         if (types.isEmpty()) {
-            return emptyArray()
-        }
-
-        val buff = ByteBuffer.wrap(data).position(prefixSize)
-        return decodeTokens(types, buff)
-    }
-
-    /**
-     * Decode [data] as a single [type].
-     * */
-    @JvmStatic
-    fun <T : Any> decode(type: AbiType<out T>, data: ByteArray): T {
-        // if we don't have at least one word, throw
-        if (data.size < WORD_SIZE_BYTES) {
-            throw IllegalArgumentException("Cannot decode empty data: ${FastHex.encodeWithoutPrefix(data)}")
+            @Suppress("UNCHECKED_CAST")
+            return emptyArray<Any>() as Array<T>
         }
 
         @Suppress("UNCHECKED_CAST")
-        return decodeToken(type, ByteBuffer.wrap(data), 0) as T
+        return decodeTokens(types, ByteBuffer.wrap(data).position(prefixSize)) as Array<T>
     }
 
     /**
      * Decode [data] as [types].
      * */
     @JvmStatic
-    fun decode(types: List<AbiType<*>>, data: ByteArray): Array<Any> {
+    fun <T : Any> decode(types: List<AbiType<out T>>, data: ByteArray): Array<T> {
         if (types.isEmpty()) {
             throw IllegalArgumentException("Cannot decode empty tokens")
         }
@@ -126,8 +113,22 @@ object AbiCodec {
             throw IllegalArgumentException("Cannot decode empty data: ${FastHex.encodeWithoutPrefix(data)}")
         }
 
-        val buff = ByteBuffer.wrap(data)
-        return decodeTokens(types, buff)
+        @Suppress("UNCHECKED_CAST")
+        return decodeTokens(types, ByteBuffer.wrap(data)) as Array<T>
+    }
+
+    /**
+     * Decode [data] as a single [type].
+     * */
+    @JvmStatic
+    fun <T : Any> decode(type: AbiType<T>, data: ByteArray): T {
+        // if we don't have at least one word, throw
+        if (data.size < WORD_SIZE_BYTES) {
+            throw IllegalArgumentException("Cannot decode empty data: ${FastHex.encodeWithoutPrefix(data)}")
+        }
+
+        @Suppress("UNCHECKED_CAST")
+        return decodeToken(type, ByteBuffer.wrap(data), 0) as T
     }
 
     private fun encodeTokensHeadTail(buff: ByteBuffer, types: List<AbiType<*>>, data: Array<out Any>, headLength: Int) {
@@ -494,11 +495,26 @@ object AbiCodec {
     }
 
     private fun decodeTokens(types: List<AbiType<*>>, buff: ByteBuffer): Array<Any> {
+        // adds ~7% overhead
+        val type = types[0]
+        var ofSingleType = true
+        for (i in types.indices) {
+            if (types[i].classType != type.classType) {
+                ofSingleType = false
+                break
+            }
+        }
+
+        // if all elements are decoded as the same type, we can use a typed array
+        val ret = if (ofSingleType) {
+            getTypedArrayForElementType(type, types.size)
+        } else {
+            @Suppress("UNCHECKED_CAST")
+            arrayOfNulls<Any>(types.size) as Array<Any>
+        }
+
         // to account for 4byte selector
         val offset = buff.position()
-
-        @Suppress("UNCHECKED_CAST")
-        val ret = arrayOfNulls<Any>(types.size) as Array<Any>
         for (i in types.indices) {
             ret[i] = decodeToken(types[i], buff, offset)
         }
@@ -819,7 +835,7 @@ object AbiCodec {
     }
 }
 
-private typealias ArrayReflect = java.lang.reflect.Array
+internal typealias ArrayReflect = java.lang.reflect.Array
 
 private fun ByteBuffer.skip(n: Int): ByteBuffer {
     if (n <= 0) {
