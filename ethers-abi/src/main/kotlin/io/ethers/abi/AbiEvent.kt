@@ -57,7 +57,7 @@ interface EventFactory<T : ContractEvent> {
         return decode(log, merged)
     }
 
-    fun decode(log: Log, data: Array<Any>): T
+    fun decode(log: Log, data: Array<out Any>): T
 }
 
 data class AbiEvent(

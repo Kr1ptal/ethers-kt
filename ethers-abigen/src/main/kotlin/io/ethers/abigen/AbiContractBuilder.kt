@@ -363,7 +363,7 @@ class AbiContractBuilder(
         val decodeFunction = FunSpec.builder("decode")
             .addAnnotation(JvmStatic::class)
             .addModifiers(KModifier.OVERRIDE)
-            .addParameter(ParameterSpec.builder("data", Array::class.parameterizedBy(Any::class)).build())
+            .addParameter(ParameterSpec.builder("data", Array::class.asClassName().parameterizedBy(WildcardTypeName.producerOf(Any::class))).build())
             .returns(errorClassName)
 
         return CodeFactory.createClass(
@@ -456,7 +456,7 @@ class AbiContractBuilder(
                 .addAnnotation(JvmStatic::class)
                 .addModifiers(KModifier.OVERRIDE)
                 .addParameter(ParameterSpec.builder("log", Log::class).build())
-                .addParameter(ParameterSpec.builder("data", Array::class.parameterizedBy(Any::class)).build())
+                .addParameter(ParameterSpec.builder("data", Array::class.asClassName().parameterizedBy(WildcardTypeName.producerOf(Any::class))).build())
                 .returns(eventClassName)
                 .addStatement(
                     initializer.toString(),

@@ -8,6 +8,7 @@ import com.squareup.kotlinpoet.ParameterizedTypeName.Companion.parameterizedBy
 import com.squareup.kotlinpoet.PropertySpec
 import com.squareup.kotlinpoet.TypeName
 import com.squareup.kotlinpoet.TypeSpec
+import com.squareup.kotlinpoet.WildcardTypeName
 import com.squareup.kotlinpoet.asClassName
 import io.ethers.abi.AbiType
 import io.ethers.abi.ContractStruct
@@ -98,7 +99,7 @@ sealed interface AbiTypeParameter {
                     FunSpec.builder("fromTuple")
                         .addAnnotation(JvmStatic::class)
                         .addModifiers(KModifier.OVERRIDE)
-                        .addParameter("data", Array::class.parameterizedBy(Any::class))
+                        .addParameter("data", Array::class.asClassName().parameterizedBy(WildcardTypeName.producerOf(Any::class)))
                         .returns(className)
                         .addStatement(
                             fromTupleReader.toString(),

@@ -170,7 +170,7 @@ interface CustomErrorFactory<T : CustomContractError> {
         return decode(abi.decodeCall(data))
     }
 
-    fun decode(data: Array<Any>): T
+    fun decode(data: Array<out Any>): T
 }
 
 /**

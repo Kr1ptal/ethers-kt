@@ -370,7 +370,7 @@ class Multicall3(
 
         companion object : StructFactory<Call> {
             @JvmStatic
-            override fun fromTuple(`data`: Array<Any>): Call = Call(data[0] as Address, data[1] as Bytes)
+            override fun fromTuple(data: Array<out Any>): Call = Call(data[0] as Address, data[1] as Bytes)
         }
     }
 
@@ -400,7 +400,7 @@ class Multicall3(
 
         companion object : StructFactory<Call3> {
             @JvmStatic
-            override fun fromTuple(`data`: Array<Any>): Call3 = Call3(
+            override fun fromTuple(data: Array<out Any>): Call3 = Call3(
                 data[0] as Address,
                 data[1] as Boolean,
                 data[2] as Bytes,
@@ -437,7 +437,7 @@ class Multicall3(
 
         companion object : StructFactory<Call3Value> {
             @JvmStatic
-            override fun fromTuple(`data`: Array<Any>): Call3Value = Call3Value(
+            override fun fromTuple(data: Array<out Any>): Call3Value = Call3Value(
                 data[0] as Address,
                 data[1] as Boolean,
                 data[2] as BigInteger,
@@ -469,7 +469,7 @@ class Multicall3(
 
         companion object : StructFactory<Result> {
             @JvmStatic
-            override fun fromTuple(`data`: Array<Any>): Result = Result(data[0] as Boolean, data[1] as Bytes)
+            override fun fromTuple(data: Array<out Any>): Result = Result(data[0] as Boolean, data[1] as Bytes)
         }
     }
 
