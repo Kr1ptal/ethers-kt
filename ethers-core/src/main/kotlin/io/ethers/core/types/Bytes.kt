@@ -40,33 +40,38 @@ class Bytes(private val value: ByteArray) : RlpEncodable {
      * */
     fun toByteArray() = value.copyOf()
 
+    /**
+     * Return the size of the internal byte array.
+     * */
     val size: Int
         get() = value.size
 
+    /**
+     * Return `true` if the internal byte array is empty, `false` otherwise.
+     * */
     val isEmpty: Boolean
         get() = value.isEmpty()
 
-    override fun rlpEncode(rlp: RlpEncoder) {
-        rlp.encode(value)
+    /**
+     * Create a new [Bytes] instance by copying the internal byte array.
+     *
+     * @param startIndex the start index of the new [Bytes] instance, inclusive.
+     * @param endIndex the end index of the new [Bytes] instance, exclusive.
+     * */
+    fun copyOfRange(startIndex: Int, endIndex: Int): Bytes {
+        return Bytes(value.copyOfRange(startIndex, endIndex))
     }
 
-    infix fun equals(other: CharSequence): Boolean {
-        val otherSize = if (other.startsWith("0x")) (other.length - 2) else other.length
-        return when {
-            otherSize == 0 -> value.isEmpty()
-            (otherSize % 2) == 1 -> throw IllegalArgumentException("CharSequence need to be even length (2 hex char =  1 byte).")
-            else -> equals(FastHex.decode(other))
-        }
-    }
-
-    infix fun equals(other: ByteArray): Boolean {
-        return value.contentEquals(other)
-    }
-
+    /**
+     * Return true if `this` contains the provided [Bytes], false otherwise.
+     * */
     operator fun contains(other: Bytes): Boolean {
         return contains(other.value)
     }
 
+    /**
+     * Return true if `this` contains the provided hex [CharSequence], false otherwise.
+     * */
     operator fun contains(other: CharSequence): Boolean {
         val otherSize = if (other.startsWith("0x")) (other.length - 2) else other.length
         return when {
@@ -77,6 +82,9 @@ class Bytes(private val value: ByteArray) : RlpEncodable {
         }
     }
 
+    /**
+     * Return true if `this` contains the provided [ByteArray], false otherwise.
+     * */
     operator fun contains(other: ByteArray): Boolean {
         if (other.isEmpty()) {
             return true
@@ -151,6 +159,25 @@ class Bytes(private val value: ByteArray) : RlpEncodable {
         return true
     }
 
+    /**
+     * Return true if `this` is equal to the provided hex [CharSequence], false otherwise.
+     * */
+    infix fun equals(other: CharSequence): Boolean {
+        val otherSize = if (other.startsWith("0x")) (other.length - 2) else other.length
+        return when {
+            otherSize == 0 -> value.isEmpty()
+            (otherSize % 2) == 1 -> throw IllegalArgumentException("CharSequence need to be even length (2 hex char =  1 byte).")
+            else -> equals(FastHex.decode(other))
+        }
+    }
+
+    /**
+     * Return true if `this` is equal to the provided [ByteArray], false otherwise.
+     * */
+    infix fun equals(other: ByteArray): Boolean {
+        return value.contentEquals(other)
+    }
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
@@ -166,6 +193,10 @@ class Bytes(private val value: ByteArray) : RlpEncodable {
 
     override fun toString(): String {
         return FastHex.encodeWithPrefix(value)
+    }
+
+    override fun rlpEncode(rlp: RlpEncoder) {
+        rlp.encode(value)
     }
 
     companion object : RlpDecodable<Bytes> {
