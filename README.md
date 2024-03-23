@@ -33,7 +33,7 @@ It's recommended to define BOM platform dependency to ensure that ethers-kt arti
 
 ```kotlin
 plugins {
-    id("io.kriptal.ethers.abigen-plugin") version "0.4.0"
+    id("io.kriptal.ethers.abigen-plugin") version "0.5.0"
 }
 
 // default values
@@ -52,7 +52,7 @@ repositories {
 
 dependencies {
     // Define a BOM and its version
-    implementation(platform("io.kriptal.ethers:ethers-bom:0.4.0"))
+    implementation(platform("io.kriptal.ethers:ethers-bom:0.5.0"))
 
     // Define any required artifacts without version
     implementation("io.kriptal.ethers:ethers-abi")

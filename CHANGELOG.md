@@ -18,6 +18,48 @@ Sections:
 ### Security = Security patches.
 -->
 
+## [0.5.0] - 2024-03-23
+
+### Bug Fixes
+
+- Add missing list append in `List<CompletableFuture<T>>.await()` extension function (#89)
+- Don't include logs from failed CallTracer frames (#88)
+- Handle empty ByteArray in RlpDecodable
+- Make Provider#fromUrl actually return failure instead of throwing
+- Remove deprecated "packages" parameter from log4j2.xml
+- Fix decoding arrays of type Bytes/FixedBytes in AbiCodec (#102)
+- [**breaking**] Change `ConstructorCall#call` result to include all state changes made by contract deployment (#90)
+
+### Features
+
+- Add function to create signature from 65 bytes long array
+- Validate BigInteger BlockOverride fields and allow assigning back to null
+- Add "flatten" function to CallTracer and clarify "getAllLogs" docstring
+- Throw an exception if multiple tracers of the same type are added to the same `MuxTracer`
+- Option to provide custom OkHttpClient instance to Provider#fromUrl
+- Replace Stopwatch with kotlin TimeSource
+- [**breaking**] Move `chainId` fetching from constructor to `Provider#fromUrl` (#97)
+- Return a failure response instead of throwing if pub-sub not available in `Provider#subscribe*` methods (#98)
+- Make BatchRpcRequest#sendAsync return "false" future if no requests added
+- Simplify Result generics
+- Add Bytes#copyOfRange function and some additional docs
+- [**breaking**] Simplify and improve ergonomics of `LogFilter` (#92)
+- [**breaking**] Add RpcClientConfig for configuring JsonRpcClient implementations (#91)
+- [**breaking**] Generify `AbiType` (#104)
+
+### Miscellaneous Tasks
+
+- Fix Middleware code example in docs
+
+### Performance
+
+- 40% reduced allocation rate when decoding BigInteger/String types
+
+### Refactor
+
+- Split Tracer into two interfaces for improved API without the need for throwing exceptions in Mux/Struct tracers
+- [**breaking**] Treat failed transaction as successful inclusion result in `PendingInclusion` (#99)
+
 ## [0.4.0] - 2024-02-23
 
 ### Bug Fixes
