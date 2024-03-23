@@ -50,6 +50,7 @@ Sections:
 ### Miscellaneous Tasks
 
 - Fix Middleware code example in docs
+- Simplify applying of abigen plugin in consuming projects by releasing it as a fat jar
 
 ### Performance
 

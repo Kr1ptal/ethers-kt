@@ -11,7 +11,7 @@ okhttp3 = "4.12.0"
 slf4j = "2.0.12"
 ktlint-tool = "1.2.1"
 web3j = "4.10.3"
-ethers = "0.3.0"
+ethers = "0.5.0"
 
 [libraries]
 kotlin-bom = { module = "org.jetbrains.kotlin:kotlin-bom", version.ref = "kotlin" }
@@ -84,3 +84,4 @@ kotest = ["kotest-junit5", "kotest-assertions", "kotest-property", "kotest-frame
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-kapt = { id = "org.jetbrains.kotlin.kapt", version.ref = "kotlin" }
+shadow = { id = "com.github.johnrengelman.shadow", version = "8.1.1" }

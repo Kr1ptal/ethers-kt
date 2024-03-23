@@ -3,6 +3,7 @@ plugins {
     `signing-conventions`
     `java-gradle-plugin`
     id("com.gradle.plugin-publish") version "1.2.1"
+    alias(libs.plugins.shadow)
 }
 
 dependencies {
@@ -10,6 +11,13 @@ dependencies {
     implementation(libs.kotlin.gradle)
 
     testImplementation(libs.bundles.kotest)
+}
+
+// the plugin is published as a fat jar, to automatically include all dependencies and avoid having
+// to manually declare additional repositories from where to fetch them in settings.gradle.kts
+tasks.shadowJar {
+    archiveClassifier.set("")
+    mergeServiceFiles()
 }
 
 gradlePlugin {
