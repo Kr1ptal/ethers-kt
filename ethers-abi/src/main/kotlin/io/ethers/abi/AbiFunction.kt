@@ -4,8 +4,8 @@ import io.ethers.core.types.Bytes
 
 data class AbiFunction(
     val name: String,
-    val inputs: List<AbiType>,
-    val outputs: List<AbiType>,
+    val inputs: List<AbiType<*>>,
+    val outputs: List<AbiType<*>>,
 ) {
     val selector = Bytes(AbiType.computeSignatureHash(name, inputs).copyOfRange(0, 4))
 

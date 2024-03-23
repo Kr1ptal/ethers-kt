@@ -8,6 +8,7 @@ import com.squareup.kotlinpoet.ParameterizedTypeName.Companion.parameterizedBy
 import com.squareup.kotlinpoet.PropertySpec
 import com.squareup.kotlinpoet.TypeName
 import com.squareup.kotlinpoet.TypeSpec
+import com.squareup.kotlinpoet.WildcardTypeName
 import com.squareup.kotlinpoet.asClassName
 import io.ethers.abi.AbiType
 import io.ethers.abi.ContractStruct
@@ -19,13 +20,13 @@ sealed interface AbiTypeParameter {
     val name: String
     val apiType: TypeName
 
-    val abiType: AbiType
+    val abiType: AbiType<*>
     val abiTypeInitializer: String
     val indexed: Boolean
 
     data class Value(
         override val name: String,
-        override val abiType: AbiType,
+        override val abiType: AbiType<*>,
         override val indexed: Boolean,
     ) : AbiTypeParameter {
         override val apiType: TypeName = abiType.classType.kotlin.asClassName()
@@ -33,7 +34,7 @@ sealed interface AbiTypeParameter {
 
         init {
             when (abiType) {
-                is AbiType.FixedArray, is AbiType.Array, is AbiType.Tuple -> {
+                is AbiType.FixedArray<*>, is AbiType.Array<*>, is AbiType.Tuple -> {
                     throw IllegalArgumentException("AbiType.${javaClass.simpleName} is not a value type")
                 }
 
@@ -60,7 +61,7 @@ sealed interface AbiTypeParameter {
         override val apiType: TypeName = className
 
         // this can be raw Tuple, the correct one is created when generating the initializer
-        override val abiType: AbiType.Tuple = AbiType.Tuple.raw(fields.map { it.abiType })
+        override val abiType: AbiType.Tuple<*> = AbiType.Tuple.raw(fields.map { it.abiType })
         override val abiTypeInitializer: String
 
         init {
@@ -98,7 +99,7 @@ sealed interface AbiTypeParameter {
                     FunSpec.builder("fromTuple")
                         .addAnnotation(JvmStatic::class)
                         .addModifiers(KModifier.OVERRIDE)
-                        .addParameter("data", Array::class.parameterizedBy(Any::class))
+                        .addParameter("data", Array::class.asClassName().parameterizedBy(WildcardTypeName.producerOf(Any::class)))
                         .returns(className)
                         .addStatement(
                             fromTupleReader.toString(),
@@ -116,7 +117,7 @@ sealed interface AbiTypeParameter {
 
     data class Collection(
         override val name: String,
-        override val abiType: AbiType,
+        override val abiType: AbiType<*>,
         val element: AbiTypeParameter,
         override val indexed: Boolean,
     ) : AbiTypeParameter {
@@ -124,14 +125,14 @@ sealed interface AbiTypeParameter {
         override val abiTypeInitializer: String
 
         init {
-            if (abiType !is AbiType.Array && abiType !is AbiType.FixedArray) {
+            if (abiType !is AbiType.Array<*> && abiType !is AbiType.FixedArray<*>) {
                 throw IllegalArgumentException("AbiType.${javaClass.simpleName} is not a collection type")
             }
 
             val simpleName = abiType::class.java.simpleName
             this.abiTypeInitializer = "$ABI_TYPE_SIMPLE_NAME." + when (abiType) {
-                is AbiType.Array -> "$simpleName(${element.abiTypeInitializer})"
-                is AbiType.FixedArray -> "$simpleName(${abiType.length}, ${element.abiTypeInitializer})"
+                is AbiType.Array<*> -> "$simpleName(${element.abiTypeInitializer})"
+                is AbiType.FixedArray<*> -> "$simpleName(${abiType.length}, ${element.abiTypeInitializer})"
                 else -> throw IllegalArgumentException("Unsupported AbiType: $abiType")
             }
         }
@@ -149,17 +150,17 @@ sealed interface AbiTypeParameter {
     }
 
     companion object {
-        fun fromAbiType(abiType: AbiType, name: String, indexed: Boolean): AbiTypeParameter {
+        fun fromAbiType(abiType: AbiType<*>, name: String, indexed: Boolean): AbiTypeParameter {
             return when (abiType) {
-                is AbiType.Tuple -> throw IllegalArgumentException("Tuple must be handled manually because we need its generated class name")
-                is AbiType.Array -> Collection(
+                is AbiType.Tuple<*> -> throw IllegalArgumentException("Tuple must be handled manually because we need its generated class name")
+                is AbiType.Array<*> -> Collection(
                     name,
                     abiType,
                     fromAbiType(abiType.type, name, false),
                     indexed,
                 )
 
-                is AbiType.FixedArray -> Collection(
+                is AbiType.FixedArray<*> -> Collection(
                     name,
                     abiType,
                     fromAbiType(abiType.type, name, false),

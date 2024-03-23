@@ -16,10 +16,10 @@ object AbiCodec {
      * - `deploy bytecode`
      * */
     @JvmStatic
-    fun encodeWithPrefix(
+    fun <T : Any> encodeWithPrefix(
         prefix: Bytes,
-        types: List<AbiType>,
-        data: Array<out Any>,
+        types: List<AbiType<out T>>,
+        data: Array<out T>,
     ): ByteArray {
         if (types.isEmpty()) {
             return prefix.asByteArray()
@@ -29,9 +29,29 @@ object AbiCodec {
             throw IllegalArgumentException("Expected ${types.size} arguments, got ${data.size}")
         }
 
-        withHeadTailLengths(types, data as Array<Any>) { head, tail ->
+        withHeadTailLengths(types, data) { head, tail ->
             val ret = ByteBuffer.allocate(prefix.size + head + tail)
             ret.put(prefix.asByteArray())
+            encodeTokensHeadTail(ret, types, data, head)
+            return ret.array()
+        }
+    }
+
+    /**
+     * Encode [data] as [types].
+     * */
+    @JvmStatic
+    fun <T : Any> encode(types: List<AbiType<out T>>, data: Array<out T>): ByteArray {
+        if (types.isEmpty()) {
+            throw IllegalArgumentException("Cannot encode empty tokens")
+        }
+
+        if (types.size != data.size) {
+            throw IllegalArgumentException("Expected ${types.size} arguments, got ${data.size}")
+        }
+
+        withHeadTailLengths(types, data) { head, tail ->
+            val ret = ByteBuffer.allocate(head + tail)
             encodeTokensHeadTail(ret, types, data, head)
             return ret.array()
         }
@@ -41,7 +61,7 @@ object AbiCodec {
      * Encode [data] as a single [type].
      * */
     @JvmStatic
-    fun encode(type: AbiType, data: Any): ByteArray {
+    fun <T : Any> encode(type: AbiType<T>, data: T): ByteArray {
         val head = getTokenHeadLength(type, data)
         val tail = getTokenTailLength(type, data)
 
@@ -53,32 +73,12 @@ object AbiCodec {
     }
 
     /**
-     * Encode [data] as [types].
-     * */
-    @JvmStatic
-    fun encode(types: List<AbiType>, data: Array<out Any>): ByteArray {
-        if (types.isEmpty()) {
-            throw IllegalArgumentException("Cannot encode empty tokens")
-        }
-
-        if (types.size != data.size) {
-            throw IllegalArgumentException("Expected ${types.size} arguments, got ${data.size}")
-        }
-
-        withHeadTailLengths(types, data as Array<Any>) { head, tail ->
-            val ret = ByteBuffer.allocate(head + tail)
-            encodeTokensHeadTail(ret, types, data, head)
-            return ret.array()
-        }
-    }
-
-    /**
      * Decode [data] as [types], skipping [prefixSize] bytes. Prefix is usually one of:
      * - `method selector`
      * - `deploy bytecode`
      * */
     @JvmStatic
-    fun decodeWithPrefix(prefixSize: Int, types: List<AbiType>, data: ByteArray): Array<Any> {
+    fun <T : Any> decodeWithPrefix(prefixSize: Int, types: List<AbiType<out T>>, data: ByteArray): Array<T> {
         if (data.size < prefixSize) {
             throw IllegalArgumentException("Data is too short: ${data.size}")
         }
@@ -92,32 +92,19 @@ object AbiCodec {
         }
 
         if (types.isEmpty()) {
-            return emptyArray()
+            @Suppress("UNCHECKED_CAST")
+            return emptyArray<Any>() as Array<T>
         }
 
-        val buff = ByteBuffer.wrap(data).position(prefixSize)
-        return decodeTokens(types, buff)
-    }
-
-    /**
-     * Decode [data] as a single [type].
-     * */
-    @JvmStatic
-    fun decode(type: AbiType, data: ByteArray): Any {
-        // if we don't have at least one word, throw
-        if (data.size < WORD_SIZE_BYTES) {
-            throw IllegalArgumentException("Cannot decode empty data: ${FastHex.encodeWithoutPrefix(data)}")
-        }
-
-        val buff = ByteBuffer.wrap(data)
-        return decodeToken(type, buff, 0)
+        @Suppress("UNCHECKED_CAST")
+        return decodeTokens(types, ByteBuffer.wrap(data).position(prefixSize)) as Array<T>
     }
 
     /**
      * Decode [data] as [types].
      * */
     @JvmStatic
-    fun decode(types: List<AbiType>, data: ByteArray): Array<Any> {
+    fun <T : Any> decode(types: List<AbiType<out T>>, data: ByteArray): Array<T> {
         if (types.isEmpty()) {
             throw IllegalArgumentException("Cannot decode empty tokens")
         }
@@ -126,11 +113,25 @@ object AbiCodec {
             throw IllegalArgumentException("Cannot decode empty data: ${FastHex.encodeWithoutPrefix(data)}")
         }
 
-        val buff = ByteBuffer.wrap(data)
-        return decodeTokens(types, buff)
+        @Suppress("UNCHECKED_CAST")
+        return decodeTokens(types, ByteBuffer.wrap(data)) as Array<T>
     }
 
-    private fun encodeTokensHeadTail(buff: ByteBuffer, types: List<AbiType>, data: Array<Any>, headLength: Int) {
+    /**
+     * Decode [data] as a single [type].
+     * */
+    @JvmStatic
+    fun <T : Any> decode(type: AbiType<T>, data: ByteArray): T {
+        // if we don't have at least one word, throw
+        if (data.size < WORD_SIZE_BYTES) {
+            throw IllegalArgumentException("Cannot decode empty data: ${FastHex.encodeWithoutPrefix(data)}")
+        }
+
+        @Suppress("UNCHECKED_CAST")
+        return decodeToken(type, ByteBuffer.wrap(data), 0) as T
+    }
+
+    private fun encodeTokensHeadTail(buff: ByteBuffer, types: List<AbiType<*>>, data: Array<out Any>, headLength: Int) {
         var headOffset = headLength
         for (i in types.indices) {
             encodeTokenHead(buff, types[i], data[i], headOffset)
@@ -142,7 +143,7 @@ object AbiCodec {
         }
     }
 
-    private fun encodeTokensHeadTail(buff: ByteBuffer, type: AbiType, data: Array<Any>, headLength: Int) {
+    private fun encodeTokensHeadTail(buff: ByteBuffer, type: AbiType<*>, data: Array<out Any>, headLength: Int) {
         var headOffset = headLength
         for (i in data.indices) {
             encodeTokenHead(buff, type, data[i], headOffset)
@@ -154,7 +155,7 @@ object AbiCodec {
         }
     }
 
-    private fun encodeTokenHead(buff: ByteBuffer, type: AbiType, data: Any, headOffset: Int) {
+    private fun encodeTokenHead(buff: ByteBuffer, type: AbiType<*>, data: Any, headOffset: Int) {
         when (type) {
             // head-only, right-padded
             AbiType.Address -> {
@@ -236,13 +237,13 @@ object AbiCodec {
             }
 
             // head-only, bytes/string left-padded
-            AbiType.Bytes, AbiType.String, is AbiType.Array -> {
+            AbiType.Bytes, AbiType.String, is AbiType.Array<*> -> {
                 buff.position(buff.position() + 28)
                 buff.putInt(headOffset)
             }
 
             // tail-only if dynamic, else all elements are encoded as head
-            is AbiType.FixedArray -> {
+            is AbiType.FixedArray<*> -> {
                 if (type.isDynamic) {
                     buff.position(buff.position() + 28)
                     buff.putInt(headOffset)
@@ -259,7 +260,7 @@ object AbiCodec {
                 }
             }
 
-            is AbiType.Tuple -> {
+            is AbiType.Tuple<*> -> {
                 if (type.isDynamic) {
                     buff.position(buff.position() + 28)
                     buff.putInt(headOffset)
@@ -278,7 +279,7 @@ object AbiCodec {
         }
     }
 
-    private fun encodeTokenTail(buff: ByteBuffer, type: AbiType, data: Any) {
+    private fun encodeTokenTail(buff: ByteBuffer, type: AbiType<*>, data: Any) {
         when (type) {
             // head-only
             AbiType.Address, AbiType.Bool, is AbiType.Int, is AbiType.UInt, is AbiType.FixedBytes -> {}
@@ -320,7 +321,8 @@ object AbiCodec {
                 }
             }
 
-            is AbiType.Array -> {
+            is AbiType.Array<*> -> {
+                @Suppress("UNCHECKED_CAST")
                 val value = data as Array<Any>
                 buff.position(buff.position() + 28)
                 buff.putInt(value.size)
@@ -336,10 +338,12 @@ object AbiCodec {
             }
 
             // tail-only if dynamic, else all elements are encoded as head
-            is AbiType.FixedArray -> {
+            is AbiType.FixedArray<*> -> {
                 if (!type.isDynamic) {
                     return
                 }
+
+                @Suppress("UNCHECKED_CAST")
                 val value = data as Array<Any>
                 if (value.size != type.length) {
                     throw IllegalArgumentException("Provided value has length ${value.size}, expected ${type.length}")
@@ -352,7 +356,7 @@ object AbiCodec {
                 encodeTokensHeadTail(buff, type.type, value, headLength)
             }
 
-            is AbiType.Tuple -> {
+            is AbiType.Tuple<*> -> {
                 if (!type.isDynamic) {
                     return
                 }
@@ -369,7 +373,11 @@ object AbiCodec {
         }
     }
 
-    private inline fun <R> withHeadTailLengths(types: List<AbiType>, data: Array<Any>, consumer: (Int, Int) -> R): R {
+    private inline fun <R> withHeadTailLengths(
+        types: List<AbiType<*>>,
+        data: Array<out Any>,
+        consumer: (Int, Int) -> R,
+    ): R {
         var head = 0
         var tail = 0
         for (i in types.indices) {
@@ -379,7 +387,7 @@ object AbiCodec {
         return consumer(head, tail)
     }
 
-    private fun getTokenHeadLength(type: AbiType, data: Any): Int {
+    private fun getTokenHeadLength(type: AbiType<*>, data: Any): Int {
         return when (type) {
             // head-only
             AbiType.Address -> WORD_SIZE_BYTES
@@ -390,10 +398,10 @@ object AbiCodec {
             // offset-only
             AbiType.Bytes -> WORD_SIZE_BYTES
             AbiType.String -> WORD_SIZE_BYTES
-            is AbiType.Array -> WORD_SIZE_BYTES
+            is AbiType.Array<*> -> WORD_SIZE_BYTES
 
             // offset-only if dynamic, else all elements are encoded as head
-            is AbiType.FixedArray -> {
+            is AbiType.FixedArray<*> -> {
                 if (type.isDynamic) {
                     return WORD_SIZE_BYTES
                 }
@@ -423,7 +431,7 @@ object AbiCodec {
         }
     }
 
-    private fun getTokenTailLength(type: AbiType, data: Any): Int {
+    private fun getTokenTailLength(type: AbiType<*>, data: Any): Int {
         return when (type) {
             AbiType.Address -> 0
             AbiType.Bool -> 0
@@ -442,7 +450,7 @@ object AbiCodec {
                 WORD_SIZE_BYTES + (numOfWords * WORD_SIZE_BYTES)
             }
 
-            is AbiType.Array -> {
+            is AbiType.Array<*> -> {
                 var length = 0
                 val value = data as Array<*>
                 for (i in value.indices) {
@@ -454,7 +462,7 @@ object AbiCodec {
                 WORD_SIZE_BYTES + length
             }
 
-            is AbiType.FixedArray -> {
+            is AbiType.FixedArray<*> -> {
                 if (!type.isDynamic) {
                     return 0
                 }
@@ -469,7 +477,7 @@ object AbiCodec {
                 length
             }
 
-            is AbiType.Tuple -> {
+            is AbiType.Tuple<*> -> {
                 if (!type.isDynamic) {
                     return 0
                 }
@@ -486,18 +494,34 @@ object AbiCodec {
         }
     }
 
-    private fun decodeTokens(types: List<AbiType>, buff: ByteBuffer): Array<Any> {
+    private fun decodeTokens(types: List<AbiType<*>>, buff: ByteBuffer): Array<Any> {
+        // adds ~7% overhead
+        val type = types[0]
+        var ofSingleType = true
+        for (i in types.indices) {
+            if (types[i].classType != type.classType) {
+                ofSingleType = false
+                break
+            }
+        }
+
+        // if all elements are decoded as the same type, we can use a typed array
+        val ret = if (ofSingleType) {
+            getTypedArrayForElementType(type, types.size)
+        } else {
+            @Suppress("UNCHECKED_CAST")
+            arrayOfNulls<Any>(types.size) as Array<Any>
+        }
+
         // to account for 4byte selector
         val offset = buff.position()
-
-        val ret = arrayOfNulls<Any>(types.size) as Array<Any>
         for (i in types.indices) {
             ret[i] = decodeToken(types[i], buff, offset)
         }
         return ret
     }
 
-    private fun decodeToken(type: AbiType, buff: ByteBuffer, currOffset: Int): Any {
+    private fun decodeToken(type: AbiType<*>, buff: ByteBuffer, currOffset: Int): Any {
         when (type) {
             AbiType.Address -> {
                 val arr = ByteArray(20)
@@ -548,7 +572,7 @@ object AbiCodec {
                 return ret
             }
 
-            is AbiType.Array -> {
+            is AbiType.Array<*> -> {
                 var offset = currOffset + buff.skip(28).getInt()
                 val endPosition = buff.position()
 
@@ -564,7 +588,7 @@ object AbiCodec {
                 return arr
             }
 
-            is AbiType.FixedArray -> {
+            is AbiType.FixedArray<*> -> {
                 val arr: Array<Any> = getTypedArrayForElementType(type.type, type.length)
 
                 if (type.isDynamic) {
@@ -587,6 +611,7 @@ object AbiCodec {
             }
 
             is AbiType.Tuple -> {
+                @Suppress("UNCHECKED_CAST")
                 val arr = arrayOfNulls<Any>(type.types.size) as Array<Any>
 
                 if (type.isDynamic) {
@@ -611,7 +636,7 @@ object AbiCodec {
     }
 
     @Suppress("UNCHECKED_CAST")
-    private fun getTypedArrayForElementType(elementType: AbiType, size: Int): Array<Any> {
+    private fun getTypedArrayForElementType(elementType: AbiType<*>, size: Int): Array<Any> {
         // down-cast all arrays - the type of object will remain the same
         return when (elementType) {
             is AbiType.Address -> arrayOfNulls<Address>(size) as Array<Any>
@@ -620,8 +645,8 @@ object AbiCodec {
             is AbiType.Int, is AbiType.UInt -> arrayOfNulls<BigInteger>(size) as Array<Any>
             // TODO This returns an array of boxed values. We need to manually handle primitive types
             is AbiType.Bool -> arrayOfNulls<Boolean>(size) as Array<Any>
-            is AbiType.FixedArray -> ArrayReflect.newInstance(elementType.classType, size) as Array<Any>
-            is AbiType.Array -> ArrayReflect.newInstance(elementType.classType, size) as Array<Any>
+            is AbiType.FixedArray<*> -> ArrayReflect.newInstance(elementType.classType, size) as Array<Any>
+            is AbiType.Array<*> -> ArrayReflect.newInstance(elementType.classType, size) as Array<Any>
             is AbiType.Tuple -> ArrayReflect.newInstance(elementType.classType, size) as Array<Any>
         }
     }
@@ -640,7 +665,7 @@ object AbiCodec {
      * See: [docs](https://docs.soliditylang.org/en/latest/abi-spec.html#non-standard-packed-mode)
      * */
     @JvmStatic
-    fun encodePacked(types: List<AbiType>, data: Array<out Any>): Bytes {
+    fun <T : Any> encodePacked(types: List<AbiType<out T>>, data: Array<out T>): Bytes {
         var encodedSize = 0
         for (i in types.indices) {
             encodedSize += packEncodedSize(types[i], data[i], false)
@@ -653,7 +678,7 @@ object AbiCodec {
         return Bytes(ret.array())
     }
 
-    private fun packEncodedSize(type: AbiType, data: Any, inArray: Boolean): Int {
+    private fun packEncodedSize(type: AbiType<*>, data: Any, inArray: Boolean): Int {
         return when (type) {
             AbiType.Address -> if (inArray) WORD_SIZE_BYTES else 20
             AbiType.Bool -> if (inArray) WORD_SIZE_BYTES else 1
@@ -662,8 +687,8 @@ object AbiCodec {
             is AbiType.UInt -> if (inArray) WORD_SIZE_BYTES else type.bitSize / 8
             AbiType.Bytes -> (data as Bytes).size
             AbiType.String -> Utf8.encodedLength(data as String)
-            is AbiType.Array -> {
-                if (type.type.isDynamic || type.type is AbiType.Array) {
+            is AbiType.Array<*> -> {
+                if (type.type.isDynamic || type.type is AbiType.Array<*>) {
                     throw IllegalArgumentException("Cannot encode dynamic or nested arrays in packed format")
                 }
 
@@ -676,8 +701,8 @@ object AbiCodec {
                 size
             }
 
-            is AbiType.FixedArray -> {
-                if (type.type.isDynamic || type.type is AbiType.Array) {
+            is AbiType.FixedArray<*> -> {
+                if (type.type.isDynamic || type.type is AbiType.Array<*>) {
                     throw IllegalArgumentException("Cannot encode dynamic or nested arrays in packed format")
                 }
 
@@ -694,7 +719,7 @@ object AbiCodec {
         }
     }
 
-    private fun encodePacked(buff: ByteBuffer, type: AbiType, data: Any, inArray: Boolean) {
+    private fun encodePacked(buff: ByteBuffer, type: AbiType<*>, data: Any, inArray: Boolean) {
         when (type) {
             AbiType.Address -> {
                 if (inArray) {
@@ -787,14 +812,14 @@ object AbiCodec {
 
             AbiType.Bytes -> buff.put((data as Bytes).asByteArray())
             AbiType.String -> buff.put((data as String).toByteArray(Charsets.UTF_8))
-            is AbiType.Array -> {
+            is AbiType.Array<*> -> {
                 val values = data as Array<*>
                 for (i in values.indices) {
                     encodePacked(buff, type.type, values[i]!!, true)
                 }
             }
 
-            is AbiType.FixedArray -> {
+            is AbiType.FixedArray<*> -> {
                 val values = data as Array<*>
                 if (values.size != type.length) {
                     throw IllegalArgumentException("Provided value has length ${values.size}, expected ${type.length}")
@@ -810,7 +835,7 @@ object AbiCodec {
     }
 }
 
-private typealias ArrayReflect = java.lang.reflect.Array
+internal typealias ArrayReflect = java.lang.reflect.Array
 
 private fun ByteBuffer.skip(n: Int): ByteBuffer {
     if (n <= 0) {

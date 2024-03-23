@@ -11,7 +11,7 @@ import kotlin.reflect.full.companionObject
  *
  * See: [docs](https://docs.soliditylang.org/en/latest/abi-spec.html#types)
  * */
-sealed interface AbiType {
+sealed interface AbiType<T : Any> {
     /**
      * Actual abi type name.
      * */
@@ -20,22 +20,22 @@ sealed interface AbiType {
     /**
      * Java class type of this abi type.
      * */
-    val classType: Class<*>
+    val classType: Class<T>
 
     /**
      * Whether this type is dynamic or has a fixed size when encoded.
      * */
     val isDynamic: Boolean
 
-    data object Address : AbiType {
+    data object Address : AbiType<io.ethers.core.types.Address> {
         override val abiType: kotlin.String = "address"
-        override val classType: Class<*> = io.ethers.core.types.Address::class.java
+        override val classType = io.ethers.core.types.Address::class.java
         override val isDynamic: Boolean = false
     }
 
-    data class FixedBytes(val length: kotlin.Int) : AbiType {
+    data class FixedBytes(val length: kotlin.Int) : AbiType<io.ethers.core.types.Bytes> {
         override val abiType: kotlin.String = "bytes$length"
-        override val classType: Class<*> = io.ethers.core.types.Bytes::class.java
+        override val classType = io.ethers.core.types.Bytes::class.java
         override val isDynamic: Boolean = false
 
         init {
@@ -45,15 +45,15 @@ sealed interface AbiType {
         }
     }
 
-    data object Bytes : AbiType {
+    data object Bytes : AbiType<io.ethers.core.types.Bytes> {
         override val abiType: kotlin.String = "bytes"
-        override val classType: Class<*> = io.ethers.core.types.Bytes::class.java
+        override val classType = io.ethers.core.types.Bytes::class.java
         override val isDynamic: Boolean = true
     }
 
-    data class Int(val bitSize: kotlin.Int) : AbiType {
+    data class Int(val bitSize: kotlin.Int) : AbiType<BigInteger> {
         override val abiType: kotlin.String = "int$bitSize"
-        override val classType: Class<*> = BigInteger::class.java
+        override val classType = BigInteger::class.java
         override val isDynamic: Boolean = false
 
         init {
@@ -63,9 +63,9 @@ sealed interface AbiType {
         }
     }
 
-    data class UInt(val bitSize: kotlin.Int) : AbiType {
+    data class UInt(val bitSize: kotlin.Int) : AbiType<BigInteger> {
         override val abiType: kotlin.String = "uint$bitSize"
-        override val classType: Class<*> = BigInteger::class.java
+        override val classType = BigInteger::class.java
         override val isDynamic: Boolean = false
 
         init {
@@ -75,35 +75,37 @@ sealed interface AbiType {
         }
     }
 
-    data object Bool : AbiType {
+    data object Bool : AbiType<Boolean> {
         override val abiType: kotlin.String = "bool"
-        override val classType: Class<*> = Boolean::class.java
+        override val classType = Boolean::class.java
         override val isDynamic: Boolean = false
     }
 
-    data object String : AbiType {
+    data object String : AbiType<kotlin.String> {
         override val abiType: kotlin.String = "string"
-        override val classType: Class<*> = kotlin.String::class.java
+        override val classType = kotlin.String::class.java
         override val isDynamic: Boolean = true
     }
 
-    data class FixedArray(val length: kotlin.Int, val type: AbiType) : AbiType {
+    data class FixedArray<T : Any>(val length: kotlin.Int, val type: AbiType<T>) : AbiType<kotlin.Array<T>> {
         override val abiType: kotlin.String = "${type.abiType}[$length]"
-        override val classType: Class<*> = java.lang.reflect.Array.newInstance(type.classType, 0)::class.java
+        @Suppress("UNCHECKED_CAST")
+        override val classType = ArrayReflect.newInstance(type.classType, 0)::class.java as Class<kotlin.Array<T>>
         override val isDynamic: Boolean = type.isDynamic
     }
 
-    data class Array(val type: AbiType) : AbiType {
+    data class Array<T : Any>(val type: AbiType<T>) : AbiType<kotlin.Array<T>> {
         override val abiType: kotlin.String = "${type.abiType}[]"
-        override val classType: Class<*> = java.lang.reflect.Array.newInstance(type.classType, 0)::class.java
+        @Suppress("UNCHECKED_CAST")
+        override val classType = ArrayReflect.newInstance(type.classType, 0)::class.java as Class<kotlin.Array<T>>
         override val isDynamic: Boolean = true
     }
 
-    class Tuple private constructor(
-        override val classType: Class<*>,
+    class Tuple<T : Any> private constructor(
+        override val classType: Class<T>,
         val factory: Function<kotlin.Array<Any>, *>,
-        val types: List<AbiType>,
-    ) : AbiType {
+        val types: List<AbiType<*>>,
+    ) : AbiType<T> {
         override val abiType: kotlin.String = run {
             val builder = StringBuilder("(")
             for (i in types.indices) {
@@ -130,7 +132,7 @@ sealed interface AbiType {
             if (this === other) return true
             if (javaClass != other?.javaClass) return false
 
-            other as Tuple
+            other as Tuple<*>
 
             if (classType != other.classType) return false
             if (types != other.types) return false
@@ -157,8 +159,8 @@ sealed interface AbiType {
             @JvmSynthetic
             fun <T : ContractStruct> struct(
                 classType: KClass<T>,
-                vararg fieldTypes: AbiType,
-            ): Tuple {
+                vararg fieldTypes: AbiType<*>,
+            ): Tuple<T> {
                 val companion = classType.companionObject?.objectInstance
                     ?: throw IllegalArgumentException("Class must have a companion object")
 
@@ -178,8 +180,8 @@ sealed interface AbiType {
             fun <T : ContractStruct> struct(
                 classType: Class<T>,
                 factory: Function<kotlin.Array<Any>, T>,
-                vararg fieldTypes: AbiType,
-            ): Tuple {
+                vararg fieldTypes: AbiType<*>,
+            ): Tuple<T> {
                 return struct(classType, factory, fieldTypes.toList())
             }
 
@@ -190,8 +192,8 @@ sealed interface AbiType {
             fun <T : ContractStruct> struct(
                 classType: Class<T>,
                 factory: Function<kotlin.Array<Any>, T>,
-                fieldTypes: List<AbiType>,
-            ): Tuple {
+                fieldTypes: List<AbiType<*>>,
+            ): Tuple<T> {
                 return Tuple(classType, factory, fieldTypes)
             }
 
@@ -199,13 +201,13 @@ sealed interface AbiType {
              * Create a raw [Tuple] type from [types], represented as an array of elements.
              * */
             @JvmStatic
-            fun raw(vararg types: AbiType): Tuple = raw(types.toList())
+            fun raw(vararg types: AbiType<*>): Tuple<out kotlin.Array<*>> = raw(types.toList())
 
             /**
              * Create a raw [Tuple] type from [types], represented as an array of elements.
              * */
             @JvmStatic
-            fun raw(types: List<AbiType>): Tuple = Tuple(CLASS_TYPE_TUPLE, Function.identity(), types)
+            fun raw(types: List<AbiType<*>>): Tuple<out kotlin.Array<*>> = Tuple(CLASS_TYPE_TUPLE, Function.identity(), types)
         }
     }
 
@@ -216,7 +218,7 @@ sealed interface AbiType {
          * Construct [canonicalSignature] from name and types, and compute [Hashing.keccak256] hash of it.
          * */
         @JvmStatic
-        fun computeSignatureHash(name: kotlin.String, types: List<AbiType>): ByteArray {
+        fun computeSignatureHash(name: kotlin.String, types: List<AbiType<*>>): ByteArray {
             return Hashing.keccak256(canonicalSignature(name, types).toByteArray(Charsets.UTF_8))
         }
 
@@ -224,7 +226,7 @@ sealed interface AbiType {
          * Construct canonical signature from [name] and [types].
          * */
         @JvmStatic
-        fun canonicalSignature(name: kotlin.String, types: List<AbiType>): kotlin.String {
+        fun canonicalSignature(name: kotlin.String, types: List<AbiType<*>>): kotlin.String {
             return "$name(${types.joinToString(",") { it.abiType }})"
         }
 
@@ -232,7 +234,7 @@ sealed interface AbiType {
          * Parse [signature] into a single [AbiType]. Only raw [Tuple] is supported.
          * */
         @JvmStatic
-        fun parseType(signature: kotlin.String): AbiType {
+        fun parseType(signature: kotlin.String): AbiType<*> {
             val types = parseSignature(signature)
             if (types.size != 1) {
                 throw IllegalArgumentException("Expected a single type, got: $signature")
@@ -244,10 +246,10 @@ sealed interface AbiType {
          * Parse [signature] into a list of [AbiType]. Only raw [Tuple] is supported.
          * */
         @JvmStatic
-        fun parseSignature(signature: kotlin.String): List<AbiType> {
+        fun parseSignature(signature: kotlin.String): List<AbiType<*>> {
             @Suppress("NAME_SHADOWING")
             var signature = signature.replace(" ", "")
-            val result = ArrayList<AbiType>()
+            val result = ArrayList<AbiType<*>>()
             var rawType = getNextType(signature)
             while (rawType.isNotBlank()) {
                 val type = when (rawType) {

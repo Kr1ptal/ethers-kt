@@ -12,5 +12,5 @@ interface ContractStruct {
  * Struct factory, used to create a [ContractStruct] from a tuple.
  * */
 interface StructFactory<T : ContractStruct> {
-    fun fromTuple(data: Array<Any>): T
+    fun fromTuple(data: Array<out Any>): T
 }

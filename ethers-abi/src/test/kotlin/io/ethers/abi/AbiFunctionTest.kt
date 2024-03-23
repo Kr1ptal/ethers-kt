@@ -105,7 +105,7 @@ class AbiFunctionTest : FunSpec({
     private data class TestCase(
         val signature: String,
         val name: String,
-        val inputs: List<AbiType>?,
-        val outputs: List<AbiType>?,
+        val inputs: List<AbiType<*>>?,
+        val outputs: List<AbiType<*>>?,
     )
 }

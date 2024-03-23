@@ -40,6 +40,12 @@ import java.util.function.Function
 import javax.lang.model.SourceVersion
 import kotlin.reflect.full.memberProperties
 
+/**
+ * IMPORTANT: When modifying the outputs of this builder (e.g. adding a new method or changing method signatures), make
+ * sure to also update the `EthersAbigenTask#outputVersion` property to a new value. This will force Gradle to
+ * invalidate the abigen task output and re-run it, so the generated code is up-to-date and compatible with the latest
+ * version.
+ * */
 class AbiContractBuilder(
     private val contractName: String,
     private val packageName: String,
@@ -363,7 +369,12 @@ class AbiContractBuilder(
         val decodeFunction = FunSpec.builder("decode")
             .addAnnotation(JvmStatic::class)
             .addModifiers(KModifier.OVERRIDE)
-            .addParameter(ParameterSpec.builder("data", Array::class.parameterizedBy(Any::class)).build())
+            .addParameter(
+                ParameterSpec.builder(
+                    "data",
+                    Array::class.asClassName().parameterizedBy(WildcardTypeName.producerOf(Any::class)),
+                ).build(),
+            )
             .returns(errorClassName)
 
         return CodeFactory.createClass(
@@ -456,7 +467,12 @@ class AbiContractBuilder(
                 .addAnnotation(JvmStatic::class)
                 .addModifiers(KModifier.OVERRIDE)
                 .addParameter(ParameterSpec.builder("log", Log::class).build())
-                .addParameter(ParameterSpec.builder("data", Array::class.parameterizedBy(Any::class)).build())
+                .addParameter(
+                    ParameterSpec.builder(
+                        "data",
+                        Array::class.asClassName().parameterizedBy(WildcardTypeName.producerOf(Any::class)),
+                    ).build(),
+                )
                 .returns(eventClassName)
                 .addStatement(
                     initializer.toString(),
@@ -629,7 +645,7 @@ class AbiContractBuilder(
                         false,
                     ).toUniqueStruct()
 
-                    var abiType: AbiType = struct.abiType
+                    var abiType: AbiType<*> = struct.abiType
                     var ret: AbiTypeParameter = struct
 
                     // if tuple has a suffix, it's an array

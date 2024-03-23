@@ -54,9 +54,16 @@ abstract class EthersAbigenTask @Inject constructor(private val executor: Worker
         project.layout.buildDirectory.dir(outputDir),
     )
 
+    /**
+     * Version indicating the output format. This is useful when the abigen builder changes its output format, and
+     * causes the new version of the plugin to invalidate previous output automatically.
+     * */
+    @get:Input
+    internal val outputVersion: Property<String> = project.objects.property(String::class.java).convention("1")
+
     @TaskAction
     fun run() {
-        // Since the task action is being executed, it means that inputs of the task have been changed. In this case
+        // Since the task action is being executed, it means that inputs of the task have been changed. In this case,
         // first delete previous outputs if any exist. This prevents a case where user changes inputs without changing
         // "destinationDir" and does not run the "clean" task before the next build, and the old outputs are still
         // present. Gradle task will include both new and old task outputs in the new build cache. Now even if we

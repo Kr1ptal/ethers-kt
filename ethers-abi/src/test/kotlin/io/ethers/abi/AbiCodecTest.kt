@@ -473,7 +473,7 @@ class AbiCodecTest : FunSpec({
         test("positive BigInteger from hex") {
             Arb.bigInt(0, 256).checkAll {
                 val encodedByJava = it.toString(16).padStart(64, '0').hexToByteArray()
-                val decoded = AbiCodec.decode(listOf(AbiType.UInt(256)), encodedByJava)[0] as BigInteger
+                val decoded = AbiCodec.decode(listOf(AbiType.UInt(256)), encodedByJava)[0]
 
                 decoded shouldBeEqualComparingTo it
             }
@@ -483,7 +483,7 @@ class AbiCodecTest : FunSpec({
                 val num = it.negate()
                 val numTwosComplement = if (num.signum() == -1) num.add(BigInteger.ONE.shiftLeft(256)) else num
                 val encodedByJava = numTwosComplement.toString(16).padStart(64, '0').hexToByteArray()
-                val decoded = AbiCodec.decode(listOf(AbiType.Int(256)), encodedByJava)[0] as BigInteger
+                val decoded = AbiCodec.decode(listOf(AbiType.Int(256)), encodedByJava)[0]
 
                 decoded shouldBeEqualComparingTo num
             }
@@ -675,7 +675,7 @@ class AbiCodecTest : FunSpec({
             decoded shouldBe expected
         }
 
-        test("fixed and static bytes") {
+        test("dynamic and fixed bytes") {
             val function = AbiFunction.parseSignature("someName()(bytes,bytes32)")
 
             val dataHex = """
@@ -950,7 +950,7 @@ class AbiCodecTest : FunSpec({
         }
 
         @Suppress("ArrayInDataClass")
-        data class FailCase(val description: String, val signature: List<AbiType>, val params: Array<Any>)
+        data class FailCase(val description: String, val signature: List<AbiType<*>>, val params: Array<Any>)
 
         listOf(
             FailCase(
