@@ -347,9 +347,31 @@ interface EthApi {
     fun getMaxPriorityFeePerGas(): RpcRequest<BigInteger, RpcError>
 
     /**
+     * Get gas fee history for block range between [lastBlockName] and ([lastBlockName] - [blockCount] + 1).
+     */
+    fun getFeeHistory(blockCount: Long, lastBlockName: BlockId.Name) = getFeeHistory(blockCount, lastBlockName, emptyList())
+
+    /**
      * Get gas fee history for block range between [lastBlockNumber] and ([lastBlockNumber] - [blockCount] + 1).
      */
     fun getFeeHistory(blockCount: Long, lastBlockNumber: Long) = getFeeHistory(blockCount, lastBlockNumber, emptyList())
+
+    /**
+     * Get gas fee history for block range between [lastBlockNumber] and ([lastBlockNumber] - [blockCount] + 1).
+     */
+    fun getFeeHistory(blockCount: Long, lastBlockNumber: BlockId.Number) = getFeeHistory(blockCount, lastBlockNumber, emptyList())
+
+    /**
+     * Get gas fee history for block range between [lastBlockName] and ([lastBlockName] - [blockCount] + 1).
+     *
+     * @param [rewardPercentiles] a monotonically increasing list of percentile values to sample from each block's
+     * effective priority fees per gas in ascending order, weighted by gas used.
+     */
+    fun getFeeHistory(
+        blockCount: Long,
+        lastBlockName: BlockId.Name,
+        rewardPercentiles: List<BigInteger>,
+    ): RpcRequest<FeeHistory, RpcError>
 
     /**
      * Get gas fee history for block range between [lastBlockNumber] and ([lastBlockNumber] - [blockCount] + 1).
@@ -360,7 +382,19 @@ interface EthApi {
     fun getFeeHistory(
         blockCount: Long,
         lastBlockNumber: Long,
-        rewardPercentiles: List<BigInteger> = emptyList(),
+        rewardPercentiles: List<BigInteger>,
+    ): RpcRequest<FeeHistory, RpcError> = getFeeHistory(blockCount, BlockId.Number(lastBlockNumber), rewardPercentiles)
+
+    /**
+     * Get gas fee history for block range between [lastBlockNumber] and ([lastBlockNumber] - [blockCount] + 1).
+     *
+     * @param [rewardPercentiles] a monotonically increasing list of percentile values to sample from each block's
+     * effective priority fees per gas in ascending order, weighted by gas used.
+     */
+    fun getFeeHistory(
+        blockCount: Long,
+        lastBlockNumber: BlockId.Number,
+        rewardPercentiles: List<BigInteger>,
     ): RpcRequest<FeeHistory, RpcError>
 
     /**

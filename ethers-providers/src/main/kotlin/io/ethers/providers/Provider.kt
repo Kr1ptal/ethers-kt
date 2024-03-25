@@ -205,10 +205,19 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
 
     override fun getFeeHistory(
         blockCount: Long,
-        lastBlockNumber: Long,
+        lastBlockName: BlockId.Name,
         rewardPercentiles: List<BigInteger>,
     ): RpcRequest<FeeHistory, RpcError> {
-        val params = arrayOf(blockCount, FastHex.encodeWithPrefix(lastBlockNumber), rewardPercentiles)
+        val params = arrayOf(blockCount, lastBlockName.id, rewardPercentiles)
+        return RpcCall(client, "eth_feeHistory", params, FeeHistory::class.java)
+    }
+
+    override fun getFeeHistory(
+        blockCount: Long,
+        lastBlockNumber: BlockId.Number,
+        rewardPercentiles: List<BigInteger>,
+    ): RpcRequest<FeeHistory, RpcError> {
+        val params = arrayOf(blockCount, lastBlockNumber.id, rewardPercentiles)
         return RpcCall(client, "eth_feeHistory", params, FeeHistory::class.java)
     }
 
