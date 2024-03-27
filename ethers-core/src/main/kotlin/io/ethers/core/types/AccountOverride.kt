@@ -8,7 +8,11 @@ import io.ethers.core.FastHex
 import java.math.BigInteger
 
 @JsonSerialize(using = AccountOverrideSerializer::class)
-class AccountOverride {
+class AccountOverride() {
+    constructor(other: AccountOverride) : this() {
+        this.applyChanges(other)
+    }
+
     // make property setters unavailable from Java since we provide custom chained functions
     var nonce: Long = -1L
         @JvmSynthetic set
@@ -59,7 +63,7 @@ class AccountOverride {
     }
 
     /**
-     * Merge **this** with [other], returning a new instance with the merged changes.
+     * Return a new instance of [AccountOverride] with the merged changes from **this** and [other].
      * */
     fun mergeChanges(other: AccountOverride): AccountOverride {
         val ret = AccountOverride()
@@ -138,41 +142,6 @@ class AccountOverride {
         inline operator fun invoke(builder: AccountOverride.() -> Unit): AccountOverride {
             return AccountOverride().apply(builder)
         }
-
-        /**
-         * Merge changes from [other] on top of [state], returning a new instance with the merged changes.
-         * */
-        @JvmStatic
-        fun mergeChanges(
-            state: Map<Address, AccountOverride>,
-            other: Map<Address, AccountOverride>,
-        ): Map<Address, AccountOverride> {
-            val ret = HashMap(state)
-            for ((address, override) in other) {
-                val existing = ret[address]
-                if (existing == null) {
-                    ret[address] = override
-                } else {
-                    ret[address] = existing.mergeChanges(override)
-                }
-            }
-            return ret
-        }
-
-        /**
-         * Apply changes from [other] to [state].
-         * */
-        @JvmStatic
-        fun applyChanges(state: MutableMap<Address, AccountOverride>, other: Map<Address, AccountOverride>) {
-            for ((address, override) in other) {
-                val existing = state[address]
-                if (existing == null) {
-                    state[address] = override
-                } else {
-                    existing.applyChanges(override)
-                }
-            }
-        }
     }
 }
 
@@ -197,18 +166,4 @@ private class AccountOverrideSerializer : JsonSerializer<AccountOverride>() {
         }
         gen.writeEndObject()
     }
-}
-
-/**
- * Merge **this** with [other], returning a new instance with the merged changes.
- * */
-fun Map<Address, AccountOverride>.mergeChanges(other: Map<Address, AccountOverride>): Map<Address, AccountOverride> {
-    return AccountOverride.mergeChanges(this, other)
-}
-
-/**
- * Apply changes from [other] to **this** instance.
- * */
-fun MutableMap<Address, AccountOverride>.applyChanges(other: Map<Address, AccountOverride>) {
-    AccountOverride.applyChanges(this, other)
 }
