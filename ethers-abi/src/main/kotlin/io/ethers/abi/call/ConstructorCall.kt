@@ -6,12 +6,12 @@ import io.ethers.abi.error.DeployError
 import io.ethers.core.Result
 import io.ethers.core.failure
 import io.ethers.core.success
-import io.ethers.core.types.AccountOverride
 import io.ethers.core.types.Address
 import io.ethers.core.types.BlockId
 import io.ethers.core.types.BlockOverride
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
+import io.ethers.core.types.StateOverride
 import io.ethers.core.types.TransactionReceipt
 import io.ethers.core.types.tracers.PrestateTracer
 import io.ethers.core.types.tracers.TracerConfig
@@ -45,7 +45,7 @@ class ConstructorCall<T : AbiContract>(
 
     override fun doCall(
         blockId: BlockId,
-        stateOverride: Map<Address, AccountOverride>?,
+        stateOverride: StateOverride?,
         blockOverride: BlockOverride?,
     ): RpcRequest<CallDeploy<T>, ContractError> {
         val config = when {
@@ -101,7 +101,7 @@ class PayableConstructorCall<T : AbiContract>(
 
     override fun doCall(
         blockId: BlockId,
-        stateOverride: Map<Address, AccountOverride>?,
+        stateOverride: StateOverride?,
         blockOverride: BlockOverride?,
     ): RpcRequest<CallDeploy<T>, ContractError> {
         val config = when {
@@ -174,7 +174,7 @@ class PayableConstructorCall<T : AbiContract>(
  * */
 class CallDeploy<T : AbiContract>(
     val contract: T,
-    val stateOverrides: Map<Address, AccountOverride>,
+    val stateOverrides: StateOverride,
     val deployedBytecode: Bytes,
 ) {
     val address: Address
@@ -184,7 +184,7 @@ class CallDeploy<T : AbiContract>(
     operator fun component1(): T = contract
 
     @JvmSynthetic
-    operator fun component2(): Map<Address, AccountOverride> = stateOverrides
+    operator fun component2(): StateOverride = stateOverrides
 }
 
 /**

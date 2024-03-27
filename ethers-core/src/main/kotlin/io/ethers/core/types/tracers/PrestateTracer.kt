@@ -11,6 +11,7 @@ import io.ethers.core.types.AccountOverride
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
+import io.ethers.core.types.StateOverride
 import java.math.BigInteger
 
 /**
@@ -79,10 +80,10 @@ data class PrestateTracer(val diffMode: Boolean) : Tracer<PrestateTracer.Result>
         /**
          * Return the state diff as override, if [diffMode] is set to true. Otherwise, return empty map.
          * */
-        fun toStateOverride(): Map<Address, AccountOverride> {
+        fun toStateOverride(): StateOverride {
             // if not in diff mode, return empty map
             if (!diffMode) {
-                return emptyMap()
+                return StateOverride()
             }
 
             val ret = HashMap<Address, AccountOverride>(poststate.size)
@@ -142,7 +143,7 @@ data class PrestateTracer(val diffMode: Boolean) : Tracer<PrestateTracer.Result>
                 }
             }
 
-            return ret
+            return StateOverride.wrap(ret)
         }
     }
 

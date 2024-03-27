@@ -5,7 +5,6 @@ import io.ethers.abi.error.ContractRpcError
 import io.ethers.abi.error.RevertError
 import io.ethers.core.FastHex
 import io.ethers.core.types.AccessList
-import io.ethers.core.types.AccountOverride
 import io.ethers.core.types.Address
 import io.ethers.core.types.BlockId
 import io.ethers.core.types.BlockOverride
@@ -14,6 +13,7 @@ import io.ethers.core.types.CallRequest
 import io.ethers.core.types.CreateAccessList
 import io.ethers.core.types.Hash
 import io.ethers.core.types.IntoCallRequest
+import io.ethers.core.types.StateOverride
 import io.ethers.core.types.tracers.TracerConfig
 import io.ethers.core.types.transaction.TransactionSigned
 import io.ethers.core.types.transaction.TransactionUnsigned
@@ -181,7 +181,7 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
     @JvmOverloads
     fun call(
         blockHash: Hash,
-        stateOverride: Map<Address, AccountOverride>? = null,
+        stateOverride: StateOverride? = null,
         blockOverride: BlockOverride? = null,
     ): RpcRequest<C, ContractError> {
         return call(BlockId.Hash(blockHash), stateOverride, blockOverride)
@@ -195,7 +195,7 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
     @JvmOverloads
     fun call(
         blockNumber: Long,
-        stateOverride: Map<Address, AccountOverride>? = null,
+        stateOverride: StateOverride? = null,
         blockOverride: BlockOverride? = null,
     ): RpcRequest<C, ContractError> {
         return call(BlockId.Number(blockNumber), stateOverride, blockOverride)
@@ -209,7 +209,7 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
     @JvmOverloads
     fun call(
         blockId: BlockId,
-        stateOverride: Map<Address, AccountOverride>? = null,
+        stateOverride: StateOverride? = null,
         blockOverride: BlockOverride? = null,
     ): RpcRequest<C, ContractError> {
         return doCall(blockId, stateOverride, blockOverride)
@@ -220,7 +220,7 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
      * */
     protected abstract fun doCall(
         blockId: BlockId,
-        stateOverride: Map<Address, AccountOverride>?,
+        stateOverride: StateOverride?,
         blockOverride: BlockOverride?,
     ): RpcRequest<C, ContractError>
 

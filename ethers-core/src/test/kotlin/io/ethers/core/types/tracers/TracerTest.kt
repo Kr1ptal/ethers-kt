@@ -4,6 +4,7 @@ import io.ethers.core.Jackson
 import io.ethers.core.types.AccountOverride
 import io.ethers.core.types.Address
 import io.ethers.core.types.BlockOverride
+import io.ethers.core.types.StateOverride
 import io.kotest.assertions.json.shouldEqualJson
 import io.kotest.core.spec.style.FunSpec
 
@@ -28,7 +29,7 @@ class TracerTest : FunSpec({
                 structTracer,
                 10L,
                 1L,
-                hashMapOf(
+                StateOverride(
                     Address("0xDAFEA492D9c6733ae3d56b7Ed1ADB60692c98Bc5") to AccountOverride {
                         nonce(5)
                     },
@@ -60,7 +61,7 @@ class TracerTest : FunSpec({
                 FourByteTracer,
                 10L,
                 1L,
-                hashMapOf(
+                StateOverride(
                     Address("0xDAFEA492D9c6733ae3d56b7Ed1ADB60692c98Bc5") to AccountOverride {
                         nonce(5)
                     },

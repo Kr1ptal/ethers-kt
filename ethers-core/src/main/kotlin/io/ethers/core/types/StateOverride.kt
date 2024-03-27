@@ -57,6 +57,7 @@ class StateOverride private constructor(
         /**
          * Wrap the given [overrides] in a new instance, without copying the data.
          * */
+        @JvmStatic
         fun wrap(overrides: MutableMap<Address, AccountOverride>): StateOverride {
             return StateOverride(overrides)
         }
@@ -64,12 +65,25 @@ class StateOverride private constructor(
         /**
          * Create a new instance from the given [overrides], creating a new copy of each [AccountOverride].
          * */
+        @JvmStatic
         fun from(overrides: Map<Address, AccountOverride>): StateOverride {
-            val copy = HashMap<Address, AccountOverride>(overrides.size)
+            val state = HashMap<Address, AccountOverride>(overrides.size)
             for ((address, override) in overrides) {
-                copy[address] = AccountOverride(override)
+                state[address] = AccountOverride(override)
             }
-            return StateOverride(copy)
+            return StateOverride(state)
+        }
+
+        /**
+         * Wrap the given [overrides] in a [HashMap], without copying the data.
+         * */
+        @JvmSynthetic
+        operator fun invoke(vararg overrides: Pair<Address, AccountOverride>): StateOverride {
+            val state = HashMap<Address, AccountOverride>(overrides.size)
+            for ((address, override) in overrides) {
+                state[address] = override
+            }
+            return StateOverride(state)
         }
     }
 }

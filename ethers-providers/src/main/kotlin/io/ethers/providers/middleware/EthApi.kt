@@ -1,7 +1,6 @@
 package io.ethers.providers.middleware
 
 import io.ethers.core.Result
-import io.ethers.core.types.AccountOverride
 import io.ethers.core.types.Address
 import io.ethers.core.types.BlockId
 import io.ethers.core.types.BlockOverride
@@ -15,6 +14,7 @@ import io.ethers.core.types.IntoCallRequest
 import io.ethers.core.types.Log
 import io.ethers.core.types.LogFilter
 import io.ethers.core.types.RPCTransaction
+import io.ethers.core.types.StateOverride
 import io.ethers.core.types.SyncStatus
 import io.ethers.core.types.TransactionReceipt
 import io.ethers.core.types.transaction.TransactionSigned
@@ -177,19 +177,19 @@ interface EthApi {
     /**
      * Execute [call] on given [blockHash] with applied state overrides.
      */
-    fun call(call: IntoCallRequest, blockHash: Hash, stateOverride: Map<Address, AccountOverride>) =
+    fun call(call: IntoCallRequest, blockHash: Hash, stateOverride: StateOverride) =
         call(call, BlockId.Hash(blockHash), stateOverride, null)
 
     /**
      * Execute [call] on given [blockNumber] with applied state overrides.
      */
-    fun call(call: IntoCallRequest, blockNumber: Long, stateOverride: Map<Address, AccountOverride>) =
+    fun call(call: IntoCallRequest, blockNumber: Long, stateOverride: StateOverride) =
         call(call, BlockId.Number(blockNumber), stateOverride, null)
 
     /**
      * Execute [call] on given [blockId] with applied state overrides.
      */
-    fun call(call: IntoCallRequest, blockId: BlockId, stateOverride: Map<Address, AccountOverride>) =
+    fun call(call: IntoCallRequest, blockId: BlockId, stateOverride: StateOverride) =
         call(call, blockId, stateOverride, null)
 
     /**
@@ -216,7 +216,7 @@ interface EthApi {
     fun call(
         call: IntoCallRequest,
         blockHash: Hash,
-        stateOverride: Map<Address, AccountOverride>?,
+        stateOverride: StateOverride?,
         blockOverride: BlockOverride?,
     ): RpcRequest<Bytes, RpcError> = call(call, BlockId.Hash(blockHash), stateOverride, blockOverride)
 
@@ -226,7 +226,7 @@ interface EthApi {
     fun call(
         call: IntoCallRequest,
         blockNumber: Long,
-        stateOverride: Map<Address, AccountOverride>?,
+        stateOverride: StateOverride?,
         blockOverride: BlockOverride?,
     ): RpcRequest<Bytes, RpcError> = call(call, BlockId.Number(blockNumber), stateOverride, blockOverride)
 
@@ -236,7 +236,7 @@ interface EthApi {
     fun call(
         call: IntoCallRequest,
         blockId: BlockId,
-        stateOverride: Map<Address, AccountOverride>?,
+        stateOverride: StateOverride?,
         blockOverride: BlockOverride?,
     ): RpcRequest<Bytes, RpcError>
 
@@ -255,7 +255,7 @@ interface EthApi {
         blockNumber: Long,
         calls: List<IntoCallRequest>,
         transactionIndex: Int = -1,
-        stateOverride: Map<Address, AccountOverride>? = null,
+        stateOverride: StateOverride? = null,
         blockOverride: BlockOverride? = null,
     ): RpcRequest<List<Result<Bytes, CallFailedError>>, RpcError> {
         return callMany(BlockId.Number(blockNumber), calls, transactionIndex, stateOverride, blockOverride)
@@ -276,7 +276,7 @@ interface EthApi {
         blockHash: Hash,
         calls: List<IntoCallRequest>,
         transactionIndex: Int = -1,
-        stateOverride: Map<Address, AccountOverride>? = null,
+        stateOverride: StateOverride? = null,
         blockOverride: BlockOverride? = null,
     ): RpcRequest<List<Result<Bytes, CallFailedError>>, RpcError> {
         return callMany(BlockId.Hash(blockHash), calls, transactionIndex, stateOverride, blockOverride)
@@ -297,7 +297,7 @@ interface EthApi {
         blockId: BlockId,
         calls: List<IntoCallRequest>,
         transactionIndex: Int = -1,
-        stateOverride: Map<Address, AccountOverride>? = null,
+        stateOverride: StateOverride? = null,
         blockOverride: BlockOverride? = null,
     ): RpcRequest<List<Result<Bytes, CallFailedError>>, RpcError>
 

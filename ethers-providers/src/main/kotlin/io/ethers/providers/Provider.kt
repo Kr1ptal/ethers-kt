@@ -17,7 +17,6 @@ import io.ethers.core.readListOf
 import io.ethers.core.readListOfHashes
 import io.ethers.core.readOptionalValue
 import io.ethers.core.success
-import io.ethers.core.types.AccountOverride
 import io.ethers.core.types.Address
 import io.ethers.core.types.Block
 import io.ethers.core.types.BlockId
@@ -32,6 +31,7 @@ import io.ethers.core.types.IntoCallRequest
 import io.ethers.core.types.Log
 import io.ethers.core.types.LogFilter
 import io.ethers.core.types.RPCTransaction
+import io.ethers.core.types.StateOverride
 import io.ethers.core.types.SyncStatus
 import io.ethers.core.types.TransactionReceipt
 import io.ethers.core.types.TxpoolContent
@@ -137,7 +137,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
     override fun call(
         call: IntoCallRequest,
         blockId: BlockId,
-        stateOverride: Map<Address, AccountOverride>?,
+        stateOverride: StateOverride?,
         blockOverride: BlockOverride?,
     ): RpcRequest<Bytes, RpcError> {
         // create minimal params array - some RPC's don't support stateOverride or blockOverride
@@ -154,7 +154,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         blockId: BlockId,
         calls: List<IntoCallRequest>,
         transactionIndex: Int,
-        stateOverride: Map<Address, AccountOverride>?,
+        stateOverride: StateOverride?,
         blockOverride: BlockOverride?,
     ): RpcRequest<List<Result<Bytes, CallFailedError>>, RpcError> {
         val bundle = CallManyBundle(calls, blockOverride)
