@@ -5,11 +5,11 @@ import io.ethers.abi.error.DecodingError
 import io.ethers.core.Result
 import io.ethers.core.failure
 import io.ethers.core.success
-import io.ethers.core.types.AccountOverride
 import io.ethers.core.types.Address
 import io.ethers.core.types.BlockId
 import io.ethers.core.types.BlockOverride
 import io.ethers.core.types.Bytes
+import io.ethers.core.types.StateOverride
 import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.PendingTransaction
 import io.ethers.providers.types.RpcRequest
@@ -44,7 +44,7 @@ class FunctionCall<T>(
 
     override fun doCall(
         blockId: BlockId,
-        stateOverride: Map<Address, AccountOverride>?,
+        stateOverride: StateOverride?,
         blockOverride: BlockOverride?,
     ): RpcRequest<T, ContractError> {
         return provider.call(call, blockId, stateOverride, blockOverride)
@@ -80,7 +80,7 @@ class ReadFunctionCall<T>(
 
     override fun doCall(
         blockId: BlockId,
-        stateOverride: Map<Address, AccountOverride>?,
+        stateOverride: StateOverride?,
         blockOverride: BlockOverride?,
     ): RpcRequest<T, ContractError> {
         return provider.call(call, blockId, stateOverride, blockOverride)
@@ -114,7 +114,7 @@ class PayableFunctionCall<T>(
 
     override fun doCall(
         blockId: BlockId,
-        stateOverride: Map<Address, AccountOverride>?,
+        stateOverride: StateOverride?,
         blockOverride: BlockOverride?,
     ): RpcRequest<T, ContractError> {
         return provider.call(call, blockId, stateOverride, blockOverride)
@@ -162,7 +162,7 @@ class ReceiveFunctionCall(
 
     override fun doCall(
         blockId: BlockId,
-        stateOverride: Map<Address, AccountOverride>?,
+        stateOverride: StateOverride?,
         blockOverride: BlockOverride?,
     ): RpcRequest<Unit, ContractError> {
         return provider.call(call, blockId, stateOverride, blockOverride)

@@ -5,9 +5,8 @@ import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.JsonSerializer
 import com.fasterxml.jackson.databind.SerializerProvider
 import com.fasterxml.jackson.databind.annotation.JsonSerialize
-import io.ethers.core.types.AccountOverride
-import io.ethers.core.types.Address
 import io.ethers.core.types.BlockOverride
+import io.ethers.core.types.StateOverride
 
 /**
  * New type for tracers, where each tracer has a distinct name by which it's identified on the node.
@@ -39,7 +38,7 @@ data class TracerConfig<T> @JvmOverloads constructor(
     val tracer: AnyTracer<T>,
     val timeoutMs: Long = -1L,
     val reexec: Long = -1L,
-    val stateOverrides: Map<Address, AccountOverride>? = null,
+    val stateOverrides: StateOverride? = null,
     val blockOverrides: BlockOverride? = null,
 )
 
