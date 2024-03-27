@@ -13,7 +13,9 @@ package io.ethers.core.types
 class StateOverride private constructor(
     private val overrides: MutableMap<Address, AccountOverride>,
 ) : MutableMap<Address, AccountOverride> by overrides {
-    constructor() : this(HashMap())
+
+    @JvmOverloads
+    constructor(initialSize: Int = 16) : this(HashMap(initialSize))
 
     /**
      * Merge **this** with [other], returning a new instance with the merged changes. The original instances are not
