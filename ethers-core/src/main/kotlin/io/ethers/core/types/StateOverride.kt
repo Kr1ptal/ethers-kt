@@ -24,8 +24,12 @@ class StateOverride private constructor(
      * No reference to [AccountOverride] from [other] is kept so changes to [other] after this call will not affect
      * **this*, and vice-versa.
      * */
-    fun mergeChanges(other: Map<Address, AccountOverride>): StateOverride {
+    fun mergeChanges(other: Map<Address, AccountOverride>?): StateOverride {
         val merged = copy(overrides)
+
+        if (other == null) {
+            return merged
+        }
 
         for ((address, override) in other) {
             val existing = merged.overrides[address]
@@ -44,7 +48,11 @@ class StateOverride private constructor(
      * No reference to [AccountOverride] from [other] is kept so changes to [other] after this call will not affect
      * **this*, and vice-versa.
      * */
-    fun applyChanges(other: Map<Address, AccountOverride>) {
+    fun applyChanges(other: Map<Address, AccountOverride>?) {
+        if (other == null) {
+            return
+        }
+
         for ((address, override) in other) {
             val existing = overrides[address]
             if (existing == null) {
@@ -87,5 +95,22 @@ class StateOverride private constructor(
             }
             return StateOverride(state)
         }
+    }
+}
+
+/**
+ * Merge **this** with [other], returning a new instance with the merged changes. The original instances are not
+ * modified, and a new copy of each [AccountOverride] is created. This is a convenience method to call
+ * [StateOverride.mergeChanges] on/with nullable instances.
+ *
+ * No reference to [AccountOverride] from [other] is kept so changes to [other] after this call will not affect
+ * **this*, and vice-versa.
+ * */
+fun StateOverride?.mergeChanges(other: StateOverride?): StateOverride? {
+    return when {
+        this == null && other == null -> null
+        this == null && other != null -> StateOverride.copy(other)
+        this != null && other == null -> StateOverride.copy(this)
+        else -> this!!.mergeChanges(other!!)
     }
 }
