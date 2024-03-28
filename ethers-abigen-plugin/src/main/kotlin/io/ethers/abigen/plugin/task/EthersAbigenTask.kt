@@ -59,7 +59,7 @@ abstract class EthersAbigenTask @Inject constructor(private val executor: Worker
      * causes the new version of the plugin to invalidate previous output automatically.
      * */
     @get:Input
-    internal val outputVersion: Property<String> = project.objects.property(String::class.java).convention("1")
+    internal val outputVersion: Property<String> = project.objects.property(String::class.java).convention("2")
 
     @TaskAction
     fun run() {
@@ -74,7 +74,7 @@ abstract class EthersAbigenTask @Inject constructor(private val executor: Worker
 
         val destDir = destinationDir.get().asFile
 
-        var loaderPrefix = project.path.split(":")
+        var loaderPrefix = project.path.split(":", "-")
             .map { it.replaceFirstChar { c -> c.uppercase() } }
             .joinToString(separator = "") { it }
             .trim()
