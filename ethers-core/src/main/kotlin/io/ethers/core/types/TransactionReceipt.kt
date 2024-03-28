@@ -89,7 +89,7 @@ private class TxReceiptDeserializer : JsonDeserializer<TransactionReceipt>() {
                     if (otherFields == null) {
                         otherFields = HashMap()
                     }
-                    otherFields!![p.currentName] = p.readValueAsTree()
+                    otherFields!![p.currentName()] = p.readValueAsTree()
                 }
             }
         }

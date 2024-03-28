@@ -83,7 +83,7 @@ private class AccessListItemDeserializer : JsonDeserializer<AccessList.Item>() {
             when (field) {
                 "address" -> address = p.readAddress()
                 "storageKeys" -> storageKeys = p.readListOfHashes()
-                else -> throw IllegalArgumentException("Unknown field ${p.currentName}")
+                else -> throw IllegalArgumentException("Unknown field ${p.currentName()}")
             }
         }
 

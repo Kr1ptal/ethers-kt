@@ -77,7 +77,7 @@ private class TxpoolContentDeserializer : JsonDeserializer<TxpoolContent>() {
                     )
                 }
 
-                else -> throw IllegalStateException("Unexpected field name: ${p.currentName}")
+                else -> throw IllegalStateException("Unexpected field name: ${p.currentName()}")
             }
         }
 
@@ -98,7 +98,7 @@ private class TxpoolStatusDeserializer : JsonDeserializer<TxpoolStatus>() {
             when {
                 p.isField("pending") -> pending = p.readHexLong()
                 p.isField("queued") -> queued = p.readHexLong()
-                else -> throw IllegalStateException("Unexpected field name: ${p.currentName}")
+                else -> throw IllegalStateException("Unexpected field name: ${p.currentName()}")
             }
         }
 
@@ -119,7 +119,7 @@ private class TxpoolContentFromAddressDeserializer : JsonDeserializer<TxpoolCont
             when {
                 p.isField("pending") -> pending = p.readMapOf({ it.toLong() }, RPCTransaction::class.java)
                 p.isField("queued") -> queued = p.readMapOf({ it.toLong() }, RPCTransaction::class.java)
-                else -> throw IllegalStateException("Unexpected field name: ${p.currentName}")
+                else -> throw IllegalStateException("Unexpected field name: ${p.currentName()}")
             }
         }
 
@@ -152,7 +152,7 @@ private class TxpoolInspectResultDeserializer : JsonDeserializer<TxpoolInspectRe
                     )
                 }
 
-                else -> throw IllegalStateException("Unexpected field name: ${p.currentName}")
+                else -> throw IllegalStateException("Unexpected field name: ${p.currentName()}")
             }
         }
 

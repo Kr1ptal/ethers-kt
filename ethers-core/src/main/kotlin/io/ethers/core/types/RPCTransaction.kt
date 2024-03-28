@@ -106,7 +106,7 @@ private class RPCTransactionDeserializer : JsonDeserializer<RPCTransaction>() {
                     if (otherFields == null) {
                         otherFields = HashMap()
                     }
-                    otherFields!![p.currentName] = p.readValueAs(JsonNode::class.java)
+                    otherFields!![p.currentName()] = p.readValueAs(JsonNode::class.java)
                 }
             }
         }

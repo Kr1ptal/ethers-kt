@@ -31,7 +31,7 @@ fun JsonParser.isNextTokenArrayEnd(): Boolean {
  */
 inline fun JsonParser.forEachObjectField(parseObjectValue: (fieldName: String) -> Unit) {
     while (!isNextTokenObjectEnd()) {
-        val field = currentName
+        val field = currentName()
         nextToken()
         parseObjectValue(field)
     }
@@ -51,7 +51,7 @@ inline fun JsonParser.forEachArrayElement(parseArrayValue: () -> Unit) {
  * immediately parse the value.
  * */
 fun JsonParser.isField(name: String): Boolean {
-    if (currentName != name) {
+    if (currentName() != name) {
         return false
     }
     nextToken()
@@ -225,7 +225,7 @@ inline fun <K, V> JsonParser.readMapOf(keyParser: (String) -> K, valueClass: Cla
 
     val ret = HashMap<K, V>()
     do {
-        ret[keyParser(currentName)] = nextToken().run { readValueAs(valueClass) }
+        ret[keyParser(currentName())] = nextToken().run { readValueAs(valueClass) }
     } while (!isNextTokenObjectEnd())
 
     return ret
@@ -249,7 +249,7 @@ inline fun <K, V> JsonParser.readMapOf(keyParser: (String) -> K, valueParser: Js
 
     val ret = HashMap<K, V>()
     do {
-        ret[keyParser(currentName)] = nextToken().run { valueParser() }
+        ret[keyParser(currentName())] = nextToken().run { valueParser() }
     } while (!isNextTokenObjectEnd())
 
     return ret

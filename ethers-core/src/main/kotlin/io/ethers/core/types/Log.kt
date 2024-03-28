@@ -57,7 +57,7 @@ private class LogDeserializer : JsonDeserializer<Log>() {
                 "logIndex" -> logIndex = p.readHexInt()
                 "removed" -> removed = p.currentToken() == JsonToken.VALUE_TRUE
 
-                else -> throw IllegalStateException("Unexpected field name: ${p.currentName}")
+                else -> throw IllegalStateException("Unexpected field name: ${p.currentName()}")
             }
         }
 
