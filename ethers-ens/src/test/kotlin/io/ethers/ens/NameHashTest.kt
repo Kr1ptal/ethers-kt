@@ -8,7 +8,6 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData
 import io.kotest.matchers.shouldBe
 
-@OptIn(ExperimentalUnsignedTypes::class)
 class NameHashTest : FunSpec({
     context("Expected nameHash") {
         withData(

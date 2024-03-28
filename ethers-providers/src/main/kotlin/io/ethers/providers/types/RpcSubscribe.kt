@@ -86,7 +86,7 @@ class RpcSubscribeCall<T>(
         resultType: Class<T>,
     ) : this(client, params, { p -> p.readValueAs(resultType) })
 
-    override fun sendAwait() = sendAsync().join()
+    override fun sendAwait(): Result<SubscriptionStream<T>, RpcError> = sendAsync().join()
     override fun sendAsync(): CompletableFuture<Result<SubscriptionStream<T>, RpcError>> {
         return client.subscribe(params, resultDecoder)
     }

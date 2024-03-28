@@ -1,3 +1,5 @@
+package io.ethers.examples.abi
+
 import io.ethers.core.types.Address
 import io.ethers.examples.gen.ERC20
 import io.ethers.providers.Provider
@@ -45,7 +47,7 @@ class TransferERC20(
 
 fun main(args: Array<String>) {
     // Parse input arguments
-    val argParser = ArgParser("TransferERC20")
+    val argParser = ArgParser("io.ethers.examples.abi.TransferERC20")
 
     val privateKey by argParser.option(ArgType.String, description = "Private key").required()
     val receiver by argParser.option(ArgType.String, description = "Address of token receiver").required()
