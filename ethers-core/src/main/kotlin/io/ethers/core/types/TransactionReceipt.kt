@@ -27,7 +27,7 @@ data class TransactionReceipt(
     val blockHash: Hash,
     val blockNumber: Long,
     val transactionHash: Hash,
-    val transactionIndex: Long,
+    val transactionIndex: Int,
     val from: Address,
     val to: Address?,
     val gasUsed: Long,
@@ -54,7 +54,7 @@ private class TxReceiptDeserializer : JsonDeserializer<TransactionReceipt>() {
         lateinit var blockHash: Hash
         var blockNumber: Long = -1L
         lateinit var transactionHash: Hash
-        var transactionIndex: Long = -1L
+        var transactionIndex: Int = -1
         lateinit var from: Address
         var to: Address? = null
         var gasUsed: Long = -1L
@@ -73,7 +73,7 @@ private class TxReceiptDeserializer : JsonDeserializer<TransactionReceipt>() {
                 "blockHash" -> blockHash = p.readHash()
                 "blockNumber" -> blockNumber = p.readHexLong()
                 "transactionHash" -> transactionHash = p.readHash()
-                "transactionIndex" -> transactionIndex = p.readHexLong()
+                "transactionIndex" -> transactionIndex = p.readHexInt()
                 "from" -> from = p.readAddress()
                 "to" -> to = p.readOrNull { readAddress() }
                 "gasUsed" -> gasUsed = p.readHexLong()

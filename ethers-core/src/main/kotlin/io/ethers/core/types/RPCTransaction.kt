@@ -25,7 +25,7 @@ import java.math.BigInteger
 data class RPCTransaction(
     val blockHash: Hash?,
     val blockNumber: Long,
-    val transactionIndex: Long,
+    val transactionIndex: Int,
     override val hash: Hash,
     override val from: Address,
     override val to: Address?,
@@ -56,7 +56,7 @@ private class RPCTransactionDeserializer : JsonDeserializer<RPCTransaction>() {
 
         var blockHash: Hash? = null
         var blockNumber: Long = -1L
-        var transactionIndex: Long = -1L
+        var transactionIndex: Int = -1
         lateinit var hash: Hash
         lateinit var from: Address
         var to: Address? = null
@@ -82,7 +82,7 @@ private class RPCTransactionDeserializer : JsonDeserializer<RPCTransaction>() {
             when (field) {
                 "blockHash" -> blockHash = p.readOrNull { readHash() }
                 "blockNumber" -> p.ifNotNull { blockNumber = p.readHexLong() }
-                "transactionIndex" -> p.ifNotNull { transactionIndex = p.readHexLong() }
+                "transactionIndex" -> p.ifNotNull { transactionIndex = p.readHexInt() }
                 "hash" -> hash = p.readHash()
                 "from" -> from = p.readAddress()
                 "to" -> to = p.readOrNull { readAddress() }

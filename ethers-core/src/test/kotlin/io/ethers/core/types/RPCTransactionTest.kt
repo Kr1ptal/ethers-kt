@@ -62,7 +62,7 @@ class RPCTransactionTest : FunSpec({
             data = Bytes("0x69277b67"),
             nonce = 15918L,
             to = Address("0xb0bababe78a9be0810fadf99dd2ed31ed12568be"),
-            transactionIndex = 1L,
+            transactionIndex = 1,
             value = BigInteger("10000000000000000"),
             type = TxType.DynamicFee,
             accessList = listOf(
