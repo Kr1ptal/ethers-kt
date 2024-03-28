@@ -8,7 +8,23 @@ import io.ethers.core.FastHex
 import java.math.BigInteger
 
 @JsonSerialize(using = CallRequestSerializer::class)
-class CallRequest : IntoCallRequest {
+class CallRequest() : IntoCallRequest {
+    constructor(other: CallRequest) : this() {
+        this.from = other.from
+        this.to = other.to
+        this.gas = other.gas
+        this.gasPrice = other.gasPrice
+        this.gasFeeCap = other.gasFeeCap
+        this.gasTipCap = other.gasTipCap
+        this.value = other.value
+        this.nonce = other.nonce
+        this.data = other.data
+        this.accessList = other.accessList
+        this.chainId = other.chainId
+        this.blobFeeCap = other.blobFeeCap
+        this.blobVersionedHashes = other.blobVersionedHashes
+    }
+
     override fun toCallRequest(): CallRequest {
         return this
     }
