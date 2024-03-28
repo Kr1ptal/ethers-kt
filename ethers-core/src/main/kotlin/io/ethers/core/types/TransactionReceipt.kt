@@ -43,6 +43,13 @@ data class TransactionReceipt(
 ) {
     val isSuccessful: Boolean
         get() = status == 1L
+
+    /**
+     * Calculate the effective gas tip (gas price minus base fee) paid by this transaction, relative to the [baseFee].
+     * */
+    fun getEffectiveGasTip(baseFee: BigInteger): BigInteger {
+        return effectiveGasPrice - baseFee
+    }
 }
 
 private class TxReceiptDeserializer : JsonDeserializer<TransactionReceipt>() {
