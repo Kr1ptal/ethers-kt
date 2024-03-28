@@ -21,8 +21,9 @@ class StateOverride private constructor(
      * Merge **this** with [other], returning a new instance with the merged changes. The original instances are not
      * modified, and a new copy of each [AccountOverride] is created.
      *
-     * No reference to [AccountOverride] from [other] is kept so changes to [other] after this call will not affect
-     * **this*, and vice-versa.
+     * No references to [AccountOverride]s from **this** and [other] are kept so changes to **this** and [other] after
+     * this call will not affect the returned instance. Best used when both **this** and [other] will be used after this
+     * call, independently of the merged changes.
      * */
     fun mergeChanges(other: Map<Address, AccountOverride>?): StateOverride {
         val merged = copy(overrides)
@@ -45,8 +46,9 @@ class StateOverride private constructor(
     /**
      * Apply changes from [other] to **this** instance. The original instance is modified in place.
      *
-     * No reference to [AccountOverride] from [other] is kept so changes to [other] after this call will not affect
-     * **this*, and vice-versa.
+     * No references to [AccountOverride]s from [other] are kept so changes to [other] after this call will not affect
+     * **this*, and vice-versa. Best used when you want to accumulate changes in **this** instance, but [other] will
+     * still be used after this call.
      * */
     fun applyChanges(other: Map<Address, AccountOverride>?) {
         if (other == null) {
@@ -57,6 +59,27 @@ class StateOverride private constructor(
             val existing = overrides[address]
             if (existing == null) {
                 overrides[address] = AccountOverride(override)
+            } else {
+                existing.applyChanges(override)
+            }
+        }
+    }
+
+    /**
+     * Take and apply changes from [other] to **this** instance. The original instance is modified in place.
+     *
+     * References to [AccountOverride]s from [other] will be kept, so changes to [other] after this call will lead to
+     * undefined behaviour. Best used when [other] would be discarded after this call.
+     * */
+    fun takeChanges(other: Map<Address, AccountOverride>?) {
+        if (other == null) {
+            return
+        }
+
+        for ((address, override) in other) {
+            val existing = overrides[address]
+            if (existing == null) {
+                overrides[address] = override
             } else {
                 existing.applyChanges(override)
             }
