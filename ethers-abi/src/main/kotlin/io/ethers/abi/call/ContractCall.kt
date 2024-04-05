@@ -2,24 +2,12 @@ package io.ethers.abi.call
 
 import io.ethers.abi.error.ContractError
 import io.ethers.abi.error.ContractRpcError
+import io.ethers.abi.error.ExecutionRevertedError
 import io.ethers.abi.error.RevertError
 import io.ethers.core.FastHex
-import io.ethers.core.types.AccessList
-import io.ethers.core.types.Address
-import io.ethers.core.types.BlockId
-import io.ethers.core.types.BlockOverride
-import io.ethers.core.types.Bytes
-import io.ethers.core.types.CallRequest
-import io.ethers.core.types.CreateAccessList
-import io.ethers.core.types.Hash
-import io.ethers.core.types.IntoCallRequest
-import io.ethers.core.types.StateOverride
+import io.ethers.core.types.*
 import io.ethers.core.types.tracers.TracerConfig
-import io.ethers.core.types.transaction.TransactionSigned
-import io.ethers.core.types.transaction.TransactionUnsigned
-import io.ethers.core.types.transaction.TxAccessList
-import io.ethers.core.types.transaction.TxDynamicFee
-import io.ethers.core.types.transaction.TxLegacy
+import io.ethers.core.types.transaction.*
 import io.ethers.providers.RpcError
 import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.PendingInclusion
@@ -249,16 +237,24 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
     }
 
     protected fun tryDecodingContractRevert(err: RpcError): ContractError {
-        if (err.isExecutionError && err.data != null) {
-            // if data is not a valid hex string, it's an already decoded revert error
-            if (!FastHex.isValidHex(err.data!!)) {
-                return RevertError(err.data!!)
-            }
+        if (err.isExecutionError) {
+            when {
+                err.data == null && err.message.equals("execution reverted", true) -> {
+                    return ExecutionRevertedError
+                }
 
-            // otherwise it could be a custom error
-            val contractError = ContractError.getOrNull(Bytes(err.data!!))
-            if (contractError != null) {
-                return contractError
+                err.data != null -> {
+                    // if data is not a valid hex string, it's an already decoded revert error
+                    if (!FastHex.isValidHex(err.data!!)) {
+                        return RevertError(err.data!!)
+                    }
+
+                    // otherwise it could be a custom error
+                    val contractError = ContractError.getOrNull(Bytes(err.data!!))
+                    if (contractError != null) {
+                        return contractError
+                    }
+                }
             }
         }
 

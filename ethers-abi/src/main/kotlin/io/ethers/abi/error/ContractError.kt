@@ -153,6 +153,26 @@ data class RevertError(val reason: String) : ContractError() {
 }
 
 /**
+ * Error returned when a contract call reverts due to:
+ * - calling a function that does not exist,
+ * - the functions is called with incorrect arguments,
+ * - the function returns unexpected/incorrect response.
+ *
+ * Use ```traceCall``` with ```CallTracer(onlyTopCall = false)``` to debug which call fails.
+ * */
+data object ExecutionRevertedError : ContractError() {
+    private val MSG = """
+        Execution reverted. This happens when calling a function that does not exists, the function is called
+        with incorrect arguments, or the function returns unexpected/incorrect response. Use "traceCall" with
+        "CallTracer(onlyTopCall = false)" to debug which call fails.
+    """.trimIndent().replace("\n", " ")
+
+    override fun doThrow(): Nothing {
+        throw RuntimeException(MSG)
+    }
+}
+
+/**
  * Error returned when a contract call reverts with custom error.
  * */
 abstract class CustomContractError : ContractError()
