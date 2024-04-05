@@ -66,6 +66,26 @@ class StateOverride private constructor(
     }
 
     /**
+     * Apply change from [override] for [address] to **this** instance. The original instance is modified in place.
+     *
+     * No reference to [override] is kept so changes to it after this call will not affect **this*, and vice-versa.
+     * Best used when you want to accumulate changes in **this** instance, but [override] will still be used after
+     * this call.
+     * */
+    fun applyChange(address: Address, override: AccountOverride?) {
+        if (override == null) {
+            return
+        }
+
+        val existing = this[address]
+        if (existing == null) {
+            this[address] = AccountOverride(override)
+        } else {
+            existing.applyChanges(override)
+        }
+    }
+
+    /**
      * Take and apply changes from [other] to **this** instance. The original instance is modified in place.
      *
      * References to [AccountOverride]s from [other] will be kept, so changes to [other] after this call will lead to
@@ -84,6 +104,43 @@ class StateOverride private constructor(
                 existing.applyChanges(override)
             }
         }
+    }
+
+    /**
+     * Take and apply changes from [override] for [address] to **this** instance. The original instance is modified in
+     * place.
+     *
+     * Reference to [override] will be kept, so changes to it after this call will lead to undefined behaviour. Best
+     * used when [override] would be discarded after this call.
+     * */
+    fun takeChange(address: Address, override: AccountOverride?) {
+        if (override == null) {
+            return
+        }
+
+        val existing = this[address]
+        if (existing == null) {
+            this[address] = override
+        } else {
+            existing.applyChanges(override)
+        }
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as StateOverride
+
+        return overrides == other.overrides
+    }
+
+    override fun hashCode(): Int {
+        return overrides.hashCode()
+    }
+
+    override fun toString(): String {
+        return "StateOverride(overrides=$overrides)"
     }
 
     companion object {
