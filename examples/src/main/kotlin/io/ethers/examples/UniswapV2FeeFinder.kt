@@ -2,6 +2,7 @@ package io.ethers.examples
 
 import io.ethers.core.types.Address
 import io.ethers.core.types.BlockId
+import io.ethers.examples.UniswapV2FeeFinder.Companion.getFeePercent
 import io.ethers.examples.gen.UniswapV2Pair
 import io.ethers.providers.Provider
 import kotlinx.cli.ArgParser
@@ -61,14 +62,14 @@ class UniswapV2FeeFinder(rpcUrl: String, private val univ2Pair: Address) : Runna
         /**
          * Calculate uniswap V2 pool swap fee, based on reserves before a swap. Formula is derived from:
          * ```solidity
-         * function getAmountOut(uint amountIn, uint reserveIn, uint reserveOut) internal pure returns (uint amountOut) {
-         *     require(amountIn > 0, 'UniswapV2Library: INSUFFICIENT_INPUT_AMOUNT');
+         * function getAmountIn(uint amountOut, uint reserveIn, uint reserveOut) internal pure returns (uint amountIn) {
+         *     require(amountOut > 0, 'UniswapV2Library: INSUFFICIENT_OUTPUT_AMOUNT');
          *     require(reserveIn > 0 && reserveOut > 0, 'UniswapV2Library: INSUFFICIENT_LIQUIDITY');
-         *     uint amountInWithFee = amountIn.mul(997);
-         *     uint numerator = amountInWithFee.mul(reserveOut);
-         *     uint denominator = reserveIn.mul(1000).add(amountInWithFee);
-         *     amountOut = numerator / denominator;
+         *     uint numerator = reserveIn.mul(amountOut).mul(1000);
+         *     uint denominator = reserveOut.sub(amountOut).mul(997);
+         *     amountIn = (numerator / denominator).add(1);
          * }
+         * ```
          * */
         private fun getFeePercent(
             amountIn: BigInteger,
