@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.JsonSerializer
 import com.fasterxml.jackson.databind.SerializerProvider
 import com.fasterxml.jackson.databind.annotation.JsonSerialize
+import io.ethers.core.FastHex
 import io.ethers.core.types.BlockOverride
 import io.ethers.core.types.StateOverride
 
@@ -40,6 +41,7 @@ data class TracerConfig<T> @JvmOverloads constructor(
     val reexec: Long = -1L,
     val stateOverrides: StateOverride? = null,
     val blockOverrides: BlockOverride? = null,
+    val txIndex: Int = -1,
 )
 
 private class TracerConfigSerializer : JsonSerializer<TracerConfig<*>>() {
@@ -67,6 +69,9 @@ private class TracerConfigSerializer : JsonSerializer<TracerConfig<*>>() {
         }
         if (value.blockOverrides != null) {
             gen.writeObjectField("blockOverrides", value.blockOverrides)
+        }
+        if (value.txIndex >= 0) {
+            gen.writeStringField("txIndex", FastHex.encodeWithPrefix(value.txIndex))
         }
 
         gen.writeEndObject()

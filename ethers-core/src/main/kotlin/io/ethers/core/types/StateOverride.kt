@@ -175,6 +175,11 @@ class StateOverride private constructor(
             }
             return StateOverride(state)
         }
+
+        @JvmSynthetic
+        operator fun invoke(builder: StateOverride.() -> Unit): StateOverride {
+            return StateOverride().apply(builder)
+        }
     }
 }
 
