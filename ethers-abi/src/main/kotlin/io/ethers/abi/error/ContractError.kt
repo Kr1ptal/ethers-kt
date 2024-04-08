@@ -155,7 +155,7 @@ data class RevertError(val reason: String) : ContractError() {
 /**
  * Error returned when a contract call reverts due to:
  * - calling a function that does not exist,
- * - the functions is called with incorrect arguments,
+ * - the function is called with incorrect arguments,
  * - the function returns unexpected/incorrect response.
  *
  * Use ```traceCall``` with ```CallTracer(onlyTopCall = false)``` to debug which call fails.
