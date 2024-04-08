@@ -14,6 +14,7 @@ import io.ethers.logger.trc
 import io.ethers.providers.types.BatchRpcRequest
 import okhttp3.Call
 import okhttp3.Callback
+import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -35,19 +36,25 @@ import java.util.function.Function
 class HttpClient(
     url: String,
     private val client: OkHttpClient,
+    headers: Map<String, String> = emptyMap(),
 ) : JsonRpcClient {
     @JvmOverloads
-    constructor(url: String, config: RpcClientConfig = RpcClientConfig()) : this(url, config.client!!)
+    constructor(url: String, config: RpcClientConfig = RpcClientConfig()) : this(
+        url,
+        config.client!!,
+        config.requestHeaders,
+    )
 
     private val LOG = getLogger()
     private val httpUrl = url.toHttpUrl()
     private val requestId = AtomicLong(0)
+    private val headers = Headers.Builder().apply { headers.forEach { (k, v) -> add(k, v) } }.build()
 
     override fun requestBatch(batch: BatchRpcRequest): CompletableFuture<Boolean> {
         val ret = CompletableFuture<Boolean>()
 
         val body = batch.toRequestBody()
-        val call = client.newCall(Request.Builder().url(httpUrl).post(body).build())
+        val call = client.newCall(Request.Builder().url(httpUrl).headers(headers).post(body).build())
 
         call.enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
@@ -158,7 +165,7 @@ class HttpClient(
         val ret = CompletableFuture<Result<T, RpcError>>()
 
         val body = createJsonRpcRequestBody(method, params)
-        val call = client.newCall(Request.Builder().url(httpUrl).post(body).build())
+        val call = client.newCall(Request.Builder().url(httpUrl).headers(headers).post(body).build())
 
         call.enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {

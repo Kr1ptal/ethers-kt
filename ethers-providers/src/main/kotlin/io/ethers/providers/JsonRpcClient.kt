@@ -185,8 +185,25 @@ class RpcClientConfig {
     var threadFactory: ThreadFactory = ThreadFactory { r -> Thread(r).apply { isDaemon = true } }
         @JvmSynthetic set
 
+    /**
+     * Headers to include with each RPC request.
+     * */
+    var requestHeaders: Map<String, String> = emptyMap()
+        @JvmSynthetic set
+
+    /**
+     * Client to use for making JSON-RPC requests. If not set, a default client will be used.
+     * */
     fun client(client: OkHttpClient) = apply { this.client = client }
 
+    /**
+     * Factory for creating additional [JsonRpcClient] threads, if needed. By default, a daemon thread is created.
+     * */
+    fun requestHeaders(headers: Map<String, String>) = apply { this.requestHeaders = headers }
+
+    /**
+     * Headers to include with each RPC request.
+     * */
     fun threadFactory(factory: ThreadFactory) = apply { this.threadFactory = factory }
 
     companion object {

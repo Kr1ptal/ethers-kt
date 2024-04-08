@@ -19,6 +19,7 @@ import io.ethers.logger.inf
 import io.ethers.logger.trc
 import io.ethers.logger.wrn
 import io.ethers.providers.types.BatchRpcRequest
+import okhttp3.Headers
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -48,12 +49,14 @@ class WsClient(
     url: String,
     client: OkHttpClient,
     processorThreadFactory: ThreadFactory,
+    headers: Map<String, String> = emptyMap(),
 ) : JsonPubSubClient, JsonRpcClient {
     @JvmOverloads
     constructor(url: String, config: RpcClientConfig = RpcClientConfig()) : this(
         url,
         config.client!!,
         config.threadFactory,
+        config.requestHeaders,
     )
 
     private val LOG = getLogger()
@@ -85,7 +88,8 @@ class WsClient(
     private var stopping = false
 
     init {
-        val wsRequest = Request.Builder().url(url).build()
+        val requestHeaders = Headers.Builder().apply { headers.forEach { (key, value) -> add(key, value) } }.build()
+        val wsRequest = Request.Builder().url(url).headers(requestHeaders).build()
         val wsListener = object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 LOG.inf { "WebSocket connection opened" }
