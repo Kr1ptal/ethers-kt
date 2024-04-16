@@ -22,12 +22,15 @@ class Multicall(
     private val provider = Provider.fromUrl(rpcUrl).unwrap()
 
     fun run() {
+        // We are nesting multiple aggregations. By default, calls cannot revert. To prevent top-level
+        // aggregation from reverting when a call fails, use .allowFailure() as demonstrated below
         val aggregate = Multicall3.aggregate(
-            tokens.map { ERC20(provider, it).name() }.aggregate(),
+            tokens.map { ERC20(provider, it).name() }.aggregate().allowFailure(),
             tokens.map { ERC20(provider, it).symbol() }.aggregate(),
             tokens.map { ERC20(provider, it).decimals() }.aggregate(),
         ).call(BlockId.LATEST).sendAwait().unwrap()
 
+        // Each aggregated call result is returned in the same order the calls were defined
         val nameResults = aggregate.getAsAggregation<String>(0).unwrapOrNull()
         val symbolResults = aggregate.getAsAggregation<String>(1).unwrapOrNull()
         val decimalsResults = aggregate.getAsAggregation<BigInteger>(2).unwrapOrNull()
