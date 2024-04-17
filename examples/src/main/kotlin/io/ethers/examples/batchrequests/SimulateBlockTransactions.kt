@@ -24,8 +24,8 @@ class SimulateBlockTransactions(
             println("New block: ${head.number}")
 
             val blockWithTransactions = provider.getBlockWithTransactions(head.number).sendAwait().unwrap()
-            val stateOverrides = StateOverride()
             val blockOverrides = blockWithTransactions.toBlockOverride()
+            val stateOverrides = StateOverride()
             for (tx in blockWithTransactions.transactions) {
                 val config = TracerConfig(
                     tracer = MULTICALL_MUX_TRACER,
@@ -33,16 +33,17 @@ class SimulateBlockTransactions(
                     blockOverrides = blockOverrides,
                 )
 
-                val txReceipt = provider.getTransactionReceipt(tx.hash).sendAsync()
+                // Send asynchronously so that traceCall can be executed while the transaction receipt is being fetched.
+                val txReceiptRequest = provider.getTransactionReceipt(tx.hash).sendAsync()
 
                 // The Transaction (including RPCTransaction) implements the IntoCallRequest interface,
                 // allowing it to be directly utilized in the call without the need for manual conversion to CallRequest.
-                val unwrappedResult = provider.traceCall(tx, head.number - 1, config).sendAsync()
-                if (unwrappedResult.get().isFailure()) {
+                val unwrappedResult = provider.traceCall(tx, head.number - 1, config).sendAwait()
+                if (unwrappedResult.isFailure()) {
                     continue
                 }
 
-                val result = unwrappedResult.get().unwrap()
+                val result = unwrappedResult.unwrap()
 
                 // Accumulate all changes made by transactions, upon which subsequent transactions are executed.
                 // This mirrors the process of building a block on the node.
@@ -50,10 +51,8 @@ class SimulateBlockTransactions(
                 stateOverrides.takeChanges(result[PrestateTracer::class.java].toStateOverride())
 
                 val call = result[CallTracer::class.java]
-
-                if (call.isError == txReceipt.get().isFailure() && call.gasUsed == txReceipt.get().unwrap()
-                        .get().gasUsed
-                ) {
+                val txReceipt = txReceiptRequest.get().unwrap().get()
+                if (!call.isError == txReceipt.isSuccessful && call.gasUsed == txReceipt.gasUsed) {
                     println("Transaction simulation ${tx.hash} was correct")
                 } else {
                     println("Transaction simulation ${tx.hash} was incorrect")
