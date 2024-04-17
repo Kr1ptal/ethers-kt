@@ -364,8 +364,8 @@ interface EthApi {
     /**
      * Get gas fee history for block range between [lastBlockName] and ([lastBlockName] - [blockCount] + 1).
      *
-     * @param [rewardPercentiles] a monotonically increasing list of percentile values to sample from each block's
-     * effective priority fees per gas in ascending order, weighted by gas used.
+     * @param [rewardPercentiles] a monotonically increasing list of percentile values (ranging from 0 to 100),
+     * to sample from each block's effective priority fees per gas in ascending order, weighted by gas used.
      */
     fun getFeeHistory(
         blockCount: Long,
