@@ -1,6 +1,5 @@
 package io.ethers.examples.batchrequests
 
-import io.ethers.core.isFailure
 import io.ethers.core.types.StateOverride
 import io.ethers.core.types.toBlockOverride
 import io.ethers.core.types.tracers.CallTracer
@@ -38,12 +37,7 @@ class SimulateBlockTransactions(
 
                 // The Transaction (including RPCTransaction) implements the IntoCallRequest interface,
                 // allowing it to be directly utilized in the call without the need for manual conversion to CallRequest.
-                val unwrappedResult = provider.traceCall(tx, head.number - 1, config).sendAwait()
-                if (unwrappedResult.isFailure()) {
-                    continue
-                }
-
-                val result = unwrappedResult.unwrap()
+                val result = provider.traceCall(tx, head.number - 1, config).sendAwait().unwrap()
 
                 // Accumulate all changes made by transactions, upon which subsequent transactions are executed.
                 // This mirrors the process of building a block on the node.
