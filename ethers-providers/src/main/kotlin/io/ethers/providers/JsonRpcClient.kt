@@ -186,7 +186,7 @@ class RpcClientConfig {
         @JvmSynthetic set
 
     /**
-     * Headers to include with each RPC request.
+     * Headers to include with each RPC request. Can be used to set authorization headers, etc...
      * */
     var requestHeaders: Map<String, String> = emptyMap()
         @JvmSynthetic set
@@ -199,12 +199,12 @@ class RpcClientConfig {
     /**
      * Factory for creating additional [JsonRpcClient] threads, if needed. By default, a daemon thread is created.
      * */
-    fun requestHeaders(headers: Map<String, String>) = apply { this.requestHeaders = headers }
+    fun threadFactory(factory: ThreadFactory) = apply { this.threadFactory = factory }
 
     /**
-     * Headers to include with each RPC request.
+     * Headers to include with each RPC request. Can be used to set authorization headers, etc...
      * */
-    fun threadFactory(factory: ThreadFactory) = apply { this.threadFactory = factory }
+    fun requestHeaders(headers: Map<String, String>) = apply { this.requestHeaders = headers }
 
     companion object {
         private val DEFAULT_CLIENT by lazy { OkHttpClient() }
