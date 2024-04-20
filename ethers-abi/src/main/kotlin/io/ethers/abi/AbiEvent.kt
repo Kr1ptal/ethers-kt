@@ -17,6 +17,26 @@ interface EventFactory<T : ContractEvent> {
     fun filter(provider: Middleware): EventFilterBase<T, *>
 
     /**
+     * Return whether the [log] is a valid event of this type.
+     * */
+    fun isLogValid(log: Log): Boolean {
+        when {
+            abi.isAnonymous -> {
+                if (abi.indexed.size != log.topics.size) return false
+                if (abi.data.isEmpty() != log.data.isEmpty) return false
+                return true
+            }
+
+            else -> {
+                if (abi.indexed.size != log.topics.size - 1) return false
+                if (abi.data.isEmpty() != log.data.isEmpty) return false
+                if (abi.topicId != log.topics[0]) return false
+                return true
+            }
+        }
+    }
+
+    /**
      * Decode the [log] into this event type, returning null if the log does not match this event.
      *
      * @return the decoded event, or null if the log does not match this event.
@@ -43,7 +63,6 @@ interface EventFactory<T : ContractEvent> {
             data = if (abi.data.isEmpty()) emptyArray() else abi.decodeData(log.data)
         }
 
-        // TODO merging can be avoided if we implement separate codegen for events
         var topicIndex = 0
         var dataIndex = 0
         val merged = Array(logTopicSize + data.size) { i ->
@@ -121,4 +140,130 @@ interface ContractEvent {
     val transactionIndex get() = log.transactionIndex
     val logIndex get() = log.logIndex
     val removed get() = log.removed
+}
+
+/**
+ * Decode the [Log] into any event of `this` types, returning null if the log does not match the event.
+ * */
+fun <T : ContractEvent> List<EventFactory<out T>>.decode(log: Log): T? {
+    for (i in indices) {
+        val event = log.toEventOrNull(this[i])
+        if (event != null) {
+            return event
+        }
+    }
+    return null
+}
+
+/**
+ * Decode the [Log] into any event of `this` types, returning null if the log does not match the event.
+ * */
+fun <T : ContractEvent> Array<out EventFactory<out T>>.decode(log: Log): T? {
+    for (i in this) {
+        val event = log.toEventOrNull(i)
+        if (event != null) {
+            return event
+        }
+    }
+    return null
+}
+
+/**
+ * Decode the [Log] into any event of `this` types, returning null if the log does not match the event.
+ * */
+fun <T : ContractEvent> Iterable<EventFactory<out T>>.decode(log: Log): T? {
+    for (i in this) {
+        val event = log.toEventOrNull(i)
+        if (event != null) {
+            return event
+        }
+    }
+    return null
+}
+
+/**
+ * Return whether this [Log] is a valid event of the [event] type.
+ * */
+fun Log.isEvent(event: EventFactory<*>) = event.isLogValid(this)
+
+/**
+ * Return whether this [Log] is any valid event of the [events] types.
+ * */
+fun Log.isEvent(events: List<EventFactory<*>>): Boolean {
+    for (i in events.indices) {
+        if (this.isEvent(events[i])) {
+            return true
+        }
+    }
+    return false
+}
+
+/**
+ * Return whether this [Log] is any valid event of the [events] types.
+ * */
+fun Log.isEvent(events: Iterable<EventFactory<*>>): Boolean {
+    for (event in events) {
+        if (this.isEvent(event)) {
+            return true
+        }
+    }
+    return false
+}
+
+/**
+ * Return whether this [Log] is any valid event of the [events] types.
+ * */
+fun Log.isEvent(vararg events: EventFactory<*>): Boolean {
+    for (event in events) {
+        if (this.isEvent(event)) {
+            return true
+        }
+    }
+    return false
+}
+
+/**
+ * Decode the [Log] into an event of the [event] type, returning null if the log does not match the event.
+ * */
+fun <T : ContractEvent> Log.toEventOrNull(event: EventFactory<T>): T? {
+    return event.decode(this)
+}
+
+/**
+ * Decode the [Log] into any event of the [events] types, returning null if the log does not match any event.
+ * */
+fun <T : ContractEvent> Log.toEventOrNull(events: List<EventFactory<out T>>): T? {
+    for (i in events.indices) {
+        val event = this.toEventOrNull(events[i])
+        if (event != null) {
+            return event
+        }
+    }
+    return null
+}
+
+/**
+ * Decode the [Log] into any event of the [events] types, returning null if the log does not match any event.
+ * */
+fun <T : ContractEvent> Log.toEventOrNull(events: Iterable<EventFactory<out T>>): T? {
+    for (e in events) {
+        val event = this.toEventOrNull(e)
+        if (event != null) {
+            return event
+        }
+    }
+    return null
+}
+
+/**
+ * Decode the [Log] into any event of the [events] types, returning null if the log does not match any event.
+ * */
+fun <T : ContractEvent> Log.toEventOrNull(vararg events: EventFactory<out T>): T? {
+    for (e in events) {
+        val event = this.toEventOrNull(e)
+        if (event != null) {
+            return event
+        }
+    }
+    return null
 }
