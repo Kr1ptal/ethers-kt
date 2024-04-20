@@ -89,6 +89,7 @@ sealed interface AbiType<T : Any> {
 
     data class FixedArray<T : Any>(val length: kotlin.Int, val type: AbiType<T>) : AbiType<kotlin.Array<T>> {
         override val abiType: kotlin.String = "${type.abiType}[$length]"
+
         @Suppress("UNCHECKED_CAST")
         override val classType = ArrayReflect.newInstance(type.classType, 0)::class.java as Class<kotlin.Array<T>>
         override val isDynamic: Boolean = type.isDynamic
@@ -96,6 +97,7 @@ sealed interface AbiType<T : Any> {
 
     data class Array<T : Any>(val type: AbiType<T>) : AbiType<kotlin.Array<T>> {
         override val abiType: kotlin.String = "${type.abiType}[]"
+
         @Suppress("UNCHECKED_CAST")
         override val classType = ArrayReflect.newInstance(type.classType, 0)::class.java as Class<kotlin.Array<T>>
         override val isDynamic: Boolean = true
@@ -103,7 +105,7 @@ sealed interface AbiType<T : Any> {
 
     class Tuple<T : Any> private constructor(
         override val classType: Class<T>,
-        val factory: Function<kotlin.Array<Any>, *>,
+        val factory: Function<kotlin.Array<out Any>, *>,
         val types: List<AbiType<*>>,
     ) : AbiType<T> {
         override val abiType: kotlin.String = run {
@@ -179,7 +181,7 @@ sealed interface AbiType<T : Any> {
             @JvmStatic
             fun <T : ContractStruct> struct(
                 classType: Class<T>,
-                factory: Function<kotlin.Array<Any>, T>,
+                factory: Function<kotlin.Array<out Any>, T>,
                 vararg fieldTypes: AbiType<*>,
             ): Tuple<T> {
                 return struct(classType, factory, fieldTypes.toList())
@@ -191,7 +193,7 @@ sealed interface AbiType<T : Any> {
             @JvmStatic
             fun <T : ContractStruct> struct(
                 classType: Class<T>,
-                factory: Function<kotlin.Array<Any>, T>,
+                factory: Function<kotlin.Array<out Any>, T>,
                 fieldTypes: List<AbiType<*>>,
             ): Tuple<T> {
                 return Tuple(classType, factory, fieldTypes)
@@ -207,7 +209,9 @@ sealed interface AbiType<T : Any> {
              * Create a raw [Tuple] type from [types], represented as an array of elements.
              * */
             @JvmStatic
-            fun raw(types: List<AbiType<*>>): Tuple<out kotlin.Array<*>> = Tuple(CLASS_TYPE_TUPLE, Function.identity(), types)
+            fun raw(types: List<AbiType<*>>): Tuple<out kotlin.Array<*>> {
+                return Tuple(CLASS_TYPE_TUPLE, Function.identity(), types)
+            }
         }
     }
 
