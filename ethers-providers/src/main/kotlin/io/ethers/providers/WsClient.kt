@@ -40,7 +40,7 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.TimeSource
 
 /**
- * WS client implementation for RPC request submission and results parsing.
+ * [JsonRpcClient] implementation via WS transport. Supports single, batch, and subscription requests.
  *
  * Reconnection happens automatically when WS connection is in dropped / fail state. All unfinished requests for which
  * the response was not received are automatically resubmitted when new connection is established.
@@ -50,7 +50,7 @@ class WsClient(
     client: OkHttpClient,
     processorThreadFactory: ThreadFactory,
     headers: Map<String, String> = emptyMap(),
-) : JsonPubSubClient, JsonRpcClient {
+) : JsonRpcClient {
     @JvmOverloads
     constructor(url: String, config: RpcClientConfig = RpcClientConfig()) : this(
         url,

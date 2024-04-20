@@ -1,9 +1,6 @@
 package io.ethers.providers
 
-import com.fasterxml.jackson.core.JsonParser
-import io.ethers.core.Result
 import org.jctools.queues.SpscUnboundedArrayQueue
-import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ThreadFactory
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
@@ -11,39 +8,6 @@ import java.util.function.Consumer
 import java.util.function.Function
 import java.util.function.Predicate
 import kotlin.concurrent.withLock
-
-interface JsonPubSubClient : JsonRpcClient {
-    /**
-     * Subscribe to stream.
-     *
-     * @param params the subscription parameters
-     * @param resultType class into which JSON result is converted
-     */
-    fun <T> subscribe(
-        params: Array<*>,
-        resultType: Class<T>,
-    ): CompletableFuture<Result<SubscriptionStream<T>, RpcError>> {
-        return subscribe(params) { p -> p.readValueAs(resultType) }
-    }
-
-    /**
-     * Subscribe to stream.
-     *
-     * @param params the subscription parameters
-     * @param resultDecoder function to convert JSON result into return object [T]
-     */
-    fun <T> subscribe(
-        params: Array<*>,
-        resultDecoder: Function<JsonParser, T>,
-    ): CompletableFuture<Result<SubscriptionStream<T>, RpcError>>
-}
-
-private val STREAM_DAEMON_FACTORY = ThreadFactory { r ->
-    Thread(r).apply {
-        name = "SubscriptionStream-$id"
-        isDaemon = true
-    }
-}
 
 /**
  * A stream of events from a subscription. The stream can be terminated by calling [unsubscribe].
@@ -78,6 +42,15 @@ abstract class SubscriptionStream<T> {
      * */
     fun <O> map(mapper: Function<T, O>): SubscriptionStream<O> {
         return MappingSubscriptionStream(this, mapper)
+    }
+
+    companion object {
+        private val STREAM_DAEMON_FACTORY = ThreadFactory { r ->
+            Thread(r).apply {
+                name = "SubscriptionStream-$id"
+                isDaemon = true
+            }
+        }
     }
 }
 

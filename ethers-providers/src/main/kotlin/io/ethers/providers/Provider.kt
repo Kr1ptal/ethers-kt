@@ -1,6 +1,5 @@
 package io.ethers.providers
 
-import com.fasterxml.jackson.core.JsonParser
 import io.ethers.core.FastHex
 import io.ethers.core.Result
 import io.ethers.core.failure
@@ -52,10 +51,8 @@ import io.ethers.providers.types.RpcCall
 import io.ethers.providers.types.RpcRequest
 import io.ethers.providers.types.RpcSubscribe
 import io.ethers.providers.types.RpcSubscribeCall
-import io.ethers.providers.types.RpcSubscribeConstant
 import java.math.BigInteger
 import java.util.Optional
-import java.util.function.Function
 
 @Suppress("MoveLambdaOutsideParentheses")
 class Provider(override val client: JsonRpcClient, override val chainId: Long) : Middleware {
@@ -357,37 +354,23 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
     }
 
     override fun subscribeNewPendingTransactionHashes(): RpcSubscribe<Hash, RpcError> {
-        return subscribe(arrayOf("newPendingTransactions"), { it.readHash() })
+        return RpcSubscribeCall(client, arrayOf("newPendingTransactions"), { it.readHash() })
     }
 
     override fun subscribeNewPendingTransactions(): RpcSubscribe<RPCTransaction, RpcError> {
-        return subscribe(arrayOf("newPendingTransactions", true), { it.readValueAs(RPCTransaction::class.java) })
+        return RpcSubscribeCall(
+            client,
+            arrayOf("newPendingTransactions", true),
+            { it.readValueAs(RPCTransaction::class.java) },
+        )
     }
 
     override fun subscribeNewHeads(): RpcSubscribe<BlockWithHashes, RpcError> {
-        return subscribe(arrayOf("newHeads"), { it.readValueAs(BlockWithHashes::class.java) })
+        return RpcSubscribeCall(client, arrayOf("newHeads"), { it.readValueAs(BlockWithHashes::class.java) })
     }
 
     override fun subscribeLogs(filter: LogFilter): RpcSubscribe<Log, RpcError> {
-        return subscribe(arrayOf("logs", filter), { it.readValueAs(Log::class.java) })
-    }
-
-    private fun <T> subscribe(
-        params: Array<*>,
-        decoder: Function<JsonParser, T>,
-    ): RpcSubscribe<T, RpcError> {
-        if (!isPubSub) {
-            return RpcSubscribeConstant(
-                failure(
-                    RpcError(
-                        RpcError.CODE_METHOD_NOT_FOUND,
-                        "'eth_subscribe' is available only through a WS connection",
-                        null,
-                    ),
-                ),
-            )
-        }
-        return RpcSubscribeCall(client as JsonPubSubClient, params, decoder)
+        return RpcSubscribeCall(client, arrayOf("logs", filter), { it.readValueAs(Log::class.java) })
     }
 
     //-----------------------------------------------------------------------------------------------------------------

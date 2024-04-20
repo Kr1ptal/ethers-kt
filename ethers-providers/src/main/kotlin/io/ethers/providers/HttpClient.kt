@@ -31,7 +31,8 @@ import java.util.concurrent.atomic.AtomicLong
 import java.util.function.Function
 
 /**
- * Http client implementation for RPC request submission and results parsing.
+ * [JsonRpcClient] implementation via HTTP transport. Supports both single and batch requests. Subscriptions are not
+ * supported.
  */
 class HttpClient(
     url: String,
@@ -232,6 +233,13 @@ class HttpClient(
         return ret
     }
 
+    override fun <T> subscribe(
+        params: Array<*>,
+        resultDecoder: Function<JsonParser, T>,
+    ): CompletableFuture<Result<SubscriptionStream<T>, RpcError>> {
+        return CompletableFuture.completedFuture(ERROR_SUBSCRIPTION_UNSUPPORTED)
+    }
+
     private fun BatchRpcRequest.toRequestBody(): RequestBody {
         val output = DirectByteArrayOutputStream()
         output.use { out ->
@@ -271,6 +279,14 @@ class HttpClient(
 
     companion object {
         private val JSON_MEDIA_TYPE = "application/json".toMediaType()
+
+        private val ERROR_SUBSCRIPTION_UNSUPPORTED = failure(
+            RpcError(
+                RpcError.CODE_METHOD_NOT_FOUND,
+                "'eth_subscribe' is not supported by HTTP client",
+                null,
+            ),
+        )
 
         internal val ERROR_INVALID_RESPONSE = failure(
             RpcError(

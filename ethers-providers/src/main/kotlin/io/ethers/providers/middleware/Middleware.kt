@@ -1,6 +1,5 @@
 package io.ethers.providers.middleware
 
-import io.ethers.providers.JsonPubSubClient
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.Provider
 
@@ -36,10 +35,4 @@ interface Middleware : EthApi, DebugApi, NetApi, TxpoolApi, Web3Api {
      * Get the underlying [Provider].
      * */
     val provider: Provider
-
-    /**
-     * Whether this middleware supports pub/sub functionality.
-     * */
-    val isPubSub: Boolean
-        get() = client is JsonPubSubClient
 }

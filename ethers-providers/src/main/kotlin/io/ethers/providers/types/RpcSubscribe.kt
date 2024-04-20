@@ -2,7 +2,7 @@ package io.ethers.providers.types
 
 import com.fasterxml.jackson.core.JsonParser
 import io.ethers.core.Result
-import io.ethers.providers.JsonPubSubClient
+import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import io.ethers.providers.SubscriptionStream
 import java.util.concurrent.CompletableFuture
@@ -76,12 +76,12 @@ internal class RpcSubscribeConstant<T, E : Result.Error>(
  * Normal stream subscription via RPC.
  */
 class RpcSubscribeCall<T>(
-    private val client: JsonPubSubClient,
+    private val client: JsonRpcClient,
     private val params: Array<*>,
     private val resultDecoder: Function<JsonParser, T>,
 ) : RpcSubscribe<T, RpcError> {
     constructor(
-        client: JsonPubSubClient,
+        client: JsonRpcClient,
         params: Array<*>,
         resultType: Class<T>,
     ) : this(client, params, { p -> p.readValueAs(resultType) })
