@@ -1,5 +1,6 @@
 package io.ethers.abigen
 
+import com.squareup.kotlinpoet.AnnotationSpec
 import com.squareup.kotlinpoet.ClassName
 import com.squareup.kotlinpoet.CodeBlock
 import com.squareup.kotlinpoet.FileSpec
@@ -70,6 +71,20 @@ class AbiContractBuilder(
     fun build(customErrorLoader: String? = null): String {
         val fileBuilder = FileSpec.builder(packageName, contractName)
             .indent("    ") // 1 tab / 4 spaces
+
+        fileBuilder.addAnnotation(
+            AnnotationSpec.builder(Suppress::class)
+                .useSiteTarget(AnnotationSpec.UseSiteTarget.FILE)
+                .addMember(
+                    "%S, %S, %S, %S, %S",
+                    "UNCHECKED_CAST",
+                    "FunctionName",
+                    "PropertyName",
+                    "RedundantVisibilityModifier",
+                    "RemoveRedundantQualifierName",
+                )
+                .build(),
+        )
 
         fileBuilder.addImport(AbiType::class.java.packageName, AbiType::class.java.simpleName)
 
