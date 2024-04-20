@@ -40,6 +40,30 @@ interface JsonRpcClient {
      * Asynchronously execute [batch] of RPC requests.
      */
     fun requestBatch(batch: BatchRpcRequest): CompletableFuture<Boolean>
+
+    /**
+     * Subscribe to a stream via `eth_subscribe`, if the client supports it.
+     *
+     * @param params the subscription parameters
+     * @param resultType class into which JSON result is converted
+     */
+    fun <T> subscribe(
+        params: Array<*>,
+        resultType: Class<T>,
+    ): CompletableFuture<Result<SubscriptionStream<T>, RpcError>> {
+        return subscribe(params) { p -> p.readValueAs(resultType) }
+    }
+
+    /**
+     * Subscribe to a stream via `eth_subscribe`, if the client supports it.
+     *
+     * @param params the subscription parameters
+     * @param resultDecoder function to convert JSON result into return object [T]
+     */
+    fun <T> subscribe(
+        params: Array<*>,
+        resultDecoder: Function<JsonParser, T>,
+    ): CompletableFuture<Result<SubscriptionStream<T>, RpcError>>
 }
 
 /**
