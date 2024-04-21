@@ -345,3 +345,16 @@ fun JsonParser.initForReading(): JsonParser {
     }
     return this
 }
+
+private val STRICT_MODE = System.getenv("ETHERS_JSON_STRICT_MODE") == "true"
+
+/**
+ * Handle unknown field by either skipping (default) or throwing exception. Strict mode is enabled by setting
+ * environment variable `ETHERS_JSON_STRICT_MODE=true`.
+ * */
+fun JsonParser.handleUnknownField() {
+    if (STRICT_MODE) {
+        throw IllegalArgumentException("Unknown field ${currentName()}")
+    }
+    skipChildren()
+}

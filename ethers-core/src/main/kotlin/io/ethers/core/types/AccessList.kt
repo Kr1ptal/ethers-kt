@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.SerializerProvider
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import io.ethers.core.forEachObjectField
+import io.ethers.core.handleUnknownField
 import io.ethers.core.readAddress
 import io.ethers.core.readHexLong
 import io.ethers.core.readListOf
@@ -83,7 +84,7 @@ private class AccessListItemDeserializer : JsonDeserializer<AccessList.Item>() {
             when (field) {
                 "address" -> address = p.readAddress()
                 "storageKeys" -> storageKeys = p.readListOfHashes()
-                else -> throw IllegalArgumentException("Unknown field ${p.currentName()}")
+                else -> p.handleUnknownField()
             }
         }
 
@@ -105,7 +106,7 @@ class CreateAccessListDeserializer : JsonDeserializer<CreateAccessList>() {
                 "accessList" -> accessList = p.readListOf(AccessList.Item::class.java)
                 "gasUsed" -> gasUsed = p.readHexLong()
                 "error" -> error = p.text
-                else -> throw IllegalArgumentException("Unknown field $field")
+                else -> p.handleUnknownField()
             }
         }
 

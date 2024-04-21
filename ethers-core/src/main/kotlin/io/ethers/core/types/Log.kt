@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.DeserializationContext
 import com.fasterxml.jackson.databind.JsonDeserializer
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import io.ethers.core.forEachObjectField
+import io.ethers.core.handleUnknownField
 import io.ethers.core.readAddress
 import io.ethers.core.readBytes
 import io.ethers.core.readHash
@@ -59,8 +60,7 @@ private class LogDeserializer : JsonDeserializer<Log>() {
                 "transactionIndex" -> transactionIndex = p.readHexInt()
                 "logIndex" -> logIndex = p.readHexInt()
                 "removed" -> removed = p.currentToken() == JsonToken.VALUE_TRUE
-
-                else -> throw IllegalStateException("Unexpected field name: ${p.currentName()}")
+                else -> p.handleUnknownField()
             }
         }
 

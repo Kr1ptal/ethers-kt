@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.JsonToken
 import com.fasterxml.jackson.databind.DeserializationContext
 import com.fasterxml.jackson.databind.JsonDeserializer
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
+import io.ethers.core.handleUnknownField
 import io.ethers.core.isField
 import io.ethers.core.isNextTokenObjectEnd
 import io.ethers.core.readHexLong
@@ -77,7 +78,7 @@ private class TxpoolContentDeserializer : JsonDeserializer<TxpoolContent>() {
                     )
                 }
 
-                else -> throw IllegalStateException("Unexpected field name: ${p.currentName()}")
+                else -> p.handleUnknownField()
             }
         }
 
@@ -98,7 +99,7 @@ private class TxpoolStatusDeserializer : JsonDeserializer<TxpoolStatus>() {
             when {
                 p.isField("pending") -> pending = p.readHexLong()
                 p.isField("queued") -> queued = p.readHexLong()
-                else -> throw IllegalStateException("Unexpected field name: ${p.currentName()}")
+                else -> p.handleUnknownField()
             }
         }
 
@@ -119,7 +120,7 @@ private class TxpoolContentFromAddressDeserializer : JsonDeserializer<TxpoolCont
             when {
                 p.isField("pending") -> pending = p.readMapOf({ it.toLong() }, RPCTransaction::class.java)
                 p.isField("queued") -> queued = p.readMapOf({ it.toLong() }, RPCTransaction::class.java)
-                else -> throw IllegalStateException("Unexpected field name: ${p.currentName()}")
+                else -> p.handleUnknownField()
             }
         }
 
@@ -152,7 +153,7 @@ private class TxpoolInspectResultDeserializer : JsonDeserializer<TxpoolInspectRe
                     )
                 }
 
-                else -> throw IllegalStateException("Unexpected field name: ${p.currentName()}")
+                else -> p.handleUnknownField()
             }
         }
 

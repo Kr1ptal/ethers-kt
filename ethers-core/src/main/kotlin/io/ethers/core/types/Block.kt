@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.JsonDeserializer
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import io.ethers.core.forEachObjectField
+import io.ethers.core.handleUnknownField
 import io.ethers.core.readAddress
 import io.ethers.core.readBloom
 import io.ethers.core.readBytes
@@ -408,7 +409,7 @@ private class WithdrawalDeserializer : JsonDeserializer<Withdrawal>() {
                 "validatorIndex" -> validatorIndex = p.readHexLong()
                 "address" -> address = p.readAddress()
                 "amount" -> amount = p.readHexLong()
-                else -> throw IllegalArgumentException("Unknown field $field")
+                else -> p.handleUnknownField()
             }
         }
 
