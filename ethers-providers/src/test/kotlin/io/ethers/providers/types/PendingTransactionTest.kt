@@ -194,6 +194,7 @@ private val TX_RECEIPT = TransactionReceipt(
             ),
             data = Bytes("0x0000000000000000000000000000000000000000000000000110c4f5fd7772ba"),
             blockNumber = 18334327L,
+            blockTimestamp = -1L,
             transactionHash = Hash("0xc74b35721eec9b338589ea735f8d322b3e27f3259d9e924ef354a4336fb715a8"),
             transactionIndex = 160,
             blockHash = Hash("0xf58bc0d9ad6de2ca7169880cf7d6ffe970c85e48880c00745f21f7a0a5330560"),

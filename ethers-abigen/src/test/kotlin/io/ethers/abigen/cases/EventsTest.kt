@@ -62,6 +62,7 @@ class EventsTest : FunSpec({
                 Bytes(logData),
                 Hash.ZERO,
                 1L,
+                1L,
                 Hash.ZERO,
                 1,
                 1,

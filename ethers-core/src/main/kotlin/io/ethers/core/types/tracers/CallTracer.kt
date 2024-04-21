@@ -139,6 +139,7 @@ data class CallTracer(
                 data,
                 Hash.ZERO,
                 -1L,
+                -1L,
                 Hash.ZERO,
                 -1,
                 logIndex,

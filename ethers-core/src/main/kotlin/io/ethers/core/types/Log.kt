@@ -23,6 +23,7 @@ data class Log(
     val data: Bytes,
     val blockHash: Hash,
     val blockNumber: Long,
+    val blockTimestamp: Long,
     val transactionHash: Hash,
     val transactionIndex: Int,
     val logIndex: Int,
@@ -40,6 +41,7 @@ private class LogDeserializer : JsonDeserializer<Log>() {
         var data: Bytes? = null
         var blockHash: Hash? = null
         var blockNumber: Long = -1L
+        var blockTimestamp: Long = -1L
         var transactionHash: Hash? = null
         var transactionIndex: Int? = null
         var logIndex: Int = -1
@@ -52,6 +54,7 @@ private class LogDeserializer : JsonDeserializer<Log>() {
                 "data" -> data = p.readBytes()
                 "blockHash" -> blockHash = p.readHash()
                 "blockNumber" -> blockNumber = p.readHexLong()
+                "blockTimestamp" -> blockTimestamp = p.readHexLong()
                 "transactionHash" -> transactionHash = p.readHash()
                 "transactionIndex" -> transactionIndex = p.readHexInt()
                 "logIndex" -> logIndex = p.readHexInt()
@@ -67,6 +70,7 @@ private class LogDeserializer : JsonDeserializer<Log>() {
             data = data!!,
             blockHash = blockHash!!,
             blockNumber = blockNumber,
+            blockTimestamp = blockTimestamp,
             transactionHash = transactionHash!!,
             transactionIndex = transactionIndex!!,
             logIndex = logIndex,
