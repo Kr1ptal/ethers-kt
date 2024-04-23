@@ -139,9 +139,10 @@ class WsClient(
         val processorThread = processorThreadFactory.newThread {
             LOG.inf { "Starting WebSocket processor thread and connecting to websocket" }
 
-            var websocket = client.newWebSocket(wsRequest, wsListener)
-
+            var websocket: WebSocket
             eventLock.withLock {
+                websocket = client.newWebSocket(wsRequest, wsListener)
+
                 connectionOpenedCondition.await(
                     client.connectTimeoutMillis.toLong(),
                     TimeUnit.MILLISECONDS,
@@ -175,10 +176,13 @@ class WsClient(
                         while (!reconnectSuccessful && !stopping) {
                             LOG.dbg { "Trying to reconnect WebSocket" }
 
-                            // close the old websocket, just in case
-                            if (websocket.close(1000, "Close")) {
-                                // the above call will return true if connection is still open, wait for it to close
-                                eventLock.withLock { connectionClosedCondition.await() }
+                            // close the old websocket, just in case. Do this while holding a lock, so we don't start
+                            // awaiting on the condition after the ws listener already notified it, which would lead
+                            // to a deadlock
+                            eventLock.withLock {
+                                if (websocket.close(1000, "Close")) {
+                                    connectionClosedCondition.await()
+                                }
                             }
 
                             // Clear the flag in each iteration since it might be set again while reconnecting.
@@ -186,11 +190,15 @@ class WsClient(
                             // a new reconnection attempt
                             reconnect = false
 
-                            websocket = client.newWebSocket(wsRequest, wsListener)
-
                             // and wait explicitly for the new connection to be opened, the delay acting as a back-off
                             reconnectSuccessful = eventLock.withLock {
-                                connectionOpenedCondition.await(5, TimeUnit.SECONDS)
+                                // sends the connection request asynchronously, so the lock won't be held very long
+                                websocket = client.newWebSocket(wsRequest, wsListener)
+
+                                connectionOpenedCondition.await(
+                                    client.connectTimeoutMillis.toLong(),
+                                    TimeUnit.MILLISECONDS,
+                                )
                             }
                         }
 
