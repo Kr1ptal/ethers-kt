@@ -20,6 +20,17 @@ sealed class Result<out T : Any?, out E : Result.Error> {
         }
 
         override fun toString() = "Success($value)"
+
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (javaClass != other?.javaClass) return false
+
+            other as Success<*>
+
+            return value == other.value
+        }
+
+        override fun hashCode() = value?.hashCode() ?: 0
     }
 
     class Failure<out E : Error>(val error: E) : Result<Nothing, E>() {
@@ -31,7 +42,22 @@ sealed class Result<out T : Any?, out E : Result.Error> {
         }
 
         override fun toString() = "Failure($error)"
+
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (javaClass != other?.javaClass) return false
+
+            other as Failure<*>
+
+            return error == other.error
+        }
+
+        override fun hashCode() = error.hashCode()
     }
+
+    abstract override fun toString(): String
+    abstract override fun equals(other: Any?): Boolean
+    abstract override fun hashCode(): Int
 
     /**
      * Java bridge for [isSuccess] function. Should not be used from kotlin, use extension function instead since
