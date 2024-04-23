@@ -156,6 +156,12 @@ class Signature(
         rlp.encode(s)
     }
 
+    constructor(hexString: String) : this(
+        r = BigInteger(1, hexString.substring(0, 64).hexStringToByteArray()),
+        s = BigInteger(1, hexString.substring(64, 128).hexStringToByteArray()),
+        v = hexString.substring(128).hexStringToByteArray()[0].toLong(),
+    )
+
     companion object : RlpDecodable<Signature> {
         const val V_ELECTRUM_OFFSET = 27L
         const val V_EIP155_OFFSET = 35L
@@ -183,6 +189,13 @@ class Signature(
             val s = BigInteger(1, byteArray, 32, 32)
             val v = byteArray[64].toLong()
             return success(Signature(r, s, v))
+        }
+
+        private fun String.hexStringToByteArray(): ByteArray {
+            check(length % 2 == 0) { "Hex string must have an even length" }
+            return chunked(2)
+                .map { it.toInt(16).toByte() }
+                .toByteArray()
         }
     }
 }
