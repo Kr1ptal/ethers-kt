@@ -569,7 +569,7 @@ class WsClient(
                 serverId = resultParser.text,
                 params = request.params,
                 resultDecoder = request.resultDecoder,
-                stream = BlockingSubscriptionStream {
+                stream = BlockingSubscriptionStream.singleProducer {
                     // requestId is constant even across re-subscriptions
                     val sub = requestIdToSubscription.remove(id)
                     if (sub != null) {

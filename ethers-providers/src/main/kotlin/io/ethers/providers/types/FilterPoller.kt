@@ -32,7 +32,7 @@ class FilterPoller<T>(
     @Volatile
     private var unsubscribed = false
     private val initialized = AtomicBoolean(false)
-    private val stream = BlockingSubscriptionStream<T> { unsubscribed = true }
+    private val stream = BlockingSubscriptionStream.singleProducer<T> { unsubscribed = true }
 
     /**
      * Map results of the poller to a different type.
