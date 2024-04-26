@@ -29,8 +29,12 @@ abstract class SubscriptionStream<T> {
      * Iterates over the stream on a separate thread to avoid blocking the caller.
      * */
     @JvmOverloads
-    fun forEachAsync(threadFactory: ThreadFactory = STREAM_DAEMON_FACTORY, consumer: Consumer<T>) {
+    fun forEachAsync(
+        threadFactory: ThreadFactory = STREAM_DAEMON_FACTORY,
+        consumer: Consumer<T>,
+    ): SubscriptionStream<T> {
         threadFactory.newThread { forEach(consumer) }.start()
+        return this
     }
 
     /**
