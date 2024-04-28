@@ -42,7 +42,7 @@ data class RPCTransaction(
     val v: Long,
     val r: BigInteger,
     val s: BigInteger,
-    val yParity: Int,
+    val yParity: Long,
     override val blobVersionedHashes: List<Hash>?,
     override val blobFeeCap: BigInteger?,
     val otherFields: Map<String, JsonNode> = emptyMap(),
@@ -73,7 +73,7 @@ private class RPCTransactionDeserializer : JsonDeserializer<RPCTransaction>() {
         var v = -1L
         lateinit var r: BigInteger
         lateinit var s: BigInteger
-        var yParity = -1
+        var yParity = -1L
         var blobVersionedHashes: List<Hash>? = null
         var blobFeeCap: BigInteger? = null
         var otherFields: MutableMap<String, JsonNode>? = null
@@ -99,7 +99,7 @@ private class RPCTransactionDeserializer : JsonDeserializer<RPCTransaction>() {
                 "v" -> v = p.readHexLong()
                 "r" -> r = p.readHexBigInteger()
                 "s" -> s = p.readHexBigInteger()
-                "y" -> yParity = p.readHexInt()
+                "yParity" -> yParity = p.readHexLong()
                 "blobVersionedHashes" -> blobVersionedHashes = p.readListOf(Hash::class.java)
                 "maxFeePerBlobGas" -> blobFeeCap = p.readHexBigInteger()
                 else -> {
