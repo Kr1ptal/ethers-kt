@@ -23,6 +23,9 @@ import io.ethers.rlp.RlpEncoder
 class Bytes(private val value: ByteArray) : RlpEncodable {
     constructor(value: CharSequence) : this(FastHex.decode(value))
 
+    // cache of hex string for faster serialization if serializing the same instance multiple times
+    private var stringCache: String? = null
+
     /**
      * Return the internal byte array.
      *
@@ -192,7 +195,7 @@ class Bytes(private val value: ByteArray) : RlpEncodable {
     }
 
     override fun toString(): String {
-        return FastHex.encodeWithPrefix(value)
+        return stringCache ?: FastHex.encodeWithPrefix(value).also { stringCache = it }
     }
 
     override fun rlpEncode(rlp: RlpEncoder) {
