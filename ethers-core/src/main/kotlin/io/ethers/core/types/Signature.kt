@@ -1,5 +1,6 @@
 package io.ethers.core.types
 
+import io.ethers.core.FastHex
 import io.ethers.core.Result
 import io.ethers.core.failure
 import io.ethers.core.success
@@ -29,7 +30,10 @@ class Signature(
      *
      * @return `true` if signature is valid, `false` otherwise.
      * */
-    fun verifyFromMessage(message: ByteArray, address: Address): Boolean {
+    fun verifyFromMessage(
+        message: ByteArray,
+        address: Address,
+    ): Boolean {
         return verifyFromHash(Hashing.hashMessage(message), address)
     }
 
@@ -38,7 +42,10 @@ class Signature(
      *
      * @return `true` if signature is valid, `false` otherwise.
      * */
-    fun verifyFromHash(hash: ByteArray, address: Address): Boolean {
+    fun verifyFromHash(
+        hash: ByteArray,
+        address: Address,
+    ): Boolean {
         return recoverFromHash(hash) == address
     }
 
@@ -183,6 +190,21 @@ class Signature(
             val s = BigInteger(1, byteArray, 32, 32)
             val v = byteArray[64].toLong()
             return success(Signature(r, s, v))
+        }
+
+        /**
+         * Create a new [Signature] from Hex string.
+         *
+         * @param hexString the hex string to decode, which should represent an RSV byte array in hexadecimal format.
+         **/
+        @JvmStatic
+        fun fromHex(hexString: String): Result<Signature, InvalidSignatureError> {
+            if (!FastHex.isValidHex(hexString)) {
+                return failure(InvalidSignatureError("Invalid hex format: $hexString"))
+            }
+
+            val byteArray = FastHex.decode(hexString)
+            return fromByteArray(byteArray)
         }
     }
 }
