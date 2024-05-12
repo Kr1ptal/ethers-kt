@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonGenerator
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.DeserializationContext
 import com.fasterxml.jackson.databind.JsonDeserializer
+import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import io.ethers.core.forEachObjectField
 import io.ethers.core.readAddress
@@ -54,6 +55,7 @@ data class CallTracer(
         val calls: List<CallFrame>? = null,
         val logs: List<CallLog>? = null,
         val value: BigInteger? = null,
+        val otherFields: Map<String, JsonNode> = emptyMap(),
     ) {
         /**
          * Return `true` if this call failed, false otherwise.
@@ -161,6 +163,7 @@ data class CallTracer(
             var calls: List<CallFrame>? = null
             var logs: List<CallLog>? = null
             var value: BigInteger? = null
+            var otherFields: MutableMap<String, JsonNode>? = null
             p.forEachObjectField { name ->
                 when (name) {
                     "from" -> from = p.readAddress()
@@ -174,10 +177,16 @@ data class CallTracer(
                     "calls" -> calls = p.readListOf { readValueAs(CallFrame::class.java) }
                     "logs" -> logs = p.readListOf { readValueAs(CallLog::class.java) }
                     "value" -> value = p.readHexBigInteger()
+                    else -> {
+                        if (otherFields == null) {
+                            otherFields = HashMap()
+                        }
+                        otherFields!![p.currentName()] = p.readValueAs(JsonNode::class.java)
+                    }
                 }
             }
 
-            return CallFrame(from, gas, gasUsed, input, to, output, error, revertReason, calls, logs, value)
+            return CallFrame(from, gas, gasUsed, input, to, output, error, revertReason, calls, logs, value, otherFields ?: emptyMap())
         }
     }
 

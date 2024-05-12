@@ -64,9 +64,6 @@ class TxBlob(
         if (!ChainId.isValid(chainId)) {
             throw IllegalArgumentException("TxBlob transactions must have a chainId")
         }
-        if (gasFeeCap < gasTipCap) {
-            throw IllegalArgumentException("gasFeeCap must be greater than or equal to gasTipCap")
-        }
     }
 
     override val gasPrice: BigInteger

@@ -26,10 +26,11 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString
+import org.jctools.queues.MpscUnboundedXaddArrayQueue
+import org.jctools.queues.SpscUnboundedArrayQueue
 import java.io.IOException
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.ThreadFactory
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
@@ -76,10 +77,11 @@ class WsClient(
     private val connectionOpenedCondition = eventLock.newCondition()
     private val connectionClosedCondition = eventLock.newCondition()
 
-    private val messageQueue = ConcurrentLinkedQueue<String>()
-    private val requestQueue = ConcurrentLinkedQueue<CompletableRequest<*>>()
-    private val batchRequestQueue = ConcurrentLinkedQueue<CompletableBatchRequest>()
-    private val subscriptionQueue = ConcurrentLinkedQueue<CompletableSubscriptionRequest<*>>()
+    // queues chosen based on https://vmlens.com/articles/scale/scalability_queue/
+    private val messageQueue = SpscUnboundedArrayQueue<String>(512)
+    private val requestQueue = MpscUnboundedXaddArrayQueue<CompletableRequest<*>>(512)
+    private val batchRequestQueue = MpscUnboundedXaddArrayQueue<CompletableBatchRequest>(256)
+    private val subscriptionQueue = MpscUnboundedXaddArrayQueue<CompletableSubscriptionRequest<*>>(128)
 
     @Volatile
     private var reconnect = false
@@ -137,9 +139,10 @@ class WsClient(
         val processorThread = processorThreadFactory.newThread {
             LOG.inf { "Starting WebSocket processor thread and connecting to websocket" }
 
-            var websocket = client.newWebSocket(wsRequest, wsListener)
-
+            var websocket: WebSocket
             eventLock.withLock {
+                websocket = client.newWebSocket(wsRequest, wsListener)
+
                 connectionOpenedCondition.await(
                     client.connectTimeoutMillis.toLong(),
                     TimeUnit.MILLISECONDS,
@@ -173,10 +176,13 @@ class WsClient(
                         while (!reconnectSuccessful && !stopping) {
                             LOG.dbg { "Trying to reconnect WebSocket" }
 
-                            // close the old websocket, just in case
-                            if (websocket.close(1000, "Close")) {
-                                // the above call will return true if connection is still open, wait for it to close
-                                eventLock.withLock { connectionClosedCondition.await() }
+                            // close the old websocket, just in case. Do this while holding a lock, so we don't start
+                            // awaiting on the condition after the ws listener already notified it, which would lead
+                            // to a deadlock
+                            eventLock.withLock {
+                                if (websocket.close(1000, "Close")) {
+                                    connectionClosedCondition.await()
+                                }
                             }
 
                             // Clear the flag in each iteration since it might be set again while reconnecting.
@@ -184,11 +190,15 @@ class WsClient(
                             // a new reconnection attempt
                             reconnect = false
 
-                            websocket = client.newWebSocket(wsRequest, wsListener)
-
                             // and wait explicitly for the new connection to be opened, the delay acting as a back-off
                             reconnectSuccessful = eventLock.withLock {
-                                connectionOpenedCondition.await(5, TimeUnit.SECONDS)
+                                // sends the connection request asynchronously, so the lock won't be held very long
+                                websocket = client.newWebSocket(wsRequest, wsListener)
+
+                                connectionOpenedCondition.await(
+                                    client.connectTimeoutMillis.toLong(),
+                                    TimeUnit.MILLISECONDS,
+                                )
                             }
                         }
 
@@ -306,20 +316,19 @@ class WsClient(
 
                     // check and handle timed-out requests every 1000ms
                     if (lastTimeoutCheck.elapsedNow() > 1000.milliseconds) {
-                        removeTimedOutRequests(inFlightRequests, client.readTimeoutMillis.toLong().milliseconds)
-                        removeTimedOutRequests(inFlightBatchRequests, client.readTimeoutMillis.toLong().milliseconds)
-                        removeTimedOutRequests(
-                            inFlightSubscriptionRequests,
-                            client.readTimeoutMillis.toLong().milliseconds,
-                        )
+                        val timeout = client.readTimeoutMillis.toLong().milliseconds
+                        removeTimedOutRequests(inFlightRequests, timeout)
+                        removeTimedOutRequests(inFlightBatchRequests, timeout)
+                        removeTimedOutRequests(inFlightSubscriptionRequests, timeout)
 
                         lastTimeoutCheck = TimeSource.Monotonic.markNow()
                     }
 
                     eventLock.withLock {
                         // do a quick check if any new events arrived while processing requests, while holding the lock
-                        // so there is no race condition, and we don't wait unnecessarily
-                        if (messageQueue.isEmpty() && requestQueue.isEmpty() && batchRequestQueue.isEmpty() && subscriptionQueue.isEmpty()) {
+                        // to prevent race conditions, so we don't wait unnecessarily. We wait for max 1 second, so we
+                        // still process timeouts in a timely manner, even if there are no new events.
+                        if (messageQueue.isEmpty && requestQueue.isEmpty && batchRequestQueue.isEmpty && subscriptionQueue.isEmpty) {
                             newEventCondition.await(1, TimeUnit.SECONDS)
                         }
                     }
@@ -560,7 +569,7 @@ class WsClient(
                 serverId = resultParser.text,
                 params = request.params,
                 resultDecoder = request.resultDecoder,
-                stream = BlockingSubscriptionStream {
+                stream = BlockingSubscriptionStream.singleProducer {
                     // requestId is constant even across re-subscriptions
                     val sub = requestIdToSubscription.remove(id)
                     if (sub != null) {

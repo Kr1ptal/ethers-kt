@@ -24,6 +24,9 @@ class Hash(private val value: ByteArray) : RlpEncodable {
     constructor(value: CharSequence) : this(FastHex.decode(value))
     constructor(value: Address) : this(value.asByteArray().copyInto(ByteArray(32), 12))
 
+    // cache of hex string for faster serialization if serializing the same instance multiple times
+    private var stringCache: String? = null
+
     init {
         require(value.size == 32) { "Hash must be 32 bytes long" }
     }
@@ -71,7 +74,7 @@ class Hash(private val value: ByteArray) : RlpEncodable {
     }
 
     override fun toString(): String {
-        return FastHex.encodeWithPrefix(value)
+        return stringCache ?: FastHex.encodeWithPrefix(value).also { stringCache = it }
     }
 
     companion object : RlpDecodable<Hash> {

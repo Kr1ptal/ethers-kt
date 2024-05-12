@@ -10,7 +10,8 @@ import java.util.concurrent.atomic.AtomicBoolean
  * Single-shot batch request.
  * */
 class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) {
-    private val batchSent = AtomicBoolean(false)
+    // Enable batchSent modification for batch execution via JsonRpcClient.requestBatch
+    internal val batchSent = AtomicBoolean(false)
 
     private val _requests = ArrayList<RpcCall<*>>(defaultSize)
     internal val requests: List<RpcCall<*>> get() = _requests

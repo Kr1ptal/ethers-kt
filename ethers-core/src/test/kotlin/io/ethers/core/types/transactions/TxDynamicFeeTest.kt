@@ -19,12 +19,6 @@ class TxDynamicFeeTest : FunSpec({
                 TxDynamicFeeFactory.create(chainId = -1L)
             }
         }
-
-        test("invalid gas price parameters") {
-            shouldThrow<IllegalArgumentException> {
-                TxDynamicFeeFactory.create(chainId = 1L, gasFeeCap = BigInteger.ONE, gasTipCap = BigInteger.TEN)
-            }
-        }
     }
 
     context("copy") {

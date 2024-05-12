@@ -7,6 +7,7 @@ import io.ethers.providers.types.BatchRpcRequest
 import okhttp3.OkHttpClient
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ThreadFactory
+import java.util.concurrent.TimeUnit
 import java.util.function.Function
 
 interface JsonRpcClient {
@@ -231,7 +232,11 @@ class RpcClientConfig {
     fun requestHeaders(headers: Map<String, String>) = apply { this.requestHeaders = headers }
 
     companion object {
-        private val DEFAULT_CLIENT by lazy { OkHttpClient() }
+        private val DEFAULT_CLIENT by lazy {
+            OkHttpClient.Builder()
+                .pingInterval(10, TimeUnit.SECONDS)
+                .build()
+        }
 
         inline operator fun invoke(builder: RpcClientConfig.() -> Unit): RpcClientConfig {
             return RpcClientConfig().apply(builder)

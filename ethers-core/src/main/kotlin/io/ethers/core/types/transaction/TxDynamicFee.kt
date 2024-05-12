@@ -29,9 +29,6 @@ class TxDynamicFee(
         if (!ChainId.isValid(chainId)) {
             throw IllegalArgumentException("DynamicFee transactions must have a chainId")
         }
-        if (gasFeeCap < gasTipCap) {
-            throw IllegalArgumentException("gasFeeCap must be greater than or equal to gasTipCap")
-        }
     }
 
     override val gasPrice: BigInteger

@@ -1,0 +1,11 @@
+[*.{kt,kts}]
+# format of rule keys defined at: https://pinterest.github.io/ktlint/latest/rules/configuration-ktlint/#disable-rules
+ktlint_code_style = intellij_idea
+ktlint_standard_comment-spacing = disabled
+ktlint_standard_discouraged-comment-location = disabled
+ktlint_standard_property-naming = disabled
+ktlint_standard_spacing-between-declarations-with-annotations = disabled
+ktlint_standard_multiline-if-else = disabled
+ktlint_standard_value-argument-comment = disabled
+ktlint_standard_value-parameter-comment = disabled
+ktlint_standard_backing-property-naming = disabled

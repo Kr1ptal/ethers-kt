@@ -1,8 +1,11 @@
 package io.ethers.providers
 
+import io.ethers.providers.BlockingSubscriptionStream.Companion.multiProducer
+import io.ethers.providers.BlockingSubscriptionStream.Companion.singleProducer
+import org.jctools.queues.MpscUnboundedXaddArrayQueue
 import org.jctools.queues.SpscUnboundedArrayQueue
+import java.util.Queue
 import java.util.concurrent.ThreadFactory
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
 import java.util.function.Consumer
 import java.util.function.Function
@@ -26,8 +29,12 @@ abstract class SubscriptionStream<T> {
      * Iterates over the stream on a separate thread to avoid blocking the caller.
      * */
     @JvmOverloads
-    fun forEachAsync(threadFactory: ThreadFactory = STREAM_DAEMON_FACTORY, consumer: Consumer<T>) {
+    fun forEachAsync(
+        threadFactory: ThreadFactory = STREAM_DAEMON_FACTORY,
+        consumer: Consumer<T>,
+    ): SubscriptionStream<T> {
         threadFactory.newThread { forEach(consumer) }.start()
+        return this
     }
 
     /**
@@ -55,12 +62,13 @@ abstract class SubscriptionStream<T> {
 }
 
 /**
- * [SubscriptionStream] that blocks until an event is available.
+ * A single-consumer [SubscriptionStream] that blocks until an event is available. Depending on how it is created, it
+ * can be single or multi producer. See [singleProducer]/[multiProducer] for more details.
  * */
-class BlockingSubscriptionStream<T>(private val unsubscribeFunction: Runnable) : SubscriptionStream<T>() {
-    // single producer, single consumer
-    private val eventQueue = SpscUnboundedArrayQueue<T>(512)
-
+class BlockingSubscriptionStream<T> private constructor(
+    private val eventQueue: Queue<T>,
+    private val unsubscribeFunction: Runnable,
+) : SubscriptionStream<T>() {
     private val lock = ReentrantLock()
     private val newEventCondition = lock.newCondition()
 
@@ -75,6 +83,7 @@ class BlockingSubscriptionStream<T>(private val unsubscribeFunction: Runnable) :
     override fun unsubscribe() {
         unsubscribeFunction.run()
         unsubscribed = true
+        lock.withLock { newEventCondition.signal() }
     }
 
     override fun iterator(): Iterator<T> {
@@ -95,9 +104,9 @@ class BlockingSubscriptionStream<T>(private val unsubscribeFunction: Runnable) :
                         break
                     }
 
-                    // if no next element, wait a bit to avoid CPU cycle burning
+                    // if no next element, wait until next event to avoid CPU cycle burning
                     if (next == null) {
-                        lock.withLock { newEventCondition.await(10, TimeUnit.MILLISECONDS) }
+                        lock.withLock { newEventCondition.await() }
                     }
                 }
 
@@ -110,6 +119,27 @@ class BlockingSubscriptionStream<T>(private val unsubscribeFunction: Runnable) :
                 next = null
                 return ret
             }
+        }
+    }
+
+    companion object {
+        /**
+         * Creates a single-producer, single-consumer [BlockingSubscriptionStream]. This stream is suitable for use in
+         * scenarios where only a single thread will be pushing events into the stream, and a single thread reading
+         * from it.
+         * */
+        @JvmStatic
+        fun <T> singleProducer(unsubscribeFunction: Runnable): BlockingSubscriptionStream<T> {
+            return BlockingSubscriptionStream(SpscUnboundedArrayQueue(512), unsubscribeFunction)
+        }
+
+        /**
+         * Creates a multi-producer, single-consumer [BlockingSubscriptionStream]. This stream is suitable for use in
+         * scenarios where multiple threads will be pushing events into the stream, and a single thread reading from it.
+         * */
+        @JvmStatic
+        fun <T> multiProducer(unsubscribeFunction: Runnable): BlockingSubscriptionStream<T> {
+            return BlockingSubscriptionStream(MpscUnboundedXaddArrayQueue(512), unsubscribeFunction)
         }
     }
 }
