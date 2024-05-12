@@ -203,12 +203,8 @@ class Signature(
                 return failure(InvalidSignatureError("Invalid hex format: $hexString"))
             }
 
-            return try {
-                val byteArray = FastHex.decode(hexString)
-                fromByteArray(byteArray)
-            } catch (e: Exception) {
-                failure(InvalidSignatureError("Failed to decode hex: ${e.message}"))
-            }
+            val byteArray = FastHex.decode(hexString)
+            return fromByteArray(byteArray)
         }
     }
 }

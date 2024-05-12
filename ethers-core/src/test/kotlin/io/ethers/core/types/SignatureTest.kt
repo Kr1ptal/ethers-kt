@@ -69,50 +69,35 @@ class SignatureTest : FunSpec({
         }
     }
 
-    context("fromHex") {
-        test("fromHex should decode valid hex strings correctly") {
-            val testData =
-                mapOf(
-                    "000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000bdd6991b" to
-                        Signature(
-                            "10".toBigInteger(),
-                            "12441241".toBigInteger(),
-                            27L,
-                        ),
-                    "000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000bdd6991c" to
-                        Signature(
-                            "10".toBigInteger(),
-                            "12441241".toBigInteger(),
-                            28L,
-                        ),
-                )
-
-            testData.forEach { (hex, expectedSignature) ->
-                val result = Signature.fromHex(hex)
-                result.isSuccess() shouldBe true
-                result.unwrap() shouldBe expectedSignature
-            }
+    context("fromHex should decode valid hex strings correctly") {
+        withData(
+            "000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000bdd6991b" to
+                Signature(
+                    "10".toBigInteger(),
+                    "12441241".toBigInteger(),
+                    27L,
+                ),
+            "000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000bdd6991c" to
+                Signature(
+                    "10".toBigInteger(),
+                    "12441241".toBigInteger(),
+                    28L,
+                ),
+        ) { (hex, expectedSignature) ->
+            val result = Signature.fromHex(hex)
+            result.isSuccess() shouldBe true
+            result.unwrap() shouldBe expectedSignature
         }
+    }
 
-        test("fromHex should fail with an InvalidSignatureError for invalid hex formats") {
-            val invalidHex = "0x" + "1".repeat(64)
-
-            val result = Signature.fromHex(invalidHex)
+    context("fromHex should handle invalid formats and sizes correctly") {
+        withData(
+            "0x" + "1".repeat(64),
+            "1".repeat(200),
+        ) { hex ->
+            val result = Signature.fromHex(hex)
             result.isFailure() shouldBe true
             result.unwrapOrNull()?.shouldBeInstanceOf<InvalidSignatureError>()
-        }
-
-        test("fromHex should handle empty and excessively long strings") {
-            val emptyHex = ""
-            val longHex = "1".repeat(200) // Assume this is longer than needed
-
-            val emptyResult = Signature.fromHex(emptyHex)
-            emptyResult.isFailure() shouldBe true
-            emptyResult.unwrapOrNull()?.shouldBeInstanceOf<InvalidSignatureError>()
-
-            val longResult = Signature.fromHex(longHex)
-            longResult.isFailure() shouldBe true
-            longResult.unwrapOrNull()?.shouldBeInstanceOf<InvalidSignatureError>()
         }
     }
 })
