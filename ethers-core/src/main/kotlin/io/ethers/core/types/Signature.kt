@@ -1,5 +1,6 @@
 package io.ethers.core.types
 
+import io.ethers.core.FastHex
 import io.ethers.core.Result
 import io.ethers.core.failure
 import io.ethers.core.success
@@ -29,7 +30,10 @@ class Signature(
      *
      * @return `true` if signature is valid, `false` otherwise.
      * */
-    fun verifyFromMessage(message: ByteArray, address: Address): Boolean {
+    fun verifyFromMessage(
+        message: ByteArray,
+        address: Address,
+    ): Boolean {
         return verifyFromHash(Hashing.hashMessage(message), address)
     }
 
@@ -38,7 +42,10 @@ class Signature(
      *
      * @return `true` if signature is valid, `false` otherwise.
      * */
-    fun verifyFromHash(hash: ByteArray, address: Address): Boolean {
+    fun verifyFromHash(
+        hash: ByteArray,
+        address: Address,
+    ): Boolean {
         return recoverFromHash(hash) == address
     }
 
@@ -156,12 +163,6 @@ class Signature(
         rlp.encode(s)
     }
 
-    constructor(hexString: String) : this(
-        r = BigInteger(1, hexString.substring(0, 64).hexStringToByteArray()),
-        s = BigInteger(1, hexString.substring(64, 128).hexStringToByteArray()),
-        v = hexString.substring(128).hexStringToByteArray()[0].toLong(),
-    )
-
     companion object : RlpDecodable<Signature> {
         const val V_ELECTRUM_OFFSET = 27L
         const val V_EIP155_OFFSET = 35L
@@ -191,11 +192,23 @@ class Signature(
             return success(Signature(r, s, v))
         }
 
-        private fun String.hexStringToByteArray(): ByteArray {
-            check(length % 2 == 0) { "Hex string must have an even length" }
-            return chunked(2)
-                .map { it.toInt(16).toByte() }
-                .toByteArray()
+        /**
+         * Create a new [Signature] from Hex string.
+         *
+         * @param hexString the hex string to decode, which should represent an RSV byte array in hexadecimal format.
+         **/
+        @JvmStatic
+        fun fromHex(hexString: String): Result<Signature, InvalidSignatureError> {
+            if (!FastHex.isValidHex(hexString)) {
+                return failure(InvalidSignatureError("Invalid hex format: $hexString"))
+            }
+
+            return try {
+                val byteArray = FastHex.decode(hexString)
+                fromByteArray(byteArray)
+            } catch (e: Exception) {
+                failure(InvalidSignatureError("Failed to decode hex: ${e.message}"))
+            }
         }
     }
 }
