@@ -58,9 +58,13 @@ class Multicall3(
     address: Address,
 ) : AbiContract(provider, address) {
     /**
-     * Contract call that aggregates multiple [Aggregatable] calls into a single [Multicall3] contract call. The calls
-     * will be aggregated using as few calldata as possible, depending on the calls' properties. One of the following
-     * aggregation functions will be used:
+     * Contract call that aggregates multiple [Aggregatable] calls into a single [Multicall3] contract call.
+     *
+     * **IMPORTANT**: From the call, only [Aggregatable.to], [Aggregatable.value] and [Aggregatable.data] parameters
+     * are used. All others are ignored.
+     *
+     * The calls will be aggregated using as few calldata as possible, depending on the calls' properties. One of the
+     * following aggregation functions will be used:
      * - [aggregate3Value], if any call is payable with non-zero value set,
      * - [aggregate3], if calls have mixed failure conditions (i.e. some allow failure, some don't),
      * - [tryAggregate], if all calls have the same failure condition, and are not payable or with zero value.
@@ -474,7 +478,8 @@ class Multicall3(
     }
 
     /**
-     * A contract call that can be aggregated via [Multicall3] contract function call.
+     * A contract call that can be aggregated via [Multicall3] contract function call. Only [to], [value] and [data]
+     * are used from the original call for the aggregation.
      * */
     interface Aggregatable<T> {
         val provider: Middleware
@@ -542,9 +547,13 @@ class Multicall3(
         }
 
         /**
-         * Aggregate multiple [Aggregatable] calls into a single [Multicall3] contract call. The calls will be
-         * aggregated using as few calldata as possible, depending on the calls' properties. One of the following
-         * aggregation functions will be used:
+         * Contract call that aggregates multiple [Aggregatable] calls into a single [Multicall3] contract call.
+         *
+         * **IMPORTANT**: From the call, only [Aggregatable.to], [Aggregatable.value] and [Aggregatable.data] parameters
+         * are used. All others are ignored.
+         *
+         * The calls will be aggregated using as few calldata as possible, depending on the calls' properties. One of
+         * the following aggregation functions will be used:
          * - [aggregate3Value], if any call is payable with non-zero value set,
          * - [aggregate3], if calls have mixed failure conditions (i.e. some allow failure, some don't),
          * - [tryAggregate], if all calls have the same failure condition, and are not payable or with zero value.
