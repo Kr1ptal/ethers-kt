@@ -26,6 +26,10 @@ class PrivateKeySigner(val signingKey: Secp256k1.SigningKey) : Signer {
         )
     }
 
+    override fun toString(): String {
+        return "PrivateKeySigner(address=$address)"
+    }
+
     companion object {
         private fun validHexToKey(hex: String): Secp256k1.SigningKey {
             if (!FastHex.isValidHex(hex)) {
