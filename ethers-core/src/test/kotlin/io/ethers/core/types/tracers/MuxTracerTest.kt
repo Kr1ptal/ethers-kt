@@ -43,6 +43,7 @@ class MuxTracerTest : FunSpec({
             val jsonString = """
                 {
                   "callTracer": {
+                    "type": "CALL",
                     "from": "0xdafea492d9c6733ae3d56b7ed1adb60692c98bc5",
                     "gas": "0x6b8a",
                     "gasUsed": "0x6b87",
@@ -85,6 +86,7 @@ class MuxTracerTest : FunSpec({
             val result = muxTracer.decodeResult(jsonParser)
 
             val callTracerExpectedResult = CallTracer.CallFrame(
+                type = "CALL",
                 from = Address("0xDAFEA492D9c6733ae3d56b7Ed1ADB60692c98Bc5"),
                 gas = 27_530L,
                 gasUsed = 27_527L,

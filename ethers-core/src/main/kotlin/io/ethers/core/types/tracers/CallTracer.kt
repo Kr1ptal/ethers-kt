@@ -44,6 +44,7 @@ data class CallTracer(
 
     @JsonDeserialize(using = CallFrameDeserializer::class)
     data class CallFrame(
+        val type: String,
         val from: Address,
         val gas: Long,
         val gasUsed: Long,
@@ -152,6 +153,7 @@ data class CallTracer(
 
     private class CallFrameDeserializer : JsonDeserializer<CallFrame>() {
         override fun deserialize(p: JsonParser, ctxt: DeserializationContext): CallFrame {
+            lateinit var type: String
             lateinit var from: Address
             var gas: Long = -1L
             var gasUsed: Long = -1L
@@ -166,6 +168,7 @@ data class CallTracer(
             var otherFields: MutableMap<String, JsonNode>? = null
             p.forEachObjectField { name ->
                 when (name) {
+                    "type" -> type = p.text
                     "from" -> from = p.readAddress()
                     "gas" -> gas = p.readHexLong()
                     "gasUsed" -> gasUsed = p.readHexLong()
@@ -186,7 +189,7 @@ data class CallTracer(
                 }
             }
 
-            return CallFrame(from, gas, gasUsed, input, to, output, error, revertReason, calls, logs, value, otherFields ?: emptyMap())
+            return CallFrame(type, from, gas, gasUsed, input, to, output, error, revertReason, calls, logs, value, otherFields ?: emptyMap())
         }
     }
 

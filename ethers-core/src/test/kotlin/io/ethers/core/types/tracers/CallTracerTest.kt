@@ -30,6 +30,7 @@ class CallTracerTest : FunSpec({
         @Language("JSON")
         val jsonString = """
             {
+              "type": "CALL",
               "from": "0xdafea492d9c6733ae3d56b7ed1adb60692c98bc5",
               "gas": "0x6b8a",
               "gasUsed": "0x6b87",
@@ -40,6 +41,7 @@ class CallTracerTest : FunSpec({
               "revertReason": "no_revert",
               "calls": [
                 {
+                  "type": "CALL",
                   "from": "0xc4356af40cc379b15925fc8c21e52c00f474e8e9",
                   "gas": "0x5208",
                   "gasUsed": "0x5208",
@@ -92,6 +94,7 @@ class CallTracerTest : FunSpec({
         val result = callTracer.decodeResult(jsonParser)
 
         val expectedResult = CallTracer.CallFrame(
+            type = "CALL",
             from = Address("0xDAFEA492D9c6733ae3d56b7Ed1ADB60692c98Bc5"),
             gas = 27_530L,
             gasUsed = 27_527L,
@@ -102,6 +105,7 @@ class CallTracerTest : FunSpec({
             revertReason = "no_revert",
             calls = listOf(
                 CallTracer.CallFrame(
+                    type = "CALL",
                     from = Address("0xC4356aF40cc379b15925Fc8C21e52c00F474e8e9"),
                     gas = 21_000L,
                     gasUsed = 21_000L,
