@@ -3,6 +3,7 @@ package io.ethers.abigen
 import com.tschuchort.compiletesting.KotlinCompilation
 import com.tschuchort.compiletesting.SourceFile
 import io.ethers.abigen.reader.JsonAbiReaderRegistry
+import org.jetbrains.kotlin.compiler.plugin.ExperimentalCompilerApi
 import java.io.File
 import java.net.URLClassLoader
 import kotlin.reflect.KClass
@@ -31,6 +32,7 @@ object AbigenCompiler {
      * Build and compile contracts wrapper of ABI's located at `src/test/resources/abi` folder, and return the
      * class loader.
      * */
+    @OptIn(ExperimentalCompilerApi::class)
     private fun compileAll(): URLClassLoader {
         val abis = AbigenCompiler::class.java.getResource("/abi")!!
             .file
