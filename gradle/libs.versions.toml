@@ -59,7 +59,7 @@ kotest-assertions-json = { module = "io.kotest:kotest-assertions-json-jvm", vers
 kotest-runner = { module = "io.kotest:kotest-runner-console-jvm", version = "4.1.3.2" }
 
 mockk = { module = "io.mockk:mockk-jvm", version = "1.13.11" }
-kotlin-compileTesting = { module = "com.github.tschuchortdev:kotlin-compile-testing", version = "1.5.0" }
+kotlin-compileTesting = { module = "com.github.tschuchortdev:kotlin-compile-testing", version = "1.6.0" }
 
 ##################### JMH #####################
 jmh-core = { module = "org.openjdk.jmh:jmh-core", version.ref = "jmh" }
