@@ -60,15 +60,19 @@ sealed class Result<out T : Any?, out E : Result.Error> {
     abstract override fun hashCode(): Int
 
     /**
-     * Java bridge for [isSuccess] function. Should not be used from kotlin, use extension function instead since
-     * it provides smart casting.
+     * Returns true if [Result] is [Success], false otherwise.
+     *
+     * **NOTE**: Java bridge for [isSuccess] function. Should not be used from kotlin, use extension function instead
+     * since it provides smart casting.
      * */
     @JvmName("isSuccess")
     fun isInstanceOfSuccessJavaBridge(): Boolean = this.isSuccess()
 
     /**
-     * Java bridge for [isFailure] function. Should not be used from kotlin, use extension function instead since
-     * it provides smart casting.
+     * Returns true if [Result] is [Failure], false otherwise.
+     *
+     * **NOTE**: Java bridge for [isFailure] function. Should not be used from kotlin, use extension function instead
+     * since it provides smart casting.
      * */
     @JvmName("isFailure")
     fun isInstanceOfFailureJavaBridge(): Boolean = this.isFailure()
@@ -247,6 +251,17 @@ fun <T, E : Result.Error> Result<T, E>.isFailure(): Boolean {
         returns(true) implies (this@isFailure is Failure<E>)
     }
     return this is Failure<E>
+}
+
+/**
+ * Returns true if [Result] is either **null** or [Failure], false otherwise.
+ * */
+@OptIn(ExperimentalContracts::class)
+fun <T, E : Result.Error> Result<T, E>?.isNullOrFailure(): Boolean {
+    contract {
+        returns(true) implies (this@isNullOrFailure is Failure<E> || this@isNullOrFailure == null)
+    }
+    return this == null || this is Failure<E>
 }
 
 /**
