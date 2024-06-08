@@ -15,6 +15,7 @@ import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncodable
 import io.ethers.rlp.RlpEncoder
+import io.ethers.rlp.RlpSizer
 import kotlin.random.Random
 
 /**
@@ -48,6 +49,8 @@ class Address(private val value: ByteArray) : RlpEncodable {
      * without copying.
      * */
     fun toByteArray() = value.copyOf()
+
+    override fun rlpEncodedSize() = RlpSizer.sizeOf(value)
 
     override fun rlpEncode(rlp: RlpEncoder) {
         rlp.encode(value)

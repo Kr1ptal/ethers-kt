@@ -114,7 +114,7 @@ class RlpEncoder(array: ByteArray) {
             }
 
             else -> {
-                val lengthOfSize = lengthOfSizeInBytes(size)
+                val lengthOfSize = RlpSizer.lengthOfSizeInBytes(size)
                 buffer.put(bufferStartPosition, (RLP_LIST_LONG + lengthOfSize).toByte())
 
                 val startIndex = bufferStartPosition + 1
@@ -253,7 +253,7 @@ class RlpEncoder(array: ByteArray) {
             }
 
             else -> {
-                val lengthOfSize = lengthOfSizeInBytes(bytes.size)
+                val lengthOfSize = RlpSizer.lengthOfSizeInBytes(bytes.size)
                 buffer.ensureCapacity(1 + lengthOfSize + bytes.size)
 
                 buffer.put((RLP_STRING_LONG + lengthOfSize).toByte())
@@ -262,15 +262,6 @@ class RlpEncoder(array: ByteArray) {
             }
         }
         return this
-    }
-
-    private fun lengthOfSizeInBytes(size: Int): Int {
-        return when {
-            size <= 0xff -> 1
-            size <= 0xffff -> 2
-            size <= 0xffffff -> 3
-            else -> 4
-        }
     }
 
     private fun encodeSize(lengthOfSize: Int, size: Int) {

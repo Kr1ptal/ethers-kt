@@ -10,6 +10,7 @@ import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncodable
 import io.ethers.rlp.RlpEncoder
+import io.ethers.rlp.RlpSizer
 import java.math.BigInteger
 
 /**
@@ -108,6 +109,30 @@ class TransactionSigned @JvmOverloads constructor(
 
     override fun toString(): String {
         return "TransactionSigned(tx=$tx, signature=$signature)"
+    }
+
+    override fun rlpEncodedSize(): Int {
+        return with(RlpSizer) {
+            var size = 0
+            if (tx.type != TxType.Legacy) {
+                size += 1
+            }
+
+            size += sizeOfList {
+                var innerSize = 0
+                if (tx.type == TxType.Blob && (tx as TxBlob).sidecar != null) {
+                    innerSize += sizeOfList { tx.rlpFieldsSize() + signature.rlpEncodedSize() }
+                    innerSize += tx.sidecar!!.rlpEncodedSize()
+                } else {
+                    innerSize += tx.rlpFieldsSize()
+                    innerSize += signature.rlpEncodedSize()
+                }
+
+                innerSize
+            }
+
+            size
+        }
     }
 
     override fun rlpEncode(rlp: RlpEncoder) {

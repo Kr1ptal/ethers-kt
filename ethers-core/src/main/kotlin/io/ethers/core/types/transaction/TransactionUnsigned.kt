@@ -12,6 +12,8 @@ import java.math.BigInteger
  * An unsigned [Transaction] with functions for signing.
  * */
 sealed interface TransactionUnsigned : Transaction, RlpEncodable {
+    fun rlpFieldsSize(): Int
+
     /**
      * RLP encode transaction with optional signature according to [EIP-2718](https://eips.ethereum.org/EIPS/eip-2718)
      * enveloped format. If [hashEncoding] is true, the transaction is encoded for hash calculation, either signature

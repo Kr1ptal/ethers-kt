@@ -10,6 +10,7 @@ import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncodable
 import io.ethers.rlp.RlpEncoder
+import io.ethers.rlp.RlpSizer
 import java.math.BigInteger
 
 /**
@@ -105,6 +106,22 @@ data class TxBlob(
         }
     }
 
+    override fun rlpFieldsSize(): Int {
+        return with(RlpSizer) {
+            sizeOf(chainId) +
+                sizeOf(nonce) +
+                sizeOf(gasTipCap) +
+                sizeOf(gasFeeCap) +
+                sizeOf(gas) +
+                sizeOf(to) +
+                sizeOf(value) +
+                sizeOf(data) +
+                sizeOfList(accessList) +
+                sizeOf(blobFeeCap) +
+                sizeOfList(blobVersionedHashes)
+        }
+    }
+
     private fun rlpEncodeFields(rlp: RlpEncoder) {
         rlp.encode(chainId)
         rlp.encode(nonce)
@@ -144,6 +161,10 @@ data class TxBlob(
          * */
         val versionedHashes by lazy(LazyThreadSafetyMode.NONE) {
             commitments.map { Hash(Hashing.blobVersionedHash(it.asByteArray())) }
+        }
+
+        override fun rlpEncodedSize(): Int {
+            return with(RlpSizer) { sizeOfList(blobs) + sizeOfList(commitments) + sizeOfList(proofs) }
         }
 
         override fun rlpEncode(rlp: RlpEncoder) {
