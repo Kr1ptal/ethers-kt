@@ -8,7 +8,6 @@ import io.ethers.core.types.Signature
 import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncoder
-import io.ethers.rlp.RlpSizer
 import java.math.BigInteger
 
 /**
@@ -44,20 +43,6 @@ data class TxDynamicFee(
 
     override val blobVersionedHashes: List<Hash>?
         get() = null
-
-    override fun rlpFieldsSize(): Int {
-        return with(RlpSizer) {
-            sizeOf(chainId) +
-                sizeOf(nonce) +
-                sizeOf(gasTipCap) +
-                sizeOf(gasFeeCap) +
-                sizeOf(gas) +
-                sizeOf(to) +
-                sizeOf(value) +
-                sizeOf(data) +
-                sizeOfList(accessList)
-        }
-    }
 
     override fun rlpEncodeEnveloped(rlp: RlpEncoder, signature: Signature?, hashEncoding: Boolean) {
         rlp.appendRaw(type.type.toByte())

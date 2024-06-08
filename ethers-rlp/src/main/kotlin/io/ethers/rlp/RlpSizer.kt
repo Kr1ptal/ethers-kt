@@ -2,38 +2,11 @@ package io.ethers.rlp
 
 import java.math.BigInteger
 
-object RlpSizer {
+/**
+ * A utility class to calculate the size of RLP-encoded values, without actually encoding them.
+ * */
+internal object RlpSizer {
     private val RLP_STRING_SHORT_BIGINT = BigInteger.valueOf(0x80)
-
-    fun <T : RlpEncodable> sizeOfList(list: List<T>): Int {
-        return sizeOfList {
-            var size = 0
-            for (item in list) {
-                size += sizeOf(item)
-            }
-
-            size
-        }
-    }
-
-    inline fun sizeOfList(bodySize: RlpSizer.() -> Int): Int {
-        // 1 for list prefix
-        var size = 1
-        size += bodySize(this)
-        return finishList(size)
-    }
-
-    fun finishList(size: Int): Int {
-        return when {
-            size == 0 -> 0
-            size <= MAX_SHORT_LENGTH -> 1
-            else -> size + lengthOfSizeInBytes(size)
-        }
-    }
-
-    fun <T : RlpEncodable> sizeOf(value: T?): Int {
-        return value?.rlpEncodedSize() ?: 1
-    }
 
     fun sizeOf(value: BigInteger?): Int {
         if (value == null) {
@@ -108,7 +81,7 @@ object RlpSizer {
         }
     }
 
-    internal fun lengthOfSizeInBytes(size: Int): Int {
+    fun lengthOfSizeInBytes(size: Int): Int {
         return when {
             size <= 0xff -> 1
             size <= 0xffff -> 2

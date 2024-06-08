@@ -18,7 +18,7 @@ class RlpEncoderTest : FunSpec({
                 "abc12841ff".toBigInteger(16) to "85abc12841ff",
                 maxUint256 to "a0ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
             ) { (input, result) ->
-                val encoder = RlpEncoder(1)
+                val encoder = RlpEncoder.sized(1)
                 encoder.encode(input)
                 encoder.toHexString() shouldBe result
             }
@@ -26,14 +26,14 @@ class RlpEncoderTest : FunSpec({
 
         test("failure - negative BigInteger value") {
             shouldThrow<IllegalArgumentException> {
-                val encoder = RlpEncoder(1)
+                val encoder = RlpEncoder.sized(1)
                 encoder.encode(BigInteger.ONE.negate())
             }
         }
 
         test("failure - too big BigInteger value") {
             shouldThrow<IllegalArgumentException> {
-                val encoder = RlpEncoder(1)
+                val encoder = RlpEncoder.sized(1)
                 encoder.encode(BigInteger.TWO.pow(256))
             }
         }
@@ -47,7 +47,7 @@ class RlpEncoderTest : FunSpec({
                 0xabc12841ffL to "85abc12841ff",
                 Long.MAX_VALUE to "887fffffffffffffff",
             ) { (input, result) ->
-                val encoder = RlpEncoder(1)
+                val encoder = RlpEncoder.sized(1)
                 encoder.encode(input)
                 encoder.toHexString() shouldBe result
             }
@@ -55,7 +55,7 @@ class RlpEncoderTest : FunSpec({
 
         test("failure - negative Long value") {
             shouldThrow<IllegalArgumentException> {
-                val encoder = RlpEncoder(1)
+                val encoder = RlpEncoder.sized(1)
                 encoder.encode(-1L)
             }
         }
@@ -73,7 +73,7 @@ class RlpEncoderTest : FunSpec({
             ByteArray(0xff + 1) { 109 } to ("b90100" + "6d".repeat(256)),
             ByteArray(0xffff + 2) { 71 } to ("ba010001" + "47".repeat(65537)),
         ) { (input, result) ->
-            val encoder = RlpEncoder(1)
+            val encoder = RlpEncoder.sized(1)
             encoder.encode(input)
             encoder.toHexString() shouldBe result
         }
@@ -81,13 +81,13 @@ class RlpEncoderTest : FunSpec({
 
     context("encode - List") {
         test("empty list") {
-            val encoder = RlpEncoder(1)
+            val encoder = RlpEncoder.sized(1)
             encoder.encodeList(emptyList())
             encoder.toHexString() shouldBe "c0"
         }
 
         test("list of one") {
-            val encoder = RlpEncoder(1)
+            val encoder = RlpEncoder.sized(1)
             encoder.encodeList {
                 encode(1)
             }
@@ -95,7 +95,7 @@ class RlpEncoderTest : FunSpec({
         }
 
         test("list of two longs") {
-            val encoder = RlpEncoder(1)
+            val encoder = RlpEncoder.sized(1)
             encoder.encodeList {
                 encode(0xFFCCB5)
                 encode(0xFFC0B5)
@@ -104,7 +104,7 @@ class RlpEncoderTest : FunSpec({
         }
 
         test("nested list") {
-            val encoder = RlpEncoder(1)
+            val encoder = RlpEncoder.sized(1)
             encoder.encodeList {
                 encoder.encodeList {
                     encode(0xFFCCB5)
@@ -119,7 +119,7 @@ class RlpEncoderTest : FunSpec({
         }
 
         test("list with many elements") {
-            val encoder = RlpEncoder()
+            val encoder = RlpEncoder.unsized()
             encoder.encodeList {
                 encode("dog".toByteArray())
                 encode("god".toByteArray())
@@ -143,7 +143,7 @@ class RlpEncoderTest : FunSpec({
         }
 
         test("encode via Runnable") {
-            val encoder = RlpEncoder()
+            val encoder = RlpEncoder.unsized()
             encoder.encodeList(
                 Runnable {
                     listOf("dog", "god", "cat", "tac", "tac").forEach { encoder.encode(it.toByteArray()) }
@@ -154,7 +154,7 @@ class RlpEncoderTest : FunSpec({
         }
 
         test("manual list encoding") {
-            val encoder = RlpEncoder()
+            val encoder = RlpEncoder.unsized()
 
             val bufferStartPosition = encoder.startList()
             listOf("dog", "god", "cat", "tac", "tac", "tac").forEach { encoder.encode(it.toByteArray()) }
@@ -164,7 +164,7 @@ class RlpEncoderTest : FunSpec({
         }
 
         test("throw exception if manual list encoding is not finished before calling toByteArray()") {
-            val encoder = RlpEncoder()
+            val encoder = RlpEncoder.unsized()
             encoder.startList()
             shouldThrow<IllegalStateException> {
                 encoder.toByteArray()

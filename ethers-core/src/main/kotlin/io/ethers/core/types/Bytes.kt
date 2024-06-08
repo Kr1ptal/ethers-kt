@@ -14,7 +14,6 @@ import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncodable
 import io.ethers.rlp.RlpEncoder
-import io.ethers.rlp.RlpSizer
 
 /**
  * Variable size byte array.
@@ -197,10 +196,6 @@ class Bytes(private val value: ByteArray) : RlpEncodable {
 
     override fun toString(): String {
         return stringCache ?: FastHex.encodeWithPrefix(value).also { stringCache = it }
-    }
-
-    override fun rlpEncodedSize(): Int {
-        return RlpSizer.sizeOf(value)
     }
 
     override fun rlpEncode(rlp: RlpEncoder) {

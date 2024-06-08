@@ -8,7 +8,6 @@ import io.ethers.core.types.Signature
 import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncoder
-import io.ethers.rlp.RlpSizer
 import java.math.BigInteger
 
 data class TxLegacy(
@@ -37,17 +36,6 @@ data class TxLegacy(
 
     override val blobVersionedHashes: List<Hash>?
         get() = null
-
-    override fun rlpFieldsSize(): Int {
-        return with(RlpSizer) {
-            sizeOf(nonce) +
-                sizeOf(gasPrice) +
-                sizeOf(gas) +
-                sizeOf(to) +
-                sizeOf(value) +
-                sizeOf(data)
-        }
-    }
 
     override fun rlpEncodeEnveloped(rlp: RlpEncoder, signature: Signature?, hashEncoding: Boolean) {
         rlp.encodeList {
