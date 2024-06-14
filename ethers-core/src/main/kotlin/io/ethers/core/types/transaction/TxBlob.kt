@@ -4,6 +4,7 @@ import io.ethers.core.types.AccessList
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
+import io.ethers.core.types.Signature
 import io.ethers.crypto.Hashing
 import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
@@ -72,7 +73,39 @@ data class TxBlob(
     override val type: TxType
         get() = TxType.Blob
 
-    override fun rlpEncodeFields(rlp: RlpEncoder) {
+    override fun rlpEncodeEnveloped(rlp: RlpEncoder, signature: Signature?, hashEncoding: Boolean) {
+        rlp.appendRaw(type.type.toByte())
+
+        // If blob tx has sidecar, encode as network encoding - but only if not encoding for hash. For hash, we use
+        // canonical encoding.
+        //
+        // Network encoding: 'type || rlp([tx_payload_body, blobs, commitments, proofs])'
+        // Canonical encoding: 'type || rlp(tx_payload_body)', where 'tx_payload_body' is a list of tx fields with
+        // signature values.
+        //
+        // See: https://eips.ethereum.org/EIPS/eip-4844#networking
+        when {
+            hashEncoding || sidecar == null -> {
+                rlp.encodeList {
+                    rlpEncodeFields(this)
+                    signature?.rlpEncode(this)
+                }
+            }
+
+            else -> {
+                rlp.encodeList {
+                    rlp.encodeList {
+                        rlpEncodeFields(this)
+                        signature?.rlpEncode(this)
+                    }
+
+                    sidecar.rlpEncode(rlp)
+                }
+            }
+        }
+    }
+
+    private fun rlpEncodeFields(rlp: RlpEncoder) {
         rlp.encode(chainId)
         rlp.encode(nonce)
         rlp.encode(gasTipCap)

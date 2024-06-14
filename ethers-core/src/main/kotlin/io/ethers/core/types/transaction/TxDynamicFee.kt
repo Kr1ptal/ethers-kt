@@ -4,6 +4,7 @@ import io.ethers.core.types.AccessList
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
+import io.ethers.core.types.Signature
 import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncoder
@@ -43,16 +44,22 @@ data class TxDynamicFee(
     override val blobVersionedHashes: List<Hash>?
         get() = null
 
-    override fun rlpEncodeFields(rlp: RlpEncoder) {
-        rlp.encode(chainId)
-        rlp.encode(nonce)
-        rlp.encode(gasTipCap)
-        rlp.encode(gasFeeCap)
-        rlp.encode(gas)
-        rlp.encode(to)
-        rlp.encode(value)
-        rlp.encode(data)
-        rlp.encodeList(accessList)
+    override fun rlpEncodeEnveloped(rlp: RlpEncoder, signature: Signature?, hashEncoding: Boolean) {
+        rlp.appendRaw(type.type.toByte())
+
+        rlp.encodeList {
+            rlp.encode(chainId)
+            rlp.encode(nonce)
+            rlp.encode(gasTipCap)
+            rlp.encode(gasFeeCap)
+            rlp.encode(gas)
+            rlp.encode(to)
+            rlp.encode(value)
+            rlp.encode(data)
+            rlp.encodeList(accessList)
+
+            signature?.rlpEncode(this)
+        }
     }
 
     companion object : RlpDecodable<TxDynamicFee> {

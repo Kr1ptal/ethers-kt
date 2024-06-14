@@ -4,6 +4,7 @@ import io.ethers.core.types.AccessList
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
+import io.ethers.core.types.Signature
 import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncoder
@@ -36,13 +37,28 @@ data class TxLegacy(
     override val blobVersionedHashes: List<Hash>?
         get() = null
 
-    override fun rlpEncodeFields(rlp: RlpEncoder) {
-        rlp.encode(nonce)
-        rlp.encode(gasPrice)
-        rlp.encode(gas)
-        rlp.encode(to)
-        rlp.encode(value)
-        rlp.encode(data)
+    override fun rlpEncodeEnveloped(rlp: RlpEncoder, signature: Signature?, hashEncoding: Boolean) {
+        rlp.encodeList {
+            rlp.encode(nonce)
+            rlp.encode(gasPrice)
+            rlp.encode(gas)
+            rlp.encode(to)
+            rlp.encode(value)
+            rlp.encode(data)
+
+            if (hashEncoding) {
+                if (signature == null) {
+                    if (ChainId.isValid(chainId)) {
+                        rlp.encode(chainId)
+                        rlp.encode(0)
+                        rlp.encode(0)
+                    }
+                    return@encodeList
+                }
+            }
+
+            signature?.rlpEncode(this)
+        }
     }
 
     companion object : RlpDecodable<TxLegacy> {

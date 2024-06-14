@@ -1,71 +1,57 @@
 package io.ethers.core.types.transaction
 
+import io.ethers.core.types.Signature
 import io.ethers.crypto.Hashing
 import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
+import io.ethers.rlp.RlpEncodable
 import io.ethers.rlp.RlpEncoder
+import java.math.BigInteger
 
 /**
  * An unsigned [Transaction] with functions for signing.
  * */
-sealed interface TransactionUnsigned : Transaction {
+sealed interface TransactionUnsigned : Transaction, RlpEncodable {
     /**
-     * RLP encode transaction fields.
-     */
-    fun rlpEncodeFields(rlp: RlpEncoder)
+     * RLP encode transaction with optional signature according to [EIP-2718](https://eips.ethereum.org/EIPS/eip-2718)
+     * enveloped format. If [hashEncoding] is true, the transaction is encoded for hash calculation, either signature
+     * hash (if [signature] is null) or transaction hash (if [signature] is not null).
+     * */
+    fun rlpEncodeEnveloped(rlp: RlpEncoder, signature: Signature?, hashEncoding: Boolean)
 
     /**
      * Get hash used for signing the transaction.
      * */
     fun signatureHash(): ByteArray {
         val encoder = RlpEncoder()
-        rlpEncode(encoder, true)
+        rlpEncodeEnveloped(encoder, null, true)
         return Hashing.keccak256(encoder.toByteArray())
     }
 
     /**
-     * Encode [TransactionUnsigned] into provided [RlpEncoder].
+     * Encode [TransactionUnsigned] via provided [RlpEncoder]. This RLP format includes all-zero signature fields and
+     * is the inverse of [rlpDecode].
      */
-    fun rlpEncode(encoder: RlpEncoder, forSignatureHash: Boolean = false) {
-        // non-legacy txs are enveloped based on eip2718
-        if (type != TxType.Legacy) {
-            encoder.appendRaw(type.type.toByte())
-        }
-
-        encoder.encodeList {
-            rlpEncodeFields(encoder)
-
-            if (!forSignatureHash) {
-                // Encode empty r, s, v signature fields
-                encoder.encode(0)
-                encoder.encode(0)
-                encoder.encode(0)
-                return@encodeList
-            }
-
-            if (type == TxType.Legacy && ChainId.isValid(chainId)) {
-                // EIP-155 support for LegacyTx, applies only if we have a valid chainId
-                // see: https://github.com/ethereum/EIPs/blob/master/EIPS/eip-155.md
-                encoder.encode(chainId)
-                encoder.encode(0)
-                encoder.encode(0)
-            }
-        }
+    override fun rlpEncode(rlp: RlpEncoder) {
+        rlpEncodeEnveloped(rlp, EMPTY_SIGNATURE, true)
     }
 
     companion object : RlpDecodable<TransactionUnsigned> {
+        private val EMPTY_SIGNATURE = Signature(BigInteger.ZERO, BigInteger.ZERO, 0L)
 
         override fun rlpDecode(rlp: RlpDecoder) = rlpDecode(rlp, ChainId.NONE)
 
         /**
          * Decode RLP data array. Compared to base [rlpDecode], this function provides additional [chainId]
-         * parameter which is needed for correct replay-protected [TxType.LEGACY] transaction decoding.
+         * parameter which is needed for correct replay-protected [TxType.Legacy] transaction decoding.
          */
         fun rlpDecode(data: ByteArray, chainId: Long) = rlpDecode(RlpDecoder(data), chainId)
 
         /**
          * Decode [rlp]. Compared to base [rlpDecode], this function provides additional [chainId]
-         * parameter which is needed for correct replay-protected [TxType.LEGACY] transaction decoding.
+         * parameter which is needed for correct replay-protected [TxType.Legacy] transaction decoding.
+         *
+         * This function is inverse of [rlpEncode].
          */
         fun rlpDecode(rlp: RlpDecoder, chainId: Long): TransactionUnsigned? {
             val type = rlp.peekByte().toUByte().toInt()
