@@ -46,7 +46,13 @@ data class RPCTransaction(
     override val blobVersionedHashes: List<Hash>?,
     override val blobFeeCap: BigInteger?,
     val otherFields: Map<String, JsonNode> = emptyMap(),
-) : TransactionRecovered
+) : TransactionRecovered {
+    /**
+     * Return true if the transaction has a signature, false otherwise.
+     * */
+    val hasSignature: Boolean
+        get() = v != -1L && r != BigInteger.ZERO && s != BigInteger.ZERO
+}
 
 private class RPCTransactionDeserializer : JsonDeserializer<RPCTransaction>() {
     override fun deserialize(p: JsonParser, ctxt: DeserializationContext): RPCTransaction {
@@ -71,8 +77,8 @@ private class RPCTransactionDeserializer : JsonDeserializer<RPCTransaction>() {
         var accessList: List<AccessList.Item> = emptyList()
         var chainId: Long = ChainId.NONE
         var v = -1L
-        lateinit var r: BigInteger
-        lateinit var s: BigInteger
+        var r: BigInteger? = null
+        var s: BigInteger? = null
         var yParity = -1L
         var blobVersionedHashes: List<Hash>? = null
         var blobFeeCap: BigInteger? = null
@@ -129,8 +135,8 @@ private class RPCTransactionDeserializer : JsonDeserializer<RPCTransaction>() {
             chainId,
             TxType.fromType(type.toInt()),
             v,
-            r,
-            s,
+            r ?: BigInteger.ZERO,
+            s ?: BigInteger.ZERO,
             yParity,
             blobVersionedHashes,
             blobFeeCap,
