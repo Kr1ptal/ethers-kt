@@ -14,6 +14,7 @@ import io.ethers.core.types.transaction.TxLegacy
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.WithDataTestName
 import io.kotest.datatest.withData
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldBeEqualIgnoringCase
@@ -43,7 +44,8 @@ class TransactionSignedTest : FunSpec({
         rlp.toHexString() shouldBeEqualIgnoringCase "f86d47850e0b37f6508252089432be343b94f860124dc4fee278fdcbd38c102d888902ec92c5171b224000801ca02af0043955354a8dcceefc492f464977d6eac51d7c94b41d86dd11ab5d0b5854a045bd5db428b629807524f4b973f820a4591b59055a6669f346039517f9fda392"
 
         val decoded = TransactionSigned.rlpDecode(rlp)
-        decoded shouldBe signed
+        decoded.shouldNotBeNull() shouldBe signed
+        decoded.hash shouldBe Hash("0x8c09b3738ff35f814d1549dad5cb0a6d5858a4cd66a3ac8abec903a8ec7acf4f")
     }
 
     test("rlp encode/decode TxLegacy with chain ID") {
@@ -68,7 +70,8 @@ class TransactionSignedTest : FunSpec({
         rlp.toHexString() shouldBeEqualIgnoringCase "f869808504e3b29200831e848094f0109fc8df283027b6285cc889f5aa624eac1f55843b9aca008026a0afa1aa6b3d92db3e76e0573281b81eee269a5d8ce864ab4e0e8b288658c87b4ea036e5c4bf00230dd93364784ca4e853ebff45d1b074c2539006f97c742af73a43"
 
         val decoded = TransactionSigned.rlpDecode(rlp)
-        decoded shouldBe signed
+        decoded.shouldNotBeNull() shouldBe signed
+        decoded.hash shouldBe Hash("0xfae1a733dbe7778072b11c065faca3f1d1d2e5d94ed0e5affca326dfef1f78b5")
     }
 
     test("rlp encode/decode TxAccessList") {
@@ -103,7 +106,8 @@ class TransactionSignedTest : FunSpec({
         rlp.toHexString() shouldBeEqualIgnoringCase "01f8f101808504e3b29200831e848094f0109fc8df283027b6285cc889f5aa624eac1f55843b9aca00891214abcdef12445980f87cf87a942f62f2b4c5fcd7570a709dec05d68ea19c82a9ecf863a09c2c23028bf4f085740a3671821db14e440561f617ea5532ee805d7f054741f6a0000000000000000000000000000000000000000000000000000000000000000ba0000000000000000000000000000000000000000000000000000000000000000a01a0afa1aa6b3d92db3e76e0573281b81eee269a5d8ce864ab4e0e8b288658c87b4ea036e5c4bf00230dd93364784ca4e853ebff45d1b074c2539006f97c742af73a43"
 
         val decoded = TransactionSigned.rlpDecode(rlp)
-        decoded shouldBe signed
+        decoded.shouldNotBeNull() shouldBe signed
+        decoded.hash shouldBe Hash("0x3b97c7eb7180f3a1b024b686b8c2f5ed221e2e761e31594a6d65251adb0e96e2")
     }
 
     test("rlp encode/decode TxDynamicFee") {
@@ -139,7 +143,8 @@ class TransactionSignedTest : FunSpec({
         rlp.toHexString() shouldBeEqualIgnoringCase "02f8fa0183bd97ac8504e3b292008530e4f9b400831e848094f0109fc8df283027b6285cc889f5aa624eac1f55843b9aca00891214abcdef12445980f87cf87a942f62f2b4c5fcd7570a709dec05d68ea19c82a9ecf863a09c2c23028bf4f085740a3671821db14e440561f617ea5532ee805d7f054741f6a0000000000000000000000000000000000000000000000000000000000000000ba0000000000000000000000000000000000000000000000000000000000000000a01a0afa1aa6b3d92db3e76e0573281b81eee269a5d8ce864ab4e0e8b288658c87b4ea036e5c4bf00230dd93364784ca4e853ebff45d1b074c2539006f97c742af73a43"
 
         val decoded = TransactionSigned.rlpDecode(rlp)
-        decoded shouldBe signed
+        decoded.shouldNotBeNull() shouldBe signed
+        decoded.hash shouldBe Hash("0xc1e1b37517081a20bae6b48be36516111c8371ea7824ec3ba16c151b56d7e497")
     }
 
     test("rlp encode/decode TxBlob without sidecar") {
@@ -164,13 +169,12 @@ class TransactionSignedTest : FunSpec({
         )
 
         val signed = TransactionSigned(tx, signature)
-        signed.hash shouldBe Hash("0x5b51360854253b6308208ea86423cbba471240f473f8ec811e8c95806714a14e")
-
         val rlp = signed.toRlp()
         rlp.toHexString() shouldBeEqualIgnoringCase "03f8a50183bd97ac8504e3b292008530e4f9b400831e848094f0109fc8df283027b6285cc889f5aa624eac1f55843b9aca00891214abcdef12445980c08504e3b29200e1a0010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c44401480a04e469d1af21dcdacf8ac456ec12138d441c1747a31540573d3626d3731523dc5a0159cde1f3a8c937d64a1de03e3150d6cd5f07c2e94c76e9836379e54abfad2fc"
 
         val decoded = TransactionSigned.rlpDecode(rlp)
-        decoded shouldBe signed
+        decoded.shouldNotBeNull() shouldBe signed
+        decoded.hash shouldBe Hash("0x5b51360854253b6308208ea86423cbba471240f473f8ec811e8c95806714a14e")
     }
 
     test("rlp encode/decode TxBlob with sidecar") {
@@ -199,15 +203,14 @@ class TransactionSignedTest : FunSpec({
         )
 
         val signed = TransactionSigned(tx, signature)
-        signed.hash shouldBe Hash("0x5b51360854253b6308208ea86423cbba471240f473f8ec811e8c95806714a14e")
-
         val rlp = signed.toRlp()
         rlp.toHexString() shouldBeEqualIgnoringCase TransactionSignedTest::class.java
             .getResource("/testdata/tx_zeroed_blob_with_sidecar.rlp")!!
             .readText()
 
         val decoded = TransactionSigned.rlpDecode(rlp)
-        decoded shouldBe signed
+        decoded.shouldNotBeNull() shouldBe signed
+        decoded.hash shouldBe Hash("0x5b51360854253b6308208ea86423cbba471240f473f8ec811e8c95806714a14e")
     }
 
     context("RLP roundtrip encode/decode test") {

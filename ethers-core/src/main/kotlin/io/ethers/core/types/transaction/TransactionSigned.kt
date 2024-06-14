@@ -39,7 +39,10 @@ class TransactionSigned @JvmOverloads constructor(
     override val hash: Hash
         get() {
             if (_hash == null) {
-                val hashRlp = RlpEncoder().also { rlpEncode(it, true) }.toByteArray()
+                val hashRlp = RlpEncoder()
+                    .also { tx.rlpEncodeEnveloped(it, signature, true) }
+                    .toByteArray()
+
                 _hash = Hash(Hashing.keccak256(hashRlp))
             }
             return _hash!!
@@ -107,35 +110,8 @@ class TransactionSigned @JvmOverloads constructor(
         return "TransactionSigned(tx=$tx, signature=$signature)"
     }
 
-    override fun rlpEncode(rlp: RlpEncoder) = rlpEncode(rlp, false)
-
-    private fun rlpEncode(rlp: RlpEncoder, hashEncoding: Boolean) {
-        // non-legacy txs are enveloped based on eip2718
-        if (tx.type != TxType.Legacy) {
-            rlp.appendRaw(tx.type.type.toByte())
-        }
-
-        rlp.encodeList {
-            // If blob tx has sidecar, encode as network encoding - but only if not encoding for hash. For hash, we use
-            // canonical encoding.
-            //
-            // Network encoding: 'type || rlp([tx_payload_body, blobs, commitments, proofs])'
-            // Canonical encoding: 'type || rlp(tx_payload_body)', where 'tx_payload_body' is a list of tx fields with
-            // signature values.
-            //
-            // See: https://eips.ethereum.org/EIPS/eip-4844#networking
-            if (!hashEncoding && tx.type == TxType.Blob && (tx as TxBlob).sidecar != null) {
-                rlp.encodeList {
-                    tx.rlpEncodeFields(this)
-                    signature.rlpEncode(this)
-                }
-
-                tx.sidecar!!.rlpEncode(this)
-            } else {
-                tx.rlpEncodeFields(this)
-                signature.rlpEncode(this)
-            }
-        }
+    override fun rlpEncode(rlp: RlpEncoder) {
+        tx.rlpEncodeEnveloped(rlp, signature, false)
     }
 
     companion object : RlpDecodable<TransactionSigned> {

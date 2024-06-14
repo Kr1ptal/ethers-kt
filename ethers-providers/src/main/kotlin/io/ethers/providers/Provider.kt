@@ -303,7 +303,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
                     }
                 }
 
-                return@RpcCall ret ?: throw IllegalStateException("Invalid response, should not happen")
+                return@RpcCall ret ?: throw IllegalStateException("Invalid response")
             },
         )
     }

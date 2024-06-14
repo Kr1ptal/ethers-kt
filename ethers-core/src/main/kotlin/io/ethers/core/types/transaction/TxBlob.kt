@@ -4,6 +4,7 @@ import io.ethers.core.types.AccessList
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
+import io.ethers.core.types.Signature
 import io.ethers.crypto.Hashing
 import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
@@ -19,7 +20,7 @@ import java.math.BigInteger
  * The field "to" deviates slightly from the semantics with the exception that it MUST NOT be null and therefore must
  * always represent a 20-byte address. This means that blob transactions cannot have the form of a "create" transaction.
  * */
-class TxBlob(
+data class TxBlob(
     override val to: Address,
     override val value: BigInteger,
     override val nonce: Long,
@@ -28,7 +29,7 @@ class TxBlob(
     override val gasTipCap: BigInteger,
     override val data: Bytes?,
     override val chainId: Long,
-    override var accessList: List<AccessList.Item>,
+    override val accessList: List<AccessList.Item>,
     override val blobFeeCap: BigInteger,
     override val blobVersionedHashes: List<Hash>,
     val sidecar: Sidecar? = null,
@@ -72,7 +73,39 @@ class TxBlob(
     override val type: TxType
         get() = TxType.Blob
 
-    override fun rlpEncodeFields(rlp: RlpEncoder) {
+    override fun rlpEncodeEnveloped(rlp: RlpEncoder, signature: Signature?, hashEncoding: Boolean) {
+        rlp.appendRaw(type.type.toByte())
+
+        // If blob tx has sidecar, encode as network encoding - but only if not encoding for hash. For hash, we use
+        // canonical encoding.
+        //
+        // Network encoding: 'type || rlp([tx_payload_body, blobs, commitments, proofs])'
+        // Canonical encoding: 'type || rlp(tx_payload_body)', where 'tx_payload_body' is a list of tx fields with
+        // signature values.
+        //
+        // See: https://eips.ethereum.org/EIPS/eip-4844#networking
+        when {
+            hashEncoding || sidecar == null -> {
+                rlp.encodeList {
+                    rlpEncodeFields(this)
+                    signature?.rlpEncode(this)
+                }
+            }
+
+            else -> {
+                rlp.encodeList {
+                    rlp.encodeList {
+                        rlpEncodeFields(this)
+                        signature?.rlpEncode(this)
+                    }
+
+                    sidecar.rlpEncode(rlp)
+                }
+            }
+        }
+    }
+
+    private fun rlpEncodeFields(rlp: RlpEncoder) {
         rlp.encode(chainId)
         rlp.encode(nonce)
         rlp.encode(gasTipCap)
@@ -84,81 +117,6 @@ class TxBlob(
         rlp.encodeList(accessList)
         rlp.encode(blobFeeCap)
         rlp.encodeList(blobVersionedHashes)
-    }
-
-    /**
-     * Copy or override `this` parameters into new [TxBlob] object.
-     */
-    fun copy(
-        to: Address = this.to,
-        value: BigInteger = this.value,
-        nonce: Long = this.nonce,
-        gas: Long = this.gas,
-        gasFeeCap: BigInteger = this.gasFeeCap,
-        gasTipCap: BigInteger = this.gasTipCap,
-        data: Bytes? = this.data,
-        chainId: Long = this.chainId,
-        accessList: List<AccessList.Item> = this.accessList,
-        blobFeeCap: BigInteger = this.blobFeeCap,
-        blobHashes: List<Hash> = this.blobVersionedHashes,
-        sidecar: Sidecar? = this.sidecar,
-    ): TxBlob {
-        return TxBlob(
-            to = to,
-            value = value,
-            nonce = nonce,
-            gas = gas,
-            gasFeeCap = gasFeeCap,
-            gasTipCap = gasTipCap,
-            data = data,
-            chainId = chainId,
-            accessList = accessList,
-            blobFeeCap = blobFeeCap,
-            blobVersionedHashes = blobHashes,
-            sidecar = sidecar,
-        )
-    }
-
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (javaClass != other?.javaClass) return false
-
-        other as TxBlob
-
-        if (to != other.to) return false
-        if (value != other.value) return false
-        if (nonce != other.nonce) return false
-        if (gas != other.gas) return false
-        if (gasFeeCap != other.gasFeeCap) return false
-        if (gasTipCap != other.gasTipCap) return false
-        if (data != other.data) return false
-        if (chainId != other.chainId) return false
-        if (accessList != other.accessList) return false
-        if (blobFeeCap != other.blobFeeCap) return false
-        if (blobVersionedHashes != other.blobVersionedHashes) return false
-        if (sidecar != other.sidecar) return false
-
-        return true
-    }
-
-    override fun hashCode(): Int {
-        var result = to.hashCode()
-        result = 31 * result + value.hashCode()
-        result = 31 * result + nonce.hashCode()
-        result = 31 * result + gas.hashCode()
-        result = 31 * result + gasFeeCap.hashCode()
-        result = 31 * result + gasTipCap.hashCode()
-        result = 31 * result + (data?.hashCode() ?: 0)
-        result = 31 * result + chainId.hashCode()
-        result = 31 * result + (accessList.hashCode())
-        result = 31 * result + blobFeeCap.hashCode()
-        result = 31 * result + blobVersionedHashes.hashCode()
-        result = 31 * result + (sidecar?.hashCode() ?: 0)
-        return result
-    }
-
-    override fun toString(): String {
-        return "TxBlob(to=$to, value=$value, nonce=$nonce, gas=$gas, gasFeeCap=$gasFeeCap, gasTipCap=$gasTipCap, data=$data, chainId=$chainId, accessList=$accessList, blobFeeCap=$blobFeeCap, blobVersionedHashes=$blobVersionedHashes, sidecar=$sidecar)"
     }
 
     data class Sidecar(
