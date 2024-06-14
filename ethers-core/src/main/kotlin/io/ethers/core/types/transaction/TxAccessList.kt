@@ -14,7 +14,7 @@ import java.math.BigInteger
  *
  * - [EIP-2930](https://eips.ethereum.org/EIPS/eip-2930)
  * */
-class TxAccessList(
+data class TxAccessList(
     override val to: Address?,
     override val value: BigInteger,
     override val nonce: Long,
@@ -22,7 +22,7 @@ class TxAccessList(
     override val gasPrice: BigInteger,
     override val data: Bytes?,
     override val chainId: Long,
-    override var accessList: List<AccessList.Item>,
+    override val accessList: List<AccessList.Item>,
 ) : TransactionUnsigned {
     init {
         if (!ChainId.isValid(chainId)) {
@@ -54,65 +54,6 @@ class TxAccessList(
         rlp.encode(value)
         rlp.encode(data)
         rlp.encodeList(accessList)
-    }
-
-    /**
-     * Copy or override `this` parameters into new [TxAccessList] object.
-     */
-    fun copy(
-        to: Address? = this.to,
-        value: BigInteger = this.value,
-        nonce: Long = this.nonce,
-        gas: Long = this.gas,
-        gasPrice: BigInteger = this.gasPrice,
-        data: Bytes? = this.data,
-        chainId: Long = this.chainId,
-        accessList: List<AccessList.Item> = this.accessList,
-    ): TxAccessList {
-        return TxAccessList(
-            to = to,
-            value = value,
-            nonce = nonce,
-            gas = gas,
-            gasPrice = gasPrice,
-            data = data,
-            chainId = chainId,
-            accessList = accessList,
-        )
-    }
-
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (javaClass != other?.javaClass) return false
-
-        other as TxAccessList
-
-        if (to != other.to) return false
-        if (value != other.value) return false
-        if (nonce != other.nonce) return false
-        if (gas != other.gas) return false
-        if (gasPrice != other.gasPrice) return false
-        if (data != other.data) return false
-        if (chainId != other.chainId) return false
-        if (accessList != other.accessList) return false
-
-        return true
-    }
-
-    override fun hashCode(): Int {
-        var result = to?.hashCode() ?: 0
-        result = 31 * result + value.hashCode()
-        result = 31 * result + nonce.hashCode()
-        result = 31 * result + gas.hashCode()
-        result = 31 * result + gasPrice.hashCode()
-        result = 31 * result + (data?.hashCode() ?: 0)
-        result = 31 * result + chainId.hashCode()
-        result = 31 * result + accessList.hashCode()
-        return result
-    }
-
-    override fun toString(): String {
-        return "TxAccessList(to=$to, value=$value, nonce=$nonce, gas=$gas, gasPrice=$gasPrice, data=$data, chainId=$chainId, accessList=$accessList)"
     }
 
     companion object : RlpDecodable<TxAccessList> {
