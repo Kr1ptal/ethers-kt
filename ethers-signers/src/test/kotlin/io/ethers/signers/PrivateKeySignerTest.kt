@@ -2,6 +2,7 @@ package io.ethers.signers
 
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
+import io.ethers.core.types.Hash
 import io.ethers.core.types.Signature
 import io.ethers.core.types.transaction.TxDynamicFee
 import io.ethers.core.types.transaction.TxLegacy
@@ -128,7 +129,7 @@ class PrivateKeySignerTest : FunSpec({
         signedTx.tx shouldBe tx
         signedTx.signature shouldBe expectedSignature
         signedTx.from shouldBe signer.address
-        signedTx.signature.recoverFromHash(tx.signatureHash()) shouldBe signedTx.from
+        signedTx.hash shouldBe Hash("0x3ab5d977cdf616619d98171d13e70480af3d5a044b48eea9ba22ec08713804bf")
     }
 
     test("does not apply EIP155 replay protection to non-legacy tx") {
@@ -156,6 +157,6 @@ class PrivateKeySignerTest : FunSpec({
         signedTx.tx shouldBe tx
         signedTx.signature shouldBe expectedSignature
         signedTx.from shouldBe signer.address
-        signedTx.signature.recoverFromHash(tx.signatureHash()) shouldBe signedTx.from
+        signedTx.hash shouldBe Hash("0xc0d2a9f7f82c08fc3d487fc2ccfb3a10d269e0a53bd19f007fc5f3c65b9d3220")
     }
 })
