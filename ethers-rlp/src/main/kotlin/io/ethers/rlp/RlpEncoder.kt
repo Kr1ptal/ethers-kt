@@ -270,10 +270,8 @@ class RlpEncoder @JvmOverloads constructor(
     }
 
     private fun ByteBuffer.ensureCapacity(sizeIncrement: Int): ByteBuffer {
-        val spaceLeft = remaining() - sizeIncrement
-        when {
-            isExactSize && spaceLeft < 0 -> throw IllegalStateException("Buffer is full - exact size of encoder is incorrect")
-            spaceLeft >= 0 -> return this
+        if (isExactSize || remaining() >= sizeIncrement) {
+            return this
         }
 
         val newCapacity = max(capacity() + sizeIncrement, (capacity() * BUFFER_GROWTH_FACTOR).toInt())
@@ -416,8 +414,8 @@ class RlpEncoder @JvmOverloads constructor(
         @JvmStatic
         fun sizeOfListBody(list: List<RlpEncodable>): Int {
             var size = 0
-            for (item in list) {
-                size += sizeOf(item)
+            for (i in list.indices) {
+                size += sizeOf(list[i])
             }
             return size
         }
