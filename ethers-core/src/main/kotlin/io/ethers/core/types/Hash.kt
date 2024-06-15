@@ -52,6 +52,10 @@ class Hash(private val value: ByteArray) : RlpEncodable {
         rlp.encode(value)
     }
 
+    override fun rlpSize(): Int {
+        return RlpEncoder.sizeOf(value)
+    }
+
     infix fun equals(other: CharSequence): Boolean {
         return value.contentEquals(FastHex.decode(other))
     }

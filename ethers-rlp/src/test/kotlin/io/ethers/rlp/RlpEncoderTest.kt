@@ -7,6 +7,15 @@ import io.kotest.matchers.shouldBe
 import java.math.BigInteger
 
 class RlpEncoderTest : FunSpec({
+    test("fail if exact size of encoder is invalid") {
+        val rlp = RlpEncoder(20, isExactSize = true)
+        rlp.encode(1)
+
+        shouldThrow<IllegalStateException> {
+            rlp.toByteArray()
+        }
+    }
+
     context("encode - BigInteger") {
         context("success") {
             val maxUint256 = BigInteger("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", 16)
@@ -118,6 +127,22 @@ class RlpEncoderTest : FunSpec({
             encoder.toHexString() shouldBe "d2c883ffccb583ffc0b5c883ffccb583ffc0b5"
         }
 
+        test("nested list - using 'this' for nested list encoding") {
+            val encoder = RlpEncoder(1)
+            encoder.encodeList {
+                this.encodeList {
+                    encode(0xFFCCB5)
+                    encode(0xFFC0B5)
+                }
+
+                this.encodeList {
+                    encode(0xFFCCB5)
+                    encode(0xFFC0B5)
+                }
+            }
+            encoder.toHexString() shouldBe "d2c883ffccb583ffc0b5c883ffccb583ffc0b5"
+        }
+
         test("list with many elements") {
             val encoder = RlpEncoder()
             encoder.encodeList {
@@ -145,22 +170,13 @@ class RlpEncoderTest : FunSpec({
         test("encode via Runnable") {
             val encoder = RlpEncoder()
             encoder.encodeList(
+                -1,
                 Runnable {
                     listOf("dog", "god", "cat", "tac", "tac").forEach { encoder.encode(it.toByteArray()) }
                 },
             )
 
             encoder.toHexString() shouldBe "d483646f6783676f64836361748374616383746163"
-        }
-
-        test("manual list encoding") {
-            val encoder = RlpEncoder()
-
-            val bufferStartPosition = encoder.startList()
-            listOf("dog", "god", "cat", "tac", "tac", "tac").forEach { encoder.encode(it.toByteArray()) }
-            encoder.finishList(bufferStartPosition)
-
-            encoder.toHexString() shouldBe "d883646f6783676f6483636174837461638374616383746163"
         }
 
         test("throw exception if manual list encoding is not finished before calling toByteArray()") {

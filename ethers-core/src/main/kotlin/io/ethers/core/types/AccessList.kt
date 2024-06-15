@@ -29,10 +29,16 @@ object AccessList {
     @JsonDeserialize(using = AccessListItemDeserializer::class)
     data class Item(val address: Address, val storageKeys: List<Hash>) : RlpEncodable {
         override fun rlpEncode(rlp: RlpEncoder) {
-            rlp.encodeList {
+            val listBodySize = RlpEncoder.sizeOf(address) + RlpEncoder.sizeOfList(storageKeys)
+
+            rlp.encodeList(listBodySize) {
                 encode(address)
                 encodeList(storageKeys)
             }
+        }
+
+        override fun rlpSize(): Int = with(RlpEncoder) {
+            return sizeOfList(sizeOf(address) + sizeOfList(storageKeys))
         }
 
         companion object : RlpDecodable<Item> {

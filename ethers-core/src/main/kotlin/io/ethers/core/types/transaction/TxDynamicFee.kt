@@ -47,7 +47,7 @@ data class TxDynamicFee(
     override fun rlpEncodeEnveloped(rlp: RlpEncoder, signature: Signature?, hashEncoding: Boolean) {
         rlp.appendRaw(type.type.toByte())
 
-        rlp.encodeList {
+        rlp.encodeList(rlpFieldsWithSignatureSize(signature)) {
             rlp.encode(chainId)
             rlp.encode(nonce)
             rlp.encode(gasTipCap)
@@ -60,6 +60,23 @@ data class TxDynamicFee(
 
             signature?.rlpEncode(this)
         }
+    }
+
+    override fun rlpEnvelopedSize(signature: Signature?, hashEncoding: Boolean): Int = with(RlpEncoder) {
+        return 1 + sizeOfList(rlpFieldsWithSignatureSize(signature))
+    }
+
+    private fun rlpFieldsWithSignatureSize(signature: Signature?): Int = with(RlpEncoder) {
+        return sizeOf(chainId) +
+            sizeOf(nonce) +
+            sizeOf(gasTipCap) +
+            sizeOf(gasFeeCap) +
+            sizeOf(gas) +
+            sizeOf(to) +
+            sizeOf(value) +
+            sizeOf(data) +
+            sizeOfList(accessList) +
+            (signature?.rlpSize() ?: 0)
     }
 
     companion object : RlpDecodable<TxDynamicFee> {

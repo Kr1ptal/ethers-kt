@@ -202,6 +202,10 @@ class Bytes(private val value: ByteArray) : RlpEncodable {
         rlp.encode(value)
     }
 
+    override fun rlpSize(): Int {
+        return RlpEncoder.sizeOf(value)
+    }
+
     companion object : RlpDecodable<Bytes> {
         @JvmField
         val EMPTY = Bytes(ByteArray(0))

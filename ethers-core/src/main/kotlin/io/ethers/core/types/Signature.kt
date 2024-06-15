@@ -163,6 +163,10 @@ class Signature(
         rlp.encode(s)
     }
 
+    override fun rlpSize(): Int {
+        return with(RlpEncoder) { sizeOf(v) + sizeOf(r) + sizeOf(s) }
+    }
+
     companion object : RlpDecodable<Signature> {
         const val V_ELECTRUM_OFFSET = 27L
         const val V_EIP155_OFFSET = 35L
