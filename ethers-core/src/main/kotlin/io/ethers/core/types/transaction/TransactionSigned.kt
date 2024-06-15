@@ -39,11 +39,11 @@ class TransactionSigned @JvmOverloads constructor(
     override val hash: Hash
         get() {
             if (_hash == null) {
-                val hashRlp = RlpEncoder.unsized()
+                val rlp = RlpEncoder(tx.rlpEnvelopedSize(signature, true), isExactSize = true)
                     .also { tx.rlpEncodeEnveloped(it, signature, true) }
                     .toByteArray()
 
-                _hash = Hash(Hashing.keccak256(hashRlp))
+                _hash = Hash(Hashing.keccak256(rlp))
             }
             return _hash!!
         }
@@ -112,6 +112,10 @@ class TransactionSigned @JvmOverloads constructor(
 
     override fun rlpEncode(rlp: RlpEncoder) {
         tx.rlpEncodeEnveloped(rlp, signature, false)
+    }
+
+    override fun rlpSize(): Int {
+        return tx.rlpEnvelopedSize(signature, false)
     }
 
     companion object : RlpDecodable<TransactionSigned> {

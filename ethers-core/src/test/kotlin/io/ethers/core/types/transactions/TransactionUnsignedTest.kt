@@ -202,7 +202,7 @@ class TransactionUnsignedTest : FunSpec({
                 blobVersionedHashes = listOf(Hash.ZERO),
             ),
         ) { tx ->
-            val encoder = RlpEncoder.unsized()
+            val encoder = RlpEncoder()
             tx.rlpEncode(encoder)
 
             val decoder = RlpDecoder(encoder.toByteArray())

@@ -5,8 +5,12 @@ import java.math.BigInteger
 /**
  * A utility class to calculate the size of RLP-encoded values, without actually encoding them.
  * */
-internal object RlpSizer {
+object RlpSizer {
     private val RLP_STRING_SHORT_BIGINT = BigInteger.valueOf(0x80)
+
+    fun sizeOf(value: RlpEncodable?): Int {
+        return value?.rlpSize() ?: 1
+    }
 
     fun sizeOf(value: BigInteger?): Int {
         if (value == null) {
@@ -78,6 +82,26 @@ internal object RlpSizer {
                 val lengthOfSize = lengthOfSizeInBytes(bytes.size)
                 return 1 + lengthOfSize + bytes.size
             }
+        }
+    }
+
+    fun <T : RlpEncodable> sizeOfList(list: List<T>): Int {
+        return sizeOfListWithBody(sizeOfListBody(list))
+    }
+
+    fun sizeOfListBody(list: List<RlpEncodable>): Int {
+        var size = 0
+        for (item in list) {
+            size += sizeOf(item)
+        }
+        return size
+    }
+
+    fun sizeOfListWithBody(listBodySize: Int): Int {
+        return listBodySize + when {
+            listBodySize == 0 -> 1
+            listBodySize <= MAX_SHORT_LENGTH -> 1
+            else -> 1 + lengthOfSizeInBytes(listBodySize)
         }
     }
 

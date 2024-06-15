@@ -8,6 +8,7 @@ import io.ethers.core.types.Signature
 import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncoder
+import io.ethers.rlp.RlpSizer
 import java.math.BigInteger
 
 /**
@@ -49,7 +50,7 @@ data class TxAccessList(
     override fun rlpEncodeEnveloped(rlp: RlpEncoder, signature: Signature?, hashEncoding: Boolean) {
         rlp.appendRaw(type.type.toByte())
 
-        rlp.encodeList {
+        rlp.encodeList(rlpFieldsWithSignatureSize(signature)) {
             rlp.encode(chainId)
             rlp.encode(nonce)
             rlp.encode(gasPrice)
@@ -61,6 +62,22 @@ data class TxAccessList(
 
             signature?.rlpEncode(this)
         }
+    }
+
+    override fun rlpEnvelopedSize(signature: Signature?, hashEncoding: Boolean): Int = with(RlpSizer) {
+        return 1 + sizeOfListWithBody(rlpFieldsWithSignatureSize(signature))
+    }
+
+    private fun rlpFieldsWithSignatureSize(signature: Signature?): Int = with(RlpSizer) {
+        return sizeOf(chainId) +
+            sizeOf(nonce) +
+            sizeOf(gasPrice) +
+            sizeOf(gas) +
+            sizeOf(to) +
+            sizeOf(value) +
+            sizeOf(data) +
+            sizeOfList(accessList) +
+            (signature?.rlpSize() ?: 0)
     }
 
     companion object : RlpDecodable<TxAccessList> {

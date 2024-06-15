@@ -8,6 +8,7 @@ import io.ethers.core.types.Signature
 import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncoder
+import io.ethers.rlp.RlpSizer
 import java.math.BigInteger
 
 data class TxLegacy(
@@ -38,7 +39,7 @@ data class TxLegacy(
         get() = null
 
     override fun rlpEncodeEnveloped(rlp: RlpEncoder, signature: Signature?, hashEncoding: Boolean) {
-        rlp.encodeList {
+        rlp.encodeList(rlpFieldsWithSignatureSize(signature, hashEncoding)) {
             rlp.encode(nonce)
             rlp.encode(gasPrice)
             rlp.encode(gas)
@@ -46,19 +47,44 @@ data class TxLegacy(
             rlp.encode(value)
             rlp.encode(data)
 
-            if (hashEncoding) {
-                if (signature == null) {
+            when {
+                hashEncoding && signature == null -> {
                     if (ChainId.isValid(chainId)) {
                         rlp.encode(chainId)
                         rlp.encode(0)
                         rlp.encode(0)
                     }
-                    return@encodeList
+                }
+
+                signature != null -> rlp.encode(signature)
+            }
+        }
+    }
+
+    override fun rlpEnvelopedSize(signature: Signature?, hashEncoding: Boolean): Int = with(RlpSizer) {
+        return sizeOfListWithBody(rlpFieldsWithSignatureSize(signature, hashEncoding))
+    }
+
+    private fun rlpFieldsWithSignatureSize(signature: Signature?, hashEncoding: Boolean): Int = with(RlpSizer) {
+        var size = sizeOf(nonce) +
+            sizeOf(gasPrice) +
+            sizeOf(gas) +
+            sizeOf(to) +
+            sizeOf(value) +
+            sizeOf(data)
+
+        when {
+            hashEncoding && signature == null -> {
+                if (ChainId.isValid(chainId)) {
+                    // chainId + 2x zero
+                    size += sizeOf(chainId) + 2
                 }
             }
 
-            signature?.rlpEncode(this)
+            signature != null -> size += signature.rlpSize()
         }
+
+        return size
     }
 
     companion object : RlpDecodable<TxLegacy> {

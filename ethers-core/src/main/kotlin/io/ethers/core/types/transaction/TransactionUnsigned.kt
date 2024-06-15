@@ -1,5 +1,6 @@
 package io.ethers.core.types.transaction
 
+import io.ethers.core.FastHex
 import io.ethers.core.types.Signature
 import io.ethers.crypto.Hashing
 import io.ethers.rlp.RlpDecodable
@@ -19,13 +20,19 @@ sealed interface TransactionUnsigned : Transaction, RlpEncodable {
      * */
     fun rlpEncodeEnveloped(rlp: RlpEncoder, signature: Signature?, hashEncoding: Boolean)
 
+    fun rlpEnvelopedSize(signature: Signature?, hashEncoding: Boolean): Int
+
     /**
      * Get hash used for signing the transaction.
      * */
     fun signatureHash(): ByteArray {
-        val encoder = RlpEncoder.unsized()
-        rlpEncodeEnveloped(encoder, null, true)
-        return Hashing.keccak256(encoder.toByteArray())
+        val rlp = RlpEncoder(rlpEnvelopedSize(null, true), isExactSize = true)
+            .also { rlpEncodeEnveloped(it, null, true) }
+            .toByteArray()
+
+        println(FastHex.encodeWithPrefix(rlp))
+
+        return Hashing.keccak256(rlp)
     }
 
     /**
@@ -34,6 +41,10 @@ sealed interface TransactionUnsigned : Transaction, RlpEncodable {
      */
     override fun rlpEncode(rlp: RlpEncoder) {
         rlpEncodeEnveloped(rlp, EMPTY_SIGNATURE, true)
+    }
+
+    override fun rlpSize(): Int {
+        return rlpEnvelopedSize(EMPTY_SIGNATURE, true)
     }
 
     companion object : RlpDecodable<TransactionUnsigned> {

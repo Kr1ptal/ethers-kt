@@ -15,6 +15,7 @@ import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncodable
 import io.ethers.rlp.RlpEncoder
+import io.ethers.rlp.RlpSizer
 import kotlin.random.Random
 
 /**
@@ -52,6 +53,8 @@ class Address(private val value: ByteArray) : RlpEncodable {
     override fun rlpEncode(rlp: RlpEncoder) {
         rlp.encode(value)
     }
+
+    override fun rlpSize() = RlpSizer.sizeOf(value)
 
     infix fun equals(other: CharSequence): Boolean {
         return value.contentEquals(FastHex.decode(other))
@@ -91,12 +94,15 @@ class Address(private val value: ByteArray) : RlpEncodable {
          * Compute contract address as with *CREATE* opcode, based on [sender] and senders [nonce].
          */
         @JvmStatic
-        fun computeCreate(sender: Address, nonce: Long): Address {
-            // address.size + 8 (+ 1 RLP flag) = 29 bytes worst case
-            val rlp = RlpEncoder.sized(sender.value.size + 9).encodeList {
+        fun computeCreate(sender: Address, nonce: Long): Address = with(RlpSizer) {
+            val fieldsSize = sizeOf(sender) + sizeOf(nonce)
+
+            val rlp = RlpEncoder(sizeOfListWithBody(fieldsSize), isExactSize = true)
+            rlp.encodeList(fieldsSize) {
                 encode(sender)
                 encode(nonce)
             }
+
             val hash = Hashing.keccak256(rlp.toByteArray())
             return Address(hash.copyOfRange(12, hash.size))
         }

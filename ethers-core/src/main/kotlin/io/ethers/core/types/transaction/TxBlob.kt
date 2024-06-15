@@ -10,6 +10,7 @@ import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncodable
 import io.ethers.rlp.RlpEncoder
+import io.ethers.rlp.RlpSizer
 import java.math.BigInteger
 
 /**
@@ -73,7 +74,7 @@ data class TxBlob(
     override val type: TxType
         get() = TxType.Blob
 
-    override fun rlpEncodeEnveloped(rlp: RlpEncoder, signature: Signature?, hashEncoding: Boolean) {
+    override fun rlpEncodeEnveloped(rlp: RlpEncoder, signature: Signature?, hashEncoding: Boolean) = with(RlpSizer) {
         rlp.appendRaw(type.type.toByte())
 
         // If blob tx has sidecar, encode as network encoding - but only if not encoding for hash. For hash, we use
@@ -84,17 +85,18 @@ data class TxBlob(
         // signature values.
         //
         // See: https://eips.ethereum.org/EIPS/eip-4844#networking
+        val fieldsWithSignatureSize = rlpFieldsWithSignatureSize(signature)
         when {
             hashEncoding || sidecar == null -> {
-                rlp.encodeList {
+                rlp.encodeList(fieldsWithSignatureSize) {
                     rlpEncodeFields(this)
                     signature?.rlpEncode(this)
                 }
             }
 
             else -> {
-                rlp.encodeList {
-                    rlp.encodeList {
+                rlp.encodeList(sizeOfListWithBody(fieldsWithSignatureSize) + sidecar.rlpSize()) {
+                    rlp.encodeList(fieldsWithSignatureSize) {
                         rlpEncodeFields(this)
                         signature?.rlpEncode(this)
                     }
@@ -103,6 +105,8 @@ data class TxBlob(
                 }
             }
         }
+
+        return@with
     }
 
     private fun rlpEncodeFields(rlp: RlpEncoder) {
@@ -117,6 +121,41 @@ data class TxBlob(
         rlp.encodeList(accessList)
         rlp.encode(blobFeeCap)
         rlp.encodeList(blobVersionedHashes)
+    }
+
+    override fun rlpEnvelopedSize(signature: Signature?, hashEncoding: Boolean): Int = with(RlpSizer) {
+        var size = 1
+        when {
+            hashEncoding || sidecar == null -> {
+                size += sizeOfListWithBody(rlpFieldsWithSignatureSize(signature))
+            }
+            else -> {
+                val fieldsListSize = sizeOfListWithBody(rlpFieldsWithSignatureSize(signature))
+                size += sizeOfListWithBody(fieldsListSize + sidecar.rlpSize())
+            }
+        }
+
+        return size
+    }
+
+    private fun rlpFieldsWithSignatureSize(signature: Signature?): Int = with(RlpSizer) {
+        val size = sizeOf(chainId) +
+            sizeOf(nonce) +
+            sizeOf(gasTipCap) +
+            sizeOf(gasFeeCap) +
+            sizeOf(gas) +
+            sizeOf(to) +
+            sizeOf(value) +
+            sizeOf(data) +
+            sizeOfList(accessList) +
+            sizeOf(blobFeeCap) +
+            sizeOfList(blobVersionedHashes)
+
+        if (signature != null) {
+            return size + signature.rlpSize()
+        }
+
+        return size
     }
 
     data class Sidecar(
@@ -150,6 +189,10 @@ data class TxBlob(
             rlp.encodeList(blobs)
             rlp.encodeList(commitments)
             rlp.encodeList(proofs)
+        }
+
+        override fun rlpSize(): Int {
+            return with(RlpSizer) { sizeOfList(blobs) + sizeOfList(commitments) + sizeOfList(proofs) }
         }
 
         companion object : RlpDecodable<Sidecar> {
