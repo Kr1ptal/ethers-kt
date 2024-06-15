@@ -19,7 +19,6 @@ import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncodable
 import io.ethers.rlp.RlpEncoder
-import io.ethers.rlp.RlpSizer
 
 // Ideally, this would be an inline class, but java interop is a pain. If you need to add any functions to operate on
 // AccessList, add an extension function to List<AccessList.Item> instead, inside this object, and annotate it with
@@ -30,7 +29,7 @@ object AccessList {
     @JsonDeserialize(using = AccessListItemDeserializer::class)
     data class Item(val address: Address, val storageKeys: List<Hash>) : RlpEncodable {
         override fun rlpEncode(rlp: RlpEncoder) {
-            val listBodySize = RlpSizer.sizeOf(address) + RlpSizer.sizeOfList(storageKeys)
+            val listBodySize = RlpEncoder.sizeOf(address) + RlpEncoder.sizeOfList(storageKeys)
 
             rlp.encodeList(listBodySize) {
                 encode(address)
@@ -38,8 +37,8 @@ object AccessList {
             }
         }
 
-        override fun rlpSize(): Int = with(RlpSizer) {
-            return sizeOfListWithBody(sizeOf(address) + sizeOfList(storageKeys))
+        override fun rlpSize(): Int = with(RlpEncoder) {
+            return sizeOfList(sizeOf(address) + sizeOfList(storageKeys))
         }
 
         companion object : RlpDecodable<Item> {

@@ -14,7 +14,6 @@ import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncodable
 import io.ethers.rlp.RlpEncoder
-import io.ethers.rlp.RlpSizer
 
 /**
  * 32-byte hash.
@@ -54,7 +53,7 @@ class Hash(private val value: ByteArray) : RlpEncodable {
     }
 
     override fun rlpSize(): Int {
-        return RlpSizer.sizeOf(value)
+        return RlpEncoder.sizeOf(value)
     }
 
     infix fun equals(other: CharSequence): Boolean {

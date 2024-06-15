@@ -20,6 +20,14 @@ sealed interface TransactionUnsigned : Transaction, RlpEncodable {
      * */
     fun rlpEncodeEnveloped(rlp: RlpEncoder, signature: Signature?, hashEncoding: Boolean)
 
+    /**
+     * Return the size of the RLP encoded transaction with optional signature according to
+     * [EIP-2718](https://eips.ethereum.org/EIPS/eip-2718) enveloped format. If [hashEncoding] is true, the size
+     * is either for signature hash (if [signature] is null) or transaction hash (if [signature] is not null).
+     *
+     * This must return the exact size required for the RLP encoding via [rlpEncodeEnveloped] when provided with the
+     * same parameters.
+     * */
     fun rlpEnvelopedSize(signature: Signature?, hashEncoding: Boolean): Int
 
     /**

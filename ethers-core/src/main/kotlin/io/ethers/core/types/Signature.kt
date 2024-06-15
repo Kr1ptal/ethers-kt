@@ -10,7 +10,6 @@ import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncodable
 import io.ethers.rlp.RlpEncoder
-import io.ethers.rlp.RlpSizer
 import java.math.BigInteger
 
 class Signature(
@@ -165,7 +164,7 @@ class Signature(
     }
 
     override fun rlpSize(): Int {
-        return with(RlpSizer) { sizeOf(v) + sizeOf(r) + sizeOf(s) }
+        return with(RlpEncoder) { sizeOf(v) + sizeOf(r) + sizeOf(s) }
     }
 
     companion object : RlpDecodable<Signature> {

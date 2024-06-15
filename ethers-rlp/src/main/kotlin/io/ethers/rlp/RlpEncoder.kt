@@ -44,7 +44,7 @@ class RlpEncoder @JvmOverloads constructor(
      * RLP encode list of [T] objects.
      */
     fun <T : RlpEncodable> encodeList(list: List<T>): RlpEncoder {
-        return encodeList(RlpSizer.sizeOfListBody(list)) {
+        return encodeList(sizeOfListBody(list)) {
             for (i in list.indices) {
                 list[i].rlpEncode(this)
             }
@@ -79,7 +79,7 @@ class RlpEncoder @JvmOverloads constructor(
         when {
             // if we know the size of the list body in advance, we encode it here and avoid copying the bytes later
             bodySize > MAX_SHORT_LENGTH -> {
-                val lengthOfSize = RlpSizer.lengthOfSizeInBytes(bodySize)
+                val lengthOfSize = lengthOfSizeInBytes(bodySize)
                 buffer.ensureCapacity(1 + lengthOfSize + bodySize)
                 buffer.put((RLP_LIST_LONG + lengthOfSize).toByte())
                 encodeSize(lengthOfSize, bodySize)
@@ -105,7 +105,7 @@ class RlpEncoder @JvmOverloads constructor(
 
             // if prefix does not already contain the size, we need to encode it
             bodySize <= 0 -> {
-                val lengthOfSize = RlpSizer.lengthOfSizeInBytes(size)
+                val lengthOfSize = lengthOfSizeInBytes(size)
                 buffer.put(bufferStartPosition, (RLP_LIST_LONG + lengthOfSize).toByte())
 
                 val startIndex = bufferStartPosition + 1
@@ -213,30 +213,30 @@ class RlpEncoder @JvmOverloads constructor(
         return this
     }
 
-    fun encode(bytes: ByteArray?): RlpEncoder {
-        if (bytes == null || bytes.isEmpty()) {
+    fun encode(value: ByteArray?): RlpEncoder {
+        if (value == null || value.isEmpty()) {
             buffer.ensureCapacity(1).put(RLP_NULL.toByte())
             return this
         }
 
         when {
-            bytes.size == 1 && bytes[0].toUByte().toInt() < RLP_STRING_SHORT -> {
-                buffer.ensureCapacity(1).put(bytes[0])
+            value.size == 1 && value[0].toUByte().toInt() < RLP_STRING_SHORT -> {
+                buffer.ensureCapacity(1).put(value[0])
             }
 
-            bytes.size <= MAX_SHORT_LENGTH -> {
-                buffer.ensureCapacity(1 + bytes.size)
-                buffer.put((RLP_STRING_SHORT + bytes.size).toByte())
-                buffer.put(bytes)
+            value.size <= MAX_SHORT_LENGTH -> {
+                buffer.ensureCapacity(1 + value.size)
+                buffer.put((RLP_STRING_SHORT + value.size).toByte())
+                buffer.put(value)
             }
 
             else -> {
-                val lengthOfSize = RlpSizer.lengthOfSizeInBytes(bytes.size)
-                buffer.ensureCapacity(1 + lengthOfSize + bytes.size)
+                val lengthOfSize = lengthOfSizeInBytes(value.size)
+                buffer.ensureCapacity(1 + lengthOfSize + value.size)
 
                 buffer.put((RLP_STRING_LONG + lengthOfSize).toByte())
-                encodeSize(lengthOfSize, bytes.size)
-                buffer.put(bytes)
+                encodeSize(lengthOfSize, value.size)
+                buffer.put(value)
             }
         }
         return this
@@ -286,5 +286,150 @@ class RlpEncoder @JvmOverloads constructor(
 
     companion object {
         private const val BUFFER_GROWTH_FACTOR = 1.5
+        private val RLP_STRING_SHORT_BIGINT = BigInteger.valueOf(0x80)
+
+        /**
+         * Return the size of the RLP encoding of [value], without actually encoding it.
+         * */
+        @JvmStatic
+        fun sizeOf(value: RlpEncodable?): Int {
+            return value?.rlpSize() ?: 1
+        }
+
+        /**
+         * Return the size of the RLP encoding of [value], without actually encoding it.
+         * */
+        @JvmStatic
+        fun sizeOf(value: BigInteger?): Int {
+            if (value == null) {
+                return 1
+            }
+
+            if (value < BigInteger.ZERO) {
+                throw IllegalArgumentException("Negative values are not supported: $value")
+            }
+
+            if (value == BigInteger.ZERO) {
+                return 1
+            }
+
+            val nonZeroLength = (value.bitLength() + 7) / 8
+            if (nonZeroLength > 32) {
+                throw IllegalArgumentException("Value too big, max 32 bytes are supported: $value")
+            }
+
+            return when {
+                nonZeroLength == 1 && value < RLP_STRING_SHORT_BIGINT -> 1
+
+                // always true, number can have max 32 bytes (uint256):
+                // bytes.size <= MAX_SHORT_LENGTH -> {
+                else -> 1 + nonZeroLength
+            }
+        }
+
+        /**
+         * Return the size of the RLP encoding of [value], without actually encoding it.
+         * */
+        @JvmStatic
+        fun sizeOf(value: Long): Int {
+            if (value < 0L) {
+                throw IllegalArgumentException("Negative values are not supported: $value")
+            }
+
+            if (value == 0L) {
+                return 1
+            }
+
+            var bitShift = 56
+            while (bitShift >= 0 && value shr bitShift == 0L) {
+                bitShift -= 8
+            }
+
+            val nonZeroLength = bitShift / 8 + 1
+
+            return when {
+                nonZeroLength == 1 && value < RLP_STRING_SHORT -> 1
+
+                // always true, long == 8 bytes:
+                // nonZeroLength <= MAX_SHORT_LENGTH -> {
+                else -> 1 + nonZeroLength
+            }
+        }
+
+        /**
+         * Return the size of the RLP encoding of [value], without actually encoding it.
+         * */
+        @JvmStatic
+        fun sizeOf(value: ByteArray?): Int {
+            if (value == null || value.isEmpty()) {
+                return 1
+            }
+
+            when {
+                value.size == 1 && value[0].toUByte().toInt() < RLP_STRING_SHORT -> {
+                    return 1
+                }
+
+                value.size <= MAX_SHORT_LENGTH -> {
+                    return 1 + value.size
+                }
+
+                else -> {
+                    val lengthOfSize = lengthOfSizeInBytes(value.size)
+                    return 1 + lengthOfSize + value.size
+                }
+            }
+        }
+
+        /**
+         * Return the size of the RLP encoding of [list], without actually encoding it.
+         *
+         * **This returns list header size + list body size.**
+         * */
+        @JvmStatic
+        fun <T : RlpEncodable> sizeOfList(list: List<T>): Int {
+            return sizeOfList(sizeOfListBody(list))
+        }
+
+        /**
+         * Return the size of the RLP encoding of list with given [listBodySize].
+         *
+         * **This returns list header size + list body size.**
+         * */
+        @JvmStatic
+        fun sizeOfList(listBodySize: Int): Int {
+            return listBodySize + when {
+                listBodySize == 0 -> 1
+                listBodySize <= MAX_SHORT_LENGTH -> 1
+                else -> 1 + lengthOfSizeInBytes(listBodySize)
+            }
+        }
+
+        /**
+         * Return the size of the RLP encoding of [list] body, without actually encoding it.
+         *
+         * **This returns only list body size.**
+         * */
+        @JvmStatic
+        fun sizeOfListBody(list: List<RlpEncodable>): Int {
+            var size = 0
+            for (item in list) {
+                size += sizeOf(item)
+            }
+            return size
+        }
+
+        /**
+         * Return the RLP length of encoding given [size].
+         * */
+        @JvmStatic
+        fun lengthOfSizeInBytes(size: Int): Int {
+            return when {
+                size <= 0xff -> 1
+                size <= 0xffff -> 2
+                size <= 0xffffff -> 3
+                else -> 4
+            }
+        }
     }
 }
