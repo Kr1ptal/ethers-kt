@@ -167,11 +167,14 @@ class RlpEncoderTest : FunSpec({
             encoder.toHexString() shouldBe "f84483646f6783676f64836361748374616383746163837461638374616383746163837461638374616383746163837461638374616383746163837461638374616383746163"
         }
 
-        test("encode via Consumer") {
+        test("encode via Runnable") {
             val encoder = RlpEncoder()
-            encoder.encodeList { inner ->
-                listOf("dog", "god", "cat", "tac", "tac").forEach { inner.encode(it.toByteArray()) }
-            }
+            encoder.encodeList(
+                -1,
+                Runnable {
+                    listOf("dog", "god", "cat", "tac", "tac").forEach { encoder.encode(it.toByteArray()) }
+                },
+            )
 
             encoder.toHexString() shouldBe "d483646f6783676f64836361748374616383746163"
         }

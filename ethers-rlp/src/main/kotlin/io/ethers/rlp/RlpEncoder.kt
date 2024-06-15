@@ -2,7 +2,6 @@ package io.ethers.rlp
 
 import java.math.BigInteger
 import java.nio.ByteBuffer
-import java.util.function.Consumer
 import kotlin.math.max
 
 /**
@@ -35,6 +34,10 @@ class RlpEncoder @JvmOverloads constructor(
         return buffer.array().copyOfRange(0, buffer.position())
     }
 
+    /**
+     * Appends a raw byte to the buffer. Useful when encoding typed transactions, so we don't have to copy the result
+     * to a new byte array just to prepend the type byte.
+     * */
     fun appendRaw(byte: Byte): RlpEncoder {
         buffer.ensureCapacity(1).put(byte)
         return this
@@ -55,8 +58,8 @@ class RlpEncoder @JvmOverloads constructor(
      * RLP encode list of values provided via [action].
      */
     @JvmOverloads
-    fun encodeList(bodySize: Int = -1, action: Consumer<RlpEncoder>): RlpEncoder {
-        return encodeList(bodySize) { action.accept(this) }
+    fun encodeList(bodySize: Int = -1, action: Runnable): RlpEncoder {
+        return encodeList(bodySize) { action.run() }
     }
 
     /**
