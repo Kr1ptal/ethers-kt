@@ -2,6 +2,7 @@ package io.ethers.providers.types
 
 import com.fasterxml.jackson.core.JsonParser
 import io.ethers.core.Result
+import io.ethers.core.Result.Consumer
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import io.ethers.providers.SubscriptionStream
@@ -55,6 +56,32 @@ interface RpcSubscribe<T, E : Result.Error> {
      */
     fun <R : Result.Error> orElse(mapper: Result.Transformer<E, Result<SubscriptionStream<T>, R>>): RpcSubscribe<T, R> {
         return MappingRpcSubscribe(this) { it.orElse(mapper) }
+    }
+
+    /**
+     * Callback called only when the call has succeeded.
+     *
+     * The function will be executed asynchronously after the request is sent and response received.
+     */
+    fun onSuccess(block: Consumer<SubscriptionStream<T>>): RpcSubscribe<T, E> {
+        return MappingRpcSubscribe(this) {
+            it.onSuccess(block)
+
+            it
+        }
+    }
+
+    /**
+     * Callback called only when the call has failed with an error.
+     *
+     * The function will be executed asynchronously after the request is sent and response received.
+     */
+    fun onFailure(block: Consumer<E>): RpcSubscribe<T, E> {
+        return MappingRpcSubscribe(this) {
+            it.onFailure(block)
+
+            it
+        }
     }
 }
 

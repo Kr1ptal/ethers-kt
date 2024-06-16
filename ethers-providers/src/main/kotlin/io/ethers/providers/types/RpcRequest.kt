@@ -2,6 +2,7 @@ package io.ethers.providers.types
 
 import com.fasterxml.jackson.core.JsonParser
 import io.ethers.core.Result
+import io.ethers.core.Result.Consumer
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import java.util.concurrent.CompletableFuture
@@ -59,6 +60,32 @@ abstract class RpcRequest<T, E : Result.Error> {
      */
     fun <R : Result.Error> orElse(mapper: Result.Transformer<E, Result<T, R>>): RpcRequest<T, R> {
         return MappingRpcRequest(this) { it.orElse(mapper) }
+    }
+
+    /**
+     * Callback called only when the call has succeeded.
+     *
+     * The function will be executed asynchronously after the request is sent and response received.
+     */
+    fun onSuccess(block: Consumer<T>): RpcRequest<T, E> {
+        return MappingRpcRequest(this) {
+            it.onSuccess(block)
+
+            it
+        }
+    }
+
+    /**
+     * Callback called only when the call has failed with an error.
+     *
+     * The function will be executed asynchronously after the request is sent and response received.
+     */
+    fun onFailure(block: Consumer<E>): RpcRequest<T, E> {
+        return MappingRpcRequest(this) {
+            it.onFailure(block)
+
+            it
+        }
     }
 }
 
