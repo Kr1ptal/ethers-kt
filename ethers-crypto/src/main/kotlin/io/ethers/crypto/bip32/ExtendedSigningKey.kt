@@ -63,6 +63,24 @@ class ExtendedSigningKey(privateKey: ByteArray, val chainCode: ByteArray) {
         return ExtendedSigningKey(privateKeyNew, chainCodeNew)
     }
 
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as ExtendedSigningKey
+
+        if (!chainCode.contentEquals(other.chainCode)) return false
+        if (signingKey != other.signingKey) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = chainCode.contentHashCode()
+        result = 31 * result + signingKey.hashCode()
+        return result
+    }
+
     companion object {
         private val PREFIX_KEY_BYTES = "Bitcoin seed".toByteArray(StandardCharsets.UTF_8)
 

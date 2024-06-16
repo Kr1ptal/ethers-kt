@@ -26,4 +26,17 @@ class MnemonicKeySource @JvmOverloads constructor(
     fun getAccount(index: Int): PrivateKeySigner {
         return PrivateKeySigner(parentKey.deriveChild(index).signingKey)
     }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as MnemonicKeySource
+
+        return parentKey == other.parentKey
+    }
+
+    override fun hashCode(): Int {
+        return parentKey.hashCode()
+    }
 }

@@ -30,6 +30,19 @@ class PrivateKeySigner(val signingKey: Secp256k1.SigningKey) : Signer {
         return "PrivateKeySigner(address=$address)"
     }
 
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as PrivateKeySigner
+
+        return signingKey == other.signingKey
+    }
+
+    override fun hashCode(): Int {
+        return signingKey.hashCode()
+    }
+
     companion object {
         private fun validHexToKey(hex: String): Secp256k1.SigningKey {
             if (!FastHex.isValidHex(hex)) {

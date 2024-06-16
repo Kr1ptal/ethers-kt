@@ -43,6 +43,10 @@ interface Signer {
      * Sign hash and return [Signature].
      */
     fun signHash(hash: ByteArray): Signature
+
+    override fun equals(other: Any?): Boolean
+
+    override fun hashCode(): Int
 }
 
 fun TransactionUnsigned.sign(signer: Signer) = signer.signTransaction(this)

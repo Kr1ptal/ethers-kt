@@ -6,7 +6,7 @@ import java.math.BigInteger
 /**
  * English mnemonic word list from [BIP-0039](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki).
  * */
-object MnemonicWordListEnglish : MnemonicWordList {
+data object MnemonicWordListEnglish : MnemonicWordList {
     private const val BIP39_ENGLISH_SHA256 = "ad90bf3beb7b0eb7e5acd74727dc0da96e0a280a258354e7293fb7e211ac03db"
 
     override val separator: Char = ' '
