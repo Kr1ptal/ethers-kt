@@ -1,6 +1,5 @@
 package io.ethers.core.types.transaction
 
-import io.ethers.core.FastHex
 import io.ethers.core.types.Signature
 import io.ethers.crypto.Hashing
 import io.ethers.rlp.RlpDecodable
@@ -37,8 +36,6 @@ sealed interface TransactionUnsigned : Transaction, RlpEncodable {
         val rlp = RlpEncoder(rlpEnvelopedSize(null, true), isExactSize = true)
             .also { rlpEncodeEnveloped(it, null, true) }
             .toByteArray()
-
-        println(FastHex.encodeWithPrefix(rlp))
 
         return Hashing.keccak256(rlp)
     }
