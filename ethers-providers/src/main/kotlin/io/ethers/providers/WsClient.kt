@@ -125,6 +125,8 @@ class WsClient(
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 LOG.err(t) { "WebSocket failure" }
 
+                eventLock.withLock { connectionClosedCondition.signalAll() }
+
                 requestReconnect()
             }
 
