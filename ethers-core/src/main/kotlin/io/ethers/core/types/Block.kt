@@ -29,7 +29,7 @@ data class BlockWithHashes(
     override val hash: Hash?,
     override val logsBloom: Bloom,
     override val miner: Address?,
-    override val mixHash: Hash,
+    override val mixHash: Hash?,
     override val nonce: BigInteger?,
     override val number: Long,
     override val parentHash: Hash,
@@ -60,7 +60,7 @@ data class BlockWithTransactions(
     override val hash: Hash?,
     override val logsBloom: Bloom,
     override val miner: Address?,
-    override val mixHash: Hash,
+    override val mixHash: Hash?,
     override val nonce: BigInteger?,
     override val number: Long,
     override val parentHash: Hash,
@@ -90,7 +90,7 @@ interface Block<T> {
     val hash: Hash?
     val logsBloom: Bloom
     val miner: Address?
-    val mixHash: Hash
+    val mixHash: Hash?
     val nonce: BigInteger?
     val number: Long
     val parentHash: Hash
@@ -136,7 +136,7 @@ private class BlockWithHashesDeserializer : GenericBlockDeserializer<Hash, Block
         hash: Hash?,
         logsBloom: Bloom,
         miner: Address?,
-        mixHash: Hash,
+        mixHash: Hash?,
         nonce: BigInteger?,
         number: Long,
         parentHash: Hash,
@@ -202,7 +202,7 @@ private class BlockWithTransactionDeserialize : GenericBlockDeserializer<RPCTran
         hash: Hash?,
         logsBloom: Bloom,
         miner: Address?,
-        mixHash: Hash,
+        mixHash: Hash?,
         nonce: BigInteger?,
         number: Long,
         parentHash: Hash,
@@ -268,7 +268,7 @@ private abstract class GenericBlockDeserializer<TX, T : Block<TX>> : JsonDeseria
         var hash: Hash? = null
         lateinit var logsBloom: Bloom
         var miner: Address? = null
-        lateinit var mixHash: Hash
+        var mixHash: Hash? = null
         var nonce: BigInteger? = null
         var number: Long = -1L
         lateinit var parentHash: Hash
@@ -300,7 +300,7 @@ private abstract class GenericBlockDeserializer<TX, T : Block<TX>> : JsonDeseria
                 "logsBloom" -> logsBloom = p.readBloom()
                 // null if pending block
                 "miner" -> miner = p.readOrNull { readAddress() }
-                "mixHash" -> mixHash = p.readHash()
+                "mixHash" -> mixHash = p.readOrNull { p.readHash() }
                 // null if pending block
                 "nonce" -> nonce = p.readOrNull { p.readHexBigInteger() }
                 "number" -> number = p.readHexLong()
@@ -370,7 +370,7 @@ private abstract class GenericBlockDeserializer<TX, T : Block<TX>> : JsonDeseria
         hash: Hash?,
         logsBloom: Bloom,
         miner: Address?,
-        mixHash: Hash,
+        mixHash: Hash?,
         nonce: BigInteger?,
         number: Long,
         parentHash: Hash,
