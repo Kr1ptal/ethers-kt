@@ -153,6 +153,46 @@ class CallRequest() : IntoCallRequest {
         return "CallRequest(from=$from, to=$to, gas=$gas, gasPrice=$gasPrice, gasFeeCap=$gasFeeCap, gasTipCap=$gasTipCap, value=$value, nonce=$nonce, data=$data, accessList=$accessList, chainId=$chainId, blobFeeCap=$blobFeeCap, blobVersionedHashes=$blobVersionedHashes)"
     }
 
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as CallRequest
+
+        if (from != other.from) return false
+        if (to != other.to) return false
+        if (gas != other.gas) return false
+        if (gasPrice != other.gasPrice) return false
+        if (gasFeeCap != other.gasFeeCap) return false
+        if (gasTipCap != other.gasTipCap) return false
+        if (value != other.value) return false
+        if (nonce != other.nonce) return false
+        if (data != other.data) return false
+        if (accessList != other.accessList) return false
+        if (chainId != other.chainId) return false
+        if (blobFeeCap != other.blobFeeCap) return false
+        if (blobVersionedHashes != other.blobVersionedHashes) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = from?.hashCode() ?: 0
+        result = 31 * result + (to?.hashCode() ?: 0)
+        result = 31 * result + gas.hashCode()
+        result = 31 * result + (gasPrice?.hashCode() ?: 0)
+        result = 31 * result + (gasFeeCap?.hashCode() ?: 0)
+        result = 31 * result + (gasTipCap?.hashCode() ?: 0)
+        result = 31 * result + (value?.hashCode() ?: 0)
+        result = 31 * result + nonce.hashCode()
+        result = 31 * result + (data?.hashCode() ?: 0)
+        result = 31 * result + accessList.hashCode()
+        result = 31 * result + chainId.hashCode()
+        result = 31 * result + (blobFeeCap?.hashCode() ?: 0)
+        result = 31 * result + (blobVersionedHashes?.hashCode() ?: 0)
+        return result
+    }
+
     companion object {
         inline operator fun invoke(builder: CallRequest.() -> Unit): CallRequest {
             return CallRequest().apply(builder)

@@ -8,7 +8,17 @@ import io.ethers.core.FastHex
 import java.math.BigInteger
 
 @JsonSerialize(using = BlockOverrideSerializer::class)
-class BlockOverride {
+class BlockOverride() {
+    constructor(other: BlockOverride) : this() {
+        this.time = other.time
+        this.number = other.number
+        this.difficulty = other.difficulty
+        this.gasLimit = other.gasLimit
+        this.coinbase = other.coinbase
+        this.random = other.random
+        this.baseFee = other.baseFee
+    }
+
     // make property setters unavailable from Java since we provide custom chained functions
     var number: Long = -1L
         @JvmSynthetic set
@@ -74,6 +84,34 @@ class BlockOverride {
 
     override fun toString(): String {
         return "BlockOverride(number=$number, difficulty=$difficulty, time=$time, gasLimit=$gasLimit, coinbase=$coinbase, random=$random, baseFee=$baseFee)"
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as BlockOverride
+
+        if (number != other.number) return false
+        if (difficulty != other.difficulty) return false
+        if (time != other.time) return false
+        if (gasLimit != other.gasLimit) return false
+        if (coinbase != other.coinbase) return false
+        if (random != other.random) return false
+        if (baseFee != other.baseFee) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = number.hashCode()
+        result = 31 * result + (difficulty?.hashCode() ?: 0)
+        result = 31 * result + time.hashCode()
+        result = 31 * result + gasLimit.hashCode()
+        result = 31 * result + (coinbase?.hashCode() ?: 0)
+        result = 31 * result + (random?.hashCode() ?: 0)
+        result = 31 * result + (baseFee?.hashCode() ?: 0)
+        return result
     }
 
     companion object {
