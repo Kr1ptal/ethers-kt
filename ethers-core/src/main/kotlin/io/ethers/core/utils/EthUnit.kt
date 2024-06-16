@@ -11,6 +11,21 @@ data class EthUnit(val decimals: Int) {
     /**
      * Convert an [amount] of the current unit to [WEI], truncating values less than 1 Wei.
      */
+    fun toWei(amount: Int): BigDecimal = this.convert(amount, WEI)
+
+    /**
+     * Convert an [amount] of the current unit to [WEI], truncating values less than 1 Wei.
+     */
+    fun toWei(amount: Long): BigDecimal = this.convert(amount, WEI)
+
+    /**
+     * Convert an [amount] of the current unit to [WEI], truncating values less than 1 Wei.
+     */
+    fun toWei(amount: Double): BigDecimal = this.convert(amount, WEI)
+
+    /**
+     * Convert an [amount] of the current unit to [WEI], truncating values less than 1 Wei.
+     */
     fun toWei(amount: String): BigDecimal = this.convert(amount, WEI)
 
     /**
@@ -22,6 +37,21 @@ data class EthUnit(val decimals: Int) {
      * Convert an [amount] of the current unit to [WEI], truncating values less than 1 Wei.
      */
     fun toWei(amount: BigDecimal): BigDecimal = this.convert(amount, WEI)
+
+    /**
+     * Convert an [amount] of the current unit to [GWEI], truncating values less than 1 Wei.
+     */
+    fun toGwei(amount: Int): BigDecimal = this.convert(amount, GWEI)
+
+    /**
+     * Convert an [amount] of the current unit to [GWEI], truncating values less than 1 Wei.
+     */
+    fun toGwei(amount: Long): BigDecimal = this.convert(amount, GWEI)
+
+    /**
+     * Convert an [amount] of the current unit to [GWEI], truncating values less than 1 Wei.
+     */
+    fun toGwei(amount: Double): BigDecimal = this.convert(amount, GWEI)
 
     /**
      * Convert an [amount] of the current unit to [GWEI], truncating values less than 1 Wei.
@@ -41,19 +71,47 @@ data class EthUnit(val decimals: Int) {
     /**
      * Convert an [amount] of the current unit to [ETHER], truncating values less than 1 Wei.
      */
+    fun toEther(amount: Int): BigDecimal = this.convert(amount, ETHER)
+
+    /**
+     * Convert an [amount] of the current unit to [ETHER], truncating values less than 1 Wei.
+     */
+    fun toEther(amount: Long): BigDecimal = this.convert(amount, ETHER)
+
+    /**
+     * Convert an [amount] of the current unit to [ETHER], truncating values less than 1 Wei.
+     */
+    fun toEther(amount: Double): BigDecimal = this.convert(amount, ETHER)
+
+    /**
+     * Convert an [amount] of the current unit to [ETHER], truncating values less than 1 Wei.
+     */
     fun toEther(amount: String): BigDecimal = this.convert(amount, ETHER)
 
     /**
      * Convert an [amount] of the current unit to [ETHER], truncating values less than 1 Wei.
      */
-
     fun toEther(amount: BigInteger): BigDecimal = this.convert(amount, ETHER)
 
     /**
      * Convert an [amount] of the current unit to [ETHER], truncating values less than 1 Wei.
      */
-
     fun toEther(amount: BigDecimal): BigDecimal = this.convert(amount, ETHER)
+
+    /**
+     * Convert an [amount] of Wei to the current unit, truncating values less than 1 Wei.
+     */
+    fun fromWei(amount: Int): BigDecimal = WEI.convert(amount, this)
+
+    /**
+     * Convert an [amount] of Wei to the current unit, truncating values less than 1 Wei.
+     */
+    fun fromWei(amount: Long): BigDecimal = WEI.convert(amount, this)
+
+    /**
+     * Convert an [amount] of Wei to the current unit, truncating values less than 1 Wei.
+     */
+    fun fromWei(amount: Double): BigDecimal = WEI.convert(amount, this)
 
     /**
      * Convert an [amount] of Wei to the current unit, truncating values less than 1 Wei.
@@ -73,6 +131,21 @@ data class EthUnit(val decimals: Int) {
     /**
      * Convert an [amount] of [GWEI] to the current unit, truncating values less than 1 Wei.
      */
+    fun fromGwei(amount: Int): BigDecimal = GWEI.convert(amount, this)
+
+    /**
+     * Convert an [amount] of [GWEI] to the current unit, truncating values less than 1 Wei.
+     */
+    fun fromGwei(amount: Long): BigDecimal = GWEI.convert(amount, this)
+
+    /**
+     * Convert an [amount] of [GWEI] to the current unit, truncating values less than 1 Wei.
+     */
+    fun fromGwei(amount: Double): BigDecimal = GWEI.convert(amount, this)
+
+    /**
+     * Convert an [amount] of [GWEI] to the current unit, truncating values less than 1 Wei.
+     */
     fun fromGwei(amount: String): BigDecimal = GWEI.convert(amount, this)
 
     /**
@@ -88,6 +161,21 @@ data class EthUnit(val decimals: Int) {
     /**
      * Convert an [amount] of [ETHER] to the current unit, truncating values less than 1 Wei.
      */
+    fun fromEther(amount: Int): BigDecimal = ETHER.convert(amount, this)
+
+    /**
+     * Convert an [amount] of [ETHER] to the current unit, truncating values less than 1 Wei.
+     */
+    fun fromEther(amount: Long): BigDecimal = ETHER.convert(amount, this)
+
+    /**
+     * Convert an [amount] of [ETHER] to the current unit, truncating values less than 1 Wei.
+     */
+    fun fromEther(amount: Double): BigDecimal = ETHER.convert(amount, this)
+
+    /**
+     * Convert an [amount] of [ETHER] to the current unit, truncating values less than 1 Wei.
+     */
     fun fromEther(amount: String): BigDecimal = ETHER.convert(amount, this)
 
     /**
@@ -99,6 +187,27 @@ data class EthUnit(val decimals: Int) {
      * Convert an [amount] of [ETHER] to the current unit, truncating values less than 1 Wei.
      */
     fun fromEther(amount: BigDecimal): BigDecimal = ETHER.convert(amount, this)
+
+    /**
+     * Convert an [amount] from the current unit to [toUnit], truncating values less than 1 Wei.
+     */
+    fun convert(amount: Int, toUnit: EthUnit): BigDecimal {
+        return convert(amount.toBigDecimal(), toUnit)
+    }
+
+    /**
+     * Convert an [amount] from the current unit to [toUnit], truncating values less than 1 Wei.
+     */
+    fun convert(amount: Long, toUnit: EthUnit): BigDecimal {
+        return convert(amount.toBigDecimal(), toUnit)
+    }
+
+    /**
+     * Convert an [amount] from the current unit to [toUnit], truncating values less than 1 Wei.
+     */
+    fun convert(amount: Double, toUnit: EthUnit): BigDecimal {
+        return convert(amount.toBigDecimal(), toUnit)
+    }
 
     /**
      * Convert an [amount] from the current unit to [toUnit], truncating values less than 1 Wei.
