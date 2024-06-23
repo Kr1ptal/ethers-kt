@@ -71,7 +71,7 @@ class EnsMiddlewareTest : FunSpec({
                         EnsNameTestData(
                             ensName = "luc.eth",
                             key = "email",
-                            resolvedRecord = "luc@lucemans.nl",
+                            resolvedRecord = "luc@ens.domains",
                         ),
                     ),
                 ) {
