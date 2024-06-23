@@ -99,22 +99,6 @@ class AnonymousEventFilter<T : ContractEvent>(
         filter.topic0(hashes)
         return this
     }
-
-    /**
-     * Filter events matching any of provided topic0 [values].
-     */
-    fun topic0(values: Collection<BigInteger>): AnonymousEventFilter<T> {
-        filter.topic0(values.map(::Hash))
-        return this
-    }
-
-    /**
-     * Filter events matching any of provided topic0 [values].
-     */
-    fun topic0(values: Collection<Address>): AnonymousEventFilter<T> {
-        filter.topic0(values.map(::Hash))
-        return this
-    }
 }
 
 abstract class EventFilterBase<T : ContractEvent, F : EventFilterBase<T, F>>(
@@ -330,22 +314,6 @@ abstract class EventFilterBase<T : ContractEvent, F : EventFilterBase<T, F>>(
     }
 
     /**
-     * Filter events matching any of provided topic1 [values].
-     */
-    fun topic1(values: Collection<BigInteger>): F {
-        filter.topic1(values.map(::Hash))
-        return self
-    }
-
-    /**
-     * Filter events matching any of provided topic1 [values].
-     */
-    fun topic1(values: Collection<Address>): F {
-        filter.topic1(values.map(::Hash))
-        return self
-    }
-
-    /**
      * Filter events matching provided topic2 [hash].
      */
     fun topic2(hash: Hash): F {
@@ -402,22 +370,6 @@ abstract class EventFilterBase<T : ContractEvent, F : EventFilterBase<T, F>>(
     }
 
     /**
-     * Filter events matching any of provided topic2 [values].
-     */
-    fun topic2(values: Collection<BigInteger>): F {
-        filter.topic2(values.map(::Hash))
-        return self
-    }
-
-    /**
-     * Filter events matching any of provided topic2 [values].
-     */
-    fun topic2(values: Collection<Address>): F {
-        filter.topic2(values.map(::Hash))
-        return self
-    }
-
-    /**
      * Filter events matching provided topic3 [hash].
      */
     fun topic3(hash: Hash): F {
@@ -470,22 +422,6 @@ abstract class EventFilterBase<T : ContractEvent, F : EventFilterBase<T, F>>(
      */
     fun topic3(hashes: Collection<Hash>): F {
         filter.topic3(hashes)
-        return self
-    }
-
-    /**
-     * Filter events matching any of provided topic3 [values].
-     */
-    fun topic3(values: Collection<BigInteger>): F {
-        filter.topic3(values.map(::Hash))
-        return self
-    }
-
-    /**
-     * Filter events matching any of provided topic3 [values].
-     */
-    fun topic3(values: Collection<Address>): F {
-        filter.topic3(values.map(::Hash))
         return self
     }
 }
