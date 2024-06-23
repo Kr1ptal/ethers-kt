@@ -11,6 +11,7 @@ import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.FilterPoller
 import io.ethers.providers.types.RpcRequest
 import io.ethers.providers.types.RpcSubscribe
+import java.math.BigInteger
 
 /**
  * Filter for non-anonymous events.
@@ -47,7 +48,23 @@ class AnonymousEventFilter<T : ContractEvent>(
      * Filter events matching provided topic0 [hash].
      */
     fun topic0(hash: Hash): AnonymousEventFilter<T> {
-        filter.topic1(hash)
+        filter.topic0(hash)
+        return this
+    }
+
+    /**
+     * Filter events matching provided topic0 [value].
+     */
+    fun topic0(value: BigInteger): AnonymousEventFilter<T> {
+        filter.topic0(Hash(value))
+        return this
+    }
+
+    /**
+     * Filter events matching provided topic0 [address].
+     */
+    fun topic0(address: Address): AnonymousEventFilter<T> {
+        filter.topic0(Hash(address))
         return this
     }
 
@@ -55,7 +72,23 @@ class AnonymousEventFilter<T : ContractEvent>(
      * Filter events matching any of provided topic0 [hashes].
      */
     fun topic0(vararg hashes: Hash): AnonymousEventFilter<T> {
-        filter.topic1(*hashes)
+        filter.topic0(*hashes)
+        return this
+    }
+
+    /**
+     * Filter events matching any of provided topic0 [values].
+     */
+    fun topic0(vararg values: BigInteger): AnonymousEventFilter<T> {
+        filter.topic0(*Array(values.size) { Hash(values[it]) })
+        return this
+    }
+
+    /**
+     * Filter events matching any of provided topic0 [addresses].
+     */
+    fun topic0(vararg addresses: Address): AnonymousEventFilter<T> {
+        filter.topic0(*Array(addresses.size) { Hash(addresses[it]) })
         return this
     }
 
@@ -63,7 +96,23 @@ class AnonymousEventFilter<T : ContractEvent>(
      * Filter events matching any of provided topic0 [hashes].
      */
     fun topic0(hashes: Collection<Hash>): AnonymousEventFilter<T> {
-        filter.topic1(hashes)
+        filter.topic0(hashes)
+        return this
+    }
+
+    /**
+     * Filter events matching any of provided topic0 [values].
+     */
+    fun topic0(values: Collection<BigInteger>): AnonymousEventFilter<T> {
+        filter.topic0(values.map(::Hash))
+        return this
+    }
+
+    /**
+     * Filter events matching any of provided topic0 [values].
+     */
+    fun topic0(values: Collection<Address>): AnonymousEventFilter<T> {
+        filter.topic0(values.map(::Hash))
         return this
     }
 }
@@ -233,10 +282,42 @@ abstract class EventFilterBase<T : ContractEvent, F : EventFilterBase<T, F>>(
     }
 
     /**
+     * Filter events matching provided topic1 [value].
+     */
+    fun topic1(value: BigInteger): F {
+        filter.topic1(Hash(value))
+        return self
+    }
+
+    /**
+     * Filter events matching provided topic1 [address].
+     */
+    fun topic1(address: Address): F {
+        filter.topic1(Hash(address))
+        return self
+    }
+
+    /**
      * Filter events matching any of provided topic1 [hashes].
      */
     fun topic1(vararg hashes: Hash): F {
         filter.topic1(*hashes)
+        return self
+    }
+
+    /**
+     * Filter events matching any of provided topic1 [values].
+     */
+    fun topic1(vararg values: BigInteger): F {
+        filter.topic1(*Array(values.size) { Hash(values[it]) })
+        return self
+    }
+
+    /**
+     * Filter events matching any of provided topic1 [addresses]
+     */
+    fun topic1(vararg addresses: Address): F {
+        filter.topic1(*Array(addresses.size) { Hash(addresses[it]) })
         return self
     }
 
@@ -249,10 +330,42 @@ abstract class EventFilterBase<T : ContractEvent, F : EventFilterBase<T, F>>(
     }
 
     /**
+     * Filter events matching any of provided topic1 [values].
+     */
+    fun topic1(values: Collection<BigInteger>): F {
+        filter.topic1(values.map(::Hash))
+        return self
+    }
+
+    /**
+     * Filter events matching any of provided topic1 [values].
+     */
+    fun topic1(values: Collection<Address>): F {
+        filter.topic1(values.map(::Hash))
+        return self
+    }
+
+    /**
      * Filter events matching provided topic2 [hash].
      */
     fun topic2(hash: Hash): F {
         filter.topic2(hash)
+        return self
+    }
+
+    /**
+     * Filter events matching provided topic2 [value].
+     */
+    fun topic2(value: BigInteger): F {
+        filter.topic2(Hash(value))
+        return self
+    }
+
+    /**
+     * Filter events matching provided topic2 [address].
+     */
+    fun topic2(address: Address): F {
+        filter.topic2(Hash(address))
         return self
     }
 
@@ -265,10 +378,42 @@ abstract class EventFilterBase<T : ContractEvent, F : EventFilterBase<T, F>>(
     }
 
     /**
+     * Filter events matching any of provided topic2 [values].
+     */
+    fun topic2(vararg values: BigInteger): F {
+        filter.topic2(*Array(values.size) { Hash(values[it]) })
+        return self
+    }
+
+    /**
+     * Filter events matching any of provided topic2 [addresses]
+     */
+    fun topic2(vararg addresses: Address): F {
+        filter.topic2(*Array(addresses.size) { Hash(addresses[it]) })
+        return self
+    }
+
+    /**
      * Filter events matching any of provided topic2 [hashes].
      */
     fun topic2(hashes: Collection<Hash>): F {
         filter.topic2(hashes)
+        return self
+    }
+
+    /**
+     * Filter events matching any of provided topic2 [values].
+     */
+    fun topic2(values: Collection<BigInteger>): F {
+        filter.topic2(values.map(::Hash))
+        return self
+    }
+
+    /**
+     * Filter events matching any of provided topic2 [values].
+     */
+    fun topic2(values: Collection<Address>): F {
+        filter.topic2(values.map(::Hash))
         return self
     }
 
@@ -281,6 +426,22 @@ abstract class EventFilterBase<T : ContractEvent, F : EventFilterBase<T, F>>(
     }
 
     /**
+     * Filter events matching provided topic3 [value].
+     */
+    fun topic3(value: BigInteger): F {
+        filter.topic3(Hash(value))
+        return self
+    }
+
+    /**
+     * Filter events matching provided topic3 [address].
+     */
+    fun topic3(address: Address): F {
+        filter.topic3(Hash(address))
+        return self
+    }
+
+    /**
      * Filter events matching any of provided topic3 [hashes].
      */
     fun topic3(vararg hashes: Hash): F {
@@ -289,10 +450,42 @@ abstract class EventFilterBase<T : ContractEvent, F : EventFilterBase<T, F>>(
     }
 
     /**
+     * Filter events matching any of provided topic3 [values].
+     */
+    fun topic3(vararg values: BigInteger): F {
+        filter.topic3(*Array(values.size) { Hash(values[it]) })
+        return self
+    }
+
+    /**
+     * Filter events matching any of provided topic3 [addresses]
+     */
+    fun topic3(vararg addresses: Address): F {
+        filter.topic3(*Array(addresses.size) { Hash(addresses[it]) })
+        return self
+    }
+
+    /**
      * Filter events matching any of provided topic3 [hashes].
      */
     fun topic3(hashes: Collection<Hash>): F {
         filter.topic3(hashes)
+        return self
+    }
+
+    /**
+     * Filter events matching any of provided topic3 [values].
+     */
+    fun topic3(values: Collection<BigInteger>): F {
+        filter.topic3(values.map(::Hash))
+        return self
+    }
+
+    /**
+     * Filter events matching any of provided topic3 [values].
+     */
+    fun topic3(values: Collection<Address>): F {
+        filter.topic3(values.map(::Hash))
         return self
     }
 }
