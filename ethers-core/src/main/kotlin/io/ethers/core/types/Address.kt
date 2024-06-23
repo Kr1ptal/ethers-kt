@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import io.ethers.core.FastHex
 import io.ethers.core.readAddress
+import io.ethers.core.types.transaction.ChainId
 import io.ethers.crypto.Hashing
 import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
@@ -48,6 +49,39 @@ class Address(private val value: ByteArray) : RlpEncodable {
      * without copying.
      * */
     fun toByteArray() = value.copyOf()
+
+    /**
+     * Get the address in checksum format, based on [EIP-55](https://eips.ethereum.org/EIPS/eip-55).
+     *
+     * @param chainId the chain id to use for the checksum calculation, according
+     * to [EIP-1191](https://eips.ethereum.org/EIPS/eip-1191).
+     * */
+    @JvmOverloads
+    fun toChecksumString(chainId: Long = -1): String {
+        val validChainId = ChainId.isValid(chainId)
+        val encodedOffset = if (validChainId) 2 else 0
+        val encodedHex = FastHex.encodeAsBytes(value, withPrefix = validChainId)
+        val hash = when (validChainId) {
+            true -> Hashing.keccak256(chainId.toString().toByteArray() + encodedHex)
+            false -> Hashing.keccak256(encodedHex)
+        }
+
+        val hashHex = FastHex.encodeAsBytes(hash, withPrefix = false)
+
+        val ret = ByteArray(42)
+        ret[0] = '0'.code.toByte()
+        ret[1] = 'x'.code.toByte()
+
+        for (i in 0..<40) {
+            val nibble = encodedHex[i + encodedOffset]
+            if (nibble.toInt().toChar() in 'a'..'f' && hashHex[i] >= '8'.code) {
+                ret[i + 2] = (nibble.toInt() - 0x20).toByte()
+            } else {
+                ret[i + 2] = nibble
+            }
+        }
+        return String(ret)
+    }
 
     override fun rlpEncode(rlp: RlpEncoder) {
         rlp.encode(value)
