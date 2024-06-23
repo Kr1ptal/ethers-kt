@@ -31,6 +31,8 @@ ktlint {
             "ktlint_standard_value-argument-comment" to "disabled",
             "ktlint_standard_value-parameter-comment" to "disabled",
             "ktlint_standard_backing-property-naming" to "disabled",
+            "ktlint_standard_function-expression-body" to "disabled",
+            "ktlint_standard_class-signature" to "disabled",
         ),
     )
 }
