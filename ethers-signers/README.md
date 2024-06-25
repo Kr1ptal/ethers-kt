@@ -37,7 +37,7 @@ the `Signer` interface.
         gasTipCap = "21000000000".toBigInteger(),
         data = Bytes("0x1214abcdef12445980"),
         chainId = 1L,
-        accessList = null,
+        accessList = emptyList(),
     )
     val signature = signer.signTransaction(transactionToSign)
     ```
