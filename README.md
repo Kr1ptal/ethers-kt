@@ -18,13 +18,12 @@ EVM-based blockchains. It targets <b>JVM</b> and <b>Android</b> platforms. </p>
     - Complete support: events (anonymous), custom errors, structs, receive and fallback functions.
     - Custom errors can be resolved from any source (e.g. generated bindings, 4byte directory, etc...).
     - Payable and non-payable functions/constructors.
-- **Batch RPC calls**: RPC calls can be batched together in a single call, reducing the number of round trips to the
-  server.
+- **Batch RPC calls**:
+    - **Batch JSON-RPC**: RPC calls can be batched together in a single request, reducing the number of round trips to
+      the server.
+    - **Multicall**: Aggregate multiple smart contract calls into a single call via `Multicall3` contract.
 
 ## 🚀 Quickstart
-
-> [!NOTE]
-> `ethers-kt` API is not yet stable and might be subject to change. It will be stabilized in the 1.0.0 release.
 
 All releases are published to Maven Central. Changelog of each release can be found
 under [Releases](https://github.com/Kr1ptal/ethers-kt/releases).
@@ -33,7 +32,7 @@ It's recommended to define BOM platform dependency to ensure that ethers-kt arti
 
 ```kotlin
 plugins {
-    id("io.kriptal.ethers.abigen-plugin") version "0.5.0"
+    id("io.kriptal.ethers.abigen-plugin") version "1.0.0"
 }
 
 // default values
@@ -52,7 +51,7 @@ repositories {
 
 dependencies {
     // Define a BOM and its version
-    implementation(platform("io.kriptal.ethers:ethers-bom:0.5.0"))
+    implementation(platform("io.kriptal.ethers:ethers-bom:1.0.0"))
 
     // Define any required artifacts without version
     implementation("io.kriptal.ethers:ethers-abi")

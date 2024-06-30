@@ -18,6 +18,90 @@ Sections:
 ### Security = Security patches.
 -->
 
+## [1.0.0] - 2024-06-30
+
+### Bug Fixes
+
+- [**breaking**] Standardize transactionIndex field type to Int
+- Handle hyphens in module names for loaderPrefix in EthersAbigenTask
+- Set correct formula for Uniswap v2 fee derivation in docstring
+- Fix potential deadlocks during reconnection in `WsClient`
+- Use correct name and type for `yParity` field when decoding `RPCTransaction`
+- Remove gas tip/fee cap validation from `TxBlob` and `TxDynamicFee`
+- Make signature values in `RPCTransaction` optional
+- Add missing closed connection condition signaler to `WsClient#onFailure`
+- Make `Block#mixHash` nullable
+- Encode `blockCount` param to hex in `getFeeHistory` RPC call
+- Update no wildcard ENS test case
+- `AnonymousEventFilter#topic0` filter, add convenience methods for `BigInteger`/`Address` topics
+
+### Features
+
+- Document `FeeHistory` and add additional helper methods
+- Add support for using `BlockId.Name` when fetching `FeeHistory`
+- [**breaking**] Implement `StateOverride` as a safer alternative to working with `Map<Address, AccountOverride>` directly (#106)
+- Add option to set initial map size for `StateOverride`
+- Support nullable types in `StateOverride` when merging/applying changes
+- `StateOverride#takeChanges` function
+- Add cloning constructor to `CallRequest`
+- Add `TransactionReceipt#getEffectiveGasTip` method
+- Add `ExecutionRevertedError` contract error
+- Implement equals/hashCode/toString for StateOverride along with apply/take methods for single element
+- Add UniswapV2FeeFinder to examples
+- Add txIndex to `TracerConfig`
+- Add support for defining RPC request headers
+- Add `Multicall` example (#111)
+- Add documentation for rewardPercentiles value range. (#113)
+- Add block transaction simulation with provider.traceCall and IntoCallRequest to examples (#112)
+- Suppress IDE inspections in generated contract wrappers (#114)
+- `EventFactory#isLogValid` and additional utils for converting logs to events
+- Add `blockTimestamp` field to `Log` type
+- Ignore unknown JSON fields by default on all types
+- Add 10sec ping interval to default OkHttpClient in JsonClientConfig
+- Implement equals/hashCode for `Result` variants
+- Enable `BatchRpcRequest` `batchSent` Status Modification (#122)
+- [**breaking**] Make `BlockingSubscriptionStream` more configurable and reduce gc pressure when waiting for new events
+- Make SubscriptionStream#forEachAsync return itself
+- Support deserialization of other fields in `CallTracer`. (#125)
+- Add constructor for hex strings to Signature (#121)
+- Implement `PrivateKeySigner#toString`
+- Add "type" field to CallTracer
+- Add Result#isNullOrFailure extension function
+- Implement equals/hashCode for crypto and signer types
+- Add `onSuccess`/`onFailure` operators to `RpcRequest`/`RpcSubscribe`
+- Implement equals/hashCode for `BlockOverride` and `CallRequest`
+- Add additional conversion methods to `EthUnit` for `Int`/`Long`/`Double` types
+- Add support for EIP-55 and EIP-1191 checksummed addresses
+- Add BigInteger constructor to Hash type
+
+### Miscellaneous Tasks
+
+- Inspection fixes
+- Replace usage of deprecated Jackson methods
+- Update gradle GH action to gradle/actions/setup-gradle@v3 (#115)
+- Upgrade gradle to v8.7
+
+### Performance
+
+- Use concurrent queues from jctools for better performance in `WsClient`
+- Add `toString` cache for `Address`/`Hash`/`Bytes` types (#124)
+- [**breaking**] Implement `RlpEncoder` pre-sizing for all `RlpEncodable` types and list encodings (#137)
+
+### Refactor
+
+- Merge `JsonPubSubClient` into `JsonRpcClient` (#116)
+- [**breaking**] Make `access list` property immutable on unsigned txs, replace `rlpEncodeFields` with `rlpEncodeEnveloped` (#136)
+
+### Misc
+
+- Release abigen-plugin as a fat jar
+- Fix docstring typo for ExecutionRevertedError
+- Fix RpcClientConfig docstrings
+- Add `out` generic bound to `AbiType.Tuple#factory` input type array
+- Fix TxDynamicFeeTest
+- Document which fields from `Aggregatable` are used for aggregate call
+- Minor readme update (#138)
+
 ## [0.5.0] - 2024-03-23
 
 ### Bug Fixes
