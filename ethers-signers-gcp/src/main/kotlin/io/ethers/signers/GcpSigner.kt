@@ -19,6 +19,33 @@ import org.bouncycastle.jcajce.provider.asymmetric.ec.KeyFactorySpi
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
+/**
+ * Google Cloud Key Management Service (GCP KMS) signer.
+ *
+ * The signer calls into GCP KMS to sign the hashes. The signer is configured with a [CryptoKeyVersionName]
+ * which is used to identify the key to use. The key must be a secp256k1 key.
+ *
+ * NODE: The constructor does an external call to GCP KMS to fetch the public key and derive the address. It's
+ * recommended to re-use the signer for multiple signing operations.
+ *
+ * Example usage:
+ * ```kotlin
+ * // create a client - can be reused for multiple signers
+ *  val client = KeyManagementServiceClient.create()
+ *
+ * // define the key name
+ * val projectId = "my-project"
+ * val locationId = "global"
+ * val keyRingId = "my-keyring"
+ * val keyId = "my-key"
+ * val versionId = "1"
+ * val keyName = CryptoKeyVersionName.of(projectId, locationId, keyRingId, keyId, versionId)
+ *
+ * // create a signer and sign a hash
+ * val signer = GcpSigner(client, keyName)
+ * val signature = signer.signHash(ByteArray(32))
+ * ```
+ * */
 class GcpSigner(private val client: KeyManagementServiceClient, private val keyName: CryptoKeyVersionName) : Signer {
     override val address: Address
 
