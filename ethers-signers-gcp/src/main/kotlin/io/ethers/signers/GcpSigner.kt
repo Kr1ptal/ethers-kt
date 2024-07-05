@@ -53,7 +53,11 @@ class GcpSigner(private val client: KeyManagementServiceClient, private val keyN
 
     constructor(
         client: KeyManagementServiceClient,
-        projectId: String, locationId: String, keyRingId: String, keyId: String, versionId: String,
+        projectId: String,
+        locationId: String,
+        keyRingId: String,
+        keyId: String,
+        versionId: String,
     ) : this(client, CryptoKeyVersionName.of(projectId, locationId, keyRingId, keyId, versionId))
 
     init {
@@ -77,7 +81,7 @@ class GcpSigner(private val client: KeyManagementServiceClient, private val keyN
     override fun signHash(hash: ByteArray): Signature {
         val response = client.asymmetricSign(
             keyName,
-            Digest.newBuilder().setSha256(ByteString.copyFrom(hash)).build()
+            Digest.newBuilder().setSha256(ByteString.copyFrom(hash)).build(),
         )
 
         val derSequence = (DERSequence.fromByteArray(response.signature.toByteArray()) as DLSequence)
