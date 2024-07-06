@@ -25,9 +25,7 @@ class CallRequest() : IntoCallRequest {
         this.blobVersionedHashes = other.blobVersionedHashes
     }
 
-    override fun toCallRequest(): CallRequest {
-        return this
-    }
+    override fun toCallRequest() = this
 
     // make property setters unavailable from Java since we provide custom chained functions
     var from: Address? = null
@@ -84,70 +82,19 @@ class CallRequest() : IntoCallRequest {
     var blobVersionedHashes: List<Hash>? = null
         @JvmSynthetic set
 
-    fun from(from: Address?): CallRequest {
-        this.from = from
-        return this
-    }
-
-    fun to(to: Address?): CallRequest {
-        this.to = to
-        return this
-    }
-
-    fun gas(gas: Long): CallRequest {
-        this.gas = gas
-        return this
-    }
-
-    fun gasPrice(gasPrice: BigInteger?): CallRequest {
-        this.gasPrice = gasPrice
-        return this
-    }
-
-    fun gasFeeCap(gasFeeCap: BigInteger?): CallRequest {
-        this.gasFeeCap = gasFeeCap
-        return this
-    }
-
-    fun gasTipCap(gasTipCap: BigInteger?): CallRequest {
-        this.gasTipCap = gasTipCap
-        return this
-    }
-
-    fun value(value: BigInteger?): CallRequest {
-        this.value = value
-        return this
-    }
-
-    fun nonce(nonce: Long): CallRequest {
-        this.nonce = nonce
-        return this
-    }
-
-    fun data(data: Bytes?): CallRequest {
-        this.data = data
-        return this
-    }
-
-    fun accessList(accessList: List<AccessList.Item>): CallRequest {
-        this.accessList = accessList
-        return this
-    }
-
-    fun chainId(chainId: Long): CallRequest {
-        this.chainId = chainId
-        return this
-    }
-
-    fun blobFeeCap(blobFeeCap: BigInteger?): CallRequest {
-        this.blobFeeCap = blobFeeCap
-        return this
-    }
-
-    fun blobVersionedHashes(blobVersionedHashes: List<Hash>?): CallRequest {
-        this.blobVersionedHashes = blobVersionedHashes
-        return this
-    }
+    fun from(from: Address?) = apply { this.from = from }
+    fun to(to: Address?) = apply { this.to = to }
+    fun gas(gas: Long) = apply { this.gas = gas }
+    fun gasPrice(gasPrice: BigInteger?) = apply { this.gasPrice = gasPrice }
+    fun gasFeeCap(gasFeeCap: BigInteger?) = apply { this.gasFeeCap = gasFeeCap }
+    fun gasTipCap(gasTipCap: BigInteger?) = apply { this.gasTipCap = gasTipCap }
+    fun value(value: BigInteger?) = apply { this.value = value }
+    fun nonce(nonce: Long) = apply { this.nonce = nonce }
+    fun data(data: Bytes?) = apply { this.data = data }
+    fun accessList(accessList: List<AccessList.Item>) = apply { this.accessList = accessList }
+    fun chainId(chainId: Long) = apply { this.chainId = chainId }
+    fun blobFeeCap(blobFeeCap: BigInteger?) = apply { this.blobFeeCap = blobFeeCap }
+    fun blobVersionedHashes(blobVersionedHashes: List<Hash>?) = apply { this.blobVersionedHashes = blobVersionedHashes }
 
     override fun toString(): String {
         return "CallRequest(from=$from, to=$to, gas=$gas, gasPrice=$gasPrice, gasFeeCap=$gasFeeCap, gasTipCap=$gasTipCap, value=$value, nonce=$nonce, data=$data, accessList=$accessList, chainId=$chainId, blobFeeCap=$blobFeeCap, blobVersionedHashes=$blobVersionedHashes)"
@@ -255,14 +202,4 @@ private class CallRequestSerializer : JsonSerializer<CallRequest>() {
         }
         gen.writeEndObject()
     }
-}
-
-/**
- * Interface to convert a class into a [CallRequest].
- * */
-interface IntoCallRequest {
-    /**
-     * Get the [CallRequest] representation of `this` class.
-     * */
-    fun toCallRequest(): CallRequest
 }
