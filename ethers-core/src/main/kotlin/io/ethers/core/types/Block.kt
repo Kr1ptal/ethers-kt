@@ -48,7 +48,12 @@ data class BlockWithHashes(
     override val excessBlobGas: Long,
     override val parentBeaconBlockRoot: Hash?,
     override val otherFields: Map<String, JsonNode> = emptyMap(),
-) : Block<Hash>
+) : Block<Hash> {
+    // overridden so the number, hash, parentHash fields are at the top of the output
+    override fun toString(): String {
+        return "BlockWithHashes(number=$number, hash=$hash, parentHash=$parentHash, baseFeePerGas=$baseFeePerGas, difficulty=$difficulty, extraData=$extraData, gasLimit=$gasLimit, gasUsed=$gasUsed, logsBloom=$logsBloom, miner=$miner, mixHash=$mixHash, nonce=$nonce, receiptsRoot=$receiptsRoot, sha3Uncles=$sha3Uncles, size=$size, stateRoot=$stateRoot, timestamp=$timestamp, totalDifficulty=$totalDifficulty, transactions=$transactions, transactionsRoot=$transactionsRoot, uncles=$uncles, withdrawals=$withdrawals, withdrawalsRoot=$withdrawalsRoot, blobGasUsed=$blobGasUsed, excessBlobGas=$excessBlobGas, parentBeaconBlockRoot=$parentBeaconBlockRoot, otherFields=$otherFields)"
+    }
+}
 
 @JsonDeserialize(using = BlockWithTransactionDeserialize::class)
 data class BlockWithTransactions(
@@ -79,7 +84,12 @@ data class BlockWithTransactions(
     override val excessBlobGas: Long,
     override val parentBeaconBlockRoot: Hash?,
     override val otherFields: Map<String, JsonNode> = emptyMap(),
-) : Block<RPCTransaction>
+) : Block<RPCTransaction> {
+    // overridden so the number, hash, parentHash fields are at the top of the output
+    override fun toString(): String {
+        return "BlockWithTransactions(number=$number, hash=$hash, parentHash=$parentHash, baseFeePerGas=$baseFeePerGas, difficulty=$difficulty, extraData=$extraData, gasLimit=$gasLimit, gasUsed=$gasUsed, logsBloom=$logsBloom, miner=$miner, mixHash=$mixHash, nonce=$nonce, receiptsRoot=$receiptsRoot, sha3Uncles=$sha3Uncles, size=$size, stateRoot=$stateRoot, timestamp=$timestamp, totalDifficulty=$totalDifficulty, transactions=$transactions, transactionsRoot=$transactionsRoot, uncles=$uncles, withdrawals=$withdrawals, withdrawalsRoot=$withdrawalsRoot, blobGasUsed=$blobGasUsed, excessBlobGas=$excessBlobGas, parentBeaconBlockRoot=$parentBeaconBlockRoot, otherFields=$otherFields)"
+    }
+}
 
 interface Block<T> {
     val baseFeePerGas: BigInteger?
