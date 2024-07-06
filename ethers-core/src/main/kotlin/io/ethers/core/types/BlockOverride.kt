@@ -7,6 +7,10 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import io.ethers.core.FastHex
 import java.math.BigInteger
 
+/**
+ * Block override, which can be used to override certain fields of a block, such as the block number, timestamp,
+ * gas limit, etc...
+ * */
 @JsonSerialize(using = BlockOverrideSerializer::class)
 class BlockOverride() {
     constructor(other: BlockOverride) : this() {
@@ -47,36 +51,57 @@ class BlockOverride() {
             field = value
         }
 
+    /**
+     * Set the block number.
+     * */
     fun number(number: Long): BlockOverride {
         this.number = number
         return this
     }
 
+    /**
+     * Set the block difficulty.
+     * */
     fun difficulty(difficulty: BigInteger): BlockOverride {
         this.difficulty = difficulty
         return this
     }
 
+    /**
+     * Set the block timestamp.
+     * */
     fun time(time: Long): BlockOverride {
         this.time = time
         return this
     }
 
+    /**
+     * Set the block gas limit.
+     * */
     fun gasLimit(gasLimit: Long): BlockOverride {
         this.gasLimit = gasLimit
         return this
     }
 
+    /**
+     * Set the block coinbase.
+     * */
     fun coinbase(coinbase: Address?): BlockOverride {
         this.coinbase = coinbase
         return this
     }
 
+    /**
+     * Set the block random value.
+     * */
     fun random(random: Hash?): BlockOverride {
         this.random = random
         return this
     }
 
+    /**
+     * Set the block base fee.
+     * */
     fun baseFee(baseFee: BigInteger?): BlockOverride {
         this.baseFee = baseFee
         return this

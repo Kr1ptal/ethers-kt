@@ -7,6 +7,9 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import io.ethers.core.FastHex
 import java.math.BigInteger
 
+/**
+ * An account override, used to override the nonce, balance, code, and storage of an account.
+ * */
 @JsonSerialize(using = AccountOverrideSerializer::class)
 class AccountOverride() {
     constructor(other: AccountOverride) : this() {
@@ -37,26 +40,41 @@ class AccountOverride() {
             field = value
         }
 
+    /**
+     * Set the nonce of the account.
+     * */
     fun nonce(nonce: Long): AccountOverride {
         this.nonce = nonce
         return this
     }
 
+    /**
+     * Set the code of the account.
+     * */
     fun code(code: Bytes?): AccountOverride {
         this.code = code
         return this
     }
 
+    /**
+     * Set the balance of the account.
+     * */
     fun balance(balance: BigInteger?): AccountOverride {
         this.balance = balance
         return this
     }
 
+    /**
+     * Set the state of the account. Existing state will be replaced with the provided state.
+     * */
     fun state(state: Map<Hash, Hash>?): AccountOverride {
         this.state = state
         return this
     }
 
+    /**
+     * Apply the state diff to the account. Existing state will be updated with the provided state diff.
+     * */
     fun stateDiff(stateDiff: Map<Hash, Hash>?): AccountOverride {
         this.stateDiff = stateDiff
         return this
