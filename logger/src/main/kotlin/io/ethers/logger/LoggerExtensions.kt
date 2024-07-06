@@ -39,6 +39,15 @@ inline fun Logger.dbg(supplier: () -> String) {
 }
 
 /**
+ * Logs with level DEBUG if enabled.
+ * */
+inline fun Logger.dbg(throwable: Throwable, supplier: () -> String) {
+    if (isDebugEnabled) {
+        debug(supplier.invoke(), throwable)
+    }
+}
+
+/**
  * Logs with level INFO if enabled.
  * */
 inline fun Logger.inf(supplier: () -> String) {
