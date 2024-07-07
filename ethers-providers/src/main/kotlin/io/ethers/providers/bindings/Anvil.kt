@@ -5,9 +5,9 @@ import io.ethers.core.Result
 import io.ethers.core.failure
 import io.ethers.core.success
 import io.ethers.core.types.Hash
-import io.ethers.crypto.Secp256k1
 import io.ethers.crypto.bip39.MnemonicCode
 import io.ethers.providers.AnvilProvider
+import io.ethers.signers.PrivateKeySigner
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 
@@ -19,7 +19,7 @@ import java.util.concurrent.TimeUnit
 class AnvilInstance(
     private val process: Process,
     port: Int,
-    val privateKeys: List<Secp256k1.SigningKey>,
+    val accounts: List<PrivateKeySigner>,
     val chainId: Long,
 ) : AutoCloseable {
     private val onCloseFutures = ArrayList<CompletableFuture<Unit>>()
@@ -188,7 +188,7 @@ class AnvilBuilder {
         Runtime.getRuntime().addShutdownHook(Thread { process.destroy() })
 
         var port = this.port
-        val privateKeys = ArrayList<Secp256k1.SigningKey>()
+        val accounts = ArrayList<PrivateKeySigner>()
 
         val startTime = System.currentTimeMillis()
         val reader = process.inputStream.bufferedReader()
@@ -240,13 +240,13 @@ class AnvilBuilder {
                         throw IllegalStateException("Invalid private key format: $hexKey")
                     }
 
-                    privateKeys.add(Secp256k1.SigningKey(FastHex.decode(hexKey)))
+                    accounts.add(PrivateKeySigner(hexKey))
                     line = reader.readLine()
                 } while (line.isNotEmpty() && line.startsWith("("))
             }
         }
 
-        return success(AnvilInstance(process, port, privateKeys, chainId))
+        return success(AnvilInstance(process, port, accounts, chainId))
     }
 
     sealed interface Error : Result.Error {
