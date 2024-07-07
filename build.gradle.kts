@@ -15,6 +15,7 @@ dependencies {
         ":ethers-ens",
         ":ethers-providers",
         ":ethers-rlp",
+        ":ethers-signers-gcp",
         ":ethers-signers",
         ":logger",
     )
