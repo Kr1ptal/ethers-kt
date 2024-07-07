@@ -184,6 +184,24 @@ class AnvilProvider private constructor(
     }
 
     /**
+     * Fork the state of the blockchain at the latest block fetched from the [forkUrl] JSON-RPC endpoint.
+     * */
+    fun forkState(forkUrl: String): RpcRequest<Boolean, RpcError> {
+        return RpcCall(
+            client,
+            "anvil_reset",
+            arrayOf(
+                mapOf(
+                    "forking" to mapOf(
+                        "jsonRpcUrl" to forkUrl,
+                    ),
+                ),
+            ),
+            { true },
+        )
+    }
+
+    /**
      * Fork the state of the blockchain at the given block number fetched from the [forkUrl] JSON-RPC endpoint.
      * */
     fun forkStateAtBlock(forkUrl: String, blockNumber: Long): RpcRequest<Boolean, RpcError> {
