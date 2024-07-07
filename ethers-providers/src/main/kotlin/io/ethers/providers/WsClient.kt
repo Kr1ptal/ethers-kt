@@ -115,7 +115,7 @@ class WsClient(
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                LOG.wrn { "WebSocket connection closed: $code $reason" }
+                LOG.dbg { "WebSocket connection closed: $code $reason" }
 
                 eventLock.withLock { connectionClosedCondition.signalAll() }
 
@@ -123,10 +123,14 @@ class WsClient(
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                LOG.err(t) { "WebSocket failure" }
-
                 eventLock.withLock { connectionClosedCondition.signalAll() }
 
+                if (stopping) {
+                    LOG.dbg(t) { "WebSocket failure ignored because we are stopping" }
+                    return
+                }
+
+                LOG.err(t) { "WebSocket failure" }
                 requestReconnect()
             }
 
