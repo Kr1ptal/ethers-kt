@@ -26,7 +26,7 @@ class MnemonicCodeTest : FunSpec({
             listOf("turtle", "front", "uncle", "idea", "write", "write"), // invalid checksum
         ).forAll {
             shouldThrow<RuntimeException> {
-                MnemonicCode(it).getEntropy(MnemonicWordListEnglish)
+                MnemonicCode(it).getEntropy()
             }
         }
     }
@@ -58,7 +58,7 @@ class MnemonicCodeTest : FunSpec({
 
                 mnemonic.words shouldContainExactly vector.mnemonic.split(MnemonicWordListEnglish.separator)
                 mnemonic.getSeed(vector.passphrase) shouldBe vector.seed.hexToByteArray()
-                mnemonic.getEntropy(MnemonicWordListEnglish) shouldBe vector.entropy.hexToByteArray()
+                mnemonic.getEntropy() shouldBe vector.entropy.hexToByteArray()
             }
         }
     }

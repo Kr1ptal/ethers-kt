@@ -13,14 +13,21 @@ import java.util.Collections
  *
  * Implementation of [BIP-0039](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki).
  * */
-class MnemonicCode(val words: List<String>) {
+class MnemonicCode @JvmOverloads constructor(
+    val words: List<String>,
+    val wordList: MnemonicWordList = MnemonicWordListEnglish,
+) {
     /**
      * Create a mnemonic code from a string of words, separated by provided [MnemonicWordList.separator].
      *
      * @param wordString String of words, separated by provided [MnemonicWordList.separator].
      * @param wordList Word list to use. Default is [MnemonicWordListEnglish].
      * */
-    constructor(wordString: String, wordList: MnemonicWordList = MnemonicWordListEnglish) : this(wordString.split(wordList.separator))
+    @JvmOverloads
+    constructor(
+        wordString: String,
+        wordList: MnemonicWordList = MnemonicWordListEnglish,
+    ) : this(wordString.split(wordList.separator), wordList)
 
     init {
         if (words.isEmpty()) {
@@ -29,10 +36,13 @@ class MnemonicCode(val words: List<String>) {
         if (words.size % 3 > 0) {
             throw IllegalArgumentException("Word list size must be multiple of three words.")
         }
+
+        // validates entropy - will throw if invalid
+        getEntropy()
     }
 
     /**
-     * Create a binary seed from the mnemonic, we use the PBKDF2 function with a mnemonic sentence (in UTF-8 NFKD) used
+     * Create a binary seed from the mnemonic. We use the PBKDF2 function with a mnemonic sentence (in UTF-8 NFKD) used
      * as the password and the string "mnemonic" + passphrase (again in UTF-8 NFKD) used as the salt. The iteration
      * count is set to 2048 and HMAC-SHA512 is used as the pseudo-random function. The length of the derived key
      * is 512 bits (= 64 bytes).
@@ -47,7 +57,7 @@ class MnemonicCode(val words: List<String>) {
 
         return PKCS5S2ParametersGenerator(SHA512Digest()).run {
             init(
-                words.joinToString(separator = " ").toByteArray(StandardCharsets.UTF_8),
+                words.joinToString(separator = wordList.separator.toString()).toByteArray(StandardCharsets.UTF_8),
                 salt.toByteArray(StandardCharsets.UTF_8),
                 SEED_ITERATIONS,
             )
@@ -59,7 +69,7 @@ class MnemonicCode(val words: List<String>) {
     /**
      * Convert mnemonic word list to original entropy value.
      */
-    fun getEntropy(wordList: MnemonicWordList): ByteArray {
+    fun getEntropy(): ByteArray {
         // Look up all the words in the list and construct the
         // concatenation of the original entropy and the checksum.
         val concatLenBits = words.size * 11
@@ -68,7 +78,7 @@ class MnemonicCode(val words: List<String>) {
             // Find the words index in the wordlist.
             val ndx = Collections.binarySearch(wordList.words, word)
             if (ndx < 0) {
-                throw RuntimeException("Unknown mnemonic word for provided word list: $word")
+                throw RuntimeException("Invalid mnemonic word '$word' for provided word list '$wordList'")
             }
 
             // Set the next 11 bits to the value of the index.
@@ -124,7 +134,10 @@ class MnemonicCode(val words: List<String>) {
          * */
         @JvmStatic
         @JvmOverloads
-        fun fromRandomEntropy(bitsOfEntropy: Int = 256, wordList: MnemonicWordList = MnemonicWordListEnglish): MnemonicCode {
+        fun fromRandomEntropy(
+            bitsOfEntropy: Int = 256,
+            wordList: MnemonicWordList = MnemonicWordListEnglish,
+        ): MnemonicCode {
             val rand = SecureRandom()
             val entropy = ByteArray(bitsOfEntropy / 8)
             rand.nextBytes(entropy)
