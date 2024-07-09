@@ -2,7 +2,13 @@ package io.ethers.providers
 
 import com.fasterxml.jackson.core.JsonGenerator
 import com.fasterxml.jackson.core.JsonParser
+import com.fasterxml.jackson.core.JsonToken
+import com.fasterxml.jackson.databind.DeserializationContext
+import com.fasterxml.jackson.databind.JsonDeserializer
+import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import io.ethers.core.Result
+import io.ethers.core.forEachObjectField
 import io.ethers.providers.types.BatchRpcRequest
 import okhttp3.OkHttpClient
 import java.util.concurrent.CompletableFuture
@@ -86,12 +92,20 @@ internal fun JsonGenerator.writeJsonRpcRequest(method: String, id: Long, params:
 /**
  * Internal JSON-RPC error, returned when the RPC call fails.
  */
+@JsonDeserialize(using = RpcErrorDeserializer::class)
 data class RpcError(
     val code: Int,
     val message: String,
-    val data: String?,
+    val data: String?, // FIXME: change type to JsonNode when making next breaking-change release
     val cause: Exception? = null,
 ) : Result.Error {
+    constructor(code: Int, message: String, data: JsonNode, cause: Exception? = null) : this(
+        code,
+        message,
+        data.toString(),
+        cause,
+    )
+
     override fun doThrow(): Nothing {
         throw RuntimeException(this.toString(), cause)
     }
@@ -241,5 +255,37 @@ class RpcClientConfig {
         inline operator fun invoke(builder: RpcClientConfig.() -> Unit): RpcClientConfig {
             return RpcClientConfig().apply(builder)
         }
+    }
+}
+
+private class RpcErrorDeserializer : JsonDeserializer<RpcError>() {
+    override fun deserialize(p: JsonParser, ctxt: DeserializationContext): RpcError {
+        if (p.currentToken != JsonToken.START_OBJECT) {
+            throw IllegalArgumentException("Expected start object")
+        }
+
+        var code = -1
+        lateinit var message: String
+        var data: JsonNode? = null
+        p.forEachObjectField { field ->
+            when (field) {
+                "code" -> code = p.intValue
+                "message" -> message = p.text
+                "data" -> data = p.readValueAs(JsonNode::class.java)
+                else -> p.skipChildren()
+            }
+        }
+
+        if (data == null || data!!.isNull) {
+            return RpcError(code, message, null)
+        }
+
+        // if data is a plain string, decode it
+        if (data!!.isTextual) {
+            return RpcError(code, message, data!!.textValue())
+        }
+
+        // data is most likely a JSON object
+        return RpcError(code, message, data!!)
     }
 }
