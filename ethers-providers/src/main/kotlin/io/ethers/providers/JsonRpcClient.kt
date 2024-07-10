@@ -93,19 +93,12 @@ internal fun JsonGenerator.writeJsonRpcRequest(method: String, id: Long, params:
  * Internal JSON-RPC error, returned when the RPC call fails.
  */
 @JsonDeserialize(using = RpcErrorDeserializer::class)
-data class RpcError(
+data class RpcError @JvmOverloads constructor(
     val code: Int,
     val message: String,
-    val data: String?, // FIXME: change type to JsonNode when making next breaking-change release
+    val data: JsonNode? = null,
     val cause: Exception? = null,
 ) : Result.Error {
-    constructor(code: Int, message: String, data: JsonNode, cause: Exception? = null) : this(
-        code,
-        message,
-        data.toString(),
-        cause,
-    )
-
     override fun doThrow(): Nothing {
         throw RuntimeException(this.toString(), cause)
     }
@@ -280,12 +273,6 @@ private class RpcErrorDeserializer : JsonDeserializer<RpcError>() {
             return RpcError(code, message, null)
         }
 
-        // if data is a plain string, decode it
-        if (data!!.isTextual) {
-            return RpcError(code, message, data!!.textValue())
-        }
-
-        // data is most likely a JSON object
         return RpcError(code, message, data!!)
     }
 }

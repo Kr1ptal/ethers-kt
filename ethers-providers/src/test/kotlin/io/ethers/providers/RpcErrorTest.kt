@@ -28,12 +28,16 @@ class RpcErrorTest : FunSpec({
                 RpcError(
                     RpcError.CODE_METHOD_NOT_FOUND,
                     "Method not found",
-                    """{"method":"‘eth_getHeaderByNumber’ does not exist/is not available"}""",
+                    Jackson.MAPPER.readTree("""{"method":"‘eth_getHeaderByNumber’ does not exist/is not available"}"""),
                 ),
             ),
             TestCase(
                 """{"code":3,"message":"Execution reverted","data":"0x12124214345676524127654123476541263765"}""",
-                RpcError(RpcError.CODE_EXECUTION_ERROR, "Execution reverted", "0x12124214345676524127654123476541263765"),
+                RpcError(
+                    RpcError.CODE_EXECUTION_ERROR,
+                    "Execution reverted",
+                    Jackson.MAPPER.valueToTree("0x12124214345676524127654123476541263765"),
+                ),
             ),
         ).checkAll { (json, expected) ->
             val result = Jackson.MAPPER.readValue(json, RpcError::class.java)

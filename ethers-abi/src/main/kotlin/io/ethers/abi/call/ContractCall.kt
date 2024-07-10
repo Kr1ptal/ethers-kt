@@ -252,18 +252,20 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
     protected fun tryDecodingContractRevert(err: RpcError): ContractError {
         if (err.isExecutionError) {
             when {
-                err.data == null && err.message.equals("execution reverted", true) -> {
+                err.data == null && err.message.contains("execution revert", true) -> {
                     return ExecutionRevertedError
                 }
 
-                err.data != null -> {
+                err.data != null && err.data!!.isTextual -> {
+                    val data = err.data!!.textValue()
+
                     // if data is not a valid hex string, it's an already decoded revert error
-                    if (!FastHex.isValidHex(err.data!!)) {
-                        return RevertError(err.data!!)
+                    if (!FastHex.isValidHex(data)) {
+                        return RevertError(data)
                     }
 
                     // otherwise it could be a custom error
-                    val contractError = ContractError.getOrNull(Bytes(err.data!!))
+                    val contractError = ContractError.getOrNull(Bytes(data))
                     if (contractError != null) {
                         return contractError
                     }

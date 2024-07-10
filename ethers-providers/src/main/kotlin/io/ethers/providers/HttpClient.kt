@@ -94,7 +94,7 @@ class HttpClient(
 
                         if (!it.isSuccessful) {
                             // complete all requests and the batch future
-                            val error = RpcError(RpcError.CODE_CALL_FAILED, it.message, String(stream.readAllBytes()))
+                            val error = RpcError(RpcError.CODE_CALL_FAILED, it.message, Jackson.MAPPER.valueToTree(String(stream.readAllBytes())))
                             val failure = failure(error)
 
                             LOG.err { "Batch request failed: $error" }
@@ -193,7 +193,7 @@ class HttpClient(
                         }
 
                         if (!it.isSuccessful) {
-                            val error = RpcError(RpcError.CODE_CALL_FAILED, it.message, String(stream.readAllBytes()))
+                            val error = RpcError(RpcError.CODE_CALL_FAILED, it.message, Jackson.MAPPER.valueToTree(String(stream.readAllBytes())))
                             LOG.err { "Call failed for method=$method, params=${params.contentToString()}: $error" }
 
                             ret.complete(failure(error))
@@ -284,7 +284,6 @@ class HttpClient(
             RpcError(
                 RpcError.CODE_METHOD_NOT_FOUND,
                 "'eth_subscribe' is not supported by HTTP client",
-                null,
             ),
         )
 
@@ -292,7 +291,6 @@ class HttpClient(
             RpcError(
                 RpcError.CODE_INVALID_RESPONSE,
                 "No 'result' or 'error' fields in response",
-                null,
             ),
         )
 
@@ -300,7 +298,6 @@ class HttpClient(
             RpcError(
                 RpcError.CODE_NO_RESPONSE,
                 "Response body is null",
-                null,
             ),
         )
 
