@@ -326,7 +326,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         )
     }
 
-    override fun watchNewBlocks(): RpcRequest<FilterPoller<Hash>, RpcError> {
+    override fun watchNewBlockHashes(): RpcRequest<FilterPoller<Hash>, RpcError> {
         return RpcCall(
             client,
             "eth_newBlockFilter",

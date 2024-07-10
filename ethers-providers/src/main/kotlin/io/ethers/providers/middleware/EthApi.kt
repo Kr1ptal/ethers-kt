@@ -546,7 +546,7 @@ interface EthApi {
      * polls it for new block hashes. It can be used to achieve streaming-like behavior if the provider does not
      * support subscriptions.
      * */
-    fun watchNewBlocks(): RpcRequest<FilterPoller<Hash>, RpcError>
+    fun watchNewBlockHashes(): RpcRequest<FilterPoller<Hash>, RpcError>
 
     /**
      * Watch for new pending transaction hashes. Compared to [subscribeNewPendingTransactionHashes], this function
@@ -569,7 +569,7 @@ interface EthApi {
     fun subscribeLogs(filter: LogFilter): RpcSubscribe<Log, RpcError>
 
     /**
-     * Subscribe to new block heads. This function should be used instead of [watchNewBlocks] if the
+     * Subscribe to new block heads. This function should be used instead of [watchNewBlockHashes] if the
      * provider supports subscriptions.
      * */
     fun subscribeNewHeads(): RpcSubscribe<BlockWithHashes, RpcError>
