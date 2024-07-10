@@ -34,7 +34,7 @@ class FunctionSelectors(
         println("Searching for selector from signature:  ${abiFunction.selector}")
         var blockCounter = blockNumber
         while (blockCounter > blockNumber - maxBlocks) {
-            val block = provider.getBlockWithTransactions(blockCounter).sendAwait().unwrap()
+            val block = provider.getBlockWithTransactions(blockCounter).sendAwait().unwrap().get()
             println("Searching block: ${block.number}")
 
             // # Searching for transactions with selector from SC wrapper

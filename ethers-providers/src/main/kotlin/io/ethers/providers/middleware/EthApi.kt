@@ -67,7 +67,7 @@ interface EthApi {
     /**
      * Get block header by [blockId].
      */
-    fun getBlockHeader(blockId: BlockId): RpcRequest<BlockWithHashes, RpcError>
+    fun getBlockHeader(blockId: BlockId): RpcRequest<Optional<BlockWithHashes>, RpcError>
 
     /**
      * Get block by [hash] with transaction hashes.
@@ -82,7 +82,7 @@ interface EthApi {
     /**
      * Get block by [blockId] with transaction hashes.
      */
-    fun getBlockWithHashes(blockId: BlockId): RpcRequest<BlockWithHashes, RpcError>
+    fun getBlockWithHashes(blockId: BlockId): RpcRequest<Optional<BlockWithHashes>, RpcError>
 
     /**
      * Get block by [hash] with full transaction objects.
@@ -97,7 +97,7 @@ interface EthApi {
     /**
      * Get block by [blockId] with full transaction objects.
      */
-    fun getBlockWithTransactions(blockId: BlockId): RpcRequest<BlockWithTransactions, RpcError>
+    fun getBlockWithTransactions(blockId: BlockId): RpcRequest<Optional<BlockWithTransactions>, RpcError>
 
     /**
      * Get uncle block header by [hash] and [index].
@@ -112,7 +112,7 @@ interface EthApi {
     /**
      * Get uncle block header by [blockId] and [index].
      */
-    fun getUncleBlockHeader(blockId: BlockId, index: Long): RpcRequest<BlockWithHashes, RpcError>
+    fun getUncleBlockHeader(blockId: BlockId, index: Long): RpcRequest<Optional<BlockWithHashes>, RpcError>
 
     /**
      * Get uncle blocks count by [hash].

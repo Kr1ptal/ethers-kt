@@ -22,7 +22,7 @@ class SimulateBlockTransactions(
         provider.subscribeNewHeads().sendAwait().unwrap().forEach { head ->
             println("New block: ${head.number}")
 
-            val blockWithTransactions = provider.getBlockWithTransactions(head.number).sendAwait().unwrap()
+            val blockWithTransactions = provider.getBlockWithTransactions(head.number).sendAwait().unwrap().get()
             val blockOverrides = blockWithTransactions.toBlockOverride()
             val stateOverrides = StateOverride()
             for (tx in blockWithTransactions.transactions) {

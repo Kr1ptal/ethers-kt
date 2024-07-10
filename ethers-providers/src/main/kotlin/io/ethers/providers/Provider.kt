@@ -73,43 +73,43 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         return RpcCall(client, "eth_getBalance", arrayOf(address, blockId.id)) { it.readHexBigInteger() }
     }
 
-    override fun getBlockHeader(blockId: BlockId): RpcRequest<BlockWithHashes, RpcError> {
+    override fun getBlockHeader(blockId: BlockId): RpcRequest<Optional<BlockWithHashes>, RpcError> {
         val params = arrayOf(blockId.id)
         val method = when (blockId) {
             is BlockId.Hash -> "eth_getHeaderByHash"
             is BlockId.Number, is BlockId.Name -> "eth_getHeaderByNumber"
         }
-        return RpcCall(client, method, params, BlockWithHashes::class.java)
+        return RpcCall(client, method, params, { it.readOptionalValue(BlockWithHashes::class.java) })
     }
 
-    override fun getBlockWithHashes(blockId: BlockId): RpcRequest<BlockWithHashes, RpcError> {
+    override fun getBlockWithHashes(blockId: BlockId): RpcRequest<Optional<BlockWithHashes>, RpcError> {
         return getBlock(blockId, false, BlockWithHashes::class.java)
     }
 
-    override fun getBlockWithTransactions(blockId: BlockId): RpcRequest<BlockWithTransactions, RpcError> {
+    override fun getBlockWithTransactions(blockId: BlockId): RpcRequest<Optional<BlockWithTransactions>, RpcError> {
         return getBlock(blockId, true, BlockWithTransactions::class.java)
     }
 
-    protected fun <T, B : Block<T>> getBlock(
+    private fun <T, B : Block<T>> getBlock(
         blockId: BlockId,
         fullTransactions: Boolean,
         responseType: Class<B>,
-    ): RpcRequest<B, RpcError> {
+    ): RpcRequest<Optional<B>, RpcError> {
         val params = arrayOf(blockId.id, fullTransactions)
         val method = when (blockId) {
             is BlockId.Hash -> "eth_getBlockByHash"
             is BlockId.Number, is BlockId.Name -> "eth_getBlockByNumber"
         }
-        return RpcCall(client, method, params, responseType)
+        return RpcCall(client, method, params, { it.readOptionalValue(responseType) })
     }
 
-    override fun getUncleBlockHeader(blockId: BlockId, index: Long): RpcRequest<BlockWithHashes, RpcError> {
+    override fun getUncleBlockHeader(blockId: BlockId, index: Long): RpcRequest<Optional<BlockWithHashes>, RpcError> {
         val params = arrayOf(blockId.id, FastHex.encodeWithPrefix(index))
         val method = when (blockId) {
             is BlockId.Hash -> "eth_getUncleByBlockHashAndIndex"
             is BlockId.Number, is BlockId.Name -> "eth_getUncleByBlockNumberAndIndex"
         }
-        return RpcCall(client, method, params, BlockWithHashes::class.java)
+        return RpcCall(client, method, params, { it.readOptionalValue(BlockWithHashes::class.java) })
     }
 
     override fun getUncleBlocksCount(blockId: BlockId): RpcRequest<Long, RpcError> {
