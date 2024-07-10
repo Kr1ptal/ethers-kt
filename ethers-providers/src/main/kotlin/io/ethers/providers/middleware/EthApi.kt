@@ -543,22 +543,22 @@ interface EthApi {
 
     /**
      * Watch for new blocks. Compared to [subscribeNewHeads], this function installs a filter and intermittently
-     * polls it for new logs. It can be used to achieve streaming-like behavior if the provider does not support
-     * subscriptions.
+     * polls it for new block hashes. It can be used to achieve streaming-like behavior if the provider does not
+     * support subscriptions.
      * */
     fun watchNewBlocks(): RpcRequest<FilterPoller<Hash>, RpcError>
 
     /**
      * Watch for new pending transaction hashes. Compared to [subscribeNewPendingTransactionHashes], this function
-     * installs a filter and intermittently polls it for new logs. It can be used to achieve streaming-like behavior
-     * if the provider does not support subscriptions.
+     * installs a filter and intermittently polls it for new pending transaction hashes. It can be used to achieve
+     * streaming-like behavior if the provider does not support subscriptions.
      * */
     fun watchNewPendingTransactionHashes(): RpcRequest<FilterPoller<Hash>, RpcError>
 
     /**
      * Watch for new pending transactions. Compared to [subscribeNewPendingTransactions], this function installs
-     * a filter and intermittently polls it for new logs. It can be used to achieve streaming-like behavior if the
-     * provider does not support subscriptions.
+     * a filter and intermittently polls it for new pending transactions. It can be used to achieve streaming-like
+     * behavior if the provider does not support subscriptions.
      * */
     fun watchNewPendingTransactions(): RpcRequest<FilterPoller<RPCTransaction>, RpcError>
 
