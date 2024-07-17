@@ -38,12 +38,12 @@ class CallManyTypesTest : FunSpec({
                 {
                   "from": "0x0000000000000000000000000000000000000000",
                   "to": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
-                  "input": "0x70a082310000000000000000000000000d4a11d5eeaac28ec3f61d100daf4d40471f1852"
+                  "data": "0x70a082310000000000000000000000000d4a11d5eeaac28ec3f61d100daf4d40471f1852"
                 },
                 {
                   "from": "0x0000000000000000000000000000000000000000",
                   "to": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
-                  "input": "0x70a082310000000000000000000000000d4a11d5eeaac28ec3f61d100daf4d40471f1852"
+                  "data": "0x70a082310000000000000000000000000d4a11d5eeaac28ec3f61d100daf4d40471f1852"
                 }
               ],
               "blockOverride": {

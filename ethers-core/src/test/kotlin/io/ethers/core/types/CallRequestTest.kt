@@ -44,7 +44,7 @@ class CallRequestTest : FunSpec({
               "maxPriorityFeePerGas": "0x${callRequest.gasTipCap!!.toString(16)}",
               "value": "0x${callRequest.value!!.toString(16)}",
               "nonce": "0x${callRequest.nonce.toString(16)}",
-              "input": "${callRequest.data!!}",
+              "data": "${callRequest.data!!}",
               "accessList": [
                 {
                   "address": "${callRequest.accessList[0].address}",
