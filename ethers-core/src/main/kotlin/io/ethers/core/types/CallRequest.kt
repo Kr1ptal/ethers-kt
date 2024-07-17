@@ -175,7 +175,7 @@ private class CallRequestSerializer : JsonSerializer<CallRequest>() {
             gen.writeStringField("nonce", FastHex.encodeWithPrefix(value.nonce))
         }
         if (value.data != null) {
-            gen.writeStringField("input", value.data.toString())
+            gen.writeStringField("data", value.data.toString())
         }
         if (value.accessList.isNotEmpty()) {
             gen.writeArrayFieldStart("accessList")
