@@ -17,25 +17,31 @@ class AbiFunctionTest : FunSpec({
     listOf(
         TestCase("noArgsFunction()", "noArgsFunction", null, null),
         TestCase(
-            "hello(uint256,address)",
+            "function balanceOf(address owner) public view returns (uint256    balance)",
+            "balanceOf",
+            listOf(AbiType.Address),
+            listOf(AbiType.UInt(256)),
+        ),
+        TestCase(
+            "hello(uint256,address greeter)",
             "hello",
             listOf(AbiType.UInt(256), AbiType.Address),
             null,
         ),
         TestCase(
-            "callSomething(uint256,address)(address,    uint256)",
+            "callSomething(uint256,address)(address owner,    uint256)",
             "callSomething",
             listOf(AbiType.UInt(256), AbiType.Address),
             listOf(AbiType.Address, AbiType.UInt(256)),
         ),
         TestCase(
-            "onlyReturnValues()(uint256,address)",
+            "onlyReturnValues()(uint256 value,address    owner)",
             "onlyReturnValues",
             null,
             listOf(AbiType.UInt(256), AbiType.Address),
         ),
         TestCase(
-            "  function    fullAbiSignature(address,  uint256, bytes[])   returns(uint256,address)",
+            "  function    fullAbiSignature(address owner,  uint256   balance, bytes[])   returns(uint256,address)",
             "fullAbiSignature",
             listOf(AbiType.Address, AbiType.UInt(256), AbiType.Array(AbiType.Bytes)),
             listOf(AbiType.UInt(256), AbiType.Address),
@@ -47,7 +53,7 @@ class AbiFunctionTest : FunSpec({
             null,
         ),
         TestCase(
-            "complexSignature(address,int256[],uint64[2],(string,bytes12))",
+            "complexSignature(address,int256[] values,uint64[2] blockTimes  ,(string,bytes12))",
             "complexSignature",
             listOf(
                 AbiType.Address,
