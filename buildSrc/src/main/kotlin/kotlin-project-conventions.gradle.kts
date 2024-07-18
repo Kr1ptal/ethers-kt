@@ -1,3 +1,4 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinJvmCompilerOptions
 
 plugins {
@@ -40,14 +41,18 @@ project.pluginManager.withPlugin("java") {
     fun isTestTask(name: String) = name.contains("test") || name.contains("Test")
 
     tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
-        kotlinOptions.jvmTarget = jvmTarget
-        compilerOptions { kotlinCompilerConfig(isTestTask(name)) }
+        compilerOptions {
+            this.jvmTarget = JvmTarget.fromTarget(jvmTarget)
+            kotlinCompilerConfig(isTestTask(name))
+        }
     }
 
     project.pluginManager.withPlugin("kapt") {
         tasks.withType<org.jetbrains.kotlin.gradle.tasks.KaptGenerateStubs>().configureEach {
-            kotlinOptions.jvmTarget = jvmTarget
-            compilerOptions { kotlinCompilerConfig(isTestTask(name)) }
+            compilerOptions {
+                this.jvmTarget = JvmTarget.fromTarget(jvmTarget)
+                kotlinCompilerConfig(isTestTask(name))
+            }
         }
     }
 }
