@@ -34,22 +34,113 @@ data class AbiFunction(
     }
 
     companion object {
-        private val SIGNATURE_REGEX = "(\\w+)\\((.*?)\\)\\s*?(\\((.*)\\))?".toRegex()
+        private enum class ParseState {
+            NAME,
+            INPUTS,
+            OUTPUTS,
+        }
 
+        /**
+         * Parse function signature, returning [AbiFunction] instance, or throwing an exception if signature is invalid.
+         * Only raw tuple types are supported, which must be wrapped in parentheses, e.g. `(uint256,address)`.
+         *
+         * Example signature:
+         * ```
+         * function balanceOf(address owner) public view returns (uint256 balance)
+         * ```
+         * */
         fun parseSignature(signature: String): AbiFunction {
-            val match = SIGNATURE_REGEX.matchEntire(
-                signature.replace("function", "").replace("returns", "").trim(),
-            ) ?: throw IllegalArgumentException("Invalid signature: $signature")
+            val cleanSignature = signature.replace("function", "").trim()
+            var state = ParseState.NAME
+            var startIndex = 0
+            var nestingLevel = 0
+            var name: String? = null
+            var inputsRaw: String? = null
+            var outputsRaw: String? = null
 
-            val name = match.groupValues.getOrNull(1)
+            for (i in cleanSignature.indices) {
+                when (state) {
+                    ParseState.NAME -> {
+                        if (cleanSignature[i] == '(') {
+                            name = cleanSignature.substring(startIndex, i)
+                            startIndex = i + 1
+                            nestingLevel++
+
+                            state = ParseState.INPUTS
+                        }
+                    }
+
+                    ParseState.INPUTS -> {
+                        if (cleanSignature[i] == '(') {
+                            nestingLevel++
+                            continue
+                        }
+
+                        if (cleanSignature[i] == ')') {
+                            nestingLevel--
+
+                            if (nestingLevel == 0) {
+                                inputsRaw = cleanArgumentNames(cleanSignature.substring(startIndex, i))
+                                startIndex = i + 1
+                                state = ParseState.OUTPUTS
+                            }
+                        }
+                    }
+
+                    ParseState.OUTPUTS -> {
+                        when {
+                            // find outputs start
+                            nestingLevel == 0 && cleanSignature[i] != '(' -> continue
+
+                            // found outputs start, increment nesting level and remember start index
+                            nestingLevel == 0 && cleanSignature[i] == '(' -> {
+                                startIndex = i + 1
+                                nestingLevel++
+                                continue
+                            }
+
+                            // found a nested definition, increment nesting level
+                            nestingLevel > 0 && cleanSignature[i] == '(' -> {
+                                nestingLevel++
+                                continue
+                            }
+                        }
+
+                        if (cleanSignature[i] == ')') {
+                            nestingLevel--
+
+                            if (nestingLevel == 0) {
+                                outputsRaw = cleanArgumentNames(cleanSignature.substring(startIndex, i))
+                                break
+                            }
+                        }
+                    }
+                }
+            }
+
             if (name.isNullOrBlank()) throw IllegalArgumentException("Invalid signature, function has no name: $signature")
 
-            val inputsRaw = match.groupValues.getOrNull(2)
-            val outputsRaw = match.groupValues.getOrNull(4)
             val inputs = if (inputsRaw.isNullOrBlank()) emptyList() else AbiType.parseSignature(inputsRaw)
             val outputs = if (outputsRaw.isNullOrBlank()) emptyList() else AbiType.parseSignature(outputsRaw)
 
             return AbiFunction(name, inputs, outputs)
+        }
+
+        /**
+         * Remove all argument names from [signature], leaving only types, separated by commas.
+         * E.g. `address owner, uint256 amount` -> `address,uint256`
+         * */
+        private fun cleanArgumentNames(signature: String): String {
+            return signature.split(',').joinToString(",") {
+                val cleaned = it.trim()
+
+                // handle tuples
+                if (cleaned.startsWith('(') && cleaned.endsWith(')')) {
+                    "(${cleanArgumentNames(cleaned.substring(1, cleaned.length - 1))})"
+                } else {
+                    cleaned.split(' ').first()
+                }
+            }
         }
     }
 }
