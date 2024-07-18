@@ -18,6 +18,33 @@ Sections:
 ### Security = Security patches.
 -->
 
+## [1.1.0] - 2024-07-18
+
+### Bug Fixes
+
+- Add word and checksum validation to `MnemonicCode` initialization
+- Support deserializing `RpcError#data` as any type
+- [**breaking**] Change `RpcError#data` to `JsonNode` type
+- [**breaking**] Change `getBlockHeader`/`getBlockWithTransactions`/`getBlockWithHashes`/`getUncleBlockHeader` to return `Optional`-lly wrapped value
+- Serialize `CallRequest#data` field as `data` instead of `input` (#147)
+
+### Features
+
+- Add support for GCP KMS Signer (#141)
+- Implement `anvil` bindings and `AnvilProvider` (#143)
+- Add support for parsing raw abi function signatures with argument names (#149)
+
+### Miscellaneous Tasks
+
+- Change version to snapshot
+- Add additional documentation to `AccountOverride` and `BlockOverride`
+
+### Misc
+
+- Add depsize gradle task
+- Fix `watch*` methods docstrings
+- [**breaking**] Rename `watchNewBlocks` to `watchNewBlockHashes`
+
 ## [1.0.0] - 2024-06-30
 
 ### Bug Fixes
