@@ -7,6 +7,7 @@ import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import java.util.concurrent.CompletableFuture
 import java.util.function.Function
+import java.util.function.Supplier
 
 abstract class RpcRequest<T, E : Result.Error> {
     /**
@@ -131,5 +132,24 @@ private class MappingRpcRequest<I, O, E : Result.Error, U : Result.Error>(
 
     override fun toString(): String {
         return "MappingRpcRequest(request=$request)"
+    }
+}
+
+/**
+ * An [RpcRequest] that provides a [Result] via a [Supplier]. This call is not batched.
+ * */
+class SuppliedRpcRequest<T>(
+    private val supplier: Supplier<Result<T, RpcError>>,
+) : RpcRequest<T, RpcError>() {
+    override fun sendAwait(): Result<T, RpcError> = supplier.get()
+
+    override fun sendAsync(): CompletableFuture<Result<T, RpcError>> = CompletableFuture.supplyAsync(supplier)
+
+    override fun batch(batch: BatchRpcRequest): CompletableFuture<Result<T, RpcError>> {
+        return CompletableFuture.supplyAsync(supplier)
+    }
+
+    override fun toString(): String {
+        return "SuppliedRpcRequest(supplier=$supplier)"
     }
 }

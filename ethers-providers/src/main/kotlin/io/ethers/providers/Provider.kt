@@ -1,9 +1,12 @@
 package io.ethers.providers
 
+import com.fasterxml.jackson.databind.JsonNode
 import io.ethers.core.FastHex
+import io.ethers.core.Jackson
 import io.ethers.core.Result
 import io.ethers.core.failure
 import io.ethers.core.forEachObjectField
+import io.ethers.core.isFailure
 import io.ethers.core.isField
 import io.ethers.core.isNextTokenObjectEnd
 import io.ethers.core.readBytes
@@ -23,6 +26,7 @@ import io.ethers.core.types.BlockOverride
 import io.ethers.core.types.BlockWithHashes
 import io.ethers.core.types.BlockWithTransactions
 import io.ethers.core.types.Bytes
+import io.ethers.core.types.CallRequest
 import io.ethers.core.types.CreateAccessList
 import io.ethers.core.types.FeeHistory
 import io.ethers.core.types.Hash
@@ -51,11 +55,16 @@ import io.ethers.providers.types.RpcCall
 import io.ethers.providers.types.RpcRequest
 import io.ethers.providers.types.RpcSubscribe
 import io.ethers.providers.types.RpcSubscribeCall
+import io.ethers.providers.types.SuppliedRpcRequest
 import java.math.BigInteger
 import java.util.Optional
 
 @Suppress("MoveLambdaOutsideParentheses")
 class Provider(override val client: JsonRpcClient, override val chainId: Long) : Middleware {
+    // it's ever only set to false if eth_fillTransaction is not supported, so it's fine if it's a bit racy
+    private var supportsFillTransaction = true
+    private val fillTransactionFeeHistory = getFeeHistory(10, BlockId.LATEST, listOf("20".toBigInteger()))
+
     override val inner: Middleware?
         get() = null
 
@@ -290,10 +299,15 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
     }
 
     override fun fillTransaction(call: IntoCallRequest): RpcRequest<TransactionUnsigned, RpcError> {
+        val callRequest = call.toCallRequest()
+        if (!supportsFillTransaction) {
+            return SuppliedRpcRequest { manuallyFillTransaction(callRequest) }
+        }
+
         return RpcCall(
             client,
             "eth_fillTransaction",
-            arrayOf(call.toCallRequest()),
+            arrayOf(callRequest),
             {
                 var ret: TransactionUnsigned? = null
                 while (!it.isNextTokenObjectEnd()) {
@@ -305,7 +319,124 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
 
                 return@RpcCall ret ?: throw IllegalStateException("Invalid response")
             },
-        )
+        ).orElse { err ->
+            when {
+                // If eth_fillTransaction is not supported, fallback to manually filling the transaction.
+                // Second case handles foundry's Anvil error, which is wrongly classified
+                err.isMethodNotFound || err.message.contains("did not match any variant") -> {
+                    supportsFillTransaction = false
+                    manuallyFillTransaction(callRequest)
+                }
+
+                else -> failure(err)
+            }
+        }
+    }
+
+    private fun manuallyFillTransaction(original: CallRequest): Result<TransactionUnsigned, RpcError> {
+        val call = CallRequest(original)
+
+        var unsigned = call.toUnsignedTransactionOrNull()
+        if (unsigned != null) {
+            return success(unsigned)
+        }
+
+        if (call.blobVersionedHashes != null && call.to == null) {
+            return failure(
+                RpcError(
+                    RpcError.CODE_CALL_FAILED,
+                    "Cannot fill blob transaction, missing 'to' field",
+                ),
+            )
+        }
+
+        val sender = call.from
+        val nonceFut = when {
+            call.nonce >= 0L -> null
+            sender == null -> return failure(
+                RpcError(
+                    RpcError.CODE_CALL_FAILED,
+                    "Cannot estimate nonce, 'from' field is not set",
+                ),
+            )
+
+            else -> provider.getTransactionCount(sender, BlockId.LATEST).sendAsync()
+        }
+
+        val gasLimitFut = when {
+            call.gas >= 21000L -> null
+            else -> provider.estimateGas(call, BlockId.LATEST).sendAsync()
+        }
+
+        val txFeesSet = call.gasPrice != null || call.gasTipCap != null && call.gasFeeCap != null
+        val blobFeesSet = call.blobVersionedHashes == null || call.blobFeeCap != null
+        val feeHistoryFut = when {
+            txFeesSet && blobFeesSet -> null
+            else -> fillTransactionFeeHistory.sendAsync()
+        }
+
+        val nonceResult = nonceFut?.get()
+        val gasLimitResult = gasLimitFut?.get()
+        val feeHistoryResult = feeHistoryFut?.get()
+
+        if (nonceResult != null) {
+            if (nonceResult.isFailure()) {
+                return nonceResult as Result.Failure<RpcError>
+            }
+
+            call.nonce(nonceResult.unwrap())
+        }
+
+        if (gasLimitResult != null) {
+            if (gasLimitResult.isFailure()) {
+                return gasLimitResult as Result.Failure<RpcError>
+            }
+
+            call.gas(gasLimitResult.unwrap())
+        }
+
+        if (feeHistoryResult != null) {
+            if (feeHistoryResult.isFailure()) {
+                return feeHistoryResult as Result.Failure<RpcError>
+            }
+
+            val feeHistory = feeHistoryResult.unwrap()
+            if (!txFeesSet) {
+                val rewards = feeHistory.rewards!!.mapNotNull {
+                    val r = it.firstOrNull()
+                    if (r == null || r <= BigInteger.ZERO) null else r
+                }.sorted()
+
+                val medianReward = when {
+                    rewards.isEmpty() -> BigInteger.ONE
+                    rewards.size % 2 == 0 -> (rewards[rewards.size / 2 - 1] + rewards[rewards.size / 2]) / BigInteger.TWO
+                    else -> rewards[rewards.size / 2]
+                }.max(BigInteger.ONE)
+
+                when {
+                    // if eip1559 is supported, fill its fields
+                    feeHistory.nextBaseFeePerGas > BigInteger.ZERO -> {
+                        call.gasFeeCap(feeHistory.nextBaseFeePerGas + medianReward)
+                        call.gasTipCap(medianReward)
+                    }
+
+                    // else fallback to legacy gas price
+                    else -> call.gasPrice(medianReward)
+                }
+            }
+
+            if (!blobFeesSet) {
+                call.blobFeeCap(feeHistory.nextBaseFeePerBlobGas)
+            }
+        }
+
+        unsigned = call.toUnsignedTransactionOrNull()
+        if (unsigned != null) {
+            return success(unsigned)
+        }
+
+        val data = Jackson.MAPPER.valueToTree<JsonNode>(call)
+        return failure(RpcError(RpcError.CODE_CALL_FAILED, "Failed to manually fill transaction", data))
     }
 
     override fun getLogs(filter: LogFilter): RpcRequest<List<Log>, RpcError> {
