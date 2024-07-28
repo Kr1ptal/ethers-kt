@@ -178,9 +178,9 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         }
     }
 
-    override fun estimateGas(call: IntoCallRequest, blockId: BlockId): RpcRequest<BigInteger, RpcError> {
+    override fun estimateGas(call: IntoCallRequest, blockId: BlockId): RpcRequest<Long, RpcError> {
         val params = arrayOf(call.toCallRequest(), blockId.id)
-        return RpcCall(client, "eth_estimateGas", params) { it.readHexBigInteger() }
+        return RpcCall(client, "eth_estimateGas", params) { it.readHexLong() }
     }
 
     override fun createAccessList(call: IntoCallRequest, blockId: BlockId): RpcRequest<CreateAccessList, RpcError> {

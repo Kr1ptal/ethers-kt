@@ -314,7 +314,7 @@ interface EthApi {
     /**
      * Estimate gas required to execute [call] on given [blockId].
      */
-    fun estimateGas(call: IntoCallRequest, blockId: BlockId): RpcRequest<BigInteger, RpcError>
+    fun estimateGas(call: IntoCallRequest, blockId: BlockId): RpcRequest<Long, RpcError>
 
     /**
      * Create access list for a given [call] on a given block [hash].
