@@ -17,10 +17,6 @@ import io.ethers.core.types.IntoCallRequest
 import io.ethers.core.types.StateOverride
 import io.ethers.core.types.tracers.TracerConfig
 import io.ethers.core.types.transaction.TransactionSigned
-import io.ethers.core.types.transaction.TransactionUnsigned
-import io.ethers.core.types.transaction.TxAccessList
-import io.ethers.core.types.transaction.TxDynamicFee
-import io.ethers.core.types.transaction.TxLegacy
 import io.ethers.providers.RpcError
 import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.PendingInclusion
@@ -45,7 +41,7 @@ abstract class ReadWriteContractCall<C, S : PendingInclusion<*>, B : ReadWriteCo
      * @return [TransactionSigned], or null if [call] is not ready to be signed (missing some fields).
      * */
     fun sign(signer: Signer): TransactionSigned? {
-        val tx = call.toTransaction() ?: return null
+        val tx = call.toUnsignedTransactionOrNull() ?: return null
         return signer.signTransaction(tx)
     }
 
@@ -90,60 +86,6 @@ abstract class ReadWriteContractCall<C, S : PendingInclusion<*>, B : ReadWriteCo
     }
 
     protected abstract fun handleSendResult(result: PendingTransaction): S
-
-    /**
-     * Try to convert [CallRequest] to [TransactionUnsigned], if all required fields are set.
-     * */
-    private fun CallRequest.toTransaction(): TransactionUnsigned? {
-        if (nonce < 0) {
-            return null
-        }
-
-        if (gas < 21000L) {
-            return null
-        }
-
-        if (gasFeeCap != null && gasTipCap != null) {
-            return TxDynamicFee(
-                to = to,
-                value = value ?: BigInteger.ZERO,
-                nonce = nonce,
-                gas = gas,
-                gasFeeCap = gasFeeCap!!,
-                gasTipCap = gasTipCap!!,
-                data = data,
-                chainId = chainId,
-                accessList = accessList,
-            )
-        }
-
-        if (gasPrice != null) {
-            if (accessList.isNotEmpty()) {
-                return TxAccessList(
-                    to = to,
-                    value = value ?: BigInteger.ZERO,
-                    nonce = nonce,
-                    gas = gas,
-                    gasPrice = gasPrice!!,
-                    data = data,
-                    chainId = chainId,
-                    accessList = accessList,
-                )
-            }
-
-            return TxLegacy(
-                to = to,
-                value = value ?: BigInteger.ZERO,
-                nonce = nonce,
-                gas = gas,
-                gasPrice = gasPrice!!,
-                data = data,
-                chainId = chainId,
-            )
-        }
-
-        return null
-    }
 }
 
 /**
@@ -157,21 +99,7 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
 
     override fun toCallRequest(): CallRequest {
         // create a new instance to avoid modifying the original
-        return CallRequest {
-            from(call.from)
-            to(call.to)
-            gas(call.gas)
-            gasPrice(call.gasPrice)
-            gasFeeCap(call.gasFeeCap)
-            gasTipCap(call.gasTipCap)
-            value(call.value)
-            nonce(call.nonce)
-            data(call.data)
-            accessList(call.accessList)
-            chainId(call.chainId)
-            blobFeeCap(call.blobFeeCap)
-            blobVersionedHashes(call.blobVersionedHashes)
-        }
+        return CallRequest(call)
     }
 
     /**

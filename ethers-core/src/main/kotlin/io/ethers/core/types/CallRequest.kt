@@ -5,6 +5,11 @@ import com.fasterxml.jackson.databind.JsonSerializer
 import com.fasterxml.jackson.databind.SerializerProvider
 import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import io.ethers.core.FastHex
+import io.ethers.core.types.transaction.TransactionUnsigned
+import io.ethers.core.types.transaction.TxAccessList
+import io.ethers.core.types.transaction.TxBlob
+import io.ethers.core.types.transaction.TxDynamicFee
+import io.ethers.core.types.transaction.TxLegacy
 import java.math.BigInteger
 
 @JsonSerialize(using = CallRequestSerializer::class)
@@ -95,6 +100,82 @@ class CallRequest() : IntoCallRequest {
     fun chainId(chainId: Long) = apply { this.chainId = chainId }
     fun blobFeeCap(blobFeeCap: BigInteger?) = apply { this.blobFeeCap = blobFeeCap }
     fun blobVersionedHashes(blobVersionedHashes: List<Hash>?) = apply { this.blobVersionedHashes = blobVersionedHashes }
+
+    /**
+     * Try to convert [CallRequest] to [TransactionUnsigned], if all required fields are set. Returns null if
+     * conversion is not possible.
+     * */
+    // IMPORTANT: Checks in this function must be kept in sync with `Provider#manuallyFillTransaction`.
+    fun toUnsignedTransactionOrNull(): TransactionUnsigned? {
+        if (nonce < 0) {
+            return null
+        }
+
+        if (gas < 21000L) {
+            return null
+        }
+
+        if (gasFeeCap != null && gasTipCap != null) {
+            if (blobVersionedHashes != null) {
+                if (to == null || blobFeeCap == null) {
+                    return null
+                }
+
+                return TxBlob(
+                    to = to!!,
+                    value = value ?: BigInteger.ZERO,
+                    nonce = nonce,
+                    gas = gas,
+                    gasFeeCap = gasFeeCap!!,
+                    gasTipCap = gasTipCap!!,
+                    data = data,
+                    chainId = chainId,
+                    accessList = accessList,
+                    blobFeeCap = blobFeeCap!!,
+                    blobVersionedHashes = blobVersionedHashes!!,
+                )
+            }
+
+            return TxDynamicFee(
+                to = to,
+                value = value ?: BigInteger.ZERO,
+                nonce = nonce,
+                gas = gas,
+                gasFeeCap = gasFeeCap!!,
+                gasTipCap = gasTipCap!!,
+                data = data,
+                chainId = chainId,
+                accessList = accessList,
+            )
+        }
+
+        if (gasPrice != null) {
+            if (accessList.isNotEmpty()) {
+                return TxAccessList(
+                    to = to,
+                    value = value ?: BigInteger.ZERO,
+                    nonce = nonce,
+                    gas = gas,
+                    gasPrice = gasPrice!!,
+                    data = data,
+                    chainId = chainId,
+                    accessList = accessList,
+                )
+            }
+
+            return TxLegacy(
+                to = to,
+                value = value ?: BigInteger.ZERO,
+                nonce = nonce,
+                gas = gas,
+                gasPrice = gasPrice!!,
+                data = data,
+                chainId = chainId,
+            )
+        }
+
+        return null
+    }
 
     override fun toString(): String {
         return "CallRequest(from=$from, to=$to, gas=$gas, gasPrice=$gasPrice, gasFeeCap=$gasFeeCap, gasTipCap=$gasTipCap, value=$value, nonce=$nonce, data=$data, accessList=$accessList, chainId=$chainId, blobFeeCap=$blobFeeCap, blobVersionedHashes=$blobVersionedHashes)"
