@@ -115,8 +115,8 @@ class CallRequest() : IntoCallRequest {
             return null
         }
 
-        if (gasFeeCap != null && gasTipCap != null) {
-            if (blobVersionedHashes != null) {
+        when {
+            gasFeeCap != null && gasTipCap != null && blobVersionedHashes != null -> {
                 if (to == null || blobFeeCap == null) {
                     return null
                 }
@@ -136,21 +136,21 @@ class CallRequest() : IntoCallRequest {
                 )
             }
 
-            return TxDynamicFee(
-                to = to,
-                value = value ?: BigInteger.ZERO,
-                nonce = nonce,
-                gas = gas,
-                gasFeeCap = gasFeeCap!!,
-                gasTipCap = gasTipCap!!,
-                data = data,
-                chainId = chainId,
-                accessList = accessList,
-            )
-        }
+            gasFeeCap != null && gasTipCap != null && blobVersionedHashes == null -> {
+                return TxDynamicFee(
+                    to = to,
+                    value = value ?: BigInteger.ZERO,
+                    nonce = nonce,
+                    gas = gas,
+                    gasFeeCap = gasFeeCap!!,
+                    gasTipCap = gasTipCap!!,
+                    data = data,
+                    chainId = chainId,
+                    accessList = accessList,
+                )
+            }
 
-        if (gasPrice != null) {
-            if (accessList.isNotEmpty()) {
+            gasPrice != null && accessList.isNotEmpty() -> {
                 return TxAccessList(
                     to = to,
                     value = value ?: BigInteger.ZERO,
@@ -163,15 +163,17 @@ class CallRequest() : IntoCallRequest {
                 )
             }
 
-            return TxLegacy(
-                to = to,
-                value = value ?: BigInteger.ZERO,
-                nonce = nonce,
-                gas = gas,
-                gasPrice = gasPrice!!,
-                data = data,
-                chainId = chainId,
-            )
+            gasPrice != null && accessList.isEmpty() -> {
+                return TxLegacy(
+                    to = to,
+                    value = value ?: BigInteger.ZERO,
+                    nonce = nonce,
+                    gas = gas,
+                    gasPrice = gasPrice!!,
+                    data = data,
+                    chainId = chainId,
+                )
+            }
         }
 
         return null
