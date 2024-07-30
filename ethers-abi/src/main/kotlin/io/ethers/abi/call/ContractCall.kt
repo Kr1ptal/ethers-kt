@@ -178,11 +178,10 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
     }
 
     protected fun tryDecodingContractRevert(err: RpcError): ContractError {
-        if (err.isExecutionError) {
+        val isRevertMessage = err.message.contains("execution revert", true)
+        if (err.isExecutionError || isRevertMessage) {
             when {
-                err.data == null && err.message.contains("execution revert", true) -> {
-                    return ExecutionRevertedError
-                }
+                err.data == null && isRevertMessage -> return ExecutionRevertedError
 
                 err.data != null && err.data!!.isTextual -> {
                     val data = err.data!!.textValue()
