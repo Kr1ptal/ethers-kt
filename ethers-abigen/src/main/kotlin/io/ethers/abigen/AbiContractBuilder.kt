@@ -55,6 +55,7 @@ class AbiContractBuilder(
     private val functionRenames: Map<String, String>,
 ) {
     private val uniqueClassNames = HashSet<String>()
+    private val uniqueFunctionNames = HashSet<UniqueFunction>()
     private val constants = HashMap<String, PropertySpec>()
     private val structs = HashMap<String, AbiTypeParameter.Struct>()
     private val resultClasses = HashMap<String, TypeSpec>()
@@ -295,13 +296,13 @@ class AbiContractBuilder(
     }
 
     private fun createFunction(function: JsonAbiFunction): FunSpec {
-        var generatedFunctionName = functionRenames[function.name] ?: function.name
-        if (isReservedJavaName(generatedFunctionName)) {
-            generatedFunctionName = "_$generatedFunctionName"
-        }
-
         val inputs = function.inputs.toAbiTypeParameters()
         val outputs = function.outputs.toAbiTypeParameters()
+        val generatedFunctionName = getNextUniqueFunctionName(
+            functionRenames[function.name] ?: function.name,
+            inputs.map { it.abiType.classType },
+        )
+
         val abiFunctionProperty = createAbiFunctionProperty(generatedFunctionName, function.name, inputs, outputs)
         val callClass = when {
             function.isPayable -> PayableFunctionCall::class
@@ -753,6 +754,38 @@ class AbiContractBuilder(
     }
 
     /**
+     * Create unique, non-java-keyword function name from [baseName] and function [inputs] java types. If combination of
+     * [baseName] and [inputs] is already unique, the [baseName] is returned. Uniqueness is determined by checking if
+     * [uniqueFunctionNames] contains a name. Each new unique name + inputs combination is added to this set.
+     * */
+    private fun getNextUniqueFunctionName(baseName: String, inputs: List<Class<*>>): String {
+        @Suppress("NAME_SHADOWING")
+        var baseName = baseName
+        if (isReservedJavaName(baseName)) {
+            baseName = "_${baseName}"
+        }
+
+        if (uniqueFunctionNames.add(UniqueFunction(baseName, inputs))) {
+            return baseName
+        }
+
+        var uniqueName: String? = null
+        for (i in 1..100) {
+            uniqueName = "${baseName}_$i"
+
+            if (uniqueFunctionNames.add(UniqueFunction(uniqueName, inputs))) {
+                break
+            }
+        }
+
+        if (uniqueName == null) {
+            throw IllegalStateException("Could not create unique function name for $baseName")
+        }
+
+        return uniqueName
+    }
+
+    /**
      * Checks if [name] is a reserved java keyword or identifier. Manually include "var" since it's missing in the
      * current version of [SourceVersion] (Temurin JDK 11).
      * */
@@ -766,6 +799,11 @@ class AbiContractBuilder(
 
         return false
     }
+
+    /**
+     * Function uniqueness key, containing the function name and the list of input java types.
+     * */
+    private data class UniqueFunction(val name: String, val inputs: List<Class<*>>)
 
     companion object {
         private val RESERVED_DEPLOY_FUNCTION_ARG_NAMES = setOf("provider")

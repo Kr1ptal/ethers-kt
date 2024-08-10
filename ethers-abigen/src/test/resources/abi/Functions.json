@@ -1,1 +1,710 @@
-{"abi":[{"type":"function","name":"JsonABI","inputs":[],"outputs":[],"stateMutability":"nonpayable"},{"type":"function","name":"class","inputs":[{"name":"status","type":"uint256","internalType":"uint256"},{"name":"msg","type":"string","internalType":"string"}],"outputs":[],"stateMutability":"nonpayable"},{"type":"function","name":"complexArgs","inputs":[{"name":"status","type":"uint256","internalType":"uint256"},{"name":"details","type":"tuple[3][]","internalType":"struct Functions.Details[3][]","components":[{"name":"success","type":"bool","internalType":"bool"},{"name":"data","type":"bytes","internalType":"bytes"}]}],"outputs":[{"name":"","type":"uint256","internalType":"uint256"}],"stateMutability":"nonpayable"},{"type":"function","name":"complexArgs2","inputs":[{"name":"status","type":"uint256","internalType":"uint256"},{"name":"differentName","type":"tuple[3][]","internalType":"struct Functions.Details[3][]","components":[{"name":"success","type":"bool","internalType":"bool"},{"name":"data","type":"bytes","internalType":"bytes"}]}],"outputs":[{"name":"","type":"uint256","internalType":"uint256"}],"stateMutability":"nonpayable"},{"type":"function","name":"getE2ModeCategoryData","inputs":[],"outputs":[],"stateMutability":"nonpayable"},{"type":"function","name":"noArgs","inputs":[],"outputs":[],"stateMutability":"nonpayable"},{"type":"function","name":"noArgsMultiReturns","inputs":[],"outputs":[{"name":"status","type":"uint256","internalType":"uint256"},{"name":"done","type":"bool","internalType":"bool"}],"stateMutability":"nonpayable"},{"type":"function","name":"noArgsReturns","inputs":[],"outputs":[{"name":"","type":"uint256","internalType":"uint256"}],"stateMutability":"nonpayable"},{"type":"function","name":"overloaded","inputs":[{"name":"status","type":"uint256","internalType":"uint256"},{"name":"msg","type":"string","internalType":"string"},{"name":"done","type":"bool","internalType":"bool"}],"outputs":[],"stateMutability":"nonpayable"},{"type":"function","name":"overloaded","inputs":[{"name":"status","type":"uint256","internalType":"uint256"},{"name":"msg","type":"string","internalType":"string"}],"outputs":[],"stateMutability":"nonpayable"},{"type":"function","name":"package","inputs":[{"name":"status","type":"uint256","internalType":"uint256"},{"name":"msg","type":"string","internalType":"string"}],"outputs":[],"stateMutability":"nonpayable"},{"type":"function","name":"payableArgs","inputs":[{"name":"status","type":"uint256","internalType":"uint256"},{"name":"msg","type":"string","internalType":"string"}],"outputs":[],"stateMutability":"payable"},{"type":"function","name":"repayWithATokens","inputs":[],"outputs":[],"stateMutability":"nonpayable"},{"type":"function","name":"simpleArgs","inputs":[{"name":"status","type":"uint256","internalType":"uint256"},{"name":"msg","type":"string","internalType":"string"}],"outputs":[],"stateMutability":"nonpayable"},{"type":"function","name":"viewArgs","inputs":[{"name":"status","type":"uint256","internalType":"uint256"},{"name":"msg","type":"string","internalType":"string"}],"outputs":[],"stateMutability":"view"}],"bytecode":{"object":"0x608060405234801561001057600080fd5b5061054c806100206000396000f3fe6080604052600436106100e85760003560e01c80639150d7841161008a578063cab5387f11610059578063cab5387f1461010f578063d5dcdb381461010f578063d9d2f07514610151578063e22d71a51461019e57600080fd5b80639150d7841461010f5780639370781714610151578063af526ece1461017f578063b0333c4e1461010f57600080fd5b806383c962bb116100c657806383c962bb1461015157806387faaddf146101515780638daf21021461015d5780638e4959621461017f57600080fd5b806328134bdc146100ed5780632b83f6a31461010f57806331d6fa271461012e575b600080fd5b3480156100f957600080fd5b5061010d6101083660046102d3565b505050565b005b34801561011b57600080fd5b5061010d61012a36600461032a565b5050565b34801561013a57600080fd5b50602a5b6040519081526020015b60405180910390f35b34801561010d57600080fd5b34801561016957600080fd5b5060408051602a81526001602082015201610148565b34801561018b57600080fd5b5061013e61019a366004610371565b5090565b61010d61012a36600461032a565b634e487b7160e01b600052604160045260246000fd5b6040516060810167ffffffffffffffff811182821017156101e5576101e56101ac565b60405290565b6040805190810167ffffffffffffffff811182821017156101e5576101e56101ac565b604051601f8201601f1916810167ffffffffffffffff81118282101715610237576102376101ac565b604052919050565b600067ffffffffffffffff831115610259576102596101ac565b61026c601f8401601f191660200161020e565b905082815283838301111561028057600080fd5b828260208301376000602084830101529392505050565b600082601f8301126102a857600080fd5b6102b78383356020850161023f565b9392505050565b803580151581146102ce57600080fd5b919050565b6000806000606084860312156102e857600080fd5b83359250602084013567ffffffffffffffff81111561030657600080fd5b61031286828701610297565b925050610321604085016102be565b90509250925092565b6000806040838503121561033d57600080fd5b82359150602083013567ffffffffffffffff81111561035b57600080fd5b61036785828601610297565b9150509250929050565b6000806040838503121561038457600080fd5b8235915067ffffffffffffffff80602085013511156103a257600080fd5b6020840135840185601f8201126103b857600080fd5b81813511156103c9576103c96101ac565b6103d96020823560051b0161020e565b81358082526020808301929160051b8401018810156103f757600080fd5b602083015b6020843560051b85010181101561050757848135111561041b57600080fd5b88603f82358601011261042d57600080fd5b6104356101c2565b808a60808435880101111561044957600080fd5b602083358701015b608084358801018110156104f757878135111561046d57600080fd5b833587018135016040818e03601f1901121561048857600080fd5b6104906101eb565b61049c602083016102be565b815289604083013511156104af57600080fd5b8d603f6040840135840101126104c457600080fd5b6104dc8e60408481013585016020810135910161023f565b60208201528085525050602083019250602081019050610451565b50845250602092830192016103fc565b5080945050505050925092905056fea2646970667358221220ad5d9cd93b2cadd67a1f47b2d409d1245078d91afe643fc6d474d38f2b9cf35964736f6c63430008130033","sourceMap":"65:1365:0:-:0;;;;;;;;;;;;;;;;;;;","linkReferences":{}},"deployedBytecode":{"object":"0x6080604052600436106100e85760003560e01c80639150d7841161008a578063cab5387f11610059578063cab5387f1461010f578063d5dcdb381461010f578063d9d2f07514610151578063e22d71a51461019e57600080fd5b80639150d7841461010f5780639370781714610151578063af526ece1461017f578063b0333c4e1461010f57600080fd5b806383c962bb116100c657806383c962bb1461015157806387faaddf146101515780638daf21021461015d5780638e4959621461017f57600080fd5b806328134bdc146100ed5780632b83f6a31461010f57806331d6fa271461012e575b600080fd5b3480156100f957600080fd5b5061010d6101083660046102d3565b505050565b005b34801561011b57600080fd5b5061010d61012a36600461032a565b5050565b34801561013a57600080fd5b50602a5b6040519081526020015b60405180910390f35b34801561010d57600080fd5b34801561016957600080fd5b5060408051602a81526001602082015201610148565b34801561018b57600080fd5b5061013e61019a366004610371565b5090565b61010d61012a36600461032a565b634e487b7160e01b600052604160045260246000fd5b6040516060810167ffffffffffffffff811182821017156101e5576101e56101ac565b60405290565b6040805190810167ffffffffffffffff811182821017156101e5576101e56101ac565b604051601f8201601f1916810167ffffffffffffffff81118282101715610237576102376101ac565b604052919050565b600067ffffffffffffffff831115610259576102596101ac565b61026c601f8401601f191660200161020e565b905082815283838301111561028057600080fd5b828260208301376000602084830101529392505050565b600082601f8301126102a857600080fd5b6102b78383356020850161023f565b9392505050565b803580151581146102ce57600080fd5b919050565b6000806000606084860312156102e857600080fd5b83359250602084013567ffffffffffffffff81111561030657600080fd5b61031286828701610297565b925050610321604085016102be565b90509250925092565b6000806040838503121561033d57600080fd5b82359150602083013567ffffffffffffffff81111561035b57600080fd5b61036785828601610297565b9150509250929050565b6000806040838503121561038457600080fd5b8235915067ffffffffffffffff80602085013511156103a257600080fd5b6020840135840185601f8201126103b857600080fd5b81813511156103c9576103c96101ac565b6103d96020823560051b0161020e565b81358082526020808301929160051b8401018810156103f757600080fd5b602083015b6020843560051b85010181101561050757848135111561041b57600080fd5b88603f82358601011261042d57600080fd5b6104356101c2565b808a60808435880101111561044957600080fd5b602083358701015b608084358801018110156104f757878135111561046d57600080fd5b833587018135016040818e03601f1901121561048857600080fd5b6104906101eb565b61049c602083016102be565b815289604083013511156104af57600080fd5b8d603f6040840135840101126104c457600080fd5b6104dc8e60408481013585016020810135910161023f565b60208201528085525050602083019250602081019050610451565b50845250602092830192016103fc565b5080945050505050925092905056fea2646970667358221220ad5d9cd93b2cadd67a1f47b2d409d1245078d91afe643fc6d474d38f2b9cf35964736f6c63430008130033","sourceMap":"65:1365:0:-:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;733:77;;;;;;;;;;-1:-1:-1;733:77:0;;;;;:::i;:::-;;;;;;;1095:69;;;;;;;;;;-1:-1:-1;1095:69:0;;;;;:::i;:::-;;;;125:78;;;;;;;;;;-1:-1:-1;194:2:0;125:78;;;2746:25:1;;;2734:2;2719:18;125:78:0;;;;;;;;90:29;;;;;;;;;209:109;;;;;;;;;;-1:-1:-1;209:109:0;;;302:2;2950:25:1;;306:4:0;3006:2:1;2991:18;;2984:50;2923:18;209:109:0;2782:258:1;396:123:0;;;;;;;;;;-1:-1:-1;396:123:0;;;;;:::i;:::-;-1:-1:-1;506:6:0;396:123;1014:75;;;;;;:::i;14:127:1:-;75:10;70:3;66:20;63:1;56:31;106:4;103:1;96:15;130:4;127:1;120:15;146:251;218:2;212:9;260:2;248:15;;293:18;278:34;;314:22;;;275:62;272:88;;;340:18;;:::i;:::-;376:2;369:22;146:251;:::o;402:::-;474:2;468:9;;;504:15;;549:18;534:34;;570:22;;;531:62;528:88;;;596:18;;:::i;658:275::-;729:2;723:9;794:2;775:13;;-1:-1:-1;;771:27:1;759:40;;829:18;814:34;;850:22;;;811:62;808:88;;;876:18;;:::i;:::-;912:2;905:22;658:275;;-1:-1:-1;658:275:1:o;938:407::-;1003:5;1037:18;1029:6;1026:30;1023:56;;;1059:18;;:::i;:::-;1097:57;1142:2;1121:15;;-1:-1:-1;;1117:29:1;1148:4;1113:40;1097:57;:::i;:::-;1088:66;;1177:6;1170:5;1163:21;1217:3;1208:6;1203:3;1199:16;1196:25;1193:45;;;1234:1;1231;1224:12;1193:45;1283:6;1278:3;1271:4;1264:5;1260:16;1247:43;1337:1;1330:4;1321:6;1314:5;1310:18;1306:29;1299:40;938:407;;;;;:::o;1350:222::-;1393:5;1446:3;1439:4;1431:6;1427:17;1423:27;1413:55;;1464:1;1461;1454:12;1413:55;1486:80;1562:3;1553:6;1540:20;1533:4;1525:6;1521:17;1486:80;:::i;:::-;1477:89;1350:222;-1:-1:-1;;;1350:222:1:o;1577:160::-;1642:20;;1698:13;;1691:21;1681:32;;1671:60;;1727:1;1724;1717:12;1671:60;1577:160;;;:::o;1742:458::-;1826:6;1834;1842;1895:2;1883:9;1874:7;1870:23;1866:32;1863:52;;;1911:1;1908;1901:12;1863:52;1947:9;1934:23;1924:33;;2008:2;1997:9;1993:18;1980:32;2035:18;2027:6;2024:30;2021:50;;;2067:1;2064;2057:12;2021:50;2090;2132:7;2123:6;2112:9;2108:22;2090:50;:::i;:::-;2080:60;;;2159:35;2190:2;2179:9;2175:18;2159:35;:::i;:::-;2149:45;;1742:458;;;;;:::o;2205:390::-;2283:6;2291;2344:2;2332:9;2323:7;2319:23;2315:32;2312:52;;;2360:1;2357;2350:12;2312:52;2396:9;2383:23;2373:33;;2457:2;2446:9;2442:18;2429:32;2484:18;2476:6;2473:30;2470:50;;;2516:1;2513;2506:12;2470:50;2539;2581:7;2572:6;2561:9;2557:22;2539:50;:::i;:::-;2529:60;;;2205:390;;;;;:::o;3045:2342::-;3185:6;3193;3246:2;3234:9;3225:7;3221:23;3217:32;3214:52;;;3262:1;3259;3252:12;3214:52;3298:9;3285:23;3275:33;;3327:18;3394:2;3388;3377:9;3373:18;3360:32;3357:40;3354:60;;;3410:1;3407;3400:12;3354:60;3476:2;3465:9;3461:18;3448:32;3437:9;3433:48;3519:7;3512:4;3508:2;3504:13;3500:27;3490:55;;3541:1;3538;3531:12;3490:55;3578:2;3573;3560:16;3557:24;3554:50;;;3584:18;;:::i;:::-;3624:50;3670:2;3664;3651:16;3648:1;3644:24;3640:33;3624:50;:::i;:::-;3720:16;;3708:29;;;3762:2;3753:12;;;;3696:3;3796:1;3792:24;3784:33;;3780:42;3777:55;-1:-1:-1;3774:75:1;;;3845:1;3842;3835:12;3774:75;3877:2;3873;3869:11;3889:1468;3952:2;3945;3932:16;3929:1;3925:24;3921:2;3917:33;3913:42;3908:3;3905:51;3889:1468;;;4036:2;4030:3;4017:17;4014:25;4011:45;;;4052:1;4049;4042:12;4011:45;4120:7;4115:2;4108:3;4095:17;4091:2;4087:26;4083:35;4079:49;4069:77;;4142:1;4139;4132:12;4069:77;4172:22;;:::i;:::-;4220:5;4282:7;4276:3;4269;4256:17;4252:2;4248:26;4244:36;4241:49;4238:69;;;4303:1;4300;4293:12;4238:69;4365:2;4358:3;4345:17;4341:2;4337:26;4333:35;4381:903;4443:3;4436;4423:17;4419:2;4415:26;4411:36;4404:5;4401:47;4381:903;;;4546:2;4538:5;4525:19;4522:27;4519:47;;;4562:1;4559;4552:12;4519:47;4605:17;;4597:26;;4625:19;;4593:52;4701:2;4673:16;;;-1:-1:-1;;4669:30:1;4665:39;4662:59;;;4717:1;4714;4707:12;4662:59;4751:22;;:::i;:::-;4804:28;4828:2;4824;4820:11;4804:28;:::i;:::-;4797:5;4790:43;4883:2;4877;4873;4869:11;4856:25;4853:33;4850:53;;;4899:1;4896;4889:12;4850:53;4979:7;4974:2;4967;4963;4959:11;4946:25;4942:2;4938:34;4934:43;4930:57;4920:85;;5001:1;4998;4991:12;4920:85;5045:147;5184:7;5171:2;5163:11;;;5150:25;5142:34;;5178:2;5138:43;;5125:57;;5080:43;5045:147;:::i;:::-;5040:2;5033:5;5029:14;5022:171;5224:5;5217;5210:20;;;5267:2;5260:5;5256:14;5247:23;;4483:2;4476:5;4472:14;4463:23;;4381:903;;;-1:-1:-1;5297:18:1;;-1:-1:-1;5344:2:1;5335:12;;;;3974;3889:1468;;;3893:3;5376:5;5366:15;;;;;;3045:2342;;;;;:::o","linkReferences":{}},"methodIdentifiers":{"JsonABI()":"87faaddf","class(uint256,string)":"cab5387f","complexArgs(uint256,(bool,bytes)[3][])":"8e495962","complexArgs2(uint256,(bool,bytes)[3][])":"af526ece","getE2ModeCategoryData()":"d9d2f075","noArgs()":"83c962bb","noArgsMultiReturns()":"8daf2102","noArgsReturns()":"31d6fa27","overloaded(uint256,string)":"d5dcdb38","overloaded(uint256,string,bool)":"28134bdc","package(uint256,string)":"b0333c4e","payableArgs(uint256,string)":"e22d71a5","repayWithATokens()":"93707817","simpleArgs(uint256,string)":"9150d784","viewArgs(uint256,string)":"2b83f6a3"},"rawMetadata":"{\"compiler\":{\"version\":\"0.8.19+commit.7dd6d404\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[],\"name\":\"JsonABI\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"status\",\"type\":\"uint256\"},{\"internalType\":\"string\",\"name\":\"msg\",\"type\":\"string\"}],\"name\":\"class\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"status\",\"type\":\"uint256\"},{\"components\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"}],\"internalType\":\"struct Functions.Details[3][]\",\"name\":\"details\",\"type\":\"tuple[3][]\"}],\"name\":\"complexArgs\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"status\",\"type\":\"uint256\"},{\"components\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"}],\"internalType\":\"struct Functions.Details[3][]\",\"name\":\"differentName\",\"type\":\"tuple[3][]\"}],\"name\":\"complexArgs2\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getE2ModeCategoryData\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"noArgs\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"noArgsMultiReturns\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"status\",\"type\":\"uint256\"},{\"internalType\":\"bool\",\"name\":\"done\",\"type\":\"bool\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"noArgsReturns\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"status\",\"type\":\"uint256\"},{\"internalType\":\"string\",\"name\":\"msg\",\"type\":\"string\"},{\"internalType\":\"bool\",\"name\":\"done\",\"type\":\"bool\"}],\"name\":\"overloaded\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"status\",\"type\":\"uint256\"},{\"internalType\":\"string\",\"name\":\"msg\",\"type\":\"string\"}],\"name\":\"overloaded\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"status\",\"type\":\"uint256\"},{\"internalType\":\"string\",\"name\":\"msg\",\"type\":\"string\"}],\"name\":\"package\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"status\",\"type\":\"uint256\"},{\"internalType\":\"string\",\"name\":\"msg\",\"type\":\"string\"}],\"name\":\"payableArgs\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"repayWithATokens\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"status\",\"type\":\"uint256\"},{\"internalType\":\"string\",\"name\":\"msg\",\"type\":\"string\"}],\"name\":\"simpleArgs\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"status\",\"type\":\"uint256\"},{\"internalType\":\"string\",\"name\":\"msg\",\"type\":\"string\"}],\"name\":\"viewArgs\",\"outputs\":[],\"stateMutability\":\"view\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"src/Functions.sol\":\"Functions\"},\"evmVersion\":\"paris\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":true,\"runs\":200},\"remappings\":[]},\"sources\":{\"src/Functions.sol\":{\"keccak256\":\"0x09c422de99f241539aec4461180be323da81ffa152331884299e031573bbc073\",\"license\":\"UNLICENSED\",\"urls\":[\"bzz-raw://c3881bc283488da16c3b9298d54241a9926df9293414a1ae0863f322f97c117f\",\"dweb:/ipfs/QmZEXXc3iEdsX9irRrL65Nkt6sapRfkDB8rHLv4qCwezjw\"]}},\"version\":1}","metadata":{"compiler":{"version":"0.8.19+commit.7dd6d404"},"language":"Solidity","output":{"abi":[{"inputs":[],"stateMutability":"nonpayable","type":"function","name":"JsonABI"},{"inputs":[{"internalType":"uint256","name":"status","type":"uint256"},{"internalType":"string","name":"msg","type":"string"}],"stateMutability":"nonpayable","type":"function","name":"class"},{"inputs":[{"internalType":"uint256","name":"status","type":"uint256"},{"internalType":"struct Functions.Details[3][]","name":"details","type":"tuple[3][]","components":[{"internalType":"bool","name":"success","type":"bool"},{"internalType":"bytes","name":"data","type":"bytes"}]}],"stateMutability":"nonpayable","type":"function","name":"complexArgs","outputs":[{"internalType":"uint256","name":"","type":"uint256"}]},{"inputs":[{"internalType":"uint256","name":"status","type":"uint256"},{"internalType":"struct Functions.Details[3][]","name":"differentName","type":"tuple[3][]","components":[{"internalType":"bool","name":"success","type":"bool"},{"internalType":"bytes","name":"data","type":"bytes"}]}],"stateMutability":"nonpayable","type":"function","name":"complexArgs2","outputs":[{"internalType":"uint256","name":"","type":"uint256"}]},{"inputs":[],"stateMutability":"nonpayable","type":"function","name":"getE2ModeCategoryData"},{"inputs":[],"stateMutability":"nonpayable","type":"function","name":"noArgs"},{"inputs":[],"stateMutability":"nonpayable","type":"function","name":"noArgsMultiReturns","outputs":[{"internalType":"uint256","name":"status","type":"uint256"},{"internalType":"bool","name":"done","type":"bool"}]},{"inputs":[],"stateMutability":"nonpayable","type":"function","name":"noArgsReturns","outputs":[{"internalType":"uint256","name":"","type":"uint256"}]},{"inputs":[{"internalType":"uint256","name":"status","type":"uint256"},{"internalType":"string","name":"msg","type":"string"},{"internalType":"bool","name":"done","type":"bool"}],"stateMutability":"nonpayable","type":"function","name":"overloaded"},{"inputs":[{"internalType":"uint256","name":"status","type":"uint256"},{"internalType":"string","name":"msg","type":"string"}],"stateMutability":"nonpayable","type":"function","name":"overloaded"},{"inputs":[{"internalType":"uint256","name":"status","type":"uint256"},{"internalType":"string","name":"msg","type":"string"}],"stateMutability":"nonpayable","type":"function","name":"package"},{"inputs":[{"internalType":"uint256","name":"status","type":"uint256"},{"internalType":"string","name":"msg","type":"string"}],"stateMutability":"payable","type":"function","name":"payableArgs"},{"inputs":[],"stateMutability":"nonpayable","type":"function","name":"repayWithATokens"},{"inputs":[{"internalType":"uint256","name":"status","type":"uint256"},{"internalType":"string","name":"msg","type":"string"}],"stateMutability":"nonpayable","type":"function","name":"simpleArgs"},{"inputs":[{"internalType":"uint256","name":"status","type":"uint256"},{"internalType":"string","name":"msg","type":"string"}],"stateMutability":"view","type":"function","name":"viewArgs"}],"devdoc":{"kind":"dev","methods":{},"version":1},"userdoc":{"kind":"user","methods":{},"version":1}},"settings":{"remappings":[],"optimizer":{"enabled":true,"runs":200},"metadata":{"bytecodeHash":"ipfs"},"compilationTarget":{"src/Functions.sol":"Functions"},"evmVersion":"paris","libraries":{}},"sources":{"src/Functions.sol":{"keccak256":"0x09c422de99f241539aec4461180be323da81ffa152331884299e031573bbc073","urls":["bzz-raw://c3881bc283488da16c3b9298d54241a9926df9293414a1ae0863f322f97c117f","dweb:/ipfs/QmZEXXc3iEdsX9irRrL65Nkt6sapRfkDB8rHLv4qCwezjw"],"license":"UNLICENSED"}},"version":1},"ast":{"absolutePath":"src/Functions.sol","id":134,"exportedSymbols":{"Functions":[133]},"nodeType":"SourceUnit","src":"39:1392:0","nodes":[{"id":1,"nodeType":"PragmaDirective","src":"39:24:0","nodes":[],"literals":["solidity","^","0.8",".13"]},{"id":133,"nodeType":"ContractDefinition","src":"65:1365:0","nodes":[{"id":5,"nodeType":"FunctionDefinition","src":"90:29:0","nodes":[],"body":{"id":4,"nodeType":"Block","src":"117:2:0","nodes":[],"statements":[]},"functionSelector":"83c962bb","implemented":true,"kind":"function","modifiers":[],"name":"noArgs","nameLocation":"99:6:0","parameters":{"id":2,"nodeType":"ParameterList","parameters":[],"src":"105:2:0"},"returnParameters":{"id":3,"nodeType":"ParameterList","parameters":[],"src":"117:0:0"},"scope":133,"stateMutability":"nonpayable","virtual":false,"visibility":"external"},{"id":13,"nodeType":"FunctionDefinition","src":"125:78:0","nodes":[],"body":{"id":12,"nodeType":"Block","src":"177:26:0","nodes":[],"statements":[{"expression":{"hexValue":"3432","id":10,"isConstant":false,"isLValue":false,"isPure":true,"kind":"number","lValueRequested":false,"nodeType":"Literal","src":"194:2:0","typeDescriptions":{"typeIdentifier":"t_rational_42_by_1","typeString":"int_const 42"},"value":"42"},"functionReturnParameters":9,"id":11,"nodeType":"Return","src":"187:9:0"}]},"functionSelector":"31d6fa27","implemented":true,"kind":"function","modifiers":[],"name":"noArgsReturns","nameLocation":"134:13:0","parameters":{"id":6,"nodeType":"ParameterList","parameters":[],"src":"147:2:0"},"returnParameters":{"id":9,"nodeType":"ParameterList","parameters":[{"constant":false,"id":8,"mutability":"mutable","name":"","nameLocation":"-1:-1:-1","nodeType":"VariableDeclaration","scope":13,"src":"168:7:0","stateVariable":false,"storageLocation":"default","typeDescriptions":{"typeIdentifier":"t_uint256","typeString":"uint256"},"typeName":{"id":7,"name":"uint256","nodeType":"ElementaryTypeName","src":"168:7:0","typeDescriptions":{"typeIdentifier":"t_uint256","typeString":"uint256"}},"visibility":"internal"}],"src":"167:9:0"},"scope":133,"stateMutability":"nonpayable","virtual":false,"visibility":"external"},{"id":25,"nodeType":"FunctionDefinition","src":"209:109:0","nodes":[],"body":{"id":24,"nodeType":"Block","src":"284:34:0","nodes":[],"statements":[{"expression":{"components":[{"hexValue":"3432","id":20,"isConstant":false,"isLValue":false,"isPure":true,"kind":"number","lValueRequested":false,"nodeType":"Literal","src":"302:2:0","typeDescriptions":{"typeIdentifier":"t_rational_42_by_1","typeString":"int_const 42"},"value":"42"},{"hexValue":"74727565","id":21,"isConstant":false,"isLValue":false,"isPure":true,"kind":"bool","lValueRequested":false,"nodeType":"Literal","src":"306:4:0","typeDescriptions":{"typeIdentifier":"t_bool","typeString":"bool"},"value":"true"}],"id":22,"isConstant":false,"isInlineArray":false,"isLValue":false,"isPure":true,"lValueRequested":false,"nodeType":"TupleExpression","src":"301:10:0","typeDescriptions":{"typeIdentifier":"t_tuple$_t_rational_42_by_1_$_t_bool_$","typeString":"tuple(int_const 42,bool)"}},"functionReturnParameters":19,"id":23,"nodeType":"Return","src":"294:17:0"}]},"functionSelector":"8daf2102","implemented":true,"kind":"function","modifiers":[],"name":"noArgsMultiReturns","nameLocation":"218:18:0","parameters":{"id":14,"nodeType":"ParameterList","parameters":[],"src":"236:2:0"},"returnParameters":{"id":19,"nodeType":"ParameterList","parameters":[{"constant":false,"id":16,"mutability":"mutable","name":"status","nameLocation":"265:6:0","nodeType":"VariableDeclaration","scope":25,"src":"257:14:0","stateVariable":false,"storageLocation":"default","typeDescriptions":{"typeIdentifier":"t_uint256","typeString":"uint256"},"typeName":{"id":15,"name":"uint256","nodeType":"ElementaryTypeName","src":"257:7:0","typeDescriptions":{"typeIdentifier":"t_uint256","typeString":"uint256"}},"visibility":"internal"},{"constant":false,"id":18,"mutability":"mutable","name":"done","nameLocation":"278:4:0","nodeType":"VariableDeclaration","scope":25,"src":"273:9:0","stateVariable":false,"storageLocation":"default","typeDescriptions":{"typeIdentifier":"t_bool","typeString":"bool"},"typeName":{"id":17,"name":"bool","nodeType":"ElementaryTypeName","src":"273:4:0","typeDescriptions":{"typeIdentifier":"t_bool","typeString":"bool"}},"visibility":"internal"}],"src":"256:27:0"},"scope":133,"stateMutability":"nonpayable","virtual":false,"visibility":"external"},{"id":33,"nodeType":"FunctionDefinition","src":"324:66:0","nodes":[],"body":{"id":32,"nodeType":"Block","src":"388:2:0","nodes":[],"statements":[]},"functionSelector":"9150d784","implemented":true,"kind":"function","modifiers":[],"name":"simpleArgs","nameLocation":"333:10:0","parameters":{"id":30,"nodeType":"ParameterList","parameters":[{"constant":false,"id":27,"mutability":"mutable","name":"status","nameLocation":"352:6:0","nodeType":"VariableDeclaration","scope":33,"src":"344:14:0","stateVariable":false,"storageLocation":"default","typeDescriptions":{"typeIdentifier":"t_uint256","typeString":"uint256"},"typeName":{"id":26,"name":"uint256","nodeType":"ElementaryTypeName","src":"344:7:0","typeDescriptions":{"typeIdentifier":"t_uint256","typeString":"uint256"}},"visibility":"internal"},{"constant":false,"id":29,"mutability":"mutable","name":"msg","nameLocation":"374:3:0","nodeType":"VariableDeclaration","scope":33,"src":"360:17:0","stateVariable":false,"storageLocation":"memory","typeDescriptions":{"typeIdentifier":"t_string_memory_ptr","typeString":"string"},"typeName":{"id":28,"name":"string","nodeType":"ElementaryTypeName","src":"360:6:0","typeDescriptions":{"typeIdentifier":"t_string_storage_ptr","typeString":"string"}},"visibility":"internal"}],"src":"343:35:0"},"returnParameters":{"id":31,"nodeType":"ParameterList","parameters":[],"src":"388:0:0"},"scope":133,"stateMutability":"nonpayable","virtual":false,"visibility":"external"},{"id":49,"nodeType":"FunctionDefinition","src":"396:123:0","nodes":[],"body":{"id":48,"nodeType":"Block","src":"489:30:0","nodes":[],"statements":[{"expression":{"id":46,"name":"status","nodeType":"Identifier","overloadedDeclarations":[],"referencedDeclaration":35,"src":"506:6:0","typeDescriptions":{"typeIdentifier":"t_uint256","typeString":"uint256"}},"functionReturnParameters":45,"id":47,"nodeType":"Return","src":"499:13:0"}]},"functionSelector":"8e495962","implemented":true,"kind":"function","modifiers":[],"name":"complexArgs","nameLocation":"405:11:0","parameters":{"id":42,"nodeType":"ParameterList","parameters":[{"constant":false,"id":35,"mutability":"mutable","name":"status","nameLocation":"425:6:0","nodeType":"VariableDeclaration","scope":49,"src":"417:14:0","stateVariable":false,"storageLocation":"default","typeDescriptions":{"typeIdentifier":"t_uint256","typeString":"uint256"},"typeName":{"id":34,"name":"uint256","nodeType":"ElementaryTypeName","src":"417:7:0","typeDescriptions":{"typeIdentifier":"t_uint256","typeString":"uint256"}},"visibility":"internal"},{"constant":false,"id":41,"mutability":"mutable","name":"details","nameLocation":"453:7:0","nodeType":"VariableDeclaration","scope":49,"src":"433:27:0","stateVariable":false,"storageLocation":"memory","typeDescriptions":{"typeIdentifier":"t_array$_t_array$_t_struct$_Details_$132_memory_ptr_$3_memory_ptr_$dyn_memory_ptr","typeString":"struct Functions.Details[3][]"},"typeName":{"baseType":{"baseType":{"id":37,"nodeType":"UserDefinedTypeName","pathNode":{"id":36,"name":"Details","nameLocations":["433:7:0"],"nodeType":"IdentifierPath","referencedDeclaration":132,"src":"433:7:0"},"referencedDeclaration":132,"src":"433:7:0","typeDescriptions":{"typeIdentifier":"t_struct$_Details_$132_storage_ptr","typeString":"struct Functions.Details"}},"id":39,"length":{"hexValue":"33","id":38,"isConstant":false,"isLValue":false,"isPure":true,"kind":"number","lValueRequested":false,"nodeType":"Literal","src":"441:1:0","typeDescriptions":{"typeIdentifier":"t_rational_3_by_1","typeString":"int_const 3"},"value":"3"},"nodeType":"ArrayTypeName","src":"433:10:0","typeDescriptions":{"typeIdentifier":"t_array$_t_struct$_Details_$132_storage_$3_storage_ptr","typeString":"struct Functions.Details[3]"}},"id":40,"nodeType":"ArrayTypeName","src":"433:12:0","typeDescriptions":{"typeIdentifier":"t_array$_t_array$_t_struct$_Details_$132_storage_$3_storage_$dyn_storage_ptr","typeString":"struct Functions.Details[3][]"}},"visibility":"internal"}],"src":"416:45:0"},"returnParameters":{"id":45,"nodeType":"ParameterList","parameters":[{"constant":false,"id":44,"mutability":"mutable","name":"","nameLocation":"-1:-1:-1","nodeType":"VariableDeclaration","scope":49,"src":"480:7:0","stateVariable":false,"storageLocation":"default","typeDescriptions":{"typeIdentifier":"t_uint256","typeString":"uint256"},"typeName":{"id":43,"name":"uint256","nodeType":"ElementaryTypeName","src":"480:7:0","typeDescriptions":{"typeIdentifier":"t_uint256","typeString":"uint256"}},"visibility":"internal"}],"src":"479:9:0"},"scope":133,"stateMutability":"nonpayable","virtual":false,"visibility":"external"},{"id":65,"nodeType":"FunctionDefinition","src":"525:130:0","nodes":[],"body":{"id":64,"nodeType":"Block","src":"625:30:0","nodes":[],"statements":[{"expression":{"id":62,"name":"status","nodeType":"Identifier","overloadedDeclarations":[],"referencedDeclaration":51,"src":"642:6:0","typeDescriptions":{"typeIdentifier":"t_uint256","typeString":"uint256"}},"functionReturnParameters":61,"id":63,"nodeType":"Return","src":"635:13:0"}]},"functionSelector":"af526ece","implemented":true,"kind":"function","modifiers":[],"name":"complexArgs2","nameLocation":"534:12:0","parameters":{"id":58,"nodeType":"ParameterList","parameters":[{"constant":false,"id":51,"mutability":"mutable","name":"status","nameLocation":"555:6:0","nodeType":"VariableDeclaration","scope":65,"src":"547:14:0","stateVariable":false,"storageLocation":"default","typeDescriptions":{"typeIdentifier":"t_uint256","typeString":"uint256"},"typeName":{"id":50,"name":"uint256","nodeType":"ElementaryTypeName","src":"547:7:0","typeDescriptions":{"typeIdentifier":"t_uint256","typeString":"uint256"}},"visibility":"internal"},{"constant":false,"id":57,"mutability":"mutable","name":"differentName","nameLocation":"583:13:0","nodeType":"VariableDeclaration","scope":65,"src":"563:33:0","stateVariable":false,"storageLocation":"memory","typeDescriptions":{"typeIdentifier":"t_array$_t_array$_t_struct$_Details_$132_memory_ptr_$3_memory_ptr_$dyn_memory_ptr","typeString":"struct Functions.Details[3][]"},"typeName":{"baseType":{"baseType":{"id":53,"nodeType":"UserDefinedTypeName","pathNode":{"id":52,"name":"Details","nameLocations":["563:7:0"],"nodeType":"IdentifierPath","referencedDeclaration":132,"src":"563:7:0"},"referencedDeclaration":132,"src":"563:7:0","typeDescriptions":{"typeIdentifier":"t_struct$_Details_$132_storage_ptr","typeString":"struct Functions.Details"}},"id":55,"length":{"hexValue":"33","id":54,"isConstant":false,"isLValue":false,"isPure":true,"kind":"number","lValueRequested":false,"nodeType":"Literal","src":"571:1:0","typeDescriptions":{"typeIdentifier":"t_rational_3_by_1","typeString":"int_const 3"},"value":"3"},"nodeType":"ArrayTypeName","src":"563:10:0","typeDescriptions":{"typeIdentifier":"t_array$_t_struct$_Details_$132_storage_$3_storage_ptr","typeString":"struct Functions.Details[3]"}},"id":56,"nodeType":"ArrayTypeName","src":"563:12:0","typeDescriptions":{"typeIdentifier":"t_array$_t_array$_t_struct$_Details_$132_storage_$3_storage_$dyn_storage_ptr","typeString":"struct Functions.Details[3][]"}},"visibility":"internal"}],"src":"546:51:0"},"returnParameters":{"id":61,"nodeType":"ParameterList","parameters":[{"constant":false,"id":60,"mutability":"mutable","name":"","nameLocation":"-1:-1:-1","nodeType":"VariableDeclaration","scope":65,"src":"616:7:0","stateVariable":false,"storageLocation":"default","typeDescriptions":{"typeIdentifier":"t_uint256","typeString":"uint256"},"typeName":{"id":59,"name":"uint256","nodeType":"ElementaryTypeName","src":"616:7:0","typeDescriptions":{"typeIdentifier":"t_uint256","typeString":"uint256"}},"visibility":"internal"}],"src":"615:9:0"},"scope":133,"stateMutability":"nonpayable","virtual":false,"visibility":"external"},{"id":73,"nodeType":"FunctionDefinition","src":"661:66:0","nodes":[],"body":{"id":72,"nodeType":"Block","src":"725:2:0","nodes":[],"statements":[]},"functionSelector":"d5dcdb38","implemented":true,"kind":"function","modifiers":[],"name":"overloaded","nameLocation":"670:10:0","parameters":{"id":70,"nodeType":"ParameterList","parameters":[{"constant":false,"id":67,"mutability":"mutable","name":"status","nameLocation":"689:6:0","nodeType":"VariableDeclaration","scope":73,"src":"681:14:0","stateVariable":false,"storageLocation":"default","typeDescriptions":{"typeIdentifier":"t_uint256","typeString":"uint256"},"typeName":{"id":66,"name":"uint256","nodeType":"ElementaryTypeName","src":"681:7:0","typeDescriptions":{"typeIdentifier":"t_uint256","typeString":"uint256"}},"visibility":"internal"},{"constant":false,"id":69,"mutability":"mutable","name":"msg","nameLocation":"711:3:0","nodeType":"VariableDeclaration","scope":73,"src":"697:17:0","stateVariable":false,"storageLocation":"memory","typeDescriptions":{"typeIdentifier":"t_string_memory_ptr","typeString":"string"},"typeName":{"id":68,"name":"string","nodeType":"ElementaryTypeName","src":"697:6:0","typeDescriptions":{"typeIdentifier":"t_string_storage_ptr","typeString":"string"}},"visibility":"internal"}],"src":"680:35:0"},"returnParameters":{"id":71,"nodeType":"ParameterList","parameters":[],"src":"725:0:0"},"scope":133,"stateMutability":"nonpayable","virtual":false,"visibility":"external"},{"id":83,"nodeType":"FunctionDefinition","src":"733:77:0","nodes":[],"body":{"id":82,"nodeType":"Block","src":"808:2:0","nodes":[],"statements":[]},"functionSelector":"28134bdc","implemented":true,"kind":"function","modifiers":[],"name":"overloaded","nameLocation":"742:10:0","parameters":{"id":80,"nodeType":"ParameterList","parameters":[{"constant":false,"id":75,"mutability":"mutable","name":"status","nameLocation":"761:6:0","nodeType":"VariableDeclaration","scope":83,"src":"753:14:0","stateVariable":false,"storageLocation":"default","typeDescriptions":{"typeIdentifier":"t_uint256","typeString":"uint256"},"typeName":{"id":74,"name":"uint256","nodeType":"ElementaryTypeName","src":"753:7:0","typeDescriptions":{"typeIdentifier":"t_uint256","typeString":"uint256"}},"visibility":"internal"},{"constant":false,"id":77,"mutability":"mutable","name":"msg","nameLocation":"783:3:0","nodeType":"VariableDeclaration","scope":83,"src":"769:17:0","stateVariable":false,"storageLocation":"memory","typeDescriptions":{"typeIdentifier":"t_string_memory_ptr","typeString":"string"},"typeName":{"id":76,"name":"string","nodeType":"ElementaryTypeName","src":"769:6:0","typeDescriptions":{"typeIdentifier":"t_string_storage_ptr","typeString":"string"}},"visibility":"internal"},{"constant":false,"id":79,"mutability":"mutable","name":"done","nameLocation":"793:4:0","nodeType":"VariableDeclaration","scope":83,"src":"788:9:0","stateVariable":false,"storageLocation":"default","typeDescriptions":{"typeIdentifier":"t_bool","typeString":"bool"},"typeName":{"id":78,"name":"bool","nodeType":"ElementaryTypeName","src":"788:4:0","typeDescriptions":{"typeIdentifier":"t_bool","typeString":"bool"}},"visibility":"internal"}],"src":"752:46:0"},"returnParameters":{"id":81,"nodeType":"ParameterList","parameters":[],"src":"808:0:0"},"scope":133,"stateMutability":"nonpayable","virtual":false,"visibility":"external"},{"id":91,"nodeType":"FunctionDefinition","src":"847:61:0","nodes":[],"body":{"id":90,"nodeType":"Block","src":"906:2:0","nodes":[],"statements":[]},"functionSelector":"cab5387f","implemented":true,"kind":"function","modifiers":[],"name":"class","nameLocation":"856:5:0","parameters":{"id":88,"nodeType":"ParameterList","parameters":[{"constant":false,"id":85,"mutability":"mutable","name":"status","nameLocation":"870:6:0","nodeType":"VariableDeclaration","scope":91,"src":"862:14:0","stateVariable":false,"storageLocation":"default","typeDescriptions":{"typeIdentifier":"t_uint256","typeString":"uint256"},"typeName":{"id":84,"name":"uint256","nodeType":"ElementaryTypeName","src":"862:7:0","typeDescriptions":{"typeIdentifier":"t_uint256","typeString":"uint256"}},"visibility":"internal"},{"constant":false,"id":87,"mutability":"mutable","name":"msg","nameLocation":"892:3:0","nodeType":"VariableDeclaration","scope":91,"src":"878:17:0","stateVariable":false,"storageLocation":"memory","typeDescriptions":{"typeIdentifier":"t_string_memory_ptr","typeString":"string"},"typeName":{"id":86,"name":"string","nodeType":"ElementaryTypeName","src":"878:6:0","typeDescriptions":{"typeIdentifier":"t_string_storage_ptr","typeString":"string"}},"visibility":"internal"}],"src":"861:35:0"},"returnParameters":{"id":89,"nodeType":"ParameterList","parameters":[],"src":"906:0:0"},"scope":133,"stateMutability":"nonpayable","virtual":false,"visibility":"external"},{"id":99,"nodeType":"FunctionDefinition","src":"914:63:0","nodes":[],"body":{"id":98,"nodeType":"Block","src":"975:2:0","nodes":[],"statements":[]},"functionSelector":"b0333c4e","implemented":true,"kind":"function","modifiers":[],"name":"package","nameLocation":"923:7:0","parameters":{"id":96,"nodeType":"ParameterList","parameters":[{"constant":false,"id":93,"mutability":"mutable","name":"status","nameLocation":"939:6:0","nodeType":"VariableDeclaration","scope":99,"src":"931:14:0","stateVariable":false,"storageLocation":"default","typeDescriptions":{"typeIdentifier":"t_uint256","typeString":"uint256"},"typeName":{"id":92,"name":"uint256","nodeType":"ElementaryTypeName","src":"931:7:0","typeDescriptions":{"typeIdentifier":"t_uint256","typeString":"uint256"}},"visibility":"internal"},{"constant":false,"id":95,"mutability":"mutable","name":"msg","nameLocation":"961:3:0","nodeType":"VariableDeclaration","scope":99,"src":"947:17:0","stateVariable":false,"storageLocation":"memory","typeDescriptions":{"typeIdentifier":"t_string_memory_ptr","typeString":"string"},"typeName":{"id":94,"name":"string","nodeType":"ElementaryTypeName","src":"947:6:0","typeDescriptions":{"typeIdentifier":"t_string_storage_ptr","typeString":"string"}},"visibility":"internal"}],"src":"930:35:0"},"returnParameters":{"id":97,"nodeType":"ParameterList","parameters":[],"src":"975:0:0"},"scope":133,"stateMutability":"nonpayable","virtual":false,"visibility":"external"},{"id":107,"nodeType":"FunctionDefinition","src":"1014:75:0","nodes":[],"body":{"id":106,"nodeType":"Block","src":"1087:2:0","nodes":[],"statements":[]},"functionSelector":"e22d71a5","implemented":true,"kind":"function","modifiers":[],"name":"payableArgs","nameLocation":"1023:11:0","parameters":{"id":104,"nodeType":"ParameterList","parameters":[{"constant":false,"id":101,"mutability":"mutable","name":"status","nameLocation":"1043:6:0","nodeType":"VariableDeclaration","scope":107,"src":"1035:14:0","stateVariable":false,"storageLocation":"default","typeDescriptions":{"typeIdentifier":"t_uint256","typeString":"uint256"},"typeName":{"id":100,"name":"uint256","nodeType":"ElementaryTypeName","src":"1035:7:0","typeDescriptions":{"typeIdentifier":"t_uint256","typeString":"uint256"}},"visibility":"internal"},{"constant":false,"id":103,"mutability":"mutable","name":"msg","nameLocation":"1065:3:0","nodeType":"VariableDeclaration","scope":107,"src":"1051:17:0","stateVariable":false,"storageLocation":"memory","typeDescriptions":{"typeIdentifier":"t_string_memory_ptr","typeString":"string"},"typeName":{"id":102,"name":"string","nodeType":"ElementaryTypeName","src":"1051:6:0","typeDescriptions":{"typeIdentifier":"t_string_storage_ptr","typeString":"string"}},"visibility":"internal"}],"src":"1034:35:0"},"returnParameters":{"id":105,"nodeType":"ParameterList","parameters":[],"src":"1087:0:0"},"scope":133,"stateMutability":"payable","virtual":false,"visibility":"external"},{"id":115,"nodeType":"FunctionDefinition","src":"1095:69:0","nodes":[],"body":{"id":114,"nodeType":"Block","src":"1162:2:0","nodes":[],"statements":[]},"functionSelector":"2b83f6a3","implemented":true,"kind":"function","modifiers":[],"name":"viewArgs","nameLocation":"1104:8:0","parameters":{"id":112,"nodeType":"ParameterList","parameters":[{"constant":false,"id":109,"mutability":"mutable","name":"status","nameLocation":"1121:6:0","nodeType":"VariableDeclaration","scope":115,"src":"1113:14:0","stateVariable":false,"storageLocation":"default","typeDescriptions":{"typeIdentifier":"t_uint256","typeString":"uint256"},"typeName":{"id":108,"name":"uint256","nodeType":"ElementaryTypeName","src":"1113:7:0","typeDescriptions":{"typeIdentifier":"t_uint256","typeString":"uint256"}},"visibility":"internal"},{"constant":false,"id":111,"mutability":"mutable","name":"msg","nameLocation":"1143:3:0","nodeType":"VariableDeclaration","scope":115,"src":"1129:17:0","stateVariable":false,"storageLocation":"memory","typeDescriptions":{"typeIdentifier":"t_string_memory_ptr","typeString":"string"},"typeName":{"id":110,"name":"string","nodeType":"ElementaryTypeName","src":"1129:6:0","typeDescriptions":{"typeIdentifier":"t_string_storage_ptr","typeString":"string"}},"visibility":"internal"}],"src":"1112:35:0"},"returnParameters":{"id":113,"nodeType":"ParameterList","parameters":[],"src":"1162:0:0"},"scope":133,"stateMutability":"view","virtual":false,"visibility":"external"},{"id":119,"nodeType":"FunctionDefinition","src":"1201:44:0","nodes":[],"body":{"id":118,"nodeType":"Block","src":"1243:2:0","nodes":[],"statements":[]},"functionSelector":"d9d2f075","implemented":true,"kind":"function","modifiers":[],"name":"getE2ModeCategoryData","nameLocation":"1210:21:0","parameters":{"id":116,"nodeType":"ParameterList","parameters":[],"src":"1231:2:0"},"returnParameters":{"id":117,"nodeType":"ParameterList","parameters":[],"src":"1243:0:0"},"scope":133,"stateMutability":"nonpayable","virtual":false,"visibility":"external"},{"id":123,"nodeType":"FunctionDefinition","src":"1251:30:0","nodes":[],"body":{"id":122,"nodeType":"Block","src":"1279:2:0","nodes":[],"statements":[]},"functionSelector":"87faaddf","implemented":true,"kind":"function","modifiers":[],"name":"JsonABI","nameLocation":"1260:7:0","parameters":{"id":120,"nodeType":"ParameterList","parameters":[],"src":"1267:2:0"},"returnParameters":{"id":121,"nodeType":"ParameterList","parameters":[],"src":"1279:0:0"},"scope":133,"stateMutability":"nonpayable","virtual":false,"visibility":"external"},{"id":127,"nodeType":"FunctionDefinition","src":"1287:39:0","nodes":[],"body":{"id":126,"nodeType":"Block","src":"1324:2:0","nodes":[],"statements":[]},"functionSelector":"93707817","implemented":true,"kind":"function","modifiers":[],"name":"repayWithATokens","nameLocation":"1296:16:0","parameters":{"id":124,"nodeType":"ParameterList","parameters":[],"src":"1312:2:0"},"returnParameters":{"id":125,"nodeType":"ParameterList","parameters":[],"src":"1324:0:0"},"scope":133,"stateMutability":"nonpayable","virtual":false,"visibility":"external"},{"id":132,"nodeType":"StructDefinition","src":"1364:64:0","nodes":[],"canonicalName":"Functions.Details","members":[{"constant":false,"id":129,"mutability":"mutable","name":"success","nameLocation":"1394:7:0","nodeType":"VariableDeclaration","scope":132,"src":"1389:12:0","stateVariable":false,"storageLocation":"default","typeDescriptions":{"typeIdentifier":"t_bool","typeString":"bool"},"typeName":{"id":128,"name":"bool","nodeType":"ElementaryTypeName","src":"1389:4:0","typeDescriptions":{"typeIdentifier":"t_bool","typeString":"bool"}},"visibility":"internal"},{"constant":false,"id":131,"mutability":"mutable","name":"data","nameLocation":"1417:4:0","nodeType":"VariableDeclaration","scope":132,"src":"1411:10:0","stateVariable":false,"storageLocation":"default","typeDescriptions":{"typeIdentifier":"t_bytes_storage_ptr","typeString":"bytes"},"typeName":{"id":130,"name":"bytes","nodeType":"ElementaryTypeName","src":"1411:5:0","typeDescriptions":{"typeIdentifier":"t_bytes_storage_ptr","typeString":"bytes"}},"visibility":"internal"}],"name":"Details","nameLocation":"1371:7:0","scope":133,"visibility":"public"}],"abstract":false,"baseContracts":[],"canonicalName":"Functions","contractDependencies":[],"contractKind":"contract","fullyImplemented":true,"linearizedBaseContracts":[133],"name":"Functions","nameLocation":"74:9:0","scope":134,"usedErrors":[]}],"license":"UNLICENSED"},"id":0}
+{
+  "abi": [
+    {
+      "type": "function",
+      "name": "JsonABI",
+      "inputs": [],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "class",
+      "inputs": [
+        {
+          "name": "status",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "msg",
+          "type": "string",
+          "internalType": "string"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "complexArgs",
+      "inputs": [
+        {
+          "name": "status",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "details",
+          "type": "tuple[3][]",
+          "internalType": "struct Functions.Details[3][]",
+          "components": [
+            {
+              "name": "success",
+              "type": "bool",
+              "internalType": "bool"
+            },
+            {
+              "name": "data",
+              "type": "bytes",
+              "internalType": "bytes"
+            }
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "complexArgs2",
+      "inputs": [
+        {
+          "name": "status",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "differentName",
+          "type": "tuple[3][]",
+          "internalType": "struct Functions.Details[3][]",
+          "components": [
+            {
+              "name": "success",
+              "type": "bool",
+              "internalType": "bool"
+            },
+            {
+              "name": "data",
+              "type": "bytes",
+              "internalType": "bytes"
+            }
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "getE2ModeCategoryData",
+      "inputs": [],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "get_dy",
+      "inputs": [
+        {
+          "name": "i",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "j",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "dx",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "get_dy",
+      "inputs": [
+        {
+          "name": "i",
+          "type": "int128",
+          "internalType": "int128"
+        },
+        {
+          "name": "j",
+          "type": "int128",
+          "internalType": "int128"
+        },
+        {
+          "name": "dx",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "noArgs",
+      "inputs": [],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "noArgsMultiReturns",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "status",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "done",
+          "type": "bool",
+          "internalType": "bool"
+        }
+      ],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "noArgsReturns",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "overloaded",
+      "inputs": [
+        {
+          "name": "status",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "msg",
+          "type": "string",
+          "internalType": "string"
+        },
+        {
+          "name": "done",
+          "type": "bool",
+          "internalType": "bool"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "overloaded",
+      "inputs": [
+        {
+          "name": "status",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "msg",
+          "type": "string",
+          "internalType": "string"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "package",
+      "inputs": [
+        {
+          "name": "status",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "msg",
+          "type": "string",
+          "internalType": "string"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "payableArgs",
+      "inputs": [
+        {
+          "name": "status",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "msg",
+          "type": "string",
+          "internalType": "string"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "payable"
+    },
+    {
+      "type": "function",
+      "name": "repayWithATokens",
+      "inputs": [],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "simpleArgs",
+      "inputs": [
+        {
+          "name": "status",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "msg",
+          "type": "string",
+          "internalType": "string"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "viewArgs",
+      "inputs": [
+        {
+          "name": "status",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "msg",
+          "type": "string",
+          "internalType": "string"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "view"
+    }
+  ],
+  "bytecode": {
+    "object": "0x608060405234801561001057600080fd5b50610618806100206000396000f3fe6080604052600436106100fe5760003560e01c80638e49596211610095578063b0333c4e11610064578063b0333c4e14610125578063cab5387f14610125578063d5dcdb3814610125578063d9d2f075146101a3578063e22d71a5146101f057600080fd5b80638e495962146101d15780639150d7841461012557806393707817146101a3578063af526ece146101d157600080fd5b80635e0d443f116100d15780635e0d443f1461018857806383c962bb146101a357806387faaddf146101a35780638daf2102146101af57600080fd5b806328134bdc146101035780632b83f6a31461012557806331d6fa2714610144578063556d6e9f14610167575b600080fd5b34801561010f57600080fd5b5061012361011e366004610325565b505050565b005b34801561013157600080fd5b5061012361014036600461037c565b5050565b34801561015057600080fd5b50602a5b6040519081526020015b60405180910390f35b34801561017357600080fd5b506101546101823660046103c3565b92915050565b34801561019457600080fd5b50610154610182366004610401565b34801561012357600080fd5b3480156101bb57600080fd5b5060408051602a8152600160208201520161015e565b3480156101dd57600080fd5b506101546101ec36600461043d565b5090565b61012361014036600461037c565b634e487b7160e01b600052604160045260246000fd5b6040516060810167ffffffffffffffff81118282101715610237576102376101fe565b60405290565b6040805190810167ffffffffffffffff81118282101715610237576102376101fe565b604051601f8201601f1916810167ffffffffffffffff81118282101715610289576102896101fe565b604052919050565b600067ffffffffffffffff8311156102ab576102ab6101fe565b6102be601f8401601f1916602001610260565b90508281528383830111156102d257600080fd5b828260208301376000602084830101529392505050565b600082601f8301126102fa57600080fd5b61030983833560208501610291565b9392505050565b8035801515811461032057600080fd5b919050565b60008060006060848603121561033a57600080fd5b83359250602084013567ffffffffffffffff81111561035857600080fd5b610364868287016102e9565b92505061037360408501610310565b90509250925092565b6000806040838503121561038f57600080fd5b82359150602083013567ffffffffffffffff8111156103ad57600080fd5b6103b9858286016102e9565b9150509250929050565b6000806000606084860312156103d857600080fd5b505081359360208301359350604090920135919050565b8035600f81900b811461032057600080fd5b60008060006060848603121561041657600080fd5b61041f846103ef565b925061042d602085016103ef565b9150604084013590509250925092565b6000806040838503121561045057600080fd5b8235915067ffffffffffffffff806020850135111561046e57600080fd5b6020840135840185601f82011261048457600080fd5b8181351115610495576104956101fe565b6104a56020823560051b01610260565b81358082526020808301929160051b8401018810156104c357600080fd5b602083015b6020843560051b8501018110156105d35784813511156104e757600080fd5b88603f8235860101126104f957600080fd5b610501610214565b808a60808435880101111561051557600080fd5b602083358701015b608084358801018110156105c357878135111561053957600080fd5b833587018135016040818e03601f1901121561055457600080fd5b61055c61023d565b61056860208301610310565b8152896040830135111561057b57600080fd5b8d603f60408401358401011261059057600080fd5b6105a88e604084810135850160208101359101610291565b6020820152808552505060208301925060208101905061051d565b50845250602092830192016104c8565b5080945050505050925092905056fea26469706673582212202b21cd45cc5d9592c35c91026b852171117db0c6e2517db792871c1c71befb9464736f6c63430008130033",
+    "sourceMap": "65:1680:3:-:0;;;;;;;;;;;;;;;;;;;",
+    "linkReferences": {}
+  },
+  "deployedBytecode": {
+    "object": "0x6080604052600436106100fe5760003560e01c80638e49596211610095578063b0333c4e11610064578063b0333c4e14610125578063cab5387f14610125578063d5dcdb3814610125578063d9d2f075146101a3578063e22d71a5146101f057600080fd5b80638e495962146101d15780639150d7841461012557806393707817146101a3578063af526ece146101d157600080fd5b80635e0d443f116100d15780635e0d443f1461018857806383c962bb146101a357806387faaddf146101a35780638daf2102146101af57600080fd5b806328134bdc146101035780632b83f6a31461012557806331d6fa2714610144578063556d6e9f14610167575b600080fd5b34801561010f57600080fd5b5061012361011e366004610325565b505050565b005b34801561013157600080fd5b5061012361014036600461037c565b5050565b34801561015057600080fd5b50602a5b6040519081526020015b60405180910390f35b34801561017357600080fd5b506101546101823660046103c3565b92915050565b34801561019457600080fd5b50610154610182366004610401565b34801561012357600080fd5b3480156101bb57600080fd5b5060408051602a8152600160208201520161015e565b3480156101dd57600080fd5b506101546101ec36600461043d565b5090565b61012361014036600461037c565b634e487b7160e01b600052604160045260246000fd5b6040516060810167ffffffffffffffff81118282101715610237576102376101fe565b60405290565b6040805190810167ffffffffffffffff81118282101715610237576102376101fe565b604051601f8201601f1916810167ffffffffffffffff81118282101715610289576102896101fe565b604052919050565b600067ffffffffffffffff8311156102ab576102ab6101fe565b6102be601f8401601f1916602001610260565b90508281528383830111156102d257600080fd5b828260208301376000602084830101529392505050565b600082601f8301126102fa57600080fd5b61030983833560208501610291565b9392505050565b8035801515811461032057600080fd5b919050565b60008060006060848603121561033a57600080fd5b83359250602084013567ffffffffffffffff81111561035857600080fd5b610364868287016102e9565b92505061037360408501610310565b90509250925092565b6000806040838503121561038f57600080fd5b82359150602083013567ffffffffffffffff8111156103ad57600080fd5b6103b9858286016102e9565b9150509250929050565b6000806000606084860312156103d857600080fd5b505081359360208301359350604090920135919050565b8035600f81900b811461032057600080fd5b60008060006060848603121561041657600080fd5b61041f846103ef565b925061042d602085016103ef565b9150604084013590509250925092565b6000806040838503121561045057600080fd5b8235915067ffffffffffffffff806020850135111561046e57600080fd5b6020840135840185601f82011261048457600080fd5b8181351115610495576104956101fe565b6104a56020823560051b01610260565b81358082526020808301929160051b8401018810156104c357600080fd5b602083015b6020843560051b8501018110156105d35784813511156104e757600080fd5b88603f8235860101126104f957600080fd5b610501610214565b808a60808435880101111561051557600080fd5b602083358701015b608084358801018110156105c357878135111561053957600080fd5b833587018135016040818e03601f1901121561055457600080fd5b61055c61023d565b61056860208301610310565b8152896040830135111561057b57600080fd5b8d603f60408401358401011261059057600080fd5b6105a88e604084810135850160208101359101610291565b6020820152808552505060208301925060208101905061051d565b50845250602092830192016104c8565b5080945050505050925092905056fea26469706673582212202b21cd45cc5d9592c35c91026b852171117db0c6e2517db792871c1c71befb9464736f6c63430008130033",
+    "sourceMap": "65:1680:3:-:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;762:77;;;;;;;;;;-1:-1:-1;762:77:3;;;;;:::i;:::-;;;;;;;1410:69;;;;;;;;;;-1:-1:-1;1410:69:3;;;;;:::i;:::-;;;;125:78;;;;;;;;;;-1:-1:-1;194:2:3;125:78;;;2746:25:7;;;2734:2;2719:18;125:78:3;;;;;;;;987:138;;;;;;;;;;-1:-1:-1;987:138:3;;;;;:::i;:::-;1116:2;987:138;-1:-1:-1;;987:138:3;845:136;;;;;;;;;;-1:-1:-1;845:136:3;;;;;:::i;90:29::-;;;;;;;;;209:109;;;;;;;;;;-1:-1:-1;209:109:3;;;302:2;3767:25:7;;306:4:3;3823:2:7;3808:18;;3801:50;3740:18;209:109:3;3599:258:7;396:123:3;;;;;;;;;;-1:-1:-1;396:123:3;;;;;:::i;:::-;-1:-1:-1;506:6:3;396:123;1329:75;;;;;;:::i;14:127:7:-;75:10;70:3;66:20;63:1;56:31;106:4;103:1;96:15;130:4;127:1;120:15;146:251;218:2;212:9;260:2;248:15;;293:18;278:34;;314:22;;;275:62;272:88;;;340:18;;:::i;:::-;376:2;369:22;146:251;:::o;402:::-;474:2;468:9;;;504:15;;549:18;534:34;;570:22;;;531:62;528:88;;;596:18;;:::i;658:275::-;729:2;723:9;794:2;775:13;;-1:-1:-1;;771:27:7;759:40;;829:18;814:34;;850:22;;;811:62;808:88;;;876:18;;:::i;:::-;912:2;905:22;658:275;;-1:-1:-1;658:275:7:o;938:407::-;1003:5;1037:18;1029:6;1026:30;1023:56;;;1059:18;;:::i;:::-;1097:57;1142:2;1121:15;;-1:-1:-1;;1117:29:7;1148:4;1113:40;1097:57;:::i;:::-;1088:66;;1177:6;1170:5;1163:21;1217:3;1208:6;1203:3;1199:16;1196:25;1193:45;;;1234:1;1231;1224:12;1193:45;1283:6;1278:3;1271:4;1264:5;1260:16;1247:43;1337:1;1330:4;1321:6;1314:5;1310:18;1306:29;1299:40;938:407;;;;;:::o;1350:222::-;1393:5;1446:3;1439:4;1431:6;1427:17;1423:27;1413:55;;1464:1;1461;1454:12;1413:55;1486:80;1562:3;1553:6;1540:20;1533:4;1525:6;1521:17;1486:80;:::i;:::-;1477:89;1350:222;-1:-1:-1;;;1350:222:7:o;1577:160::-;1642:20;;1698:13;;1691:21;1681:32;;1671:60;;1727:1;1724;1717:12;1671:60;1577:160;;;:::o;1742:458::-;1826:6;1834;1842;1895:2;1883:9;1874:7;1870:23;1866:32;1863:52;;;1911:1;1908;1901:12;1863:52;1947:9;1934:23;1924:33;;2008:2;1997:9;1993:18;1980:32;2035:18;2027:6;2024:30;2021:50;;;2067:1;2064;2057:12;2021:50;2090;2132:7;2123:6;2112:9;2108:22;2090:50;:::i;:::-;2080:60;;;2159:35;2190:2;2179:9;2175:18;2159:35;:::i;:::-;2149:45;;1742:458;;;;;:::o;2205:390::-;2283:6;2291;2344:2;2332:9;2323:7;2319:23;2315:32;2312:52;;;2360:1;2357;2350:12;2312:52;2396:9;2383:23;2373:33;;2457:2;2446:9;2442:18;2429:32;2484:18;2476:6;2473:30;2470:50;;;2516:1;2513;2506:12;2470:50;2539;2581:7;2572:6;2561:9;2557:22;2539:50;:::i;:::-;2529:60;;;2205:390;;;;;:::o;2782:316::-;2859:6;2867;2875;2928:2;2916:9;2907:7;2903:23;2899:32;2896:52;;;2944:1;2941;2934:12;2896:52;-1:-1:-1;;2967:23:7;;;3037:2;3022:18;;3009:32;;-1:-1:-1;3088:2:7;3073:18;;;3060:32;;2782:316;-1:-1:-1;2782:316:7:o;3103:162::-;3170:20;;3230:2;3219:21;;;3209:32;;3199:60;;3255:1;3252;3245:12;3270:324;3345:6;3353;3361;3414:2;3402:9;3393:7;3389:23;3385:32;3382:52;;;3430:1;3427;3420:12;3382:52;3453:28;3471:9;3453:28;:::i;:::-;3443:38;;3500:37;3533:2;3522:9;3518:18;3500:37;:::i;:::-;3490:47;;3584:2;3573:9;3569:18;3556:32;3546:42;;3270:324;;;;;:::o;3862:2342::-;4002:6;4010;4063:2;4051:9;4042:7;4038:23;4034:32;4031:52;;;4079:1;4076;4069:12;4031:52;4115:9;4102:23;4092:33;;4144:18;4211:2;4205;4194:9;4190:18;4177:32;4174:40;4171:60;;;4227:1;4224;4217:12;4171:60;4293:2;4282:9;4278:18;4265:32;4254:9;4250:48;4336:7;4329:4;4325:2;4321:13;4317:27;4307:55;;4358:1;4355;4348:12;4307:55;4395:2;4390;4377:16;4374:24;4371:50;;;4401:18;;:::i;:::-;4441:50;4487:2;4481;4468:16;4465:1;4461:24;4457:33;4441:50;:::i;:::-;4537:16;;4525:29;;;4579:2;4570:12;;;;4513:3;4613:1;4609:24;4601:33;;4597:42;4594:55;-1:-1:-1;4591:75:7;;;4662:1;4659;4652:12;4591:75;4694:2;4690;4686:11;4706:1468;4769:2;4762;4749:16;4746:1;4742:24;4738:2;4734:33;4730:42;4725:3;4722:51;4706:1468;;;4853:2;4847:3;4834:17;4831:25;4828:45;;;4869:1;4866;4859:12;4828:45;4937:7;4932:2;4925:3;4912:17;4908:2;4904:26;4900:35;4896:49;4886:77;;4959:1;4956;4949:12;4886:77;4989:22;;:::i;:::-;5037:5;5099:7;5093:3;5086;5073:17;5069:2;5065:26;5061:36;5058:49;5055:69;;;5120:1;5117;5110:12;5055:69;5182:2;5175:3;5162:17;5158:2;5154:26;5150:35;5198:903;5260:3;5253;5240:17;5236:2;5232:26;5228:36;5221:5;5218:47;5198:903;;;5363:2;5355:5;5342:19;5339:27;5336:47;;;5379:1;5376;5369:12;5336:47;5422:17;;5414:26;;5442:19;;5410:52;5518:2;5490:16;;;-1:-1:-1;;5486:30:7;5482:39;5479:59;;;5534:1;5531;5524:12;5479:59;5568:22;;:::i;:::-;5621:28;5645:2;5641;5637:11;5621:28;:::i;:::-;5614:5;5607:43;5700:2;5694;5690;5686:11;5673:25;5670:33;5667:53;;;5716:1;5713;5706:12;5667:53;5796:7;5791:2;5784;5780;5776:11;5763:25;5759:2;5755:34;5751:43;5747:57;5737:85;;5818:1;5815;5808:12;5737:85;5862:147;6001:7;5988:2;5980:11;;;5967:25;5959:34;;5995:2;5955:43;;5942:57;;5897:43;5862:147;:::i;:::-;5857:2;5850:5;5846:14;5839:171;6041:5;6034;6027:20;;;6084:2;6077:5;6073:14;6064:23;;5300:2;5293:5;5289:14;5280:23;;5198:903;;;-1:-1:-1;6114:18:7;;-1:-1:-1;6161:2:7;6152:12;;;;4791;4706:1468;;;4710:3;6193:5;6183:15;;;;;;3862:2342;;;;;:::o",
+    "linkReferences": {}
+  },
+  "methodIdentifiers": {
+    "JsonABI()": "87faaddf",
+    "class(uint256,string)": "cab5387f",
+    "complexArgs(uint256,(bool,bytes)[3][])": "8e495962",
+    "complexArgs2(uint256,(bool,bytes)[3][])": "af526ece",
+    "getE2ModeCategoryData()": "d9d2f075",
+    "get_dy(int128,int128,uint256)": "5e0d443f",
+    "get_dy(uint256,uint256,uint256)": "556d6e9f",
+    "noArgs()": "83c962bb",
+    "noArgsMultiReturns()": "8daf2102",
+    "noArgsReturns()": "31d6fa27",
+    "overloaded(uint256,string)": "d5dcdb38",
+    "overloaded(uint256,string,bool)": "28134bdc",
+    "package(uint256,string)": "b0333c4e",
+    "payableArgs(uint256,string)": "e22d71a5",
+    "repayWithATokens()": "93707817",
+    "simpleArgs(uint256,string)": "9150d784",
+    "viewArgs(uint256,string)": "2b83f6a3"
+  },
+  "rawMetadata": "{\"compiler\":{\"version\":\"0.8.19+commit.7dd6d404\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[],\"name\":\"JsonABI\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"status\",\"type\":\"uint256\"},{\"internalType\":\"string\",\"name\":\"msg\",\"type\":\"string\"}],\"name\":\"class\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"status\",\"type\":\"uint256\"},{\"components\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"}],\"internalType\":\"struct Functions.Details[3][]\",\"name\":\"details\",\"type\":\"tuple[3][]\"}],\"name\":\"complexArgs\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"status\",\"type\":\"uint256\"},{\"components\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"}],\"internalType\":\"struct Functions.Details[3][]\",\"name\":\"differentName\",\"type\":\"tuple[3][]\"}],\"name\":\"complexArgs2\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getE2ModeCategoryData\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"i\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"j\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"dx\",\"type\":\"uint256\"}],\"name\":\"get_dy\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"int128\",\"name\":\"i\",\"type\":\"int128\"},{\"internalType\":\"int128\",\"name\":\"j\",\"type\":\"int128\"},{\"internalType\":\"uint256\",\"name\":\"dx\",\"type\":\"uint256\"}],\"name\":\"get_dy\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"noArgs\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"noArgsMultiReturns\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"status\",\"type\":\"uint256\"},{\"internalType\":\"bool\",\"name\":\"done\",\"type\":\"bool\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"noArgsReturns\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"status\",\"type\":\"uint256\"},{\"internalType\":\"string\",\"name\":\"msg\",\"type\":\"string\"},{\"internalType\":\"bool\",\"name\":\"done\",\"type\":\"bool\"}],\"name\":\"overloaded\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"status\",\"type\":\"uint256\"},{\"internalType\":\"string\",\"name\":\"msg\",\"type\":\"string\"}],\"name\":\"overloaded\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"status\",\"type\":\"uint256\"},{\"internalType\":\"string\",\"name\":\"msg\",\"type\":\"string\"}],\"name\":\"package\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"status\",\"type\":\"uint256\"},{\"internalType\":\"string\",\"name\":\"msg\",\"type\":\"string\"}],\"name\":\"payableArgs\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"repayWithATokens\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"status\",\"type\":\"uint256\"},{\"internalType\":\"string\",\"name\":\"msg\",\"type\":\"string\"}],\"name\":\"simpleArgs\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"status\",\"type\":\"uint256\"},{\"internalType\":\"string\",\"name\":\"msg\",\"type\":\"string\"}],\"name\":\"viewArgs\",\"outputs\":[],\"stateMutability\":\"view\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"src/Functions.sol\":\"Functions\"},\"evmVersion\":\"paris\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":true,\"runs\":200},\"remappings\":[]},\"sources\":{\"src/Functions.sol\":{\"keccak256\":\"0xb54157744fe74e772b02c5efed036493e83c79b6129163282db8b439938e40fc\",\"license\":\"UNLICENSED\",\"urls\":[\"bzz-raw://c534ddb1da07c2766d17676ecacf448de59d9bd3ec06c9f4707308a2f2a58b23\",\"dweb:/ipfs/QmRhTUJqYMHJciUJDg8Xw3FdBy7PXBNw5Pb9xpQEFozzZb\"]}},\"version\":1}",
+  "metadata": {
+    "compiler": {
+      "version": "0.8.19+commit.7dd6d404"
+    },
+    "language": "Solidity",
+    "output": {
+      "abi": [
+        {
+          "inputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "JsonABI"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "status",
+              "type": "uint256"
+            },
+            {
+              "internalType": "string",
+              "name": "msg",
+              "type": "string"
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "class"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "status",
+              "type": "uint256"
+            },
+            {
+              "internalType": "struct Functions.Details[3][]",
+              "name": "details",
+              "type": "tuple[3][]",
+              "components": [
+                {
+                  "internalType": "bool",
+                  "name": "success",
+                  "type": "bool"
+                },
+                {
+                  "internalType": "bytes",
+                  "name": "data",
+                  "type": "bytes"
+                }
+              ]
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "complexArgs",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "status",
+              "type": "uint256"
+            },
+            {
+              "internalType": "struct Functions.Details[3][]",
+              "name": "differentName",
+              "type": "tuple[3][]",
+              "components": [
+                {
+                  "internalType": "bool",
+                  "name": "success",
+                  "type": "bool"
+                },
+                {
+                  "internalType": "bytes",
+                  "name": "data",
+                  "type": "bytes"
+                }
+              ]
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "complexArgs2",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "inputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "getE2ModeCategoryData"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "i",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "j",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "dx",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "get_dy",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "int128",
+              "name": "i",
+              "type": "int128"
+            },
+            {
+              "internalType": "int128",
+              "name": "j",
+              "type": "int128"
+            },
+            {
+              "internalType": "uint256",
+              "name": "dx",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "get_dy",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "inputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "noArgs"
+        },
+        {
+          "inputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "noArgsMultiReturns",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "status",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bool",
+              "name": "done",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "inputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "noArgsReturns",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "status",
+              "type": "uint256"
+            },
+            {
+              "internalType": "string",
+              "name": "msg",
+              "type": "string"
+            },
+            {
+              "internalType": "bool",
+              "name": "done",
+              "type": "bool"
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "overloaded"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "status",
+              "type": "uint256"
+            },
+            {
+              "internalType": "string",
+              "name": "msg",
+              "type": "string"
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "overloaded"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "status",
+              "type": "uint256"
+            },
+            {
+              "internalType": "string",
+              "name": "msg",
+              "type": "string"
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "package"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "status",
+              "type": "uint256"
+            },
+            {
+              "internalType": "string",
+              "name": "msg",
+              "type": "string"
+            }
+          ],
+          "stateMutability": "payable",
+          "type": "function",
+          "name": "payableArgs"
+        },
+        {
+          "inputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "repayWithATokens"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "status",
+              "type": "uint256"
+            },
+            {
+              "internalType": "string",
+              "name": "msg",
+              "type": "string"
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "simpleArgs"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "status",
+              "type": "uint256"
+            },
+            {
+              "internalType": "string",
+              "name": "msg",
+              "type": "string"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "viewArgs"
+        }
+      ],
+      "devdoc": {
+        "kind": "dev",
+        "methods": {},
+        "version": 1
+      },
+      "userdoc": {
+        "kind": "user",
+        "methods": {},
+        "version": 1
+      }
+    },
+    "settings": {
+      "remappings": [],
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "metadata": {
+        "bytecodeHash": "ipfs"
+      },
+      "compilationTarget": {
+        "src/Functions.sol": "Functions"
+      },
+      "evmVersion": "paris",
+      "libraries": {}
+    },
+    "sources": {
+      "src/Functions.sol": {
+        "keccak256": "0xb54157744fe74e772b02c5efed036493e83c79b6129163282db8b439938e40fc",
+        "urls": [
+          "bzz-raw://c534ddb1da07c2766d17676ecacf448de59d9bd3ec06c9f4707308a2f2a58b23",
+          "dweb:/ipfs/QmRhTUJqYMHJciUJDg8Xw3FdBy7PXBNw5Pb9xpQEFozzZb"
+        ],
+        "license": "UNLICENSED"
+      }
+    },
+    "version": 1
+  },
+  "id": 3
+}
