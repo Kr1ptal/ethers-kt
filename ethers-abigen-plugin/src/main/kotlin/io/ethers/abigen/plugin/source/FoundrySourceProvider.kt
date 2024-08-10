@@ -125,8 +125,8 @@ open class FoundrySourceProvider(
      * */
     private fun isMainContractJson(file: File): Boolean {
         return file.name.count { c -> c == '.' } == 1 &&
-                file.nameWithoutExtension == file.parentFile.nameWithoutExtension &&
-                file.extension == "json"
+            file.nameWithoutExtension == file.parentFile.nameWithoutExtension &&
+            file.extension == "json"
     }
 
     private fun forgeBuild() {
