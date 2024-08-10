@@ -14,8 +14,7 @@ import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 import org.gradle.workers.WorkerExecutor
 import java.io.File
-import java.util.Collections
-import java.util.UUID
+import java.util.*
 import javax.inject.Inject
 
 @CacheableTask
@@ -89,7 +88,8 @@ abstract class EthersAbigenTask @Inject constructor(private val executor: Worker
         val resultsDir = File(project.layout.buildDirectory.get().asFile, "tmp/abigen-results/").apply { mkdirs() }
         val queue = executor.noIsolation()
 
-        sourceProviders.get().parallelStream().forEach { provider ->
+        // TODO parallelize this
+        sourceProviders.get().forEach { provider ->
             provider.getSources().forEach { source ->
                 val resultFile = File(resultsDir, UUID.randomUUID().toString())
                 results.add(resultFile)

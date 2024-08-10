@@ -2,6 +2,7 @@ package io.ethers.abigen.plugin
 
 import io.ethers.abigen.plugin.source.AbiSourceProvider
 import io.ethers.abigen.plugin.source.DirectorySourceProvider
+import io.ethers.abigen.plugin.source.FoundrySourceProvider
 import io.ethers.abigen.reader.JsonAbiReader
 import io.ethers.abigen.reader.JsonAbiReaderRegistry
 import org.gradle.api.Action
@@ -55,6 +56,13 @@ abstract class EthersAbigenExtension(private val project: Project) {
     @JvmOverloads
     fun directorySource(path: String, action: Action<in DirectorySourceProvider>? = null) {
         val source = DirectorySourceProvider(project, path)
+        action?.execute(source)
+        sourceProviders.add(source)
+    }
+
+    @JvmOverloads
+    fun foundrySource(foundryRoot: String, destinationPackage: String, action: Action<in FoundrySourceProvider>? = null) {
+        val source = FoundrySourceProvider(project, foundryRoot, destinationPackage)
         action?.execute(source)
         sourceProviders.add(source)
     }

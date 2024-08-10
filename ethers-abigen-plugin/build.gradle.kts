@@ -9,6 +9,9 @@ plugins {
 dependencies {
     implementation(project(":ethers-abigen"))
     implementation(libs.kotlin.gradle)
+    implementation(libs.hoplite.core)
+    implementation(libs.hoplite.toml)
+    implementation(libs.bundles.jackson)
 
     testImplementation(libs.bundles.kotest)
 }
