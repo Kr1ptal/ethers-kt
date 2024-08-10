@@ -762,7 +762,7 @@ class AbiContractBuilder(
         @Suppress("NAME_SHADOWING")
         var baseName = baseName
         if (isReservedJavaName(baseName)) {
-            baseName = "_${baseName}"
+            baseName = "_$baseName"
         }
 
         if (uniqueFunctionNames.add(UniqueFunction(baseName, inputs))) {
