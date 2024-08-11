@@ -11,7 +11,7 @@ It supports the following configuration options:
 
 ```kotlin
 plugins {
-    id("io.kriptal.ethers.abigen-plugin") version "0.5.0"
+    id("io.kriptal.ethers.abigen-plugin") version "1.1.0"
 }
 
 ethersAbigen {
@@ -36,3 +36,33 @@ ethersAbigen {
 }
 ```
 
+### Local testing of the plugin
+
+To test the plugin locally, you must first build the shadow jar of the plugin. This can be done by running the following
+Gradle command:
+
+```shell
+./gradlew :ethers-abigen-plugin:shadow
+```
+
+Then, in your project, you must apply the plugin using legacy `buildscript` syntax, and add the shadow jar as a
+dependency:
+
+```kts
+buildscript {
+    repositories {
+        mavenLocal()
+    }
+
+    dependencies {
+        classpath(files("/absolute/path/ethers-abigen-plugin/build/libs/ethers-abigen-plugin-1.1.0-SNAPSHOT.jar"))
+    }
+}
+
+// apply the plugin by its id
+apply(plugin = "io.kriptal.ethers.abigen-plugin")
+
+configure<EthersAbigenExtension> {
+    // configure the plugin here
+}
+```
