@@ -1,6 +1,7 @@
 package io.ethers.abigen
 
 import com.squareup.kotlinpoet.ClassName
+import com.squareup.kotlinpoet.CodeBlock
 import com.squareup.kotlinpoet.FunSpec
 import com.squareup.kotlinpoet.KModifier
 import com.squareup.kotlinpoet.ParameterSpec
@@ -21,6 +22,7 @@ sealed interface AbiTypeParameter {
     val apiType: TypeName
 
     val abiType: AbiType<*>
+    val originalType: String
     val abiTypeInitializer: String
     val indexed: Boolean
 
@@ -30,6 +32,7 @@ sealed interface AbiTypeParameter {
         override val indexed: Boolean,
     ) : AbiTypeParameter {
         override val apiType: TypeName = abiType.classType.kotlin.asClassName()
+        override val originalType: String = abiType.abiType
         override val abiTypeInitializer: String
 
         init {
@@ -54,11 +57,14 @@ sealed interface AbiTypeParameter {
 
     data class Struct(
         override val name: String,
+        val structName: String,
         val className: ClassName,
         val fields: List<AbiTypeParameter>,
         override val indexed: Boolean,
     ) : AbiTypeParameter {
         override val apiType: TypeName = className
+        override val originalType: String
+            get() = structName
 
         // this can be raw Tuple, the correct one is created when generating the initializer
         override val abiType: AbiType.Tuple<*> = AbiType.Tuple.raw(fields.map { it.abiType })
@@ -74,6 +80,18 @@ sealed interface AbiTypeParameter {
 
         fun toAbiStructClass(): TypeSpec = CodeFactory.createClass(className, fields, KModifier.DATA) { builder, _ ->
             builder.addSuperinterface(ContractStruct::class)
+
+            builder.addKdoc(
+                CodeBlock.builder()
+                    .add("Contract struct\n\n")
+                    .add("Signature:\n")
+                    .add("```solidity\n")
+                    .add("    struct $structName {\n        ")
+                    .add(fields.toCanonicalSignature().replace(", ", ";\n        ") + ";\n")
+                    .add("    }\n")
+                    .add("```\n")
+                    .build(),
+            )
 
             val tupleInitializer = StringBuilder().append("arrayOf(")
             val fromTupleReader = StringBuilder().append("return %T(")
@@ -99,7 +117,10 @@ sealed interface AbiTypeParameter {
                     FunSpec.builder("fromTuple")
                         .addAnnotation(JvmStatic::class)
                         .addModifiers(KModifier.OVERRIDE)
-                        .addParameter("data", Array::class.asClassName().parameterizedBy(WildcardTypeName.producerOf(Any::class)))
+                        .addParameter(
+                            "data",
+                            Array::class.asClassName().parameterizedBy(WildcardTypeName.producerOf(Any::class)),
+                        )
                         .returns(className)
                         .addStatement(
                             fromTupleReader.toString(),
@@ -123,6 +144,7 @@ sealed interface AbiTypeParameter {
     ) : AbiTypeParameter {
         override val apiType: TypeName = Array::class.asClassName().parameterizedBy(element.apiType)
         override val abiTypeInitializer: String
+        override val originalType: String
 
         init {
             if (abiType !is AbiType.Array<*> && abiType !is AbiType.FixedArray<*>) {
@@ -133,6 +155,11 @@ sealed interface AbiTypeParameter {
             this.abiTypeInitializer = "$ABI_TYPE_SIMPLE_NAME." + when (abiType) {
                 is AbiType.Array<*> -> "$simpleName(${element.abiTypeInitializer})"
                 is AbiType.FixedArray<*> -> "$simpleName(${abiType.length}, ${element.abiTypeInitializer})"
+                else -> throw IllegalArgumentException("Unsupported AbiType: $abiType")
+            }
+            this.originalType = element.originalType + when (abiType) {
+                is AbiType.Array<*> -> "[]"
+                is AbiType.FixedArray<*> -> "[${abiType.length}]"
                 else -> throw IllegalArgumentException("Unsupported AbiType: $abiType")
             }
         }
@@ -169,6 +196,16 @@ sealed interface AbiTypeParameter {
 
                 else -> Value(name, abiType, indexed)
             }
+        }
+    }
+}
+
+fun List<AbiTypeParameter>.toCanonicalSignature(): String {
+    return joinToString(", ") {
+        when {
+            it.name.isBlank() -> it.originalType
+            it.indexed -> "${it.originalType} indexed ${it.name}"
+            else -> "${it.originalType} ${it.name}"
         }
     }
 }

@@ -59,7 +59,7 @@ abstract class EthersAbigenTask @Inject constructor(private val executor: Worker
      * causes the new version of the plugin to invalidate previous output automatically.
      * */
     @get:Input
-    internal val outputVersion: Property<String> = project.objects.property(String::class.java).convention("3")
+    internal val outputVersion: Property<String> = project.objects.property(String::class.java).convention("4")
 
     @TaskAction
     fun run() {

@@ -33,6 +33,7 @@ import io.ethers.abi.error.CustomErrorFactory
 import io.ethers.abi.error.CustomErrorFactoryResolver
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
+import io.ethers.core.types.Hash
 import io.ethers.core.types.Log
 import io.ethers.providers.middleware.Middleware
 import java.io.File
@@ -271,6 +272,14 @@ class AbiContractBuilder(
         val callClass = ReceiveFunctionCall::class.asClassName()
 
         val function = FunSpec.builder("receive").apply {
+            addKdoc(
+                """
+                Receive function with signature:
+                ```solidity
+                    receive() external payable;
+                ```
+                """.trimIndent(),
+            )
             addParameter("value", BigInteger::class)
             addStatement("return %T(provider, address, value)", callClass)
             returns(callClass)
@@ -287,6 +296,14 @@ class AbiContractBuilder(
         }.asClassName()
 
         val function = FunSpec.builder("fallback").apply {
+            addKdoc(
+                """
+                Fallback function with signature:
+                ```solidity
+                    fallback() external ${if (fallback.isPayable) "payable" else ""};
+                ```
+                """.trimIndent(),
+            )
             addParameter("data", Bytes::class)
             addStatement("return %T(provider, address, data, %T.identity())", callClass, Function::class)
             returns(callClass.parameterizedBy(Bytes::class.asClassName()))
@@ -311,6 +328,30 @@ class AbiContractBuilder(
         }.asClassName()
 
         val builder = FunSpec.builder(generatedFunctionName)
+
+        // add function signature to kdoc. We always set the function as "external" because it's not possible to
+        // automatically determine if the function is "public" or "external".
+        var canonicalSignature = "${function.name}(${inputs.toCanonicalSignature()}) external"
+        if (function.isPayable) {
+            canonicalSignature += " payable"
+        }
+        if (outputs.isNotEmpty()) {
+            canonicalSignature += " returns (${outputs.toCanonicalSignature()})"
+        }
+
+        val selector = Bytes(AbiType.computeSignatureHash(function.name, inputs.map { it.abiType }).copyOfRange(0, 4))
+        builder.addKdoc(
+            """
+                Call contract function
+                
+                Selector: `$selector`
+                
+                Signature:
+                ```solidity
+                    function $canonicalSignature;
+                ```
+            """.trimIndent(),
+        )
 
         // add function args
         inputs.forEach { builder.addParameter(it.toParameterSpec(builder)) }
@@ -399,6 +440,20 @@ class AbiContractBuilder(
             reservedFieldNames = RESERVED_ERROR_FIELD_NAMES,
         ) { builder, _ ->
             builder.superclass(errorSuperclass)
+
+            val selector = Bytes(AbiType.computeSignatureHash(error.name, inputs.map { it.abiType }).copyOfRange(0, 4))
+            builder.addKdoc(
+                """
+                Contract error
+                    
+                Selector: `$selector`
+                
+                Signature:
+                ```solidity
+                    error ${error.name}(${inputs.toCanonicalSignature()});
+                ```
+                """.trimIndent(),
+            )
 
             // codegen logic:
             // - no inputs: generate a normal class, overriding toString(), and creating an "INSTANCE" property in factory
@@ -506,6 +561,22 @@ class AbiContractBuilder(
         ) { builder, constructor ->
             builder.superclass(eventSuperclass)
 
+            val topicId = Hash(AbiType.computeSignatureHash(event.name, inputs.map { it.abiType }))
+            builder.addKdoc(
+                """
+                Contract event (indexed dynamic types are replaced with `bytes32`)
+                
+                Topic ID: `$topicId`
+                
+                Anonymous: `${event.anonymous}`
+                
+                Signature:
+                ```solidity
+                    event ${event.name}(${inputs.toCanonicalSignature()});
+                ```
+                """.trimIndent(),
+            )
+
             // add "log" parameter to constructor as last argument
             val logParam = ParameterSpec.builder("log", Log::class).build()
             CodeFactory.addConstructorValParameter(
@@ -533,6 +604,16 @@ class AbiContractBuilder(
         }.asClassName()
 
         val function = FunSpec.builder("deploy").addAnnotation(JvmStatic::class)
+        function.addKdoc(
+            """
+                Contract constructor (deploys a new contract)
+                
+                Signature:
+                ```solidity
+                    constructor(${arguments.toCanonicalSignature()});
+                ```
+            """.trimIndent(),
+        )
 
         // add function args
         function.addParameter("provider", Middleware::class)
@@ -644,19 +725,21 @@ class AbiContractBuilder(
                     }
 
                     var suffix = it.type.substringAfter("tuple")
-                    var structName = it.internalType!!
+                    val structName = it.internalType!!
                         .removePrefix("struct ")
                         .split(".")
                         .last()
                         .substringBefore("[")
 
-                    if (isReservedJavaName(structName)) {
-                        structName = "${structName}Struct"
+                    var normalizedName = structName
+                    if (isReservedJavaName(normalizedName)) {
+                        normalizedName = "${normalizedName}Struct"
                     }
 
                     val struct = AbiTypeParameter.Struct(
                         it.name,
-                        ClassName("", structName),
+                        structName,
+                        ClassName("", normalizedName),
                         it.components.toAbiTypeParameters(),
                         false,
                     ).toUniqueStruct()
