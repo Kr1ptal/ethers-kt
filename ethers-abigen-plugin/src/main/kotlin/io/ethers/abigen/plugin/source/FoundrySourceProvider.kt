@@ -19,6 +19,8 @@ import org.gradle.api.tasks.SkipWhenEmpty
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.nio.file.FileSystems
+import java.nio.file.PathMatcher
 import java.util.stream.Collectors
 
 /**
@@ -49,6 +51,17 @@ open class FoundrySourceProvider(
     @get:Input
     var foundryProfile: String = "default"
 
+    /**
+     * List of glob patterns to filter out contracts that are not part of the source directory. Defaults to empty
+     * which includes all contracts.
+     *
+     * Filters are evaluated relative to the [srcDir] directory. E.g. if the contract is `contracts/erc/ERC20.sol`,
+     * the glob pattern evaluates path without the `contracts` prefix, so only `erc/ERC20.sol` is being matched.
+     * */
+    @get:Optional
+    @get:Input
+    var contractGlobFilters: List<String> = emptyList()
+
     @get:PathSensitive(PathSensitivity.RELATIVE)
     @get:InputFile
     internal val foundryConfigFile: RegularFile = project.layout.projectDirectory.dir(foundryRoot).file("foundry.toml")
@@ -78,9 +91,11 @@ open class FoundrySourceProvider(
         forgeBuild()
 
         val jackson = ObjectMapper()
-        val dir = outDir.asFile.get()
+        val srcDir = srcDir.asFile.get()
+        val outDir = outDir.asFile.get()
         val config = config.get()
-        dir.walkTopDown()
+        val globMatchers = contractGlobFilters.map { FileSystems.getDefault().getPathMatcher("glob:$it") }
+        outDir.walkTopDown()
             .filter(File::isFile)
             .filter(::isMainContractJson)
             .forEach {
@@ -88,7 +103,7 @@ open class FoundrySourceProvider(
 
                 val json = jackson.readTree(it)
                 if (json.get("abi").isEmpty) {
-                    LOG.info("Skipping, no external/public ABI functions for ${it.absolutePath}")
+                    LOG.info("Skipping, no external/public ABI functions: ${it.absolutePath}")
                     return@forEach
                 }
 
@@ -103,7 +118,15 @@ open class FoundrySourceProvider(
                 val relativePath = relativePaths
                     .firstOrNull { p -> p.startsWith("${config.src}/") && p.endsWith("${it.nameWithoutExtension}.sol") }
 
+                // TODO if no relative path it means that the contract inside the file has a different name than the
+                //      file name. We should probably generate all the contracts in the file in that case.
                 if (relativePath == null) {
+                    return@forEach
+                }
+
+                val sourceFile = File(srcDir, relativePath.substringAfter("/"))
+                if (!matchesGlobPatterns(sourceFile, srcDir, globMatchers)) {
+                    LOG.info("Skipping, does not match any glob pattern: ${sourceFile.absolutePath}")
                     return@forEach
                 }
 
@@ -121,6 +144,10 @@ open class FoundrySourceProvider(
             }
 
         return ret
+    }
+
+    private fun matchesGlobPatterns(file: File, srcDir: File, matchers: List<PathMatcher>): Boolean {
+        return matchers.isEmpty() || matchers.any { it.matches(file.relativeTo(srcDir).toPath()) }
     }
 
     /**
