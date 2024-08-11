@@ -86,8 +86,13 @@ open class FoundrySourceProvider(
             .forEach {
                 LOG.info("Found ABI file: ${it.absolutePath}")
 
-                // make sure metadata is present so we can replicate the package structure from the compilation target
                 val json = jackson.readTree(it)
+                if (json.get("abi").isEmpty) {
+                    LOG.info("Skipping, no external/public ABI functions for ${it.absolutePath}")
+                    return@forEach
+                }
+
+                // make sure metadata is present so we can replicate the package structure from the compilation target
                 val compilationTarget = json.get("metadata")?.get("settings")?.get("compilationTarget")
                     ?: throw IllegalStateException("Compilation target not found in ${it.absolutePath}")
 
