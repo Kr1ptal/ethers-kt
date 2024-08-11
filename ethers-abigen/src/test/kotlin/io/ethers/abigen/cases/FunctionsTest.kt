@@ -88,6 +88,24 @@ class FunctionsTest : FunSpec({
                     ),
                     FunctionCall::class.parametrizedBy(Unit::class),
                 ),
+                FunctionDescriptor(
+                    "get_dy",
+                    listOf(
+                        ArgDescriptor("i", BigInteger::class),
+                        ArgDescriptor("j", BigInteger::class),
+                        ArgDescriptor("dx", BigInteger::class),
+                    ),
+                    ReadFunctionCall::class.parametrizedBy(BigInteger::class),
+                ),
+                FunctionDescriptor(
+                    "get_dy_1",
+                    listOf(
+                        ArgDescriptor("i", BigInteger::class),
+                        ArgDescriptor("j", BigInteger::class),
+                        ArgDescriptor("dx", BigInteger::class),
+                    ),
+                    ReadFunctionCall::class.parametrizedBy(BigInteger::class),
+                ),
                 // ---------------- RESERVED KEYWORDS ----------------
                 FunctionDescriptor(
                     "_class",

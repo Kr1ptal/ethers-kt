@@ -22,9 +22,27 @@ contract Functions {
         return status;
     }
 
+    // overloaded functions
+
     function overloaded(uint256 status, string memory msg) external {}
 
     function overloaded(uint256 status, string memory msg, bool done) external {}
+
+    function get_dy(
+        int128 i,
+        int128 j,
+        uint256 dx
+    ) external view returns (uint256) {
+        return dx;
+    }
+
+    function get_dy(
+        uint256 i,
+        uint256 j,
+        uint256 dx
+    ) external view returns (uint256) {
+        return dx;
+    }
 
     // reserved java keywords
 
