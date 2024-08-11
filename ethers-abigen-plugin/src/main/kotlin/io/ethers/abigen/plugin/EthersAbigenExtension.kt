@@ -60,9 +60,16 @@ abstract class EthersAbigenExtension(private val project: Project) {
         sourceProviders.add(source)
     }
 
+    /**
+     * Add foundry source provider which automatically builds the project using Foundry and reads the ABI files from
+     * the output directory.
+     *
+     * Foundry root directory defaults to `src/main/solidity`, but can be changed by setting
+     * [FoundrySourceProvider.foundryRoot].
+     * */
     @JvmOverloads
-    fun foundrySource(foundryRoot: String, destinationPackage: String, action: Action<in FoundrySourceProvider>? = null) {
-        val source = FoundrySourceProvider(project, foundryRoot, destinationPackage)
+    fun foundrySource(destinationPackage: String, action: Action<in FoundrySourceProvider>? = null) {
+        val source = FoundrySourceProvider(project, destinationPackage)
         action?.execute(source)
         sourceProviders.add(source)
     }

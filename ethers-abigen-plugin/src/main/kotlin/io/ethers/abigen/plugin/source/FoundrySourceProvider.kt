@@ -28,12 +28,10 @@ import java.util.stream.Collectors
  * Only contracts in from the source directory will be included. The contracts will be placed into [destinationPackage]
  * package, replicating the foundry source directory structure.
  *
- * @param foundryRoot the root directory of the foundry project, which contains the `foundry.toml` file.
  * @param destinationPackage the parent package name of the generated Kotlin files.
  * */
 open class FoundrySourceProvider(
     private val project: Project,
-    private val foundryRoot: String,
     @get:Input internal val destinationPackage: String,
 ) : AbiSourceProvider {
     private val LOG = project.logger
@@ -42,6 +40,14 @@ open class FoundrySourceProvider(
     private val config = project.provider { getFoundryConfig(foundryConfigFile) }
     private val srcDirProvider = project.provider { config.get().src }
     private val outDirProvider = project.provider { config.get().out }
+
+    /**
+     * The root directory of the foundry project, which contains the `foundry.toml` file. Defaults to
+     * `src/main/solidity`.
+     * */
+    @get:Optional
+    @get:Input
+    var foundryRoot: String = "src/main/solidity"
 
     /**
      * Foundry profile to use when building the project. Defaults to `default`. Will be passed to the `FOUNDRY_PROFILE`
