@@ -98,7 +98,7 @@ class FunctionsTest : FunSpec({
                     ReadFunctionCall::class.parametrizedBy(BigInteger::class),
                 ),
                 FunctionDescriptor(
-                    "get_dy_1",
+                    "get_dy_0x5e0d443f",
                     listOf(
                         ArgDescriptor("i", BigInteger::class),
                         ArgDescriptor("j", BigInteger::class),

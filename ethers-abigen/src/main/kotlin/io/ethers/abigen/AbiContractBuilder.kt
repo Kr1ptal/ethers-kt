@@ -315,9 +315,12 @@ class AbiContractBuilder(
     private fun createFunction(function: JsonAbiFunction): FunSpec {
         val inputs = function.inputs.toAbiTypeParameters()
         val outputs = function.outputs.toAbiTypeParameters()
+
+        val selector = Bytes(AbiType.computeSignatureHash(function.name, inputs.map { it.abiType }).copyOfRange(0, 4))
         val generatedFunctionName = getNextUniqueFunctionName(
             functionRenames[function.name] ?: function.name,
             inputs.map { it.abiType.classType },
+            selector,
         )
 
         val abiFunctionProperty = createAbiFunctionProperty(generatedFunctionName, function.name, inputs, outputs)
@@ -339,7 +342,6 @@ class AbiContractBuilder(
             canonicalSignature += " returns (${outputs.toCanonicalSignature()})"
         }
 
-        val selector = Bytes(AbiType.computeSignatureHash(function.name, inputs.map { it.abiType }).copyOfRange(0, 4))
         builder.addKdoc(
             """
                 Call contract function
@@ -839,9 +841,10 @@ class AbiContractBuilder(
     /**
      * Create unique, non-java-keyword function name from [baseName] and function [inputs] java types. If combination of
      * [baseName] and [inputs] is already unique, the [baseName] is returned. Uniqueness is determined by checking if
-     * [uniqueFunctionNames] contains a name. Each new unique name + inputs combination is added to this set.
+     * [uniqueFunctionNames] contains a name. Each new unique name + inputs combination is added to this set. If
+     * there is a collision, the function name is suffixed with the selector.
      * */
-    private fun getNextUniqueFunctionName(baseName: String, inputs: List<Class<*>>): String {
+    private fun getNextUniqueFunctionName(baseName: String, inputs: List<Class<*>>, selector: Bytes): String {
         @Suppress("NAME_SHADOWING")
         var baseName = baseName
         if (isReservedJavaName(baseName)) {
@@ -852,20 +855,9 @@ class AbiContractBuilder(
             return baseName
         }
 
-        var uniqueName: String? = null
-        for (i in 1..100) {
-            uniqueName = "${baseName}_$i"
-
-            if (uniqueFunctionNames.add(UniqueFunction(uniqueName, inputs))) {
-                break
-            }
-        }
-
-        if (uniqueName == null) {
-            throw IllegalStateException("Could not create unique function name for $baseName")
-        }
-
-        return uniqueName
+        baseName = "${baseName}_$selector"
+        uniqueFunctionNames.add(UniqueFunction(baseName, inputs))
+        return baseName
     }
 
     /**
