@@ -95,14 +95,6 @@ class LogFilter() {
     }
 
     /**
-     * Filter logs at provided block [hash].
-     */
-    fun atBlock(hash: BlockId.Hash): LogFilter {
-        blocks = BlockSelector.Hash(hash.hash)
-        return this
-    }
-
-    /**
      * Filter logs at provided block [number].
      */
     fun atBlock(number: Long): LogFilter {
@@ -110,17 +102,14 @@ class LogFilter() {
     }
 
     /**
-     * Filter logs at provided block [number].
+     * Filter logs at provided block [blockId].
      */
-    fun atBlock(number: BlockId.Number): LogFilter {
-        return blockRange(number, number)
-    }
-
-    /**
-     * Filter logs at provided block [name].
-     */
-    fun atBlock(name: BlockId.Name): LogFilter {
-        return blockRange(name, name)
+    fun atBlock(blockId: BlockId): LogFilter {
+        return when (blockId) {
+            is BlockId.Hash -> atBlock(blockId.hash)
+            is BlockId.Number -> blockRange(blockId, blockId)
+            is BlockId.Name -> blockRange(blockId, blockId)
+        }
     }
 
     /**
