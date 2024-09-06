@@ -18,6 +18,38 @@ Sections:
 ### Security = Security patches.
 -->
 
+## [1.2.0] - 2024-09-06
+
+### Bug Fixes
+
+- [**breaking**] Change `estimateGas` to return gas as `Long` instead of `BigInteger`
+- Handle contract reverts even if JSON-RPC returns wrong error code
+- Fix abigen of overloaded functions with same java types (#154)
+- Convert `addresses` array content to string in `LogFilter#toString`
+
+### Features
+
+- Manually fill missing transaction details if `eth_fillTransaction` is not supported (#152)
+- Add docs to generated contract bindings (#155)
+- Add support for auto-generating bindings for foundry projects (#156)
+- Add a default value for `foundryRoot` option in `FoundrySourceProvider`
+- Add function selector suffix to generated duplicate function names
+- Allow passing `BlockId` parameter to `LogFilter#atBlock` function
+
+### Miscellaneous Tasks
+
+- Upgrade gradle to v8.9
+
+### Refactor
+
+- Simplify `CallRequest#toUnsignedTransactionOrNull`
+
+### Misc
+
+- Replace deprecated kotlin compiler flags
+- Set correct current version in README.md
+- Update ethers-kt plugin version to 1.1.0 in `examples`
+
 ## [1.1.0] - 2024-07-18
 
 ### Bug Fixes
