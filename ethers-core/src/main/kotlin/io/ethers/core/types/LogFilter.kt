@@ -266,7 +266,7 @@ class LogFilter() {
     }
 
     override fun toString(): String {
-        return "LogFilter(blockSelector=$blocks, address=$addresses, topics=${topics?.contentDeepToString()})"
+        return "LogFilter(blockSelector=$blocks, address=${addresses?.contentToString()}, topics=${topics?.contentDeepToString()})"
     }
 
     override fun equals(other: Any?): Boolean {
