@@ -17,6 +17,7 @@ import io.ethers.core.types.AccountOverride
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.CallRequest
+import io.ethers.core.types.IntoCallRequest
 import io.ethers.providers.middleware.Middleware
 import java.math.BigInteger
 import java.util.concurrent.ConcurrentHashMap
@@ -481,7 +482,7 @@ class Multicall3(
      * A contract call that can be aggregated via [Multicall3] contract function call. Only [to], [value] and [data]
      * are used from the original call for the aggregation.
      * */
-    interface Aggregatable<T> {
+    interface Aggregatable<T> : IntoCallRequest {
         val provider: Middleware
 
         val to: Address?
