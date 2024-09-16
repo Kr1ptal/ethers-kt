@@ -14,7 +14,7 @@ EVM-based blockchains. It targets <b>JVM</b> and <b>Android</b> platforms. </p>
 - **Safe**: RPC calls return an error object in case of failure, instead of throwing an exception.
 
 - **Smart contract bindings**:
-    - Generate type-safe smart contract bindings from JSON-ABI files.
+    - Generate type-safe smart contract bindings from JSON-ABI files or from Foundry projects.
     - Complete support: events (anonymous), custom errors, structs, receive and fallback functions.
     - Custom errors can be resolved from any source (e.g. generated bindings, 4byte directory, etc...).
     - Payable and non-payable functions/constructors.
@@ -32,7 +32,7 @@ It's recommended to define BOM platform dependency to ensure that ethers-kt arti
 
 ```kotlin
 plugins {
-    id("io.kriptal.ethers.abigen-plugin") version "1.2.0"
+    id("io.kriptal.ethers.abigen-plugin") version "1.2.1"
 }
 
 // default values
@@ -51,7 +51,7 @@ repositories {
 
 dependencies {
     // Define a BOM and its version
-    implementation(platform("io.kriptal.ethers:ethers-bom:1.2.0"))
+    implementation(platform("io.kriptal.ethers:ethers-bom:1.2.1"))
 
     // Define any required artifacts without version
     implementation("io.kriptal.ethers:ethers-abi")

@@ -18,6 +18,17 @@ Sections:
 ### Security = Security patches.
 -->
 
+## [1.2.1] - 2024-09-16
+
+### Bug Fixes
+
+- Lazy-evaluate all input properties of `FoundrySourceProvider` (#167)
+- Return error instead of throwing exception in `AnvilBuilder#spawn` method
+
+### Features
+
+- Make `Multicall3.Aggregatable` implement `IntoCallRequest`
+
 ## [1.2.0] - 2024-09-06
 
 ### Bug Fixes
