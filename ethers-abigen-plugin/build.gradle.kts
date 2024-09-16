@@ -2,7 +2,7 @@ plugins {
     `project-conventions`
     `signing-conventions`
     `java-gradle-plugin`
-    id("com.gradle.plugin-publish") version "1.2.2"
+    id("com.gradle.plugin-publish") version "1.3.0"
     alias(libs.plugins.shadow)
 }
 
