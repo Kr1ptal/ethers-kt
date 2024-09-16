@@ -237,7 +237,7 @@ class AnvilBuilder {
                 do {
                     val hexKey = line.split(" ")[1]
                     if (hexKey.length != 66 || !FastHex.isValidHex(hexKey)) {
-                        throw IllegalStateException("Invalid private key format: $hexKey")
+                        return failure(Error.SpawnError("Invalid private key format: $hexKey"))
                     }
 
                     accounts.add(PrivateKeySigner(hexKey))
