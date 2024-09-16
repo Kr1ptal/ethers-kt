@@ -9,6 +9,8 @@ import com.sksamuel.hoplite.toml.TomlParser
 import org.gradle.api.Project
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFile
+import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputDirectory
 import org.gradle.api.tasks.InputFile
@@ -37,7 +39,7 @@ open class FoundrySourceProvider(
     private val LOG = project.logger
 
     // load the config file
-    private val config = project.provider { getFoundryConfig(foundryConfigFile) }
+    private val config = project.provider { getFoundryConfig(foundryConfigFile.get()) }
     private val srcDirProvider = project.provider { config.get().src }
     private val outDirProvider = project.provider { config.get().out }
 
@@ -47,7 +49,7 @@ open class FoundrySourceProvider(
      * */
     @get:Optional
     @get:Input
-    var foundryRoot: String = "src/main/solidity"
+    val foundryRoot: Property<String> = project.objects.property(String::class.java).convention("src/main/solidity")
 
     /**
      * Foundry profile to use when building the project. Defaults to `default`. Will be passed to the `FOUNDRY_PROFILE`
@@ -55,7 +57,7 @@ open class FoundrySourceProvider(
      * */
     @get:Optional
     @get:Input
-    var foundryProfile: String = "default"
+    val foundryProfile: Property<String> = project.objects.property(String::class.java).convention("default")
 
     /**
      * List of glob patterns to filter out contracts that are not part of the source directory. Defaults to empty
@@ -70,7 +72,9 @@ open class FoundrySourceProvider(
 
     @get:PathSensitive(PathSensitivity.RELATIVE)
     @get:InputFile
-    internal val foundryConfigFile: RegularFile = project.layout.projectDirectory.dir(foundryRoot).file("foundry.toml")
+    internal val foundryConfigFile: RegularFileProperty = project.objects.fileProperty().convention(
+        project.layout.projectDirectory.dir(foundryRoot).map { it.file("foundry.toml") },
+    )
 
     /**
      * Directory containing the source files.
@@ -79,16 +83,7 @@ open class FoundrySourceProvider(
     @get:PathSensitive(PathSensitivity.RELATIVE)
     @get:InputDirectory
     internal val srcDir: DirectoryProperty = project.objects.directoryProperty().convention(
-        project.layout.projectDirectory.dir(foundryRoot).dir(srcDirProvider),
-    )
-
-    /**
-     * Output directory containing the ABI files.
-     * */
-    @get:PathSensitive(PathSensitivity.RELATIVE)
-    @get:InputDirectory
-    internal val outDir: DirectoryProperty = project.objects.directoryProperty().convention(
-        project.layout.projectDirectory.dir(foundryRoot).dir(outDirProvider),
+        project.layout.projectDirectory.dir(foundryRoot).flatMap { it.dir(srcDirProvider) },
     )
 
     override fun getSources(): List<AbiSource> {
@@ -98,7 +93,7 @@ open class FoundrySourceProvider(
 
         val jackson = ObjectMapper()
         val srcDir = srcDir.asFile.get()
-        val outDir = outDir.asFile.get()
+        val outDir = project.layout.projectDirectory.dir(foundryRoot).get().dir(outDirProvider).get().asFile
         val config = config.get()
         val globMatchers = contractGlobFilters.map { FileSystems.getDefault().getPathMatcher("glob:$it") }
         outDir.walkTopDown()
@@ -169,11 +164,11 @@ open class FoundrySourceProvider(
 
     private fun forgeBuild() {
         val errorOutput = ByteArrayOutputStream()
-        val commands = listOf("forge", "build", "--extra-output", "abi", "metadata", "evm.bytecode")
+        val commands = listOf("forge", "build", "--force", "--extra-output", "abi", "metadata", "evm.bytecode")
         val result = project.exec {
             it.commandLine(commands)
             it.environment("FOUNDRY_PROFILE", foundryProfile)
-            it.workingDir = project.layout.projectDirectory.dir(foundryRoot).asFile
+            it.workingDir = project.layout.projectDirectory.dir(foundryRoot).get().asFile
             it.errorOutput = errorOutput
         }
 
@@ -213,7 +208,7 @@ open class FoundrySourceProvider(
             throw IllegalStateException("Failed to load foundry config: ${it.description()}")
         }
 
-        return result.getUnsafe().getProfile(foundryProfile)
+        return result.getUnsafe().getProfile(foundryProfile.get())
     }
 
     internal data class ProfileConfig(
