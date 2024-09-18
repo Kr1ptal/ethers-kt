@@ -1,6 +1,7 @@
 package io.ethers.providers
 
 import com.fasterxml.jackson.core.JsonParser
+import com.fasterxml.jackson.databind.JsonNode
 import io.ethers.core.Jackson
 import io.ethers.core.Jackson.createAndInitParser
 import io.ethers.core.Result
@@ -94,7 +95,9 @@ class HttpClient(
 
                         if (!it.isSuccessful) {
                             // complete all requests and the batch future
-                            val error = RpcError(RpcError.CODE_CALL_FAILED, it.message, Jackson.MAPPER.valueToTree(String(stream.readAllBytes())))
+                            val message = "HTTP ${it.code}: ${it.message}"
+                            val data = Jackson.MAPPER.valueToTree<JsonNode>(String(stream.readAllBytes()))
+                            val error = RpcError(RpcError.CODE_CALL_FAILED, message, data)
                             val failure = failure(error)
 
                             LOG.err { "Batch request failed: $error" }
@@ -193,7 +196,9 @@ class HttpClient(
                         }
 
                         if (!it.isSuccessful) {
-                            val error = RpcError(RpcError.CODE_CALL_FAILED, it.message, Jackson.MAPPER.valueToTree(String(stream.readAllBytes())))
+                            val message = "HTTP ${it.code}: ${it.message}"
+                            val data = Jackson.MAPPER.valueToTree<JsonNode>(String(stream.readAllBytes()))
+                            val error = RpcError(RpcError.CODE_CALL_FAILED, message, data)
                             LOG.err { "Call failed for method=$method, params=${params.contentToString()}: $error" }
 
                             ret.complete(failure(error))
