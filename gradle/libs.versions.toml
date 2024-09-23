@@ -70,7 +70,7 @@ kotlin-compileTesting = { module = "com.github.tschuchortdev:kotlin-compile-test
 jmh-core = { module = "org.openjdk.jmh:jmh-core", version.ref = "jmh" }
 jmh-generator = { module = "org.openjdk.jmh:jmh-generator-annprocess", version.ref = "jmh" }
 
-kotlinx-serialization = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version = "1.7.2" }
+kotlinx-serialization = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version = "1.7.3" }
 
 web3j-core = { module = "org.web3j:core", version.ref = "web3j" }
 web3j-codegen = { module = "org.web3j:codegen", version.ref = "web3j" }
