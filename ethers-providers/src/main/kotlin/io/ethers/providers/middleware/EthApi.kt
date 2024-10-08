@@ -349,7 +349,8 @@ interface EthApi {
     /**
      * Get gas fee history for block range between [lastBlockName] and ([lastBlockName] - [blockCount] + 1).
      */
-    fun getFeeHistory(blockCount: Long, lastBlockName: BlockId.Name) = getFeeHistory(blockCount, lastBlockName, emptyList())
+    fun getFeeHistory(blockCount: Long, lastBlockName: BlockId.Name) =
+        getFeeHistory(blockCount, lastBlockName, emptyList())
 
     /**
      * Get gas fee history for block range between [lastBlockNumber] and ([lastBlockNumber] - [blockCount] + 1).
@@ -359,7 +360,8 @@ interface EthApi {
     /**
      * Get gas fee history for block range between [lastBlockNumber] and ([lastBlockNumber] - [blockCount] + 1).
      */
-    fun getFeeHistory(blockCount: Long, lastBlockNumber: BlockId.Number) = getFeeHistory(blockCount, lastBlockNumber, emptyList())
+    fun getFeeHistory(blockCount: Long, lastBlockNumber: BlockId.Number) =
+        getFeeHistory(blockCount, lastBlockNumber, emptyList())
 
     /**
      * Get gas fee history for block range between [lastBlockName] and ([lastBlockName] - [blockCount] + 1).
@@ -495,6 +497,11 @@ interface EthApi {
      * RLP encode and submit [signedTransaction].
      */
     fun sendRawTransaction(signedTransaction: TransactionSigned) = sendRawTransaction(signedTransaction.toRlp())
+
+    /**
+     * Submit signed transaction bytes.
+     */
+    fun sendRawTransaction(signedTransaction: Bytes) = sendRawTransaction(signedTransaction.asByteArray())
 
     /**
      * Submit signed transaction bytes.

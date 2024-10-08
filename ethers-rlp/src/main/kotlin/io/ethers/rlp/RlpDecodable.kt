@@ -2,7 +2,7 @@ package io.ethers.rlp
 
 interface RlpDecodable<T> {
     /**
-     * Decode [data] and return instance of [T].
+     * Decode RLP-encoded [data] and return instance of [T], or null if decoding fails.
      */
     fun rlpDecode(data: ByteArray): T? {
         if (data.isEmpty()) {
