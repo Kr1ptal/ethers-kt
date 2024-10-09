@@ -172,7 +172,11 @@ class WsClient(
                         // messages are terminated by a new line. Remove it when logging to get nicer output
                         LOG.trc { "Processing message: ${msg?.removeSuffix(System.lineSeparator())}" }
 
-                        handleMessage(msg!!)
+                        try {
+                            handleMessage(msg!!)
+                        } catch (e: Exception) {
+                            LOG.err(e) { "Error processing message, skipping: $msg" }
+                        }
                     }
 
                     // second, check if we need to reconnect, initiating re-subscription for existing subs
@@ -205,6 +209,12 @@ class WsClient(
                                     client.connectTimeoutMillis.toLong(),
                                     TimeUnit.MILLISECONDS,
                                 )
+                            }
+
+                            if (!reconnectSuccessful) {
+                                handleTimeouts(client.readTimeoutMillis.toLong().milliseconds)
+
+                                Thread.sleep(2000L)
                             }
                         }
 
@@ -322,11 +332,7 @@ class WsClient(
 
                     // check and handle timed-out requests every 1000ms
                     if (lastTimeoutCheck.elapsedNow() > 1000.milliseconds) {
-                        val timeout = client.readTimeoutMillis.toLong().milliseconds
-                        removeTimedOutRequests(inFlightRequests, timeout)
-                        removeTimedOutRequests(inFlightBatchRequests, timeout)
-                        removeTimedOutRequests(inFlightSubscriptionRequests, timeout)
-
+                        handleTimeouts(client.readTimeoutMillis.toLong().milliseconds)
                         lastTimeoutCheck = TimeSource.Monotonic.markNow()
                     }
 
@@ -350,6 +356,12 @@ class WsClient(
 
         processorThread.name = "WsClient-Processor-${processorThread.id}"
         processorThread.start()
+    }
+
+    private fun handleTimeouts(timeout: Duration) {
+        removeTimedOutRequests(inFlightRequests, timeout)
+        removeTimedOutRequests(inFlightBatchRequests, timeout)
+        removeTimedOutRequests(inFlightSubscriptionRequests, timeout)
     }
 
     private fun <T : ExpiringRequest> removeTimedOutRequests(requests: MutableMap<Long, T>, timeout: Duration) {
