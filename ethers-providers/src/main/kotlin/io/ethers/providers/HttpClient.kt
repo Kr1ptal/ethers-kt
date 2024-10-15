@@ -262,7 +262,7 @@ class HttpClient(
     }
 
     private fun BatchRpcRequest.toRequestBody(): RequestBody {
-        val output = DirectByteArrayOutputStream()
+        val output = DirectByteArrayOutputStream(requests.size * BYTE_BUFFER_DEFAULT_SIZE)
         output.use { out ->
             val gen = Jackson.MAPPER.createGenerator(out)
 
@@ -281,7 +281,7 @@ class HttpClient(
     }
 
     private fun createJsonRpcRequestBody(method: String, params: Array<*>): RequestBody {
-        val output = DirectByteArrayOutputStream()
+        val output = DirectByteArrayOutputStream(BYTE_BUFFER_DEFAULT_SIZE)
 
         output.use { out ->
             val gen = Jackson.MAPPER.createGenerator(out)
@@ -292,13 +292,20 @@ class HttpClient(
         return output.internalBuffer.toRequestBody(JSON_MEDIA_TYPE, byteCount = output.size())
     }
 
-    private class DirectByteArrayOutputStream : ByteArrayOutputStream() {
-        // contains trailing zeros since it's unlikely that the buffer will be exactly the right size
+    private class DirectByteArrayOutputStream(size: Int) : ByteArrayOutputStream(size) {
+        /**
+         * Return the internal buffer.
+         *
+         * **NOTE**: Contains trailing zeros since it's unlikely that the buffer will be exactly the right size.
+         * */
         val internalBuffer: ByteArray
             get() = buf
     }
 
     companion object {
+        // one of the smallest possible requests, `eth_chainID`, takes 59 bytes. Most requests use more,
+        // around 100 bytes, so we use a buffer of 128 bytes to try and avoid reallocations in most cases
+        private const val BYTE_BUFFER_DEFAULT_SIZE = 128
         private val JSON_MEDIA_TYPE = "application/json".toMediaType()
 
         private val ERROR_SUBSCRIPTION_UNSUPPORTED = failure(
