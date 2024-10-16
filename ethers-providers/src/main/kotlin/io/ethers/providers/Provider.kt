@@ -335,6 +335,9 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
 
     private fun manuallyFillTransaction(original: CallRequest): Result<TransactionUnsigned, RpcError> {
         val call = CallRequest(original)
+        if (call.chainId == -1L) {
+            call.chainId = provider.chainId
+        }
 
         var unsigned = call.toUnsignedTransactionOrNull()
         if (unsigned != null) {

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonSerializer
 import com.fasterxml.jackson.databind.SerializerProvider
 import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import io.ethers.core.FastHex
+import io.ethers.core.types.transaction.ChainId
 import io.ethers.core.types.transaction.TransactionUnsigned
 import io.ethers.core.types.transaction.TxAccessList
 import io.ethers.core.types.transaction.TxBlob
@@ -117,7 +118,7 @@ class CallRequest() : IntoCallRequest {
 
         when {
             gasFeeCap != null && gasTipCap != null && blobVersionedHashes != null -> {
-                if (to == null || blobFeeCap == null) {
+                if (to == null || blobFeeCap == null || !ChainId.isValid(chainId)) {
                     return null
                 }
 
@@ -137,6 +138,10 @@ class CallRequest() : IntoCallRequest {
             }
 
             gasFeeCap != null && gasTipCap != null && blobVersionedHashes == null -> {
+                if (!ChainId.isValid(chainId)) {
+                    return null
+                }
+
                 return TxDynamicFee(
                     to = to,
                     value = value ?: BigInteger.ZERO,
@@ -151,6 +156,10 @@ class CallRequest() : IntoCallRequest {
             }
 
             gasPrice != null && accessList.isNotEmpty() -> {
+                if (!ChainId.isValid(chainId)) {
+                    return null
+                }
+
                 return TxAccessList(
                     to = to,
                     value = value ?: BigInteger.ZERO,
