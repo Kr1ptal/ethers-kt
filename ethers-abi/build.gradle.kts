@@ -7,9 +7,9 @@ plugins {
 }
 
 dependencies {
-    implementation(project(":ethers-core"))
-    implementation(project(":ethers-providers"))
-    implementation(project(":ethers-signers"))
+    api(project(":ethers-core"))
+    api(project(":ethers-providers"))
+    api(project(":ethers-signers"))
 
     testImplementation(libs.bundles.kotest)
 
