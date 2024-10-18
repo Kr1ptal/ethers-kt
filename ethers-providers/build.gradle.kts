@@ -10,8 +10,9 @@ repositories {
 dependencies {
     api(libs.bundles.okhttp3)
 
-    implementation(project(":ethers-core"))
-    implementation(project(":ethers-signers"))
+    api(project(":ethers-core"))
+    api(project(":ethers-signers"))
+
     implementation(project(":logger"))
     implementation(libs.jctools)
     implementation(libs.bundles.jackson)

@@ -31,7 +31,7 @@ import java.security.SecureRandom
  *
  * Original: [org.bouncycastle.crypto.signers.ECDSASigner]
  */
-class ECDSASignerRecoverable : ECConstants, DSAExt {
+internal class ECDSASignerRecoverable : ECConstants, DSAExt {
     private val kCalculator: DSAKCalculator
     private var key: ECKeyParameters? = null
     private var random: SecureRandom? = null

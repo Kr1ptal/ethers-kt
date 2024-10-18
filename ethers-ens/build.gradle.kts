@@ -9,9 +9,10 @@ repositories {
 }
 
 dependencies {
-    implementation(project(":ethers-core"))
-    implementation(project(":ethers-abi"))
-    implementation(project(":ethers-providers"))
+    api(project(":ethers-core"))
+    api(project(":ethers-abi"))
+    api(project(":ethers-providers"))
+
     implementation(project(":logger"))
     implementation(libs.ens.normalise)
 

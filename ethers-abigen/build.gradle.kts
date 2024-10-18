@@ -4,10 +4,9 @@ plugins {
 }
 
 dependencies {
-    implementation(project(":ethers-core"))
-    implementation(project(":ethers-providers"))
-    implementation(project(":ethers-signers"))
-    implementation(project(":ethers-abi"))
+    api(project(":ethers-core"))
+    api(project(":ethers-providers"))
+    api(project(":ethers-abi"))
 
     implementation(libs.kotlinpoet) {
         // don't need this dependency: https://square.github.io/kotlinpoet/#kotlin-reflect

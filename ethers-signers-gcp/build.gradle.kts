@@ -4,9 +4,7 @@ plugins {
 }
 
 dependencies {
-    implementation(project(":ethers-core"))
-    implementation(project(":ethers-crypto"))
-    implementation(project(":ethers-signers"))
+    api(project(":ethers-signers"))
 
     implementation(libs.bouncycastle.provider)
     implementation(libs.gcp.kms)

@@ -7,7 +7,8 @@ plugins {
 }
 
 dependencies {
-    implementation(project(":ethers-abigen"))
+    api(project(":ethers-abigen"))
+
     implementation(libs.kotlin.gradle)
     implementation(libs.hoplite.core)
     implementation(libs.hoplite.toml)
