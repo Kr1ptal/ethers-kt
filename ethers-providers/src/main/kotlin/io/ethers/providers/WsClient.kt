@@ -111,7 +111,9 @@ class WsClient(
             }
 
             override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-                LOG.dbg { "WebSocket connection closing: $code $reason" }
+                LOG.dbg { "WebSocket connection closing: $code $reason. Closing our side as well." }
+
+                webSocket.close(code, reason)
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
