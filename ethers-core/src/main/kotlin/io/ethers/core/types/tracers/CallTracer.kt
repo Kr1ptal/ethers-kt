@@ -87,18 +87,31 @@ data class CallTracer(
         }
 
         /**
+         * Get all [CallLog]s from this and child calls. The logs might not be in the correct order because not
+         * enough information is received via tracer to infer the ordering. We make a best-guess effort by
+         * first adding logs from child calls, and then adding logs from parent call.
+         *
+         * Compared to [getAllLogs], this function returns [CallLog]s instead of [Log]s.
+         * */
+        fun getAllCallLogs(): List<CallLog> {
+            return flattenLogs(ArrayList()) { log, _ -> log }
+        }
+
+        /**
          * Get all [Log]s from this and child calls. The logs might not be in the correct order because not
          * enough information is received via tracer to infer the ordering. We make a best-guess effort by
          * first adding logs from child calls, and then adding logs from parent call.
          *
          * The logs don't have any block or transaction information, but they do have a log index, which
          * corresponds to the index within the call.
+         *
+         * Compared to [getAllCallLogs], this function returns [Log]s instead of [CallLog]s.
          * */
         fun getAllLogs(): List<Log> {
-            return addAllCallLogs(ArrayList())
+            return flattenLogs(ArrayList()) { log, index -> log.toLog(index) }
         }
 
-        private fun addAllCallLogs(ret: MutableList<Log>): List<Log> {
+        private fun <T> flattenLogs(ret: MutableList<T>, mapper: (log: CallLog, index: Int) -> T): List<T> {
             // if the call failed, skip it and all its children logs
             if (isError) {
                 return ret
@@ -107,14 +120,14 @@ data class CallTracer(
             // first, add logs from child calls since they are emitted before logs from current call
             calls?.let {
                 for (i in it.indices) {
-                    it[i].addAllCallLogs(ret)
+                    it[i].flattenLogs(ret, mapper)
                 }
             }
 
             // second, add this call logs, after any child calls finished executing
             logs?.let {
                 for (i in it.indices) {
-                    ret.add(it[i].toLog(ret.size))
+                    ret.add(mapper(it[i], ret.size))
                 }
             }
 
@@ -189,7 +202,21 @@ data class CallTracer(
                 }
             }
 
-            return CallFrame(type, from, gas, gasUsed, input, to, output, error, revertReason, calls, logs, value, otherFields ?: emptyMap())
+            return CallFrame(
+                type,
+                from,
+                gas,
+                gasUsed,
+                input,
+                to,
+                output,
+                error,
+                revertReason,
+                calls,
+                logs,
+                value,
+                otherFields ?: emptyMap(),
+            )
         }
     }
 
