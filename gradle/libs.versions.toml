@@ -42,7 +42,7 @@ okhttp3-mockwebserver = { module = "com.squareup.okhttp3:mockwebserver", version
 kotlinpoet = { module = "com.squareup:kotlinpoet", version = "2.0.0" }
 
 bouncycastle-provider = { module = "org.bouncycastle:bcprov-jdk15to18", version = "1.79" }
-gcp-kms = { module = "com.google.cloud:google-cloud-kms", version = "2.56.0" }
+gcp-kms = { module = "com.google.cloud:google-cloud-kms", version = "2.57.0" }
 
 ens-normalise = { module = "io.github.adraffy:ens-normalize", version = "0.2.0" }
 kotlinx-cli = { module = "org.jetbrains.kotlinx:kotlinx-cli", version = "0.3.6" }
