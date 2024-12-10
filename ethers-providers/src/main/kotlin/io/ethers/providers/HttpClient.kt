@@ -90,7 +90,7 @@ class HttpClient(
                             // reading from response body consumes it, so we need to create a new one
                             val arr = stream.readAllBytes()
                             stream = ByteArrayInputStream(arr)
-                            "Batch response: ${String(arr)}"
+                            "Batch response: ${String(arr)}".removeSuffix("\n")
                         }
 
                         if (!it.isSuccessful) {
@@ -195,7 +195,7 @@ class HttpClient(
                             // reading from response body consumes it, so we need to create a new one
                             val arr = stream.readAllBytes()
                             stream = ByteArrayInputStream(arr)
-                            "Response: ${String(arr)}"
+                            "Response: ${String(arr)}".removeSuffix("\n")
                         }
 
                         if (!it.isSuccessful) {
