@@ -4,6 +4,7 @@ import io.ethers.core.FastHex
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Signature
+import io.ethers.crypto.Hashing
 import io.ethers.crypto.Secp256k1
 
 /**
@@ -58,6 +59,16 @@ class PrivateKeySigner(val signingKey: Secp256k1.SigningKey) : Signer {
             }
 
             return Secp256k1.SigningKey(bytes)
+        }
+
+        /**
+         * Create a new [PrivateKeySigner] from random entropy, using [Hashing.secureRandom].
+         * */
+        @JvmStatic
+        fun random(): PrivateKeySigner {
+            val privateKey = ByteArray(32)
+            Hashing.secureRandom().nextBytes(privateKey)
+            return PrivateKeySigner(privateKey)
         }
     }
 }

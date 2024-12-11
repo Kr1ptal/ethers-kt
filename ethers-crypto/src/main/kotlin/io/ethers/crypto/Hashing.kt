@@ -6,10 +6,20 @@ import org.bouncycastle.crypto.macs.HMac
 import org.bouncycastle.crypto.params.KeyParameter
 import org.bouncycastle.jcajce.provider.digest.Keccak
 import org.bouncycastle.jcajce.provider.digest.SHA256
+import java.security.SecureRandom
 
 object Hashing {
     private val MESSAGE_PREFIX = "\u0019Ethereum Signed Message:\n".toByteArray()
     private const val VERSIONED_HASH_VERSION_KZG = 0x01.toByte()
+    private val secureRandom by lazy { SecureRandom() }
+
+    /**
+     * Get cached [SecureRandom] instance. Instance is created on first access.
+     * */
+    @JvmStatic
+    fun secureRandom(): SecureRandom {
+        return secureRandom
+    }
 
     /**
      * Construct and hash [message] based on [EIP-191](https://eips.ethereum.org/EIPS/eip-191) standard (version 0x01).

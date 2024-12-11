@@ -1,11 +1,11 @@
 package io.ethers.crypto.bip39
 
+import io.ethers.crypto.Hashing
 import org.bouncycastle.crypto.digests.SHA512Digest
 import org.bouncycastle.crypto.generators.PKCS5S2ParametersGenerator
 import org.bouncycastle.crypto.params.KeyParameter
 import org.bouncycastle.jcajce.provider.digest.SHA256
 import java.nio.charset.StandardCharsets
-import java.security.SecureRandom
 import java.util.Collections
 
 /**
@@ -130,7 +130,7 @@ class MnemonicCode @JvmOverloads constructor(
         private const val SEED_ITERATIONS = 2048
 
         /**
-         * Create a new mnemonic code from random entropy, using [SecureRandom].
+         * Create a new mnemonic code from random entropy, using [Hashing.secureRandom].
          * */
         @JvmStatic
         @JvmOverloads
@@ -138,9 +138,8 @@ class MnemonicCode @JvmOverloads constructor(
             bitsOfEntropy: Int = 256,
             wordList: MnemonicWordList = MnemonicWordListEnglish,
         ): MnemonicCode {
-            val rand = SecureRandom()
             val entropy = ByteArray(bitsOfEntropy / 8)
-            rand.nextBytes(entropy)
+            Hashing.secureRandom().nextBytes(entropy)
 
             return fromEntropy(entropy, wordList)
         }
