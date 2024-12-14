@@ -106,7 +106,15 @@ class BlockingSubscriptionStream<T> private constructor(
 
                     // if no next element, wait until next event to avoid CPU cycle burning
                     if (next == null) {
-                        lock.withLock { newEventCondition.await() }
+                        lock.withLock {
+                            // re-check the queue, as it might have been modified by the time we got the lock, and the
+                            // signalling of the condition might have been missed
+                            next = eventQueue.poll()
+
+                            if (next == null) {
+                                newEventCondition.await()
+                            }
+                        }
                     }
                 }
 
