@@ -261,6 +261,10 @@ class HttpClient(
         return CompletableFuture.completedFuture(ERROR_SUBSCRIPTION_UNSUPPORTED)
     }
 
+    override fun close() {
+        // no-op
+    }
+
     private fun BatchRpcRequest.toRequestBody(): RequestBody {
         val output = DirectByteArrayOutputStream(requests.size * BYTE_BUFFER_DEFAULT_SIZE)
         output.use { out ->

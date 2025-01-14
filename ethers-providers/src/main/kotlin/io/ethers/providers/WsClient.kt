@@ -280,7 +280,7 @@ class WsClient(
                         val id = requestId++
                         val writer = SegmentedStringWriter(bufferRecycler)
                         Jackson.MAPPER.createGenerator(writer).use { gen ->
-                            gen.writeJsonRpcRequest(request!!.method, id, request!!.params)
+                            gen.writeJsonRpcRequest(request!!.method, id, request.params)
                         }
 
                         val req = writer.andClear
@@ -297,7 +297,7 @@ class WsClient(
                             gen.writeStartArray()
 
                             for (i in batchRequest!!.request.requests.indices) {
-                                val req = batchRequest!!.request.requests[i]
+                                val req = batchRequest.request.requests[i]
 
                                 // use id of the first request to identify the batch
                                 val id = requestId++
@@ -353,7 +353,10 @@ class WsClient(
                 }
             }
 
+            // close the websocket, expire all remaining requests, and unsubscribe from all subscriptions
             websocket.close(1000, "Close")
+            handleTimeouts(0.milliseconds)
+            requestIdToSubscription.values.forEach { it.stream.unsubscribe() }
         }
 
         processorThread.name = "WsClient-Processor-${processorThread.id}"
@@ -408,7 +411,7 @@ class WsClient(
                         }
 
                         resultBuffer = TokenBuffer(parser)
-                        resultBuffer!!.copyCurrentStructure(parser)
+                        resultBuffer.copyCurrentStructure(parser)
                     }
 
                     "params" -> {
@@ -419,7 +422,7 @@ class WsClient(
                         }
 
                         paramsBuffer = TokenBuffer(parser)
-                        paramsBuffer!!.copyCurrentStructure(parser)
+                        paramsBuffer.copyCurrentStructure(parser)
                     }
 
                     "error" -> error = Jackson.MAPPER.readValue(parser, RpcError::class.java)
@@ -432,7 +435,7 @@ class WsClient(
             // DO NOT CHANGE ORDER OF THESE OPERATIONS
             // order of operations matters here. All response messages have "id" field, but only notifications have "method"
             when {
-                method != null && paramsBuffer != null -> paramsBuffer!!.use { buff ->
+                method != null && paramsBuffer != null -> paramsBuffer.use { buff ->
                     buff.asParser().use {
                         it.nextToken()
                         handleNotification(it)
@@ -441,7 +444,7 @@ class WsClient(
 
                 id != -1L && error != null -> handleResponse(id, parser, error)
 
-                id != -1L && resultBuffer != null -> resultBuffer!!.use { buff ->
+                id != -1L && resultBuffer != null -> resultBuffer.use { buff ->
                     buff.asParser().use {
                         it.nextToken()
                         handleResponse(id, it, null)
@@ -473,9 +476,9 @@ class WsClient(
                         "result" -> {
                             if (batch == null) {
                                 buffer = TokenBuffer(p)
-                                buffer!!.copyCurrentStructure(p)
+                                buffer.copyCurrentStructure(p)
                             } else {
-                                result = batch!!.request.requests[responseIndex].resultDecoder.apply(p)
+                                result = batch.request.requests[responseIndex].resultDecoder.apply(p)
                             }
                         }
 
@@ -490,18 +493,18 @@ class WsClient(
 
                 // if we had to buffer, read result from it now
                 buffer?.use {
-                    result = batch!!.request.requests[responseIndex].resultDecoder.apply(it.asParserOnFirstToken())
+                    result = batch.request.requests[responseIndex].resultDecoder.apply(it.asParserOnFirstToken())
                 }
 
                 if (result == null && error == null) {
-                    batch!!.request.responses[responseIndex].complete(HttpClient.ERROR_INVALID_RESPONSE)
+                    batch.request.responses[responseIndex].complete(HttpClient.ERROR_INVALID_RESPONSE)
                 } else {
                     val response = when {
                         result != null -> success(result)
                         else -> failure(error!!)
                     }
 
-                    batch!!.request.responses[responseIndex].complete(response)
+                    batch.request.responses[responseIndex].complete(response)
                 }
 
                 responseIndex++
@@ -515,20 +518,20 @@ class WsClient(
                 when (field) {
                     "id" -> {}
                     "jsonrpc" -> {}
-                    "result" -> result = batch!!.request.requests[responseIndex].resultDecoder.apply(p)
+                    "result" -> result = batch.request.requests[responseIndex].resultDecoder.apply(p)
                     "error" -> error = Jackson.MAPPER.readValue(p, RpcError::class.java)
                     else -> throw Exception("Invalid response: $text")
                 }
             }
 
             if (result == null && error == null) {
-                batch!!.request.responses[responseIndex].complete(HttpClient.ERROR_INVALID_RESPONSE)
+                batch.request.responses[responseIndex].complete(HttpClient.ERROR_INVALID_RESPONSE)
             } else {
                 val response = when {
                     result != null -> success(result)
                     else -> failure(error!!)
                 }
-                batch!!.request.responses[responseIndex].complete(response)
+                batch.request.responses[responseIndex].complete(response)
             }
 
             responseIndex++
@@ -646,7 +649,7 @@ class WsClient(
                     }
 
                     resultBuff = TokenBuffer(paramsParser)
-                    resultBuff!!.copyCurrentStructure(paramsParser)
+                    resultBuff.copyCurrentStructure(paramsParser)
                 }
 
                 else -> throw Exception("Invalid notification: $paramsParser")
@@ -665,7 +668,7 @@ class WsClient(
     /**
      * Signal to close WS connection.
      */
-    fun close() {
+    override fun close() {
         LOG.inf { "Requesting to close WebSocket" }
 
         stopping = true
@@ -726,7 +729,7 @@ class WsClient(
             return false
         }
 
-        protected abstract fun expireRequest()
+        abstract fun expireRequest()
     }
 
     private class CompletableRequest<T>(

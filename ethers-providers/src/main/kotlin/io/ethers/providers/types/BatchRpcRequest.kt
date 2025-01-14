@@ -22,6 +22,11 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) {
     private var client: JsonRpcClient? = null
 
     /**
+     * Returns true if this batch has no requests.
+     * */
+    val isEmpty: Boolean get() = requests.isEmpty()
+
+    /**
      * Add RPC request to this batch.
      *
      * NOTE: The returned CompletableFuture should not be awaited until the batch is sent.
