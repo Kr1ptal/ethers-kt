@@ -177,38 +177,32 @@ interface EthApi {
     /**
      * Execute [call] on given [blockHash] with applied state overrides.
      */
-    fun call(call: IntoCallRequest, blockHash: Hash, stateOverride: StateOverride) =
-        call(call, BlockId.Hash(blockHash), stateOverride, null)
+    fun call(call: IntoCallRequest, blockHash: Hash, stateOverride: StateOverride) = call(call, BlockId.Hash(blockHash), stateOverride, null)
 
     /**
      * Execute [call] on given [blockNumber] with applied state overrides.
      */
-    fun call(call: IntoCallRequest, blockNumber: Long, stateOverride: StateOverride) =
-        call(call, BlockId.Number(blockNumber), stateOverride, null)
+    fun call(call: IntoCallRequest, blockNumber: Long, stateOverride: StateOverride) = call(call, BlockId.Number(blockNumber), stateOverride, null)
 
     /**
      * Execute [call] on given [blockId] with applied state overrides.
      */
-    fun call(call: IntoCallRequest, blockId: BlockId, stateOverride: StateOverride) =
-        call(call, blockId, stateOverride, null)
+    fun call(call: IntoCallRequest, blockId: BlockId, stateOverride: StateOverride) = call(call, blockId, stateOverride, null)
 
     /**
      * Execute [call] on given [blockHash] with applied block overrides.
      */
-    fun call(call: IntoCallRequest, blockHash: Hash, blockOverride: BlockOverride) =
-        call(call, BlockId.Hash(blockHash), null, blockOverride)
+    fun call(call: IntoCallRequest, blockHash: Hash, blockOverride: BlockOverride) = call(call, BlockId.Hash(blockHash), null, blockOverride)
 
     /**
      * Execute [call] on given [blockNumber] with applied block overrides.
      */
-    fun call(call: IntoCallRequest, blockNumber: Long, blockOverride: BlockOverride) =
-        call(call, BlockId.Number(blockNumber), null, blockOverride)
+    fun call(call: IntoCallRequest, blockNumber: Long, blockOverride: BlockOverride) = call(call, BlockId.Number(blockNumber), null, blockOverride)
 
     /**
      * Execute [call] on given [blockId] with applied block overrides.
      */
-    fun call(call: IntoCallRequest, blockId: BlockId, blockOverride: BlockOverride) =
-        call(call, blockId, null, blockOverride)
+    fun call(call: IntoCallRequest, blockId: BlockId, blockOverride: BlockOverride) = call(call, blockId, null, blockOverride)
 
     /**
      * Execute [call] on given [blockHash] with applied state and block overrides.
@@ -349,8 +343,7 @@ interface EthApi {
     /**
      * Get gas fee history for block range between [lastBlockName] and ([lastBlockName] - [blockCount] + 1).
      */
-    fun getFeeHistory(blockCount: Long, lastBlockName: BlockId.Name) =
-        getFeeHistory(blockCount, lastBlockName, emptyList())
+    fun getFeeHistory(blockCount: Long, lastBlockName: BlockId.Name) = getFeeHistory(blockCount, lastBlockName, emptyList())
 
     /**
      * Get gas fee history for block range between [lastBlockNumber] and ([lastBlockNumber] - [blockCount] + 1).
@@ -360,8 +353,7 @@ interface EthApi {
     /**
      * Get gas fee history for block range between [lastBlockNumber] and ([lastBlockNumber] - [blockCount] + 1).
      */
-    fun getFeeHistory(blockCount: Long, lastBlockNumber: BlockId.Number) =
-        getFeeHistory(blockCount, lastBlockNumber, emptyList())
+    fun getFeeHistory(blockCount: Long, lastBlockNumber: BlockId.Number) = getFeeHistory(blockCount, lastBlockNumber, emptyList())
 
     /**
      * Get gas fee history for block range between [lastBlockName] and ([lastBlockName] - [blockCount] + 1).
@@ -422,14 +414,12 @@ interface EthApi {
     /**
      * Get transaction at [index] in a given block [number].
      */
-    fun getTransactionByBlockAndIndex(number: Long, index: Long) =
-        getTransactionByBlockAndIndex(BlockId.Number(number), index)
+    fun getTransactionByBlockAndIndex(number: Long, index: Long) = getTransactionByBlockAndIndex(BlockId.Number(number), index)
 
     /**
      * Get transaction at [index] in a given block [hash].
      */
-    fun getTransactionByBlockAndIndex(hash: Hash, index: Long) =
-        getTransactionByBlockAndIndex(BlockId.Hash(hash), index)
+    fun getTransactionByBlockAndIndex(hash: Hash, index: Long) = getTransactionByBlockAndIndex(BlockId.Hash(hash), index)
 
     /**
      * Get transaction at [index] in a given block [blockId].
@@ -439,14 +429,12 @@ interface EthApi {
     /**
      * Get RLP encoded transaction at [index] in a given block [number].
      */
-    fun getRawTransactionByBlockAndIndex(number: Long, index: Long) =
-        getRawTransactionByBlockAndIndex(BlockId.Number(number), index)
+    fun getRawTransactionByBlockAndIndex(number: Long, index: Long) = getRawTransactionByBlockAndIndex(BlockId.Number(number), index)
 
     /**
      * Get RLP encoded transaction at [index] in a given block [hash].
      */
-    fun getRawTransactionByBlockAndIndex(hash: Hash, index: Long) =
-        getRawTransactionByBlockAndIndex(BlockId.Hash(hash), index)
+    fun getRawTransactionByBlockAndIndex(hash: Hash, index: Long) = getRawTransactionByBlockAndIndex(BlockId.Hash(hash), index)
 
     /**
      * Get RLP encoded transaction at [index] in a given block [blockId].

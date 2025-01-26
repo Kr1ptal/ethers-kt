@@ -68,37 +68,35 @@ class EnsMiddleware @JvmOverloads constructor(
     /**
      * Resolve ENS name to a text record associated with a [key], as per [specification](https://docs.ens.domains/ens-improvement-proposals/ensip-5-text-records).
      */
-    fun resolveText(ensName: String, key: String): CompletableFuture<Result<String, Error>> =
-        CompletableFuture.supplyAsync {
-            return@supplyAsync resolveWithParameters(
-                ensName,
-                ExtendedResolver.FUNCTION_TEXT,
-                mutableListOf(key),
-                mutableListOf(AbiType.String),
-            ).map { AbiCodec.decode(AbiType.String, it.asByteArray()) }
-        }
+    fun resolveText(ensName: String, key: String): CompletableFuture<Result<String, Error>> = CompletableFuture.supplyAsync {
+        return@supplyAsync resolveWithParameters(
+            ensName,
+            ExtendedResolver.FUNCTION_TEXT,
+            mutableListOf(key),
+            mutableListOf(AbiType.String),
+        ).map { AbiCodec.decode(AbiType.String, it.asByteArray()) }
+    }
 
     /**
      * Reverse ENS name resolution, as per [specification](https://docs.ens.domains/ens-improvement-proposals/ensip-3-reverse-resolution).
      */
-    fun resolveEnsName(address: Address): CompletableFuture<Result<String, Error>> =
-        CompletableFuture.supplyAsync {
-            val resolvedName = resolveWithParameters(
-                reverseAddressEnsName(address),
-                ExtendedResolver.FUNCTION_NAME,
-            ).map { AbiCodec.decode(AbiType.String, it.asByteArray()) }
+    fun resolveEnsName(address: Address): CompletableFuture<Result<String, Error>> = CompletableFuture.supplyAsync {
+        val resolvedName = resolveWithParameters(
+            reverseAddressEnsName(address),
+            ExtendedResolver.FUNCTION_NAME,
+        ).map { AbiCodec.decode(AbiType.String, it.asByteArray()) }
 
-            return@supplyAsync resolvedName.andThen { ensName ->
-                // To be certain of reverse lookup ENS name, forward resolution must resolve to the original address
-                resolveAddress(ensName).get().andThen {
-                    if (it == address) {
-                        success(ensName)
-                    } else {
-                        failure(Error.IncorrectOwner("True owner of ENS name: $ensName is not the same as provided address: $address"))
-                    }
+        return@supplyAsync resolvedName.andThen { ensName ->
+            // To be certain of reverse lookup ENS name, forward resolution must resolve to the original address
+            resolveAddress(ensName).get().andThen {
+                if (it == address) {
+                    success(ensName)
+                } else {
+                    failure(Error.IncorrectOwner("True owner of ENS name: $ensName is not the same as provided address: $address"))
                 }
             }
         }
+    }
 
     /**
      * Resolve avatar of [ensName], as per

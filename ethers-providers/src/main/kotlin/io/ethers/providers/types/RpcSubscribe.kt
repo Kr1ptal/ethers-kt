@@ -132,8 +132,7 @@ private class MappingRpcSubscribe<I, O, E : Result.Error, U : Result.Error>(
 ) : RpcSubscribe<O, U> {
     override fun sendAwait(): Result<SubscriptionStream<O>, U> = sendAsync().join()
 
-    override fun sendAsync(): CompletableFuture<Result<SubscriptionStream<O>, U>> =
-        request.sendAsync().thenApplyAsync(mapper)
+    override fun sendAsync(): CompletableFuture<Result<SubscriptionStream<O>, U>> = request.sendAsync().thenApplyAsync(mapper)
 
     override fun toString(): String {
         return "MappingRpcSubscribe(request=$request)"
