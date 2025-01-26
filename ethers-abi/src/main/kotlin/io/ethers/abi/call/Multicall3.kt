@@ -5,7 +5,6 @@ import io.ethers.abi.AbiFunction
 import io.ethers.abi.AbiType
 import io.ethers.abi.ContractStruct
 import io.ethers.abi.StructFactory
-import io.ethers.abi.call.Multicall3.Aggregatable
 import io.ethers.abi.call.Multicall3.Companion.DEFAULT_ADDRESS
 import io.ethers.abi.call.Multicall3.Companion.STATE_OVERRIDE
 import io.ethers.abi.error.ContractError
@@ -92,52 +91,48 @@ class Multicall3(
     }
 
     @Suppress("UNCHECKED_CAST")
-    fun aggregate(vararg calls: Call): PayableFunctionCall<AggregateResult> =
-        PayableFunctionCall(
-            this.provider,
-            this.address,
-            FUNCTION_AGGREGATE.encodeCall(arrayOf(calls)),
-        ) {
-            val data = FUNCTION_AGGREGATE.decodeResponse(it)
-            AggregateResult(data[0] as BigInteger, data[1] as Array<Bytes>)
-        }
+    fun aggregate(vararg calls: Call): PayableFunctionCall<AggregateResult> = PayableFunctionCall(
+        this.provider,
+        this.address,
+        FUNCTION_AGGREGATE.encodeCall(arrayOf(calls)),
+    ) {
+        val data = FUNCTION_AGGREGATE.decodeResponse(it)
+        AggregateResult(data[0] as BigInteger, data[1] as Array<Bytes>)
+    }
 
     @Suppress("UNCHECKED_CAST")
-    fun aggregate3(vararg calls: Call3): PayableFunctionCall<Array<Result>> =
-        PayableFunctionCall(
-            this.provider,
-            this.address,
-            FUNCTION_AGGREGATE3.encodeCall(arrayOf(calls)),
-        ) {
-            val data = FUNCTION_AGGREGATE3.decodeResponse(it)
-            data[0] as Array<Result>
-        }
+    fun aggregate3(vararg calls: Call3): PayableFunctionCall<Array<Result>> = PayableFunctionCall(
+        this.provider,
+        this.address,
+        FUNCTION_AGGREGATE3.encodeCall(arrayOf(calls)),
+    ) {
+        val data = FUNCTION_AGGREGATE3.decodeResponse(it)
+        data[0] as Array<Result>
+    }
 
     @Suppress("UNCHECKED_CAST")
-    fun aggregate3Value(vararg calls: Call3Value): PayableFunctionCall<Array<Result>> =
-        PayableFunctionCall(
-            this.provider,
-            this.address,
-            FUNCTION_AGGREGATE3_VALUE.encodeCall(arrayOf(calls)),
-        ) {
-            val data = FUNCTION_AGGREGATE3_VALUE.decodeResponse(it)
-            data[0] as Array<Result>
-        }
+    fun aggregate3Value(vararg calls: Call3Value): PayableFunctionCall<Array<Result>> = PayableFunctionCall(
+        this.provider,
+        this.address,
+        FUNCTION_AGGREGATE3_VALUE.encodeCall(arrayOf(calls)),
+    ) {
+        val data = FUNCTION_AGGREGATE3_VALUE.decodeResponse(it)
+        data[0] as Array<Result>
+    }
 
     @Suppress("UNCHECKED_CAST")
-    fun blockAndAggregate(vararg calls: Call): PayableFunctionCall<BlockAndAggregateResult> =
-        PayableFunctionCall(
-            this.provider,
-            this.address,
-            FUNCTION_BLOCK_AND_AGGREGATE.encodeCall(arrayOf(calls)),
-        ) {
-            val data = FUNCTION_BLOCK_AND_AGGREGATE.decodeResponse(it)
-            BlockAndAggregateResult(
-                data[0] as BigInteger,
-                data[1] as Bytes,
-                data[2] as Array<Result>,
-            )
-        }
+    fun blockAndAggregate(vararg calls: Call): PayableFunctionCall<BlockAndAggregateResult> = PayableFunctionCall(
+        this.provider,
+        this.address,
+        FUNCTION_BLOCK_AND_AGGREGATE.encodeCall(arrayOf(calls)),
+    ) {
+        val data = FUNCTION_BLOCK_AND_AGGREGATE.decodeResponse(it)
+        BlockAndAggregateResult(
+            data[0] as BigInteger,
+            data[1] as Bytes,
+            data[2] as Array<Result>,
+        )
+    }
 
     fun getBasefee(): ReadFunctionCall<BigInteger> = ReadFunctionCall(
         this.provider,
@@ -148,15 +143,14 @@ class Multicall3(
         data[0] as BigInteger
     }
 
-    fun getBlockHash(blockNumber: BigInteger): ReadFunctionCall<Bytes> =
-        ReadFunctionCall(
-            this.provider,
-            this.address,
-            FUNCTION_GET_BLOCK_HASH.encodeCall(arrayOf(blockNumber)),
-        ) {
-            val data = FUNCTION_GET_BLOCK_HASH.decodeResponse(it)
-            data[0] as Bytes
-        }
+    fun getBlockHash(blockNumber: BigInteger): ReadFunctionCall<Bytes> = ReadFunctionCall(
+        this.provider,
+        this.address,
+        FUNCTION_GET_BLOCK_HASH.encodeCall(arrayOf(blockNumber)),
+    ) {
+        val data = FUNCTION_GET_BLOCK_HASH.decodeResponse(it)
+        data[0] as Bytes
+    }
 
     fun getBlockNumber(): ReadFunctionCall<BigInteger> = ReadFunctionCall(
         this.provider,
@@ -176,55 +170,50 @@ class Multicall3(
         data[0] as BigInteger
     }
 
-    fun getCurrentBlockCoinbase(): ReadFunctionCall<Address> =
-        ReadFunctionCall(
-            this.provider,
-            this.address,
-            FUNCTION_GET_CURRENT_BLOCK_COINBASE.encodeCall(emptyArray()),
-        ) {
-            val data = FUNCTION_GET_CURRENT_BLOCK_COINBASE.decodeResponse(it)
-            data[0] as Address
-        }
+    fun getCurrentBlockCoinbase(): ReadFunctionCall<Address> = ReadFunctionCall(
+        this.provider,
+        this.address,
+        FUNCTION_GET_CURRENT_BLOCK_COINBASE.encodeCall(emptyArray()),
+    ) {
+        val data = FUNCTION_GET_CURRENT_BLOCK_COINBASE.decodeResponse(it)
+        data[0] as Address
+    }
 
-    fun getCurrentBlockDifficulty(): ReadFunctionCall<BigInteger> =
-        ReadFunctionCall(
-            this.provider,
-            this.address,
-            FUNCTION_GET_CURRENT_BLOCK_DIFFICULTY.encodeCall(emptyArray()),
-        ) {
-            val data = FUNCTION_GET_CURRENT_BLOCK_DIFFICULTY.decodeResponse(it)
-            data[0] as BigInteger
-        }
+    fun getCurrentBlockDifficulty(): ReadFunctionCall<BigInteger> = ReadFunctionCall(
+        this.provider,
+        this.address,
+        FUNCTION_GET_CURRENT_BLOCK_DIFFICULTY.encodeCall(emptyArray()),
+    ) {
+        val data = FUNCTION_GET_CURRENT_BLOCK_DIFFICULTY.decodeResponse(it)
+        data[0] as BigInteger
+    }
 
-    fun getCurrentBlockGasLimit(): ReadFunctionCall<BigInteger> =
-        ReadFunctionCall(
-            this.provider,
-            this.address,
-            FUNCTION_GET_CURRENT_BLOCK_GAS_LIMIT.encodeCall(emptyArray()),
-        ) {
-            val data = FUNCTION_GET_CURRENT_BLOCK_GAS_LIMIT.decodeResponse(it)
-            data[0] as BigInteger
-        }
+    fun getCurrentBlockGasLimit(): ReadFunctionCall<BigInteger> = ReadFunctionCall(
+        this.provider,
+        this.address,
+        FUNCTION_GET_CURRENT_BLOCK_GAS_LIMIT.encodeCall(emptyArray()),
+    ) {
+        val data = FUNCTION_GET_CURRENT_BLOCK_GAS_LIMIT.decodeResponse(it)
+        data[0] as BigInteger
+    }
 
-    fun getCurrentBlockTimestamp(): ReadFunctionCall<BigInteger> =
-        ReadFunctionCall(
-            this.provider,
-            this.address,
-            FUNCTION_GET_CURRENT_BLOCK_TIMESTAMP.encodeCall(emptyArray()),
-        ) {
-            val data = FUNCTION_GET_CURRENT_BLOCK_TIMESTAMP.decodeResponse(it)
-            data[0] as BigInteger
-        }
+    fun getCurrentBlockTimestamp(): ReadFunctionCall<BigInteger> = ReadFunctionCall(
+        this.provider,
+        this.address,
+        FUNCTION_GET_CURRENT_BLOCK_TIMESTAMP.encodeCall(emptyArray()),
+    ) {
+        val data = FUNCTION_GET_CURRENT_BLOCK_TIMESTAMP.decodeResponse(it)
+        data[0] as BigInteger
+    }
 
-    fun getEthBalance(addr: Address): ReadFunctionCall<BigInteger> =
-        ReadFunctionCall(
-            this.provider,
-            this.address,
-            FUNCTION_GET_ETH_BALANCE.encodeCall(arrayOf(addr)),
-        ) {
-            val data = FUNCTION_GET_ETH_BALANCE.decodeResponse(it)
-            data[0] as BigInteger
-        }
+    fun getEthBalance(addr: Address): ReadFunctionCall<BigInteger> = ReadFunctionCall(
+        this.provider,
+        this.address,
+        FUNCTION_GET_ETH_BALANCE.encodeCall(arrayOf(addr)),
+    ) {
+        val data = FUNCTION_GET_ETH_BALANCE.decodeResponse(it)
+        data[0] as BigInteger
+    }
 
     fun getLastBlockHash(): ReadFunctionCall<Bytes> = ReadFunctionCall(
         this.provider,
@@ -236,15 +225,14 @@ class Multicall3(
     }
 
     @Suppress("UNCHECKED_CAST")
-    fun tryAggregate(requireSuccess: Boolean, vararg calls: Call): PayableFunctionCall<Array<Result>> =
-        PayableFunctionCall(
-            this.provider,
-            this.address,
-            FUNCTION_TRY_AGGREGATE.encodeCall(arrayOf(requireSuccess, calls)),
-        ) {
-            val data = FUNCTION_TRY_AGGREGATE.decodeResponse(it)
-            data[0] as Array<Result>
-        }
+    fun tryAggregate(requireSuccess: Boolean, vararg calls: Call): PayableFunctionCall<Array<Result>> = PayableFunctionCall(
+        this.provider,
+        this.address,
+        FUNCTION_TRY_AGGREGATE.encodeCall(arrayOf(requireSuccess, calls)),
+    ) {
+        val data = FUNCTION_TRY_AGGREGATE.decodeResponse(it)
+        data[0] as Array<Result>
+    }
 
     @Suppress("UNCHECKED_CAST")
     fun tryBlockAndAggregate(

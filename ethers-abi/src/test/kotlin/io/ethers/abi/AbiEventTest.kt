@@ -227,8 +227,7 @@ class AbiEventTest : FunSpec({
                 true,
             )
 
-            override fun filter(provider: Middleware): AnonymousEventFilter<LogNote> =
-                AnonymousEventFilter(provider, this)
+            override fun filter(provider: Middleware): AnonymousEventFilter<LogNote> = AnonymousEventFilter(provider, this)
 
             override fun decode(log: Log, data: Array<out Any>): LogNote {
                 return LogNote(
