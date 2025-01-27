@@ -31,7 +31,6 @@ import org.jctools.queues.SpscUnboundedArrayQueue
 import java.io.IOException
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.ThreadFactory
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
 import java.util.function.Function
@@ -49,14 +48,12 @@ import kotlin.time.TimeSource
 class WsClient(
     url: String,
     client: OkHttpClient,
-    processorThreadFactory: ThreadFactory,
     headers: Map<String, String> = emptyMap(),
 ) : JsonRpcClient {
     @JvmOverloads
     constructor(url: String, config: RpcClientConfig = RpcClientConfig()) : this(
         url,
         config.client!!,
-        config.threadFactory,
         config.requestHeaders,
     )
 
@@ -144,7 +141,7 @@ class WsClient(
             }
         }
 
-        val processorThread = processorThreadFactory.newThread {
+        val processorThread = AsyncExecutor.maybeVirtualThread {
             LOG.inf { "Starting WebSocket processor thread and connecting to websocket" }
 
             var websocket: WebSocket

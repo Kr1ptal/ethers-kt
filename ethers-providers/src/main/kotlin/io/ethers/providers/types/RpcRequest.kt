@@ -3,9 +3,11 @@ package io.ethers.providers.types
 import com.fasterxml.jackson.core.JsonParser
 import io.ethers.core.Result
 import io.ethers.core.Result.Consumer
+import io.ethers.providers.AsyncExecutor
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.Executor
 import java.util.function.Function
 import java.util.function.Supplier
 
@@ -88,6 +90,13 @@ abstract class RpcRequest<T, E : Result.Error> {
             it
         }
     }
+
+    /**
+     * Recommended [Executor] for [CompletableFuture] async operations. See [io.ethers.providers.AsyncExecutor] for details.
+     * */
+    protected fun asyncExecutor(): Executor {
+        return AsyncExecutor.maybeVirtualExecutor()
+    }
 }
 
 /**
@@ -124,10 +133,10 @@ private class MappingRpcRequest<I, O, E : Result.Error, U : Result.Error>(
 ) : RpcRequest<O, U>() {
     override fun sendAwait(): Result<O, U> = sendAsync().join()
 
-    override fun sendAsync(): CompletableFuture<Result<O, U>> = request.sendAsync().thenApplyAsync(mapper)
+    override fun sendAsync(): CompletableFuture<Result<O, U>> = request.sendAsync().thenApplyAsync(mapper, asyncExecutor())
 
     override fun batch(batch: BatchRpcRequest): CompletableFuture<Result<O, U>> {
-        return request.batch(batch).thenApplyAsync(mapper)
+        return request.batch(batch).thenApplyAsync(mapper, asyncExecutor())
     }
 
     override fun toString(): String {
@@ -143,10 +152,10 @@ class SuppliedRpcRequest<T>(
 ) : RpcRequest<T, RpcError>() {
     override fun sendAwait(): Result<T, RpcError> = supplier.get()
 
-    override fun sendAsync(): CompletableFuture<Result<T, RpcError>> = CompletableFuture.supplyAsync(supplier)
+    override fun sendAsync(): CompletableFuture<Result<T, RpcError>> = CompletableFuture.supplyAsync(supplier, asyncExecutor())
 
     override fun batch(batch: BatchRpcRequest): CompletableFuture<Result<T, RpcError>> {
-        return CompletableFuture.supplyAsync(supplier)
+        return CompletableFuture.supplyAsync(supplier, asyncExecutor())
     }
 
     override fun toString(): String {
