@@ -133,8 +133,7 @@ private class MappingRpcRequest<I, O, E : Result.Error, U : Result.Error>(
 ) : RpcRequest<O, U>() {
     override fun sendAwait(): Result<O, U> = sendAsync().join()
 
-    override fun sendAsync(): CompletableFuture<Result<O, U>> =
-        request.sendAsync().thenApplyAsync(mapper, asyncExecutor())
+    override fun sendAsync(): CompletableFuture<Result<O, U>> = request.sendAsync().thenApplyAsync(mapper, asyncExecutor())
 
     override fun batch(batch: BatchRpcRequest): CompletableFuture<Result<O, U>> {
         return request.batch(batch).thenApplyAsync(mapper, asyncExecutor())
@@ -153,8 +152,7 @@ class SuppliedRpcRequest<T>(
 ) : RpcRequest<T, RpcError>() {
     override fun sendAwait(): Result<T, RpcError> = supplier.get()
 
-    override fun sendAsync(): CompletableFuture<Result<T, RpcError>> =
-        CompletableFuture.supplyAsync(supplier, asyncExecutor())
+    override fun sendAsync(): CompletableFuture<Result<T, RpcError>> = CompletableFuture.supplyAsync(supplier, asyncExecutor())
 
     override fun batch(batch: BatchRpcRequest): CompletableFuture<Result<T, RpcError>> {
         return CompletableFuture.supplyAsync(supplier, asyncExecutor())
@@ -164,4 +162,3 @@ class SuppliedRpcRequest<T>(
         return "SuppliedRpcRequest(supplier=$supplier)"
     }
 }
-

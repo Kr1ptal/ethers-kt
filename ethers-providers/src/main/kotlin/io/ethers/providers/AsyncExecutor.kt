@@ -25,7 +25,7 @@ internal object AsyncExecutor {
             val factory = MethodHandles.lookup().findVirtual(
                 threadBuilderClass,
                 "factory",
-                MethodType.methodType(ThreadFactory::class.java) // The method returns a ThreadFactory
+                MethodType.methodType(ThreadFactory::class.java), // The method returns a ThreadFactory
             ).bindTo(Thread::class.java.getMethod("ofVirtual").invoke(null))
 
             // invoke while catching to see if we need to set "--enable-preview" flag
@@ -41,7 +41,7 @@ internal object AsyncExecutor {
             lookup.findStatic(
                 Executors::class.java,
                 "newVirtualThreadPerTaskExecutor",
-                MethodType.methodType(ExecutorService::class.java)
+                MethodType.methodType(ExecutorService::class.java),
             )
         }.getOrNull()?.invokeExact() as? ExecutorService
 
