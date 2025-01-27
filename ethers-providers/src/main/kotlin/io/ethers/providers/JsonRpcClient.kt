@@ -13,7 +13,6 @@ import io.ethers.providers.types.BatchRpcRequest
 import okhttp3.OkHttpClient
 import java.io.Closeable
 import java.util.concurrent.CompletableFuture
-import java.util.concurrent.ThreadFactory
 import java.util.concurrent.TimeUnit
 import java.util.function.Function
 
@@ -213,12 +212,6 @@ class RpcClientConfig {
         get() = field ?: DEFAULT_CLIENT
 
     /**
-     * Factory for creating additional [JsonRpcClient] threads, if needed. By default, a daemon thread is created.
-     * */
-    var threadFactory: ThreadFactory = ThreadFactory { r -> Thread(r).apply { isDaemon = true } }
-        @JvmSynthetic set
-
-    /**
      * Headers to include with each RPC request. Can be used to set authorization headers, etc...
      * */
     var requestHeaders: Map<String, String> = emptyMap()
@@ -228,11 +221,6 @@ class RpcClientConfig {
      * Client to use for making JSON-RPC requests. If not set, a default client will be used.
      * */
     fun client(client: OkHttpClient) = apply { this.client = client }
-
-    /**
-     * Factory for creating additional [JsonRpcClient] threads, if needed. By default, a daemon thread is created.
-     * */
-    fun threadFactory(factory: ThreadFactory) = apply { this.threadFactory = factory }
 
     /**
      * Headers to include with each RPC request. Can be used to set authorization headers, etc...
