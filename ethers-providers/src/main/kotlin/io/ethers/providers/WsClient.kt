@@ -352,7 +352,7 @@ class WsClient(
 
             // close the websocket, expire all remaining requests, and unsubscribe from all subscriptions
             websocket.close(1000, "Close")
-            handleTimeouts(0.milliseconds)
+            handleTimeouts(Duration.ZERO)
             requestIdToSubscription.values.forEach { it.stream.unsubscribe() }
         }
 
@@ -368,7 +368,7 @@ class WsClient(
 
     private fun <T : ExpiringRequest> removeTimedOutRequests(requests: MutableMap<Long, T>, timeout: Duration) {
         // skip expiration if timeout is not set or requests is empty
-        if (!timeout.isPositive() || requests.isEmpty()) {
+        if (timeout.inWholeMilliseconds < 0 || requests.isEmpty()) {
             return
         }
 
