@@ -53,7 +53,7 @@ abstract class SubscriptionStream<T> {
 
     companion object {
         private val STREAM_DAEMON_FACTORY = ThreadFactory { r ->
-            Thread(r).apply {
+            AsyncExecutor.maybeVirtualThread(r).apply {
                 name = "SubscriptionStream-$id"
                 isDaemon = true
             }

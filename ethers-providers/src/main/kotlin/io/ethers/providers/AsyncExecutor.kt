@@ -49,7 +49,10 @@ internal object AsyncExecutor {
         ASYNC_POOL = virtualExecutor ?: (if (USE_COMMON_POOL) ForkJoinPool.commonPool() else ThreadPerTaskExecutor())
     }
 
-    fun executor(): Executor = ASYNC_POOL
+    /**
+     * Get the executor that is used for async blocking IO operations, using either a virtual or platform threads.
+     * */
+    fun maybeVirtualExecutor(): Executor = ASYNC_POOL
 
     /**
      * Create either a virtual or platform thread, depending on the java version.
@@ -63,9 +66,4 @@ internal object AsyncExecutor {
             Thread(r).start()
         }
     }
-}
-
-fun main() {
-    println(AsyncExecutor.executor())
-    println(AsyncExecutor.maybeVirtualThread(Runnable {}))
 }

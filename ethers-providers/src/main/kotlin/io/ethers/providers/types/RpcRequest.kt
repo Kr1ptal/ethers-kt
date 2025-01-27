@@ -95,7 +95,7 @@ abstract class RpcRequest<T, E : Result.Error> {
      * Recommended [Executor] for [CompletableFuture] async operations. See [io.ethers.providers.AsyncExecutor] for details.
      * */
     protected fun asyncExecutor(): Executor {
-        return AsyncExecutor.executor()
+        return AsyncExecutor.maybeVirtualExecutor()
     }
 }
 
