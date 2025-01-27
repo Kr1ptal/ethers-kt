@@ -45,6 +45,7 @@ import io.ethers.core.types.tracers.TracerConfig
 import io.ethers.core.types.tracers.TxTraceResult
 import io.ethers.core.types.transaction.TransactionUnsigned
 import io.ethers.core.unwrapOrReturn
+import io.ethers.providers.Provider.Companion.fromUrl
 import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.CallFailedError
 import io.ethers.providers.types.CallManyBundle
@@ -104,7 +105,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         fullTransactions: Boolean,
         responseType: Class<B>,
     ): RpcRequest<Optional<B>, RpcError> {
-        val params = arrayOf(blockId.id, fullTransactions)
+        val params = arrayOf<Any>(blockId.id, fullTransactions)
         val method = when (blockId) {
             is BlockId.Hash -> "eth_getBlockByHash"
             is BlockId.Number, is BlockId.Name -> "eth_getBlockByNumber"
@@ -178,11 +179,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
                     }
                 }
 
-                if (result == null) {
-                    throw IllegalStateException("No result or error found in response")
-                }
-
-                result!!
+                result ?: throw IllegalStateException("No result or error found in response")
             }
         }
     }
@@ -384,7 +381,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
 
         if (nonceResult != null) {
             if (nonceResult.isFailure()) {
-                return nonceResult as Result.Failure<RpcError>
+                return nonceResult
             }
 
             call.nonce(nonceResult.unwrap())
@@ -392,7 +389,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
 
         if (gasLimitResult != null) {
             if (gasLimitResult.isFailure()) {
-                return gasLimitResult as Result.Failure<RpcError>
+                return gasLimitResult
             }
 
             call.gas(gasLimitResult.unwrap())
@@ -400,7 +397,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
 
         if (feeHistoryResult != null) {
             if (feeHistoryResult.isFailure()) {
-                return feeHistoryResult as Result.Failure<RpcError>
+                return feeHistoryResult
             }
 
             val feeHistory = feeHistoryResult.unwrap()
@@ -494,7 +491,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
     override fun subscribeNewPendingTransactions(): RpcSubscribe<RPCTransaction, RpcError> {
         return RpcSubscribeCall(
             client,
-            arrayOf("newPendingTransactions", true),
+            arrayOf<Any>("newPendingTransactions", true),
             { it.readValueAs(RPCTransaction::class.java) },
         )
     }

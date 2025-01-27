@@ -112,7 +112,7 @@ class HttpClient(
 
                                 ret.complete(true)
                                 return
-                            } catch (ignored: Exception) {
+                            } catch (_: Exception) {
                             }
 
                             // second, if decoding fails, return the response as a message and complete all requests
@@ -205,7 +205,7 @@ class HttpClient(
                             try {
                                 ret.complete(ByteArrayInputStream(bytes).decodeResult(resultDecoder))
                                 return
-                            } catch (ignored: Exception) {
+                            } catch (_: Exception) {
                             }
 
                             // second, if decoding fails, return the response as a message

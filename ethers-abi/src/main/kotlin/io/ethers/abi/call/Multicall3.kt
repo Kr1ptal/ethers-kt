@@ -771,6 +771,6 @@ private inline fun <T> Array<out Multicall3.Aggregatable<*>>.withDataAndValue(co
  * fields are used from the calls.
  * */
 fun <T> Iterable<Multicall3.Aggregatable<T>>.aggregate(): FunctionCall<AggregationResult<T>> {
-    val collection = if (this is Collection<Multicall3.Aggregatable<T>>) this else toList()
+    val collection = this as? Collection<Multicall3.Aggregatable<T>> ?: toList()
     return Multicall3.aggregate(*collection.toTypedArray())
 }

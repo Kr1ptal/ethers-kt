@@ -6,7 +6,6 @@ import org.bouncycastle.crypto.generators.PKCS5S2ParametersGenerator
 import org.bouncycastle.crypto.params.KeyParameter
 import org.bouncycastle.jcajce.provider.digest.SHA256
 import java.nio.charset.StandardCharsets
-import java.util.Collections
 
 /**
  * Mnemonic code for generating deterministic keys.
@@ -76,7 +75,7 @@ class MnemonicCode @JvmOverloads constructor(
         val concatBits = BooleanArray(concatLenBits)
         for ((wordIndex, word) in words.withIndex()) {
             // Find the words index in the wordlist.
-            val ndx = Collections.binarySearch(wordList.words, word)
+            val ndx = wordList.words.binarySearch(word)
             if (ndx < 0) {
                 throw RuntimeException("Invalid mnemonic word '$word' for provided word list '$wordList'")
             }
