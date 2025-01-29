@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.DeserializationContext
 import com.fasterxml.jackson.databind.JsonDeserializer
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
+import io.channels.core.ChannelReceiver
 import io.ethers.core.Result
 import io.ethers.core.forEachObjectField
 import io.ethers.providers.types.BatchRpcRequest
@@ -54,10 +55,10 @@ interface JsonRpcClient : Closeable {
      * @param params the subscription parameters
      * @param resultType class into which JSON result is converted
      */
-    fun <T> subscribe(
+    fun <T : Any> subscribe(
         params: Array<*>,
         resultType: Class<T>,
-    ): CompletableFuture<Result<SubscriptionStream<T>, RpcError>> {
+    ): CompletableFuture<Result<ChannelReceiver<T>, RpcError>> {
         return subscribe(params) { p -> p.readValueAs(resultType) }
     }
 
@@ -67,10 +68,10 @@ interface JsonRpcClient : Closeable {
      * @param params the subscription parameters
      * @param resultDecoder function to convert JSON result into return object [T]
      */
-    fun <T> subscribe(
+    fun <T : Any> subscribe(
         params: Array<*>,
         resultDecoder: Function<JsonParser, T>,
-    ): CompletableFuture<Result<SubscriptionStream<T>, RpcError>>
+    ): CompletableFuture<Result<ChannelReceiver<T>, RpcError>>
 }
 
 /**

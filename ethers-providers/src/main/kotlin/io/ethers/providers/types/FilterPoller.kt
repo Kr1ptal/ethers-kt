@@ -1,94 +1,95 @@
 package io.ethers.providers.types
 
 import com.fasterxml.jackson.core.JsonParser
+import io.channels.core.ChannelReceiver
+import io.channels.core.QueueChannel
 import io.ethers.core.asTypeOrNull
 import io.ethers.core.isFailure
 import io.ethers.logger.err
 import io.ethers.logger.getLogger
 import io.ethers.logger.inf
-import io.ethers.providers.BlockingSubscriptionStream
+import io.ethers.providers.AsyncExecutor
 import io.ethers.providers.RpcError
-import io.ethers.providers.SubscriptionStream
 import io.ethers.providers.middleware.Middleware
 import java.time.Duration
-import java.util.concurrent.ThreadFactory
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.function.Consumer
 import java.util.function.Function
+
+private val DEFAULT_POLLER_INTERVAL = Duration.ofSeconds(7)
 
 /**
  * Filter poller that polls a filter based on its [id] for changes and returns a stream of events. It behaves like a
- * [SubscriptionStream].
+ * [ChannelReceiver].
  * */
-class FilterPoller<T>(
+class FilterPoller<T : Any>(
     private val id: String,
     private val provider: Middleware,
     private val decoder: Function<JsonParser, List<T>>,
-) : SubscriptionStream<T>() {
+) : ChannelReceiver<T> {
     private val LOG = getLogger()
     private var interval = DEFAULT_POLLER_INTERVAL
-    private var threadFactory = POLLER_DAEMON_FACTORY
 
     @Volatile
     private var unsubscribed = false
     private val initialized = AtomicBoolean(false)
-    private val stream = BlockingSubscriptionStream.singleProducer<T> { unsubscribed = true }
+    private val channel = QueueChannel.spscUnbounded<T> { unsubscribed = true }
+
+    init {
+        initializePoller()
+    }
 
     /**
      * Map results of the poller to a different type.
      * */
-    fun <R> mapPoller(mapper: Function<List<T>, List<R>>): FilterPoller<R> {
+    fun <R : Any> mapPoller(mapper: Function<List<T>, List<R>>): FilterPoller<R> {
         return FilterPoller(id, provider, decoder.andThen(mapper))
     }
 
     /**
-     * Set polling interval. Default is 7 seconds. After calling any of iteration functions, this function has
-     * no effect.
-     *
-     * Iteration functions: [iterator], [forEach], [forEachAsync].
+     * Set polling interval. Default is 7 seconds.
      * */
     fun withInterval(interval: Duration): FilterPoller<T> {
         this.interval = interval
         return this
     }
 
+    override fun onStateChange(listener: Runnable) {
+        channel.onStateChange(listener)
+    }
+
+    override fun forEach(consumer: Consumer<in T>) {
+        channel.forEach(consumer)
+    }
+
+    override fun take(): T? {
+        return channel.take()
+    }
+
+    override fun poll(): T? {
+        return channel.poll()
+    }
+
+    override val isClosed: Boolean
+        get() = channel.isClosed
+
+    override val size: Int
+        get() = channel.size
+
+    override fun close() {
+        channel.close()
+    }
+
     /**
-     * Set thread factory for the polling thread. Default is [POLLER_DAEMON_FACTORY]. After calling any of iteration
-     * functions, this function has no effect.
+     * Initialize a polling thread that will poll the filter for changes every [interval] seconds. Subsequent calls to
+     * this function have no effect.
      *
-     * Iteration functions: [iterator], [forEach], [forEachAsync].
-     * */
-    fun withThreadFactory(threadFactory: ThreadFactory): FilterPoller<T> {
-        this.threadFactory = threadFactory
-        return this
-    }
-
-    override fun unsubscribe() {
-        stream.unsubscribe()
-    }
-
-    override fun iterator(): Iterator<T> {
-        val iter = stream.iterator()
-        return object : Iterator<T> {
-            init {
-                initializePoller()
-            }
-
-            override fun hasNext() = iter.hasNext()
-            override fun next() = iter.next()
-        }
-    }
-
-    /**
-     * Initialize a polling thread (created using [threadFactory]) that will poll the filter for changes every
-     * [interval] seconds. Subsequent calls to this function have no effect.
-     *
-     * When the [unsubscribe] method is called, the polling thread will be stopped and the filter will be uninstalled
+     * When the [close] method is called, the polling thread will be stopped and the filter will be uninstalled
      * on the host.
      * */
     private fun initializePoller() {
         if (initialized.compareAndSet(false, true)) {
-            threadFactory.newThread {
-                val intervalMs = interval.toMillis()
+            val thread = AsyncExecutor.maybeVirtualThread {
                 val getChangesCall = RpcCall(provider.client, "eth_getFilterChanges", arrayOf(id), decoder)
 
                 var filterExists = true
@@ -107,18 +108,18 @@ class FilterPoller<T>(
                             LOG.err { "Filter '$id' expired, stopping polling thread and unsubscribing" }
 
                             // need to unsubscribe via stream so its loop gets terminated
-                            stream.unsubscribe()
+                            channel.close()
                             filterExists = false
                             break
                         }
                     } else {
                         val result = response.unwrap()
                         for (i in result.indices) {
-                            stream.pushEvent(result[i])
+                            channel.offer(result[i])
                         }
                     }
 
-                    Thread.sleep(intervalMs)
+                    Thread.sleep(interval.toMillis())
                 }
 
                 if (filterExists) {
@@ -136,16 +137,11 @@ class FilterPoller<T>(
                         LOG.inf { "Uninstalled filter '$id'" }
                     }
                 }
-            }.start()
+            }
+
+            thread.name = "FilterPoller-$id"
+            thread.isDaemon = true
+            thread.start()
         }
-    }
-}
-
-private val DEFAULT_POLLER_INTERVAL = Duration.ofSeconds(7)
-
-private val POLLER_DAEMON_FACTORY = ThreadFactory { r ->
-    Thread(r).apply {
-        name = "FilterPoller-$id"
-        isDaemon = true
     }
 }

@@ -5,6 +5,9 @@ import com.fasterxml.jackson.core.JsonToken
 import com.fasterxml.jackson.core.io.SegmentedStringWriter
 import com.fasterxml.jackson.core.util.BufferRecycler
 import com.fasterxml.jackson.databind.util.TokenBuffer
+import io.channels.core.Channel
+import io.channels.core.ChannelReceiver
+import io.channels.core.QueueChannel
 import io.ethers.core.Jackson
 import io.ethers.core.Jackson.createAndInitParser
 import io.ethers.core.Result
@@ -356,7 +359,7 @@ class WsClient(
             // close the websocket, expire all remaining requests, and unsubscribe from all subscriptions
             websocket.close(1000, "Close")
             handleTimeouts(Duration.ZERO)
-            requestIdToSubscription.values.forEach { it.stream.unsubscribe() }
+            requestIdToSubscription.values.forEach { it.stream.close() }
         }
 
         processorThread.name = "WsClient-Processor-${processorThread.id}"
@@ -618,7 +621,7 @@ class WsClient(
         request.future.complete(response)
     }
 
-    private fun <T> handleSubscriptionResponse(
+    private fun <T : Any> handleSubscriptionResponse(
         id: Long,
         request: CompletableSubscriptionRequest<T>,
         resultParser: JsonParser,
@@ -631,7 +634,7 @@ class WsClient(
                 serverId = resultParser.text,
                 params = request.params,
                 resultDecoder = request.resultDecoder,
-                stream = BlockingSubscriptionStream.singleProducer {
+                stream = QueueChannel.spscUnbounded {
                     // requestId is constant even across re-subscriptions
                     val sub = requestIdToSubscription.remove(id)
                     if (sub != null) {
@@ -652,7 +655,7 @@ class WsClient(
         LOG.trc { "Handled response for subscription request $id" }
     }
 
-    private fun <T> handleResubscriptionResponse(
+    private fun <T : Any> handleResubscriptionResponse(
         id: Long,
         subscription: Subscription<T>,
         resultParser: JsonParser,
@@ -746,10 +749,10 @@ class WsClient(
         return request.future
     }
 
-    override fun <T> subscribe(
+    override fun <T : Any> subscribe(
         params: Array<*>,
         resultDecoder: Function<JsonParser, T>,
-    ): CompletableFuture<Result<SubscriptionStream<T>, RpcError>> {
+    ): CompletableFuture<Result<ChannelReceiver<T>, RpcError>> {
         val request = CompletableSubscriptionRequest(
             params,
             resultDecoder,
@@ -801,24 +804,24 @@ class WsClient(
         }
     }
 
-    private class CompletableSubscriptionRequest<T>(
+    private class CompletableSubscriptionRequest<T : Any>(
         val params: Array<*>,
         val resultDecoder: Function<JsonParser, T>,
-        val future: CompletableFuture<Result<SubscriptionStream<T>, RpcError>>,
+        val future: CompletableFuture<Result<ChannelReceiver<T>, RpcError>>,
     ) : ExpiringRequest() {
         override fun expireRequest() {
             future.complete(HttpClient.ERROR_CALL_TIMEOUT)
         }
     }
 
-    private class Subscription<T>(
+    private class Subscription<T : Any>(
         var serverId: String,
         val params: Array<*>,
         val resultDecoder: Function<JsonParser, T>,
-        val stream: BlockingSubscriptionStream<T>,
+        val stream: Channel<T>,
     ) {
         fun handleNotification(event: JsonParser) {
-            stream.pushEvent(resultDecoder.apply(event))
+            stream.offer(resultDecoder.apply(event))
         }
     }
 }
