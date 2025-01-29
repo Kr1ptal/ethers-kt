@@ -1,3 +1,5 @@
+import java.net.URI
+
 plugins {
     `project-conventions`
     `maven-publish-conventions`
@@ -5,10 +7,12 @@ plugins {
 
 repositories {
     mavenCentral()
+    maven { url = URI("https://jitpack.io") }
 }
 
 dependencies {
     api(libs.bundles.okhttp3)
+    api(libs.channelskt.core)
 
     api(project(":ethers-core"))
     api(project(":ethers-signers"))

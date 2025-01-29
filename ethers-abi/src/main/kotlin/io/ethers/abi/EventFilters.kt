@@ -6,7 +6,6 @@ import io.ethers.core.types.Hash
 import io.ethers.core.types.Log
 import io.ethers.core.types.LogFilter
 import io.ethers.providers.RpcError
-import io.ethers.providers.SubscriptionStream
 import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.FilterPoller
 import io.ethers.providers.types.RpcRequest
@@ -121,11 +120,7 @@ abstract class EventFilterBase<T : ContractEvent, F : EventFilterBase<T, F>>(
      * subscriptions.
      * */
     fun subscribe(): RpcSubscribe<T, RpcError> {
-        return provider.subscribeLogs(filter).map { stream ->
-            // safe cast because we filtered nulls
-            @Suppress("UNCHECKED_CAST")
-            stream.map { factory.decode(it) }.filter { it != null } as SubscriptionStream<T>
-        }
+        return provider.subscribeLogs(filter).map { stream -> stream.mapNotNull { factory.decode(it) } }
     }
 
     /**
