@@ -362,7 +362,7 @@ class AbiContractBuilder(
         val encodeArgs = if (inputs.isEmpty()) {
             CodeBlock.of("emptyArray()")
         } else {
-            val argsBuilder = StringBuilder().append("arrayOf(")
+            val argsBuilder = StringBuilder().append("arrayOf<Any>(")
             repeat(builder.parameters.size) { argsBuilder.append("%N,") }
             argsBuilder.deleteCharAt(argsBuilder.length - 1).append(")")
 
