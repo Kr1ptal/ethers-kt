@@ -319,8 +319,8 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         ).orElse { err ->
             when {
                 // If eth_fillTransaction is not supported, fallback to manually filling the transaction.
-                // Second case handles foundry's Anvil error, which is wrongly classified
-                err.isMethodNotFound || err.message.contains("did not match any variant") -> {
+                // Second case handles foundry's Anvil error, third case handles Hardhat's error
+                err.isMethodNotFound || err.message.contains("did not match any variant") || err.message.contains("not supported") -> {
                     supportsFillTransaction = false
                     manuallyFillTransaction(callRequest)
                 }
