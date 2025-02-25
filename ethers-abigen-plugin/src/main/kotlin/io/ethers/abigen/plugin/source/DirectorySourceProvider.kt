@@ -35,21 +35,32 @@ open class DirectorySourceProvider(project: Project, path: String) : AbiSourcePr
         val ret = ArrayList<AbiSource>()
 
         val dir = directory.asFile
-        dir.walkTopDown().filter(File::isFile).forEach {
-            val contractName = it.nameWithoutExtension
+        dir.walkTopDown().filter(File::isFile).forEach { file ->
+            val contractName = file.nameWithoutExtension
 
-            var destinationPackage = packageOverride
-            if (destinationPackage == null) {
-                destinationPackage = it.absolutePath
-                    .substringAfter(dir.absolutePath)
-                    .substringBeforeLast("/")
-                    .removePrefix("/")
-                    .replace("/", ".")
-            }
+            val destinationPackage = (packageOverride ?: file.normalizedPath())
+                .substringAfter(dir.normalizedPath())
+                .substringBeforeLast("/")
+                .removePrefix("/")
+                .replace("/", ".")
 
-            ret.add(AbiSource(contractName, destinationPackage, it.toURI().toURL()))
+            ret.add(AbiSource(contractName, destinationPackage, file.toURI().toURL()))
         }
 
         return ret
+    }
+
+    /**
+     * Return normalized absolute path of the file, using `/` as a separator. This is mainly useful
+     * for normalizing paths on Windows.
+     *
+     * Example:
+     * ```
+     * from: "C:\\ethers-kt\\ethers-abigen-plugin\\src\\main\\kotlin"
+     * to:    "/ethers-kt/ethers-abigen-plugin/src/main/kotlin"
+     * ```
+     * */
+    private fun File.normalizedPath(): String {
+        return absolutePath.replace('\\', '/').split(":/").last()
     }
 }
