@@ -11,7 +11,7 @@ It supports the following configuration options:
 
 ```kotlin
 plugins {
-    id("io.kriptal.ethers.abigen-plugin") version "1.2.1"
+    id("io.kriptal.ethers.abigen-plugin") version "1.3.0"
 }
 
 ethersAbigen {

@@ -18,6 +18,45 @@ Sections:
 ### Security = Security patches.
 -->
 
+## [1.3.0] - 2025-02-26
+
+### Bug Fixes
+
+- Handle additional error cases in Http/WsClients (#179)
+- Add chainId when manually filling unsigned tx
+- Close our websocket connection if other side closes it
+- Properly timeout pending ws requests on close
+- Explicitly define arrayOf type to avoid kotlin compiler warnings
+- Handle hardhat error in `fillTransaction`
+- Normalize Windows file paths (#217)
+
+### Features
+
+- Include HTTP response code in error message in `HttpClient`
+- Add additional `Bytes` overloads where `ByteArray` can be used
+- Change dependency visibility to `api` for submodules (#183)
+- Add `CallFrame#getAllCallLogs` function
+- Add support for creating random `PrivateKeySigner` (#198)
+- Properly unsubscribe `WsClient` streams and expire all remaining requests on client close (#206)
+- [**breaking**] Try to use virtual threads if present and enabled (#209)
+
+### Miscellaneous Tasks
+
+- Upgrade gradle to v8.10.2
+- Bump gradle setup GH action
+
+### Performance
+
+- Re-check the event queue while holding the lock in `BlockingSubscriptionStream`
+
+### Misc
+
+- Move to v1.2.1-SNAPSHOT
+- Remove new line suffix in `HttpClient` response when logging it
+- Update license year
+- Update gradle to v8.12.1
+- Fix IDE inspections
+
 ## [1.2.1] - 2024-09-16
 
 ### Bug Fixes
