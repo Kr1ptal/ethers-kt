@@ -88,13 +88,13 @@ class HttpClient(
                         var stream = responseBody.byteStream()
                         LOG.trc {
                             // reading from response body consumes it, so we need to create a new one
-                            val arr = stream.readAllBytes()
+                            val arr = stream.readBytes()
                             stream = ByteArrayInputStream(arr)
                             "Batch response: ${String(arr)}".removeSuffix("\n")
                         }
 
                         if (!it.isSuccessful) {
-                            val bytes = stream.readAllBytes()
+                            val bytes = stream.readBytes()
 
                             // first, try to decode a JSON response
                             try {
@@ -193,13 +193,13 @@ class HttpClient(
                         var stream = responseBody.byteStream()
                         LOG.trc {
                             // reading from response body consumes it, so we need to create a new one
-                            val arr = stream.readAllBytes()
+                            val arr = stream.readBytes()
                             stream = ByteArrayInputStream(arr)
                             "Response: ${String(arr)}".removeSuffix("\n")
                         }
 
                         if (!it.isSuccessful) {
-                            val bytes = stream.readAllBytes()
+                            val bytes = stream.readBytes()
 
                             // first, try to decode a JSON response
                             try {
