@@ -27,8 +27,8 @@ data class JsonAbi(
                 JsonAbiItem.Type.FUNCTION -> functions.add(
                     JsonAbiFunction(
                         name = it.name!!,
-                        inputs = it.inputs!!,
-                        outputs = it.outputs!!,
+                        inputs = it.inputs ?: emptyList(),
+                        outputs = it.outputs ?: emptyList(),
                         isPayable = it.isPayable,
                         isReadOnly = it.isReadOnly,
                     ),
