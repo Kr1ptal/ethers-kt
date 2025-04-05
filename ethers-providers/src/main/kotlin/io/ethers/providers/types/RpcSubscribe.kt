@@ -1,31 +1,31 @@
 package io.ethers.providers.types
 
 import com.fasterxml.jackson.core.JsonParser
+import io.channels.core.ChannelReceiver
 import io.ethers.core.Result
 import io.ethers.core.Result.Consumer
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
-import io.ethers.providers.SubscriptionStream
 import java.util.concurrent.CompletableFuture
 import java.util.function.Function
 
-interface RpcSubscribe<T, E : Result.Error> {
+interface RpcSubscribe<T : Any, E : Result.Error> {
     /**
      * Subscribe to stream via RPC and await the subscription response by blocking calling thread.
      */
-    fun sendAwait(): Result<SubscriptionStream<T>, E>
+    fun sendAwait(): Result<ChannelReceiver<T>, E>
 
     /**
      * Asynchronously subscribe to stream via RPC.
      */
-    fun sendAsync(): CompletableFuture<Result<SubscriptionStream<T>, E>>
+    fun sendAsync(): CompletableFuture<Result<ChannelReceiver<T>, E>>
 
     /**
      * Map the returned response if the call was successful, skipping if it failed.
      *
      * The function will be executed asynchronously after the request is sent and response received.
      */
-    fun <R> map(mapper: Result.Transformer<SubscriptionStream<T>, SubscriptionStream<R>>): RpcSubscribe<R, E> {
+    fun <R : Any> map(mapper: Result.Transformer<ChannelReceiver<T>, ChannelReceiver<R>>): RpcSubscribe<R, E> {
         return MappingRpcSubscribe(this) { it.map(mapper) }
     }
 
@@ -44,7 +44,7 @@ interface RpcSubscribe<T, E : Result.Error> {
      *
      * The function will be executed asynchronously after the request is sent and response received.
      */
-    fun <R> andThen(mapper: Result.Transformer<SubscriptionStream<T>, Result<SubscriptionStream<R>, E>>): RpcSubscribe<R, E> {
+    fun <R : Any> andThen(mapper: Result.Transformer<ChannelReceiver<T>, Result<ChannelReceiver<R>, E>>): RpcSubscribe<R, E> {
         return MappingRpcSubscribe(this) { it.andThen(mapper) }
     }
 
@@ -54,7 +54,7 @@ interface RpcSubscribe<T, E : Result.Error> {
      *
      * The function will be executed asynchronously after the request is sent and response received.
      */
-    fun <R : Result.Error> orElse(mapper: Result.Transformer<E, Result<SubscriptionStream<T>, R>>): RpcSubscribe<T, R> {
+    fun <R : Result.Error> orElse(mapper: Result.Transformer<E, Result<ChannelReceiver<T>, R>>): RpcSubscribe<T, R> {
         return MappingRpcSubscribe(this) { it.orElse(mapper) }
     }
 
@@ -63,7 +63,7 @@ interface RpcSubscribe<T, E : Result.Error> {
      *
      * The function will be executed asynchronously after the request is sent and response received.
      */
-    fun onSuccess(block: Consumer<SubscriptionStream<T>>): RpcSubscribe<T, E> {
+    fun onSuccess(block: Consumer<ChannelReceiver<T>>): RpcSubscribe<T, E> {
         return MappingRpcSubscribe(this) {
             it.onSuccess(block)
 
@@ -88,11 +88,11 @@ interface RpcSubscribe<T, E : Result.Error> {
 /**
  * Internal implementation of [RpcSubscribe] which always returns the same value.
  * */
-internal class RpcSubscribeConstant<T, E : Result.Error>(
-    private val value: Result<SubscriptionStream<T>, E>,
+internal class RpcSubscribeConstant<T : Any, E : Result.Error>(
+    private val value: Result<ChannelReceiver<T>, E>,
 ) : RpcSubscribe<T, E> {
-    override fun sendAwait(): Result<SubscriptionStream<T>, E> = value
-    override fun sendAsync(): CompletableFuture<Result<SubscriptionStream<T>, E>> {
+    override fun sendAwait(): Result<ChannelReceiver<T>, E> = value
+    override fun sendAsync(): CompletableFuture<Result<ChannelReceiver<T>, E>> {
         return CompletableFuture.completedFuture(value)
     }
 
@@ -102,7 +102,7 @@ internal class RpcSubscribeConstant<T, E : Result.Error>(
 /**
  * Normal stream subscription via RPC.
  */
-class RpcSubscribeCall<T>(
+class RpcSubscribeCall<T : Any>(
     private val client: JsonRpcClient,
     private val params: Array<*>,
     private val resultDecoder: Function<JsonParser, T>,
@@ -113,8 +113,8 @@ class RpcSubscribeCall<T>(
         resultType: Class<T>,
     ) : this(client, params, { p -> p.readValueAs(resultType) })
 
-    override fun sendAwait(): Result<SubscriptionStream<T>, RpcError> = sendAsync().join()
-    override fun sendAsync(): CompletableFuture<Result<SubscriptionStream<T>, RpcError>> {
+    override fun sendAwait(): Result<ChannelReceiver<T>, RpcError> = sendAsync().join()
+    override fun sendAsync(): CompletableFuture<Result<ChannelReceiver<T>, RpcError>> {
         return client.subscribe(params, resultDecoder)
     }
 
@@ -124,15 +124,15 @@ class RpcSubscribeCall<T>(
 }
 
 /**
- * Stream subscription via RPC which uses [mapper] function to remap [SubscriptionStream].
+ * Stream subscription via RPC which uses [mapper] function to remap [ChannelReceiver].
  */
-private class MappingRpcSubscribe<I, O, E : Result.Error, U : Result.Error>(
+private class MappingRpcSubscribe<I : Any, O : Any, E : Result.Error, U : Result.Error>(
     private val request: RpcSubscribe<I, E>,
-    private val mapper: Function<Result<SubscriptionStream<I>, E>, Result<SubscriptionStream<O>, U>>,
+    private val mapper: Function<Result<ChannelReceiver<I>, E>, Result<ChannelReceiver<O>, U>>,
 ) : RpcSubscribe<O, U> {
-    override fun sendAwait(): Result<SubscriptionStream<O>, U> = sendAsync().join()
+    override fun sendAwait(): Result<ChannelReceiver<O>, U> = sendAsync().join()
 
-    override fun sendAsync(): CompletableFuture<Result<SubscriptionStream<O>, U>> = request.sendAsync().thenApplyAsync(mapper)
+    override fun sendAsync(): CompletableFuture<Result<ChannelReceiver<O>, U>> = request.sendAsync().thenApplyAsync(mapper)
 
     override fun toString(): String {
         return "MappingRpcSubscribe(request=$request)"
