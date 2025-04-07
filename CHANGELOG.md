@@ -18,6 +18,18 @@ Sections:
 ### Security = Security patches.
 -->
 
+## [1.3.1] - 2025-04-08
+
+### Bug Fixes
+
+- Replace `readAllBytes` with `readBytes` for android compatibility
+- `JsonAbi` decoding of functions without explicit output entry in the JSON
+- `JsonAbiReader` to work in gradle plugin
+
+### Features
+
+- Add `tryReadAbi` method that returns all read failures
+
 ## [1.3.0] - 2025-02-26
 
 ### Bug Fixes
