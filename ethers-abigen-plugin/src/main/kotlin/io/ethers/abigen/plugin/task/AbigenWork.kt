@@ -3,7 +3,6 @@ package io.ethers.abigen.plugin.task
 import io.ethers.abigen.AbiContractBuilder
 import io.ethers.abigen.plugin.source.AbiSource
 import io.ethers.abigen.reader.JsonAbiReaderRegistry
-import org.gradle.api.GradleException
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.MapProperty
 import org.gradle.api.provider.Property
@@ -20,11 +19,7 @@ abstract class AbigenWork : WorkAction<AbigenWork.Parameters> {
 
     override fun execute() {
         val source = parameters.abi.get()
-        val abi = JsonAbiReaderRegistry.readAbi(source.abiUrl)
-        if (abi == null) {
-            logger.error("Failed to read ABI from ${source.abiUrl}")
-            throw GradleException("Failed to read ABI from ${source.abiUrl}")
-        }
+        val abi = JsonAbiReaderRegistry.tryReadAbi(source.abiUrl).unwrap()
 
         logger.info("Generating Kotlin wrapper for ${source.contractName}")
         val canonicalName = AbiContractBuilder(
