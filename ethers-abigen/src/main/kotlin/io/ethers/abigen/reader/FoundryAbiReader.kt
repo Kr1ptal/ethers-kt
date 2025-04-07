@@ -1,6 +1,7 @@
 package io.ethers.abigen.reader
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+import com.fasterxml.jackson.annotation.JsonProperty
 import io.ethers.abigen.JsonAbi
 import io.ethers.abigen.JsonAbiItem
 import io.ethers.core.Jackson
@@ -23,12 +24,12 @@ import java.net.URL
 object FoundryAbiReader : JsonAbiReader {
     @JsonIgnoreProperties(ignoreUnknown = true)
     private data class Artifact(
-        val abi: List<JsonAbiItem>,
-        val bytecode: Bytecode?,
+        @JsonProperty("abi") val abi: List<JsonAbiItem>,
+        @JsonProperty("bytecode") val bytecode: Bytecode?,
     ) {
         @JsonIgnoreProperties(ignoreUnknown = true)
         data class Bytecode(
-            val `object`: String,
+            @JsonProperty("object") val `object`: String,
         )
     }
 

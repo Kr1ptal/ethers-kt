@@ -83,15 +83,15 @@ object JsonAbiReaderRegistry {
             }
         }
 
-        return failure(AbiReadError(causes ?: emptyList()))
+        return failure(AbiReadError(abi, causes ?: emptyList()))
     }
 
     /**
      * Error returned when reading ABI fails. It contains a list of all exceptions that were thrown by the readers.
      * */
-    class AbiReadError(val causes: List<Exception>) : Result.Error {
+    class AbiReadError(val url: URL, val causes: List<Exception>) : Result.Error {
         override fun doThrow(): Nothing {
-            throw RuntimeException("Failed to read ABI").also { parent ->
+            throw RuntimeException("Failed to read ABI: $url").also { parent ->
                 causes.forEach { parent.addSuppressed(it) }
             }
         }

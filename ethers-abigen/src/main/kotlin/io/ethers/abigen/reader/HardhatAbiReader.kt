@@ -1,6 +1,7 @@
 package io.ethers.abigen.reader
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+import com.fasterxml.jackson.annotation.JsonProperty
 import io.ethers.abigen.JsonAbi
 import io.ethers.abigen.JsonAbiItem
 import io.ethers.core.Jackson
@@ -23,8 +24,8 @@ import java.net.URL
 object HardhatAbiReader : JsonAbiReader {
     @JsonIgnoreProperties(ignoreUnknown = true)
     private data class HardhatArtifact(
-        val abi: List<JsonAbiItem>,
-        val bytecode: String?,
+        @JsonProperty("abi") val abi: List<JsonAbiItem>,
+        @JsonProperty("bytecode") val bytecode: String,
     )
 
     override fun read(abi: URL): JsonAbi {

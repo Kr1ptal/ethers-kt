@@ -1,6 +1,7 @@
 package io.ethers.abigen
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+import com.fasterxml.jackson.annotation.JsonProperty
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class JsonAbi(
@@ -70,15 +71,15 @@ data class JsonAbi(
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class JsonAbiItem(
-    val type: Type,
-    val name: String?,
-    val inputs: List<Component>? = null,
-    val outputs: List<Component>? = null,
-    val anonymous: Boolean? = null,
+    @JsonProperty("type") val type: Type,
+    @JsonProperty("name") val name: String?,
+    @JsonProperty("inputs") val inputs: List<Component>? = null,
+    @JsonProperty("outputs") val outputs: List<Component>? = null,
+    @JsonProperty("anonymous") val anonymous: Boolean? = null,
 
-    private val stateMutability: Mutability = Mutability.NONPAYABLE,
-    private val constant: Boolean = false, // legacy field since v0.5.0 - true if function is view or pure
-    private val payable: Boolean = false, // legacy field since v0.5.0 - true if function is payable
+    @JsonProperty("stateMutability") private val stateMutability: Mutability = Mutability.NONPAYABLE,
+    @JsonProperty("constant") private val constant: Boolean = false, // legacy field since v0.5.0 - true if function is view or pure
+    @JsonProperty("payable") private val payable: Boolean = false, // legacy field since v0.5.0 - true if function is payable
 ) {
     val isPayable: Boolean
         get() = stateMutability == Mutability.PAYABLE || payable
@@ -104,11 +105,11 @@ data class JsonAbiItem(
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     data class Component(
-        val type: String,
-        val internalType: String?,
-        val name: String = "",
-        val indexed: Boolean = false,
-        val components: List<Component> = emptyList(),
+        @JsonProperty("type") val type: String,
+        @JsonProperty("internalType") val internalType: String?,
+        @JsonProperty("name") val name: String = "",
+        @JsonProperty("indexed") val indexed: Boolean = false,
+        @JsonProperty("components") val components: List<Component> = emptyList(),
     )
 }
 
