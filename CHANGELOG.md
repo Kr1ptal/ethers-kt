@@ -18,6 +18,12 @@ Sections:
 ### Security = Security patches.
 -->
 
+## [1.3.2] - 2025-04-20
+
+### Bug Fixes
+
+- Support more Kotlin SourceSets in EthersAbigenPlugin.kt
+
 ## [1.3.1] - 2025-04-08
 
 ### Bug Fixes
