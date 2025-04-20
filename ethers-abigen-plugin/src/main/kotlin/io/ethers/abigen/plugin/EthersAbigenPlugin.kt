@@ -4,9 +4,14 @@ import io.ethers.abigen.plugin.task.EthersAbigenTask
 import org.gradle.api.GradleException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.jetbrains.kotlin.gradle.dsl.KotlinAndroidProjectExtension
+import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 import org.jetbrains.kotlin.gradle.dsl.KotlinProjectExtension
+import org.slf4j.LoggerFactory
 
 abstract class EthersAbigenPlugin : Plugin<Project> {
+    private val logger = LoggerFactory.getLogger(EthersAbigenPlugin::class.java)
+
     override fun apply(target: Project) {
         val ext = target.extensions.create("ethersAbigen", EthersAbigenExtension::class.java)
 
@@ -25,7 +30,44 @@ abstract class EthersAbigenPlugin : Plugin<Project> {
             target.tasks.named(taskName).configure { it.dependsOn(abigenTask) }
         }
 
-        val extKotlin = target.extensions.getByType(KotlinProjectExtension::class.java)
-        extKotlin.sourceSets.getByName("main").kotlin.srcDir(abigenTask)
+        target.afterEvaluate {
+            runCatching { target.extensions.getByType(KotlinMultiplatformExtension::class.java) }
+                .onSuccess {
+                    logger.info("Running in environment: ${it.javaClass.simpleName}")
+
+                    it.sourceSets
+                        .matching { sourceSet -> sourceSet.name.endsWith("Main") }
+                        .all { sourceSet ->
+                            logger.info("Adding generated abi wrappers as source to '${sourceSet.name}' SourceSet")
+
+                            sourceSet.kotlin.srcDir(abigenTask)
+                        }
+                    return@afterEvaluate
+                }
+
+            runCatching { target.extensions.getByType(KotlinAndroidProjectExtension::class.java) }
+                .onSuccess {
+                    logger.info("Running in environment: ${it.javaClass.simpleName}")
+
+                    val sourceSet = it.sourceSets.getByName("main")
+                    logger.info("Adding generated abi wrappers as source to '${sourceSet.name}' SourceSet")
+
+                    sourceSet.kotlin.srcDir(abigenTask)
+                    return@afterEvaluate
+                }
+
+            runCatching { target.extensions.getByType(KotlinProjectExtension::class.java) }
+                .onSuccess {
+                    logger.info("Running in environment: ${it.javaClass.simpleName}")
+
+                    val sourceSet = it.sourceSets.getByName("main")
+                    logger.info("Adding generated abi wrappers as source to '${sourceSet.name}' SourceSet")
+
+                    sourceSet.kotlin.srcDir(abigenTask)
+                    return@afterEvaluate
+                }
+
+            throw GradleException("No Kotlin source sets found in project. Apply one of the Kotlin plugins to use this abigen plugin. If you have a kotlin plugin applied and see this issue, report it at 'https://github.com/Kr1ptal/ethers-kt/issues' and include your gradle build file")
+        }
     }
 }
