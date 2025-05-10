@@ -112,7 +112,7 @@ abstract class EventFilterBase<T : ContractEvent, F : EventFilterBase<T, F>>(
      * subscriptions. If the provider supports subscriptions, [subscribe] should be used instead.
      * */
     fun watch(): RpcRequest<FilterPoller<T>, RpcError> {
-        return provider.watchLogs(filter).map { it.mapPoller(::decodeMatchingLogs) }
+        return provider.watchLogs(filter).map { it.mapNotNull(factory::decode) }
     }
 
     /**
@@ -120,7 +120,7 @@ abstract class EventFilterBase<T : ContractEvent, F : EventFilterBase<T, F>>(
      * subscriptions.
      * */
     fun subscribe(): RpcSubscribe<T, RpcError> {
-        return provider.subscribeLogs(filter).map { stream -> stream.mapNotNull { factory.decode(it) } }
+        return provider.subscribeLogs(filter).map { it.mapNotNull(factory::decode) }
     }
 
     /**
