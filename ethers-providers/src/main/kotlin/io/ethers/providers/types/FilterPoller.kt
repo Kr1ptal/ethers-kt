@@ -1,10 +1,12 @@
 package io.ethers.providers.types
 
 import com.fasterxml.jackson.core.JsonParser
+import io.channels.core.Channel
 import io.channels.core.ChannelReceiver
 import io.channels.core.QueueChannel
 import io.ethers.core.asTypeOrNull
 import io.ethers.core.isFailure
+import io.ethers.logger.dbg
 import io.ethers.logger.err
 import io.ethers.logger.getLogger
 import io.ethers.logger.inf
@@ -12,45 +14,38 @@ import io.ethers.providers.AsyncExecutor
 import io.ethers.providers.RpcError
 import io.ethers.providers.middleware.Middleware
 import java.time.Duration
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.function.Consumer
 import java.util.function.Function
+import java.util.function.Predicate
 
 private val DEFAULT_POLLER_INTERVAL = Duration.ofSeconds(7)
 
 /**
- * Filter poller that polls a filter based on its [id] for changes and returns a stream of events. It behaves like a
- * [ChannelReceiver].
+ * A poller that periodically fetches new filter values via `eth_getFilterChanges` RPC call. Polling interval
+ * can be adjusted via [withInterval] method.
  * */
-class FilterPoller<T : Any>(
-    private val id: String,
-    private val provider: Middleware,
-    private val decoder: Function<JsonParser, List<T>>,
+class FilterPoller<T : Any> private constructor(
+    private val poller: Poller<*>,
+    private val channel: ChannelReceiver<T>,
 ) : ChannelReceiver<T> {
-    private val LOG = getLogger()
-    private var interval = DEFAULT_POLLER_INTERVAL
+    constructor(
+        id: String,
+        provider: Middleware,
+        decoder: Function<JsonParser, List<T>>,
+    ) : this(id, provider, decoder, QueueChannel.spscUnbounded<T> { })
 
-    @Volatile
-    private var unsubscribed = false
-    private val initialized = AtomicBoolean(false)
-    private val channel = QueueChannel.spscUnbounded<T> { unsubscribed = true }
-
-    init {
-        initializePoller()
-    }
-
-    /**
-     * Map results of the poller to a different type.
-     * */
-    fun <R : Any> mapPoller(mapper: Function<List<T>, List<R>>): FilterPoller<R> {
-        return FilterPoller(id, provider, decoder.andThen(mapper))
-    }
+    private constructor(
+        id: String,
+        provider: Middleware,
+        decoder: Function<JsonParser, List<T>>,
+        channel: Channel<T>,
+    ) : this(Poller(id, provider, decoder, channel), channel)
 
     /**
      * Set polling interval. Default is 7 seconds.
      * */
     fun withInterval(interval: Duration): FilterPoller<T> {
-        this.interval = interval
+        poller.interval = interval
         return this
     }
 
@@ -80,20 +75,42 @@ class FilterPoller<T : Any>(
         channel.close()
     }
 
+    override fun <R : Any> map(mapper: Function<in T, R>): FilterPoller<R> {
+        return FilterPoller<R>(poller, channel.map(mapper))
+    }
+
+    override fun <R : Any> mapNotNull(mapper: Function<in T, R?>): FilterPoller<R> {
+        return FilterPoller<R>(poller, channel.mapNotNull(mapper))
+    }
+
+    override fun filter(predicate: Predicate<in T>): FilterPoller<T> {
+        return FilterPoller(poller, channel.filter(predicate))
+    }
+
     /**
-     * Initialize a polling thread that will poll the filter for changes every [interval] seconds. Subsequent calls to
-     * this function have no effect.
+     * Initialize a polling thread that will poll the filter for changes every [interval] seconds.
      *
      * When the [close] method is called, the polling thread will be stopped and the filter will be uninstalled
      * on the host.
      * */
-    private fun initializePoller() {
-        if (initialized.compareAndSet(false, true)) {
+    private class Poller<T : Any>(
+        private val id: String,
+        private val provider: Middleware,
+        private val decoder: Function<JsonParser, List<T>>,
+        private val channel: Channel<T>,
+    ) {
+        private val LOG = getLogger()
+
+        var interval: Duration = DEFAULT_POLLER_INTERVAL
+
+        init {
+            LOG.dbg { "Initializing poller for filter ID: $id" }
+
             val thread = AsyncExecutor.maybeVirtualThread {
                 val getChangesCall = RpcCall(provider.client, "eth_getFilterChanges", arrayOf(id), decoder)
 
                 var filterExists = true
-                while (!unsubscribed) {
+                while (!channel.isClosed) {
                     val response = getChangesCall.sendAwait()
                     if (response.isFailure()) {
                         LOG.err { "Error polling filter '$id': ${response.error}" }
