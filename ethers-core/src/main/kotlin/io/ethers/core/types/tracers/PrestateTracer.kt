@@ -143,6 +143,9 @@ data class PrestateTracer(val diffMode: Boolean) : Tracer<PrestateTracer.Result>
                 }
             }
 
+            // Arbitrum includes ArbOS changes in the diff, but these changes cannot be applied as a state override
+            ret.remove(ARB_OS_ADDRESS)
+
             return StateOverride.wrap(ret)
         }
     }
@@ -153,4 +156,8 @@ data class PrestateTracer(val diffMode: Boolean) : Tracer<PrestateTracer.Result>
         val code: Bytes? = null,
         val storage: Map<Hash, Hash>? = null,
     )
+
+    companion object {
+        private val ARB_OS_ADDRESS = Address("0xa4b05fffffffffffffffffffffffffffffffffff")
+    }
 }
