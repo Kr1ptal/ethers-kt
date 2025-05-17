@@ -424,8 +424,26 @@ class WsClient(
 
                     "error" -> error = Jackson.MAPPER.readValue(parser, RpcError::class.java)
 
-                    // TODO if we have id, complete the request with error
-                    else -> throw Exception("Invalid response: $text")
+                    // if both id and error are present treat it as a valid error response
+                    else -> {
+                        if (id != -1L && error != null) {
+                            handleResponse(id, parser, error)
+                            return@use
+                        }
+
+                        val invalid = RpcError(
+                            RpcError.CODE_INVALID_RESPONSE,
+                            "Invalid response",
+                            Jackson.MAPPER.valueToTree(text),
+                        )
+
+                        if (id != -1L) {
+                            handleResponse(id, parser, invalid)
+                            return@use
+                        }
+
+                        throw Exception("Invalid response: $text")
+                    }
                 }
             }
 
@@ -448,7 +466,19 @@ class WsClient(
                     }
                 }
 
-                else -> throw Exception("Invalid response: $text")
+                else -> {
+                    val invalid = RpcError(
+                        RpcError.CODE_INVALID_RESPONSE,
+                        "Invalid response",
+                        Jackson.MAPPER.valueToTree(text),
+                    )
+
+                    if (id != -1L) {
+                        handleResponse(id, parser, invalid)
+                    } else {
+                        throw Exception("Invalid response: $text")
+                    }
+                }
             }
         }
     }
