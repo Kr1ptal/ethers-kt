@@ -116,7 +116,16 @@ data class RpcError @JvmOverloads constructor(
     /**
      * The method does not exist / is not available.
      * */
-    val isMethodNotFound get() = code == CODE_METHOD_NOT_FOUND
+    val isMethodNotFound: Boolean
+        get() {
+            return code == CODE_METHOD_NOT_FOUND ||
+                    UNSUPPORTED_METHOD_MESSAGE_FRAGMENTS.any {
+                        message.contains(
+                            it,
+                            ignoreCase = true,
+                        )
+                    }
+        }
 
     /**
      * Invalid method parameter(s).
@@ -174,6 +183,13 @@ data class RpcError @JvmOverloads constructor(
     val isCallFailed get() = code == CODE_CALL_FAILED
 
     companion object {
+        private val UNSUPPORTED_METHOD_MESSAGE_FRAGMENTS = listOf(
+            "did not match any variant", // foundry's Anvil
+            "is not available", // go-ethereum / standard response
+            "not supported", // hardhat
+            "unsupported", // alchemy
+        )
+
         // Standard JSON-RPC errors
         const val CODE_PARSE_ERROR = -32700
         const val CODE_INVALID_REQUEST = -32600
@@ -258,10 +274,10 @@ private class RpcErrorDeserializer : JsonDeserializer<RpcError>() {
             }
         }
 
-        if (data == null || data!!.isNull) {
+        if (data == null || data.isNull) {
             return RpcError(code, message, null)
         }
 
-        return RpcError(code, message, data!!)
+        return RpcError(code, message, data)
     }
 }
