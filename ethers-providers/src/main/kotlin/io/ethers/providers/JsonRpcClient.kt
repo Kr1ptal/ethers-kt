@@ -119,12 +119,12 @@ data class RpcError @JvmOverloads constructor(
     val isMethodNotFound: Boolean
         get() {
             return code == CODE_METHOD_NOT_FOUND ||
-                    UNSUPPORTED_METHOD_MESSAGE_FRAGMENTS.any {
-                        message.contains(
-                            it,
-                            ignoreCase = true,
-                        )
-                    }
+                UNSUPPORTED_METHOD_MESSAGE_FRAGMENTS.any {
+                    message.contains(
+                        it,
+                        ignoreCase = true,
+                    )
+                }
         }
 
     /**
