@@ -43,6 +43,7 @@ open class DirectorySourceProvider(project: Project, path: String) : AbiSourcePr
                 .substringBeforeLast("/")
                 .removePrefix("/")
                 .replace("/", ".")
+                .ifBlank { DEFAULT_PACKAGE }
 
             ret.add(AbiSource(contractName, destinationPackage, file.toURI().toURL()))
         }
@@ -62,5 +63,9 @@ open class DirectorySourceProvider(project: Project, path: String) : AbiSourcePr
      * */
     private fun File.normalizedPath(): String {
         return absolutePath.replace('\\', '/').split(":/").last()
+    }
+
+    companion object {
+        private const val DEFAULT_PACKAGE = "io.ethers.abigen.generated"
     }
 }
