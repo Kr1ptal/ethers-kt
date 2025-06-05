@@ -27,7 +27,11 @@ class ErrorLoaderBuilder(
         get() = className.canonicalName
 
     fun addContract(contractCanonicalName: String) {
-        contracts.add(ClassName.bestGuess(contractCanonicalName))
+        val segments = contractCanonicalName.split('.')
+        val pkg = if (segments.size <= 1) "" else segments.subList(0, segments.size - 1).joinToString(".")
+        val clazz = segments.last()
+
+        contracts.add(ClassName(pkg, clazz))
     }
 
     fun build() {
