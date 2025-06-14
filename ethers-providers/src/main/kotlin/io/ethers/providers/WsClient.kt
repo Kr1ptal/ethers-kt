@@ -594,9 +594,8 @@ class WsClient(
     ) {
         val result = if (error == null) request.resultDecoder.apply(resultParser) else null
 
-        val response = if (result == null && error == null) {
-            HttpClient.ERROR_INVALID_RESPONSE
-        } else when {
+        val response = when {
+            result == null && error == null -> HttpClient.ERROR_INVALID_RESPONSE
             result != null -> success<T>(result)
             else -> failure(error!!)
         }

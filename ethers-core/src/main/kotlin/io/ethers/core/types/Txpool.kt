@@ -5,9 +5,8 @@ import com.fasterxml.jackson.core.JsonToken
 import com.fasterxml.jackson.databind.DeserializationContext
 import com.fasterxml.jackson.databind.JsonDeserializer
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
+import io.ethers.core.forEachObjectField
 import io.ethers.core.handleUnknownField
-import io.ethers.core.isField
-import io.ethers.core.isNextTokenObjectEnd
 import io.ethers.core.readHexLong
 import io.ethers.core.readMapOf
 
@@ -62,16 +61,16 @@ private class TxpoolContentDeserializer : JsonDeserializer<TxpoolContent>() {
         var pending: Map<Address, Map<Long, RPCTransaction>> = emptyMap()
         var queued: Map<Address, Map<Long, RPCTransaction>> = emptyMap()
 
-        while (!p.isNextTokenObjectEnd()) {
-            when {
-                p.isField("pending") -> {
+        p.forEachObjectField { field ->
+            when (field) {
+                "pending" -> {
                     pending = p.readMapOf(
                         { Address(it) },
                         { p.readMapOf({ it.toLong() }, RPCTransaction::class.java) },
                     )
                 }
 
-                p.isField("queued") -> {
+                "queued" -> {
                     queued = p.readMapOf(
                         { Address(it) },
                         { p.readMapOf({ it.toLong() }, RPCTransaction::class.java) },
@@ -95,10 +94,10 @@ private class TxpoolStatusDeserializer : JsonDeserializer<TxpoolStatus>() {
         var pending: Long? = null
         var queued: Long? = null
 
-        while (!p.isNextTokenObjectEnd()) {
-            when {
-                p.isField("pending") -> pending = p.readHexLong()
-                p.isField("queued") -> queued = p.readHexLong()
+        p.forEachObjectField { field ->
+            when (field) {
+                "pending" -> pending = p.readHexLong()
+                "queued" -> queued = p.readHexLong()
                 else -> p.handleUnknownField()
             }
         }
@@ -116,10 +115,10 @@ private class TxpoolContentFromAddressDeserializer : JsonDeserializer<TxpoolCont
         var pending: Map<Long, RPCTransaction> = emptyMap()
         var queued: Map<Long, RPCTransaction> = emptyMap()
 
-        while (!p.isNextTokenObjectEnd()) {
-            when {
-                p.isField("pending") -> pending = p.readMapOf({ it.toLong() }, RPCTransaction::class.java)
-                p.isField("queued") -> queued = p.readMapOf({ it.toLong() }, RPCTransaction::class.java)
+        p.forEachObjectField { field ->
+            when (field) {
+                "pending" -> pending = p.readMapOf({ it.toLong() }, RPCTransaction::class.java)
+                "queued" -> queued = p.readMapOf({ it.toLong() }, RPCTransaction::class.java)
                 else -> p.handleUnknownField()
             }
         }
@@ -136,17 +135,16 @@ private class TxpoolInspectResultDeserializer : JsonDeserializer<TxpoolInspectRe
 
         var pending: Map<Address, Map<Long, String>> = emptyMap()
         var queued: Map<Address, Map<Long, String>> = emptyMap()
-
-        while (!p.isNextTokenObjectEnd()) {
-            when {
-                p.isField("pending") -> {
+        p.forEachObjectField { field ->
+            when (field) {
+                "pending" -> {
                     pending = p.readMapOf(
                         { Address(it) },
                         { p.readMapOf({ it.toLong() }, String::class.java) },
                     )
                 }
 
-                p.isField("queued") -> {
+                "queued" -> {
                     queued = p.readMapOf(
                         { Address(it) },
                         { p.readMapOf({ it.toLong() }, String::class.java) },
