@@ -56,7 +56,7 @@ class HttpClient(
     override fun requestBatch(batch: BatchRpcRequest): CompletableFuture<Boolean> {
         val ret = CompletableFuture<Boolean>()
 
-        val (body, requestIds) = batch.toRequestBody()
+        val (body, requestIndexPerId) = batch.toRequestBody()
         val call = client.newCall(Request.Builder().url(httpUrl).headers(headers).post(body).build())
 
         call.enqueue(object : Callback {
@@ -105,7 +105,7 @@ class HttpClient(
                                     parser.forEachArrayElement {
                                         var index = -1
                                         val result = parser.decodeNextResult { id ->
-                                            index = requestIds.binarySearch(id)
+                                            index = requestIndexPerId[id] ?: throw Exception("Invalid response ID: $id")
                                             batch.requests[index].resultDecoder
                                         }
 
@@ -141,7 +141,7 @@ class HttpClient(
                             parser.forEachArrayElement {
                                 var index = -1
                                 val result = parser.decodeNextResult { id ->
-                                    index = requestIds.binarySearch(id)
+                                    index = requestIndexPerId[id] ?: throw Exception("Invalid response ID: $id")
                                     batch.requests[index].resultDecoder
                                 }
 
@@ -289,8 +289,8 @@ class HttpClient(
         // no-op
     }
 
-    private fun BatchRpcRequest.toRequestBody(): Pair<RequestBody, LongArray> {
-        val requestIds = LongArray(requests.size)
+    private fun BatchRpcRequest.toRequestBody(): Pair<RequestBody, HashMap<Long, Int>> {
+        val requestIndexPerId = HashMap<Long, Int>(requests.size, 1.0F)
 
         val output = DirectByteArrayOutputStream(requests.size * BYTE_BUFFER_DEFAULT_SIZE)
         output.use { out ->
@@ -302,14 +302,14 @@ class HttpClient(
                     val call = requests[i]
                     val id = requestId.getAndIncrement()
                     it.writeJsonRpcRequest(call.method, id, call.params)
-                    requestIds[i] = id
+                    requestIndexPerId[id] = i
                 }
                 it.writeEndArray()
             }
         }
 
         LOG.trc { "Request: ${String(output.toByteArray())}" }
-        return output.internalBuffer.toRequestBody(JSON_MEDIA_TYPE, byteCount = output.size()) to requestIds
+        return output.internalBuffer.toRequestBody(JSON_MEDIA_TYPE, byteCount = output.size()) to requestIndexPerId
     }
 
     private fun createJsonRpcRequestBody(method: String, params: Array<*>): RequestBody {

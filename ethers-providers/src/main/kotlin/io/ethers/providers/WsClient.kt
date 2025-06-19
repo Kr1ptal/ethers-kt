@@ -289,7 +289,7 @@ class WsClient(
 
                     while (batchRequestQueue.poll().also { batchRequest = it } != null) {
                         var batchId = -1L
-                        val idToIndex = HashMap<Long, Int>(batchRequest!!.request.requests.size)
+                        val idToIndex = HashMap<Long, Int>(batchRequest!!.request.requests.size, 1.0F)
                         val writer = SegmentedStringWriter(bufferRecycler)
                         Jackson.MAPPER.createGenerator(writer).use { gen ->
                             gen.writeStartArray()
@@ -312,7 +312,7 @@ class WsClient(
                         val req = writer.andClear
 
                         LOG.trc { "Processing batch request: $req" }
-                        inFlightBatchRequests[batchId] = Pair(batchRequest!!, idToIndex)
+                        inFlightBatchRequests[batchId] = Pair(batchRequest, idToIndex)
                         websocket.send(req)
                     }
 
