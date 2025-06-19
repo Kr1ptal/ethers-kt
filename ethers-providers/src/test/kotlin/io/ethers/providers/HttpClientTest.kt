@@ -22,11 +22,8 @@ import java.util.function.Function
  */
 class HttpClientTest : FunSpec({
     include(
-        JsonRpcClientTestFactory.commonJsonRpcTests { mockResponse ->
-            val mockWebServer = MockWebServer()
-            mockWebServer.start()
-            mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody(mockResponse))
-            HttpClient(mockWebServer.url("").toString(), OkHttpClient())
+        JsonRpcClientTestFactory.commonJsonRpcTests { server ->
+            HttpClient(server.url("").toString(), OkHttpClient())
         },
     )
 
@@ -37,23 +34,23 @@ private fun httpSpecificTests() = funSpec {
     val stringDecoder = Function<JsonParser, String> { parser -> parser.text }
 
     context("HTTP-specific error handling") {
-        lateinit var mockWebServer: MockWebServer
-        lateinit var httpClient: HttpClient
+        lateinit var server: MockWebServer
+        lateinit var client: HttpClient
 
         beforeEach {
-            mockWebServer = MockWebServer()
-            mockWebServer.start()
-            httpClient = HttpClient(mockWebServer.url("").toString(), OkHttpClient())
+            server = MockWebServer()
+            server.start()
+            client = HttpClient(server.url("").toString(), OkHttpClient())
         }
 
         afterEach {
-            mockWebServer.shutdown()
+            server.shutdown()
         }
 
         test("HTTP error with JSON response") {
-            mockWebServer.enqueue(createMockResponse(RPC_ERROR_RESPONSE, 500))
+            server.enqueue(createMockResponse(RPC_ERROR_RESPONSE, 500))
 
-            val result = httpClient.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
+            val result = client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
 
             result.isFailure() shouldBe true
             val error = result.unwrapError()
@@ -62,9 +59,9 @@ private fun httpSpecificTests() = funSpec {
         }
 
         test("HTTP error with non-JSON response") {
-            mockWebServer.enqueue(MockResponse().setResponseCode(500).setBody("Internal Server Error"))
+            server.enqueue(MockResponse().setResponseCode(500).setBody("Internal Server Error"))
 
-            val result = httpClient.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
+            val result = client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
 
             result.isFailure() shouldBe true
             val error = result.unwrapError()
@@ -73,9 +70,9 @@ private fun httpSpecificTests() = funSpec {
         }
 
         test("empty response body") {
-            mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody(""))
+            server.enqueue(MockResponse().setResponseCode(200).setBody(""))
 
-            val result = httpClient.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
+            val result = client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
 
             result.isFailure() shouldBe true
             val error = result.unwrapError()
@@ -83,36 +80,36 @@ private fun httpSpecificTests() = funSpec {
         }
 
         test("custom headers are sent") {
-            mockWebServer.enqueue(createMockResponse(SUCCESSFUL_RESPONSE))
+            server.enqueue(createMockResponse(SUCCESSFUL_RESPONSE))
 
             val headersMap = mapOf("Authorization" to "Bearer token123", "Custom-Header" to "value")
-            val clientWithHeaders = HttpClient(mockWebServer.url("").toString(), OkHttpClient(), headersMap)
+            val clientWithHeaders = HttpClient(server.url("").toString(), OkHttpClient(), headersMap)
 
             clientWithHeaders.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
 
-            val request = mockWebServer.takeRequest()
+            val request = server.takeRequest()
             request.getHeader("Authorization") shouldBe "Bearer token123"
             request.getHeader("Custom-Header") shouldBe "value"
         }
 
         test("content-Type header is set correctly") {
-            mockWebServer.enqueue(createMockResponse(SUCCESSFUL_RESPONSE))
+            server.enqueue(createMockResponse(SUCCESSFUL_RESPONSE))
 
-            httpClient.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
+            client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
 
-            val request = mockWebServer.takeRequest()
+            val request = server.takeRequest()
             request.getHeader("Content-Type") shouldBe "application/json"
         }
 
         test("unique request IDs are generated") {
-            mockWebServer.enqueue(createMockResponse(SUCCESSFUL_RESPONSE))
-            mockWebServer.enqueue(createMockResponse(SUCCESSFUL_RESPONSE))
+            server.enqueue(createMockResponse(SUCCESSFUL_RESPONSE))
+            server.enqueue(createMockResponse(SUCCESSFUL_RESPONSE))
 
-            httpClient.request("method1", emptyArray<Any>(), stringDecoder).get()
-            httpClient.request("method2", emptyArray<Any>(), stringDecoder).get()
+            client.request("method1", emptyArray<Any>(), stringDecoder).get()
+            client.request("method2", emptyArray<Any>(), stringDecoder).get()
 
-            val request1 = mockWebServer.takeRequest()
-            val request2 = mockWebServer.takeRequest()
+            val request1 = server.takeRequest()
+            val request2 = server.takeRequest()
 
             val body1 = Jackson.MAPPER.readTree(request1.body.readUtf8())
             val body2 = Jackson.MAPPER.readTree(request2.body.readUtf8())

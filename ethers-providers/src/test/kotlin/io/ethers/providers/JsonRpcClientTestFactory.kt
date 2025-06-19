@@ -1,13 +1,14 @@
 package io.ethers.providers
 
 import com.fasterxml.jackson.core.JsonParser
-import io.ethers.core.Result
 import io.ethers.core.isFailure
 import io.ethers.core.isSuccess
 import io.ethers.providers.types.BatchRpcRequest
 import io.ethers.providers.types.RpcCall
 import io.kotest.core.spec.style.funSpec
 import io.kotest.matchers.shouldBe
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
 import org.intellij.lang.annotations.Language
 import java.util.function.Function
 
@@ -25,22 +26,32 @@ import java.util.function.Function
  * ```
  */
 object JsonRpcClientTestFactory {
-
     private val stringDecoder = Function<JsonParser, String> { parser -> parser.text }
 
     /**
      * Creates common JSON-RPC tests that can be used with any JsonRpcClient implementation.
      * This extracts the transport-agnostic testing logic that applies to all JsonRpcClient implementations.
      *
-     * @param clientSetup Function that creates and configures a client instance for testing.
-     *                   This function should handle mock setup and return a configured client.
+     * @param clientFactory Function that creates and configures a client instance for testing.
      */
     fun commonJsonRpcTests(
-        clientSetup: (mockResponse: String) -> JsonRpcClient,
+        clientFactory: (server: MockWebServer) -> JsonRpcClient,
     ) = funSpec {
+        lateinit var server: MockWebServer
+        lateinit var client: JsonRpcClient
+        beforeEach {
+            server = MockWebServer()
+            server.start()
+            client = clientFactory(server)
+        }
+
+        afterEach {
+            server.shutdown()
+        }
+
         context("Common JSON-RPC client tests") {
             test("successful request with result") {
-                val client = clientSetup(SUCCESSFUL_RESPONSE)
+                server.enqueueJson(SUCCESSFUL_RESPONSE)
 
                 val result = client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
 
@@ -49,7 +60,7 @@ object JsonRpcClientTestFactory {
             }
 
             test("RPC error response") {
-                val client = clientSetup(RPC_ERROR_RESPONSE)
+                server.enqueueJson(RPC_ERROR_RESPONSE)
 
                 val result = client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
 
@@ -60,7 +71,7 @@ object JsonRpcClientTestFactory {
             }
 
             test("invalid JSON response") {
-                val client = clientSetup("invalid json")
+                server.enqueueJson("invalid json")
 
                 val result = client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
 
@@ -70,7 +81,7 @@ object JsonRpcClientTestFactory {
             }
 
             test("missing response fields") {
-                val client = clientSetup(RESPONSE_MISSING_FIELDS)
+                server.enqueueJson(RESPONSE_MISSING_FIELDS)
 
                 val result = client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
 
@@ -80,7 +91,7 @@ object JsonRpcClientTestFactory {
             }
 
             test("request with parameters") {
-                val client = clientSetup(SUCCESSFUL_RESPONSE)
+                server.enqueueJson(SUCCESSFUL_RESPONSE)
 
                 val result = client.request("eth_getBalance", arrayOf("0x1234", "latest"), stringDecoder).get()
 
@@ -91,15 +102,13 @@ object JsonRpcClientTestFactory {
 
         context("Common JSON-RPC batch tests") {
             test("empty batch request") {
-                val client = clientSetup("[]") // Empty JSON array
-
                 val batch = BatchRpcRequest(0)
                 val batchResult = client.requestBatch(batch).get()
                 batchResult shouldBe true // Should complete successfully even with no requests
             }
 
             test("mixed batch with success and error") {
-                val client = clientSetup(MIXED_BATCH_RESPONSE)
+                server.enqueueJson(MIXED_BATCH_RESPONSE)
 
                 val batch = BatchRpcRequest(2)
                 val call1 = RpcCall(client, "eth_blockNumber", emptyArray<Any>(), stringDecoder)
@@ -110,17 +119,17 @@ object JsonRpcClientTestFactory {
                 val batchResult = client.requestBatch(batch).get()
                 batchResult shouldBe true
 
-                val result1 = batch.responses[0].get() as Result<String, RpcError>
+                val result1 = batch.responses[0].get()
                 result1.isSuccess() shouldBe true
                 result1.unwrap() shouldBe "0x1234567"
 
-                val result2 = batch.responses[1].get() as Result<String, RpcError>
+                val result2 = batch.responses[1].get()
                 result2.isFailure() shouldBe true
                 result2.unwrapError().code shouldBe -32601
             }
 
             test("out-of-order batch responses") {
-                val client = clientSetup(OUT_OF_ORDER_BATCH_RESPONSE)
+                server.enqueueJson(OUT_OF_ORDER_BATCH_RESPONSE)
 
                 val batch = BatchRpcRequest(3)
                 val call1 = RpcCall(client, "method1", emptyArray<Any>(), stringDecoder)
@@ -134,13 +143,13 @@ object JsonRpcClientTestFactory {
                 batchResult shouldBe true
 
                 // Verify responses are correctly matched to requests despite out-of-order response
-                (batch.responses[0].get() as Result<String, RpcError>).unwrap() shouldBe "result1"
-                (batch.responses[1].get() as Result<String, RpcError>).unwrap() shouldBe "result2"
-                (batch.responses[2].get() as Result<String, RpcError>).unwrap() shouldBe "result3"
+                batch.responses[0].get().unwrap() shouldBe "result1"
+                batch.responses[1].get().unwrap() shouldBe "result2"
+                batch.responses[2].get().unwrap() shouldBe "result3"
             }
 
             test("invalid batch JSON response") {
-                val client = clientSetup("invalid json")
+                server.enqueueJson("invalid json")
 
                 val batch = BatchRpcRequest(1)
                 val call1 = RpcCall(client, "eth_blockNumber", emptyArray<Any>(), stringDecoder)
@@ -149,11 +158,11 @@ object JsonRpcClientTestFactory {
                 val batchResult = client.requestBatch(batch).get()
                 batchResult shouldBe false
 
-                (batch.responses[0].get() as Result<String, RpcError>).isFailure() shouldBe true
+                batch.responses[0].get().isFailure() shouldBe true
             }
 
             test("single item batch") {
-                val client = clientSetup(SINGLE_ITEM_BATCH_RESPONSE)
+                server.enqueueJson(SINGLE_ITEM_BATCH_RESPONSE)
 
                 val batch = BatchRpcRequest(1)
                 val call1 = RpcCall(client, "eth_blockNumber", emptyArray<Any>(), stringDecoder)
@@ -162,13 +171,13 @@ object JsonRpcClientTestFactory {
                 val batchResult = client.requestBatch(batch).get()
                 batchResult shouldBe true
 
-                val result = batch.responses[0].get() as Result<String, RpcError>
+                val result = batch.responses[0].get()
                 result.isSuccess() shouldBe true
                 result.unwrap() shouldBe "0x1234567"
             }
 
             test("batch with invalid request ID in response") {
-                val client = clientSetup(BATCH_INVALID_ID_RESPONSE)
+                server.enqueueJson(BATCH_INVALID_ID_RESPONSE)
 
                 val batch = BatchRpcRequest(1)
                 val call1 = RpcCall(client, "eth_blockNumber", emptyArray<Any>(), stringDecoder)
@@ -177,14 +186,18 @@ object JsonRpcClientTestFactory {
                 val batchResult = client.requestBatch(batch).get()
                 batchResult shouldBe false
 
-                (batch.responses[0].get() as Result<String, RpcError>).isFailure() shouldBe true
+                batch.responses[0].get().isFailure() shouldBe true
             }
         }
     }
 
+    private fun MockWebServer.enqueueJson(code: String) {
+        enqueue(MockResponse().setResponseCode(200).setBody(code))
+    }
+
     // Test response constants
     @Language("JSON")
-    internal val SUCCESSFUL_RESPONSE = """
+    private val SUCCESSFUL_RESPONSE = """
     {
         "jsonrpc": "2.0",
         "id": 1,
@@ -193,7 +206,7 @@ object JsonRpcClientTestFactory {
     """.trimIndent()
 
     @Language("JSON")
-    internal val RPC_ERROR_RESPONSE = """
+    private val RPC_ERROR_RESPONSE = """
     {
         "jsonrpc": "2.0",
         "id": 1,
@@ -205,7 +218,7 @@ object JsonRpcClientTestFactory {
     """.trimIndent()
 
     @Language("JSON")
-    internal val RESPONSE_MISSING_FIELDS = """
+    private val RESPONSE_MISSING_FIELDS = """
     {
         "jsonrpc": "2.0",
         "id": 1
@@ -213,7 +226,7 @@ object JsonRpcClientTestFactory {
     """.trimIndent()
 
     @Language("JSON")
-    internal val MIXED_BATCH_RESPONSE = """
+    private val MIXED_BATCH_RESPONSE = """
     [
         {
             "jsonrpc": "2.0",
@@ -232,7 +245,7 @@ object JsonRpcClientTestFactory {
     """.trimIndent()
 
     @Language("JSON")
-    internal val OUT_OF_ORDER_BATCH_RESPONSE = """
+    private val OUT_OF_ORDER_BATCH_RESPONSE = """
     [
         {
             "jsonrpc": "2.0",
@@ -253,7 +266,7 @@ object JsonRpcClientTestFactory {
     """.trimIndent()
 
     @Language("JSON")
-    internal val SINGLE_ITEM_BATCH_RESPONSE = """
+    private val SINGLE_ITEM_BATCH_RESPONSE = """
     [
         {
             "jsonrpc": "2.0",
@@ -264,7 +277,7 @@ object JsonRpcClientTestFactory {
     """.trimIndent()
 
     @Language("JSON")
-    internal val BATCH_INVALID_ID_RESPONSE = """
+    private val BATCH_INVALID_ID_RESPONSE = """
     [
         {
             "jsonrpc": "2.0",
