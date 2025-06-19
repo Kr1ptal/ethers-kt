@@ -50,10 +50,16 @@ class HttpClient(
 
     private val LOG = getLogger()
     private val httpUrl = url.toHttpUrl()
-    private val requestId = AtomicLong(0)
+    private val requestId = AtomicLong(1)
     private val headers = Headers.Builder().apply { headers.forEach { (k, v) -> add(k, v) } }.build()
 
     override fun requestBatch(batch: BatchRpcRequest): CompletableFuture<Boolean> {
+        batch.markAsSent()
+
+        if (batch.isEmpty) {
+            return CompletableFuture.completedFuture(true)
+        }
+
         val ret = CompletableFuture<Boolean>()
 
         val (body, requestIndexPerId) = batch.toRequestBody()
@@ -249,7 +255,7 @@ class HttpClient(
         this.forEachObjectField { field ->
             when (field) {
                 "id" -> id = this.longValue
-                "jsonrpc" -> {}
+                "jsonrpc" -> skipChildren()
                 "result" -> {
                     if (id == -1L) {
                         buffer = TokenBuffer(this)
@@ -259,7 +265,11 @@ class HttpClient(
                     }
                 }
 
-                "error" -> result = failure(Jackson.MAPPER.readValue(this, RpcError::class.java))
+                "error" -> {
+                    // just call to pass the ID
+                    getDecoder(id)
+                    result = failure(Jackson.MAPPER.readValue(this, RpcError::class.java))
+                }
             }
         }
 
@@ -267,8 +277,8 @@ class HttpClient(
             return ERROR_NO_ID_RESPONSE
         }
 
-        buffer?.use {
-            result = success(getDecoder(id).apply(this))
+        buffer?.asParser()?.use {
+            result = success(getDecoder(id).apply(it))
         }
 
         return result ?: ERROR_INVALID_RESPONSE

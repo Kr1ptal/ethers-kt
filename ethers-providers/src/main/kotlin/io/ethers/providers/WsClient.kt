@@ -154,7 +154,7 @@ class WsClient(
                 )
             }
 
-            var requestId = 0L
+            var requestId = 1L
             var msg: String?
             var request: CompletableRequest<*>?
             var batchRequest: CompletableBatchRequest?
@@ -314,6 +314,7 @@ class WsClient(
                         LOG.trc { "Processing batch request: $req" }
                         inFlightBatchRequests[batchId] = Pair(batchRequest, idToIndex)
                         websocket.send(req)
+                        batchRequest.request.markAsSent()
                     }
 
                     // fourth, process all subscription requests in the queue
