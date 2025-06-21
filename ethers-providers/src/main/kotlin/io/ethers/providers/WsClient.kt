@@ -717,6 +717,11 @@ class WsClient(
     }
 
     override fun requestBatch(batch: BatchRpcRequest): CompletableFuture<Boolean> {
+        if (batch.isEmpty) {
+            batch.markAsSent()
+            return CompletableFuture.completedFuture(true)
+        }
+
         val request = CompletableBatchRequest(batch, CompletableFuture())
 
         batchRequestQueue.add(request)

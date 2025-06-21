@@ -20,11 +20,13 @@ import java.util.function.Function
  * This shows how the `funSpec` factory pattern can be used to extract reusable test suites
  * that work across different JsonRpcClient implementations (HTTP, WebSocket, etc.).
  */
+@Suppress("MoveLambdaOutsideParentheses")
 class HttpClientTest : FunSpec({
     include(
-        JsonRpcClientTestFactory.commonJsonRpcTests { server ->
-            HttpClient(server.url("").toString(), OkHttpClient())
-        },
+        JsonRpcClientTestFactory.commonTests(
+            JsonRpcClientTestFactory.Variant.HTTP,
+            { url -> HttpClient(url, OkHttpClient()) },
+        ),
     )
 
     include(httpSpecificTests())
