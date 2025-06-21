@@ -10,7 +10,6 @@ import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
-import okhttp3.mockwebserver.MockWebServer
 import org.intellij.lang.annotations.Language
 import java.util.function.Function
 
@@ -23,8 +22,8 @@ import java.util.function.Function
 @Suppress("MoveLambdaOutsideParentheses")
 class HttpClientTest : FunSpec({
     include(
-        JsonRpcClientTestFactory.commonTests(
-            JsonRpcClientTestFactory.Variant.HTTP,
+        JsonRpcTestFactory.commonTests(
+            RpcClientVariant.HTTP,
             { url -> HttpClient(url, OkHttpClient()) },
         ),
     )
@@ -36,17 +35,16 @@ private fun httpSpecificTests() = funSpec {
     val stringDecoder = Function<JsonParser, String> { parser -> parser.text }
 
     context("HTTP-specific error handling") {
-        lateinit var server: MockWebServer
+        lateinit var server: MockServer
         lateinit var client: HttpClient
 
         beforeEach {
-            server = MockWebServer()
-            server.start()
-            client = HttpClient(server.url("").toString(), OkHttpClient())
+            server = mockServerHttp()
+            client = HttpClient(server.url, OkHttpClient())
         }
 
         afterEach {
-            server.shutdown()
+            client.close()
         }
 
         test("HTTP error with JSON response") {
@@ -85,7 +83,7 @@ private fun httpSpecificTests() = funSpec {
             server.enqueue(createMockResponse(SUCCESSFUL_RESPONSE))
 
             val headersMap = mapOf("Authorization" to "Bearer token123", "Custom-Header" to "value")
-            val clientWithHeaders = HttpClient(server.url("").toString(), OkHttpClient(), headersMap)
+            val clientWithHeaders = HttpClient(server.url, OkHttpClient(), headersMap)
 
             clientWithHeaders.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
 

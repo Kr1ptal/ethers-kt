@@ -7,13 +7,13 @@ import io.ethers.providers.types.BatchRpcRequest
 import io.ethers.providers.types.RpcCall
 import io.kotest.core.spec.style.funSpec
 import io.kotest.matchers.shouldBe
-import okhttp3.Response
-import okhttp3.WebSocket
-import okhttp3.WebSocketListener
-import okhttp3.mockwebserver.MockResponse
-import okhttp3.mockwebserver.MockWebServer
 import org.intellij.lang.annotations.Language
 import java.util.function.Function
+
+enum class RpcClientVariant {
+    HTTP,
+    WS,
+}
 
 /**
  * Factory for creating reusable JsonRpcClient tests that work with any JsonRpcClient implementation.
@@ -28,77 +28,25 @@ import java.util.function.Function
  * })
  * ```
  */
-object JsonRpcClientTestFactory {
+object JsonRpcTestFactory {
     private val stringDecoder = Function<JsonParser, String> { parser -> parser.text }
 
-    enum class Variant {
-        HTTP,
-        WS,
-    }
-
-    private interface MockServer {
-        val url: String
-
-        fun enqueueJson(json: String)
-    }
-
-    private fun mockServerHttp(): MockServer {
-        val server = MockWebServer()
-        server.start()
-
-        return object : MockServer {
-            override val url: String
-                get() = server.url("/").toString()
-
-            override fun enqueueJson(json: String) {
-                server.enqueue(MockResponse().setResponseCode(200).setBody(json))
-            }
-        }
-    }
-
-    private fun mockServerWebsocket(): MockServer {
-        val server = MockWebServer()
-        server.start()
-
-        return object : WebSocketListener(), MockServer {
-            private val msgQueue = ArrayDeque<String>()
-
-            init {
-                server.enqueue(MockResponse().withWebSocketUpgrade(this))
-            }
-
-            override val url: String
-                get() = server.url("/").toString()
-
-            override fun onOpen(webSocket: WebSocket, response: Response) {
-            }
-
-            override fun onMessage(webSocket: WebSocket, text: String) {
-                webSocket.send(msgQueue.removeFirst())
-            }
-
-            override fun enqueueJson(json: String) {
-                msgQueue.add(json)
-            }
-        }
-    }
-
     /**
-     * Creates common JSON-RPC tests that can be used with any JsonRpcClient implementation.
-     * This extracts the transport-agnostic testing logic that applies to all JsonRpcClient implementations.
+     * Creates common JSON-RPC tests that can be used with any [JsonRpcClient] implementation.
+     * This extracts the transport-agnostic testing logic that applies to all [JsonRpcClient] implementations.
      *
      * @param clientFactory Function that creates and configures a client instance for testing.
      */
     fun commonTests(
-        variant: Variant,
+        variant: RpcClientVariant,
         clientFactory: (url: String) -> JsonRpcClient,
     ) = funSpec {
         lateinit var server: MockServer
         lateinit var client: JsonRpcClient
         beforeEach {
             server = when (variant) {
-                Variant.HTTP -> mockServerHttp()
-                Variant.WS -> mockServerWebsocket()
+                RpcClientVariant.HTTP -> mockServerHttp()
+                RpcClientVariant.WS -> mockServerWebsocket()
             }
             client = clientFactory(server.url)
         }
@@ -135,7 +83,7 @@ object JsonRpcClientTestFactory {
 
                 result.isFailure() shouldBe true
                 val error = result.unwrapError()
-                error.code shouldBe if (variant == Variant.WS) RpcError.CODE_CALL_TIMEOUT else RpcError.CODE_CALL_FAILED
+                error.code shouldBe if (variant == RpcClientVariant.WS) RpcError.CODE_CALL_TIMEOUT else RpcError.CODE_CALL_FAILED
             }
 
             test("missing response fields") {
