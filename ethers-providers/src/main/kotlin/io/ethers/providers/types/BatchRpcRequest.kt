@@ -62,11 +62,15 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) {
             return CompletableFuture.completedFuture(false)
         }
 
+        markAsSent()
+
+        return client!!.requestBatch(this)
+    }
+
+    internal fun markAsSent() {
         if (!batchSent.compareAndSet(false, true)) {
             throw IllegalStateException("Batch already sent")
         }
-
-        return client!!.requestBatch(this)
     }
 
     companion object {

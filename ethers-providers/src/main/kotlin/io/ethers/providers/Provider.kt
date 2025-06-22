@@ -7,8 +7,6 @@ import io.ethers.core.Result
 import io.ethers.core.failure
 import io.ethers.core.forEachObjectField
 import io.ethers.core.isFailure
-import io.ethers.core.isField
-import io.ethers.core.isNextTokenObjectEnd
 import io.ethers.core.readBytes
 import io.ethers.core.readBytesEmptyAsNull
 import io.ethers.core.readHash
@@ -307,9 +305,9 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             arrayOf(callRequest),
             {
                 var ret: TransactionUnsigned? = null
-                while (!it.isNextTokenObjectEnd()) {
-                    when {
-                        it.isField("raw") -> ret = TransactionUnsigned.rlpDecode(it.readHexByteArray(), chainId)
+                it.forEachObjectField { field ->
+                    when (field) {
+                        "raw" -> ret = TransactionUnsigned.rlpDecode(it.readHexByteArray(), chainId)
                         else -> {}
                     }
                 }

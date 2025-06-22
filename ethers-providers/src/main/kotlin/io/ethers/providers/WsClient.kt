@@ -59,12 +59,12 @@ class WsClient(
 
     private val LOG = getLogger()
 
-    // all of these are modified in a single thread
+    // these are modified by a single thread
     private val inFlightRequests = HashMap<Long, CompletableRequest<*>>()
-    private val inFlightBatchRequests = HashMap<Long, CompletableBatchRequest>()
+    private val inFlightBatchRequests = HashMap<Long, Pair<CompletableBatchRequest, HashMap<Long, Int>>>()
     private val inFlightSubscriptionRequests = HashMap<Long, CompletableSubscriptionRequest<*>>()
 
-    // this is modified from multiple threads, when unsubscribing
+    // these are modified by multiple threads when unsubscribing
     private val requestIdToSubscription = ConcurrentHashMap<Long, Subscription<*>>()
     private val serverIdToSubscription = ConcurrentHashMap<String, Subscription<*>>()
 
@@ -154,7 +154,7 @@ class WsClient(
                 )
             }
 
-            var requestId = 0L
+            var requestId = 1L
             var msg: String?
             var request: CompletableRequest<*>?
             var batchRequest: CompletableBatchRequest?
@@ -237,10 +237,10 @@ class WsClient(
                         if (inFlightBatchRequests.isNotEmpty()) {
                             val iter = inFlightBatchRequests.iterator()
                             while (iter.hasNext()) {
-                                val value = iter.next().value
-                                LOG.dbg { "Re-queued in-flight batch request: $value" }
+                                val (batchRequest, _) = iter.next().value
+                                LOG.dbg { "Re-queued in-flight batch request: $batchRequest" }
 
-                                batchRequestQueue.add(value)
+                                batchRequestQueue.add(batchRequest)
                                 iter.remove()
                             }
                         }
@@ -289,11 +289,12 @@ class WsClient(
 
                     while (batchRequestQueue.poll().also { batchRequest = it } != null) {
                         var batchId = -1L
+                        val idToIndex = HashMap<Long, Int>(batchRequest!!.request.requests.size, 1.0F)
                         val writer = SegmentedStringWriter(bufferRecycler)
                         Jackson.MAPPER.createGenerator(writer).use { gen ->
                             gen.writeStartArray()
 
-                            for (i in batchRequest!!.request.requests.indices) {
+                            for (i in batchRequest.request.requests.indices) {
                                 val req = batchRequest.request.requests[i]
 
                                 // use id of the first request to identify the batch
@@ -301,6 +302,7 @@ class WsClient(
                                 if (batchId == -1L) {
                                     batchId = id
                                 }
+                                idToIndex[id] = i
                                 gen.writeJsonRpcRequest(req.method, id, req.params)
                             }
 
@@ -310,8 +312,9 @@ class WsClient(
                         val req = writer.andClear
 
                         LOG.trc { "Processing batch request: $req" }
-                        inFlightBatchRequests[batchId] = batchRequest!!
+                        inFlightBatchRequests[batchId] = Pair(batchRequest, idToIndex)
                         websocket.send(req)
+                        batchRequest.request.markAsSent()
                     }
 
                     // fourth, process all subscription requests in the queue
@@ -362,12 +365,29 @@ class WsClient(
 
     private fun handleTimeouts(timeout: Duration) {
         removeTimedOutRequests(inFlightRequests, timeout)
-        removeTimedOutRequests(inFlightBatchRequests, timeout)
         removeTimedOutRequests(inFlightSubscriptionRequests, timeout)
+        removeTimedOutBatchRequests(timeout)
+    }
+
+    private fun removeTimedOutBatchRequests(timeout: Duration) {
+        // skip expiration if timeout is not set or requests are empty
+        if (timeout.inWholeMilliseconds < 0 || inFlightBatchRequests.isEmpty()) {
+            return
+        }
+
+        val iter = inFlightBatchRequests.iterator()
+        while (iter.hasNext()) {
+            val entry = iter.next()
+            val (batchRequest, _) = entry.value
+            if (batchRequest.expireIfTimedOut(timeout)) {
+                LOG.wrn { "Batch request timed out: ID ${entry.key}" }
+                iter.remove()
+            }
+        }
     }
 
     private fun <T : ExpiringRequest> removeTimedOutRequests(requests: MutableMap<Long, T>, timeout: Duration) {
-        // skip expiration if timeout is not set or requests is empty
+        // skip expiration if timeout is not set or requests are empty
         if (timeout.inWholeMilliseconds < 0 || requests.isEmpty()) {
             return
         }
@@ -483,88 +503,81 @@ class WsClient(
         }
     }
 
-    // TODO per the specification, json-rpc batch responses can be returned in any order
     private fun handleBatchResponse(text: String, p: JsonParser) {
-        var responseIndex = 0
         var batch: CompletableBatchRequest? = null
+        var requestIndexPerId: HashMap<Long, Int>? = null
+
         while (!p.isNextTokenArrayEnd()) {
-            if (batch == null) {
-                // find the batch request from the ID of first response. If ID comes before the result, then it's
-                // parsed directly from the original buffer. Otherwise, a temporary buffer is used to parse the
-                // result after we identify the batch.
-
-                var result: Any? = null
-                var error: RpcError? = null
-                var buffer: TokenBuffer? = null
-                p.forEachObjectField { field ->
-                    when (field) {
-                        "id" -> batch = inFlightBatchRequests.remove(p.longValue)
-                        "jsonrpc" -> {}
-                        "result" -> {
-                            if (batch == null) {
-                                buffer = TokenBuffer(p)
-                                buffer.copyCurrentStructure(p)
-                            } else {
-                                result = batch.request.requests[responseIndex].resultDecoder.apply(p)
-                            }
-                        }
-
-                        "error" -> error = Jackson.MAPPER.readValue(p, RpcError::class.java)
-                        else -> throw Exception("Invalid response: $text")
-                    }
-                }
-
-                if (batch == null) {
-                    throw Exception("Invalid response, no matching batch found: $text")
-                }
-
-                // if we had to buffer, read result from it now
-                buffer?.use {
-                    result = batch.request.requests[responseIndex].resultDecoder.apply(it.asParserOnFirstToken())
-                }
-
-                if (result == null && error == null) {
-                    batch.request.responses[responseIndex].complete(HttpClient.ERROR_INVALID_RESPONSE)
-                } else {
-                    val response = when {
-                        result != null -> success(result)
-                        else -> failure(error!!)
-                    }
-
-                    batch.request.responses[responseIndex].complete(response)
-                }
-
-                responseIndex++
-
-                continue
-            }
-
+            var responseId = -1L
             var result: Any? = null
             var error: RpcError? = null
+            var buffer: TokenBuffer? = null
+
             p.forEachObjectField { field ->
                 when (field) {
-                    "id" -> {}
+                    "id" -> {
+                        responseId = p.longValue
+                        if (batch == null) {
+                            val data = getBatchFromRequestId(responseId)
+                            if (data != null) {
+                                batch = data.first
+                                requestIndexPerId = data.second
+                            }
+                        }
+                    }
                     "jsonrpc" -> {}
-                    "result" -> result = batch.request.requests[responseIndex].resultDecoder.apply(p)
+                    "result" -> {
+                        if (batch != null && requestIndexPerId != null && responseId != -1L) {
+                            val responseIndex = requestIndexPerId[responseId]!!
+                            result = batch.request.requests[responseIndex].resultDecoder.apply(p)
+                        } else {
+                            buffer = TokenBuffer(p)
+                            buffer.copyCurrentStructure(p)
+                        }
+                    }
                     "error" -> error = Jackson.MAPPER.readValue(p, RpcError::class.java)
                     else -> throw Exception("Invalid response: $text")
                 }
             }
 
-            if (result == null && error == null) {
-                batch.request.responses[responseIndex].complete(HttpClient.ERROR_INVALID_RESPONSE)
-            } else {
-                val response = when {
-                    result != null -> success(result)
-                    else -> failure(error!!)
-                }
-                batch.request.responses[responseIndex].complete(response)
+            if (batch == null || requestIndexPerId == null || responseId == -1L) {
+                throw Exception("Invalid response, no matching batch found for ID $responseId: $text")
             }
 
-            responseIndex++
+            val responseIndex = requestIndexPerId[responseId]!!
+
+            // if we had to buffer, read the result from it now
+            buffer?.use {
+                result = batch.request.requests[responseIndex].resultDecoder.apply(it.asParserOnFirstToken())
+            }
+
+            val response = when {
+                result == null && error == null -> HttpClient.ERROR_INVALID_RESPONSE
+                result != null -> success(result)
+                else -> failure(error!!)
+            }
+
+            batch.request.responses[responseIndex].complete(response)
         }
 
-        batch!!.future.complete(true)
+        batch?.future?.complete(true)
+    }
+
+    private fun getBatchFromRequestId(requestId: Long): Pair<CompletableBatchRequest, HashMap<Long, Int>>? {
+        // Handle if the batch returned responses in the same order as they were sent
+        val directMatch = inFlightBatchRequests.remove(requestId)
+        if (directMatch != null) {
+            return directMatch
+        }
+
+        // Find a batch by looking through all in-flight batches for one containing this ID
+        for ((batchId, data) in inFlightBatchRequests) {
+            if (data.second.containsKey(requestId)) {
+                return inFlightBatchRequests.remove(batchId)
+            }
+        }
+
+        return null
     }
 
     private fun handleResponse(id: Long, resultParser: JsonParser, error: RpcError?) {
@@ -594,9 +607,8 @@ class WsClient(
     ) {
         val result = if (error == null) request.resultDecoder.apply(resultParser) else null
 
-        val response = if (result == null && error == null) {
-            HttpClient.ERROR_INVALID_RESPONSE
-        } else when {
+        val response = when {
+            result == null && error == null -> HttpClient.ERROR_INVALID_RESPONSE
             result != null -> success<T>(result)
             else -> failure(error!!)
         }
@@ -705,6 +717,11 @@ class WsClient(
     }
 
     override fun requestBatch(batch: BatchRpcRequest): CompletableFuture<Boolean> {
+        if (batch.isEmpty) {
+            batch.markAsSent()
+            return CompletableFuture.completedFuture(true)
+        }
+
         val request = CompletableBatchRequest(batch, CompletableFuture())
 
         batchRequestQueue.add(request)

@@ -9,7 +9,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import java.net.URI
 
-private const val MAINNET_HTTP_RPC = "https://ethereum.publicnode.com"
+private const val MAINNET_HTTP_RPC = "https://ethereum-rpc.publicnode.com"
 
 class EnsMiddlewareTest : FunSpec({
     data class EnsNameTestData(

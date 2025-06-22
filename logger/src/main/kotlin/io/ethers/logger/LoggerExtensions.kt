@@ -50,6 +50,15 @@ inline fun Logger.dbg(throwable: Throwable, supplier: () -> String) {
 /**
  * Logs with level INFO if enabled.
  * */
+inline fun Logger.inf(throwable: Throwable, supplier: () -> String) {
+    if (isInfoEnabled) {
+        info(supplier.invoke(), throwable)
+    }
+}
+
+/**
+ * Logs with level INFO if enabled.
+ * */
 inline fun Logger.inf(supplier: () -> String) {
     if (isInfoEnabled) {
         info(supplier.invoke())

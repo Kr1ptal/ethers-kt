@@ -2,6 +2,7 @@ package io.ethers.providers
 
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.util.TokenBuffer
 import io.ethers.core.Jackson
 import io.ethers.core.Jackson.createAndInitParser
 import io.ethers.core.Result
@@ -49,13 +50,19 @@ class HttpClient(
 
     private val LOG = getLogger()
     private val httpUrl = url.toHttpUrl()
-    private val requestId = AtomicLong(0)
+    private val requestId = AtomicLong(1)
     private val headers = Headers.Builder().apply { headers.forEach { (k, v) -> add(k, v) } }.build()
 
     override fun requestBatch(batch: BatchRpcRequest): CompletableFuture<Boolean> {
+        batch.markAsSent()
+
+        if (batch.isEmpty) {
+            return CompletableFuture.completedFuture(true)
+        }
+
         val ret = CompletableFuture<Boolean>()
 
-        val body = batch.toRequestBody()
+        val (body, requestIndexPerId) = batch.toRequestBody()
         val call = client.newCall(Request.Builder().url(httpUrl).headers(headers).post(body).build())
 
         call.enqueue(object : Callback {
@@ -98,15 +105,17 @@ class HttpClient(
 
                             // first, try to decode a JSON response
                             try {
-                                // TODO per the specification, json-rpc batch responses can be returned in any order
                                 ByteArrayInputStream(bytes).useJsonParser {
-                                    var index = 0
                                     val parser = this
 
                                     parser.forEachArrayElement {
-                                        val result = parser.decodeNextResult(batch.requests[index].resultDecoder)
+                                        var index = -1
+                                        val result = parser.decodeNextResult { id ->
+                                            index = requestIndexPerId[id] ?: throw Exception("Invalid response ID: $id")
+                                            batch.requests[index].resultDecoder
+                                        }
+
                                         batch.responses[index].complete(result)
-                                        index++
                                     }
                                 }
 
@@ -132,15 +141,17 @@ class HttpClient(
                             return
                         }
 
-                        // TODO per the specification, json-rpc batch responses can be returned in any order
                         stream.useJsonParser {
-                            var index = 0
                             val parser = this
 
                             parser.forEachArrayElement {
-                                val result = parser.decodeNextResult(batch.requests[index].resultDecoder)
+                                var index = -1
+                                val result = parser.decodeNextResult { id ->
+                                    index = requestIndexPerId[id] ?: throw Exception("Invalid response ID: $id")
+                                    batch.requests[index].resultDecoder
+                                }
+
                                 batch.responses[index].complete(result)
-                                index++
                             }
                         }
 
@@ -233,18 +244,42 @@ class HttpClient(
     }
 
     private fun <T> InputStream.decodeResult(decoder: Function<JsonParser, T>): Result<T, RpcError> {
-        return useJsonParser { decodeNextResult(decoder) }
+        return useJsonParser { decodeNextResult { decoder } }
     }
 
-    private fun <T> JsonParser.decodeNextResult(decoder: Function<JsonParser, T>): Result<T, RpcError> {
+    private inline fun <T> JsonParser.decodeNextResult(getDecoder: (id: Long) -> Function<JsonParser, T>): Result<T, RpcError> {
         var result: Result<T, RpcError>? = null
+        var buffer: TokenBuffer? = null
+
+        var id = -1L
         this.forEachObjectField { field ->
             when (field) {
-                "id" -> {}
-                "jsonrpc" -> {}
-                "result" -> result = success(decoder.apply(this))
-                "error" -> result = failure(Jackson.MAPPER.readValue(this, RpcError::class.java))
+                "id" -> id = this.longValue
+                "jsonrpc" -> this.skipChildren()
+                "result" -> {
+                    if (id == -1L) {
+                        buffer = TokenBuffer(this)
+                        buffer.copyCurrentStructure(this)
+                    } else {
+                        result = success(getDecoder(id).apply(this))
+                    }
+                }
+
+                "error" -> {
+                    // just call to pass the ID
+                    getDecoder(id)
+                    result = failure(Jackson.MAPPER.readValue(this, RpcError::class.java))
+                }
             }
+        }
+
+        if (id == -1L) {
+            return ERROR_NO_ID_RESPONSE
+        }
+
+        buffer?.asParser()?.use {
+            it.nextToken()
+            result = success(getDecoder(id).apply(it))
         }
 
         return result ?: ERROR_INVALID_RESPONSE
@@ -265,7 +300,9 @@ class HttpClient(
         // no-op
     }
 
-    private fun BatchRpcRequest.toRequestBody(): RequestBody {
+    private fun BatchRpcRequest.toRequestBody(): Pair<RequestBody, HashMap<Long, Int>> {
+        val requestIndexPerId = HashMap<Long, Int>(requests.size, 1.0F)
+
         val output = DirectByteArrayOutputStream(requests.size * BYTE_BUFFER_DEFAULT_SIZE)
         output.use { out ->
             val gen = Jackson.MAPPER.createGenerator(out)
@@ -274,14 +311,16 @@ class HttpClient(
                 it.writeStartArray()
                 for (i in requests.indices) {
                     val call = requests[i]
-                    it.writeJsonRpcRequest(call.method, requestId.getAndIncrement(), call.params)
+                    val id = requestId.getAndIncrement()
+                    it.writeJsonRpcRequest(call.method, id, call.params)
+                    requestIndexPerId[id] = i
                 }
                 it.writeEndArray()
             }
         }
 
         LOG.trc { "Request: ${String(output.toByteArray())}" }
-        return output.internalBuffer.toRequestBody(JSON_MEDIA_TYPE, byteCount = output.size())
+        return output.internalBuffer.toRequestBody(JSON_MEDIA_TYPE, byteCount = output.size()) to requestIndexPerId
     }
 
     private fun createJsonRpcRequestBody(method: String, params: Array<*>): RequestBody {
@@ -319,10 +358,17 @@ class HttpClient(
             ),
         )
 
+        internal val ERROR_NO_ID_RESPONSE = failure(
+            RpcError(
+                RpcError.CODE_INVALID_RESPONSE,
+                "Invalid response, field 'id' is missing",
+            ),
+        )
+
         internal val ERROR_INVALID_RESPONSE = failure(
             RpcError(
                 RpcError.CODE_INVALID_RESPONSE,
-                "No 'result' or 'error' fields in response",
+                "Invalid response, no 'result' or 'error' fields in response",
             ),
         )
 
