@@ -46,7 +46,7 @@ repositories {
     mavenCentral()
 
     // for snapshot versions, use the following repository
-    //maven { url = uri("https://s01.oss.sonatype.org/content/repositories/snapshots/") }
+    //maven { url = uri("https://central.sonatype.com/repository/maven-snapshots/") }
 }
 
 dependencies {

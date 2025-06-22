@@ -1,7 +1,11 @@
+import org.jreleaser.model.Active
+import org.jreleaser.model.Signing
+
 plugins {
     `project-conventions`
     `jacoco-report-aggregation`
     id("test-report-aggregation")
+    alias(libs.plugins.jreleaser)
 }
 
 dependencies {
@@ -83,6 +87,76 @@ subprojects {
             out.append(separatorLine)
 
             println(out)
+        }
+    }
+}
+
+jreleaser {
+    signing {
+        active.set(Active.ALWAYS)
+        armored.set(true)
+        verify.set(true)
+
+        mode.set(Signing.Mode.FILE)
+        publicKey.set("./gradle/publishing-key-public.asc")
+        secretKey.set("./gradle/publishing-key-secret.asc")
+    }
+
+    // Configure release to skip GitHub operations since we only want Maven Central deployment
+    release {
+        github {
+            enabled.set(true)
+            skipRelease.set(true)
+            skipTag.set(true)
+            token.set("dummy") // Dummy token since no GitHub operations are performed
+        }
+    }
+
+    // Set project info for deployment
+    project {
+        description.set("Async, high-performance Kotlin library for interacting with EVM-based blockchains. Targeting JVM and Android platforms.")
+        links {
+            homepage.set("https://github.com/Kr1ptal/ethers-kt")
+        }
+        license.set("Apache-2.0")
+        inceptionYear.set("2023")
+        authors.set(listOf("Kriptal"))
+    }
+
+    val stagingDir = layout.buildDirectory.dir("staging-deploy")
+
+    deploy {
+        maven {
+            mavenCentral {
+                create("release-deploy") {
+                    active.set(Active.RELEASE)
+                    url.set("https://central.sonatype.com/api/v1/publisher")
+
+                    applyMavenCentralRules.set(true)
+                    stagingRepository(stagingDir.get().asFile.absolutePath)
+
+                    username.set(System.getenv("MAVEN_CENTRAL_USERNAME"))
+                    password.set(System.getenv("MAVEN_CENTRAL_PASSWORD"))
+                }
+            }
+
+            nexus2 {
+                create("snapshot-deploy") {
+                    active.set(Active.SNAPSHOT)
+
+                    url.set("https://central.sonatype.com/repository/maven-snapshots/")
+                    snapshotUrl.set("https://central.sonatype.com/repository/maven-snapshots/")
+
+                    applyMavenCentralRules.set(true)
+                    snapshotSupported.set(true)
+                    closeRepository.set(true)
+                    releaseRepository.set(true)
+                    stagingRepository(stagingDir.get().asFile.absolutePath)
+
+                    username.set(System.getenv("MAVEN_CENTRAL_USERNAME"))
+                    password.set(System.getenv("MAVEN_CENTRAL_PASSWORD"))
+                }
+            }
         }
     }
 }

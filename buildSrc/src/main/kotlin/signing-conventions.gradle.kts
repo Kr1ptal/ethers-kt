@@ -3,7 +3,7 @@ plugins {
 }
 
 signing {
-    isRequired = isLibraryReleaseMode()
+    isRequired = false
 
     val signingKeyId = System.getenv("ORG_GRADLE_PROJECT_signingKeyId")
     val signingKey = System.getenv("ORG_GRADLE_PROJECT_signingKey")
