@@ -1,27 +1,17 @@
 plugins {
     `maven-publish`
-    id("signing-conventions")
 }
 
 val configureMavenCentralRepo: Action<RepositoryHandler> = Action {
-    if (isLibraryReleaseMode()) {
-        maven {
-            name = "mavenCentral"
-
-            url = if (version.toString().endsWith("-SNAPSHOT")) {
-                uri("https://s01.oss.sonatype.org/content/repositories/snapshots/")
-            } else {
-                uri("https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/")
-            }
-
-            credentials {
-                username = System.getenv("SONATYPE_USERNAME")
-                password = System.getenv("SONATYPE_PASSWORD")
-            }
-        }
-    } else {
-        mavenLocal()
+    // For JReleaser, we'll use a local staging directory
+    // JReleaser will handle the actual upload to Maven Central
+    maven {
+        name = "localStaging"
+        url = uri(rootProject.layout.buildDirectory.dir("staging-deploy"))
     }
+
+    // Always publish to local
+    mavenLocal()
 }
 
 val configurePom = Action<MavenPom> {
@@ -67,10 +57,6 @@ project.pluginManager.withPlugin("java") {
 
         repositories(configureMavenCentralRepo)
     }
-
-    signing {
-        sign(publishing.publications["library"])
-    }
 }
 
 project.pluginManager.withPlugin("java-platform") {
@@ -83,9 +69,5 @@ project.pluginManager.withPlugin("java-platform") {
         }
 
         repositories(configureMavenCentralRepo)
-    }
-
-    signing {
-        sign(publishing.publications["libraryBom"])
     }
 }

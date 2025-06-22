@@ -1,0 +1,52 @@
+name: Deploy SNAPSHOT and new releases to Maven Central and Gradle Plugin Portal
+
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - 'v*' # Also trigger on version tags like v1.2.3
+    
+  workflow_dispatch: # Allow manual triggering
+
+# Prevent concurrent deployments
+concurrency:
+  group: maven-central-deploy
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  deploy-snapshot:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/environment-setup
+
+      - name: Build project
+        run: ./gradlew clean build --no-watch-fs --stacktrace
+
+      - name: Publish artifacts to staging
+        run: ./gradlew publish --no-watch-fs --stacktrace
+
+      - name: Deploy SNAPSHOT to Maven Central
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          JRELEASER_GPG_PUBLIC_KEY: ${{ secrets.JRELEASER_GPG_PUBLIC_KEY }}
+          JRELEASER_GPG_SECRET_KEY: ${{ secrets.JRELEASER_GPG_SECRET_KEY }}
+          JRELEASER_GPG_PASSPHRASE: ${{ secrets.JRELEASER_GPG_PASSPHRASE }}
+        run: ./gradlew jreleaserDeploy --no-watch-fs --stacktrace
+
+      - name: Publish Gradle Plugins
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GRADLE_PUBLISH_KEY: ${{ secrets.GRADLE_PUBLISH_KEY }}
+          GRADLE_PUBLISH_SECRET: ${{ secrets.GRADLE_PUBLISH_SECRET }}
+          ORG_GRADLE_PROJECT_publicKey: ${{ secrets.JRELEASER_GPG_PUBLIC_KEY }}
+          ORG_GRADLE_PROJECT_signingKey: ${{ secrets.JRELEASER_GPG_SECRET_KEY }}
+          ORG_GRADLE_PROJECT_signingKeyPassword: ${{ secrets.JRELEASER_GPG_PASSPHRASE }}
+          ORG_GRADLE_PROJECT_signingKeyId: ${{ secrets.JRELEASER_GPG_KEY_ID }}
+        run: ./gradlew publishPlugins --no-watch-fs --stacktrace
