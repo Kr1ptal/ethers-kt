@@ -1,5 +1,4 @@
 import org.jreleaser.model.Active
-import org.jreleaser.model.Signing
 
 plugins {
     `project-conventions`
@@ -96,10 +95,6 @@ jreleaser {
         active.set(Active.ALWAYS)
         armored.set(true)
         verify.set(true)
-
-        mode.set(Signing.Mode.FILE)
-        publicKey.set("./gradle/publishing-key-public.asc")
-        secretKey.set("./gradle/publishing-key-secret.asc")
     }
 
     // Configure release to skip GitHub operations since we only want Maven Central deployment
