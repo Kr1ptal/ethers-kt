@@ -210,7 +210,7 @@ class TransactionSigned @JvmOverloads constructor(
                     rlp.readByte()
 
                     rlp.decodeList {
-                        val tx = TxSetCode.rlpDecode(rlp)
+                        val tx = TxSetCode.rlpDecode(rlp) ?: return null
                         val signature = Signature.rlpDecode(rlp) ?: return null
                         TransactionSigned(tx, signature)
                     }

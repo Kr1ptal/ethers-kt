@@ -39,6 +39,7 @@ data class Authorization(
 ) : RlpEncodable {
     init {
         require(chainId == 0L || chainId > 0L) { "chainId must be 0 or positive" }
+        require(nonce >= 0L) { "nonce must be non-negative" }
         require(yParity == 0L || yParity == 1L) { "yParity must be 0 or 1" }
         require(s <= SECP256K1N_HALF) { "s value must be less than or equal to secp256k1n/2" }
     }
