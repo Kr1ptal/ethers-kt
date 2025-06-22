@@ -255,7 +255,7 @@ class HttpClient(
         this.forEachObjectField { field ->
             when (field) {
                 "id" -> id = this.longValue
-                "jsonrpc" -> skipChildren()
+                "jsonrpc" -> this.skipChildren()
                 "result" -> {
                     if (id == -1L) {
                         buffer = TokenBuffer(this)
@@ -278,6 +278,7 @@ class HttpClient(
         }
 
         buffer?.asParser()?.use {
+            it.nextToken()
             result = success(getDecoder(id).apply(it))
         }
 
