@@ -103,10 +103,8 @@ data class Authorization(
         return sizeOfList(rlpListBodySize())
     }
 
-    private fun rlpListBodySize(): Int {
-        return with(RlpEncoder) {
-            sizeOf(chainId) + sizeOf(address) + sizeOf(nonce) + sizeOf(yParity) + sizeOf(r) + sizeOf(s)
-        }
+    private fun rlpListBodySize(): Int = with(RlpEncoder) {
+        return@with sizeOf(chainId) + sizeOf(address) + sizeOf(nonce) + sizeOf(yParity) + sizeOf(r) + sizeOf(s)
     }
 
     companion object : RlpDecodable<Authorization> {

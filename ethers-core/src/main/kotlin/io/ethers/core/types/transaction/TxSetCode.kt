@@ -17,7 +17,7 @@ import java.math.BigInteger
  * - [EIP-7702](https://eips.ethereum.org/EIPS/eip-7702)
  */
 data class TxSetCode(
-    override val to: Address?,
+    override val to: Address,
     override val value: BigInteger,
     override val nonce: Long,
     override val gas: Long,
@@ -89,14 +89,14 @@ data class TxSetCode(
 
     companion object : RlpDecodable<TxSetCode> {
         @JvmStatic
-        override fun rlpDecode(rlp: RlpDecoder): TxSetCode {
+        override fun rlpDecode(rlp: RlpDecoder): TxSetCode? {
             return TxSetCode(
                 chainId = rlp.decodeLong(),
                 nonce = rlp.decodeLong(),
                 gasTipCap = rlp.decodeBigIntegerElse(BigInteger.ZERO),
                 gasFeeCap = rlp.decodeBigIntegerElse(BigInteger.ZERO),
                 gas = rlp.decodeLong(),
-                to = rlp.decode(Address),
+                to = rlp.decode(Address) ?: return null,
                 value = rlp.decodeBigIntegerElse(BigInteger.ZERO),
                 data = rlp.decode(Bytes),
                 accessList = rlp.decodeAsList(AccessList.Item),
