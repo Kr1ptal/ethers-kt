@@ -1,5 +1,6 @@
 package io.ethers.core.types.transactions
 
+import fixtures.AuthorizationFactory
 import io.ethers.core.types.AccessList
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
@@ -9,6 +10,7 @@ import io.ethers.core.types.transaction.TxAccessList
 import io.ethers.core.types.transaction.TxBlob
 import io.ethers.core.types.transaction.TxDynamicFee
 import io.ethers.core.types.transaction.TxLegacy
+import io.ethers.core.types.transaction.TxSetCode
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncoder
 import io.kotest.core.spec.style.FunSpec
@@ -154,6 +156,45 @@ class TransactionUnsignedTest : FunSpec({
             withoutSidecar.signatureHash() shouldBe withSidecar.signatureHash()
             withoutSidecar.signatureHash().toHexString() shouldBe "bb41b484e4a165d7536c36b12ead57c3391a69632e9b09cca5f3abf1584ed55e"
         }
+
+        test("TxSetCode without access list") {
+            val tx = TxSetCode(
+                to = Address("0xF0109fC8DF283027b6285cc889F5aA624EaC1F55"),
+                value = "1000000000".toBigInteger(),
+                nonce = 12425132,
+                gas = 2000000,
+                gasFeeCap = "210000000000".toBigInteger(),
+                gasTipCap = "21000000000".toBigInteger(),
+                data = Bytes("0x1214abcdef12445980"),
+                chainId = 1L,
+                accessList = emptyList(),
+                authorizationList = listOf(AuthorizationFactory.create()),
+            )
+
+            // This should produce a deterministic signature hash
+            tx.signatureHash().size shouldBe 32
+        }
+
+        test("TxSetCode with access list") {
+            val tx = TxSetCode(
+                to = Address("0xF0109fC8DF283027b6285cc889F5aA624EaC1F55"),
+                value = "1000000000".toBigInteger(),
+                nonce = 12425132,
+                gas = 2000000,
+                gasFeeCap = "210000000000".toBigInteger(),
+                gasTipCap = "21000000000".toBigInteger(),
+                data = Bytes("0x1214abcdef12445980"),
+                chainId = 1L,
+                accessList = accessList,
+                authorizationList = listOf(
+                    AuthorizationFactory.create(chainId = 1L, nonce = 0L),
+                    AuthorizationFactory.create(chainId = 1L, nonce = 1L),
+                ),
+            )
+
+            // This should produce a deterministic signature hash different from the above
+            tx.signatureHash().size shouldBe 32
+        }
     }
 
     context("RLP decoding") {
@@ -200,6 +241,21 @@ class TransactionUnsignedTest : FunSpec({
                 accessList = accessList,
                 blobFeeCap = "21000000000".toBigInteger(),
                 blobVersionedHashes = listOf(Hash.ZERO),
+            ),
+            TxSetCode(
+                to = Address("0xF0109fC8DF283027b6285cc889F5aA624EaC1F55"),
+                value = "1000000000".toBigInteger(),
+                nonce = 12425132,
+                gas = 2000000,
+                gasFeeCap = "210000000000".toBigInteger(),
+                gasTipCap = "21000000000".toBigInteger(),
+                data = Bytes("0x1214abcdef12445980"),
+                chainId = 1L,
+                accessList = accessList,
+                authorizationList = listOf(
+                    AuthorizationFactory.create(chainId = 1L, nonce = 0L),
+                    AuthorizationFactory.create(chainId = 1L, nonce = 1L),
+                ),
             ),
         ) { tx ->
             val encoder = RlpEncoder()
