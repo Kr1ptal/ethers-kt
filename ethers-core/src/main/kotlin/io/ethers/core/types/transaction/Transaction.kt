@@ -2,6 +2,7 @@ package io.ethers.core.types.transaction
 
 import io.ethers.core.types.AccessList
 import io.ethers.core.types.Address
+import io.ethers.core.types.Authorization
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.CallRequest
 import io.ethers.core.types.Hash
@@ -36,6 +37,7 @@ interface Transaction : IntoCallRequest {
     val data: Bytes?
     val chainId: Long
     val accessList: List<AccessList.Item>
+    val authorizationList: List<Authorization>?
     val type: TxType
     val blobFeeCap: BigInteger?
     val blobVersionedHashes: List<Hash>?
@@ -99,6 +101,7 @@ sealed class TxType(val type: Int) {
     data object AccessList : TxType(0x1)
     data object DynamicFee : TxType(0x2)
     data object Blob : TxType(0x3)
+    data object SetCode : TxType(0x4)
 
     /**
      * A transaction type that is not supported by this library, but can still be received from the network.
@@ -126,6 +129,7 @@ sealed class TxType(val type: Int) {
                 AccessList.type -> AccessList
                 DynamicFee.type -> DynamicFee
                 Blob.type -> Blob
+                SetCode.type -> SetCode
                 else -> Unsupported(type)
             }
         }

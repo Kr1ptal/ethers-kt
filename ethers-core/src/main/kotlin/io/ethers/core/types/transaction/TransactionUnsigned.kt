@@ -95,6 +95,11 @@ sealed interface TransactionUnsigned : Transaction, RlpEncodable {
                     rlp.decodeList { TxBlob.rlpDecode(rlp).also { dropEmptyRSV() } }
                 }
 
+                TxType.SetCode -> {
+                    rlp.readByte()
+                    rlp.decodeList { TxSetCode.rlpDecode(rlp).also { dropEmptyRSV() } }
+                }
+
                 is TxType.Unsupported -> null
             }
         }
