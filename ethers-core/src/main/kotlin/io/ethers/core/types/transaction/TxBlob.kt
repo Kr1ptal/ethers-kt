@@ -2,6 +2,7 @@ package io.ethers.core.types.transaction
 
 import io.ethers.core.types.AccessList
 import io.ethers.core.types.Address
+import io.ethers.core.types.Authorization
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
 import io.ethers.core.types.Signature
@@ -72,6 +73,9 @@ data class TxBlob(
 
     override val type: TxType
         get() = TxType.Blob
+
+    override val authorizationList: List<Authorization>?
+        get() = null
 
     override fun rlpEncodeEnveloped(rlp: RlpEncoder, signature: Signature?, hashEncoding: Boolean) = with(RlpEncoder) {
         rlp.appendRaw(type.type.toByte())

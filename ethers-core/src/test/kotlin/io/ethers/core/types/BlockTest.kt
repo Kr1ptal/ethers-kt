@@ -256,6 +256,7 @@ class BlockTest : FunSpec({
                             ),
                         ),
                     ),
+                    authorizationList = null,
                     chainId = 1L,
                     v = 38L,
                     r = BigInteger("95546998719565769459668967071015181532151001694673704956264532570756523618244"),

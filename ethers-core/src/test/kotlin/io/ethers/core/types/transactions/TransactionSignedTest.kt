@@ -1,5 +1,7 @@
 package io.ethers.core.types.transactions
 
+import fixtures.AuthorizationFactory
+import fixtures.TxSetCodeFactory
 import io.ethers.core.Jackson
 import io.ethers.core.types.AccessList
 import io.ethers.core.types.Address
@@ -11,6 +13,8 @@ import io.ethers.core.types.transaction.TxAccessList
 import io.ethers.core.types.transaction.TxBlob
 import io.ethers.core.types.transaction.TxDynamicFee
 import io.ethers.core.types.transaction.TxLegacy
+import io.ethers.rlp.RlpDecoder
+import io.ethers.rlp.RlpEncoder
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.WithDataTestName
 import io.kotest.datatest.withData
@@ -19,6 +23,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldBeEqualIgnoringCase
 import java.io.File
+import java.math.BigInteger
 
 class TransactionSignedTest : FunSpec({
     test("rlp encode/decode TxLegacy without chain ID") {
@@ -211,6 +216,34 @@ class TransactionSignedTest : FunSpec({
         val decoded = TransactionSigned.rlpDecode(rlp)
         decoded.shouldNotBeNull() shouldBe signed
         decoded.hash shouldBe Hash("0x5b51360854253b6308208ea86423cbba471240f473f8ec811e8c95806714a14e")
+    }
+
+    test("rlp encode/decode TxSetCode") {
+        val auth = AuthorizationFactory.create()
+        val tx = TxSetCodeFactory.create(authorizationList = listOf(auth))
+        val signature = Signature(
+            r = BigInteger("1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", 16),
+            s = BigInteger("1111111111111111111111111111111111111111111111111111111111111111", 16),
+            v = 0L,
+        )
+
+        val signedTx = TransactionSigned(tx, signature)
+
+        // Encode the signed transaction
+        val encoder = RlpEncoder()
+        signedTx.rlpEncode(encoder)
+        val encoded = encoder.toByteArray()
+
+        // Should start with transaction type 0x04
+        encoded[0] shouldBe 0x04.toByte()
+
+        // Decode the signed transaction
+        val decoder = RlpDecoder(encoded)
+        val decoded = TransactionSigned.rlpDecode(decoder)
+
+        decoded shouldBe signedTx
+        decoded!!.tx shouldBe tx
+        decoded.signature shouldBe signature
     }
 
     context("RLP roundtrip encode/decode test") {

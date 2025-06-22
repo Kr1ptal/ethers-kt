@@ -134,11 +134,11 @@ class TransactionSigned @JvmOverloads constructor(
                     val nonce = rlp.decodeLong()
                     val gasPrice = rlp.decodeBigInteger() ?: BigInteger.ZERO
                     val gas = rlp.decodeLong()
-                    val to = rlp.decode(Address)
+                    val to = Address.rlpDecode(rlp)
                     val value = rlp.decodeBigInteger() ?: BigInteger.ZERO
-                    val data = rlp.decode(Bytes)
+                    val data = Bytes.rlpDecode(rlp)
 
-                    val signature = rlp.decode(Signature) ?: return null
+                    val signature = Signature.rlpDecode(rlp) ?: return null
 
                     // since we're decoding a signed tx, we have a signature from which we can recover the chainId
                     val chainId = ChainId.fromSignature(signature)
@@ -164,7 +164,7 @@ class TransactionSigned @JvmOverloads constructor(
 
                     rlp.decodeList {
                         val tx = TxAccessList.rlpDecode(rlp)
-                        val signature = rlp.decode(Signature) ?: return null
+                        val signature = Signature.rlpDecode(rlp) ?: return null
                         TransactionSigned(tx, signature)
                     }
                 }
@@ -174,7 +174,7 @@ class TransactionSigned @JvmOverloads constructor(
 
                     rlp.decodeList {
                         val tx = TxDynamicFee.rlpDecode(rlp)
-                        val signature = rlp.decode(Signature) ?: return null
+                        val signature = Signature.rlpDecode(rlp) ?: return null
                         TransactionSigned(tx, signature)
                     }
                 }
@@ -190,19 +190,29 @@ class TransactionSigned @JvmOverloads constructor(
                             lateinit var signature: Signature
                             rlp.decodeList {
                                 tx = TxBlob.rlpDecode(rlp) ?: return null
-                                signature = rlp.decode(Signature) ?: return null
+                                signature = Signature.rlpDecode(rlp) ?: return null
                             }
 
-                            val sidecar = rlp.decode(TxBlob.Sidecar) ?: return null
+                            val sidecar = TxBlob.Sidecar.rlpDecode(rlp)
 
                             // TODO avoid creating a copy just with sidecar
                             TransactionSigned(tx.copy(sidecar = sidecar), signature)
                         } else {
                             val tx = TxBlob.rlpDecode(rlp) ?: return null
-                            val signature = rlp.decode(Signature) ?: return null
+                            val signature = Signature.rlpDecode(rlp) ?: return null
 
                             TransactionSigned(tx, signature)
                         }
+                    }
+                }
+
+                TxType.SetCode -> {
+                    rlp.readByte()
+
+                    rlp.decodeList {
+                        val tx = TxSetCode.rlpDecode(rlp) ?: return null
+                        val signature = Signature.rlpDecode(rlp) ?: return null
+                        TransactionSigned(tx, signature)
                     }
                 }
 
