@@ -190,7 +190,7 @@ interface CustomErrorFactory<T : CustomContractError> {
         return decode(abi.decodeCall(data))
     }
 
-    fun decode(data: Array<out Any>): T
+    fun decode(data: List<Any>): T
 }
 
 /**

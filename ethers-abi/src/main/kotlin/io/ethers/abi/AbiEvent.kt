@@ -42,8 +42,8 @@ interface EventFactory<T : ContractEvent> {
      * @return the decoded event, or null if the log does not match this event.
      * */
     fun decode(log: Log): T? {
-        val topics: Array<Any>
-        val data: Array<Any>
+        val topics: List<Any>
+        val data: List<Any>
         val logTopicSize: Int
 
         if (abi.isAnonymous) {
@@ -51,32 +51,33 @@ interface EventFactory<T : ContractEvent> {
             if (abi.indexed.size != logTopicSize) return null
             if (abi.data.isEmpty() != log.data.isEmpty) return null
 
-            topics = if (logTopicSize == 0) emptyArray() else abi.decodeTopics(log.topics)
-            data = if (abi.data.isEmpty()) emptyArray() else abi.decodeData(log.data)
+            topics = if (logTopicSize == 0) emptyList() else abi.decodeTopics(log.topics)
+            data = if (abi.data.isEmpty()) emptyList() else abi.decodeData(log.data)
         } else {
             logTopicSize = log.topics.size - 1
             if (abi.indexed.size != logTopicSize) return null
             if (abi.data.isEmpty() != log.data.isEmpty) return null
             if (abi.topicId != log.topics[0]) return null
 
-            topics = if (logTopicSize == 0) emptyArray() else abi.decodeTopics(log.topics)
-            data = if (abi.data.isEmpty()) emptyArray() else abi.decodeData(log.data)
+            topics = if (logTopicSize == 0) emptyList() else abi.decodeTopics(log.topics)
+            data = if (abi.data.isEmpty()) emptyList() else abi.decodeData(log.data)
         }
 
         var topicIndex = 0
         var dataIndex = 0
-        val merged = Array(logTopicSize + data.size) { i ->
+        val merged = mutableListOf<Any>()
+        for (i in 0 until (logTopicSize + data.size)) {
             if (abi.tokens[i].indexed) {
-                topics[topicIndex++]
+                merged.add(topics[topicIndex++])
             } else {
-                data[dataIndex++]
+                merged.add(data[dataIndex++])
             }
         }
 
         return decode(log, merged)
     }
 
-    fun decode(log: Log, data: Array<out Any>): T
+    fun decode(log: Log, data: List<Any>): T
 }
 
 data class AbiEvent(
@@ -89,18 +90,16 @@ data class AbiEvent(
 
     val topicId = Hash(AbiType.computeSignatureHash(name, tokens.map { it.type }))
 
-    fun decodeTopics(topics: List<Hash>): Array<Any> {
+    fun decodeTopics(topics: List<Hash>): List<Any> {
         val offsetTopic0 = if (isAnonymous) 0 else 1
-        val ret = arrayOfNulls<Any>(indexed.size)
+        val ret = mutableListOf<Any>()
         for (i in indexed.indices) {
-            ret[i] = AbiCodec.decode(indexed[i], topics[i + offsetTopic0].asByteArray())
+            ret.add(AbiCodec.decode(indexed[i], topics[i + offsetTopic0].asByteArray()))
         }
-
-        @Suppress("UNCHECKED_CAST")
-        return ret as Array<Any>
+        return ret
     }
 
-    fun decodeData(data: Bytes): Array<Any> {
+    fun decodeData(data: Bytes): List<Any> {
         return AbiCodec.decode(this.data, data.asByteArray())
     }
 

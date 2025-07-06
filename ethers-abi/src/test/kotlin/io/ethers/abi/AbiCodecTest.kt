@@ -19,7 +19,7 @@ class AbiCodecTest : FunSpec({
     context("encoding") {
         test("function without arguments") {
             val function = AbiFunction.parseSignature("oracle()")
-            val result = AbiCodec.encodeWithPrefix(function.selector, emptyList(), emptyArray()).toHexString()
+            val result = AbiCodec.encodeWithPrefix(function.selector, emptyList(), emptyList()).toHexString()
 
             result shouldBe "7dc0d1d0"
         }
@@ -28,11 +28,11 @@ class AbiCodecTest : FunSpec({
             val function = AbiFunction.parseSignature(
                 "flashLoan(address,address[],uint256[],uint256[],address,bytes,uint16)",
             )
-            val params = arrayOf(
+            val params = listOf(
                 Address("0xdeadeadeadeadeadeadeadeadeadeadeadeadead"),
-                arrayOf(Address("0xdeadeadeadeadeadeadeadeadeadeadeadeadead")),
-                arrayOf(BigInteger.TEN),
-                arrayOf(BigInteger.TEN),
+                listOf(Address("0xdeadeadeadeadeadeadeadeadeadeadeadeadead")),
+                listOf(BigInteger.TEN),
+                listOf(BigInteger.TEN),
                 Address("0xdeadeadeadeadeadeadeadeadeadeadeadeadead"),
                 Bytes(byteArrayOf(0, 1, 2, 3, 4, 5)),
                 "11424".toBigInteger(),
@@ -68,7 +68,7 @@ class AbiCodecTest : FunSpec({
 
         test("positive BigInteger to hex") {
             Arb.bigInt(0, 256).checkAll {
-                val encodedByCoder = AbiCodec.encode(listOf(AbiType.UInt(256)), arrayOf(it)).toHexString()
+                val encodedByCoder = AbiCodec.encode(listOf(AbiType.UInt(256)), listOf(it)).toHexString()
                 val encodedByJava = it.toString(16).padStart(64, '0')
 
                 encodedByCoder shouldBe encodedByJava
@@ -78,7 +78,7 @@ class AbiCodecTest : FunSpec({
             Arb.bigInt(0, 255).checkAll {
                 val num = it.negate()
                 val numTwosComplement = if (num.signum() == -1) num.add(BigInteger.ONE.shiftLeft(256)) else num
-                val encodedByCoder = AbiCodec.encode(listOf(AbiType.Int(256)), arrayOf(num)).toHexString()
+                val encodedByCoder = AbiCodec.encode(listOf(AbiType.Int(256)), listOf(num)).toHexString()
                 val encodedByJava = numTwosComplement.toString(16).padStart(64, '0')
 
                 encodedByCoder shouldBe encodedByJava
@@ -86,14 +86,14 @@ class AbiCodecTest : FunSpec({
         }
         test("fixed array of static tuples followed by dynamic type") {
             val function = AbiFunction.parseSignature("someName((int8,int8,address)[2],string)")
-            val params = arrayOf(
-                arrayOf(
-                    arrayOf(
+            val params = listOf(
+                listOf(
+                    listOf(
                         BigInteger("93"),
                         BigInteger("35"),
                         Address("0x4444444444444444444444444444444444444444"),
                     ),
-                    arrayOf(
+                    listOf(
                         BigInteger("124"),
                         BigInteger("-45"),
                         Address("0x2222222222222222222222222222222222222222"),
@@ -125,13 +125,13 @@ class AbiCodecTest : FunSpec({
         test("fixed array of fixed arrays") {
             val function = AbiFunction.parseSignature("someName(address[2][2])")
 
-            val params = arrayOf(
-                arrayOf(
-                    arrayOf(
+            val params = listOf(
+                listOf(
+                    listOf(
                         Address("0x1111111111111111111111111111111111111111"),
                         Address("0x2222222222222222222222222222222222222222"),
                     ),
-                    arrayOf(
+                    listOf(
                         Address("0x3333333333333333333333333333333333333333"),
                         Address("0x4444444444444444444444444444444444444444"),
                     ),
@@ -153,13 +153,13 @@ class AbiCodecTest : FunSpec({
         test("fixed array of dynamic types") {
             val function = AbiFunction.parseSignature("someName(address[][2])")
 
-            val params = arrayOf(
-                arrayOf(
-                    arrayOf(
+            val params = listOf(
+                listOf(
+                    listOf(
                         Address("0x1111111111111111111111111111111111111111"),
                         Address("0x2222222222222222222222222222222222222222"),
                     ),
-                    arrayOf(
+                    listOf(
                         Address("0x3333333333333333333333333333333333333333"),
                         Address("0x4444444444444444444444444444444444444444"),
                     ),
@@ -185,13 +185,13 @@ class AbiCodecTest : FunSpec({
 
         test("dynamic array of dynamic arrays") {
             val function = AbiFunction.parseSignature("someName(address[][])")
-            val params = arrayOf(
-                arrayOf(
-                    arrayOf(
+            val params = listOf(
+                listOf(
+                    listOf(
                         Address("0x1111111111111111111111111111111111111111"),
                         Address("0x2222222222222222222222222222222222222222"),
                     ),
-                    arrayOf(
+                    listOf(
                         Address("0x3333333333333333333333333333333333333333"),
                         Address("0x4444444444444444444444444444444444444444"),
                     ),
@@ -218,14 +218,14 @@ class AbiCodecTest : FunSpec({
 
         test("combination of static and dynamic types with function name") {
             val function = AbiFunction.parseSignature("execute(bool,int256,string,int256,int256,int256,int256[],bool)")
-            val params = arrayOf(
+            val params = listOf(
                 true,
                 BigInteger("1"),
                 "gavofyork",
                 BigInteger("2"),
                 BigInteger("3"),
                 BigInteger("4"),
-                arrayOf(BigInteger("5"), BigInteger("6"), BigInteger("7")),
+                listOf(BigInteger("5"), BigInteger("6"), BigInteger("7")),
                 false,
             )
 
@@ -258,9 +258,9 @@ class AbiCodecTest : FunSpec({
 
         test("empty array") {
             val function = AbiFunction.parseSignature("someName(address[],address[])")
-            val params = arrayOf<Array<String>>(
-                emptyArray(),
-                emptyArray(),
+            val params = listOf<List<String>>(
+                emptyList(),
+                emptyList(),
             )
 
             val encoded = AbiCodec.encode(function.inputs, params).toHexString()
@@ -278,7 +278,7 @@ class AbiCodecTest : FunSpec({
         test("fixed and static bytes") {
             val function = AbiFunction.parseSignature("someName(bytes,bytes32)")
 
-            val params = arrayOf(
+            val params = listOf(
                 Bytes("4444444444444444444444444444444444444444444444444444444444444444444444444444"),
                 Bytes("6666666666666666666666666666666666666666666666666666666666666666"),
             )
@@ -299,7 +299,7 @@ class AbiCodecTest : FunSpec({
         test("negative and positive numbers") {
             val function = AbiFunction.parseSignature("someName(int,uint,int,uint256)")
 
-            val params = arrayOf(
+            val params = listOf(
                 BigInteger("-9413"),
                 BigInteger("12341"),
                 BigInteger("854121"),
@@ -321,8 +321,8 @@ class AbiCodecTest : FunSpec({
         test("tuple with dynamic elements") {
             val function = AbiFunction.parseSignature("someName((string,string))")
 
-            val params = arrayOf(
-                arrayOf("gavofyork", "gavofyork"),
+            val params = listOf(
+                listOf("gavofyork", "gavofyork"),
             )
 
             val encoded = AbiCodec.encode(function.inputs, params).toHexString()
@@ -343,8 +343,8 @@ class AbiCodecTest : FunSpec({
         test("nested tuple of tuples, with dynamic and static elements") {
             val function = AbiFunction.parseSignature("someName((string,bool,string,(string,string,(string,string))))")
 
-            val params = arrayOf(
-                arrayOf("test", true, "cyborg", arrayOf("night", "day", arrayOf("weee", "funtests"))),
+            val params = listOf(
+                listOf("test", true, "cyborg", listOf("night", "day", listOf("weee", "funtests"))),
             )
 
             val encoded = AbiCodec.encode(function.inputs, params).toHexString()
@@ -386,7 +386,7 @@ class AbiCodecTest : FunSpec({
                 // too long
                 Bytes(byteArrayOf(0, 0, 0, 0, 0, 0, 0, 0, 0)),
             ).checkAll {
-                val params = arrayOf(it)
+                val params = listOf(it)
                 shouldThrow<IllegalArgumentException> { AbiCodec.encode(function.inputs, params) }
             }
         }
@@ -406,7 +406,7 @@ class AbiCodecTest : FunSpec({
                 BigInteger.ONE.shiftLeft(256).negate(),
                 BigInteger.ONE.shiftLeft(260).negate(),
             ).checkAll {
-                val params = arrayOf(it)
+                val params = listOf(it)
                 shouldThrow<IllegalArgumentException> { AbiCodec.encode(function.inputs, params) }
             }
         }
@@ -422,7 +422,7 @@ class AbiCodecTest : FunSpec({
                 // negative
                 BigInteger.ONE.negate(),
             ).checkAll {
-                val params = arrayOf(it)
+                val params = listOf(it)
                 shouldThrow<IllegalArgumentException> { AbiCodec.encode(function.inputs, params) }
             }
         }
@@ -505,14 +505,14 @@ class AbiCodecTest : FunSpec({
 
             val decoded = AbiCodec.decode(function.inputs, dataHex)
 
-            val expected = arrayOf(
-                arrayOf(
-                    arrayOf(
+            val expected = listOf(
+                listOf(
+                    listOf(
                         BigInteger("93"),
                         BigInteger("35"),
                         Address("0x4444444444444444444444444444444444444444"),
                     ),
-                    arrayOf(
+                    listOf(
                         BigInteger("124"),
                         BigInteger("-45"),
                         Address("0x2222222222222222222222222222222222222222"),
@@ -536,13 +536,13 @@ class AbiCodecTest : FunSpec({
 
             val decoded = AbiCodec.decode(function.inputs, dataHex)
 
-            val expected = arrayOf(
-                arrayOf(
-                    arrayOf(
+            val expected = listOf(
+                listOf(
+                    listOf(
                         Address("0x1111111111111111111111111111111111111111"),
                         Address("0x2222222222222222222222222222222222222222"),
                     ),
-                    arrayOf(
+                    listOf(
                         Address("0x3333333333333333333333333333333333333333"),
                         Address("0x4444444444444444444444444444444444444444"),
                     ),
@@ -568,13 +568,13 @@ class AbiCodecTest : FunSpec({
             """.trimIndent().replace(System.lineSeparator(), "").hexToByteArray()
 
             val decoded = AbiCodec.decode(function.inputs, dataHex)
-            val expected = arrayOf(
-                arrayOf(
-                    arrayOf(
+            val expected = listOf(
+                listOf(
+                    listOf(
                         Address("0x1111111111111111111111111111111111111111"),
                         Address("0x2222222222222222222222222222222222222222"),
                     ),
-                    arrayOf(
+                    listOf(
                         Address("0x3333333333333333333333333333333333333333"),
                         Address("0x4444444444444444444444444444444444444444"),
                     ),
@@ -602,13 +602,13 @@ class AbiCodecTest : FunSpec({
 
             val decoded = AbiCodec.decode(function.inputs, dataHex)
 
-            val expected = arrayOf(
-                arrayOf(
-                    arrayOf(
+            val expected = listOf(
+                listOf(
+                    listOf(
                         Address("0x1111111111111111111111111111111111111111"),
                         Address("0x2222222222222222222222222222222222222222"),
                     ),
-                    arrayOf(
+                    listOf(
                         Address("0x3333333333333333333333333333333333333333"),
                         Address("0x4444444444444444444444444444444444444444"),
                     ),
@@ -641,14 +641,14 @@ class AbiCodecTest : FunSpec({
 
             val decoded = AbiCodec.decodeWithPrefix(function.selector.size, function.inputs, dataHex)
 
-            val expected = arrayOf(
+            val expected = listOf(
                 true,
                 BigInteger("1"),
                 "gavofyork",
                 BigInteger("2"),
                 BigInteger("3"),
                 BigInteger("4"),
-                arrayOf(BigInteger("5"), BigInteger("6"), BigInteger("7")),
+                listOf(BigInteger("5"), BigInteger("6"), BigInteger("7")),
                 false,
             )
 
@@ -667,9 +667,9 @@ class AbiCodecTest : FunSpec({
 
             val decoded = AbiCodec.decode(function.outputs, dataHex)
 
-            val expected = arrayOf<Array<String>>(
-                emptyArray(),
-                emptyArray(),
+            val expected = listOf<List<String>>(
+                emptyList(),
+                emptyList(),
             )
 
             decoded shouldBe expected
@@ -688,7 +688,7 @@ class AbiCodecTest : FunSpec({
 
             val decoded = AbiCodec.decode(function.outputs, dataHex)
 
-            val expected = arrayOf(
+            val expected = listOf(
                 Bytes("4444444444444444444444444444444444444444444444444444444444444444444444444444"),
                 Bytes("6666666666666666666666666666666666666666666666666666666666666666"),
             )
@@ -715,9 +715,9 @@ class AbiCodecTest : FunSpec({
 
             val decoded = AbiCodec.decode(function.outputs, dataHex)
 
-            val expected = arrayOf(
-                arrayOf(Bytes(byteArrayOf(1, 2)), Bytes(byteArrayOf(3, 4))),
-                arrayOf(Bytes(ByteArray(32) { 1 }), Bytes(ByteArray(32) { 2 }), Bytes(ByteArray(32) { 3 })),
+            val expected = listOf(
+                listOf(Bytes(byteArrayOf(1, 2)), Bytes(byteArrayOf(3, 4))),
+                listOf(Bytes(ByteArray(32) { 1 }), Bytes(ByteArray(32) { 2 }), Bytes(ByteArray(32) { 3 })),
             )
 
             decoded shouldBe expected
@@ -752,8 +752,8 @@ class AbiCodecTest : FunSpec({
             """.trimIndent().replace(System.lineSeparator(), "").hexToByteArray()
 
             val decoded = AbiCodec.decode(function.inputs, dataHex)
-            val expected = arrayOf(
-                arrayOf("test", true, "cyborg", arrayOf("night", "day", arrayOf("weee", "funtests"))),
+            val expected = listOf(
+                listOf("test", true, "cyborg", listOf("night", "day", listOf("weee", "funtests"))),
             )
 
             decoded shouldBe expected
@@ -771,7 +771,7 @@ class AbiCodecTest : FunSpec({
 
             val decoded = AbiCodec.decode(function.outputs, dataHex)
 
-            val expected = arrayOf(
+            val expected = listOf(
                 BigInteger("-9413"),
                 BigInteger("12341"),
                 BigInteger("854121"),
@@ -792,8 +792,8 @@ class AbiCodecTest : FunSpec({
                 AbiType.Bytes,
             )
 
-            val params = arrayOf(
-                arrayOf(BigInteger("-5")),
+            val params = listOf(
+                listOf(BigInteger("-5")),
                 BigInteger("-5"),
                 true,
                 Bytes("abcdef124493534081243514"),
@@ -807,27 +807,27 @@ class AbiCodecTest : FunSpec({
         test("encode addresses in fixed array") {
             val signature = listOf(AbiType.FixedArray(2, AbiType.Address))
 
-            val params = arrayOf(arrayOf(Address("0xabcdef1244935340812435142435142435141243"), Address.ZERO))
+            val params = listOf(listOf(Address("0xabcdef1244935340812435142435142435141243"), Address.ZERO))
 
             val encoded = AbiCodec.encodePacked(signature, params).toString()
             encoded shouldBe "0x000000000000000000000000abcdef12449353408124351424351424351412430000000000000000000000000000000000000000000000000000000000000000"
         }
 
         test("encode single address") {
-            val params = arrayOf(Address("0xabcdef1244935340812435142435142435141243"))
+            val params = listOf(Address("0xabcdef1244935340812435142435142435141243"))
             val encoded = AbiCodec.encodePacked(listOf(AbiType.Address), params).toString()
             encoded shouldBe "0xabcdef1244935340812435142435142435141243"
         }
 
         test("encode single bool") {
-            val encoded = AbiCodec.encodePacked(listOf(AbiType.Bool), arrayOf(true)).toString()
+            val encoded = AbiCodec.encodePacked(listOf(AbiType.Bool), listOf(true)).toString()
             encoded shouldBe "0x01"
         }
 
         test("encode bool in fixed array") {
             val encoded = AbiCodec.encodePacked(
                 listOf(AbiType.FixedArray(1, AbiType.Bool)),
-                arrayOf(arrayOf(true)),
+                listOf(listOf(true)),
             ).toString()
             encoded shouldBe "0x0000000000000000000000000000000000000000000000000000000000000001"
         }
@@ -835,7 +835,7 @@ class AbiCodecTest : FunSpec({
         test("encode bytes12") {
             val encoded = AbiCodec.encodePacked(
                 listOf(AbiType.FixedBytes(12)),
-                arrayOf(Bytes("abcdef124493534081243514")),
+                listOf(Bytes("abcdef124493534081243514")),
             ).toString()
 
             encoded shouldBe "0xabcdef124493534081243514"
@@ -844,7 +844,7 @@ class AbiCodecTest : FunSpec({
         test("encode bytes12 in fixed array") {
             val encoded = AbiCodec.encodePacked(
                 listOf(AbiType.FixedArray(1, AbiType.FixedBytes(12))),
-                arrayOf(arrayOf(Bytes("abcdef124493534081243514"))),
+                listOf(listOf(Bytes("abcdef124493534081243514"))),
             ).toString()
 
             encoded shouldBe "0xabcdef1244935340812435140000000000000000000000000000000000000000"
@@ -853,7 +853,7 @@ class AbiCodecTest : FunSpec({
         test("encode single positive int16") {
             val encoded = AbiCodec.encodePacked(
                 listOf(AbiType.Int(16)),
-                arrayOf(BigInteger("5")),
+                listOf(BigInteger("5")),
             ).toString()
 
             encoded shouldBe "0x0005"
@@ -862,7 +862,7 @@ class AbiCodecTest : FunSpec({
         test("encode single positive int16 in fixed array") {
             val encoded = AbiCodec.encodePacked(
                 listOf(AbiType.FixedArray(1, AbiType.Int(16))),
-                arrayOf(arrayOf(BigInteger("5"))),
+                listOf(listOf(BigInteger("5"))),
             ).toString()
 
             encoded shouldBe "0x0000000000000000000000000000000000000000000000000000000000000005"
@@ -871,7 +871,7 @@ class AbiCodecTest : FunSpec({
         test("encode single negative max value int256") {
             val encoded = AbiCodec.encodePacked(
                 listOf(AbiType.Int(256)),
-                arrayOf(BigInteger.TWO.pow(255) - BigInteger.ONE),
+                listOf(BigInteger.TWO.pow(255) - BigInteger.ONE),
             ).toString()
 
             encoded shouldBe "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
@@ -880,7 +880,7 @@ class AbiCodecTest : FunSpec({
         test("encode single negative max value int256 in fixed array") {
             val encoded = AbiCodec.encodePacked(
                 listOf(AbiType.FixedArray(1, AbiType.Int(256))),
-                arrayOf(arrayOf(BigInteger.TWO.pow(255) - BigInteger.ONE)),
+                listOf(listOf(BigInteger.TWO.pow(255) - BigInteger.ONE)),
             ).toString()
 
             encoded shouldBe "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
@@ -889,7 +889,7 @@ class AbiCodecTest : FunSpec({
         test("encode single value uint256") {
             val encoded = AbiCodec.encodePacked(
                 listOf(AbiType.UInt(256)),
-                arrayOf(BigInteger("5")),
+                listOf(BigInteger("5")),
             ).toString()
 
             encoded shouldBe "0x0000000000000000000000000000000000000000000000000000000000000005"
@@ -898,7 +898,7 @@ class AbiCodecTest : FunSpec({
         test("encode single value uint16") {
             val encoded = AbiCodec.encodePacked(
                 listOf(AbiType.UInt(16)),
-                arrayOf(BigInteger("5")),
+                listOf(BigInteger("5")),
             ).toString()
 
             encoded shouldBe "0x0005"
@@ -907,7 +907,7 @@ class AbiCodecTest : FunSpec({
         test("encode single value uint16 in fixed array") {
             val encoded = AbiCodec.encodePacked(
                 listOf(AbiType.FixedArray(1, AbiType.UInt(16))),
-                arrayOf(arrayOf(BigInteger("5"))),
+                listOf(listOf(BigInteger("5"))),
             ).toString()
 
             encoded shouldBe "0x0000000000000000000000000000000000000000000000000000000000000005"
@@ -916,7 +916,7 @@ class AbiCodecTest : FunSpec({
         test("encode single max value uint256") {
             val encoded = AbiCodec.encodePacked(
                 listOf(AbiType.UInt(256)),
-                arrayOf(BigInteger.TWO.pow(256) - BigInteger.ONE),
+                listOf(BigInteger.TWO.pow(256) - BigInteger.ONE),
             ).toString()
 
             encoded shouldBe "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
@@ -925,7 +925,7 @@ class AbiCodecTest : FunSpec({
         test("encode single max value uint256 in fixed array") {
             val encoded = AbiCodec.encodePacked(
                 listOf(AbiType.FixedArray(1, AbiType.UInt(256))),
-                arrayOf(arrayOf(BigInteger.TWO.pow(256) - BigInteger.ONE)),
+                listOf(listOf(BigInteger.TWO.pow(256) - BigInteger.ONE)),
             ).toString()
 
             encoded shouldBe "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
@@ -934,7 +934,7 @@ class AbiCodecTest : FunSpec({
         test("encode single max value uint256 in dynamic array") {
             val encoded = AbiCodec.encodePacked(
                 listOf(AbiType.Array(AbiType.UInt(256))),
-                arrayOf(arrayOf(BigInteger.TWO.pow(256) - BigInteger.ONE)),
+                listOf(listOf(BigInteger.TWO.pow(256) - BigInteger.ONE)),
             ).toString()
 
             encoded shouldBe "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
@@ -943,40 +943,39 @@ class AbiCodecTest : FunSpec({
         test("encode single string") {
             val encoded = AbiCodec.encodePacked(
                 listOf(AbiType.String),
-                arrayOf("hello from a single string"),
+                listOf("hello from a single string"),
             ).toString()
 
             encoded shouldBe "0x68656c6c6f2066726f6d20612073696e676c6520737472696e67"
         }
 
-        @Suppress("ArrayInDataClass")
-        data class FailCase(val description: String, val signature: List<AbiType<*>>, val params: Array<Any>)
+        data class FailCase(val description: String, val signature: List<AbiType<*>>, val params: List<Any>)
 
         listOf(
             FailCase(
                 "tuple not supported",
                 listOf(AbiType.Tuple.raw(AbiType.Int(256))),
-                arrayOf(arrayOf(BigInteger.ONE)),
+                listOf(listOf(BigInteger.ONE)),
             ),
             FailCase(
                 "nested array not supported",
                 listOf(AbiType.Array(AbiType.Array(AbiType.String))),
-                arrayOf(arrayOf("fail")),
+                listOf(listOf("fail")),
             ),
             FailCase(
                 "nested array in fixed array not supported",
                 listOf(AbiType.FixedArray(1, AbiType.Array(AbiType.String))),
-                arrayOf(arrayOf("fail")),
+                listOf(listOf("fail")),
             ),
             FailCase(
                 "array of dynamic type not supported",
                 listOf(AbiType.Array(AbiType.String)),
-                arrayOf(arrayOf("fail")),
+                listOf(listOf("fail")),
             ),
             FailCase(
                 "fixed array of dynamic type not supported",
                 listOf(AbiType.FixedArray(1, AbiType.String)),
-                arrayOf(arrayOf("fail")),
+                listOf(listOf("fail")),
             ),
         ).forAll { (description, signature, params) ->
             test(description) {

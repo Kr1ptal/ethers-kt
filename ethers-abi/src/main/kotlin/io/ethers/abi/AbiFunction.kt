@@ -9,27 +9,27 @@ data class AbiFunction(
 ) {
     val selector = Bytes(AbiType.computeSignatureHash(name, inputs).copyOfRange(0, 4))
 
-    fun encodeCall(args: Array<out Any>): Bytes {
+    fun encodeCall(args: List<Any>): Bytes {
         return Bytes(AbiCodec.encodeWithPrefix(selector, inputs, args))
     }
 
-    fun decodeCall(data: Bytes): Array<Any> {
+    fun decodeCall(data: Bytes): List<Any> {
         return AbiCodec.decodeWithPrefix(selector.size, inputs, data.asByteArray())
     }
 
-    fun encodeArgs(args: Array<out Any>): Bytes {
+    fun encodeArgs(args: List<Any>): Bytes {
         return Bytes(AbiCodec.encode(inputs, args))
     }
 
-    fun decodeArgs(data: Bytes): Array<Any> {
+    fun decodeArgs(data: Bytes): List<Any> {
         return AbiCodec.decode(inputs, data.asByteArray())
     }
 
-    fun encodeResponse(data: Array<out Any>): Bytes {
+    fun encodeResponse(data: List<Any>): Bytes {
         return Bytes(AbiCodec.encode(outputs, data))
     }
 
-    fun decodeResponse(data: Bytes): Array<Any> {
+    fun decodeResponse(data: Bytes): List<Any> {
         return AbiCodec.decode(outputs, data.asByteArray())
     }
 

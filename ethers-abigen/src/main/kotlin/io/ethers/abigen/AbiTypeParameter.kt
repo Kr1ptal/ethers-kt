@@ -93,7 +93,7 @@ sealed interface AbiTypeParameter {
                     .build(),
             )
 
-            val tupleInitializer = StringBuilder().append("arrayOf(")
+            val tupleInitializer = StringBuilder().append("listOf(")
             val fromTupleReader = StringBuilder().append("return %T(")
 
             // all parameters are named - struct field cannot have empty name
