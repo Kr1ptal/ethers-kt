@@ -1,5 +1,6 @@
 package io.ethers.abi
 
+import io.ethers.abi.AbiEvent.Companion.NON_VALUE_INDEXED_TYPE
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
 import io.ethers.core.types.Log
@@ -65,7 +66,7 @@ interface EventFactory<T : ContractEvent> {
 
         var topicIndex = 0
         var dataIndex = 0
-        val merged = mutableListOf<Any>()
+        val merged = ArrayList<Any>(logTopicSize + data.size)
         for (i in 0 until (logTopicSize + data.size)) {
             if (abi.tokens[i].indexed) {
                 merged.add(topics[topicIndex++])

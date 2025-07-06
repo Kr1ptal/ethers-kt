@@ -34,13 +34,13 @@ class StructsTest : FunSpec({
             val desc = "hello"
             val simpleInstance = simple.primaryConstructor!!.call(true, Bytes("0x12345654123763afed"))
             val complexInstance = complex.primaryConstructor!!.call(
-                arrayOf(arrayOf(arrayOf(BigInteger("1"), BigInteger("2")))),
-                arrayOf("hello", "world", "evm"),
+                listOf(listOf(listOf(BigInteger("1"), BigInteger("2")))),
+                listOf("hello", "world", "evm"),
             )
 
             val instance = nested.primaryConstructor!!.call(desc, simpleInstance, complexInstance) as ContractStruct
 
-            val expected = arrayOf(desc, simpleInstance, complexInstance)
+            val expected = listOf(desc, simpleInstance, complexInstance)
             instance.tuple shouldBe expected
 
             val factory = nested.companionObjectInstance!! as StructFactory<*>
@@ -62,13 +62,13 @@ class StructsTest : FunSpec({
                     listOf(
                         ArgDescriptor(
                             "status",
-                            Array::class.parametrizedBy(
-                                Array::class.parametrizedBy(
-                                    Array::class.parametrizedBy(BigInteger::class),
+                            List::class.parametrizedBy(
+                                List::class.parametrizedBy(
+                                    List::class.parametrizedBy(BigInteger::class),
                                 ),
                             ),
                         ),
-                        ArgDescriptor("msg", Array::class.parametrizedBy(String::class)),
+                        ArgDescriptor("msg", List::class.parametrizedBy(String::class)),
                     ),
                 ),
                 ClassDescriptor(

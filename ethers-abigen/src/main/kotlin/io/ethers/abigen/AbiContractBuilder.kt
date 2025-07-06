@@ -78,12 +78,14 @@ class AbiContractBuilder(
             AnnotationSpec.builder(Suppress::class)
                 .useSiteTarget(AnnotationSpec.UseSiteTarget.FILE)
                 .addMember(
-                    "%S, %S, %S, %S, %S",
+                    "%S, %S, %S, %S, %S, %S, %S",
                     "UNCHECKED_CAST",
                     "FunctionName",
                     "PropertyName",
                     "RedundantVisibilityModifier",
                     "RemoveRedundantQualifierName",
+                    "LocalVariableName",
+                    "unused",
                 )
                 .build(),
         )
@@ -175,7 +177,7 @@ class AbiContractBuilder(
         structs.values.forEach { contractBuilder.addType(it.toAbiStructClass()) }
 
         if (errorSuperclass != null) {
-            val errorArrayType = Array::class.asClassName().parameterizedBy(
+            val errorArrayType = List::class.asClassName().parameterizedBy(
                 CustomErrorFactory::class.asClassName().parameterizedBy(WildcardTypeName.producerOf(errorSuperclass)),
             )
 
@@ -211,7 +213,7 @@ class AbiContractBuilder(
         }
 
         if (eventSuperclass != null) {
-            val eventArrayType = Array::class.asClassName().parameterizedBy(
+            val eventArrayType = List::class.asClassName().parameterizedBy(
                 EventFactory::class.asClassName().parameterizedBy(WildcardTypeName.producerOf(eventSuperclass)),
             )
 
@@ -362,7 +364,7 @@ class AbiContractBuilder(
         val encodeArgs = if (inputs.isEmpty()) {
             CodeBlock.of("emptyList()")
         } else {
-            val argsBuilder = StringBuilder().append("arrayOf<Any>(")
+            val argsBuilder = StringBuilder().append("listOf<Any>(")
             repeat(builder.parameters.size) { argsBuilder.append("%N,") }
             argsBuilder.deleteCharAt(argsBuilder.length - 1).append(")")
 
@@ -431,7 +433,7 @@ class AbiContractBuilder(
             .addParameter(
                 ParameterSpec.builder(
                     "data",
-                    Array::class.asClassName().parameterizedBy(WildcardTypeName.producerOf(Any::class)),
+                    List::class.asClassName().parameterizedBy(Any::class.asClassName()),
                 ).build(),
             )
             .returns(errorClassName)
@@ -543,7 +545,7 @@ class AbiContractBuilder(
                 .addParameter(
                     ParameterSpec.builder(
                         "data",
-                        Array::class.asClassName().parameterizedBy(WildcardTypeName.producerOf(Any::class)),
+                        List::class.asClassName().parameterizedBy(Any::class.asClassName()),
                     ).build(),
                 )
                 .returns(eventClassName)
