@@ -27,8 +27,6 @@ factory to create an instance of a type from the RLP. Recommended pattern when w
 encodable interface directly on the type, and the decodable interface on a companion object:
 
 ```kotlin
-import java.math.BigInteger
-
 data class MyData(val a: BigInteger, val b: Long) : RlpEncodable {
     override fun rlpEncode(rlp: RlpEncoder) {
         rlp.encodeList {

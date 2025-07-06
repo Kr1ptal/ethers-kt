@@ -167,6 +167,7 @@ fun <T, E : Result.Error> List<Result<T, E>>.unwrap(): List<T> {
 // Zero-cost typed response classes to provide specialized "component" operators. In case it's used as a different type
 // it gets boxed (e.g. `map`, `forEach`, etc...). But since we're just wrapping and delegating a `List`,
 // it's still pretty cheap.
+@Suppress("JavaDefaultMethodsNotOverriddenByDelegation", "UNCHECKED_CAST")
 @JvmInline
 value class BatchResponseAsync<T, E : Result.Error>(
     private val responses: List<CompletableFuture<Result<T, E>>>,
@@ -185,6 +186,7 @@ value class BatchResponseAsync<T, E : Result.Error>(
     operator fun <O, U : Result.Error> component12() = responses[11] as CompletableFuture<Result<O, U>>
 }
 
+@Suppress("JavaDefaultMethodsNotOverriddenByDelegation", "UNCHECKED_CAST")
 @JvmInline
 value class BatchResponse<T, E : Result.Error>(
     private val responses: List<Result<T, E>>,
@@ -203,6 +205,7 @@ value class BatchResponse<T, E : Result.Error>(
     operator fun <O, U : Result.Error> component12() = responses[11] as Result<O, U>
 }
 
+@Suppress("JavaDefaultMethodsNotOverriddenByDelegation", "UNCHECKED_CAST")
 @JvmInline
 value class UnwrappedBatchResponse<T>(
     private val responses: List<T>,

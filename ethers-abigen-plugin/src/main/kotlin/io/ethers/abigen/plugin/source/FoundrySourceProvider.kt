@@ -113,7 +113,7 @@ open class FoundrySourceProvider(
                     ?: throw IllegalStateException("Compilation target not found in ${it.absolutePath}")
 
                 val relativePaths = ArrayList<String>()
-                (compilationTarget as ObjectNode).fields().iterator().forEach { entry -> relativePaths.add(entry.key) }
+                (compilationTarget as ObjectNode).properties().iterator().forEach { entry -> relativePaths.add(entry.key) }
 
                 // find the relative path of the contract in the src dir
                 val relativePath = relativePaths
@@ -165,12 +165,13 @@ open class FoundrySourceProvider(
     private fun forgeBuild() {
         val errorOutput = ByteArrayOutputStream()
         val commands = listOf("forge", "build", "--force", "--extra-output", "abi", "metadata", "evm.bytecode")
-        val result = project.exec {
+
+        val result = project.providers.exec {
             it.commandLine(commands)
             it.environment("FOUNDRY_PROFILE", foundryProfile)
             it.workingDir = project.layout.projectDirectory.dir(foundryRoot).get().asFile
             it.errorOutput = errorOutput
-        }
+        }.result.get()
 
         val cmd = commands.joinToString(" ")
         if (result.exitValue != 0) {

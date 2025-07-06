@@ -50,23 +50,23 @@ object AbigenCompiler {
             val contractName = resourceName.removeSuffix(".json").split("/").last()
             val outFile = File(ABIGEN_DIRECTORY, "$GENERATED_CLASS_DEST_DIR/$contractName.kt")
 
-            errorLoaderBuilder.addContract(
-                AbiContractBuilder(
-                    contractName,
-                    GENERATED_CLASS_PACKAGE,
-                    ABIGEN_DIRECTORY,
-                    abi,
-                    emptyMap(),
-                ).build(errorLoaderBuilder.canonicalName),
-            )
+            val generatedName = AbiContractBuilder(
+                contractName,
+                GENERATED_CLASS_PACKAGE,
+                ABIGEN_DIRECTORY,
+                abi,
+                emptyMap(),
+            ).build(errorLoaderBuilder.canonicalName)
 
-            SourceFile.fromPath(outFile)
+            errorLoaderBuilder.addContract(generatedName)
+
+            SourceFile.kotlin(outFile.name, outFile.readText())
         }.toMutableList()
 
         errorLoaderBuilder.build()
 
         val loaderOutFile = File(ABIGEN_DIRECTORY, "${errorLoaderBuilder.canonicalName.replace('.', '/')}.kt")
-        genSources.add(SourceFile.fromPath(loaderOutFile))
+        genSources.add(SourceFile.kotlin(loaderOutFile.name, loaderOutFile.readText()))
 
         val result = KotlinCompilation().apply {
             sources = genSources
