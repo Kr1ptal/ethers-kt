@@ -16,6 +16,7 @@ import io.ethers.core.types.BlockId
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.CallRequest
 import io.ethers.core.unwrapOrReturn
+import io.ethers.ens.EnsMiddleware.Companion.IPFS_GATEWAY
 import io.ethers.logger.err
 import io.ethers.logger.getLogger
 import io.ethers.logger.wrn
@@ -156,7 +157,7 @@ class EnsMiddleware @JvmOverloads constructor(
         paramTypes.add(0, AbiType.FixedBytes(32))
         if (supportsWildcard.unwrapElse(false)) {
             val dnsEncoded = NameHash.dnsEncode(ensName)
-            val encodedParams = abiFunction.encodeCall(parameters.toTypedArray())
+            val encodedParams = abiFunction.encodeCall(parameters)
 
             val resolveResult = resolver.resolve(dnsEncoded, encodedParams)
                 .call(BlockId.LATEST)
@@ -194,7 +195,7 @@ class EnsMiddleware @JvmOverloads constructor(
             val callbackData = AbiCodec.encodeWithPrefix(
                 abiFunction.selector,
                 paramTypes,
-                parameters.toTypedArray(),
+                parameters,
             )
 
             return provider.call(
@@ -270,7 +271,7 @@ class EnsMiddleware @JvmOverloads constructor(
         val callbackData = AbiCodec.encodeWithPrefix(
             revert.callbackFunction,
             CALLBACK_FUNCTION_PARAM_TYPES,
-            arrayOf(gatewayResult, revert.extraData),
+            listOf(gatewayResult, revert.extraData),
         )
 
         // dynamic bytes
@@ -305,7 +306,7 @@ class EnsMiddleware @JvmOverloads constructor(
      * @param sender sender parameter of [ExtendedResolver.OffchainLookup] - replacing {sender} RPC call parameter
      * @param calldata calldata parameter of [ExtendedResolver.OffchainLookup] - replacing {data} RPC call parameter
      */
-    private fun httpCall(urls: Array<String>, sender: Address, calldata: Bytes): Result<Bytes, Error> {
+    private fun httpCall(urls: List<String>, sender: Address, calldata: Bytes): Result<Bytes, Error> {
         if (urls.isEmpty()) return failure(Error.CcipCallFailed("No urls to resolve ens name!", null))
 
         for (url in urls) {

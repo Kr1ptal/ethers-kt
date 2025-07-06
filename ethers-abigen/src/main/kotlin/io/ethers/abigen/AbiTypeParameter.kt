@@ -9,7 +9,6 @@ import com.squareup.kotlinpoet.ParameterizedTypeName.Companion.parameterizedBy
 import com.squareup.kotlinpoet.PropertySpec
 import com.squareup.kotlinpoet.TypeName
 import com.squareup.kotlinpoet.TypeSpec
-import com.squareup.kotlinpoet.WildcardTypeName
 import com.squareup.kotlinpoet.asClassName
 import io.ethers.abi.AbiType
 import io.ethers.abi.ContractStruct
@@ -106,7 +105,7 @@ sealed interface AbiTypeParameter {
             tupleInitializer.delete(tupleInitializer.length - 2, tupleInitializer.length).append(")")
             fromTupleReader.delete(fromTupleReader.length - 2, fromTupleReader.length).append(")")
 
-            val tupleProperty = PropertySpec.builder("tuple", Array::class.parameterizedBy(Any::class))
+            val tupleProperty = PropertySpec.builder("tuple", List::class.parameterizedBy(Any::class))
                 .addModifiers(KModifier.OVERRIDE)
                 .initializer(tupleInitializer.toString())
                 .build()
@@ -119,7 +118,7 @@ sealed interface AbiTypeParameter {
                         .addModifiers(KModifier.OVERRIDE)
                         .addParameter(
                             "data",
-                            Array::class.asClassName().parameterizedBy(WildcardTypeName.producerOf(Any::class)),
+                            List::class.asClassName().parameterizedBy(Any::class.asClassName()),
                         )
                         .returns(className)
                         .addStatement(
@@ -142,7 +141,7 @@ sealed interface AbiTypeParameter {
         val element: AbiTypeParameter,
         override val indexed: Boolean,
     ) : AbiTypeParameter {
-        override val apiType: TypeName = Array::class.asClassName().parameterizedBy(element.apiType)
+        override val apiType: TypeName = List::class.asClassName().parameterizedBy(element.apiType)
         override val abiTypeInitializer: String
         override val originalType: String
 

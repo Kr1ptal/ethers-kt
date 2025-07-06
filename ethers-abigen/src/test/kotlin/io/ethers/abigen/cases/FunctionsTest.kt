@@ -55,7 +55,7 @@ class FunctionsTest : FunSpec({
                         ArgDescriptor("status", BigInteger::class),
                         ArgDescriptor(
                             "details",
-                            Array::class.parametrizedBy(Array::class.parametrizedBy(clazz.nestedClass("Details"))),
+                            List::class.parametrizedBy(List::class.parametrizedBy(clazz.nestedClass("Details"))),
                         ),
                     ),
                     FunctionCall::class.parametrizedBy(BigInteger::class),
@@ -66,7 +66,7 @@ class FunctionsTest : FunSpec({
                         ArgDescriptor("status", BigInteger::class),
                         ArgDescriptor(
                             "differentName",
-                            Array::class.parametrizedBy(Array::class.parametrizedBy(clazz.nestedClass("Details"))),
+                            List::class.parametrizedBy(List::class.parametrizedBy(clazz.nestedClass("Details"))),
                         ),
                     ),
                     FunctionCall::class.parametrizedBy(BigInteger::class),

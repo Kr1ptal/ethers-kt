@@ -495,7 +495,7 @@ object AbiCodec {
     }
 
     private fun decodeTokens(types: List<AbiType<*>>, buff: ByteBuffer): List<Any> {
-        val ret = mutableListOf<Any>()
+        val ret = ArrayList<Any>(types.size)
 
         // to account for 4byte selector
         val offset = buff.position()
@@ -563,7 +563,7 @@ object AbiCodec {
                 val length = buff.position(offset).skip(28).getInt()
                 offset += WORD_SIZE_BYTES
 
-                val arr = mutableListOf<Any>()
+                val arr = ArrayList<Any>(length)
                 for (i in 0..<length) {
                     arr.add(decodeToken(type.type, buff, offset))
                 }
@@ -573,7 +573,7 @@ object AbiCodec {
             }
 
             is AbiType.FixedArray<*> -> {
-                val arr = mutableListOf<Any>()
+                val arr = ArrayList<Any>(type.length)
 
                 if (type.isDynamic) {
                     val offset = currOffset + buff.skip(28).getInt()
@@ -595,7 +595,7 @@ object AbiCodec {
             }
 
             is AbiType.Tuple -> {
-                val arr = mutableListOf<Any>()
+                val arr = ArrayList<Any>(type.types.size)
 
                 if (type.isDynamic) {
                     val offset = currOffset + buff.skip(28).getInt()

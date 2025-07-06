@@ -7,9 +7,6 @@ dependencies {
     // ArgParser
     implementation(libs.kotlinx.cli)
 
-    // Define any required artifacts without version
-    implementation(project(":ethers-abi"))
-    implementation(project(":ethers-core"))
-    implementation(project(":ethers-providers"))
-    implementation(project(":ethers-signers"))
+    implementation(platform(libs.ethers.bom))
+    implementation(libs.bundles.ethers)
 }

@@ -6,7 +6,6 @@ import io.ethers.abi.ContractStruct
 import io.ethers.abi.EventFactory
 import io.ethers.abi.error.CustomContractError
 import io.ethers.abi.error.CustomErrorFactory
-import java.lang.reflect.Array
 import kotlin.reflect.KClass
 import kotlin.reflect.KType
 import kotlin.reflect.KTypeProjection
@@ -111,12 +110,6 @@ fun KClass<*>.parametrizedBy(vararg args: KClass<*>): KType {
 
 fun KClass<*>.parametrizedBy(vararg args: KType): KType {
     return this.createType(args.map { KTypeProjection.invariant(it) })
-}
-
-fun KClass<*>.typedArrayOf(vararg args: Any): kotlin.Array<*> {
-    val ret = Array.newInstance(this.java, args.size) as kotlin.Array<Any>
-    args.forEachIndexed { i, arg -> ret[i] = arg }
-    return ret
 }
 
 data class DeclaredStructs(
