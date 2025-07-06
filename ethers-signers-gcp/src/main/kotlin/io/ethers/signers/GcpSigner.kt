@@ -13,6 +13,7 @@ import io.ethers.core.success
 import io.ethers.core.types.Address
 import io.ethers.core.types.Signature
 import io.ethers.crypto.Secp256k1
+import io.ethers.signers.GcpSigner.Companion.create
 import org.bouncycastle.asn1.ASN1Integer
 import org.bouncycastle.asn1.DERSequence
 import org.bouncycastle.asn1.DLSequence
@@ -28,7 +29,8 @@ import kotlin.io.encoding.ExperimentalEncodingApi
  * The signer calls into GCP KMS to sign the hashes. The signer is configured with a [CryptoKeyVersionName]
  * which is used to identify the key to use. The key must be a secp256k1 key.
  *
- * To avoid external calls in the constructor, use [fetchAddress] to get the address first, then pass it to the constructor.
+ * To create a signer by automatically looking up the address, use [create] functions. Note that these functions
+ * will do an external call to GCP to fetch the signer's public key, from which an address is resolved.
  *
  * Example usage:
  * ```kotlin
@@ -43,7 +45,7 @@ import kotlin.io.encoding.ExperimentalEncodingApi
  * val versionId = "1"
  * val keyName = CryptoKeyVersionName.of(projectId, locationId, keyRingId, keyId, versionId)
  *
- * // create a signer directly
+ * // create a signer by automatically resolving the address by doing an external call to GCP
  * val signer = GcpSigner.create(client, keyName).unwrap()
  * val signature = signer.signHash(ByteArray(32))
  * ```
@@ -54,7 +56,11 @@ class GcpSigner(
     override val address: Address,
 ) : Signer {
 
-    constructor(client: KeyManagementServiceClient, keyName: String, address: Address) : this(client, CryptoKeyVersionName.parse(keyName), address)
+    constructor(client: KeyManagementServiceClient, keyName: String, address: Address) : this(
+        client,
+        CryptoKeyVersionName.parse(keyName),
+        address,
+    )
 
     constructor(
         client: KeyManagementServiceClient,
@@ -65,52 +71,6 @@ class GcpSigner(
         versionId: String,
         address: Address,
     ) : this(client, CryptoKeyVersionName.of(projectId, locationId, keyRingId, keyId, versionId), address)
-
-    data class AddressFetchError(val message: String, val cause: Throwable? = null) : Result.Error {
-        override fun doThrow(): Nothing {
-            throw RuntimeException(message, cause)
-        }
-    }
-
-    companion object {
-        fun create(client: KeyManagementServiceClient, keyName: CryptoKeyVersionName): Result<GcpSigner, AddressFetchError> {
-            return try {
-                val publicKey = client.getPublicKey(keyName)
-                if (publicKey.algorithm != CryptoKeyVersion.CryptoKeyVersionAlgorithm.EC_SIGN_SECP256K1_SHA256) {
-                    return failure(AddressFetchError("Only secp256k1 keys are supported"))
-                }
-
-                val pubKeyBase64 = publicKey.pem
-                    .split("\n")
-                    .filter { !it.startsWith("-----") && it.isNotEmpty() }
-                    .joinToString("")
-
-                val keyInfo = SubjectPublicKeyInfo.getInstance(Base64.decode(pubKeyBase64))
-                val parsedKey = KeyFactorySpi.ECDSA().generatePublic(keyInfo) as BCECPublicKey
-                val pubKeyUncompressed = parsedKey.q.normalize().getEncoded(false)
-
-                val address = Address(Secp256k1.publicKeyToAddress(pubKeyUncompressed))
-                success(GcpSigner(client, keyName, address))
-            } catch (e: Exception) {
-                failure(AddressFetchError("Failed to create GCP signer", e))
-            }
-        }
-
-        fun create(client: KeyManagementServiceClient, keyName: String): Result<GcpSigner, AddressFetchError> {
-            return create(client, CryptoKeyVersionName.parse(keyName))
-        }
-
-        fun create(
-            client: KeyManagementServiceClient,
-            projectId: String,
-            locationId: String,
-            keyRingId: String,
-            keyId: String,
-            versionId: String,
-        ): Result<GcpSigner, AddressFetchError> {
-            return create(client, CryptoKeyVersionName.of(projectId, locationId, keyRingId, keyId, versionId))
-        }
-    }
 
     override fun signHash(hash: ByteArray): Signature {
         val response = client.asymmetricSign(
@@ -142,5 +102,75 @@ class GcpSigner(
 
     override fun hashCode(): Int {
         return address.hashCode()
+    }
+
+    data class AddressFetchError(val message: String, val cause: Throwable? = null) : Result.Error {
+        override fun doThrow(): Nothing {
+            throw RuntimeException(message, cause)
+        }
+    }
+
+    companion object {
+        /**
+         * Create a new instance of [io.ethers.signers.GcpSigner] from the provided [keyName]. Does an external
+         * call via [client] to resolve the key [Address].
+         *
+         * @return [Result] with either created [io.ethers.signers.GcpSigner], or an error if resolving the address failed.
+         * */
+        @JvmStatic
+        fun create(
+            client: KeyManagementServiceClient,
+            keyName: CryptoKeyVersionName,
+        ): Result<GcpSigner, AddressFetchError> {
+            return try {
+                val publicKey = client.getPublicKey(keyName)
+                if (publicKey.algorithm != CryptoKeyVersion.CryptoKeyVersionAlgorithm.EC_SIGN_SECP256K1_SHA256) {
+                    return failure(AddressFetchError("Only secp256k1 keys are supported"))
+                }
+
+                val pubKeyBase64 = publicKey.pem
+                    .split("\n")
+                    .filter { !it.startsWith("-----") && it.isNotEmpty() }
+                    .joinToString("")
+
+                val keyInfo = SubjectPublicKeyInfo.getInstance(Base64.decode(pubKeyBase64))
+                val parsedKey = KeyFactorySpi.ECDSA().generatePublic(keyInfo) as BCECPublicKey
+                val pubKeyUncompressed = parsedKey.q.normalize().getEncoded(false)
+
+                val address = Address(Secp256k1.publicKeyToAddress(pubKeyUncompressed))
+                success(GcpSigner(client, keyName, address))
+            } catch (e: Exception) {
+                failure(AddressFetchError("Failed to create GCP signer", e))
+            }
+        }
+
+        /**
+         * Create a new instance of [io.ethers.signers.GcpSigner] from the provided [keyName]. Does an external
+         * call via [client] to resolve the key [Address].
+         *
+         * @return [Result] with either created [io.ethers.signers.GcpSigner], or an error if resolving the address failed.
+         * */
+        @JvmStatic
+        fun create(client: KeyManagementServiceClient, keyName: String): Result<GcpSigner, AddressFetchError> {
+            return create(client, CryptoKeyVersionName.parse(keyName))
+        }
+
+        /**
+         * Create a new instance of [io.ethers.signers.GcpSigner] from the provided key parameters. Does an external
+         * call via [client] to resolve the key [Address].
+         *
+         * @return [Result] with either created [io.ethers.signers.GcpSigner], or an error if resolving the address failed.
+         * */
+        @JvmStatic
+        fun create(
+            client: KeyManagementServiceClient,
+            projectId: String,
+            locationId: String,
+            keyRingId: String,
+            keyId: String,
+            versionId: String,
+        ): Result<GcpSigner, AddressFetchError> {
+            return create(client, CryptoKeyVersionName.of(projectId, locationId, keyRingId, keyId, versionId))
+        }
     }
 }
