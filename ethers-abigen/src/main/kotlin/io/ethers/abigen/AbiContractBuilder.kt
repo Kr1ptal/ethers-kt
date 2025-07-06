@@ -182,7 +182,7 @@ class AbiContractBuilder(
             companion.addProperty(
                 PropertySpec.builder("ERRORS", errorArrayType)
                     .addAnnotation(JvmField::class)
-                    .initializer("arrayOf(%L)", errorFactories.joinToString(","))
+                    .initializer("listOf(%L)", errorFactories.joinToString(","))
                     .build(),
             )
 
@@ -218,7 +218,7 @@ class AbiContractBuilder(
             companion.addProperty(
                 PropertySpec.builder("EVENTS", eventArrayType)
                     .addAnnotation(JvmField::class)
-                    .initializer("arrayOf(%L)", eventFactories.joinToString(","))
+                    .initializer("listOf(%L)", eventFactories.joinToString(","))
                     .build(),
             )
 
@@ -360,7 +360,7 @@ class AbiContractBuilder(
 
         // create contract call inputs from args
         val encodeArgs = if (inputs.isEmpty()) {
-            CodeBlock.of("emptyArray()")
+            CodeBlock.of("emptyList()")
         } else {
             val argsBuilder = StringBuilder().append("arrayOf<Any>(")
             repeat(builder.parameters.size) { argsBuilder.append("%N,") }
@@ -623,7 +623,7 @@ class AbiContractBuilder(
 
         // add function body
         function.addStatement(
-            "return %T(provider, ${abiProperty.name}.encode(arrayOf(%L)), ::%T)",
+            "return %T(provider, ${abiProperty.name}.encode(listOf(%L)), ::%T)",
             callClass,
             arguments.joinToString(", ") { it.name },
             contractName,
