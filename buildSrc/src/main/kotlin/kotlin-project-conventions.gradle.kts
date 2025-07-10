@@ -18,7 +18,8 @@ project.pluginManager.withPlugin("java") {
         val defaultArgs = listOf(
             "-progressive",
             "-Xjvm-default=all",
-            "-Xbackend-threads=0", // use all available processors
+            // TODO re-add when this is fixed: https://youtrack.jetbrains.com/issue/KT-78923
+            //"-Xbackend-threads=0", // use all available processors
         )
 
         val specificArgs = if (isTestTask) {
