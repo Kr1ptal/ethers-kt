@@ -10,7 +10,6 @@ import io.ethers.abigen.ClassDescriptor
 import io.ethers.abigen.getDeclaredErrors
 import io.ethers.abigen.nestedClass
 import io.ethers.abigen.parametrizedBy
-import io.ethers.abigen.typedArrayOf
 import io.ethers.abigen.typedNestedClass
 import io.ethers.core.types.Bytes
 import io.kotest.core.spec.style.FunSpec
@@ -45,9 +44,9 @@ class ErrorsTest : FunSpec({
                         AbiType.Tuple.struct(detailsClass, AbiType.Bool, AbiType.Bytes),
                     ),
                 ),
-                arrayOf(
+                listOf(
                     BigInteger("123"),
-                    arrayOf(
+                    listOf(
                         detailsStruct1,
                         detailsStruct2,
                     ),
@@ -56,7 +55,7 @@ class ErrorsTest : FunSpec({
 
             val expected = clazz.nestedClass("StructArgsError").primaryConstructor!!.call(
                 BigInteger("123"),
-                detailsClass.typedArrayOf(detailsStruct1, detailsStruct2),
+                listOf(detailsStruct1, detailsStruct2),
             )
 
             structArgsError.decode(Bytes(encoded)) shouldBe expected
@@ -115,20 +114,20 @@ class ErrorsTest : FunSpec({
                     listOf(
                         ArgDescriptor(
                             "status",
-                            Array::class.parametrizedBy(
-                                Array::class.parametrizedBy(
-                                    Array::class.parametrizedBy(BigInteger::class),
+                            List::class.parametrizedBy(
+                                List::class.parametrizedBy(
+                                    List::class.parametrizedBy(BigInteger::class),
                                 ),
                             ),
                         ),
-                        ArgDescriptor("msg", Array::class.parametrizedBy(String::class)),
+                        ArgDescriptor("msg", List::class.parametrizedBy(String::class)),
                     ),
                 ),
                 ClassDescriptor(
                     "StructArgsError",
                     listOf(
                         ArgDescriptor("status", BigInteger::class),
-                        ArgDescriptor("details", Array::class.parametrizedBy(clazz.nestedClass("Details"))),
+                        ArgDescriptor("details", List::class.parametrizedBy(clazz.nestedClass("Details"))),
                     ),
                 ),
             )

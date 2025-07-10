@@ -78,12 +78,14 @@ class AbiContractBuilder(
             AnnotationSpec.builder(Suppress::class)
                 .useSiteTarget(AnnotationSpec.UseSiteTarget.FILE)
                 .addMember(
-                    "%S, %S, %S, %S, %S",
+                    "%S, %S, %S, %S, %S, %S, %S",
                     "UNCHECKED_CAST",
                     "FunctionName",
                     "PropertyName",
                     "RedundantVisibilityModifier",
                     "RemoveRedundantQualifierName",
+                    "LocalVariableName",
+                    "unused",
                 )
                 .build(),
         )
@@ -175,14 +177,14 @@ class AbiContractBuilder(
         structs.values.forEach { contractBuilder.addType(it.toAbiStructClass()) }
 
         if (errorSuperclass != null) {
-            val errorArrayType = Array::class.asClassName().parameterizedBy(
+            val errorArrayType = List::class.asClassName().parameterizedBy(
                 CustomErrorFactory::class.asClassName().parameterizedBy(WildcardTypeName.producerOf(errorSuperclass)),
             )
 
             companion.addProperty(
                 PropertySpec.builder("ERRORS", errorArrayType)
                     .addAnnotation(JvmField::class)
-                    .initializer("arrayOf(%L)", errorFactories.joinToString(","))
+                    .initializer("listOf(%L)", errorFactories.joinToString(","))
                     .build(),
             )
 
@@ -211,14 +213,14 @@ class AbiContractBuilder(
         }
 
         if (eventSuperclass != null) {
-            val eventArrayType = Array::class.asClassName().parameterizedBy(
+            val eventArrayType = List::class.asClassName().parameterizedBy(
                 EventFactory::class.asClassName().parameterizedBy(WildcardTypeName.producerOf(eventSuperclass)),
             )
 
             companion.addProperty(
                 PropertySpec.builder("EVENTS", eventArrayType)
                     .addAnnotation(JvmField::class)
-                    .initializer("arrayOf(%L)", eventFactories.joinToString(","))
+                    .initializer("listOf(%L)", eventFactories.joinToString(","))
                     .build(),
             )
 
@@ -360,9 +362,9 @@ class AbiContractBuilder(
 
         // create contract call inputs from args
         val encodeArgs = if (inputs.isEmpty()) {
-            CodeBlock.of("emptyArray()")
+            CodeBlock.of("emptyList()")
         } else {
-            val argsBuilder = StringBuilder().append("arrayOf<Any>(")
+            val argsBuilder = StringBuilder().append("listOf<Any>(")
             repeat(builder.parameters.size) { argsBuilder.append("%N,") }
             argsBuilder.deleteCharAt(argsBuilder.length - 1).append(")")
 
@@ -431,7 +433,7 @@ class AbiContractBuilder(
             .addParameter(
                 ParameterSpec.builder(
                     "data",
-                    Array::class.asClassName().parameterizedBy(WildcardTypeName.producerOf(Any::class)),
+                    List::class.asClassName().parameterizedBy(Any::class.asClassName()),
                 ).build(),
             )
             .returns(errorClassName)
@@ -543,7 +545,7 @@ class AbiContractBuilder(
                 .addParameter(
                     ParameterSpec.builder(
                         "data",
-                        Array::class.asClassName().parameterizedBy(WildcardTypeName.producerOf(Any::class)),
+                        List::class.asClassName().parameterizedBy(Any::class.asClassName()),
                     ).build(),
                 )
                 .returns(eventClassName)
@@ -623,7 +625,7 @@ class AbiContractBuilder(
 
         // add function body
         function.addStatement(
-            "return %T(provider, ${abiProperty.name}.encode(arrayOf(%L)), ::%T)",
+            "return %T(provider, ${abiProperty.name}.encode(listOf(%L)), ::%T)",
             callClass,
             arguments.joinToString(", ") { it.name },
             contractName,

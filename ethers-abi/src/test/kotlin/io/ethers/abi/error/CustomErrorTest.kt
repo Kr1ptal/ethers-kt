@@ -19,11 +19,11 @@ class CustomErrorTest : FunSpec({
             ErrorMsg(
                 "hello",
                 BigInteger.valueOf(456),
-                arrayOf(true, false, true),
+                listOf(true, false, true),
             ),
         )
 
-        val encoded = ErrorWithStruct.abi.encodeCall(arrayOf(error.arg0, error.msg))
+        val encoded = ErrorWithStruct.abi.encodeCall(listOf(error.arg0, error.msg))
         val decoded = ContractError.getOrNull(encoded)
         decoded shouldBe error
     }
@@ -31,7 +31,7 @@ class CustomErrorTest : FunSpec({
     test("decode custom error with no args correctly") {
         val error = NoArgsError.INSTANCE
 
-        val encoded = NoArgsError.abi.encodeCall(emptyArray())
+        val encoded = NoArgsError.abi.encodeCall(emptyList())
         val decoded = ContractError.getOrNull(encoded)
         decoded shouldBe error
     }
@@ -39,7 +39,7 @@ class CustomErrorTest : FunSpec({
     test("decode simple custom error correctly") {
         val error = InvalidFlashswapFlags(BigInteger.valueOf(123), "wrong flags")
 
-        val encoded = InvalidFlashswapFlags.abi.encodeCall(arrayOf(error.flag, error.name))
+        val encoded = InvalidFlashswapFlags.abi.encodeCall(listOf(error.flag, error.name))
         val decoded = ContractError.getOrNull(encoded)
         decoded shouldBe error
     }
@@ -97,7 +97,7 @@ class CustomErrorTest : FunSpec({
             )
 
             @JvmStatic
-            override fun decode(data: Array<out Any>): ErrorWithStruct = ErrorWithStruct(
+            override fun decode(data: List<Any>): ErrorWithStruct = ErrorWithStruct(
                 data[0] as BigInteger,
                 data[1] as ErrorMsg,
             )
@@ -108,16 +108,16 @@ class CustomErrorTest : FunSpec({
     internal data class ErrorMsg(
         val msg: String,
         val `value`: BigInteger,
-        val flags: Array<Boolean>,
+        val flags: List<Boolean>,
     ) : ContractStruct {
-        override val tuple: Array<Any> = arrayOf(msg, value, flags)
+        override val tuple: List<Any> = listOf(msg, value, flags)
 
         companion object : StructFactory<ErrorMsg> {
             @JvmStatic
-            override fun fromTuple(data: Array<out Any>): ErrorMsg = ErrorMsg(
+            override fun fromTuple(data: List<Any>): ErrorMsg = ErrorMsg(
                 data[0] as String,
                 data[1] as BigInteger,
-                data[2] as Array<Boolean>,
+                data[2] as List<Boolean>,
             )
         }
 
@@ -129,7 +129,7 @@ class CustomErrorTest : FunSpec({
 
             if (msg != other.msg) return false
             if (`value` != other.`value`) return false
-            if (!flags.contentEquals(other.flags)) return false
+            if (flags != other.flags) return false
 
             return true
         }
@@ -137,7 +137,7 @@ class CustomErrorTest : FunSpec({
         override fun hashCode(): Int {
             var result = msg.hashCode()
             result = 31 * result + `value`.hashCode()
-            result = 31 * result + flags.contentHashCode()
+            result = 31 * result + flags.hashCode()
             return result
         }
     }
@@ -153,7 +153,7 @@ class CustomErrorTest : FunSpec({
             val INSTANCE: NoArgsError = NoArgsError()
 
             @JvmStatic
-            override fun decode(data: Array<out Any>): NoArgsError = INSTANCE
+            override fun decode(data: List<Any>): NoArgsError = INSTANCE
         }
     }
 
@@ -170,7 +170,7 @@ class CustomErrorTest : FunSpec({
             )
 
             @JvmStatic
-            override fun decode(data: Array<out Any>): InvalidFlashswapFlags = InvalidFlashswapFlags(
+            override fun decode(data: List<Any>): InvalidFlashswapFlags = InvalidFlashswapFlags(
                 data[0] as BigInteger,
                 data[1] as String,
             )

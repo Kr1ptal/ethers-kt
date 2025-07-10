@@ -50,7 +50,7 @@ class EventsTest : FunSpec({
                         AbiType.Bytes,
                     ),
                 ),
-                arrayOf(errorCode, detailsStruct),
+                listOf(errorCode, detailsStruct),
             )
 
             val log = Log(
