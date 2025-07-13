@@ -9,9 +9,9 @@ on:
     
   workflow_dispatch: # Allow manual triggering
 
-# Prevent concurrent deployments
+# Prevent concurrent deployments, except for tagged releases
 concurrency:
-  group: maven-central-deploy
+  group: ${{ startsWith(github.ref,'refs/tags/') && github.ref_name || 'snapshot' }}
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 jobs:
