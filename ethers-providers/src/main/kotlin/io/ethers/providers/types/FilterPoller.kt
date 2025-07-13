@@ -2,8 +2,12 @@ package io.ethers.providers.types
 
 import com.fasterxml.jackson.core.JsonParser
 import io.channels.core.Channel
+import io.channels.core.ChannelConsumer
+import io.channels.core.ChannelFunction
+import io.channels.core.ChannelPredicate
 import io.channels.core.ChannelReceiver
 import io.channels.core.QueueChannel
+import io.channels.core.blocking.NotificationHandle
 import io.ethers.core.asTypeOrNull
 import io.ethers.core.isFailure
 import io.ethers.logger.dbg
@@ -14,9 +18,7 @@ import io.ethers.providers.AsyncExecutor
 import io.ethers.providers.RpcError
 import io.ethers.providers.middleware.Middleware
 import java.time.Duration
-import java.util.function.Consumer
 import java.util.function.Function
-import java.util.function.Predicate
 
 private val DEFAULT_POLLER_INTERVAL = Duration.ofSeconds(7)
 
@@ -49,11 +51,10 @@ class FilterPoller<T : Any> private constructor(
         return this
     }
 
-    override fun onStateChange(listener: Runnable) {
-        channel.onStateChange(listener)
-    }
+    override val notificationHandle: NotificationHandle
+        get() = channel.notificationHandle
 
-    override fun forEach(consumer: Consumer<in T>) {
+    override fun forEach(consumer: ChannelConsumer<in T>) {
         channel.forEach(consumer)
     }
 
@@ -75,15 +76,15 @@ class FilterPoller<T : Any> private constructor(
         channel.close()
     }
 
-    override fun <R : Any> map(mapper: Function<in T, R>): FilterPoller<R> {
+    override fun <R : Any> map(mapper: ChannelFunction<in T, R>): FilterPoller<R> {
         return FilterPoller<R>(poller, channel.map(mapper))
     }
 
-    override fun <R : Any> mapNotNull(mapper: Function<in T, R?>): FilterPoller<R> {
+    override fun <R : Any> mapNotNull(mapper: ChannelFunction<in T, R?>): FilterPoller<R> {
         return FilterPoller<R>(poller, channel.mapNotNull(mapper))
     }
 
-    override fun filter(predicate: Predicate<in T>): FilterPoller<T> {
+    override fun filter(predicate: ChannelPredicate<in T>): FilterPoller<T> {
         return FilterPoller(poller, channel.filter(predicate))
     }
 
