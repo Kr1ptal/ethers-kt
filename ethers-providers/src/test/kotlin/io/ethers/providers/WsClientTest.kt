@@ -121,27 +121,27 @@ class WsClientTest : FunSpec({
             mockServer.sendJson(notification1)
             mockServer.sendJson(notification2)
             mockServer.sendJson(notification3)
+            Thread.sleep(50)
 
             // Verify all notifications are received in order
-            val iterator = stream.iterator()
 
             // First notification
-            iterator.hasNext() shouldBe true
-            val event1 = iterator.next()
+            stream.isEmpty shouldBe false
+            val event1 = stream.take()!!
             event1.get("number")?.asText() shouldBe "0x1234"
             event1.get("hash")?.asText() shouldBe "0xabcd"
             event1.get("timestamp")?.asText() shouldBe "0x1111"
 
             // Second notification
-            iterator.hasNext() shouldBe true
-            val event2 = iterator.next()
+            stream.isEmpty shouldBe false
+            val event2 = stream.take()!!
             event2.get("number")?.asText() shouldBe "0x1235"
             event2.get("hash")?.asText() shouldBe "0xefgh"
             event2.get("timestamp")?.asText() shouldBe "0x2222"
 
             // Third notification
-            iterator.hasNext() shouldBe true
-            val event3 = iterator.next()
+            stream.isEmpty shouldBe false
+            val event3 = stream.take()!!
             event3.get("number")?.asText() shouldBe "0x1236"
             event3.get("hash")?.asText() shouldBe "0xijkl"
             event3.get("timestamp")?.asText() shouldBe "0x3333"
@@ -185,15 +185,14 @@ class WsClientTest : FunSpec({
             Thread.sleep(100)
 
             val stream = subscriptionResult.unwrap()
-            val iterator = stream.iterator()
-            iterator.hasNext() shouldBe true
+            stream.isEmpty shouldBe false
 
-            val event1 = iterator.next()
+            val event1 = stream.take()!!
             event1.get("number")?.asText() shouldBe "0x1234"
             event1.get("hash")?.asText() shouldBe "0xabcd"
             event1.get("timestamp")?.asText() shouldBe "0x1111"
 
-            stream.unsubscribe()
+            stream.close()
 
             @Language("JSON")
             val notification2 = """
@@ -214,7 +213,8 @@ class WsClientTest : FunSpec({
             mockServer.sendJson(notification2)
             Thread.sleep(100)
 
-            iterator.hasNext() shouldBe false
+            stream.isEmpty shouldBe true
+            stream.isClosed shouldBe true
         }
     }
 })

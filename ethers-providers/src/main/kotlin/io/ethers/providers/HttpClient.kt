@@ -3,6 +3,7 @@ package io.ethers.providers
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.util.TokenBuffer
+import io.channels.core.ChannelReceiver
 import io.ethers.core.Jackson
 import io.ethers.core.Jackson.createAndInitParser
 import io.ethers.core.Result
@@ -289,10 +290,10 @@ class HttpClient(
         return Jackson.MAPPER.createAndInitParser(this).use(action)
     }
 
-    override fun <T> subscribe(
+    override fun <T : Any> subscribe(
         params: Array<*>,
         resultDecoder: Function<JsonParser, T>,
-    ): CompletableFuture<Result<SubscriptionStream<T>, RpcError>> {
+    ): CompletableFuture<Result<ChannelReceiver<T>, RpcError>> {
         return CompletableFuture.completedFuture(ERROR_SUBSCRIPTION_UNSUPPORTED)
     }
 
