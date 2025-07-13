@@ -23,7 +23,7 @@ ktlint-bom = { module = "com.pinterest.ktlint:ktlint-bom", version.ref = "ktlint
 ktlint-sarif = { module = "com.pinterest.ktlint:ktlint-cli-reporter-sarif", version.ref = "ktlint-tool" }
 
 jctools = { module = "org.jctools:jctools-core", version = "4.0.5" }
-channelskt-core = { module = "com.github.Kr1ptal.channels-kt:channels-core", version = "3bd7e728de" }
+channelskt-core = { module = "com.github.Kr1ptal.channels-kt:channels-core", version = "1.0.0" }
 
 log4j2-core = { module = "org.apache.logging.log4j:log4j-core", version.ref = "log4j2" }
 log4j2-api = { module = "org.apache.logging.log4j:log4j-api", version.ref = "log4j2" }
