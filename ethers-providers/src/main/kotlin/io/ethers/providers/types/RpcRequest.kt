@@ -13,7 +13,7 @@ import java.util.function.Supplier
 
 abstract class RpcRequest<T, E : Result.Error> {
     /**
-     * Send RPC request and await the result by blocking calling thread.
+     * Send the RPC request and await the result by blocking calling thread.
      */
     abstract fun sendAwait(): Result<T, E>
 
@@ -30,7 +30,7 @@ abstract class RpcRequest<T, E : Result.Error> {
     /**
      * Map the returned response if the call was successful, skipping if it failed.
      *
-     * The function will be executed asynchronously after the request is sent and response received.
+     * The function will be executed asynchronously after the request is sent and the response received.
      */
     fun <R> map(mapper: Result.Transformer<T, R>): RpcRequest<R, E> {
         return MappingRpcRequest(this) { it.map(mapper) }
@@ -39,7 +39,7 @@ abstract class RpcRequest<T, E : Result.Error> {
     /**
      * Map the returned response if the call has failed with an error, skipping if it succeeded.
      *
-     * The function will be executed asynchronously after the request is sent and response received.
+     * The function will be executed asynchronously after the request is sent and the response received.
      */
     fun <R : Result.Error> mapError(mapper: Result.Transformer<E, R>): RpcRequest<T, R> {
         return MappingRpcRequest(this) { it.mapError(mapper) }
@@ -49,7 +49,7 @@ abstract class RpcRequest<T, E : Result.Error> {
      * Call the function with response if the call was successful, skipping if it failed. Useful when
      * chaining multiple fallible operations on the result.
      *
-     * The function will be executed asynchronously after the request is sent and response received.
+     * The function will be executed asynchronously after the request is sent and the response received.
      */
     fun <R> andThen(mapper: Result.Transformer<T, Result<R, E>>): RpcRequest<R, E> {
         return MappingRpcRequest(this) { it.andThen(mapper) }
@@ -57,9 +57,9 @@ abstract class RpcRequest<T, E : Result.Error> {
 
     /**
      * Call the function with response if the call has failed with an error, skipping if it succeeded. Useful
-     * when chaining multiple fallible operations on the error (e.g. trying to recover from an error).
+     * when chaining multiple fallible operations on the error (e.g., trying to recover from an error).
      *
-     * The function will be executed asynchronously after the request is sent and response received.
+     * The function will be executed asynchronously after the request is sent and the response received.
      */
     fun <R : Result.Error> orElse(mapper: Result.Transformer<E, Result<T, R>>): RpcRequest<T, R> {
         return MappingRpcRequest(this) { it.orElse(mapper) }
@@ -68,27 +68,19 @@ abstract class RpcRequest<T, E : Result.Error> {
     /**
      * Callback called only when the call has succeeded.
      *
-     * The function will be executed asynchronously after the request is sent and response received.
+     * The function will be executed asynchronously after the request is sent and the response received.
      */
     fun onSuccess(block: Consumer<T>): RpcRequest<T, E> {
-        return MappingRpcRequest(this) {
-            it.onSuccess(block)
-
-            it
-        }
+        return MappingRpcRequest(this) { it.apply { onSuccess(block) } }
     }
 
     /**
      * Callback called only when the call has failed with an error.
      *
-     * The function will be executed asynchronously after the request is sent and response received.
+     * The function will be executed asynchronously after the request is sent and the response received.
      */
     fun onFailure(block: Consumer<E>): RpcRequest<T, E> {
-        return MappingRpcRequest(this) {
-            it.onFailure(block)
-
-            it
-        }
+        return MappingRpcRequest(this) { it.apply { onFailure(block) } }
     }
 
     /**

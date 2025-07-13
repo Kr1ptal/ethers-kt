@@ -1,3 +1,5 @@
+@file:Suppress("JavaDefaultMethodsNotOverriddenByDelegation", "UNCHECKED_CAST")
+
 package io.ethers.providers.types
 
 import io.ethers.core.Result
@@ -27,7 +29,7 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) {
     val isEmpty: Boolean get() = requests.isEmpty()
 
     /**
-     * Add RPC request to this batch.
+     * Add a [RpcCall] to this batch.
      *
      * NOTE: The returned CompletableFuture should not be awaited until the batch is sent.
      * Doing so will throw an exception to prevent blocking indefinitely.
@@ -48,14 +50,14 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) {
     }
 
     /**
-     * Send batch request and await the result by blocking the calling thread.
+     * Send a batch request and await the result by blocking the calling thread.
      */
     fun sendAwait(): Boolean {
         return sendAsync().join()
     }
 
     /**
-     * Asynchronously send batch request.
+     * Asynchronously send a batch request.
      */
     fun sendAsync(): CompletableFuture<Boolean> {
         if (client == null) {
@@ -74,7 +76,8 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) {
     }
 
     companion object {
-        // Provide custom JVM names for these function because the name gets mangled due to inline class return type
+        // Provide custom JVM names for these functions because the name gets mangled due to the inline
+        // class return type
         @JvmStatic
         @JvmName("sendAwait")
         fun <T, E : Result.Error> sendAwait(requests: Iterable<RpcRequest<out T, E>>): BatchResponse<T, E> {
@@ -164,10 +167,9 @@ fun <T, E : Result.Error> List<Result<T, E>>.unwrap(): List<T> {
     return ret
 }
 
-// Zero-cost typed response classes to provide specialized "component" operators. In case it's used as a different type
-// it gets boxed (e.g. `map`, `forEach`, etc...). But since we're just wrapping and delegating a `List`,
+// Zero-cost typed response classes to provide specialized "component" operators. In case it's used as a different
+// type, it gets boxed (e.g. `map`, `forEach`, etc...). But since we're just wrapping and delegating a `List`,
 // it's still pretty cheap.
-@Suppress("JavaDefaultMethodsNotOverriddenByDelegation", "UNCHECKED_CAST")
 @JvmInline
 value class BatchResponseAsync<T, E : Result.Error>(
     private val responses: List<CompletableFuture<Result<T, E>>>,
@@ -186,7 +188,6 @@ value class BatchResponseAsync<T, E : Result.Error>(
     operator fun <O, U : Result.Error> component12() = responses[11] as CompletableFuture<Result<O, U>>
 }
 
-@Suppress("JavaDefaultMethodsNotOverriddenByDelegation", "UNCHECKED_CAST")
 @JvmInline
 value class BatchResponse<T, E : Result.Error>(
     private val responses: List<Result<T, E>>,
@@ -205,7 +206,6 @@ value class BatchResponse<T, E : Result.Error>(
     operator fun <O, U : Result.Error> component12() = responses[11] as Result<O, U>
 }
 
-@Suppress("JavaDefaultMethodsNotOverriddenByDelegation", "UNCHECKED_CAST")
 @JvmInline
 value class UnwrappedBatchResponse<T>(
     private val responses: List<T>,

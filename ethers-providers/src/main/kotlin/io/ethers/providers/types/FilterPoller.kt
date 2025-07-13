@@ -1,7 +1,6 @@
 package io.ethers.providers.types
 
 import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.core.JsonToken
 import io.ethers.core.asTypeOrNull
 import io.ethers.core.isFailure
 import io.ethers.logger.err
@@ -127,7 +126,8 @@ class FilterPoller<T>(
                         provider.client,
                         "eth_uninstallFilter",
                         arrayOf(id),
-                    ) { it.currentToken() == JsonToken.VALUE_TRUE }
+                        Boolean::class.java,
+                    )
 
                     val response = uninstallCall.sendAwait()
                     if (response.isFailure()) {

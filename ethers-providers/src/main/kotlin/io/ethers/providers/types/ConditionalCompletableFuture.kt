@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * This is useful for ensuring that a request has been sent before awaiting the result, which would otherwise
  * deadlock the calling thread.
  * */
-class ConditionalCompletableFuture<T>(private val canAwait: AtomicBoolean) : CompletableFuture<T>() {
+internal class ConditionalCompletableFuture<T>(private val canAwait: AtomicBoolean) : CompletableFuture<T>() {
     override fun get(): T {
         verifyCanAwait()
         return super.get()
