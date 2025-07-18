@@ -52,7 +52,7 @@ class OffchainResolverTest : FunSpec({
                     "OffchainLookup",
                     listOf(
                         ArgDescriptor("sender", Address::class),
-                        ArgDescriptor("urls", Array::class.parametrizedBy(String::class)),
+                        ArgDescriptor("urls", List::class.parametrizedBy(String::class)),
                         ArgDescriptor("callData", Bytes::class),
                         ArgDescriptor("callbackFunction", Bytes::class),
                         ArgDescriptor("extraData", Bytes::class),

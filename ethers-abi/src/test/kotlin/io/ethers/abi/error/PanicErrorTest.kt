@@ -13,7 +13,7 @@ import io.kotest.property.exhaustive.of
 class PanicErrorTest : FunSpec({
     test("decode panic error correctly") {
         Exhaustive.of(*PanicError.Kind.entries.toTypedArray()).checkAll { kind ->
-            val encoded = PanicError.FUNCTION.encodeCall(arrayOf(kind.code))
+            val encoded = PanicError.FUNCTION.encodeCall(listOf(kind.code))
             val decoded = ContractError.getOrNull(encoded)
 
             decoded shouldBe PanicError(kind)
@@ -22,7 +22,7 @@ class PanicErrorTest : FunSpec({
 
     test("decoding unknown panic error returns null") {
         Arb.int(PanicError.Kind.entries.last().code.toInt() + 10..Int.MAX_VALUE).checkAll { code ->
-            val encoded = PanicError.FUNCTION.encodeCall(arrayOf(code.toBigInteger()))
+            val encoded = PanicError.FUNCTION.encodeCall(listOf(code.toBigInteger()))
             val decoded = PanicError.getOrNull(encoded)
 
             decoded shouldBe null

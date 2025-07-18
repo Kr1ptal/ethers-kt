@@ -78,6 +78,13 @@ object CustomErrorFactoryResolver : CustomErrorResolver {
         }
     }
 
+    @JvmStatic
+    fun <T : CustomContractError> addFactories(newFactories: List<CustomErrorFactory<out T>>) {
+        synchronized(factories) {
+            factories.addAll(newFactories)
+        }
+    }
+
     override fun resolve(error: Bytes): CustomContractError? {
         // the values are only appended to the end of the list, so we can safely iterate by index. Worst case,
         // we miss newly added errors in the current iteration.

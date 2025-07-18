@@ -6,7 +6,7 @@ class AbiConstructor(
     val bytecode: Bytes,
     val arguments: List<AbiType<*>>,
 ) {
-    fun encode(args: Array<out Any>): Bytes {
+    fun encode(args: List<Any>): Bytes {
         return Bytes(AbiCodec.encodeWithPrefix(bytecode, arguments, args))
     }
 }

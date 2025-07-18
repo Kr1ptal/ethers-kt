@@ -229,7 +229,7 @@ class AbiEventTest : FunSpec({
 
             override fun filter(provider: Middleware): AnonymousEventFilter<LogNote> = AnonymousEventFilter(provider, this)
 
-            override fun decode(log: Log, data: Array<out Any>): LogNote {
+            override fun decode(log: Log, data: List<Any>): LogNote {
                 return LogNote(
                     data[0] as Bytes,
                     data[1] as Address,
@@ -263,7 +263,7 @@ class AbiEventTest : FunSpec({
                 return EventFilter(provider, this)
             }
 
-            override fun decode(log: Log, data: Array<out Any>): Transfer {
+            override fun decode(log: Log, data: List<Any>): Transfer {
                 return Transfer(data[0] as Address, data[1] as Address, data[2] as BigInteger, log)
             }
         }

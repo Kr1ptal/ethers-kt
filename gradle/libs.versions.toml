@@ -22,6 +22,15 @@ ktlint-gradle = { module = "org.jlleitschuh.gradle:ktlint-gradle", version = "12
 ktlint-bom = { module = "com.pinterest.ktlint:ktlint-bom", version.ref = "ktlint-tool" }
 ktlint-sarif = { module = "com.pinterest.ktlint:ktlint-cli-reporter-sarif", version.ref = "ktlint-tool" }
 
+ethers-abi = { module = "io.kriptal.ethers:ethers-abi", version.ref = "ethers" }
+ethers-bom = { module = "io.kriptal.ethers:ethers-bom", version.ref = "ethers" }
+ethers-core = { module = "io.kriptal.ethers:ethers-core", version.ref = "ethers" }
+ethers-crypto = { module = "io.kriptal.ethers:ethers-abi", version.ref = "ethers" }
+ethers-ens = { module = "io.kriptal.ethers:ethers-abi", version.ref = "ethers" }
+ethers-providers = { module = "io.kriptal.ethers:ethers-providers", version.ref = "ethers" }
+ethers-rlp = { module = "io.kriptal.ethers:ethers-signers", version.ref = "ethers" }
+ethers-signers = { module = "io.kriptal.ethers:ethers-signers", version.ref = "ethers" }
+
 jctools = { module = "org.jctools:jctools-core", version = "4.0.5" }
 channelskt-core = { module = "io.kriptal.channels:channels-core", version = "1.0.0" }
 
@@ -82,6 +91,7 @@ log4j2 = ["log4j2-core", "log4j2-api", "log4j2-slf4j"]
 jackson = ["jackson-databind", "jackson-kotlin"]
 eclipse-collections = ["eclipse-collections-core", "eclipse-collections-api"]
 okhttp3 = ["okhttp3-core", "okhttp3-logging"]
+ethers = ["ethers-abi", "ethers-core", "ethers-crypto", "ethers-ens", "ethers-providers", "ethers-rlp", "ethers-signers"]
 
 ##################### TEST #####################
 junit = ["junit-api", "junit-engine", "junit-params"]

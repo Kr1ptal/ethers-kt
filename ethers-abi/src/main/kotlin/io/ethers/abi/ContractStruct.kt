@@ -5,12 +5,12 @@ package io.ethers.abi
  * via [StructFactory].
  **/
 interface ContractStruct {
-    val tuple: Array<Any>
+    val tuple: List<Any>
 }
 
 /**
  * Struct factory, used to create a [ContractStruct] from a tuple.
  * */
 interface StructFactory<T : ContractStruct> {
-    fun fromTuple(data: Array<out Any>): T
+    fun fromTuple(data: List<Any>): T
 }
