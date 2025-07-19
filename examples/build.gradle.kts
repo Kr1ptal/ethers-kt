@@ -6,6 +6,7 @@ plugins {
 dependencies {
     // ArgParser
     implementation(libs.kotlinx.cli)
+    runtimeOnly(libs.bundles.log4j2)
 
     implementation(platform(libs.ethers.bom))
     implementation(libs.bundles.ethers)

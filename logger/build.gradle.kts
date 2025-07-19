@@ -8,7 +8,7 @@ repositories {
 }
 
 dependencies {
-    api(libs.slf4j.api)
+    api(libs.kotlin.logging.facade)
     runtimeOnly(libs.bundles.log4j2)
 
     testImplementation(libs.bundles.junit)

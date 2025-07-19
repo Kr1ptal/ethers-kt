@@ -8,7 +8,7 @@ junit = "5.13.3"
 kotest = "5.9.1"
 jmh = "1.37"
 okhttp3 = "4.12.0"
-slf4j = "2.0.17"
+klogging = "7.0.7"
 ktlint-tool = "1.5.0"
 web3j = "4.10.3"
 ethers = "1.3.2"
@@ -38,7 +38,7 @@ log4j2-core = { module = "org.apache.logging.log4j:log4j-core", version.ref = "l
 log4j2-api = { module = "org.apache.logging.log4j:log4j-api", version.ref = "log4j2" }
 log4j2-slf4j = { module = "org.apache.logging.log4j:log4j-slf4j2-impl", version.ref = "log4j2" }
 
-slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
+kotlin-logging-facade = { module = "io.github.oshai:kotlin-logging", version.ref = "klogging" }
 
 jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson" }
 jackson-kotlin = { module = "com.fasterxml.jackson.module:jackson-module-kotlin", version.ref = "jackson" }

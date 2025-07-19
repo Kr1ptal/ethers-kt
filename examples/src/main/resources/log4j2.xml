@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- To auto-reload, set parameter monitorInterval="30" in seconds-->
+<Configuration status="warn">
+    <Properties>
+        <Property name="LVL_CLR">{WARN=#CDB72E, INFO=Normal, DEBUG=white, TRACE=white}</Property>
+
+        <!--Because log4j2 does not properly propagate "disableAnsi" flag to nested formatters, we need to either use
+         separate formatters to fully disable ANSI or make sure there is no nested "highlight"/"style" formatter applied-->
+        <Property name="ANSI_PATTERN"
+                  value="%highlight{%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n%xEx}${LVL_CLR}"/>
+    </Properties>
+
+    <Appenders>
+
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="${ANSI_PATTERN}" noConsoleNoAnsi="false"
+                           disableAnsi="${sys:log.disableAnsi:-false}"/>
+        </Console>
+
+        <RollingFile
+                name="mainAppLog"
+                fileName="logs/app.log"
+                filePattern="logs/app.log.%d{yyyy-MM-dd}"
+                ignoreExceptions="false">
+            <PatternLayout pattern="${ANSI_PATTERN}" noConsoleNoAnsi="true" disableAnsi="true"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1"/>
+            </Policies>
+            <DefaultRolloverStrategy max="5"/>
+        </RollingFile>
+    </Appenders>
+
+    <Loggers>
+        <Logger name="io.ethers" level="${sys:log.level:-info}" additivity="false">
+            <AppenderRef ref="Console" level="trace"/>
+            <AppenderRef ref="mainAppLog" level="trace"/>
+        </Logger>
+
+        <!-- Everything else - except the above packages - will be logged here -->
+        <Root level="error" additivity="false">
+            <AppenderRef ref="Console" level="error"/>
+            <AppenderRef ref="mainAppLog" level="error"/>
+        </Root>
+    </Loggers>
+</Configuration>
