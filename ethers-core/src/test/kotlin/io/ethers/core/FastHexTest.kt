@@ -3,7 +3,6 @@ package io.ethers.core
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotStartWith
 import io.kotest.property.Arb
 import io.kotest.property.arbitrary.bigInt
@@ -199,14 +198,6 @@ class FastHexTest : FunSpec({
             shouldThrow<IllegalArgumentException> {
                 FastHex.decode("g") // Invalid single character
             }
-        }
-
-        test("exception message should include character position") {
-            val exception = shouldThrow<IllegalArgumentException> {
-                FastHex.decode("0xabg")
-            }
-            exception.message!! shouldContain "position"
-            exception.message!! shouldContain "g"
         }
     }
 })

@@ -334,12 +334,8 @@ object FastHex {
 
         val upper = DECODE_TABLE_UPPER[upperCode]
         val lower = DECODE_TABLE_LOWER[lowerCode]
-
-        if (upper == Int.MIN_VALUE) {
-            throw IllegalArgumentException("Invalid hex character '${upperCode.toChar()}' at position $offset")
-        }
-        if (lower == Int.MIN_VALUE) {
-            throw IllegalArgumentException("Invalid hex character '${lowerCode.toChar()}' at position ${offset + 1}")
+        if (upper == Int.MIN_VALUE || lower == Int.MIN_VALUE) {
+            throw IllegalArgumentException("Invalid hex nibble '${upperCode.toChar()}${lowerCode.toChar()}' at position $offset")
         }
 
         return (upper or lower).toByte()
