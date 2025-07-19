@@ -19,7 +19,7 @@ package io.ethers.core
 import java.math.BigInteger
 
 /**
- * Hexadecimal codec with unsafe encoding/decoding support. Produces invalid results if input is not valid hex.
+ * Hexadecimal codec with safe-by-default encoding/decoding support. Throws exceptions on invalid hex input.
  */
 object FastHex {
     private const val CHARS_PER_BYTE = 2
@@ -30,8 +30,8 @@ object FastHex {
 
     // values index directly into the encoding/decoding tables
     private val ENCODE_TABLE = IntArray(256) { -1 }
-    private val DECODE_TABLE_UPPER = ByteArray(256) { -1 }
-    private val DECODE_TABLE_LOWER = ByteArray(256) { -1 }
+    private val DECODE_TABLE_UPPER = IntArray(256) { Int.MIN_VALUE }
+    private val DECODE_TABLE_LOWER = IntArray(256) { Int.MIN_VALUE }
 
     init {
         val chars = charArrayOf('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f')
@@ -206,7 +206,12 @@ object FastHex {
             dest = ByteArray((hex.length + 1 - currOffset) / CHARS_PER_BYTE)
 
             // decode the first nibble, which contains only lower bits, implicitly adding a leading zero, e.g. "f" -> "0f"
-            dest[destIndex++] = DECODE_TABLE_LOWER[hex[currOffset++].code]
+            val nibble = DECODE_TABLE_LOWER[hex[currOffset].code]
+            if (nibble == Int.MIN_VALUE) {
+                throw IllegalArgumentException("Invalid hex character '${hex[currOffset]}' at position $currOffset")
+            }
+            dest[destIndex++] = nibble.toByte()
+            currOffset++
         } else {
             dest = ByteArray((hex.length - currOffset) / CHARS_PER_BYTE)
         }
@@ -243,7 +248,12 @@ object FastHex {
             dest = ByteArray((currLength + 1) / CHARS_PER_BYTE)
 
             // decode the first nibble, which contains only lower bits, implicitly adding a leading zero, e.g. "f" -> "0f"
-            dest[destIndex++] = DECODE_TABLE_LOWER[hex[currOffset++].toInt()]
+            val nibble = DECODE_TABLE_LOWER[hex[currOffset].toInt()]
+            if (nibble == Int.MIN_VALUE) {
+                throw IllegalArgumentException("Invalid hex character '${hex[currOffset].toInt().toChar()}' at position $currOffset")
+            }
+            dest[destIndex++] = nibble.toByte()
+            currOffset++
         } else {
             dest = ByteArray(currLength / CHARS_PER_BYTE)
         }
@@ -280,7 +290,12 @@ object FastHex {
             dest = ByteArray((currLength + 1) / CHARS_PER_BYTE)
 
             // decode the first nibble, which contains only lower bits, implicitly adding a leading zero, e.g. "f" -> "0f"
-            dest[destIndex++] = DECODE_TABLE_LOWER[hex[currOffset++].code]
+            val nibble = DECODE_TABLE_LOWER[hex[currOffset].code]
+            if (nibble == Int.MIN_VALUE) {
+                throw IllegalArgumentException("Invalid hex character '${hex[currOffset]}' at position $currOffset")
+            }
+            dest[destIndex++] = nibble.toByte()
+            currOffset++
         } else {
             dest = ByteArray(currLength / CHARS_PER_BYTE)
         }
@@ -314,22 +329,31 @@ object FastHex {
     }
 
     private inline fun decodeHexByte(offset: Int, charCodeAtOffset: (Int) -> Int): Byte {
-        return (DECODE_TABLE_UPPER[charCodeAtOffset(offset)].toInt() or DECODE_TABLE_LOWER[charCodeAtOffset(offset + 1)].toInt()).toByte()
+        val upperCode = charCodeAtOffset(offset)
+        val lowerCode = charCodeAtOffset(offset + 1)
+
+        val upper = DECODE_TABLE_UPPER[upperCode]
+        val lower = DECODE_TABLE_LOWER[lowerCode]
+
+        if (upper == Int.MIN_VALUE) {
+            throw IllegalArgumentException("Invalid hex character '${upperCode.toChar()}' at position $offset")
+        }
+        if (lower == Int.MIN_VALUE) {
+            throw IllegalArgumentException("Invalid hex character '${lowerCode.toChar()}' at position ${offset + 1}")
+        }
+
+        return (upper or lower).toByte()
     }
 
-    private fun getNibble(c: Char, upper: Boolean): Byte {
+    private fun getNibble(c: Char, upper: Boolean): Int {
         val nibble = when (c) {
             in '0'..'9' -> c - '0'
             in 'A'..'F' -> c - ('A' - 0xA)
             in 'a'..'f' -> c - ('a' - 0xa)
-            else -> -1
+            else -> return Int.MIN_VALUE
         }
 
-        if (nibble == -1) {
-            return -1
-        }
-
-        return if (upper) (nibble shl BITS_PER_CHAR).toByte() else nibble.toByte()
+        return if (upper) (nibble shl BITS_PER_CHAR) else nibble
     }
 
     private fun isValidHexChar(c: Char): Boolean {

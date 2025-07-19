@@ -1,7 +1,9 @@
 package io.ethers.core
 
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotStartWith
 import io.kotest.property.Arb
 import io.kotest.property.arbitrary.bigInt
@@ -163,6 +165,48 @@ class FastHexTest : FunSpec({
             "0xabcdef01924354541243",
         ).forEach { hex ->
             test(hex) { FastHex.isValidHex(hex) shouldBe true }
+        }
+    }
+
+    context("decode should throw on invalid hex characters") {
+        listOf(
+            "0xabcdefg", // 'g' is invalid
+            "0x///", // '/' is invalid
+            "zzhhkkllmm", // 'z' and 'h' are invalid
+            "0xabcdez", // 'z' is invalid
+            "abcde@", // '@' is invalid
+        ).forEach { invalidHex ->
+            test("decode('$invalidHex') should throw IllegalArgumentException") {
+                shouldThrow<IllegalArgumentException> {
+                    FastHex.decode(invalidHex)
+                }
+            }
+        }
+
+        test("decode with ByteArray should throw on invalid characters") {
+            shouldThrow<IllegalArgumentException> {
+                FastHex.decode("0xabcdefg".toByteArray())
+            }
+        }
+
+        test("decode with CharArray should throw on invalid characters") {
+            shouldThrow<IllegalArgumentException> {
+                FastHex.decode("0xabcdefg".toCharArray())
+            }
+        }
+
+        test("decode odd-length invalid hex should throw") {
+            shouldThrow<IllegalArgumentException> {
+                FastHex.decode("g") // Invalid single character
+            }
+        }
+
+        test("exception message should include character position") {
+            val exception = shouldThrow<IllegalArgumentException> {
+                FastHex.decode("0xabg")
+            }
+            exception.message!! shouldContain "position"
+            exception.message!! shouldContain "g"
         }
     }
 })
