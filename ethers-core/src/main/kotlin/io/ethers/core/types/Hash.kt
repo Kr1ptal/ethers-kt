@@ -9,7 +9,11 @@ import com.fasterxml.jackson.databind.SerializerProvider
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import io.ethers.core.FastHex
+import io.ethers.core.HexDecodingError
+import io.ethers.core.Result
+import io.ethers.core.failure
 import io.ethers.core.readHash
+import io.ethers.core.success
 import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncodable
@@ -90,6 +94,31 @@ class Hash(private val value: ByteArray) : RlpEncodable {
         @JvmStatic
         override fun rlpDecode(rlp: RlpDecoder): Hash? {
             return rlp.decodeByteArray(::Hash)
+        }
+
+        /**
+         * Create a new [Hash] from hex string with validation.
+         */
+        @JvmStatic
+        fun fromHex(hex: String): Result<Hash, HexDecodingError> {
+            if (!FastHex.isValidHex(hex)) {
+                return failure(HexDecodingError("Invalid hex format: $hex"))
+            }
+
+            val bytes = FastHex.decodeUnsafe(hex)
+            if (bytes.size != 32) {
+                return failure(HexDecodingError("Hash must be 32 bytes long, got ${bytes.size} bytes"))
+            }
+
+            return success(Hash(bytes))
+        }
+
+        /**
+         * Create a new [Hash] from hex string without validation.
+         */
+        @JvmStatic
+        fun fromHexUnsafe(hex: String): Hash {
+            return Hash(FastHex.decodeUnsafe(hex))
         }
 
         /**

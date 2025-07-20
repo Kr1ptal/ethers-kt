@@ -9,7 +9,11 @@ import com.fasterxml.jackson.databind.SerializerProvider
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import io.ethers.core.FastHex
+import io.ethers.core.HexDecodingError
+import io.ethers.core.Result
+import io.ethers.core.failure
 import io.ethers.core.readAddress
+import io.ethers.core.success
 import io.ethers.core.types.transaction.ChainId
 import io.ethers.crypto.Hashing
 import io.ethers.rlp.RlpDecodable
@@ -26,7 +30,7 @@ import kotlin.random.Random
 class Address(private val value: ByteArray) : RlpEncodable {
     constructor(value: CharSequence) : this(FastHex.decode(value))
 
-    // cache of hex string for faster serialization if serializing the same instance multiple times
+    // cache of hex string for faster serialization if serializing the same  instance multiple times
     private var stringCache: String? = null
 
     init {
@@ -161,6 +165,31 @@ class Address(private val value: ByteArray) : RlpEncodable {
         @JvmStatic
         fun random(): Address {
             return Address(Random.nextBytes(ByteArray(20)))
+        }
+
+        /**
+         * Create a new [Address] from hex string with validation.
+         */
+        @JvmStatic
+        fun fromHex(hex: String): Result<Address, HexDecodingError> {
+            if (!FastHex.isValidHex(hex)) {
+                return failure(HexDecodingError("Invalid hex format: $hex"))
+            }
+
+            val bytes = FastHex.decodeUnsafe(hex)
+            if (bytes.size != 20) {
+                return failure(HexDecodingError("Address must be 20 bytes long, got ${bytes.size} bytes"))
+            }
+
+            return success(Address(bytes))
+        }
+
+        /**
+         * Create a new [Address] from hex string without validation.
+         */
+        @JvmStatic
+        fun fromHexUnsafe(hex: String): Address {
+            return Address(FastHex.decodeUnsafe(hex))
         }
     }
 }

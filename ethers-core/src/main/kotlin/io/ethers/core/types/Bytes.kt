@@ -9,7 +9,11 @@ import com.fasterxml.jackson.databind.SerializerProvider
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import io.ethers.core.FastHex
+import io.ethers.core.HexDecodingError
+import io.ethers.core.Result
+import io.ethers.core.failure
 import io.ethers.core.readBytes
+import io.ethers.core.success
 import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncodable
@@ -212,6 +216,27 @@ class Bytes(private val value: ByteArray) : RlpEncodable {
 
         override fun rlpDecode(rlp: RlpDecoder): Bytes? {
             return rlp.decodeByteArray(::Bytes)
+        }
+
+        /**
+         * Create a new [Bytes] from hex string with validation.
+         */
+        @JvmStatic
+        fun fromHex(hex: String): Result<Bytes, HexDecodingError> {
+            if (!FastHex.isValidHex(hex)) {
+                return failure(HexDecodingError("Invalid hex format: $hex"))
+            }
+
+            val bytes = FastHex.decodeUnsafe(hex)
+            return success(Bytes(bytes))
+        }
+
+        /**
+         * Create a new [Bytes] from hex string without validation.
+         */
+        @JvmStatic
+        fun fromHexUnsafe(hex: String): Bytes {
+            return Bytes(FastHex.decodeUnsafe(hex))
         }
     }
 }
