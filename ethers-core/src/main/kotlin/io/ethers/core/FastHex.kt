@@ -16,10 +16,13 @@
 */
 package io.ethers.core
 
+import io.ethers.core.FastHex.decode
 import java.math.BigInteger
 
 /**
- * Hexadecimal codec with unsafe encoding/decoding support. Produces invalid results if input is not valid hex.
+ * Hexadecimal codec with safe-by-default and unsafe encoding/decoding support.
+ * - Safe functions throw exceptions on invalid hex input.
+ * - Unsafe functions (suffixed with `Unsafe`) replace invalid characters with `f`.
  */
 object FastHex {
     private const val CHARS_PER_BYTE = 2
@@ -30,8 +33,10 @@ object FastHex {
 
     // values index directly into the encoding/decoding tables
     private val ENCODE_TABLE = IntArray(256) { -1 }
-    private val DECODE_TABLE_UPPER = ByteArray(256) { -1 }
-    private val DECODE_TABLE_LOWER = ByteArray(256) { -1 }
+    private val DECODE_TABLE_UPPER = IntArray(256) { Int.MIN_VALUE }
+    private val DECODE_TABLE_UPPER_UNSAFE = IntArray(256) { 0xf0 }
+    private val DECODE_TABLE_LOWER = IntArray(256) { Int.MIN_VALUE }
+    private val DECODE_TABLE_LOWER_UNSAFE = IntArray(256) { 0x0f }
 
     init {
         val chars = charArrayOf('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f')
@@ -41,8 +46,10 @@ object FastHex {
             ENCODE_TABLE[i] = (upper.code shl java.lang.Byte.SIZE or lower.code)
         }
         for (i in DECODE_TABLE_UPPER.indices) {
-            DECODE_TABLE_UPPER[i] = getNibble(i.toChar(), true)
-            DECODE_TABLE_LOWER[i] = getNibble(i.toChar(), false)
+            DECODE_TABLE_UPPER[i] = getNibble(i.toChar(), upper = true, unsafe = false)
+            DECODE_TABLE_UPPER_UNSAFE[i] = getNibble(i.toChar(), upper = true, unsafe = true)
+            DECODE_TABLE_LOWER[i] = getNibble(i.toChar(), upper = false, unsafe = false)
+            DECODE_TABLE_LOWER_UNSAFE[i] = getNibble(i.toChar(), upper = false, unsafe = true)
         }
     }
 
@@ -189,34 +196,8 @@ object FastHex {
      * handles uneven length by implicitly adding a leading zero.
      * */
     @JvmStatic
-    fun decode(hex: CharSequence): ByteArray {
-        var destIndex = 0
-        var currOffset = 0
-
-        if (hex.length >= 2 && hex[0] == '0' && (hex[1] == 'x' || hex[1] == 'X')) {
-            currOffset = 2
-        }
-
-        if (hex.length == currOffset) {
-            return EMPTY_BYTES
-        }
-
-        val dest: ByteArray
-        if (!isDivisibleBy2(hex.length)) {
-            dest = ByteArray((hex.length + 1 - currOffset) / CHARS_PER_BYTE)
-
-            // decode the first nibble, which contains only lower bits, implicitly adding a leading zero, e.g. "f" -> "0f"
-            dest[destIndex++] = DECODE_TABLE_LOWER[hex[currOffset++].code]
-        } else {
-            dest = ByteArray((hex.length - currOffset) / CHARS_PER_BYTE)
-        }
-
-        while (destIndex < dest.size) {
-            dest[destIndex++] = decodeHexByte(currOffset) { index -> hex[index].code }
-            currOffset += CHARS_PER_BYTE
-        }
-
-        return dest
+    fun decode(hex: CharSequence, offset: Int = 0, length: Int = hex.length - offset): ByteArray {
+        return decodeCharSequence(hex, offset, length, ::decodeHexByte)
     }
 
     /**
@@ -225,35 +206,7 @@ object FastHex {
      * */
     @JvmStatic
     fun decode(hex: ByteArray, offset: Int = 0, length: Int = hex.size - offset): ByteArray {
-        var destIndex = 0
-        var currOffset = offset
-        var currLength = length
-
-        if (currLength >= 2 && hex[currOffset] == BYTE_0 && hex[currOffset + 1] == BYTE_X) {
-            currOffset += 2
-            currLength -= 2
-        }
-
-        if (currLength == 0) {
-            return EMPTY_BYTES
-        }
-
-        val dest: ByteArray
-        if (!isDivisibleBy2(currLength)) {
-            dest = ByteArray((currLength + 1) / CHARS_PER_BYTE)
-
-            // decode the first nibble, which contains only lower bits, implicitly adding a leading zero, e.g. "f" -> "0f"
-            dest[destIndex++] = DECODE_TABLE_LOWER[hex[currOffset++].toInt()]
-        } else {
-            dest = ByteArray(currLength / CHARS_PER_BYTE)
-        }
-
-        while (destIndex < dest.size) {
-            dest[destIndex++] = decodeHexByte(currOffset) { index -> hex[index].toInt() }
-            currOffset += CHARS_PER_BYTE
-        }
-
-        return dest
+        return decodeByteArray(hex, offset, length, ::decodeHexByte)
     }
 
     /**
@@ -262,6 +215,60 @@ object FastHex {
      * */
     @JvmStatic
     fun decode(hex: CharArray, offset: Int = 0, length: Int = hex.size - offset): ByteArray {
+        return decodeCharArray(hex, offset, length, ::decodeHexByte)
+    }
+
+    /**
+     * Decode [hex] string into an array of bytes. Supports both inputs - with and without '0x' prefix,
+     * handles uneven length by implicitly adding a leading zero.
+     *
+     * NOTE: This function is unsafe as it does not check that the input contains only valid hex chars but
+     * will default to "0xff" for unknown chars. It has better performance than the safe methods but should
+     * only be used where you know the input is a valid hex string.
+     *
+     * Use [decode] if you are unsure of the input.
+     * */
+    @JvmStatic
+    fun decodeUnsafe(hex: CharSequence, offset: Int = 0, length: Int = hex.length - offset): ByteArray {
+        return decodeCharSequence(hex, offset, length, ::decodeHexByteUnsafe)
+    }
+
+    /**
+     * Decode [hex] bytes into an array of bytes. Supports both inputs - with and without '0x' prefix,
+     * handles uneven length by implicitly adding a leading zero.
+     *
+     * NOTE: This function is unsafe as it does not check that the input contains only valid hex chars but
+     * will default to "0xff" for unknown chars. It has better performance than the safe methods but should
+     * only be used where you know the input is a valid hex string.
+     *
+     * Use [decode] if you are unsure of the input.
+     * */
+    @JvmStatic
+    fun decodeUnsafe(hex: ByteArray, offset: Int = 0, length: Int = hex.size - offset): ByteArray {
+        return decodeByteArray(hex, offset, length, ::decodeHexByteUnsafe)
+    }
+
+    /**
+     * Decode [hex] chars into an array of bytes. Supports both inputs - with and without '0x' prefix,
+     * handles uneven length by implicitly adding a leading zero.
+     *
+     * NOTE: This function is unsafe as it does not check that the input contains only valid hex chars but
+     * will default to "0xff" for unknown chars. It has better performance than the safe methods but should
+     * only be used where you know the input is a valid hex string.
+     *
+     * Use [decode] if you are unsure of the input.
+     * */
+    @JvmStatic
+    fun decodeUnsafe(hex: CharArray, offset: Int = 0, length: Int = hex.size - offset): ByteArray {
+        return decodeCharArray(hex, offset, length, ::decodeHexByteUnsafe)
+    }
+
+    private inline fun decodeCharSequence(
+        hex: CharSequence,
+        offset: Int,
+        length: Int,
+        decoder: (Int, (Int) -> Int) -> Int,
+    ): ByteArray {
         var destIndex = 0
         var currOffset = offset
         var currLength = length
@@ -279,14 +286,94 @@ object FastHex {
         if (!isDivisibleBy2(currLength)) {
             dest = ByteArray((currLength + 1) / CHARS_PER_BYTE)
 
-            // decode the first nibble, which contains only lower bits, implicitly adding a leading zero, e.g. "f" -> "0f"
-            dest[destIndex++] = DECODE_TABLE_LOWER[hex[currOffset++].code]
+            // decode the first byte, which contains only lower bits, implicitly adding a leading zero, e.g. "f" -> "0f"
+            val nibble = decoder(currOffset, { hex[currOffset].code }) shr BITS_PER_CHAR
+            dest[destIndex++] = nibble.toByte()
+            currOffset++
         } else {
             dest = ByteArray(currLength / CHARS_PER_BYTE)
         }
 
         while (destIndex < dest.size) {
-            dest[destIndex++] = decodeHexByte(currOffset) { index -> hex[index].code }
+            dest[destIndex++] = decoder(currOffset) { index -> hex[index].code }.toByte()
+            currOffset += CHARS_PER_BYTE
+        }
+
+        return dest
+    }
+
+    private inline fun decodeByteArray(
+        hex: ByteArray,
+        offset: Int,
+        length: Int,
+        decoder: (Int, (Int) -> Int) -> Int,
+    ): ByteArray {
+        var destIndex = 0
+        var currOffset = offset
+        var currLength = length
+
+        if (currLength >= 2 && hex[currOffset] == BYTE_0 && hex[currOffset + 1] == BYTE_X) {
+            currOffset += 2
+            currLength -= 2
+        }
+
+        if (currLength == 0) {
+            return EMPTY_BYTES
+        }
+
+        val dest: ByteArray
+        if (!isDivisibleBy2(currLength)) {
+            dest = ByteArray((currLength + 1) / CHARS_PER_BYTE)
+
+            // decode the first byte, which contains only lower bits, implicitly adding a leading zero, e.g. "f" -> "0f"
+            val nibble = decoder(currOffset) { hex[currOffset].toInt() } shr BITS_PER_CHAR
+            dest[destIndex++] = nibble.toByte()
+            currOffset++
+        } else {
+            dest = ByteArray(currLength / CHARS_PER_BYTE)
+        }
+
+        while (destIndex < dest.size) {
+            dest[destIndex++] = decoder(currOffset) { index -> hex[index].toInt() }.toByte()
+            currOffset += CHARS_PER_BYTE
+        }
+
+        return dest
+    }
+
+    private inline fun decodeCharArray(
+        hex: CharArray,
+        offset: Int,
+        length: Int,
+        decoder: (Int, (Int) -> Int) -> Int,
+    ): ByteArray {
+        var destIndex = 0
+        var currOffset = offset
+        var currLength = length
+
+        if (currLength >= 2 && hex[currOffset] == '0' && (hex[currOffset + 1] == 'x' || hex[currOffset + 1] == 'X')) {
+            currOffset += 2
+            currLength -= 2
+        }
+
+        if (currLength == 0) {
+            return EMPTY_BYTES
+        }
+
+        val dest: ByteArray
+        if (!isDivisibleBy2(currLength)) {
+            dest = ByteArray((currLength + 1) / CHARS_PER_BYTE)
+
+            // decode the first byte, which contains only lower bits, implicitly adding a leading zero, e.g. "f" -> "0f"
+            val nibble = decoder(currOffset, { hex[currOffset].code }) shr BITS_PER_CHAR
+            dest[destIndex++] = nibble.toByte()
+            currOffset++
+        } else {
+            dest = ByteArray(currLength / CHARS_PER_BYTE)
+        }
+
+        while (destIndex < dest.size) {
+            dest[destIndex++] = decoder(currOffset, { index -> hex[index].code }).toByte()
             currOffset += CHARS_PER_BYTE
         }
 
@@ -313,23 +400,38 @@ object FastHex {
         return hex.isNotEmpty()
     }
 
-    private inline fun decodeHexByte(offset: Int, charCodeAtOffset: (Int) -> Int): Byte {
-        return (DECODE_TABLE_UPPER[charCodeAtOffset(offset)].toInt() or DECODE_TABLE_LOWER[charCodeAtOffset(offset + 1)].toInt()).toByte()
+    private inline fun decodeHexByte(offset: Int, charCodeAtOffset: (Int) -> Int): Int {
+        val upperCode = charCodeAtOffset(offset)
+        val lowerCode = charCodeAtOffset(offset + 1)
+
+        val upper = DECODE_TABLE_UPPER[upperCode]
+        val lower = DECODE_TABLE_LOWER[lowerCode]
+        if (upper == Int.MIN_VALUE || lower == Int.MIN_VALUE) {
+            throw IllegalArgumentException("Invalid hex nibble '${upperCode.toChar()}${lowerCode.toChar()}' at position $offset")
+        }
+
+        return (upper or lower)
     }
 
-    private fun getNibble(c: Char, upper: Boolean): Byte {
+    private inline fun decodeHexByteUnsafe(offset: Int, charCodeAtOffset: (Int) -> Int): Int {
+        val upper = DECODE_TABLE_UPPER_UNSAFE[charCodeAtOffset(offset)]
+        val lower = DECODE_TABLE_LOWER_UNSAFE[charCodeAtOffset(offset + 1)]
+        return (upper or lower)
+    }
+
+    private fun getNibble(c: Char, upper: Boolean, unsafe: Boolean): Int {
         val nibble = when (c) {
             in '0'..'9' -> c - '0'
             in 'A'..'F' -> c - ('A' - 0xA)
             in 'a'..'f' -> c - ('a' - 0xa)
-            else -> -1
+            else -> return when {
+                // if unsafe, default each nibble to "f"
+                unsafe -> if (upper) 0xf0 else 0x0f
+                else -> Int.MIN_VALUE
+            }
         }
 
-        if (nibble == -1) {
-            return -1
-        }
-
-        return if (upper) (nibble shl BITS_PER_CHAR).toByte() else nibble.toByte()
+        return if (upper) (nibble shl BITS_PER_CHAR) else nibble
     }
 
     private fun isValidHexChar(c: Char): Boolean {
