@@ -32,9 +32,9 @@ object FastHex {
     // values index directly into the encoding/decoding tables
     private val ENCODE_TABLE = IntArray(256) { -1 }
     private val DECODE_TABLE_UPPER = IntArray(256) { Int.MIN_VALUE }
-    private val DECODE_TABLE_UPPER_UNSAFE = IntArray(256) { -1 }
+    private val DECODE_TABLE_UPPER_UNSAFE = IntArray(256) { 0xf0 }
     private val DECODE_TABLE_LOWER = IntArray(256) { Int.MIN_VALUE }
-    private val DECODE_TABLE_LOWER_UNSAFE = IntArray(256) { -1 }
+    private val DECODE_TABLE_LOWER_UNSAFE = IntArray(256) { 0x0f }
 
     init {
         val chars = charArrayOf('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f')
@@ -44,10 +44,10 @@ object FastHex {
             ENCODE_TABLE[i] = (upper.code shl java.lang.Byte.SIZE or lower.code)
         }
         for (i in DECODE_TABLE_UPPER.indices) {
-            DECODE_TABLE_UPPER[i] = getNibble(i.toChar(), true)
-            DECODE_TABLE_UPPER_UNSAFE[i] = getNibble(i.toChar(), true)
-            DECODE_TABLE_LOWER[i] = getNibble(i.toChar(), false)
-            DECODE_TABLE_LOWER_UNSAFE[i] = getNibble(i.toChar(), false)
+            DECODE_TABLE_UPPER[i] = getNibble(i.toChar(), upper = true, unsafe = false)
+            DECODE_TABLE_UPPER_UNSAFE[i] = getNibble(i.toChar(), upper = true, unsafe = true)
+            DECODE_TABLE_LOWER[i] = getNibble(i.toChar(), upper = false, unsafe = false)
+            DECODE_TABLE_LOWER_UNSAFE[i] = getNibble(i.toChar(), upper = false, unsafe = true)
         }
     }
 
@@ -284,9 +284,9 @@ object FastHex {
         if (!isDivisibleBy2(currLength)) {
             dest = ByteArray((currLength + 1) / CHARS_PER_BYTE)
 
-            // decode the first nibble, which contains only lower bits, implicitly adding a leading zero, e.g. "f" -> "0f"
-            val nibble = decoder(currOffset, { hex[currOffset].code })
-            dest[destIndex++] = (nibble shr BITS_PER_CHAR).toByte()
+            // decode the first byte, which contains only lower bits, implicitly adding a leading zero, e.g. "f" -> "0f"
+            val nibble = decoder(currOffset, { hex[currOffset].code }) shr BITS_PER_CHAR
+            dest[destIndex++] = nibble.toByte()
             currOffset++
         } else {
             dest = ByteArray(currLength / CHARS_PER_BYTE)
@@ -323,9 +323,9 @@ object FastHex {
         if (!isDivisibleBy2(currLength)) {
             dest = ByteArray((currLength + 1) / CHARS_PER_BYTE)
 
-            // decode the first nibble, which contains only lower bits, implicitly adding a leading zero, e.g. "f" -> "0f"
-            val nibble = decoder(currOffset) { hex[currOffset].toInt() }
-            dest[destIndex++] = (nibble shr BITS_PER_CHAR).toByte()
+            // decode the first byte, which contains only lower bits, implicitly adding a leading zero, e.g. "f" -> "0f"
+            val nibble = decoder(currOffset) { hex[currOffset].toInt() } shr BITS_PER_CHAR
+            dest[destIndex++] = nibble.toByte()
             currOffset++
         } else {
             dest = ByteArray(currLength / CHARS_PER_BYTE)
@@ -362,9 +362,9 @@ object FastHex {
         if (!isDivisibleBy2(currLength)) {
             dest = ByteArray((currLength + 1) / CHARS_PER_BYTE)
 
-            // decode the first nibble, which contains only lower bits, implicitly adding a leading zero, e.g. "f" -> "0f"
-            val nibble = decoder(currOffset, { hex[currOffset].code })
-            dest[destIndex++] = (nibble shr BITS_PER_CHAR).toByte()
+            // decode the first byte, which contains only lower bits, implicitly adding a leading zero, e.g. "f" -> "0f"
+            val nibble = decoder(currOffset, { hex[currOffset].code }) shr BITS_PER_CHAR
+            dest[destIndex++] = nibble.toByte()
             currOffset++
         } else {
             dest = ByteArray(currLength / CHARS_PER_BYTE)
@@ -417,12 +417,16 @@ object FastHex {
         return (upper or lower)
     }
 
-    private fun getNibble(c: Char, upper: Boolean): Int {
+    private fun getNibble(c: Char, upper: Boolean, unsafe: Boolean): Int {
         val nibble = when (c) {
             in '0'..'9' -> c - '0'
             in 'A'..'F' -> c - ('A' - 0xA)
             in 'a'..'f' -> c - ('a' - 0xa)
-            else -> return Int.MIN_VALUE
+            else -> return when {
+                // if unsafe, default each nibble to "f"
+                unsafe -> if (upper) 0xf0 else 0x0f
+                else -> Int.MIN_VALUE
+            }
         }
 
         return if (upper) (nibble shl BITS_PER_CHAR) else nibble

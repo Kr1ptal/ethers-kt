@@ -81,9 +81,11 @@ class FastHexTest : FunSpec({
             Arb.byteArray(Arb.int(0..512), Arb.byte()).checkAll { bytes ->
                 val hex = FastHex.encodeAsBytes(bytes)
                 val decoded = FastHex.decode(hex)
+                val decodedUnsafe = FastHex.decodeUnsafe(hex)
 
                 hex shouldBe bytes.toHexString().toByteArray()
                 decoded shouldBe bytes
+                decodedUnsafe shouldBe bytes
             }
         }
 
@@ -91,20 +93,25 @@ class FastHexTest : FunSpec({
             Arb.byteArray(Arb.int(0..512), Arb.byte()).checkAll { bytes ->
                 val hex = "0x".toByteArray() + FastHex.encodeAsBytes(bytes)
                 val decoded = FastHex.decode(hex)
+                val decodedUnsafe = FastHex.decodeUnsafe(hex)
 
                 hex shouldBe "0x${bytes.toHexString()}".toByteArray()
                 decoded shouldBe bytes
+                decodedUnsafe shouldBe bytes
             }
         }
 
         test("odd length hex (without leading 0)") {
             Arb.byteArray(Arb.int(0..512), Arb.byte()).checkAll { bytes ->
-                var hex = FastHex.encodeAsBytes(bytes)
-                hex = byteArrayOf('f'.code.toByte()) + hex // Append 0x0f without leading zero
+                // Append 0x0f without leading zero
+                val hex = byteArrayOf('f'.code.toByte()) + FastHex.encodeAsBytes(bytes)
+
                 val decoded = FastHex.decode(hex)
+                val decodedUnsafe = FastHex.decodeUnsafe(hex)
 
                 val expectedResult = (byteArrayOf(0x0f) + bytes)
                 decoded shouldBe expectedResult
+                decodedUnsafe shouldBe expectedResult
             }
         }
     }
@@ -114,9 +121,11 @@ class FastHexTest : FunSpec({
             Arb.byteArray(Arb.int(0..512), Arb.byte()).checkAll { bytes ->
                 val hex = FastHex.encodeWithoutPrefix(bytes).toCharArray()
                 val decoded = FastHex.decode(hex)
+                val decodedUnsafe = FastHex.decodeUnsafe(hex)
 
                 hex shouldBe bytes.toHexString().toCharArray()
                 decoded shouldBe bytes
+                decodedUnsafe shouldBe decoded
             }
         }
 
@@ -124,17 +133,20 @@ class FastHexTest : FunSpec({
             Arb.byteArray(Arb.int(0..512), Arb.byte()).checkAll { bytes ->
                 val hex = FastHex.encodeWithPrefix(bytes).toCharArray()
                 val decoded = FastHex.decode(hex)
+                val decodedUnsafe = FastHex.decodeUnsafe(hex)
 
                 hex shouldBe "0x${bytes.toHexString()}".toCharArray()
                 decoded shouldBe bytes
+                decodedUnsafe shouldBe decoded
             }
         }
 
         test("odd length hex (without leading 0)") {
             Arb.byteArray(Arb.int(0..512), Arb.byte()).checkAll { bytes ->
-                var hex = FastHex.encodeWithoutPrefix(bytes).toCharArray()
-                hex = charArrayOf('f') + hex // Append 0x0f without leading zero
+                // Append 0x0f without leading zero
+                val hex = charArrayOf('f') + FastHex.encodeWithoutPrefix(bytes).toCharArray()
                 val decoded = FastHex.decode(hex)
+                val decodedUnsafe = FastHex.decodeUnsafe(hex)
 
                 val expectedResult = (byteArrayOf(0x0f) + bytes)
                 decoded shouldBe expectedResult
@@ -171,7 +183,7 @@ class FastHexTest : FunSpec({
         listOf(
             "0xabcdefg", // 'g' is invalid
             "0x///", // '/' is invalid
-            "zzhhkkllmm", // 'z' and 'h' are invalid
+            "zzhhkkllmm", // all are invalid
             "0xabcdez", // 'z' is invalid
             "abcde@", // '@' is invalid
         ).forEach { invalidHex ->
@@ -197,6 +209,26 @@ class FastHexTest : FunSpec({
         test("decode odd-length invalid hex should throw") {
             shouldThrow<IllegalArgumentException> {
                 FastHex.decode("g") // Invalid single character
+            }
+        }
+    }
+
+    context("decodeUnsafe should not throw on invalid hex characters, but default to 0xff") {
+        listOf(
+            "0xabcdefg" to "0xabcdeff", // 'g' is invalid
+            "0x///" to "0x0fff", // '/' is invalid
+            "zzhhkkllmm" to "0xffffffffff", // all are invalid
+            "0xabcdez" to "0xabcdef", // 'z' is invalid
+            "abcde@" to "abcdef", // '@' is invalid
+        ).forEach { (invalidHex, expected) ->
+            test("decodeUnsafe('$invalidHex') should replace invalid chars with '0xff'") {
+                val unsafeString = FastHex.decodeUnsafe(invalidHex)
+                val unsafeBytes = FastHex.decodeUnsafe(invalidHex.toByteArray())
+                val unsafeChars = FastHex.decodeUnsafe(invalidHex.toCharArray())
+
+                unsafeString shouldBe FastHex.decode(expected)
+                unsafeBytes shouldBe FastHex.decode(expected)
+                unsafeChars shouldBe FastHex.decode(expected)
             }
         }
     }
