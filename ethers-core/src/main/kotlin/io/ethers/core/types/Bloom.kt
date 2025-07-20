@@ -9,7 +9,11 @@ import com.fasterxml.jackson.databind.SerializerProvider
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import io.ethers.core.FastHex
+import io.ethers.core.HexDecodingError
+import io.ethers.core.Result
+import io.ethers.core.failure
 import io.ethers.core.readBloom
+import io.ethers.core.success
 import io.ethers.crypto.Hashing
 import kotlin.experimental.and
 import kotlin.experimental.or
@@ -115,6 +119,33 @@ class Bloom(private val value: ByteArray) {
 
     override fun hashCode(): Int {
         return value.contentHashCode()
+    }
+
+    companion object {
+        /**
+         * Create a new [Bloom] from hex string with validation.
+         */
+        @JvmStatic
+        fun fromHex(hex: String): Result<Bloom, HexDecodingError> {
+            if (!FastHex.isValidHex(hex)) {
+                return failure(HexDecodingError("Invalid hex format: $hex"))
+            }
+
+            val bytes = FastHex.decodeUnsafe(hex)
+            if (bytes.size != BLOOM_SIZE) {
+                return failure(HexDecodingError("Bloom must be $BLOOM_SIZE bytes long, got ${bytes.size} bytes"))
+            }
+
+            return success(Bloom(bytes))
+        }
+
+        /**
+         * Create a new [Bloom] from hex string without validation.
+         */
+        @JvmStatic
+        fun fromHexUnsafe(hex: String): Bloom {
+            return Bloom(FastHex.decodeUnsafe(hex))
+        }
     }
 }
 
