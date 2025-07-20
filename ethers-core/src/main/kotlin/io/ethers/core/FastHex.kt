@@ -20,7 +20,9 @@ import io.ethers.core.FastHex.decode
 import java.math.BigInteger
 
 /**
- * Hexadecimal codec with safe-by-default encoding/decoding support. Throws exceptions on invalid hex input.
+ * Hexadecimal codec with safe-by-default and unsafe encoding/decoding support.
+ * - Safe functions throw exceptions on invalid hex input.
+ * - Unsafe functions (suffixed with `Unsafe`) replace invalid characters with `f`.
  */
 object FastHex {
     private const val CHARS_PER_BYTE = 2
