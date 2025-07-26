@@ -363,6 +363,9 @@ class Multicall3(
 
         companion object : StructFactory<Call> {
             @JvmStatic
+            override val abi: AbiType.Tuple<Call> = AbiType.Tuple.struct(Call::class, AbiType.Address, AbiType.Bytes)
+
+            @JvmStatic
             override fun fromTuple(data: List<Any>): Call = Call(data[0] as Address, data[1] as Bytes)
         }
     }
@@ -392,6 +395,9 @@ class Multicall3(
         }
 
         companion object : StructFactory<Call3> {
+            @JvmStatic
+            override val abi: AbiType.Tuple<Call3> = AbiType.Tuple.struct(Call3::class, AbiType.Address, AbiType.Bool, AbiType.Bytes)
+
             @JvmStatic
             override fun fromTuple(data: List<Any>): Call3 = Call3(
                 data[0] as Address,
@@ -430,6 +436,9 @@ class Multicall3(
 
         companion object : StructFactory<Call3Value> {
             @JvmStatic
+            override val abi: AbiType.Tuple<Call3Value> = AbiType.Tuple.struct(Call3Value::class, AbiType.Address, AbiType.Bool, AbiType.UInt(256), AbiType.Bytes)
+
+            @JvmStatic
             override fun fromTuple(data: List<Any>): Call3Value = Call3Value(
                 data[0] as Address,
                 data[1] as Boolean,
@@ -461,6 +470,9 @@ class Multicall3(
         }
 
         companion object : StructFactory<Result> {
+            @JvmStatic
+            override val abi: AbiType.Tuple<Result> = AbiType.Tuple.struct(Result::class, AbiType.Bool, AbiType.Bytes)
+
             @JvmStatic
             override fun fromTuple(data: List<Any>): Result = Result(data[0] as Boolean, data[1] as Bytes)
         }
@@ -576,36 +588,26 @@ class Multicall3(
         @JvmField
         val FUNCTION_AGGREGATE3: AbiFunction = AbiFunction(
             "aggregate3",
-            listOf(AbiType.Array(AbiType.Tuple.struct(Call3::class, AbiType.Address, AbiType.Bool, AbiType.Bytes))),
-            listOf(AbiType.Array(AbiType.Tuple.struct(Result::class, AbiType.Bool, AbiType.Bytes))),
+            listOf(AbiType.Array(Call3.abi)),
+            listOf(AbiType.Array(Result.abi)),
         )
 
         @JvmField
         val FUNCTION_BLOCK_AND_AGGREGATE: AbiFunction = AbiFunction(
             "blockAndAggregate",
-            listOf(AbiType.Array(AbiType.Tuple.struct(Call::class, AbiType.Address, AbiType.Bytes))),
+            listOf(AbiType.Array(Call.abi)),
             listOf(
                 AbiType.UInt(256),
                 AbiType.FixedBytes(32),
-                AbiType.Array(AbiType.Tuple.struct(Result::class, AbiType.Bool, AbiType.Bytes)),
+                AbiType.Array(Result.abi),
             ),
         )
 
         @JvmField
         val FUNCTION_AGGREGATE3_VALUE: AbiFunction = AbiFunction(
             "aggregate3Value",
-            listOf(
-                AbiType.Array(
-                    AbiType.Tuple.struct(
-                        Call3Value::class,
-                        AbiType.Address,
-                        AbiType.Bool,
-                        AbiType.UInt(256),
-                        AbiType.Bytes,
-                    ),
-                ),
-            ),
-            listOf(AbiType.Array(AbiType.Tuple.struct(Result::class, AbiType.Bool, AbiType.Bytes))),
+            listOf(AbiType.Array(Call3Value.abi)),
+            listOf(AbiType.Array(Result.abi)),
         )
 
         @JvmField
@@ -618,7 +620,7 @@ class Multicall3(
         @JvmField
         val FUNCTION_AGGREGATE: AbiFunction = AbiFunction(
             "aggregate",
-            listOf(AbiType.Array(AbiType.Tuple.struct(Call::class, AbiType.Address, AbiType.Bytes))),
+            listOf(AbiType.Array(Call.abi)),
             listOf(AbiType.UInt(256), AbiType.Array(AbiType.Bytes)),
         )
 
@@ -653,19 +655,19 @@ class Multicall3(
         @JvmField
         val FUNCTION_TRY_AGGREGATE: AbiFunction = AbiFunction(
             "tryAggregate",
-            listOf(AbiType.Bool, AbiType.Array(AbiType.Tuple.struct(Call::class, AbiType.Address, AbiType.Bytes))),
-            listOf(AbiType.Array(AbiType.Tuple.struct(Result::class, AbiType.Bool, AbiType.Bytes))),
+            listOf(AbiType.Bool, AbiType.Array(Call.abi)),
+            listOf(AbiType.Array(Result.abi)),
         )
 
         @JvmField
         val FUNCTION_TRY_BLOCK_AND_AGGREGATE: AbiFunction =
             AbiFunction(
                 "tryBlockAndAggregate",
-                listOf(AbiType.Bool, AbiType.Array(AbiType.Tuple.struct(Call::class, AbiType.Address, AbiType.Bytes))),
+                listOf(AbiType.Bool, AbiType.Array(Call.abi)),
                 listOf(
                     AbiType.UInt(256),
                     AbiType.FixedBytes(32),
-                    AbiType.Array(AbiType.Tuple.struct(Result::class, AbiType.Bool, AbiType.Bytes)),
+                    AbiType.Array(Result.abi),
                 ),
             )
 
