@@ -70,11 +70,22 @@ sealed interface AbiTypeParameter {
         override val abiTypeInitializer: String
 
         init {
-            val simpleName = abiType::class.java.simpleName
-            val fieldTypes = fields.joinToString(", ") { it.abiTypeInitializer }
+            // Reference the StructFactory.abi property instead of redefining the ABI type
+            this.abiTypeInitializer = "${className.simpleName}.abi"
+        }
 
-            this.abiTypeInitializer =
-                "$ABI_TYPE_SIMPLE_NAME.$simpleName.struct(${className.simpleName}::class, $fieldTypes)"
+        // Generate raw ABI type initializers for struct fields (to avoid circular dependency)
+        private fun getRawFieldAbiInitializers(): String {
+            return fields.joinToString(", ") { field ->
+                when (field) {
+                    is Struct -> {
+                        // For nested structs, use the full definition to avoid circular dependency
+                        val fieldTypes = field.getRawFieldAbiInitializers()
+                        "$ABI_TYPE_SIMPLE_NAME.Tuple.struct(${field.className.simpleName}::class, $fieldTypes)"
+                    }
+                    else -> field.abiTypeInitializer
+                }
+            }
         }
 
         fun toAbiStructClass(): TypeSpec = CodeFactory.createClass(className, fields, KModifier.DATA) { builder, _ ->
@@ -112,6 +123,13 @@ sealed interface AbiTypeParameter {
 
             val companion = TypeSpec.companionObjectBuilder()
                 .addSuperinterface(StructFactory::class.asClassName().parameterizedBy(className))
+                .addProperty(
+                    PropertySpec.builder("abi", AbiType.Tuple::class.asClassName().parameterizedBy(className))
+                        .addModifiers(KModifier.OVERRIDE)
+                        .addAnnotation(JvmStatic::class)
+                        .initializer("%T.struct(${className.simpleName}::class, %L)", AbiType.Tuple::class, getRawFieldAbiInitializers())
+                        .build(),
+                )
                 .addFunction(
                     FunSpec.builder("fromTuple")
                         .addAnnotation(JvmStatic::class)

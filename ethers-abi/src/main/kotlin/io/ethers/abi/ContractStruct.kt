@@ -12,5 +12,6 @@ interface ContractStruct {
  * Struct factory, used to create a [ContractStruct] from a tuple.
  * */
 interface StructFactory<T : ContractStruct> {
+    val abi: AbiType.Tuple<T>
     fun fromTuple(data: List<Any>): T
 }

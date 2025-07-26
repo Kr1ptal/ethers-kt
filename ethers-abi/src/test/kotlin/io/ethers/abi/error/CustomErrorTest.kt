@@ -114,6 +114,9 @@ class CustomErrorTest : FunSpec({
 
         companion object : StructFactory<ErrorMsg> {
             @JvmStatic
+            override val abi: AbiType.Tuple<ErrorMsg> = AbiType.Tuple.struct(ErrorMsg::class, AbiType.String, AbiType.UInt(256), AbiType.Array(AbiType.Bool))
+
+            @JvmStatic
             override fun fromTuple(data: List<Any>): ErrorMsg = ErrorMsg(
                 data[0] as String,
                 data[1] as BigInteger,
