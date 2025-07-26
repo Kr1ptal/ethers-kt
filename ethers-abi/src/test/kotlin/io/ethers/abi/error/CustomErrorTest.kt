@@ -86,12 +86,7 @@ class CustomErrorTest : FunSpec({
                 "ErrorWithStruct",
                 listOf(
                     AbiType.UInt(256),
-                    AbiType.Tuple.struct(
-                        ErrorMsg::class,
-                        AbiType.String,
-                        AbiType.UInt(256),
-                        AbiType.Array(AbiType.Bool),
-                    ),
+                    ErrorMsg.abi,
                 ),
                 emptyList(),
             )
