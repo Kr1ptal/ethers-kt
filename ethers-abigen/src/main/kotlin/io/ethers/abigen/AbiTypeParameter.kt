@@ -67,14 +67,28 @@ sealed interface AbiTypeParameter {
 
         // this can be raw Tuple, the correct one is created when generating the initializer
         override val abiType: AbiType.Tuple<*> = AbiType.Tuple.raw(fields.map { it.abiType })
-        override val abiTypeInitializer: String
 
-        init {
-            val simpleName = abiType::class.java.simpleName
-            val fieldTypes = fields.joinToString(", ") { it.abiTypeInitializer }
+        // Reference the StructFactory.abi property instead of redefining the ABI type
+        override val abiTypeInitializer = "${className.simpleName}.abi"
 
-            this.abiTypeInitializer =
-                "$ABI_TYPE_SIMPLE_NAME.$simpleName.struct(${className.simpleName}::class, $fieldTypes)"
+        // Generate ABI type initializers for struct fields, using StructFactory.abi references where possible
+        private fun getFieldAbiInitializers(currentStruct: ClassName? = null): String {
+            return fields.joinToString(", ") { field ->
+                when (field) {
+                    is Struct -> {
+                        // Avoid self-reference when defining the struct's own abi property
+                        if (currentStruct != null && field.className == currentStruct) {
+                            // Self-reference detected, use full definition to avoid circular dependency
+                            val fieldTypes = field.getFieldAbiInitializers(currentStruct)
+                            "$ABI_TYPE_SIMPLE_NAME.Tuple.struct(${field.className.simpleName}::class, $fieldTypes)"
+                        } else {
+                            // Use StructFactory.abi reference for DRY principle
+                            "${field.className.simpleName}.abi"
+                        }
+                    }
+                    else -> field.abiTypeInitializer
+                }
+            }
         }
 
         fun toAbiStructClass(): TypeSpec = CodeFactory.createClass(className, fields, KModifier.DATA) { builder, _ ->
@@ -112,6 +126,13 @@ sealed interface AbiTypeParameter {
 
             val companion = TypeSpec.companionObjectBuilder()
                 .addSuperinterface(StructFactory::class.asClassName().parameterizedBy(className))
+                .addProperty(
+                    PropertySpec.builder("abi", AbiType.Tuple::class.asClassName().parameterizedBy(className))
+                        .addModifiers(KModifier.OVERRIDE)
+                        .addAnnotation(JvmStatic::class)
+                        .initializer("%T.struct(${className.simpleName}::class, %L)", AbiType.Tuple::class, getFieldAbiInitializers(className))
+                        .build(),
+                )
                 .addFunction(
                     FunSpec.builder("fromTuple")
                         .addAnnotation(JvmStatic::class)

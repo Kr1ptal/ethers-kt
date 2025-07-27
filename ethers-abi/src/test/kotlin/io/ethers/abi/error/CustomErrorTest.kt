@@ -86,12 +86,7 @@ class CustomErrorTest : FunSpec({
                 "ErrorWithStruct",
                 listOf(
                     AbiType.UInt(256),
-                    AbiType.Tuple.struct(
-                        ErrorMsg::class,
-                        AbiType.String,
-                        AbiType.UInt(256),
-                        AbiType.Array(AbiType.Bool),
-                    ),
+                    ErrorMsg.abi,
                 ),
                 emptyList(),
             )
@@ -113,6 +108,9 @@ class CustomErrorTest : FunSpec({
         override val tuple: List<Any> = listOf(msg, value, flags)
 
         companion object : StructFactory<ErrorMsg> {
+            @JvmStatic
+            override val abi: AbiType.Tuple<ErrorMsg> = AbiType.Tuple.struct(ErrorMsg::class, AbiType.String, AbiType.UInt(256), AbiType.Array(AbiType.Bool))
+
             @JvmStatic
             override fun fromTuple(data: List<Any>): ErrorMsg = ErrorMsg(
                 data[0] as String,

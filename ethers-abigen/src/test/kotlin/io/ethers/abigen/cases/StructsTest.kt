@@ -1,5 +1,6 @@
 package io.ethers.abigen.cases
 
+import io.ethers.abi.AbiType
 import io.ethers.abi.ContractStruct
 import io.ethers.abi.StructFactory
 import io.ethers.abigen.AbigenCompiler
@@ -8,6 +9,7 @@ import io.ethers.abigen.ClassDescriptor
 import io.ethers.abigen.getDeclaredStructs
 import io.ethers.abigen.nestedClass
 import io.ethers.abigen.parametrizedBy
+import io.ethers.abigen.typedNestedClass
 import io.ethers.core.types.Bytes
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
@@ -24,6 +26,44 @@ class StructsTest : FunSpec({
 
         test("all structs should have a factory") {
             classes.all { it.companionObjectInstance is StructFactory<*> } shouldBe true
+        }
+
+        test("all factories have correct abi signature") {
+            val factories = classes.map { it.companionObjectInstance as StructFactory<*> }
+            factories.map { it.abi } shouldContainExactlyInAnyOrder listOf(
+                AbiType.Tuple.struct(
+                    clazz.typedNestedClass("Simple"),
+                    AbiType.Bool,
+                    AbiType.Bytes,
+                ),
+                AbiType.Tuple.struct(
+                    clazz.typedNestedClass("Complex"),
+                    AbiType.Array(AbiType.Array(AbiType.Array(AbiType.UInt(256)))),
+                    AbiType.FixedArray(3, AbiType.String),
+                ),
+                AbiType.Tuple.struct(
+                    clazz.typedNestedClass("Nested"),
+                    AbiType.String,
+                    AbiType.Tuple.struct(
+                        clazz.typedNestedClass("Simple"),
+                        AbiType.Bool,
+                        AbiType.Bytes,
+                    ),
+                    AbiType.Tuple.struct(
+                        clazz.typedNestedClass("Complex"),
+                        AbiType.Array(AbiType.Array(AbiType.Array(AbiType.UInt(256)))),
+                        AbiType.FixedArray(3, AbiType.String),
+                    ),
+                ),
+                AbiType.Tuple.struct(
+                    clazz.typedNestedClass("classStruct"),
+                    AbiType.String,
+                ),
+                AbiType.Tuple.struct(
+                    clazz.typedNestedClass("packageStruct"),
+                    AbiType.String,
+                ),
+            )
         }
 
         test("nested struct encodes/decodes correctly") {
