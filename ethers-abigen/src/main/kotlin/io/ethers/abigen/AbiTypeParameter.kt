@@ -74,14 +74,20 @@ sealed interface AbiTypeParameter {
             this.abiTypeInitializer = "${className.simpleName}.abi"
         }
 
-        // Generate raw ABI type initializers for struct fields (to avoid circular dependency)
-        private fun getRawFieldAbiInitializers(): String {
+        // Generate ABI type initializers for struct fields, using StructFactory.abi references where possible
+        private fun getFieldAbiInitializers(currentStruct: ClassName? = null): String {
             return fields.joinToString(", ") { field ->
                 when (field) {
                     is Struct -> {
-                        // For nested structs, use the full definition to avoid circular dependency
-                        val fieldTypes = field.getRawFieldAbiInitializers()
-                        "$ABI_TYPE_SIMPLE_NAME.Tuple.struct(${field.className.simpleName}::class, $fieldTypes)"
+                        // Avoid self-reference when defining the struct's own abi property
+                        if (currentStruct != null && field.className == currentStruct) {
+                            // Self-reference detected, use full definition to avoid circular dependency
+                            val fieldTypes = field.getFieldAbiInitializers(currentStruct)
+                            "$ABI_TYPE_SIMPLE_NAME.Tuple.struct(${field.className.simpleName}::class, $fieldTypes)"
+                        } else {
+                            // Use StructFactory.abi reference for DRY principle
+                            "${field.className.simpleName}.abi"
+                        }
                     }
                     else -> field.abiTypeInitializer
                 }
@@ -127,7 +133,7 @@ sealed interface AbiTypeParameter {
                     PropertySpec.builder("abi", AbiType.Tuple::class.asClassName().parameterizedBy(className))
                         .addModifiers(KModifier.OVERRIDE)
                         .addAnnotation(JvmStatic::class)
-                        .initializer("%T.struct(${className.simpleName}::class, %L)", AbiType.Tuple::class, getRawFieldAbiInitializers())
+                        .initializer("%T.struct(${className.simpleName}::class, %L)", AbiType.Tuple::class, getFieldAbiInitializers(className))
                         .build(),
                 )
                 .addFunction(
