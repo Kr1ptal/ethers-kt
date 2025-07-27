@@ -40,7 +40,7 @@ interface StructFactory<T : ContractStruct> {
      * @return ABI tuple type parameterized with the struct type
      */
     val abi: AbiType.Tuple<T>
-    
+
     /**
      * Creates a struct instance from tuple data.
      *

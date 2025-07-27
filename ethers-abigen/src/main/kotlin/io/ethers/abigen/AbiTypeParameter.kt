@@ -67,12 +67,9 @@ sealed interface AbiTypeParameter {
 
         // this can be raw Tuple, the correct one is created when generating the initializer
         override val abiType: AbiType.Tuple<*> = AbiType.Tuple.raw(fields.map { it.abiType })
-        override val abiTypeInitializer: String
 
-        init {
-            // Reference the StructFactory.abi property instead of redefining the ABI type
-            this.abiTypeInitializer = "${className.simpleName}.abi"
-        }
+        // Reference the StructFactory.abi property instead of redefining the ABI type
+        override val abiTypeInitializer = "${className.simpleName}.abi"
 
         // Generate ABI type initializers for struct fields, using StructFactory.abi references where possible
         private fun getFieldAbiInitializers(currentStruct: ClassName? = null): String {
