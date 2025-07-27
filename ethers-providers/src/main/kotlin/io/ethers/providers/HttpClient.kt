@@ -82,20 +82,9 @@ class HttpClient(
             override fun onResponse(call: Call, response: Response) {
                 response.use {
                     try {
-                        val responseBody = it.body
-                        if (responseBody == null) {
-                            // complete all requests and the batch future
-                            for (i in batch.responses.indices) {
-                                batch.responses[i].complete(ERROR_NO_RESPONSE)
-                            }
-
-                            ret.complete(false)
-                            return
-                        }
-
-                        var stream = responseBody.byteStream()
+                        var stream = it.body.byteStream()
                         LOG.trc {
-                            // reading from response body consumes it, so we need to create a new one
+                            // reading from the response body consumes it, so we need to create a new stream
                             val arr = stream.readBytes()
                             stream = ByteArrayInputStream(arr)
                             "Batch response: ${String(arr)}".removeSuffix("\n")
@@ -196,15 +185,9 @@ class HttpClient(
             override fun onResponse(call: Call, response: Response) {
                 response.use {
                     try {
-                        val responseBody = it.body
-                        if (responseBody == null) {
-                            ret.complete(ERROR_NO_RESPONSE)
-                            return
-                        }
-
-                        var stream = responseBody.byteStream()
+                        var stream = it.body.byteStream()
                         LOG.trc {
-                            // reading from response body consumes it, so we need to create a new one
+                            // reading from the response body consumes it, so we need to create a new stream
                             val arr = stream.readBytes()
                             stream = ByteArrayInputStream(arr)
                             "Response: ${String(arr)}".removeSuffix("\n")
@@ -370,13 +353,6 @@ class HttpClient(
             RpcError(
                 RpcError.CODE_INVALID_RESPONSE,
                 "Invalid response, no 'result' or 'error' fields in response",
-            ),
-        )
-
-        internal val ERROR_NO_RESPONSE = failure(
-            RpcError(
-                RpcError.CODE_NO_RESPONSE,
-                "Response body is null",
             ),
         )
 
