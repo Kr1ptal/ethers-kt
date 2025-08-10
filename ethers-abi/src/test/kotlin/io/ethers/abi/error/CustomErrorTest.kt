@@ -1,6 +1,7 @@
 package io.ethers.abi.error
 
 import io.ethers.abi.AbiFunction
+import io.ethers.abi.AbiStruct
 import io.ethers.abi.AbiType
 import io.ethers.abi.ContractStruct
 import io.ethers.abi.StructFactory
@@ -86,7 +87,7 @@ class CustomErrorTest : FunSpec({
                 "ErrorWithStruct",
                 listOf(
                     AbiType.UInt(256),
-                    ErrorMsg.abi,
+                    ErrorMsg.abi.type,
                 ),
                 emptyList(),
             )
@@ -109,7 +110,12 @@ class CustomErrorTest : FunSpec({
 
         companion object : StructFactory<ErrorMsg> {
             @JvmStatic
-            override val abi: AbiType.Tuple<ErrorMsg> = AbiType.Tuple.struct(ErrorMsg::class, AbiType.String, AbiType.UInt(256), AbiType.Array(AbiType.Bool))
+            override val abi: AbiStruct<ErrorMsg> = AbiStruct(
+                ErrorMsg::class,
+                AbiStruct.Field("msg", AbiType.String),
+                AbiStruct.Field("value", AbiType.UInt(256)),
+                AbiStruct.Field("flags", AbiType.Array(AbiType.Bool)),
+            )
 
             @JvmStatic
             override fun fromTuple(data: List<Any>): ErrorMsg = ErrorMsg(

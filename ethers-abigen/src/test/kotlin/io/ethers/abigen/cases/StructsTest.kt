@@ -30,7 +30,7 @@ class StructsTest : FunSpec({
 
         test("all factories have correct abi signature") {
             val factories = classes.map { it.companionObjectInstance as StructFactory<*> }
-            factories.map { it.abi } shouldContainExactlyInAnyOrder listOf(
+            factories.map { it.abi.type } shouldContainExactlyInAnyOrder listOf(
                 AbiType.Tuple.struct(
                     clazz.typedNestedClass("Simple"),
                     AbiType.Bool,
