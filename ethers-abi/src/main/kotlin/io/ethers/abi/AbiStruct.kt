@@ -18,6 +18,8 @@ interface ContractStruct {
      * @return ordered list of field values that can be ABI-encoded as a tuple
      */
     val tuple: List<Any>
+
+    val abiDefinition: AbiStruct<*>
 }
 
 /**
@@ -39,7 +41,7 @@ interface StructFactory<T : ContractStruct> {
      * reference for ABI encoding/decoding operations and is used throughout the
      * codebase to avoid duplicate ABI definitions.
      *
-     * @return ABI tuple type parameterized with the struct type
+     * @return [AbiStruct] parametrized by ContractStruct [T]
      */
     val abi: AbiStruct<T>
 

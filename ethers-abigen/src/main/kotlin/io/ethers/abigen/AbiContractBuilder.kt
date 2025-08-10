@@ -373,7 +373,7 @@ class AbiContractBuilder(
 
         // use "this" for referencing class properties because there can also be a function parameter with the same name
         val body = CodeBlock.builder().beginControlFlow(
-            "return %T(this.provider, this.address, %N.encodeCall(%L)) {",
+            "return %T(this.provider, this.address, %N.${AbiFunction::encodeCall.name}(%L)) {",
             callClass,
             abiFunctionProperty,
             encodeArgs,
@@ -383,7 +383,7 @@ class AbiContractBuilder(
             builder.returns(callClass.parameterizedBy(Unit::class.asClassName()))
         } else if (outputs.size == 1) {
             val retType = outputs.single().apiType
-            body.addStatement("val data = %N.decodeResponse(it)", abiFunctionProperty)
+            body.addStatement("val data = %N.${AbiFunction::decodeResponse.name}(it)", abiFunctionProperty)
             body.addStatement("data[0] as %L", retType)
 
             builder.returns(callClass.parameterizedBy(retType))
@@ -404,7 +404,7 @@ class AbiContractBuilder(
             repeat(outputs.size) { initializer.append("data[${index++}] as %L,") }
             initializer.deleteCharAt(initializer.length - 1).append(")")
 
-            body.addStatement("val data = %N.decodeResponse(it)", abiFunctionProperty)
+            body.addStatement("val data = %N.${AbiFunction::decodeResponse.name}(it)", abiFunctionProperty)
             body.addStatement(
                 initializer.toString(),
                 resultClassName,
@@ -512,12 +512,23 @@ class AbiContractBuilder(
         // filter function
         val filterReturnClass = if (event.anonymous) AnonymousEventFilter::class else EventFilter::class
         factoryBuilder.addFunction(
-            FunSpec.builder("filter")
+            FunSpec.builder(EventFactory<*>::filter.name)
                 .addAnnotation(JvmStatic::class)
                 .addModifiers(KModifier.OVERRIDE)
                 .addParameter("provider", Middleware::class)
                 .addCode("return %T(provider, this)", filterReturnClass)
                 .returns(filterReturnClass.asClassName().parameterizedBy(eventClassName))
+                .build(),
+        )
+
+        // override function to make it statically accessible from java
+        factoryBuilder.addFunction(
+            FunSpec.builder(EventFactory<*>::isLogValid.name)
+                .addAnnotation(JvmStatic::class)
+                .addModifiers(KModifier.OVERRIDE)
+                .addParameter(ParameterSpec.builder("log", Log::class).build())
+                .addCode("return super.${EventFactory<*>::isLogValid.name}(log)")
+                .returns(Boolean::class)
                 .build(),
         )
 
@@ -582,7 +593,7 @@ class AbiContractBuilder(
             )
 
             // add "log" parameter to constructor as last argument
-            val logParam = ParameterSpec.builder("log", Log::class).build()
+            val logParam = ParameterSpec.builder(ContractEvent::log.name, Log::class).build()
             CodeFactory.addConstructorValParameter(
                 builder,
                 constructor,
@@ -625,7 +636,7 @@ class AbiContractBuilder(
 
         // add function body
         function.addStatement(
-            "return %T(provider, ${abiProperty.name}.encode(listOf(%L)), ::%T)",
+            "return %T(provider, ${abiProperty.name}.${AbiConstructor::encode.name}(listOf(%L)), ::%T)",
             callClass,
             arguments.joinToString(", ") { it.name },
             contractName,
@@ -656,7 +667,7 @@ class AbiContractBuilder(
     }
 
     private fun createAbiErrorProperty(name: String, inputTypes: List<AbiTypeParameter>): PropertySpec {
-        return PropertySpec.builder("abi", AbiFunction::class)
+        return PropertySpec.builder(CustomErrorFactory<*>::abi.name, AbiFunction::class)
             .addModifiers(KModifier.OVERRIDE)
             .addAnnotation(JvmStatic::class)
             .initializer(
@@ -672,7 +683,7 @@ class AbiContractBuilder(
         inputTypes: List<AbiTypeParameter>,
         anonymous: Boolean,
     ): PropertySpec {
-        return PropertySpec.builder("abi", AbiEvent::class)
+        return PropertySpec.builder(EventFactory<*>::abi.name, AbiEvent::class)
             .addModifiers(KModifier.OVERRIDE)
             .addAnnotation(JvmStatic::class)
             .initializer(

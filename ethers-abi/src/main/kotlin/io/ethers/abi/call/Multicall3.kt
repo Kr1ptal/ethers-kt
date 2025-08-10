@@ -347,6 +347,9 @@ class Multicall3(
     ) : ContractStruct {
         override val tuple: List<Any> = listOf(target, callData)
 
+        override val abiDefinition: AbiStruct<*>
+            get() = abi
+
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
             if (javaClass != other?.javaClass) return false
@@ -381,6 +384,9 @@ class Multicall3(
         val callData: Bytes,
     ) : ContractStruct {
         override val tuple: List<Any> = listOf(target, allowFailure, callData)
+
+        override val abiDefinition: AbiStruct<*>
+            get() = abi
 
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
@@ -424,6 +430,9 @@ class Multicall3(
         val callData: Bytes,
     ) : ContractStruct {
         override val tuple: List<Any> = listOf(target, allowFailure, value, callData)
+
+        override val abiDefinition: AbiStruct<*>
+            get() = abi
 
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
@@ -469,6 +478,9 @@ class Multicall3(
         val returnData: Bytes,
     ) : ContractStruct {
         override val tuple: List<Any> = listOf(success, returnData)
+
+        override val abiDefinition: AbiStruct<*>
+            get() = abi
 
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
