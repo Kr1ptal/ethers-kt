@@ -24,6 +24,37 @@ interface ContractStruct {
      * @return the [AbiType.Struct] definition of this struct.
      * */
     val abiType: AbiType.Struct<*>
+
+    /**
+     * Converts this struct to an EIP712 message map.
+     *
+     * This function transforms a ContractStruct's tuple data into a nested Map<String, Any>
+     * structure suitable for EIP712 typed data. It maps field names from the struct's ABI definition
+     * to their corresponding values, recursively handling nested structs and arrays.
+     *
+     * @return Map where keys are field names and values are properly converted field values
+     */
+    fun toEIP712Message(): Map<String, Any> {
+        return this.abiType.fields.zip(this.tuple).associate { (field, value) ->
+            field.name to toEIP712Message(value, field.type)
+        }
+    }
+}
+
+/**
+ * Recursively converts a value based on its ABI type for EIP712 message representation.
+ *
+ * @param value The value to convert
+ * @param abiType The ABI type definition for the value
+ * @return Converted value suitable for EIP712 message map
+ */
+private fun toEIP712Message(value: Any, abiType: AbiType<*>): Any {
+    return when (abiType) {
+        is AbiType.Struct<*> -> (value as ContractStruct).toEIP712Message()
+        is AbiType.Array<*> -> (value as List<*>).map { toEIP712Message(it!!, abiType.type) }
+        is AbiType.FixedArray<*> -> (value as List<*>).map { toEIP712Message(it!!, abiType.type) }
+        else -> value
+    }
 }
 
 /**

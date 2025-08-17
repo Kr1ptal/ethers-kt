@@ -110,7 +110,7 @@ object EIP712Codec {
                     getSortedComponents(field.type, components, visiting)
                 }
 
-                // Remove from visiting set after processing
+                // Remove from the visiting set after processing
                 visiting.remove(type.name)
 
                 components
