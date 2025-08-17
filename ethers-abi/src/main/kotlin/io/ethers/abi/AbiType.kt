@@ -97,6 +97,8 @@ sealed interface AbiType<T : Any> {
         override val isDynamic: Boolean = type.isDynamic
 
         companion object {
+            @JvmStatic
+            @JvmName("ofStruct")
             operator fun <T : ContractStruct> invoke(length: kotlin.Int, factory: StructFactory<T>): FixedArray<T> {
                 return FixedArray(length, factory.abi)
             }
@@ -111,6 +113,8 @@ sealed interface AbiType<T : Any> {
         override val isDynamic: Boolean = true
 
         companion object {
+            @JvmStatic
+            @JvmName("ofStruct")
             operator fun <T : ContractStruct> invoke(factory: StructFactory<T>): Array<T> {
                 return Array(factory.abi)
             }
@@ -141,22 +145,8 @@ sealed interface AbiType<T : Any> {
         )
 
         val name: kotlin.String = classType.simpleName
-
-        val eip712Type: kotlin.String = buildString {
-            append(name)
-            append('(')
-
-            for (i in 0 until fields.size) {
-                if (i > 0) append(',')
-                val field = fields[i]
-                append(field.type.getEIP712RootType()).append(' ').append(field.name)
-            }
-
-            append(')')
-        }
-
+        val eip712Type: kotlin.String = getEIP712Type(name, fields)
         val eip712TypeHash by lazy { Hashing.keccak256(eip712Type.toByteArray(Charsets.UTF_8)) }
-
         val eip712Components by lazy { getEIP712Components() }
 
         data class Field(val name: kotlin.String, val type: AbiType<*>) {
@@ -177,21 +167,34 @@ sealed interface AbiType<T : Any> {
                 return Function { factory.fromTuple(it) }
             }
 
+            private fun getEIP712Type(name: kotlin.String, fields: List<Field>): kotlin.String = buildString {
+                append(name)
+                append('(')
+
+                for (i in 0 until fields.size) {
+                    if (i > 0) append(',')
+                    val field = fields[i]
+                    append(field.type.getEIP712RootType()).append(' ').append(field.name)
+                }
+
+                append(')')
+            }
+
             private fun AbiType<*>.getEIP712Components(
                 components: MutableMap<kotlin.String, List<EIP712Field>> = HashMap(),
             ): Map<kotlin.String, List<EIP712Field>> {
-                when (this) {
+                return when (this) {
                     is Array<*> -> type.getEIP712Components(components)
                     is FixedArray<*> -> type.getEIP712Components(components)
                     is Struct<*> -> {
                         components[name] = fields.map { EIP712Field(it.name, it.type.getEIP712RootType()) }
                         fields.forEach { it.type.getEIP712Components(components) }
+
+                        components
                     }
 
-                    else -> {}
+                    else -> components
                 }
-
-                return components
             }
 
             private fun AbiType<*>.getEIP712RootType(): kotlin.String {
@@ -271,14 +274,14 @@ sealed interface AbiType<T : Any> {
              * Create a raw [Tuple] type from [types], represented as a list of elements.
              * */
             @JvmStatic
-            @JvmName("raw")
+            @JvmName("ofTypes")
             operator fun invoke(vararg types: AbiType<*>): Tuple<out List<Any>> = invoke(types.toList())
 
             /**
              * Create a raw [Tuple] type from [types], represented as a list of elements.
              * */
             @JvmStatic
-            @JvmName("raw")
+            @JvmName("ofTypes")
             operator fun invoke(types: List<AbiType<*>>): Tuple<out List<Any>> {
                 return Tuple(CLASS_TYPE_TUPLE, TUPLE_FACTORY, types)
             }
