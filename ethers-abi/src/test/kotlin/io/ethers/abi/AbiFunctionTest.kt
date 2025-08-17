@@ -59,7 +59,7 @@ class AbiFunctionTest : FunSpec({
                 AbiType.Address,
                 AbiType.Array(AbiType.Int(256)),
                 AbiType.FixedArray(2, AbiType.UInt(64)),
-                AbiType.Tuple.raw(AbiType.String, AbiType.FixedBytes(12)),
+                AbiType.Tuple.invoke(AbiType.String, AbiType.FixedBytes(12)),
             ),
             null,
         ),
@@ -70,9 +70,9 @@ class AbiFunctionTest : FunSpec({
                 AbiType.Address,
                 AbiType.Array(AbiType.Int(256)),
                 AbiType.FixedArray(2, AbiType.UInt(64)),
-                AbiType.Tuple.raw(AbiType.String, AbiType.FixedBytes(12)),
+                AbiType.Tuple.invoke(AbiType.String, AbiType.FixedBytes(12)),
             ),
-            listOf(AbiType.Tuple.raw(AbiType.Address, AbiType.String)),
+            listOf(AbiType.Tuple.invoke(AbiType.Address, AbiType.String)),
         ),
     ).forAll { (signature, name, inputs, outputs) ->
         test("parse valid signature: '$signature'") {

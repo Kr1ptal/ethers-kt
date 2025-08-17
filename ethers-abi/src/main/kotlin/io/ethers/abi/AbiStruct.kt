@@ -1,7 +1,5 @@
 package io.ethers.abi
 
-import kotlin.reflect.KClass
-
 /**
  * A contract-defined struct. Supports converting its fields to a tuple, and creating a struct from a tuple
  * via [StructFactory].
@@ -19,7 +17,13 @@ interface ContractStruct {
      */
     val tuple: List<Any>
 
-    val abiDefinition: AbiStruct<*>
+    /**
+     * The [AbiType.Struct] definition of this [ContractStruct]. It is recommended that this
+     * property delegates to [StructFactory].abi property.
+     *
+     * @return the [AbiType.Struct] definition of this struct.
+     * */
+    val abiType: AbiType.Struct<*>
 }
 
 /**
@@ -41,9 +45,9 @@ interface StructFactory<T : ContractStruct> {
      * reference for ABI encoding/decoding operations and is used throughout the
      * codebase to avoid duplicate ABI definitions.
      *
-     * @return [AbiStruct] parametrized by ContractStruct [T]
+     * @return [AbiType.Struct] parametrized by ContractStruct [T]
      */
-    val abi: AbiStruct<T>
+    val abi: AbiType.Struct<T>
 
     /**
      * Creates a struct instance from tuple data.
@@ -58,18 +62,4 @@ interface StructFactory<T : ContractStruct> {
      * @throws ClassCastException if data types don't match expected field types
      */
     fun fromTuple(data: List<Any>): T
-}
-
-data class AbiStruct<T : ContractStruct>(
-    val name: String,
-    val fields: List<Field>,
-    val type: AbiType.Tuple<T>,
-) {
-    constructor(clazz: KClass<T>, vararg fields: Field) : this(
-        name = clazz.simpleName!!,
-        fields = fields.toList(),
-        type = AbiType.Tuple.struct(clazz, *fields.map { it.type }.toTypedArray()),
-    )
-
-    data class Field(val name: String, val type: AbiType<*>)
 }

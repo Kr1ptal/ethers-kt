@@ -10,7 +10,6 @@ import com.squareup.kotlinpoet.PropertySpec
 import com.squareup.kotlinpoet.TypeName
 import com.squareup.kotlinpoet.TypeSpec
 import com.squareup.kotlinpoet.asClassName
-import io.ethers.abi.AbiStruct
 import io.ethers.abi.AbiType
 import io.ethers.abi.ContractStruct
 import io.ethers.abi.StructFactory
@@ -67,16 +66,16 @@ sealed interface AbiTypeParameter {
             get() = structName
 
         // this can be raw Tuple, the correct one is created when generating the initializer
-        override val abiType: AbiType.Tuple<*> = AbiType.Tuple.raw(fields.map { it.abiType })
+        override val abiType: AbiType.Tuple<*> = AbiType.Tuple.invoke(fields.map { it.abiType })
 
         // Reference the StructFactory.abi property instead of redefining the ABI type
         override val abiTypeInitializer =
-            "${className.simpleName}.${StructFactory<*>::abi.name}.${AbiStruct<*>::type.name}"
+            "${className.simpleName}.${StructFactory<*>::abi.name}"
 
         // Generate AbiStruct field initializers
         private fun getFieldAbiInitializers(): String {
-            return fields.joinToString(", ") {
-                "AbiStruct.Field(\"${it.name}\", ${it.abiTypeInitializer})"
+            return fields.joinToString(",\n") {
+                "AbiType.Struct.Field(\"${it.name}\", ${it.abiTypeInitializer})"
             }
         }
 
@@ -98,7 +97,7 @@ sealed interface AbiTypeParameter {
             val tupleInitializer = StringBuilder().append("listOf(")
             val fromTupleReader = StringBuilder().append("return %T(")
 
-            // all parameters are named - struct field cannot have empty name
+            // all parameters are named - struct field cannot have an empty name
             fields.forEachIndexed { index, it ->
                 tupleInitializer.append("${it.name}, ")
                 fromTupleReader.append("data[$index] as %L, ")
@@ -115,8 +114,8 @@ sealed interface AbiTypeParameter {
                     .build()
 
             val abiProperty = PropertySpec.builder(
-                ContractStruct::abiDefinition.name,
-                AbiStruct::class.asClassName().parameterizedBy(className),
+                ContractStruct::abiType.name,
+                AbiType.Struct::class.asClassName().parameterizedBy(className),
             )
                 .addModifiers(KModifier.OVERRIDE)
                 .getter(FunSpec.getterBuilder().addCode("return ${StructFactory<*>::abi.name}").build())
@@ -127,13 +126,13 @@ sealed interface AbiTypeParameter {
                 .addProperty(
                     PropertySpec.builder(
                         StructFactory<*>::abi.name,
-                        AbiStruct::class.asClassName().parameterizedBy(className),
+                        AbiType.Struct::class.asClassName().parameterizedBy(className),
                     )
                         .addModifiers(KModifier.OVERRIDE)
                         .addAnnotation(JvmStatic::class)
                         .initializer(
-                            "%T(${className.simpleName}::class, %L)",
-                            AbiStruct::class,
+                            "%T(${className.simpleName}::class, ::fromTuple, %L)",
+                            AbiType.Struct::class,
                             getFieldAbiInitializers(),
                         )
                         .build(),

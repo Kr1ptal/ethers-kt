@@ -30,39 +30,37 @@ class StructsTest : FunSpec({
 
         test("all factories have correct abi signature") {
             val factories = classes.map { it.companionObjectInstance as StructFactory<*> }
-            factories.map { it.abi.type } shouldContainExactlyInAnyOrder listOf(
-                AbiType.Tuple.struct(
-                    clazz.typedNestedClass("Simple"),
-                    AbiType.Bool,
-                    AbiType.Bytes,
-                ),
-                AbiType.Tuple.struct(
-                    clazz.typedNestedClass("Complex"),
-                    AbiType.Array(AbiType.Array(AbiType.Array(AbiType.UInt(256)))),
-                    AbiType.FixedArray(3, AbiType.String),
-                ),
-                AbiType.Tuple.struct(
-                    clazz.typedNestedClass("Nested"),
-                    AbiType.String,
-                    AbiType.Tuple.struct(
-                        clazz.typedNestedClass("Simple"),
-                        AbiType.Bool,
-                        AbiType.Bytes,
-                    ),
-                    AbiType.Tuple.struct(
-                        clazz.typedNestedClass("Complex"),
-                        AbiType.Array(AbiType.Array(AbiType.Array(AbiType.UInt(256)))),
-                        AbiType.FixedArray(3, AbiType.String),
-                    ),
-                ),
-                AbiType.Tuple.struct(
-                    clazz.typedNestedClass("classStruct"),
-                    AbiType.String,
-                ),
-                AbiType.Tuple.struct(
-                    clazz.typedNestedClass("packageStruct"),
-                    AbiType.String,
-                ),
+            val simple = AbiType.Struct(
+                clazz.typedNestedClass("Simple"),
+                AbiType.Struct.Field("success", AbiType.Bool),
+                AbiType.Struct.Field("data", AbiType.Bytes),
+            )
+            val complex = AbiType.Struct(
+                clazz.typedNestedClass("Complex"),
+                AbiType.Struct.Field("status", AbiType.Array(AbiType.Array(AbiType.Array(AbiType.UInt(256))))),
+                AbiType.Struct.Field("msg", AbiType.FixedArray(3, AbiType.String)),
+            )
+            val nested = AbiType.Struct(
+                clazz.typedNestedClass("Nested"),
+                AbiType.Struct.Field("desc", AbiType.String),
+                AbiType.Struct.Field("simple", simple),
+                AbiType.Struct.Field("complex", complex),
+            )
+            val classStruct = AbiType.Struct(
+                clazz.typedNestedClass("classStruct"),
+                AbiType.Struct.Field("desc", AbiType.String),
+            )
+            val packageStruct = AbiType.Struct(
+                clazz.typedNestedClass("packageStruct"),
+                AbiType.Struct.Field("desc", AbiType.String),
+            )
+
+            factories.map { it.abi } shouldContainExactlyInAnyOrder listOf(
+                simple,
+                complex,
+                nested,
+                classStruct,
+                packageStruct,
             )
         }
 

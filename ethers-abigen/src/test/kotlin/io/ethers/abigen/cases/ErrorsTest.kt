@@ -41,7 +41,11 @@ class ErrorsTest : FunSpec({
                 listOf(
                     AbiType.UInt(256),
                     AbiType.Array(
-                        AbiType.Tuple.struct(detailsClass, AbiType.Bool, AbiType.Bytes),
+                        AbiType.Struct(
+                            detailsClass,
+                            AbiType.Struct.Field("success", AbiType.Bool),
+                            AbiType.Struct.Field("data", AbiType.Bytes),
+                        ),
                     ),
                 ),
                 listOf(
@@ -86,10 +90,10 @@ class ErrorsTest : FunSpec({
                     listOf(
                         AbiType.UInt(256),
                         AbiType.Array(
-                            AbiType.Tuple.struct(
+                            AbiType.Struct(
                                 clazz.typedNestedClass("Details"),
-                                AbiType.Bool,
-                                AbiType.Bytes,
+                                AbiType.Struct.Field("success", AbiType.Bool),
+                                AbiType.Struct.Field("data", AbiType.Bytes),
                             ),
                         ),
                     ),

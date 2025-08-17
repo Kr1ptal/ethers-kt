@@ -2,7 +2,6 @@ package io.ethers.abi.call
 
 import io.ethers.abi.AbiContract
 import io.ethers.abi.AbiFunction
-import io.ethers.abi.AbiStruct
 import io.ethers.abi.AbiType
 import io.ethers.abi.ContractStruct
 import io.ethers.abi.StructFactory
@@ -347,7 +346,7 @@ class Multicall3(
     ) : ContractStruct {
         override val tuple: List<Any> = listOf(target, callData)
 
-        override val abiDefinition: AbiStruct<*>
+        override val abiType: AbiType.Struct<*>
             get() = abi
 
         override fun equals(other: Any?): Boolean {
@@ -367,10 +366,11 @@ class Multicall3(
 
         companion object : StructFactory<Call> {
             @JvmStatic
-            override val abi: AbiStruct<Call> = AbiStruct(
+            override val abi: AbiType.Struct<Call> = AbiType.Struct(
                 Call::class,
-                AbiStruct.Field("target", AbiType.Address),
-                AbiStruct.Field("callData", AbiType.Bytes),
+                ::fromTuple,
+                AbiType.Struct.Field("target", AbiType.Address),
+                AbiType.Struct.Field("callData", AbiType.Bytes),
             )
 
             @JvmStatic
@@ -385,7 +385,7 @@ class Multicall3(
     ) : ContractStruct {
         override val tuple: List<Any> = listOf(target, allowFailure, callData)
 
-        override val abiDefinition: AbiStruct<*>
+        override val abiType: AbiType.Struct<*>
             get() = abi
 
         override fun equals(other: Any?): Boolean {
@@ -407,11 +407,11 @@ class Multicall3(
 
         companion object : StructFactory<Call3> {
             @JvmStatic
-            override val abi: AbiStruct<Call3> = AbiStruct(
+            override val abi: AbiType.Struct<Call3> = AbiType.Struct(
                 Call3::class,
-                AbiStruct.Field("target", AbiType.Address),
-                AbiStruct.Field("allowFailure", AbiType.Bool),
-                AbiStruct.Field("callData", AbiType.Bytes),
+                AbiType.Struct.Field("target", AbiType.Address),
+                AbiType.Struct.Field("allowFailure", AbiType.Bool),
+                AbiType.Struct.Field("callData", AbiType.Bytes),
             )
 
             @JvmStatic
@@ -431,7 +431,7 @@ class Multicall3(
     ) : ContractStruct {
         override val tuple: List<Any> = listOf(target, allowFailure, value, callData)
 
-        override val abiDefinition: AbiStruct<*>
+        override val abiType: AbiType.Struct<*>
             get() = abi
 
         override fun equals(other: Any?): Boolean {
@@ -455,12 +455,12 @@ class Multicall3(
 
         companion object : StructFactory<Call3Value> {
             @JvmStatic
-            override val abi: AbiStruct<Call3Value> = AbiStruct(
+            override val abi: AbiType.Struct<Call3Value> = AbiType.Struct(
                 Call3Value::class,
-                AbiStruct.Field("target", AbiType.Address),
-                AbiStruct.Field("allowFailure", AbiType.Bool),
-                AbiStruct.Field("value", AbiType.UInt(256)),
-                AbiStruct.Field("callData", AbiType.Bytes),
+                AbiType.Struct.Field("target", AbiType.Address),
+                AbiType.Struct.Field("allowFailure", AbiType.Bool),
+                AbiType.Struct.Field("value", AbiType.UInt(256)),
+                AbiType.Struct.Field("callData", AbiType.Bytes),
             )
 
             @JvmStatic
@@ -479,7 +479,7 @@ class Multicall3(
     ) : ContractStruct {
         override val tuple: List<Any> = listOf(success, returnData)
 
-        override val abiDefinition: AbiStruct<*>
+        override val abiType: AbiType.Struct<*>
             get() = abi
 
         override fun equals(other: Any?): Boolean {
@@ -499,10 +499,10 @@ class Multicall3(
 
         companion object : StructFactory<Result> {
             @JvmStatic
-            override val abi: AbiStruct<Result> = AbiStruct(
+            override val abi: AbiType.Struct<Result> = AbiType.Struct(
                 Result::class,
-                AbiStruct.Field("success", AbiType.Bool),
-                AbiStruct.Field("returnData", AbiType.Bytes),
+                AbiType.Struct.Field("success", AbiType.Bool),
+                AbiType.Struct.Field("returnData", AbiType.Bytes),
             )
 
             @JvmStatic
@@ -620,26 +620,26 @@ class Multicall3(
         @JvmField
         val FUNCTION_AGGREGATE3: AbiFunction = AbiFunction(
             "aggregate3",
-            listOf(AbiType.Array(Call3.abi.type)),
-            listOf(AbiType.Array(Result.abi.type)),
+            listOf(AbiType.Array(Call3)),
+            listOf(AbiType.Array(Result)),
         )
 
         @JvmField
         val FUNCTION_BLOCK_AND_AGGREGATE: AbiFunction = AbiFunction(
             "blockAndAggregate",
-            listOf(AbiType.Array(Call.abi.type)),
+            listOf(AbiType.Array(Call)),
             listOf(
                 AbiType.UInt(256),
                 AbiType.FixedBytes(32),
-                AbiType.Array(Result.abi.type),
+                AbiType.Array(Result),
             ),
         )
 
         @JvmField
         val FUNCTION_AGGREGATE3_VALUE: AbiFunction = AbiFunction(
             "aggregate3Value",
-            listOf(AbiType.Array(Call3Value.abi.type)),
-            listOf(AbiType.Array(Result.abi.type)),
+            listOf(AbiType.Array(Call3Value)),
+            listOf(AbiType.Array(Result)),
         )
 
         @JvmField
@@ -652,7 +652,7 @@ class Multicall3(
         @JvmField
         val FUNCTION_AGGREGATE: AbiFunction = AbiFunction(
             "aggregate",
-            listOf(AbiType.Array(Call.abi.type)),
+            listOf(AbiType.Array(Call)),
             listOf(AbiType.UInt(256), AbiType.Array(AbiType.Bytes)),
         )
 
@@ -687,19 +687,19 @@ class Multicall3(
         @JvmField
         val FUNCTION_TRY_AGGREGATE: AbiFunction = AbiFunction(
             "tryAggregate",
-            listOf(AbiType.Bool, AbiType.Array(Call.abi.type)),
-            listOf(AbiType.Array(Result.abi.type)),
+            listOf(AbiType.Bool, AbiType.Array(Call)),
+            listOf(AbiType.Array(Result)),
         )
 
         @JvmField
         val FUNCTION_TRY_BLOCK_AND_AGGREGATE: AbiFunction =
             AbiFunction(
                 "tryBlockAndAggregate",
-                listOf(AbiType.Bool, AbiType.Array(Call.abi.type)),
+                listOf(AbiType.Bool, AbiType.Array(Call)),
                 listOf(
                     AbiType.UInt(256),
                     AbiType.FixedBytes(32),
-                    AbiType.Array(Result.abi.type),
+                    AbiType.Array(Result),
                 ),
             )
 

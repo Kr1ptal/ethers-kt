@@ -44,10 +44,10 @@ class EventsTest : FunSpec({
             val logData = AbiCodec.encode(
                 listOf(
                     AbiType.UInt(16),
-                    AbiType.Tuple.struct(
+                    AbiType.Struct(
                         clazz.typedNestedClass("Details"),
-                        AbiType.Bool,
-                        AbiType.Bytes,
+                        AbiType.Struct.Field("success", AbiType.Bool),
+                        AbiType.Struct.Field("data", AbiType.Bytes),
                     ),
                 ),
                 listOf(errorCode, detailsStruct),
@@ -98,10 +98,10 @@ class EventsTest : FunSpec({
                     listOf(
                         AbiEvent.Token(AbiType.UInt(256), true),
                         AbiEvent.Token(
-                            AbiType.Tuple.struct(
+                            AbiType.Struct(
                                 clazz.typedNestedClass("Details"),
-                                AbiType.Bool,
-                                AbiType.Bytes,
+                                AbiType.Struct.Field("success", AbiType.Bool),
+                                AbiType.Struct.Field("data", AbiType.Bytes),
                             ),
                             false,
                         ),
@@ -114,10 +114,10 @@ class EventsTest : FunSpec({
                         AbiEvent.Token(AbiType.UInt(256), true),
                         AbiEvent.Token(AbiType.UInt(16), false),
                         AbiEvent.Token(
-                            AbiType.Tuple.struct(
+                            AbiType.Struct(
                                 clazz.typedNestedClass("Details"),
-                                AbiType.Bool,
-                                AbiType.Bytes,
+                                AbiType.Struct.Field("success", AbiType.Bool),
+                                AbiType.Struct.Field("data", AbiType.Bytes),
                             ),
                             false,
                         ),

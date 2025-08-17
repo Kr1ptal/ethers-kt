@@ -33,8 +33,8 @@ class AbiEventTest : FunSpec({
                 AbiType.String,
                 AbiType.Array(AbiType.Bool),
                 AbiType.FixedArray(20, AbiType.Address),
-                AbiType.Tuple.raw(AbiType.Address, AbiType.Bool),
-                AbiType.Tuple.raw(AbiType.Address, AbiType.Bytes),
+                AbiType.Tuple.invoke(AbiType.Address, AbiType.Bool),
+                AbiType.Tuple.invoke(AbiType.Address, AbiType.Bytes),
             ).checkAll {
                 AbiEvent.getTopicAbiType(it) shouldBe AbiEvent.NON_VALUE_INDEXED_TYPE
             }
