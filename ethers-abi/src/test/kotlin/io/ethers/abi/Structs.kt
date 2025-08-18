@@ -26,7 +26,7 @@ data class Inbox(val name: String, val mails: List<Mail>) : ContractStruct {
 }
 
 data class Mail(val from: Person, val to: Person, val contents: String, val header: Header) : ContractStruct {
-    override val tuple: List<Any> = listOf(from, to, contents)
+    override val tuple: List<Any> = listOf(from, to, contents, header)
     override val abiType: AbiType.Struct<*>
         get() = abi
 

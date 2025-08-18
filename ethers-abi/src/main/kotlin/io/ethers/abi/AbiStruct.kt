@@ -35,9 +35,13 @@ interface ContractStruct {
      * @return Map where keys are field names and values are properly converted field values
      */
     fun toEIP712Message(): Map<String, Any> {
-        return this.abiType.fields.zip(this.tuple).associate { (field, value) ->
-            field.name to toEIP712Message(value, field.type)
+        val ret = HashMap<String, Any>(tuple.size, 1.0f)
+        for (i in 0 until tuple.size) {
+            val value = tuple[i]
+            val field = abiType.fields[i]
+            ret[field.name] = toEIP712Message(value, field.type)
         }
+        return ret
     }
 }
 

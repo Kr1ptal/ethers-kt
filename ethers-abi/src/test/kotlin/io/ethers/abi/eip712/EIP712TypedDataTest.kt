@@ -30,7 +30,6 @@ class EIP712TypedDataTest : FunSpec({
             val mail = Mail(from, to, "Hello World", header)
 
             val message = mail.toEIP712Message()
-
             message shouldBe mapOf(
                 "from" to mapOf(
                     "wallet" to Address.ZERO,
