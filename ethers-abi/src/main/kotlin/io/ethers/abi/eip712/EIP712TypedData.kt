@@ -54,6 +54,13 @@ data class EIP712TypedData(
         return Hashing.keccak256(ret)
     }
 
+    /**
+     * Sign the [signatureHash] with provided [Signer].
+     * */
+    fun sign(signer: Signer): Signature {
+        return signer.signHash(signatureHash())
+    }
+
     companion object {
         /**
          * Creates an EIP712TypedData instance from a [ContractStruct] and [EIP712Domain].
@@ -97,7 +104,7 @@ data class EIP712Field(
 )
 
 /**
- * Sign the [EIP712TypedData.signatureHash] with this [Signature].
+ * Sign the [EIP712TypedData.signatureHash] with this [Signer].
  * */
 fun Signer.signTypedData(typedData: EIP712TypedData): Signature {
     return signHash(typedData.signatureHash())
