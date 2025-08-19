@@ -954,7 +954,7 @@ class AbiCodecTest : FunSpec({
         listOf(
             FailCase(
                 "tuple not supported",
-                listOf(AbiType.Tuple.invoke(AbiType.Int(256))),
+                listOf(AbiType.Tuple(AbiType.Int(256))),
                 listOf(listOf(BigInteger.ONE)),
             ),
             FailCase(

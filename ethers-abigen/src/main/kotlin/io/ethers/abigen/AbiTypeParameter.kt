@@ -66,7 +66,7 @@ sealed interface AbiTypeParameter {
             get() = structName
 
         // this can be raw Tuple, the correct one is created when generating the initializer
-        override val abiType: AbiType.Tuple<*> = AbiType.Tuple.invoke(fields.map { it.abiType })
+        override val abiType: AbiType.Tuple<*> = AbiType.Tuple(fields.map { it.abiType })
 
         // Reference the StructFactory.abi property instead of redefining the ABI type
         override val abiTypeInitializer =
