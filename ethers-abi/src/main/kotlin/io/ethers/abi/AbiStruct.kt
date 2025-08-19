@@ -31,16 +31,17 @@ interface ContractStruct {
     /**
      * Converts this struct to an EIP712 message map.
      *
-     * This function transforms a ContractStruct's tuple data into a nested Map<String, Any>
-     * structure suitable for EIP712 typed data. It maps field names from the struct's ABI definition
-     * to their corresponding values, recursively handling nested structs and arrays.
-     *
-     * @return Map where keys are field names and values are properly converted field values
+     * See [EIP712Codec.toMessage] for details.
      */
     fun toEIP712Message(): Map<String, Any> {
         return EIP712Codec.toMessage(this)
     }
 
+    /**
+     * Converts a [ContractStruct] to an EIP712 type definitions map.
+     *
+     * See [EIP712Codec.toTypeMap] for details.
+     */
     fun toEIP712TypeMap(): Map<String, List<EIP712Field>> {
         return EIP712Codec.toTypeMap(this)
     }
