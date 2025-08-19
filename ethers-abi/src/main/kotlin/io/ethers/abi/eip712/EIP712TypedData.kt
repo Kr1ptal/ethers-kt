@@ -1,7 +1,9 @@
 package io.ethers.abi.eip712
 
 import io.ethers.abi.ContractStruct
+import io.ethers.core.types.Signature
 import io.ethers.crypto.Hashing
+import io.ethers.signers.Signer
 
 /**
  * Represents EIP712 typed structured data for signing.
@@ -93,3 +95,10 @@ data class EIP712Field(
     val name: String,
     val type: String,
 )
+
+/**
+ * Sign the [EIP712TypedData.signatureHash] with this [Signature].
+ * */
+fun Signer.signTypedData(typedData: EIP712TypedData): Signature {
+    return signHash(typedData.signatureHash())
+}
