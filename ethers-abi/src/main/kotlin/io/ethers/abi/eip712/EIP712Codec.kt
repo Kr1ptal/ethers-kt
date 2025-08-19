@@ -3,11 +3,94 @@ package io.ethers.abi.eip712
 import io.ethers.abi.AbiCodec
 import io.ethers.abi.AbiType
 import io.ethers.abi.ContractStruct
+import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.crypto.Hashing
+import java.math.BigInteger
 import java.nio.ByteBuffer
 
 object EIP712Codec {
+    /**
+     * Converts this struct to an EIP712 message map.
+     *
+     * This function transforms a ContractStruct's tuple data into a nested Map<String, Any>
+     * structure suitable for EIP712 typed data. It maps field names from the struct's ABI definition
+     * to their corresponding values, recursively handling nested structs and arrays.
+     *
+     * @return Map where keys are field names and values are properly converted field values
+     */
+    fun toMessage(struct: ContractStruct): Map<String, Any> {
+        val tuple = struct.tuple
+        val abiType = struct.abiType
+        val ret = HashMap<String, Any>(tuple.size, 1.0f)
+        for (i in 0 until tuple.size) {
+            val value = tuple[i]
+            val field = abiType.fields[i]
+            ret[field.name] = toMessageRecursive(value, field.type)
+        }
+        return ret
+    }
+
+    /**
+     * Recursively converts a value based on its ABI type for EIP712 message representation.
+     *
+     * @param value The value to convert
+     * @param abiType The ABI type definition for the value
+     * @return Converted value suitable for EIP712 message map
+     */
+    private fun toMessageRecursive(value: Any, abiType: AbiType<*>): Any {
+        return when (abiType) {
+            is AbiType.Struct<*> -> (value as ContractStruct).toEIP712Message()
+            is AbiType.Array<*> -> (value as List<*>).map { toMessageRecursive(it!!, abiType.type) }
+            is AbiType.FixedArray<*> -> (value as List<*>).map { toMessageRecursive(it!!, abiType.type) }
+            else -> value
+        }
+    }
+
+    fun toTypeMap(struct: ContractStruct): Map<String, List<EIP712Field>> {
+        return toTypeMap(struct.abiType)
+    }
+
+    fun toTypeMap(
+        abi: AbiType<*>,
+        typeMap: MutableMap<String, List<EIP712Field>> = HashMap(),
+    ): Map<String, List<EIP712Field>> {
+        return when (abi) {
+            is AbiType.Array<*> -> toTypeMap(abi.type, typeMap)
+            is AbiType.FixedArray<*> -> toTypeMap(abi.type, typeMap)
+            is AbiType.Struct<*> -> {
+                typeMap[abi.name] = abi.fields.map { EIP712Field(it.name, it.type.getEIP712TypeDef()) }
+                abi.fields.forEach { toTypeMap(it.type, typeMap) }
+
+                typeMap
+            }
+
+            else -> typeMap
+        }
+    }
+
+    fun typeHash(struct: ContractStruct): ByteArray {
+        return typeHash(struct.abiType)
+    }
+
+    fun typeHash(abi: AbiType.Struct<*>): ByteArray {
+        val encodedType = encodeType(abi)
+        return Hashing.keccak256(encodedType.toByteArray(Charsets.UTF_8))
+    }
+
+    fun encodeRootType(abi: AbiType.Struct<*>): String = buildString {
+        append(abi.name)
+        append('(')
+
+        for (i in 0 until abi.fields.size) {
+            if (i > 0) append(',')
+            val field = abi.fields[i]
+            append(field.type.getEIP712TypeDef()).append(' ').append(field.name)
+        }
+
+        append(')')
+    }
+
     fun encodeType(struct: ContractStruct): String {
         return encodeType(struct.abiType)
     }
@@ -18,25 +101,15 @@ object EIP712Codec {
         val sortedComponents = getSortedComponents(abi)
 
         // remove the root type so it's always first
-        sortedComponents.remove(abi.eip712Type)
+        sortedComponents.remove(abi.eip712RootType)
 
         // add the root type first
-        builder.append(abi.eip712Type)
+        builder.append(abi.eip712RootType)
         for (component in sortedComponents) {
             builder.append(component)
         }
 
         return builder.toString()
-    }
-
-    /**
-     * Encodes the type definitions for EIP712 signing from EIP712TypedData.
-     *
-     * @param typedData The EIP712 typed data containing types and primary type
-     * @return The encoded type string with primary type first, followed by sorted dependencies
-     */
-    fun encodeType(typedData: EIP712TypedData): String {
-        return encodeType(typedData.primaryType, typedData.types)
     }
 
     /**
@@ -86,7 +159,8 @@ object EIP712Codec {
         )
 
         // typeHash
-        buff.put(abi.eip712TypeHash)
+        val encodedType = encodeType(abi)
+        buff.put(Hashing.keccak256(encodedType.toByteArray(Charsets.UTF_8)))
 
         // encoded data words
         for (i in 0 until tuple.size) {
@@ -94,6 +168,56 @@ object EIP712Codec {
             val value = tuple[i]
 
             buff.put(encodeDataWord(value, type))
+        }
+
+        return Hashing.keccak256(buff.array())
+    }
+
+    /**
+     * Hashes a struct using EIP712TypedData.
+     *
+     * @param typedData The EIP712 typed data containing types, primary type and message
+     * @return The keccak256 hash of the struct
+     */
+    fun hashStruct(typedData: EIP712TypedData): ByteArray {
+        return hashStruct(typedData.primaryType, typedData.types, typedData.message)
+    }
+
+    /**
+     * Hashes a struct using the primary type, types map, and message data.
+     *
+     * @param primaryType The name of the struct type to hash
+     * @param types Map of type definitions
+     * @param message The struct data as a map of field names to values
+     * @return The keccak256 hash of the struct
+     */
+    fun hashStruct(
+        primaryType: String,
+        types: Map<String, List<EIP712Field>>,
+        message: Map<String, Any>,
+    ): ByteArray {
+        // Get fields for the primary type
+        val fields = types[primaryType]
+            ?: throw IllegalArgumentException("Type '$primaryType' not found in types map")
+
+        // Calculate typeHash
+        val encodedType = encodeType(primaryType, types)
+        val typeHash = Hashing.keccak256(encodedType.toByteArray(Charsets.UTF_8))
+
+        // Allocate buffer for typeHash + encoded data words
+        val buff = ByteBuffer.allocate(
+            AbiCodec.WORD_SIZE_BYTES * (1 + fields.size),
+        )
+
+        // Add typeHash
+        buff.put(typeHash)
+
+        // Encode each field
+        for (field in fields) {
+            val value = message[field.name]
+                ?: throw IllegalArgumentException("Field '${field.name}' not found in message")
+
+            buff.put(encodeDataWord(value, field.type, types))
         }
 
         return Hashing.keccak256(buff.array())
@@ -136,6 +260,112 @@ object EIP712Codec {
         return Hashing.keccak256(bytes)
     }
 
+    /**
+     * Encodes a data word from a message value based on its field type string.
+     */
+    private fun encodeDataWord(
+        value: Any,
+        fieldType: String,
+        types: Map<String, List<EIP712Field>>,
+    ): ByteArray {
+        return when {
+            // Primitive types that can be encoded directly
+            fieldType == "address" -> {
+                val address = when (value) {
+                    is Address -> value
+                    is String -> Address(value)
+                    else -> throw IllegalArgumentException("Invalid address value: $value")
+                }
+                AbiCodec.encode(AbiType.Address, address)
+            }
+
+            fieldType == "bool" -> {
+                val bool = value as? Boolean
+                    ?: throw IllegalArgumentException("Invalid bool value: $value")
+                AbiCodec.encode(AbiType.Bool, bool)
+            }
+
+            fieldType.startsWith("uint") -> {
+                val bits = if (fieldType == "uint") 256 else fieldType.substring(4).toInt()
+                val bigInt = when (value) {
+                    is BigInteger -> value
+                    is Number -> BigInteger.valueOf(value.toLong())
+                    is String -> BigInteger(value)
+                    else -> throw IllegalArgumentException("Invalid uint value: $value")
+                }
+                AbiCodec.encode(AbiType.UInt(bits), bigInt)
+            }
+
+            fieldType.startsWith("int") && !fieldType.contains("uint") -> {
+                val bits = if (fieldType == "int") 256 else fieldType.substring(3).toInt()
+                val bigInt = when (value) {
+                    is BigInteger -> value
+                    is Number -> BigInteger.valueOf(value.toLong())
+                    is String -> BigInteger(value)
+                    else -> throw IllegalArgumentException("Invalid int value: $value")
+                }
+                AbiCodec.encode(AbiType.Int(bits), bigInt)
+            }
+
+            fieldType.startsWith("bytes") && fieldType.length > 5 -> {
+                // Fixed bytes
+                val length = fieldType.substring(5).toInt()
+                val bytes = when (value) {
+                    is Bytes -> value
+                    is ByteArray -> Bytes(value)
+                    is String -> Bytes(value)
+                    else -> throw IllegalArgumentException("Invalid bytes value: $value")
+                }
+                AbiCodec.encode(AbiType.FixedBytes(length), bytes)
+            }
+
+            // Dynamic types - need to be hashed
+            fieldType == "string" -> {
+                val str = value as? String
+                    ?: throw IllegalArgumentException("Invalid string value: $value")
+                Hashing.keccak256(str.toByteArray(Charsets.UTF_8))
+            }
+
+            fieldType == "bytes" -> {
+                val bytes = when (value) {
+                    is Bytes -> value.asByteArray()
+                    is ByteArray -> value
+                    is String -> Bytes(value).asByteArray()
+                    else -> throw IllegalArgumentException("Invalid bytes value: $value")
+                }
+                Hashing.keccak256(bytes)
+            }
+
+            // Array types
+            fieldType.endsWith("]") -> {
+                val array = value as? List<*>
+                    ?: throw IllegalArgumentException("Invalid array value: $value")
+                val baseType = fieldType.substringBefore('[')
+
+                // For arrays, hash the concatenated encoded elements
+                val buff = ByteBuffer.allocate(array.size * AbiCodec.WORD_SIZE_BYTES)
+                for (element in array) {
+                    buff.put(encodeDataWord(element!!, baseType, types))
+                }
+                Hashing.keccak256(buff.array())
+            }
+
+            // Custom struct type
+            else -> {
+                // Must be a struct type
+                if (!types.containsKey(fieldType)) {
+                    throw IllegalArgumentException("Unknown type: $fieldType")
+                }
+
+                val structData = value as? Map<*, *>
+                    ?: throw IllegalArgumentException("Invalid struct value for type $fieldType: $value")
+
+                @Suppress("UNCHECKED_CAST")
+                hashStruct(fieldType, types, structData as Map<String, Any>)
+            }
+        }
+    }
+
     private fun getSortedComponents(
         type: AbiType<*>,
         components: MutableSet<String> = sortedSetOf(),
@@ -150,7 +380,7 @@ object EIP712Codec {
                     throw IllegalStateException("Circular references are not allowed: struct '${type.name}' references itself")
                 }
 
-                components.add(type.eip712Type)
+                components.add(type.eip712RootType)
 
                 for (field in type.fields) {
                     getSortedComponents(field.type, components, visiting)
@@ -274,6 +504,24 @@ object EIP712Codec {
             }
 
             else -> false
+        }
+    }
+
+    private fun AbiType<*>.getEIP712TypeDef(): String {
+        return when (this) {
+            AbiType.Address,
+            AbiType.Bool,
+            AbiType.String,
+            AbiType.Bytes,
+            is AbiType.FixedBytes,
+            is AbiType.Int,
+            is AbiType.UInt,
+            -> abiType
+
+            is AbiType.Array<*> -> "${type.getEIP712TypeDef()}[]"
+            is AbiType.FixedArray<*> -> "${type.getEIP712TypeDef()}[$length]"
+            is AbiType.Struct<*> -> name
+            is AbiType.Tuple<*> -> throw IllegalStateException("Can't convert $this to EIP712 type definition. Raw Tuples not supported by EIP712")
         }
     }
 }

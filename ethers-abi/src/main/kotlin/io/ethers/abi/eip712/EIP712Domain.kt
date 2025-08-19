@@ -21,6 +21,10 @@ data class EIP712Domain(
         salt?.let { add(it) }
     }
 
+    val separator by lazy(LazyThreadSafetyMode.NONE) {
+        EIP712Codec.typeHash(abiType)
+    }
+
     override val abiType = AbiType.Struct(
         EIP712Domain::class.java,
         { data ->

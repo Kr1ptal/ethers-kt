@@ -1,7 +1,7 @@
 package io.ethers.abi
 
 import io.ethers.abi.AbiType.Companion.canonicalSignature
-import io.ethers.abi.eip712.EIP712Field
+import io.ethers.abi.eip712.EIP712Codec
 import io.ethers.crypto.Hashing
 import java.math.BigInteger
 import java.util.function.Function
@@ -144,10 +144,20 @@ sealed interface AbiType<T : Any> {
             fields.toList(),
         )
 
+        /**
+         * Get the name of the struct.
+         * */
         val name: kotlin.String = classType.simpleName
-        val eip712Type: kotlin.String = getEIP712Type(name, fields)
-        val eip712TypeHash by lazy { Hashing.keccak256(eip712Type.toByteArray(Charsets.UTF_8)) }
-        val eip712Components by lazy { getEIP712Components() }
+
+        /**
+         * Get the root EIP-712 definition of this struct.
+         *
+         * Example:
+         * ```
+         * Mail(Person from,Person to,string contents)
+         * ```
+         * */
+        val eip712RootType: kotlin.String = EIP712Codec.encodeRootType(this)
 
         data class Field(val name: kotlin.String, val type: AbiType<*>) {
             constructor(name: kotlin.String, factory: StructFactory<*>) : this(name, factory.abi)
@@ -165,54 +175,6 @@ sealed interface AbiType<T : Any> {
                 @Suppress("UNCHECKED_CAST")
                 val factory = companion as StructFactory<T>
                 return Function { factory.fromTuple(it) }
-            }
-
-            private fun getEIP712Type(name: kotlin.String, fields: List<Field>): kotlin.String = buildString {
-                append(name)
-                append('(')
-
-                for (i in 0 until fields.size) {
-                    if (i > 0) append(',')
-                    val field = fields[i]
-                    append(field.type.getEIP712RootType()).append(' ').append(field.name)
-                }
-
-                append(')')
-            }
-
-            private fun AbiType<*>.getEIP712Components(
-                components: MutableMap<kotlin.String, List<EIP712Field>> = HashMap(),
-            ): Map<kotlin.String, List<EIP712Field>> {
-                return when (this) {
-                    is Array<*> -> type.getEIP712Components(components)
-                    is FixedArray<*> -> type.getEIP712Components(components)
-                    is Struct<*> -> {
-                        components[name] = fields.map { EIP712Field(it.name, it.type.getEIP712RootType()) }
-                        fields.forEach { it.type.getEIP712Components(components) }
-
-                        components
-                    }
-
-                    else -> components
-                }
-            }
-
-            private fun AbiType<*>.getEIP712RootType(): kotlin.String {
-                return when (this) {
-                    Address,
-                    Bool,
-                    String,
-                    Bytes,
-                    is FixedBytes,
-                    is Int,
-                    is UInt,
-                    -> abiType
-
-                    is Array<*> -> "${type.getEIP712RootType()}[]"
-                    is FixedArray<*> -> "${type.getEIP712RootType()}[$length]"
-                    is Struct<*> -> name
-                    is Tuple<*> -> throw IllegalStateException("Can't convert $this to EIP712 root type")
-                }
             }
         }
     }

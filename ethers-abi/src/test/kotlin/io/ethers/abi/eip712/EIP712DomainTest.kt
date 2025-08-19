@@ -81,17 +81,17 @@ class EIP712DomainTest : FunSpec({
         domain.tuple shouldBe emptyList()
     }
 
-    test("existing eip712Type functionality still works") {
+    test("has correct root type") {
         val domain = EIP712Domain(
             name = "TestDApp",
             version = "1.0",
             chainId = BigInteger.valueOf(1),
         )
 
-        domain.abiType.eip712Type shouldBe "EIP712Domain(string name,string version,uint256 chainId)"
+        domain.abiType.eip712RootType shouldBe "EIP712Domain(string name,string version,uint256 chainId)"
     }
 
-    test("existing eip712TypeHash functionality still works") {
+    test("has correct separator hash") {
         val domain = EIP712Domain(
             name = "TestDApp",
             version = "1.0",
@@ -99,7 +99,7 @@ class EIP712DomainTest : FunSpec({
         )
 
         // Should not throw and should return a 32-byte hash
-        val hash = Hash(domain.abiType.eip712TypeHash)
+        val hash = Hash(domain.separator)
         hash shouldBe Hash("0xc2f8787176b8ac6bf7215b4adcc1e069bf4ab82d9ab1df05a57a91d425935b6e")
     }
 })

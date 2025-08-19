@@ -1,5 +1,8 @@
 package io.ethers.abi
 
+import io.ethers.abi.eip712.EIP712Codec
+import io.ethers.abi.eip712.EIP712Field
+
 /**
  * A contract-defined struct. Supports converting its fields to a tuple, and creating a struct from a tuple
  * via [StructFactory].
@@ -35,29 +38,11 @@ interface ContractStruct {
      * @return Map where keys are field names and values are properly converted field values
      */
     fun toEIP712Message(): Map<String, Any> {
-        val ret = HashMap<String, Any>(tuple.size, 1.0f)
-        for (i in 0 until tuple.size) {
-            val value = tuple[i]
-            val field = abiType.fields[i]
-            ret[field.name] = toEIP712Message(value, field.type)
-        }
-        return ret
+        return EIP712Codec.toMessage(this)
     }
-}
 
-/**
- * Recursively converts a value based on its ABI type for EIP712 message representation.
- *
- * @param value The value to convert
- * @param abiType The ABI type definition for the value
- * @return Converted value suitable for EIP712 message map
- */
-private fun toEIP712Message(value: Any, abiType: AbiType<*>): Any {
-    return when (abiType) {
-        is AbiType.Struct<*> -> (value as ContractStruct).toEIP712Message()
-        is AbiType.Array<*> -> (value as List<*>).map { toEIP712Message(it!!, abiType.type) }
-        is AbiType.FixedArray<*> -> (value as List<*>).map { toEIP712Message(it!!, abiType.type) }
-        else -> value
+    fun toEIP712TypeMap(): Map<String, List<EIP712Field>> {
+        return EIP712Codec.toTypeMap(this)
     }
 }
 
