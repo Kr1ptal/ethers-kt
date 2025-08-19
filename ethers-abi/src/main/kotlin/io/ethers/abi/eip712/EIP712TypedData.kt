@@ -31,8 +31,8 @@ data class EIP712TypedData(
 
     companion object {
         fun from(message: ContractStruct, domain: EIP712Domain): EIP712TypedData {
-            val messageTypes = EIP712Codec.toTypeMap(message.abiType)
-            val domainTypes = EIP712Codec.toTypeMap(domain.abiType)
+            val messageTypes = EIP712Codec.toTypeMap(message)
+            val domainTypes = EIP712Codec.toTypeMap(domain)
 
             return EIP712TypedData(
                 primaryType = message.abiType.name,
