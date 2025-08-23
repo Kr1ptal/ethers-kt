@@ -1,5 +1,8 @@
 package io.ethers.abi
 
+import io.ethers.abi.eip712.EIP712Codec
+import io.ethers.abi.eip712.EIP712Field
+
 /**
  * A contract-defined struct. Supports converting its fields to a tuple, and creating a struct from a tuple
  * via [StructFactory].
@@ -16,6 +19,32 @@ interface ContractStruct {
      * @return ordered list of field values that can be ABI-encoded as a tuple
      */
     val tuple: List<Any>
+
+    /**
+     * The [AbiType.Struct] definition of this [ContractStruct]. It is recommended that this
+     * property delegates to [StructFactory].abi property.
+     *
+     * @return the [AbiType.Struct] definition of this struct.
+     * */
+    val abiType: AbiType.Struct<*>
+
+    /**
+     * Converts this struct to an EIP712 message map.
+     *
+     * See [EIP712Codec.toMessage] for details.
+     */
+    fun toEIP712Message(): Map<String, Any> {
+        return EIP712Codec.toMessage(this)
+    }
+
+    /**
+     * Converts a [ContractStruct] to an EIP712 type definitions map.
+     *
+     * See [EIP712Codec.toTypeMap] for details.
+     */
+    fun toEIP712TypeMap(): Map<String, List<EIP712Field>> {
+        return EIP712Codec.toTypeMap(this)
+    }
 }
 
 /**
@@ -30,16 +59,16 @@ interface ContractStruct {
  */
 interface StructFactory<T : ContractStruct> {
     /**
-     * The ABI type definition for this struct.
+     * The ABI definition for this struct.
      *
      * This property provides the complete ABI tuple specification for the struct,
      * including field types and nested struct definitions. It serves as the canonical
      * reference for ABI encoding/decoding operations and is used throughout the
      * codebase to avoid duplicate ABI definitions.
      *
-     * @return ABI tuple type parameterized with the struct type
+     * @return [AbiType.Struct] parametrized by ContractStruct [T]
      */
-    val abi: AbiType.Tuple<T>
+    val abi: AbiType.Struct<T>
 
     /**
      * Creates a struct instance from tuple data.

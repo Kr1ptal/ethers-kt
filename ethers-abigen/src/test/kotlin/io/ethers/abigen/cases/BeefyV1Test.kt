@@ -84,117 +84,105 @@ class BeefyV1Test : FunSpec({
         }
 
         test("AbiFunction field") {
+            val authoritySetCommitment = AbiType.Struct(
+                clazz.typedNestedClass("AuthoritySetCommitment"),
+                AbiType.Struct.Field("id", AbiType.UInt(256)),
+                AbiType.Struct.Field("len", AbiType.UInt(256)),
+                AbiType.Struct.Field("root", AbiType.FixedBytes(32)),
+            )
+
+            val beefyConsensusState = AbiType.Struct(
+                clazz.typedNestedClass("BeefyConsensusState"),
+                AbiType.Struct.Field("latestHeight", AbiType.UInt(256)),
+                AbiType.Struct.Field("latestTimestamp", AbiType.UInt(256)),
+                AbiType.Struct.Field("frozenHeight", AbiType.UInt(256)),
+                AbiType.Struct.Field("latestHeadsRoot", AbiType.FixedBytes(32)),
+                AbiType.Struct.Field("beefyActivationBlock", AbiType.UInt(256)),
+                AbiType.Struct.Field("currentAuthoritySet", authoritySetCommitment),
+                AbiType.Struct.Field("nextAuthoritySet", authoritySetCommitment),
+            )
+
+            val payload = AbiType.Struct(
+                clazz.typedNestedClass("Payload"),
+                AbiType.Struct.Field("id", AbiType.FixedBytes(2)),
+                AbiType.Struct.Field("data", AbiType.Bytes),
+            )
+
+            val commitment = AbiType.Struct(
+                clazz.typedNestedClass("Commitment"),
+                AbiType.Struct.Field("payload", AbiType.Array(payload)),
+                AbiType.Struct.Field("blockNumber", AbiType.UInt(256)),
+                AbiType.Struct.Field("validatorSetId", AbiType.UInt(256)),
+            )
+
+            val signature = AbiType.Struct(
+                clazz.typedNestedClass("Signature"),
+                AbiType.Struct.Field("signature", AbiType.Bytes),
+                AbiType.Struct.Field("authorityIndex", AbiType.UInt(256)),
+            )
+
+            val signedCommitment = AbiType.Struct(
+                clazz.typedNestedClass("SignedCommitment"),
+                AbiType.Struct.Field("commitment", commitment),
+                AbiType.Struct.Field("signatures", AbiType.Array(signature)),
+            )
+
+            val proofNode = AbiType.Struct(
+                clazz.typedNestedClass("ProofNode"),
+                AbiType.Struct.Field("k_index", AbiType.UInt(256)),
+                AbiType.Struct.Field("node", AbiType.FixedBytes(32)),
+            )
+
+            val beefyMmrLeaf = AbiType.Struct(
+                clazz.typedNestedClass("BeefyMmrLeaf"),
+                AbiType.Struct.Field("version", AbiType.UInt(256)),
+                AbiType.Struct.Field("parentNumber", AbiType.UInt(256)),
+                AbiType.Struct.Field("parentHash", AbiType.FixedBytes(32)),
+                AbiType.Struct.Field("nextAuthoritySet", authoritySetCommitment),
+                AbiType.Struct.Field("extra", AbiType.FixedBytes(32)),
+                AbiType.Struct.Field("kIndex", AbiType.UInt(256)),
+            )
+
+            val beefyConsensusProof = AbiType.Struct(
+                clazz.typedNestedClass("BeefyConsensusProof"),
+                AbiType.Struct.Field("signedCommitment", signedCommitment),
+                AbiType.Struct.Field("latestMmrLeaf", beefyMmrLeaf),
+                AbiType.Struct.Field("mmrProof", AbiType.Array(AbiType.FixedBytes(32))),
+                AbiType.Struct.Field("authoritiesProof", AbiType.Array(AbiType.Array(proofNode))),
+                AbiType.Struct.Field("header", AbiType.Bytes),
+                AbiType.Struct.Field("headsIndex", AbiType.UInt(256)),
+                AbiType.Struct.Field("extrinsicProof", AbiType.Array(AbiType.Bytes)),
+                AbiType.Struct.Field("timestampExtrinsic", AbiType.Bytes),
+            )
+
+            val stateCommitment = AbiType.Struct(
+                clazz.typedNestedClass("StateCommitment"),
+                AbiType.Struct.Field("timestamp", AbiType.UInt(256)),
+                AbiType.Struct.Field("commitment", AbiType.FixedBytes(32)),
+            )
+
+            val stateMachineHeight = AbiType.Struct(
+                clazz.typedNestedClass("StateMachineHeight"),
+                AbiType.Struct.Field("stateMachineId", AbiType.UInt(256)),
+                AbiType.Struct.Field("height", AbiType.UInt(256)),
+            )
+
+            val intermediateState = AbiType.Struct(
+                clazz.typedNestedClass("IntermediateState"),
+                AbiType.Struct.Field("height", stateMachineHeight),
+                AbiType.Struct.Field("commitment", stateCommitment),
+            )
+
             clazz.getAbiFunctionField("FUNCTION_VERIFY_CONSENSUS") shouldBe AbiFunction(
                 name = "VerifyConsensus",
                 inputs = listOf(
                     AbiType.Address,
-                    AbiType.Tuple.struct(
-                        clazz.typedNestedClass("BeefyConsensusState"),
-                        AbiType.UInt(256),
-                        AbiType.UInt(256),
-                        AbiType.UInt(256),
-                        AbiType.FixedBytes(32),
-                        AbiType.UInt(256),
-                        AbiType.Tuple.struct(
-                            clazz.typedNestedClass("AuthoritySetCommitment"),
-                            AbiType.UInt(256),
-                            AbiType.UInt(256),
-                            AbiType.FixedBytes(32),
-                        ),
-                        AbiType.Tuple.struct(
-                            clazz.typedNestedClass("AuthoritySetCommitment"),
-                            AbiType.UInt(256),
-                            AbiType.UInt(256),
-                            AbiType.FixedBytes(32),
-                        ),
-                    ),
-                    AbiType.Tuple.struct(
-                        clazz.typedNestedClass("BeefyConsensusProof"),
-                        AbiType.Tuple.struct(
-                            clazz.typedNestedClass("SignedCommitment"),
-                            AbiType.Tuple.struct(
-                                clazz.typedNestedClass("Commitment"),
-                                AbiType.Array(
-                                    AbiType.Tuple.struct(
-                                        clazz.typedNestedClass("Payload"),
-                                        AbiType.FixedBytes(2),
-                                        AbiType.Bytes,
-                                    ),
-                                ),
-                                AbiType.UInt(256),
-                                AbiType.UInt(256),
-                            ),
-                            AbiType.Array(
-                                AbiType.Tuple.struct(
-                                    clazz.typedNestedClass("Signature"),
-                                    AbiType.Bytes,
-                                    AbiType.UInt(256),
-                                ),
-                            ),
-                        ),
-                        AbiType.Tuple.struct(
-                            clazz.typedNestedClass("BeefyMmrLeaf"),
-                            AbiType.UInt(256),
-                            AbiType.UInt(256),
-                            AbiType.FixedBytes(32),
-                            AbiType.Tuple.struct(
-                                clazz.typedNestedClass("AuthoritySetCommitment"),
-                                AbiType.UInt(256),
-                                AbiType.UInt(256),
-                                AbiType.FixedBytes(32),
-                            ),
-                            AbiType.FixedBytes(32),
-                            AbiType.UInt(256),
-                        ),
-                        AbiType.Array(AbiType.FixedBytes(32)),
-                        AbiType.Array(
-                            AbiType.Array(
-                                AbiType.Tuple.struct(
-                                    clazz.typedNestedClass("ProofNode"),
-                                    AbiType.UInt(256),
-                                    AbiType.FixedBytes(32),
-                                ),
-                            ),
-                        ),
-                        AbiType.Bytes, AbiType.UInt(256),
-                        AbiType.Array(AbiType.Bytes),
-                        AbiType.Bytes,
-                    ),
+                    beefyConsensusState,
+                    beefyConsensusProof,
                 ),
                 outputs = listOf(
-                    AbiType.Tuple.struct(
-                        clazz.typedNestedClass("BeefyConsensusState"),
-                        AbiType.UInt(256),
-                        AbiType.UInt(256),
-                        AbiType.UInt(256),
-                        AbiType.FixedBytes(32),
-                        AbiType.UInt(256),
-                        AbiType.Tuple.struct(
-                            clazz.typedNestedClass("AuthoritySetCommitment"),
-                            AbiType.UInt(256),
-                            AbiType.UInt(256),
-                            AbiType.FixedBytes(32),
-                        ),
-                        AbiType.Tuple.struct(
-                            clazz.typedNestedClass("AuthoritySetCommitment"),
-                            AbiType.UInt(256),
-                            AbiType.UInt(256),
-                            AbiType.FixedBytes(32),
-                        ),
-                    ),
-                    AbiType.Tuple.struct(
-                        clazz.typedNestedClass("IntermediateState"),
-                        AbiType.Tuple.struct(
-                            clazz.typedNestedClass("StateMachineHeight"),
-                            AbiType.UInt(256),
-                            AbiType.UInt(256),
-                        ),
-                        AbiType.Tuple.struct(
-                            clazz.typedNestedClass("StateCommitment"),
-                            AbiType.UInt(256),
-                            AbiType.FixedBytes(32),
-                        ),
-                    ),
+                    beefyConsensusState,
+                    intermediateState,
                 ),
             )
         }

@@ -14,7 +14,8 @@ import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 import org.gradle.workers.WorkerExecutor
 import java.io.File
-import java.util.*
+import java.util.Collections
+import java.util.UUID
 import javax.inject.Inject
 
 @CacheableTask
@@ -58,7 +59,7 @@ abstract class EthersAbigenTask @Inject constructor(private val executor: Worker
      * causes the new version of the plugin to invalidate previous output automatically.
      * */
     @get:Input
-    internal val outputVersion: Property<String> = project.objects.property(String::class.java).convention("4")
+    internal val outputVersion: Property<String> = project.objects.property(String::class.java).convention("5")
 
     @TaskAction
     fun run() {

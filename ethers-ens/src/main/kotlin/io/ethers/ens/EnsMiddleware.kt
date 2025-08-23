@@ -232,9 +232,12 @@ class EnsMiddleware @JvmOverloads constructor(
      * Get resolver address for [ensName] from [EnsRegistry].
      */
     private fun getResolverAddress(ensName: String): Result<Address, Error> {
+        if (ensName.isEmpty()) {
+            return failure(Error.UnknownResolver)
+        }
+
         val nameHash: ByteArray = runCatching { NameHash.nameHash(ensName) }
             .unwrapOrReturn { return failure(Error.Normalisation(it)) }
-            .also { if (ensName.isEmpty()) return failure(Error.UnknownResolver) }
 
         val address = registryContract.resolver(Bytes(nameHash))
             .call(BlockId.LATEST)
@@ -335,11 +338,8 @@ class EnsMiddleware @JvmOverloads constructor(
         url: String,
     ): Result<Bytes, Error>? {
         if (response.isSuccessful) {
-            val responseBody = response.body
-                ?: return failure(Error.CcipCallFailed("Response body is null (url: $url)", null))
-
             val gatewayRequestDTO = Jackson.MAPPER.readValue(
-                responseBody.byteStream(),
+                response.body.byteStream(),
                 EnsGatewayResponseDTO::class.java,
             )
 
@@ -524,11 +524,8 @@ class EnsMiddleware @JvmOverloads constructor(
                     )
                 }
 
-                val responseBody = it.body
-                    ?: return failure(Error.AvatarParsing("Response body is null (url: $metadataUri)", null))
-
                 val metadataDTO = Jackson.MAPPER.readValue(
-                    responseBody.byteStream(),
+                    it.body.byteStream(),
                     MetadataDTO::class.java,
                 )
 
@@ -607,7 +604,7 @@ class EnsMiddleware @JvmOverloads constructor(
      * Build ENS name used for reverse address resolution: <address without prefix>.addr.reverse
      */
     private fun reverseAddressEnsName(address: Address): String {
-        return "${address.toString().lowercase().substring(2)}.$ENS_DOMAIN_REVERSE_REGISTER"
+        return "${address.toString().substring(2)}.$ENS_DOMAIN_REVERSE_REGISTER"
     }
 
     /**

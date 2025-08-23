@@ -1,5 +1,7 @@
 package io.ethers.abi
 
+import io.ethers.abi.AbiType.Companion.canonicalSignature
+import io.ethers.abi.eip712.EIP712Codec
 import io.ethers.crypto.Hashing
 import java.math.BigInteger
 import java.util.function.Function
@@ -39,7 +41,7 @@ sealed interface AbiType<T : Any> {
         override val isDynamic: Boolean = false
 
         init {
-            if (length <= 0 || length > 32) {
+            if (length !in 1..32) {
                 throw IllegalArgumentException("FixedBytes length must be between 1 and 32, got: $length")
             }
         }
@@ -93,6 +95,14 @@ sealed interface AbiType<T : Any> {
         @Suppress("UNCHECKED_CAST")
         override val classType = List::class.java as Class<List<T>>
         override val isDynamic: Boolean = type.isDynamic
+
+        companion object {
+            @JvmStatic
+            @JvmName("ofStruct")
+            operator fun <T : ContractStruct> invoke(length: kotlin.Int, factory: StructFactory<T>): FixedArray<T> {
+                return FixedArray(length, factory.abi)
+            }
+        }
     }
 
     data class Array<T : Any>(val type: AbiType<T>) : AbiType<List<T>> {
@@ -101,9 +111,75 @@ sealed interface AbiType<T : Any> {
         @Suppress("UNCHECKED_CAST")
         override val classType = List::class.java as Class<List<T>>
         override val isDynamic: Boolean = true
+
+        companion object {
+            @JvmStatic
+            @JvmName("ofStruct")
+            operator fun <T : ContractStruct> invoke(factory: StructFactory<T>): Array<T> {
+                return Array(factory.abi)
+            }
+        }
     }
 
-    class Tuple<T : Any> private constructor(
+    class Struct<T : ContractStruct>(
+        classType: Class<T>,
+        factory: Function<List<Any>, T>,
+        val fields: List<Field>,
+    ) : Tuple<T>(classType, factory, fields.map { it.type }), AbiType<T> {
+        constructor(classType: Class<T>, factory: Function<List<Any>, T>, vararg fields: Field) : this(
+            classType,
+            factory,
+            fields.toList(),
+        )
+
+        constructor(classType: KClass<T>, factory: Function<List<Any>, T>, vararg fields: Field) : this(
+            classType.java,
+            factory,
+            fields.toList(),
+        )
+
+        constructor(classType: KClass<T>, vararg fields: Field) : this(
+            classType.java,
+            classType.getFactoryOrThrow(),
+            fields.toList(),
+        )
+
+        /**
+         * Get the name of the struct.
+         * */
+        val name: kotlin.String = classType.simpleName
+
+        /**
+         * Get the root EIP-712 definition of this struct.
+         *
+         * Example:
+         * ```
+         * Mail(Person from,Person to,string contents)
+         * ```
+         * */
+        val eip712RootType: kotlin.String = EIP712Codec.encodeRootType(this)
+
+        data class Field(val name: kotlin.String, val type: AbiType<*>) {
+            constructor(name: kotlin.String, factory: StructFactory<*>) : this(name, factory.abi)
+        }
+
+        companion object {
+            private fun <T : ContractStruct> KClass<T>.getFactoryOrThrow(): Function<List<Any>, T> {
+                val companion = this.companionObject?.objectInstance
+                    ?: throw IllegalArgumentException("Class must have a companion object")
+
+                if (companion !is StructFactory<*>) {
+                    throw IllegalArgumentException("Companion object must implement StructFactory")
+                }
+
+                @Suppress("UNCHECKED_CAST")
+                val factory = companion as StructFactory<T>
+                return Function { factory.fromTuple(it) }
+            }
+        }
+    }
+
+    open class Tuple<T : Any>(
         override val classType: Class<T>,
         val factory: Function<List<Any>, *>,
         val types: List<AbiType<*>>,
@@ -149,75 +225,32 @@ sealed interface AbiType<T : Any> {
         }
 
         override fun toString(): kotlin.String {
-            return "Tuple(classType=$classType, types=$types)"
+            return "${javaClass.simpleName}(classType=$classType, types=$types)"
         }
 
         companion object {
-            /**
-             * Create a [Tuple] type from [fieldTypes], represented as an [ContractStruct] instance. This function expects
-             * the [classType] to have a companion object that implements [StructFactory], which is used for decoding
-             * the [Tuple] into the [classType].
-             * */
-            @JvmSynthetic
-            fun <T : ContractStruct> struct(
-                classType: KClass<T>,
-                vararg fieldTypes: AbiType<*>,
-            ): Tuple<T> {
-                val companion = classType.companionObject?.objectInstance
-                    ?: throw IllegalArgumentException("Class must have a companion object")
-
-                if (companion !is StructFactory<*>) {
-                    throw IllegalArgumentException("Companion object must implement StructFactory")
-                }
-
-                @Suppress("UNCHECKED_CAST")
-                val factory = companion as StructFactory<T>
-                return struct(classType.java, { factory.fromTuple(it) }, fieldTypes.toList())
-            }
-
-            /**
-             * Create a [Tuple] type from [fieldTypes], represented as an [ContractStruct] instance.
-             * */
-            @JvmStatic
-            fun <T : ContractStruct> struct(
-                classType: Class<T>,
-                factory: Function<List<Any>, T>,
-                vararg fieldTypes: AbiType<*>,
-            ): Tuple<T> {
-                return struct(classType, factory, fieldTypes.toList())
-            }
-
-            /**
-             * Create a [Tuple] type from [fieldTypes], represented as an [ContractStruct] instance.
-             * */
-            @JvmStatic
-            fun <T : ContractStruct> struct(
-                classType: Class<T>,
-                factory: Function<List<Any>, T>,
-                fieldTypes: List<AbiType<*>>,
-            ): Tuple<T> {
-                return Tuple(classType, factory, fieldTypes)
-            }
+            private val CLASS_TYPE_TUPLE = emptyList<Any>()::class.java
+            private val TUPLE_FACTORY = Function.identity<List<Any>>()
 
             /**
              * Create a raw [Tuple] type from [types], represented as a list of elements.
              * */
             @JvmStatic
-            fun raw(vararg types: AbiType<*>): Tuple<out List<*>> = raw(types.toList())
+            @JvmName("ofTypes")
+            operator fun invoke(vararg types: AbiType<*>): Tuple<out List<Any>> = invoke(types.toList())
 
             /**
              * Create a raw [Tuple] type from [types], represented as a list of elements.
              * */
             @JvmStatic
-            fun raw(types: List<AbiType<*>>): Tuple<out List<*>> {
-                return Tuple(CLASS_TYPE_TUPLE, Function.identity(), types)
+            @JvmName("ofTypes")
+            operator fun invoke(types: List<AbiType<*>>): Tuple<out List<Any>> {
+                return Tuple(CLASS_TYPE_TUPLE, TUPLE_FACTORY, types)
             }
         }
     }
 
     companion object {
-        private val CLASS_TYPE_TUPLE = emptyList<Any>()::class.java
-
         /**
          * Construct [canonicalSignature] from name and types, and compute [Hashing.keccak256] hash of it.
          * */
@@ -270,15 +303,15 @@ sealed interface AbiType<T : Any> {
                 } else if (rawType.startsWith("(") && rawType.endsWith(")")) {
                     // tuple
                     val types = parseSignature(rawType.substring(1, rawType.length - 1))
-                    result.add(Tuple.raw(types))
+                    result.add(Tuple(types))
                 } else if (rawType.endsWith("[]")) {
                     // dynamic array
-                    result.add(Array(parseSignature(rawType.substring(0, rawType.length - 2)).first()))
+                    result.add(Array(parseSignature(rawType.dropLast(2)).first()))
                 } else if (rawType.contains("[")) {
                     // fixed array
                     val index = rawType.lastIndexOf("[")
                     val length = rawType.substring(index + 1, rawType.length - 1).toInt()
-                    result.add(FixedArray(length, parseSignature(rawType.substring(0, index)).first()))
+                    result.add(FixedArray(length, parseSignature(rawType.take(index)).first()))
                 } else if (rawType.startsWith("int")) {
                     val bitSize = rawType.substring(3).toInt()
                     result.add(Int(bitSize))
@@ -302,12 +335,10 @@ sealed interface AbiType<T : Any> {
             var nestingDepth = 0
             for (i in signature.indices) {
                 val c = signature[i]
-                if (c == '(') {
-                    nestingDepth++
-                } else if (c == ')') {
-                    nestingDepth--
-                } else if (c == ',' && nestingDepth == 0) {
-                    return signature.substring(0, i)
+                when (c) {
+                    '(' -> nestingDepth++
+                    ')' -> nestingDepth--
+                    ',' if nestingDepth == 0 -> return signature.take(i)
                 }
             }
             return signature

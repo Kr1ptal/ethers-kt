@@ -6,10 +6,11 @@ import io.ethers.core.types.Bytes
 import java.math.BigInteger
 import java.nio.ByteBuffer
 
-private const val WORD_SIZE_BYTES = 32
-private val TWOS_COMPLEMENT_PADDING = (0..<32).map { ByteArray(it) { 0xff.toByte() } }.toTypedArray()
-
 object AbiCodec {
+    private val TWOS_COMPLEMENT_PADDING = (0..<32).map { ByteArray(it) { 0xff.toByte() } }.toTypedArray()
+
+    const val WORD_SIZE_BYTES = 32
+
     /**
      * Encode [data] as [types], prepended with [prefix]. Prefix is usually one of:
      * - `method selector`
@@ -61,7 +62,7 @@ object AbiCodec {
      * Encode [data] as a single [type].
      * */
     @JvmStatic
-    fun <T : Any> encode(type: AbiType<T>, data: T): ByteArray {
+    fun <T : Any> encode(type: AbiType<out T>, data: T): ByteArray {
         val head = getTokenHeadLength(type, data)
         val tail = getTokenTailLength(type, data)
 
@@ -260,7 +261,9 @@ object AbiCodec {
                 }
             }
 
-            is AbiType.Tuple<*> -> {
+            is AbiType.Struct<*>,
+            is AbiType.Tuple<*>,
+            -> {
                 if (type.isDynamic) {
                     buff.position(buff.position() + 28)
                     buff.putInt(headOffset)
@@ -356,7 +359,9 @@ object AbiCodec {
                 encodeTokensHeadTail(buff, type.type, value, headLength)
             }
 
-            is AbiType.Tuple<*> -> {
+            is AbiType.Struct<*>,
+            is AbiType.Tuple<*>,
+            -> {
                 if (!type.isDynamic) {
                     return
                 }
@@ -415,7 +420,9 @@ object AbiCodec {
                 headLength
             }
 
-            is AbiType.Tuple -> {
+            is AbiType.Struct<*>,
+            is AbiType.Tuple,
+            -> {
                 if (type.isDynamic) {
                     return WORD_SIZE_BYTES
                 }
@@ -477,7 +484,9 @@ object AbiCodec {
                 length
             }
 
-            is AbiType.Tuple<*> -> {
+            is AbiType.Struct<*>,
+            is AbiType.Tuple<*>,
+            -> {
                 if (!type.isDynamic) {
                     return 0
                 }
@@ -594,7 +603,9 @@ object AbiCodec {
                 return arr
             }
 
-            is AbiType.Tuple -> {
+            is AbiType.Struct<*>,
+            is AbiType.Tuple,
+            -> {
                 val arr = ArrayList<Any>(type.types.size)
 
                 if (type.isDynamic) {
@@ -682,7 +693,9 @@ object AbiCodec {
                 size
             }
 
-            is AbiType.Tuple -> throw IllegalArgumentException("Cannot encode tuple in packed format")
+            is AbiType.Struct<*>,
+            is AbiType.Tuple,
+            -> throw IllegalArgumentException("Cannot encode tuple in packed format")
         }
     }
 
@@ -797,7 +810,9 @@ object AbiCodec {
                 }
             }
 
-            is AbiType.Tuple -> throw IllegalArgumentException("Cannot encode tuple in packed format")
+            is AbiType.Struct<*>,
+            is AbiType.Tuple,
+            -> throw IllegalArgumentException("Cannot encode tuple in packed format")
         }
     }
 }

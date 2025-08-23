@@ -107,9 +107,17 @@ class CustomErrorTest : FunSpec({
     ) : ContractStruct {
         override val tuple: List<Any> = listOf(msg, value, flags)
 
+        override val abiType: AbiType.Struct<*>
+            get() = abi
+
         companion object : StructFactory<ErrorMsg> {
             @JvmStatic
-            override val abi: AbiType.Tuple<ErrorMsg> = AbiType.Tuple.struct(ErrorMsg::class, AbiType.String, AbiType.UInt(256), AbiType.Array(AbiType.Bool))
+            override val abi: AbiType.Struct<ErrorMsg> = AbiType.Struct(
+                ErrorMsg::class,
+                AbiType.Struct.Field("msg", AbiType.String),
+                AbiType.Struct.Field("value", AbiType.UInt(256)),
+                AbiType.Struct.Field("flags", AbiType.Array(AbiType.Bool)),
+            )
 
             @JvmStatic
             override fun fromTuple(data: List<Any>): ErrorMsg = ErrorMsg(

@@ -207,7 +207,7 @@ class EnsMiddlewareTest : FunSpec({
 
                     val resolveEns = ensMiddleware.resolveEnsName(Address.ZERO).get()
                     resolveEns.isFailure() shouldBe true
-                    resolveEns.unwrapError().shouldBeInstanceOf<EnsMiddleware.Error.UnknownResolver>()
+                    resolveEns.unwrapError().shouldBeInstanceOf<EnsMiddleware.Error.EnsNameInvalid>()
                 }
             }
 

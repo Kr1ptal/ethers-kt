@@ -73,7 +73,8 @@ data class Approval(
 - `AbiType.String` -> `String`
 - `AbiType.FixedArray` -> `Array`
 - `AbiType.Array` -> `Array`
-- `AbiType.Typle` -> `Array` (raw) / `Class<AbiStruct>` (struct)
+- `AbiType.Tuple` -> `Array` 
+- `AbiType.Struct` -> `impl ContractStruct`
 
 ## 💻 Code Examples
 
