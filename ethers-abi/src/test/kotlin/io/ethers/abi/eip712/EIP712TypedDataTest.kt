@@ -1,6 +1,5 @@
 package io.ethers.abi.eip712
 
-import io.ethers.abi.Header
 import io.ethers.abi.Inbox
 import io.ethers.abi.Mail
 import io.ethers.abi.Person
@@ -12,7 +11,7 @@ import java.math.BigInteger
 class EIP712TypedDataTest : FunSpec({
     context("EIP712TypedData.from") {
         test("creates complete typed data from simple struct") {
-            val person = Person(Address.ZERO, "Alice")
+            val person = Person("Alice", Address.ZERO)
             val domain = EIP712Domain(name = "TestDApp", version = "1.0")
 
             val typedData = EIP712TypedData.from(person, domain)
@@ -27,10 +26,9 @@ class EIP712TypedDataTest : FunSpec({
         }
 
         test("creates complete typed data from nested struct") {
-            val from = Person(Address.ZERO, "Bob")
-            val to = Person(Address("0x1111111111111111111111111111111111111111"), "Alice")
-            val header = Header("Test")
-            val mail = Mail(from, to, "Hello", header)
+            val from = Person("Bob", Address.ZERO)
+            val to = Person("Alice", Address("0x1111111111111111111111111111111111111111"))
+            val mail = Mail(from, to, "Hello")
             val domain = EIP712Domain(name = "MailDApp")
 
             val typedData = EIP712TypedData.from(mail, domain)
@@ -48,15 +46,12 @@ class EIP712TypedDataTest : FunSpec({
                     "name" to "Alice",
                 ),
                 "contents" to "Hello",
-                "header" to mapOf(
-                    "header" to "Test",
-                ),
             )
         }
 
         test("creates complete typed data from struct with arrays") {
-            val person = Person(Address.ZERO, "Alice")
-            val mail = Mail(person, person, "Test", Header("Test"))
+            val person = Person("Alice", Address.ZERO)
+            val mail = Mail(person, person, "Test")
             val inbox = Inbox("Test Inbox", listOf(mail))
             val domain = EIP712Domain(name = "InboxDApp")
 
@@ -78,7 +73,6 @@ class EIP712TypedDataTest : FunSpec({
                             "name" to "Alice",
                         ),
                         "contents" to "Test",
-                        "header" to mapOf("header" to "Test"),
                     ),
                 ),
             )

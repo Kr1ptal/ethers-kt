@@ -7,18 +7,18 @@ import io.kotest.matchers.shouldBe
 class AbiTypeTest : FunSpec({
     context("eip712RootType") {
         test("creates correct string for non-nested struct") {
-            val person = Person(Address.ZERO, "John")
+            val person = Person("John", Address.ZERO)
 
-            person.abiType.eip712RootType shouldBe "Person(address wallet,string name)"
+            person.abiType.eip712RootType shouldBe "Person(string name,address wallet)"
         }
 
         test("creates correct string for nested struct") {
-            val from = Person(Address.ZERO, "Bob")
-            val to = Person(Address.ZERO, "Alice")
+            val from = Person("Bob", Address.ZERO)
+            val to = Person("Alice", Address.ZERO)
             val contents = "Some random string"
-            val mail = Mail(from, to, contents, Header("Header"))
+            val mail = Mail(from, to, contents)
 
-            mail.abiType.eip712RootType shouldBe "Mail(Person from,Person to,string contents,Header header)"
+            mail.abiType.eip712RootType shouldBe "Mail(Person from,Person to,string contents)"
         }
 
         test("creates correct string for struct with arrays") {
@@ -28,9 +28,9 @@ class AbiTypeTest : FunSpec({
         }
 
         test("creates correct string for deeply nested struct") {
-            val person1 = Person(Address.ZERO, "Bob")
-            val person2 = Person(Address.ZERO, "Alice")
-            val mail = Mail(person1, person2, "Hello", Header("Subject"))
+            val person1 = Person("Bob", Address.ZERO)
+            val person2 = Person("Alice", Address.ZERO)
+            val mail = Mail(person1, person2, "Hello")
             val inbox = Inbox("My Inbox", listOf(mail))
 
             inbox.abiType.eip712RootType shouldBe "Inbox(string name,Mail[] mails)"

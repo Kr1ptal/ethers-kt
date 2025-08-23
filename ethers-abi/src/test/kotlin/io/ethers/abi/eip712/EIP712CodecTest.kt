@@ -2,11 +2,11 @@ package io.ethers.abi.eip712
 
 import io.ethers.abi.AbiType
 import io.ethers.abi.ContractStruct
-import io.ethers.abi.Header
 import io.ethers.abi.Inbox
 import io.ethers.abi.Mail
 import io.ethers.abi.Person
 import io.ethers.core.types.Address
+import io.ethers.core.types.Hash
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -22,28 +22,28 @@ class EIP712CodecTest : FunSpec({
         }
 
         test("returns correct string for non-nested struct") {
-            val person = Person(Address.ZERO, "John")
+            val person = Person("John", Address.ZERO)
 
-            EIP712Codec.encodeType(person) shouldBe "Person(address wallet,string name)"
+            EIP712Codec.encodeType(person) shouldBe "Person(string name,address wallet)"
         }
 
         test("creates correct string for nested structs") {
-            val from = Person(Address.ZERO, "Bob")
-            val to = Person(Address.ZERO, "Alice")
+            val from = Person("Bob", Address.ZERO)
+            val to = Person("Alice", Address.ZERO)
             val contents = "Some random string"
-            val mail = Mail(from, to, contents, Header("Header"))
+            val mail = Mail(from, to, contents)
 
-            EIP712Codec.encodeType(mail) shouldBe "Mail(Person from,Person to,string contents,Header header)Header(string header)Person(address wallet,string name)"
+            EIP712Codec.encodeType(mail) shouldBe "Mail(Person from,Person to,string contents)Person(string name,address wallet)"
         }
 
         test("creates correct properly sorted string for multiple nested structs") {
-            val from = Person(Address.ZERO, "Bob")
-            val to = Person(Address.ZERO, "Alice")
+            val from = Person("Bob", Address.ZERO)
+            val to = Person("Alice", Address.ZERO)
             val contents = "Some random string"
-            val mail = Mail(from, to, contents, Header("Header"))
+            val mail = Mail(from, to, contents)
             val inbox = Inbox("Test Inbox", listOf(mail))
 
-            EIP712Codec.encodeType(inbox) shouldBe "Inbox(string name,Mail[] mails)Header(string header)Mail(Person from,Person to,string contents,Header header)Person(address wallet,string name)"
+            EIP712Codec.encodeType(inbox) shouldBe "Inbox(string name,Mail[] mails)Mail(Person from,Person to,string contents)Person(string name,address wallet)"
         }
 
         test("detects self-referencing cycle") {
@@ -128,24 +128,23 @@ class EIP712CodecTest : FunSpec({
 
     context("typeHash") {
         test("generates correct hash for simple struct") {
-            val person = Person(Address.ZERO, "John")
+            val person = Person("John", Address.ZERO)
             val typeHash = EIP712Codec.typeHash(person)
 
             typeHash.size shouldBe 32
-            typeHash.toHexString() shouldBe "7da6bbfd4f19da81c7a7a41044aa8a9f78c40e60e88f0abbd96dc4643a2ef30d"
+            typeHash.toHexString() shouldBe "b9d8c78acf9b987311de6c7b45bb6a9c8e1bf361fa7fd3467a2163f994c79500"
         }
 
         test("generates correct hash for nested struct") {
             val mail = Mail(
-                Person(Address.ZERO, "Bob"),
-                Person(Address.ZERO, "Alice"),
+                Person("Bob", Address.ZERO),
+                Person("Alice", Address.ZERO),
                 "Hello",
-                Header("Subject"),
             )
             val typeHash = EIP712Codec.typeHash(mail)
 
             typeHash.size shouldBe 32
-            typeHash.toHexString() shouldBe "a0307470303ec6304c7526d820a93e435565e1b976e62b86ceabc82dee28a013"
+            typeHash.toHexString() shouldBe "a0cedeb2dc280ba39b857546d74f5549c3a1d7bdc2dd96bf881f76108e23dac2"
         }
 
         test("generates correct hash for struct with arrays") {
@@ -153,13 +152,13 @@ class EIP712CodecTest : FunSpec({
             val typeHash = EIP712Codec.typeHash(inbox)
 
             typeHash.size shouldBe 32
-            typeHash.toHexString() shouldBe "a883449b0ca720e19817be235ac3283b1a60d8f91fdf01dd26dde9fe84885a84"
+            typeHash.toHexString() shouldBe "ab66368714d741992cbc6768947974e6a03601750245d7689ffee3dc6c9f9eee"
         }
     }
 
     context("toMessage") {
         test("converts simple struct to message map") {
-            val person = Person(Address.ZERO, "Alice")
+            val person = Person("Alice", Address.ZERO)
 
             val message = EIP712Codec.toMessage(person)
             message shouldBe mapOf(
@@ -169,10 +168,9 @@ class EIP712CodecTest : FunSpec({
         }
 
         test("converts nested struct to message map") {
-            val from = Person(Address.ZERO, "Bob")
-            val to = Person(Address("0x1111111111111111111111111111111111111111"), "Alice")
-            val header = Header("Important Message")
-            val mail = Mail(from, to, "Hello World", header)
+            val from = Person("Bob", Address.ZERO)
+            val to = Person("Alice", Address("0x1111111111111111111111111111111111111111"))
+            val mail = Mail(from, to, "Hello World")
 
             val message = EIP712Codec.toMessage(mail)
             message shouldBe mapOf(
@@ -185,19 +183,14 @@ class EIP712CodecTest : FunSpec({
                     "name" to "Alice",
                 ),
                 "contents" to "Hello World",
-                "header" to mapOf(
-                    "header" to "Important Message",
-                ),
             )
         }
 
         test("converts struct with array to message map") {
-            val person1 = Person(Address.ZERO, "Alice")
-            val person2 = Person(Address("0x1111111111111111111111111111111111111111"), "Bob")
-            val header1 = Header("Message 1")
-            val header2 = Header("Message 2")
-            val mail1 = Mail(person1, person2, "Hello", header1)
-            val mail2 = Mail(person2, person1, "Hi back", header2)
+            val person1 = Person("Alice", Address.ZERO)
+            val person2 = Person("Bob", Address("0x1111111111111111111111111111111111111111"))
+            val mail1 = Mail(person1, person2, "Hello")
+            val mail2 = Mail(person2, person1, "Hi back")
             val inbox = Inbox("My Inbox", listOf(mail1, mail2))
 
             val message = EIP712Codec.toMessage(inbox)
@@ -214,9 +207,6 @@ class EIP712CodecTest : FunSpec({
                             "name" to "Bob",
                         ),
                         "contents" to "Hello",
-                        "header" to mapOf(
-                            "header" to "Message 1",
-                        ),
                     ),
                     mapOf(
                         "from" to mapOf(
@@ -228,9 +218,6 @@ class EIP712CodecTest : FunSpec({
                             "name" to "Alice",
                         ),
                         "contents" to "Hi back",
-                        "header" to mapOf(
-                            "header" to "Message 2",
-                        ),
                     ),
                 ),
             )
@@ -265,23 +252,22 @@ class EIP712CodecTest : FunSpec({
 
     context("toTypeMap") {
         test("returns correct components for simple struct") {
-            val person = Person(Address.ZERO, "John")
+            val person = Person("John", Address.ZERO)
             val components = EIP712Codec.toTypeMap(person)
 
             components shouldBe mapOf(
                 "Person" to listOf(
-                    EIP712Field("wallet", "address"),
                     EIP712Field("name", "string"),
+                    EIP712Field("wallet", "address"),
                 ),
             )
         }
 
         test("returns all nested types for complex struct") {
             val mail = Mail(
-                Person(Address.ZERO, "Bob"),
-                Person(Address.ZERO, "Alice"),
+                Person("Bob", Address.ZERO),
+                Person("Alice", Address.ZERO),
                 "Hello",
-                Header("Subject"),
             )
 
             val components = EIP712Codec.toTypeMap(mail)
@@ -290,14 +276,10 @@ class EIP712CodecTest : FunSpec({
                     EIP712Field("from", "Person"),
                     EIP712Field("to", "Person"),
                     EIP712Field("contents", "string"),
-                    EIP712Field("header", "Header"),
                 ),
                 "Person" to listOf(
-                    EIP712Field("wallet", "address"),
                     EIP712Field("name", "string"),
-                ),
-                "Header" to listOf(
-                    EIP712Field("header", "string"),
+                    EIP712Field("wallet", "address"),
                 ),
             )
         }
@@ -315,24 +297,19 @@ class EIP712CodecTest : FunSpec({
                     EIP712Field("from", "Person"),
                     EIP712Field("to", "Person"),
                     EIP712Field("contents", "string"),
-                    EIP712Field("header", "Header"),
                 ),
                 "Person" to listOf(
-                    EIP712Field("wallet", "address"),
                     EIP712Field("name", "string"),
-                ),
-                "Header" to listOf(
-                    EIP712Field("header", "string"),
+                    EIP712Field("wallet", "address"),
                 ),
             )
         }
 
         test("deduplicates repeated struct types") {
             val mail = Mail(
-                Person(Address.ZERO, "Bob"),
-                Person(Address.ZERO, "Alice"),
+                Person("Bob", Address.ZERO),
+                Person("Alice", Address.ZERO),
                 "Hello",
-                Header("Subject"),
             )
             val inbox = Inbox("Test", listOf(mail, mail))
             val components = EIP712Codec.toTypeMap(inbox)
@@ -346,14 +323,10 @@ class EIP712CodecTest : FunSpec({
                     EIP712Field("from", "Person"),
                     EIP712Field("to", "Person"),
                     EIP712Field("contents", "string"),
-                    EIP712Field("header", "Header"),
                 ),
                 "Person" to listOf(
-                    EIP712Field("wallet", "address"),
                     EIP712Field("name", "string"),
-                ),
-                "Header" to listOf(
-                    EIP712Field("header", "string"),
+                    EIP712Field("wallet", "address"),
                 ),
             )
         }
@@ -361,7 +334,7 @@ class EIP712CodecTest : FunSpec({
 
     context("hashStruct") {
         test("hashes simple struct correctly") {
-            val person = Person(Address.ZERO, "Alice")
+            val person = Person("Alice", Address.ZERO)
             val typedData = EIP712TypedData.from(person, EIP712Domain(name = "Test"))
 
             val hashFromTypedData = EIP712Codec.hashStruct(typedData)
@@ -372,10 +345,9 @@ class EIP712CodecTest : FunSpec({
 
         test("hashes nested struct correctly") {
             val mail = Mail(
-                Person(Address.ZERO, "Bob"),
-                Person(Address("0x1111111111111111111111111111111111111111"), "Alice"),
+                Person("Bob", Address.ZERO),
+                Person("Alice", Address("0x1111111111111111111111111111111111111111")),
                 "Hello World",
-                Header("Important Message"),
             )
             val typedData = EIP712TypedData.from(mail, EIP712Domain(name = "Test"))
 
@@ -390,16 +362,14 @@ class EIP712CodecTest : FunSpec({
                 "My Inbox",
                 listOf(
                     Mail(
-                        Person(Address.ZERO, "Bob"),
-                        Person(Address("0x1111111111111111111111111111111111111111"), "Alice"),
+                        Person("Bob", Address.ZERO),
+                        Person("Alice", Address("0x1111111111111111111111111111111111111111")),
                         "Hello",
-                        Header("Subject 1"),
                     ),
                     Mail(
-                        Person(Address("0x2222222222222222222222222222222222222222"), "Charlie"),
-                        Person(Address.ZERO, "Bob"),
+                        Person("Charlie", Address("0x2222222222222222222222222222222222222222")),
+                        Person("Bob", Address.ZERO),
                         "Hi back",
-                        Header("Subject 2"),
                     ),
                 ),
             )
@@ -413,9 +383,10 @@ class EIP712CodecTest : FunSpec({
 
         test("hashes EIP712Domain correctly") {
             val domain = EIP712Domain(
-                name = "TestDApp",
-                version = "1.0",
+                name = "Ether Mail",
+                version = "1",
                 chainId = BigInteger.valueOf(1),
+                verifyingContract = Address("0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC"),
             )
             val typedData = EIP712TypedData.from(domain, domain)
 
@@ -423,24 +394,25 @@ class EIP712CodecTest : FunSpec({
             val hashFromStruct = EIP712Codec.hashStruct(domain)
 
             hashFromTypedData shouldBe hashFromStruct
+            Hash(hashFromTypedData) shouldBe Hash("0xf2cee375fa42b42143804025fc449deafd50cc031ca257e0b194a650a912090f")
         }
 
         test("hashes struct with explicit types and message map") {
             val types = mapOf(
                 "Person" to listOf(
-                    EIP712Field("wallet", "address"),
                     EIP712Field("name", "string"),
+                    EIP712Field("wallet", "address"),
                 ),
             )
             val message = mapOf(
-                "wallet" to Address.ZERO,
                 "name" to "Alice",
+                "wallet" to Address.ZERO,
             )
 
             val hash = EIP712Codec.hashStruct("Person", types, message)
 
             // Compare with hash from struct
-            val person = Person(Address.ZERO, "Alice")
+            val person = Person("Alice", Address.ZERO)
             val expectedHash = EIP712Codec.hashStruct(person)
 
             hash shouldBe expectedHash
@@ -452,43 +424,27 @@ class EIP712CodecTest : FunSpec({
                     EIP712Field("from", "Person"),
                     EIP712Field("to", "Person"),
                     EIP712Field("contents", "string"),
-                    EIP712Field("header", "Header"),
                 ),
                 "Person" to listOf(
-                    EIP712Field("wallet", "address"),
                     EIP712Field("name", "string"),
-                ),
-                "Header" to listOf(
-                    EIP712Field("header", "string"),
+                    EIP712Field("wallet", "address"),
                 ),
             )
             val message = mapOf(
                 "from" to mapOf(
-                    "wallet" to Address.ZERO,
-                    "name" to "Bob",
+                    "wallet" to Address("0xCD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826"),
+                    "name" to "Cow",
                 ),
                 "to" to mapOf(
-                    "wallet" to Address("0x1111111111111111111111111111111111111111"),
-                    "name" to "Alice",
+                    "wallet" to Address("0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"),
+                    "name" to "Bob",
                 ),
-                "contents" to "Hello World",
-                "header" to mapOf(
-                    "header" to "Important Message",
-                ),
+                "contents" to "Hello, Bob!",
             )
 
             val hash = EIP712Codec.hashStruct("Mail", types, message)
 
-            // Compare with hash from struct
-            val mail = Mail(
-                Person(Address.ZERO, "Bob"),
-                Person(Address("0x1111111111111111111111111111111111111111"), "Alice"),
-                "Hello World",
-                Header("Important Message"),
-            )
-            val expectedHash = EIP712Codec.hashStruct(mail)
-
-            hash shouldBe expectedHash
+            Hash(hash) shouldBe Hash("0xc52c0ee5d84264471806290a3f2c4cecfc5490626bf912d01f240d7a274b371e")
         }
 
         test("handles different value types for addresses") {
@@ -598,7 +554,7 @@ class EIP712CodecTest : FunSpec({
         }
 
         test("simple struct hash comparison") {
-            val person = Person(Address.ZERO, "Alice")
+            val person = Person("Alice", Address.ZERO)
             val typedData = EIP712TypedData.from(person, EIP712Domain(name = "Test"))
 
             val hashFromTypedData = EIP712Codec.hashStruct(typedData)
@@ -610,10 +566,9 @@ class EIP712CodecTest : FunSpec({
 
         test("complete EIP712TypedData signatureHash") {
             val mail = Mail(
-                Person(Address.ZERO, "Bob"),
-                Person(Address("0x1111111111111111111111111111111111111111"), "Alice"),
+                Person("Bob", Address.ZERO),
+                Person("Alice", Address("0x1111111111111111111111111111111111111111")),
                 "Hello World",
-                Header("Important"),
             )
             val domain = EIP712Domain(
                 name = "MailDApp",
