@@ -162,7 +162,7 @@ class EIP712CodecTest : FunSpec({
 
             val message = EIP712Codec.toMessage(person)
             message shouldBe mapOf(
-                "wallet" to Address.ZERO,
+                "wallet" to "0x0000000000000000000000000000000000000000",
                 "name" to "Alice",
             )
         }
@@ -175,11 +175,11 @@ class EIP712CodecTest : FunSpec({
             val message = EIP712Codec.toMessage(mail)
             message shouldBe mapOf(
                 "from" to mapOf(
-                    "wallet" to Address.ZERO,
+                    "wallet" to "0x0000000000000000000000000000000000000000",
                     "name" to "Bob",
                 ),
                 "to" to mapOf(
-                    "wallet" to Address("0x1111111111111111111111111111111111111111"),
+                    "wallet" to "0x1111111111111111111111111111111111111111",
                     "name" to "Alice",
                 ),
                 "contents" to "Hello World",
@@ -199,22 +199,22 @@ class EIP712CodecTest : FunSpec({
                 "mails" to listOf(
                     mapOf(
                         "from" to mapOf(
-                            "wallet" to Address.ZERO,
+                            "wallet" to "0x0000000000000000000000000000000000000000",
                             "name" to "Alice",
                         ),
                         "to" to mapOf(
-                            "wallet" to Address("0x1111111111111111111111111111111111111111"),
+                            "wallet" to "0x1111111111111111111111111111111111111111",
                             "name" to "Bob",
                         ),
                         "contents" to "Hello",
                     ),
                     mapOf(
                         "from" to mapOf(
-                            "wallet" to Address("0x1111111111111111111111111111111111111111"),
+                            "wallet" to "0x1111111111111111111111111111111111111111",
                             "name" to "Bob",
                         ),
                         "to" to mapOf(
-                            "wallet" to Address.ZERO,
+                            "wallet" to "0x0000000000000000000000000000000000000000",
                             "name" to "Alice",
                         ),
                         "contents" to "Hi back",
@@ -241,11 +241,10 @@ class EIP712CodecTest : FunSpec({
             )
 
             val message = domain.toEIP712Message()
-
             message shouldBe mapOf(
                 "name" to "MyDApp",
                 "version" to "1.0",
-                "chainId" to BigInteger.valueOf(1),
+                "chainId" to "1",
             )
         }
     }

@@ -1,6 +1,18 @@
 package io.ethers.abi.eip712
 
+import com.fasterxml.jackson.core.JsonGenerator
+import com.fasterxml.jackson.core.JsonParser
+import com.fasterxml.jackson.core.JsonToken
+import com.fasterxml.jackson.databind.DeserializationContext
+import com.fasterxml.jackson.databind.JsonDeserializer
+import com.fasterxml.jackson.databind.JsonSerializer
+import com.fasterxml.jackson.databind.SerializerProvider
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize
+import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import io.ethers.abi.ContractStruct
+import io.ethers.core.forEachObjectField
+import io.ethers.core.readListOf
+import io.ethers.core.readMapOf
 import io.ethers.core.types.Signature
 import io.ethers.crypto.Hashing
 import io.ethers.signers.Signer
@@ -23,6 +35,8 @@ import io.ethers.signers.Signer
  * @property domain The EIP712 domain separator containing chain and contract info
  * @see <a href="https://eips.ethereum.org/EIPS/eip-712">EIP-712 Specification</a>
  */
+@JsonSerialize(using = EIP712TypedDataSerializer::class)
+@JsonDeserialize(using = EIP712TypedDataDeserializer::class)
 data class EIP712TypedData(
     val primaryType: String,
     val types: Map<String, List<EIP712Field>>,
@@ -98,6 +112,8 @@ data class EIP712TypedData(
  * @property name The field name as it appears in the struct
  * @property type The EIP712 type string (e.g., "address", "uint256", "Person", "bytes32[]")
  */
+@JsonSerialize(using = EIP712FieldSerializer::class)
+@JsonDeserialize(using = EIP712FieldDeserializer::class)
 data class EIP712Field(
     val name: String,
     val type: String,
@@ -108,4 +124,93 @@ data class EIP712Field(
  * */
 fun Signer.signTypedData(typedData: EIP712TypedData): Signature {
     return signHash(typedData.signatureHash())
+}
+
+private class EIP712TypedDataSerializer : JsonSerializer<EIP712TypedData>() {
+    override fun serialize(value: EIP712TypedData, gen: JsonGenerator, serializers: SerializerProvider) {
+        gen.writeStartObject()
+        gen.writeStringField("primaryType", value.primaryType)
+        gen.writeObjectFieldStart("types")
+        value.types.forEach { (typeName, fields) ->
+            gen.writeArrayFieldStart(typeName)
+            fields.forEach { field ->
+                gen.writeStartObject()
+                gen.writeStringField("name", field.name)
+                gen.writeStringField("type", field.type)
+                gen.writeEndObject()
+            }
+            gen.writeEndArray()
+        }
+        gen.writeEndObject()
+        gen.writeObjectField("message", value.message)
+        gen.writeObjectField("domain", value.domain)
+        gen.writeEndObject()
+    }
+}
+
+private class EIP712TypedDataDeserializer : JsonDeserializer<EIP712TypedData>() {
+    override fun deserialize(p: JsonParser, ctxt: DeserializationContext): EIP712TypedData {
+        if (p.currentToken != JsonToken.START_OBJECT) {
+            throw IllegalArgumentException("Expected start object")
+        }
+
+        lateinit var primaryType: String
+        var types: Map<String, List<EIP712Field>>? = null
+        var message: Map<String, Any>? = null
+        var domain: EIP712Domain? = null
+
+        p.forEachObjectField { field ->
+            when (field) {
+                "primaryType" -> primaryType = p.text
+                "types" -> types = p.readMapOf({ it }, { readEIP712Fields() })
+                "message" -> message = p.readValueAs(object : com.fasterxml.jackson.core.type.TypeReference<Map<String, Any>>() {})
+                "domain" -> domain = p.readValueAs(EIP712Domain::class.java)
+                else -> p.skipChildren()
+            }
+        }
+
+        return EIP712TypedData(
+            primaryType = primaryType,
+            types = types ?: throw IllegalArgumentException("Missing types field"),
+            message = message ?: throw IllegalArgumentException("Missing message field"),
+            domain = domain ?: throw IllegalArgumentException("Missing domain field"),
+        )
+    }
+
+    private fun JsonParser.readEIP712Fields(): List<EIP712Field> {
+        return readListOf(EIP712Field::class.java)
+    }
+}
+
+private class EIP712FieldSerializer : JsonSerializer<EIP712Field>() {
+    override fun serialize(value: EIP712Field, gen: JsonGenerator, serializers: SerializerProvider) {
+        gen.writeStartObject()
+        gen.writeStringField("name", value.name)
+        gen.writeStringField("type", value.type)
+        gen.writeEndObject()
+    }
+}
+
+private class EIP712FieldDeserializer : JsonDeserializer<EIP712Field>() {
+    override fun deserialize(p: JsonParser, ctxt: DeserializationContext): EIP712Field {
+        if (p.currentToken != JsonToken.START_OBJECT) {
+            throw IllegalArgumentException("Expected start object")
+        }
+
+        var name: String? = null
+        var type: String? = null
+
+        p.forEachObjectField { field ->
+            when (field) {
+                "name" -> name = p.text
+                "type" -> type = p.text
+                else -> p.skipChildren()
+            }
+        }
+
+        return EIP712Field(
+            name = name ?: throw IllegalArgumentException("Missing name field"),
+            type = type ?: throw IllegalArgumentException("Missing type field"),
+        )
+    }
 }

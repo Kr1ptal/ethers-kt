@@ -40,10 +40,10 @@ object EIP712Codec {
      */
     private fun toMessageRecursive(value: Any, abiType: AbiType<*>): Any {
         return when (abiType) {
-            is AbiType.Struct<*> -> (value as ContractStruct).toEIP712Message()
+            is AbiType.Struct<*> -> toMessage(value as ContractStruct)
             is AbiType.Array<*> -> (value as List<*>).map { toMessageRecursive(it!!, abiType.type) }
             is AbiType.FixedArray<*> -> (value as List<*>).map { toMessageRecursive(it!!, abiType.type) }
-            else -> value
+            else -> value.toString()
         }
     }
 
