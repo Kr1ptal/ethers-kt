@@ -163,7 +163,7 @@ private class EIP712TypedDataDeserializer : JsonDeserializer<EIP712TypedData>() 
             when (field) {
                 "primaryType" -> primaryType = p.text
                 "types" -> types = p.readMapOf({ it }, { readEIP712Fields() })
-                "message" -> message = p.readValueAs(object : com.fasterxml.jackson.core.type.TypeReference<Map<String, Any>>() {})
+                "message" -> message = p.readMapOf({ it }, Any::class.java)
                 "domain" -> domain = p.readValueAs(EIP712Domain::class.java)
                 else -> p.skipChildren()
             }
