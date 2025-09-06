@@ -1,11 +1,28 @@
 package io.ethers.abi.eip712
 
+import com.fasterxml.jackson.core.JsonGenerator
+import com.fasterxml.jackson.core.JsonParser
+import com.fasterxml.jackson.core.JsonToken
+import com.fasterxml.jackson.databind.DeserializationContext
+import com.fasterxml.jackson.databind.JsonDeserializer
+import com.fasterxml.jackson.databind.JsonSerializer
+import com.fasterxml.jackson.databind.SerializerProvider
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize
+import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import io.ethers.abi.AbiType
 import io.ethers.abi.ContractStruct
+import io.ethers.core.FastHex
+import io.ethers.core.forEachObjectField
+import io.ethers.core.readAddress
+import io.ethers.core.readBytes
+import io.ethers.core.readHexBigInteger
+import io.ethers.core.readOrNull
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import java.math.BigInteger
 
+@JsonSerialize(using = EIP712DomainSerializer::class)
+@JsonDeserialize(using = EIP712DomainDeserializer::class)
 data class EIP712Domain(
     val name: String? = null,
     val version: String? = null,
@@ -22,7 +39,7 @@ data class EIP712Domain(
     }
 
     val separator by lazy(LazyThreadSafetyMode.NONE) {
-        EIP712Codec.typeHash(abiType)
+        EIP712Codec.hashStruct(this)
     }
 
     override val abiType = AbiType.Struct(
@@ -45,4 +62,49 @@ data class EIP712Domain(
             salt?.let { add(AbiType.Struct.Field("salt", AbiType.FixedBytes(32))) }
         },
     )
+}
+
+private class EIP712DomainSerializer : JsonSerializer<EIP712Domain>() {
+    override fun serialize(value: EIP712Domain, gen: JsonGenerator, serializers: SerializerProvider) {
+        gen.writeStartObject()
+        value.name?.let { gen.writeStringField("name", it) }
+        value.version?.let { gen.writeStringField("version", it) }
+        value.chainId?.let { gen.writeStringField("chainId", FastHex.encodeWithPrefix(it)) }
+        value.verifyingContract?.let { gen.writeStringField("verifyingContract", it.toString()) }
+        value.salt?.let { gen.writeStringField("salt", FastHex.encodeWithPrefix(it.asByteArray())) }
+        gen.writeEndObject()
+    }
+}
+
+private class EIP712DomainDeserializer : JsonDeserializer<EIP712Domain>() {
+    override fun deserialize(p: JsonParser, ctxt: DeserializationContext): EIP712Domain {
+        if (p.currentToken != JsonToken.START_OBJECT) {
+            throw IllegalArgumentException("Expected start object")
+        }
+
+        var name: String? = null
+        var version: String? = null
+        var chainId: BigInteger? = null
+        var verifyingContract: Address? = null
+        var salt: Bytes? = null
+
+        p.forEachObjectField { field ->
+            when (field) {
+                "name" -> name = p.readOrNull { text }
+                "version" -> version = p.readOrNull { text }
+                "chainId" -> chainId = p.readOrNull { readHexBigInteger() }
+                "verifyingContract" -> verifyingContract = p.readOrNull { readAddress() }
+                "salt" -> salt = p.readOrNull { readBytes() }
+                else -> p.skipChildren()
+            }
+        }
+
+        return EIP712Domain(
+            name = name,
+            version = version,
+            chainId = chainId,
+            verifyingContract = verifyingContract,
+            salt = salt,
+        )
+    }
 }

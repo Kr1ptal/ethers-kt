@@ -1,6 +1,11 @@
 package io.ethers.abi
 
+import io.ethers.abi.AbiType.Array
+import io.ethers.abi.AbiType.Companion.PRIMITIVE_TYPES
 import io.ethers.abi.AbiType.Companion.canonicalSignature
+import io.ethers.abi.AbiType.FixedArray
+import io.ethers.abi.AbiType.Tuple
+import io.ethers.abi.AbiType.Tuple.Companion.invoke
 import io.ethers.abi.eip712.EIP712Codec
 import io.ethers.crypto.Hashing
 import java.math.BigInteger
@@ -252,6 +257,30 @@ sealed interface AbiType<T : Any> {
 
     companion object {
         /**
+         * A mapping of string representation to [AbiType] for all valid primitive types.
+         *
+         * A primitive EVM type is a type that doesn't require recursive type resolution. Primitive types
+         * include address, bool, string, bytes, fixed-size bytes (bytes1-bytes32), and integer
+         * types (int8-int256, uint8-uint256).
+         */
+        val PRIMITIVE_TYPES = createPrimitiveTypes()
+
+        private fun createPrimitiveTypes(): Map<kotlin.String, AbiType<*>> {
+            val ints = (8..256 step 8).associate { "int$it" to Int(it) }
+            val uints = (8..256 step 8).associate { "uint$it" to UInt(it) }
+            val fixedBytes = (1..32).associate { "bytes$it" to FixedBytes(it) }
+
+            return ints + uints + fixedBytes + mapOf(
+                "address" to Address,
+                "bytes" to Bytes,
+                "int" to Int(256),
+                "uint" to UInt(256),
+                "bool" to Bool,
+                "string" to String,
+            )
+        }
+
+        /**
          * Construct [canonicalSignature] from name and types, and compute [Hashing.keccak256] hash of it.
          * */
         @JvmStatic
@@ -284,64 +313,130 @@ sealed interface AbiType<T : Any> {
          * */
         @JvmStatic
         fun parseSignature(signature: kotlin.String): List<AbiType<*>> {
-            @Suppress("NAME_SHADOWING")
-            var signature = signature.replace(" ", "")
-            val result = ArrayList<AbiType<*>>()
-            var rawType = getNextType(signature)
-            while (rawType.isNotBlank()) {
-                val type = when (rawType) {
-                    "address" -> Address
-                    "bytes" -> Bytes
-                    "int" -> Int(256)
-                    "uint" -> UInt(256)
-                    "bool" -> Bool
-                    "string" -> String
-                    else -> null
-                }
-                if (type != null) {
-                    result.add(type)
-                } else if (rawType.startsWith("(") && rawType.endsWith(")")) {
-                    // tuple
-                    val types = parseSignature(rawType.substring(1, rawType.length - 1))
-                    result.add(Tuple(types))
-                } else if (rawType.endsWith("[]")) {
-                    // dynamic array
-                    result.add(Array(parseSignature(rawType.dropLast(2)).first()))
-                } else if (rawType.contains("[")) {
-                    // fixed array
-                    val index = rawType.lastIndexOf("[")
-                    val length = rawType.substring(index + 1, rawType.length - 1).toInt()
-                    result.add(FixedArray(length, parseSignature(rawType.take(index)).first()))
-                } else if (rawType.startsWith("int")) {
-                    val bitSize = rawType.substring(3).toInt()
-                    result.add(Int(bitSize))
-                } else if (rawType.startsWith("uint")) {
-                    val bitSize = rawType.substring(4).toInt()
-                    result.add(UInt(bitSize))
-                } else if (rawType.startsWith("bytes")) {
-                    val length = rawType.substring(5).toInt()
-                    result.add(FixedBytes(length))
-                } else {
-                    throw IllegalArgumentException("Invalid token type: $rawType")
-                }
+            return AbiTypeSignatureParser(signature).parseTypes()
+        }
+    }
+}
 
-                signature = signature.removePrefix(rawType).removePrefix(",")
-                rawType = getNextType(signature)
+private class AbiTypeSignatureParser(private val signature: String) {
+    private var pos = 0
+
+    fun parseTypes(): List<AbiType<*>> {
+        val result = ArrayList<AbiType<*>>()
+
+        while (pos < signature.length) {
+            result.add(parseNextType())
+
+            if (pos < signature.length && signature[pos] == ',') {
+                pos++ // Skip comma
+            } else {
+                break // No more types
             }
-            return result
         }
 
-        private fun getNextType(signature: kotlin.String): kotlin.String {
-            var nestingDepth = 0
-            for (i in signature.indices) {
-                val c = signature[i]
-                when (c) {
-                    '(' -> nestingDepth++
-                    ')' -> nestingDepth--
-                    ',' if nestingDepth == 0 -> return signature.take(i)
+        return result
+    }
+
+    private fun parseNextType(): AbiType<*> {
+        skipWhitespace()
+
+        if (pos >= signature.length) {
+            throw IllegalArgumentException("Unexpected end of signature")
+        }
+
+        // Parse tuple
+        val type = when {
+            signature[pos] == '(' -> {
+                pos++ // Skip opening parenthesis
+                val types = parseTypes()
+                if (pos >= signature.length || signature[pos] != ')') {
+                    throw IllegalArgumentException("Expected closing parenthesis")
+                }
+
+                pos++ // Skip closing parenthesis
+
+                Tuple(types)
+            }
+            // Parse base type name - only until space, bracket, comma, or closing parenthesis
+            else -> {
+                val start = pos
+                while (pos < signature.length &&
+                    signature[pos] != ',' &&
+                    signature[pos] != ')' &&
+                    signature[pos] != '[' &&
+                    !signature[pos].isWhitespace()
+                ) {
+                    pos++
+                }
+
+                if (pos == start) {
+                    throw IllegalArgumentException("Expected type name at position $pos in: $signature")
+                }
+
+                val typeName = signature.substring(start, pos)
+                PRIMITIVE_TYPES[typeName] ?: throw IllegalArgumentException("Invalid token type: $typeName")
+            }
+        }
+
+        // Check for array suffix
+        val typeWithArrays = parseArraySuffix(type)
+        skipToNextTypeOrEnd()
+        return typeWithArrays
+    }
+
+    private fun parseArraySuffix(baseType: AbiType<*>): AbiType<*> {
+        skipWhitespace()
+
+        var currentType = baseType
+        while (pos < signature.length && signature[pos] == '[') {
+            pos++ // Skip opening bracket
+            skipWhitespace()
+
+            when {
+                // Dynamic array
+                pos < signature.length && signature[pos] == ']' -> {
+                    pos++ // Skip closing bracket
+                    currentType = Array(currentType)
+                }
+                // Fixed array - parse length
+                else -> {
+                    val lengthStart = pos
+                    while (pos < signature.length && signature[pos] != ']') {
+                        if (!signature[pos].isDigit()) {
+                            throw IllegalArgumentException("Invalid array length")
+                        }
+                        pos++
+                    }
+
+                    if (pos >= signature.length) {
+                        throw IllegalArgumentException("Expected closing bracket")
+                    }
+
+                    val length = signature.substring(lengthStart, pos).toInt()
+                    pos++ // Skip closing bracket
+                    currentType = FixedArray(length, currentType)
                 }
             }
-            return signature
+
+            skipWhitespace()
+        }
+
+        return currentType
+    }
+
+    private fun skipToNextTypeOrEnd() {
+        // Skip everything until we reach comma, closing paren, or end of string
+        while (pos < signature.length &&
+            signature[pos] != ',' &&
+            signature[pos] != ')'
+        ) {
+            pos++
+        }
+    }
+
+    private fun skipWhitespace() {
+        while (pos < signature.length && signature[pos].isWhitespace()) {
+            pos++
         }
     }
 }
