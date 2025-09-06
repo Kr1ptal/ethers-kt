@@ -39,7 +39,7 @@ data class EIP712Domain(
     }
 
     val separator by lazy(LazyThreadSafetyMode.NONE) {
-        EIP712Codec.typeHash(abiType)
+        EIP712Codec.hashStruct(this)
     }
 
     override val abiType = AbiType.Struct(
