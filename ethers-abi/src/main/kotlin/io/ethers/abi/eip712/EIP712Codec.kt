@@ -320,6 +320,73 @@ object EIP712Codec {
     }
 
     /**
+     * Encodes a data word from a message value based on its field type string.
+     *
+     * This function encodes field values for EIP712 struct hashing when working with
+     * string-based type definitions (as used in EIP712TypedData). It handles type
+     * conversion and validation for all EVM types including primitives, dynamic types,
+     * arrays, and nested structs.
+     *
+     * @param value The field value to encode
+     * @param fieldType The EIP712 type string (e.g., "address", "uint256", "string", "bytes32[]")
+     * @param types Map of struct type definitions for resolving nested structs
+     * @return 32-byte encoded data word
+     * @throws IllegalArgumentException for invalid values or unknown types
+     */
+    private fun encodeDataWord(
+        value: Any,
+        fieldType: String,
+        types: Map<String, List<EIP712Field>>,
+    ): ByteArray {
+        // first, handle structs
+        if (types.containsKey(fieldType)) {
+            @Suppress("UNCHECKED_CAST")
+            val structData = value as? Map<String, Any>
+                ?: throw IllegalArgumentException("Invalid struct value for type $fieldType: $value")
+
+            return hashStruct(fieldType, types, structData)
+        }
+
+        // second, handle arrays since they could have struct inner types
+        val arrayStartIndex = fieldType.lastIndexOf('[')
+        if (arrayStartIndex != -1) {
+            val array = value as? List<*>
+                ?: throw IllegalArgumentException("Invalid array value: $value")
+
+            val innerType = fieldType.take(arrayStartIndex)
+
+            // For arrays, hash the concatenated encoded elements
+            val buff = ByteBuffer.allocate(array.size * AbiCodec.WORD_SIZE_BYTES)
+            for (element in array) {
+                buff.put(encodeDataWord(element!!, innerType, types))
+            }
+
+            return Hashing.keccak256(buff.array())
+        }
+
+        // third, handle remaining primitive types
+        val type = AbiType.PRIMITIVE_TYPES[fieldType]
+        val typedValue = when (type) {
+            AbiType.Address -> Address(value as String)
+            AbiType.Bool -> when (value as String) {
+                "true" -> true
+                "false" -> false
+                else -> throw IllegalArgumentException("Invalid value for type $type: '$value'")
+            }
+            AbiType.Bytes,
+            is AbiType.FixedBytes,
+            -> Bytes(value as String)
+            AbiType.String -> value as String
+            is AbiType.Int,
+            is AbiType.UInt,
+            -> BigInteger(value as String)
+            else -> throw IllegalArgumentException("Invalid type $fieldType: '$value'")
+        }
+
+        return encodeDataWord(typedValue, type)
+    }
+
+    /**
      * Encodes a single data field for EIP712 struct hashing using ABI type definition.
      *
      * This function encodes individual struct field values according to EIP712 specification.
@@ -365,123 +432,6 @@ object EIP712Codec {
         }
 
         return Hashing.keccak256(bytes)
-    }
-
-    /**
-     * Encodes a data word from a message value based on its field type string.
-     *
-     * This function encodes field values for EIP712 struct hashing when working with
-     * string-based type definitions (as used in EIP712TypedData). It handles type
-     * conversion and validation for all EVM types including primitives, dynamic types,
-     * arrays, and nested structs.
-     *
-     * @param value The field value to encode
-     * @param fieldType The EIP712 type string (e.g., "address", "uint256", "string", "bytes32[]")
-     * @param types Map of struct type definitions for resolving nested structs
-     * @return 32-byte encoded data word
-     * @throws IllegalArgumentException for invalid values or unknown types
-     */
-    private fun encodeDataWord(
-        value: Any,
-        fieldType: String,
-        types: Map<String, List<EIP712Field>>,
-    ): ByteArray {
-        return when {
-            // Primitive types that can be encoded directly
-            fieldType == "address" -> {
-                val address = when (value) {
-                    is Address -> value
-                    is String -> Address(value)
-                    else -> throw IllegalArgumentException("Invalid address value: $value")
-                }
-                AbiCodec.encode(AbiType.Address, address)
-            }
-
-            fieldType == "bool" -> {
-                val bool = value as? Boolean
-                    ?: throw IllegalArgumentException("Invalid bool value: $value")
-                AbiCodec.encode(AbiType.Bool, bool)
-            }
-
-            fieldType.startsWith("uint") -> {
-                val bits = if (fieldType == "uint") 256 else fieldType.substring(4).toInt()
-                val bigInt = when (value) {
-                    is BigInteger -> value
-                    is Number -> BigInteger.valueOf(value.toLong())
-                    is String -> BigInteger(value)
-                    else -> throw IllegalArgumentException("Invalid uint value: $value")
-                }
-                AbiCodec.encode(AbiType.UInt(bits), bigInt)
-            }
-
-            fieldType.startsWith("int") && !fieldType.contains("uint") -> {
-                val bits = if (fieldType == "int") 256 else fieldType.substring(3).toInt()
-                val bigInt = when (value) {
-                    is BigInteger -> value
-                    is Number -> BigInteger.valueOf(value.toLong())
-                    is String -> BigInteger(value)
-                    else -> throw IllegalArgumentException("Invalid int value: $value")
-                }
-                AbiCodec.encode(AbiType.Int(bits), bigInt)
-            }
-
-            fieldType.startsWith("bytes") && fieldType.length > 5 -> {
-                // Fixed bytes
-                val length = fieldType.substring(5).toInt()
-                val bytes = when (value) {
-                    is Bytes -> value
-                    is ByteArray -> Bytes(value)
-                    is String -> Bytes(value)
-                    else -> throw IllegalArgumentException("Invalid bytes value: $value")
-                }
-                AbiCodec.encode(AbiType.FixedBytes(length), bytes)
-            }
-
-            // Dynamic types - need to be hashed
-            fieldType == "string" -> {
-                val str = value as? String
-                    ?: throw IllegalArgumentException("Invalid string value: $value")
-                Hashing.keccak256(str.toByteArray(Charsets.UTF_8))
-            }
-
-            fieldType == "bytes" -> {
-                val bytes = when (value) {
-                    is Bytes -> value.asByteArray()
-                    is ByteArray -> value
-                    is String -> Bytes(value).asByteArray()
-                    else -> throw IllegalArgumentException("Invalid bytes value: $value")
-                }
-                Hashing.keccak256(bytes)
-            }
-
-            // Array types
-            fieldType.endsWith("]") -> {
-                val array = value as? List<*>
-                    ?: throw IllegalArgumentException("Invalid array value: $value")
-                val baseType = fieldType.substringBefore('[')
-
-                // For arrays, hash the concatenated encoded elements
-                val buff = ByteBuffer.allocate(array.size * AbiCodec.WORD_SIZE_BYTES)
-                for (element in array) {
-                    buff.put(encodeDataWord(element!!, baseType, types))
-                }
-                Hashing.keccak256(buff.array())
-            }
-
-            // Custom struct type
-            else -> {
-                // Must be a struct type
-                if (!types.containsKey(fieldType)) {
-                    throw IllegalArgumentException("Unknown type: $fieldType")
-                }
-
-                val structData = value as? Map<*, *>
-                    ?: throw IllegalArgumentException("Invalid struct value for type $fieldType: $value")
-
-                @Suppress("UNCHECKED_CAST")
-                hashStruct(fieldType, types, structData as Map<String, Any>)
-            }
-        }
     }
 
     /**
@@ -569,9 +519,10 @@ object EIP712Codec {
                 // Array type: Type[] or Type[n]
                 fieldType.endsWith(']') -> {
                     val baseType = fieldType.substringBefore('[')
+                    val isPrimitiveType = AbiType.PRIMITIVE_TYPES.containsKey(baseType)
 
                     // If it's not a primitive type and not in types map, it's an error
-                    if (!isPrimitiveType(baseType) && !types.containsKey(baseType)) {
+                    if (!isPrimitiveType && !types.containsKey(baseType)) {
                         throw IllegalArgumentException("Type '$baseType' not found in types map")
                     }
 
@@ -581,7 +532,7 @@ object EIP712Codec {
                 }
 
                 // Check if this is a known struct type
-                !isPrimitiveType(fieldType) -> {
+                !AbiType.PRIMITIVE_TYPES.containsKey(fieldType) -> {
                     if (!types.containsKey(fieldType)) {
                         throw IllegalArgumentException("Type '$fieldType' not found in types map")
                     }
@@ -619,49 +570,6 @@ object EIP712Codec {
         }
 
         append(')')
-    }
-
-    /**
-     * Checks if a type name represents a primitive EVM type.
-     *
-     * This function determines whether a given type string represents a primitive
-     * EVM type that doesn't require recursive type resolution. Primitive types include
-     * address, bool, string, bytes, fixed-size bytes (bytes1-bytes32), and integer
-     * types (int8-int256, uint8-uint256).
-     *
-     * @param type The type string to check
-     * @return true if the type is primitive, false if it's a custom struct type
-     */
-    private fun isPrimitiveType(type: String): Boolean {
-        return when {
-            type == "address" -> true
-            type == "bool" -> true
-            type == "string" -> true
-            type == "bytes" -> true
-
-            // bytes1, bytes2, ... bytes32
-            type.startsWith("bytes") && type.length > 5 -> {
-                val suffix = type.substring(5)
-                val length = suffix.toIntOrNull()
-                length != null && length in 1..32
-            }
-
-            // uint, uint8, uint16, ... uint256
-            type.contains("uint") -> {
-                val suffix = type.substring(4)
-                val bits = if (suffix.isEmpty()) 256 else suffix.toIntOrNull()
-                bits != null && bits in 8..256 && bits % 8 == 0
-            }
-
-            // int, int8, int16, ... int256
-            type.startsWith("int") -> {
-                val suffix = type.substring(3)
-                val bits = if (suffix.isEmpty()) 256 else suffix.toIntOrNull()
-                bits != null && bits in 8..256 && bits % 8 == 0
-            }
-
-            else -> false
-        }
     }
 
     /**

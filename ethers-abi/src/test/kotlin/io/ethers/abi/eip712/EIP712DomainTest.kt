@@ -94,14 +94,15 @@ class EIP712DomainTest : FunSpec({
 
     test("has correct separator hash") {
         val domain = EIP712Domain(
-            name = "TestDApp",
-            version = "1.0",
-            chainId = BigInteger.valueOf(1),
+            "Seaport",
+            "1.1",
+            BigInteger.ONE,
+            Address("0x00000000006c3852cbEf3e08E8dF289169EdE581"),
         )
 
         // Should not throw and should return a 32-byte hash
         val hash = Hash(domain.separator)
-        hash shouldBe Hash("0xc2f8787176b8ac6bf7215b4adcc1e069bf4ab82d9ab1df05a57a91d425935b6e")
+        hash shouldBe Hash("0xb50c8913581289bd2e066aeef89fceb9615d490d673131fd1a7047436706834e")
     }
 
     context("JSON serialization") {

@@ -5,6 +5,7 @@ import io.ethers.abi.Mail
 import io.ethers.abi.Person
 import io.ethers.core.Jackson
 import io.ethers.core.types.Address
+import io.ethers.core.types.Hash
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import java.math.BigInteger
@@ -202,6 +203,67 @@ class EIP712TypedDataTest : FunSpec({
             // Verify chainId in domain is hex string as per EIP712Domain serialization
             val chainIdInDomain = jsonNode["domain"]["chainId"].asText()
             chainIdInDomain shouldBe "0xab54a98ceb1f0ad2"
+        }
+    }
+
+    context("EIP712 encoding") {
+        test("Seaport 1.1 OrderComponents encodes and hashes correctly") {
+            val types = mapOf(
+                "OrderComponents" to listOf(
+                    EIP712Field("offerer", "address"),
+                    EIP712Field("zone", "address"),
+                    EIP712Field("offer", "OfferItem[]"),
+                    EIP712Field("startTime", "uint256"),
+                    EIP712Field("endTime", "uint256"),
+                    EIP712Field("zoneHash", "bytes32"),
+                    EIP712Field("salt", "uint256"),
+                    EIP712Field("conduitKey", "bytes32"),
+                    EIP712Field("counter", "uint256"),
+                ),
+                "OfferItem" to listOf(
+                    EIP712Field("token", "address"),
+                ),
+                "ConsiderationItem" to listOf(
+                    EIP712Field("token", "address"),
+                    EIP712Field("identifierOrCriteria", "uint256"),
+                    EIP712Field("startAmount", "uint256"),
+                    EIP712Field("endAmount", "uint256"),
+                    EIP712Field("recipient", "address"),
+                ),
+            )
+
+            val message = mapOf(
+                "offerer" to "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+                "zone" to "0x004C00500000aD104D7DBd00e3ae0A5C00560C00",
+                "offer" to listOf(
+                    mapOf(
+                        "token" to "0xA604060890923Ff400e8c6f5290461A83AEDACec",
+                    ),
+                ),
+                "startTime" to "1658645591",
+                "endTime" to "1659250386",
+                "zoneHash" to "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "salt" to "16178208897136618",
+                "conduitKey" to "0x0000007b02230091a7ed01230072f7006a004d60a8d4e71d599b8104250f0000",
+                "totalOriginalConsiderationItems" to "2",
+                "counter" to "0",
+            )
+
+            val domain = EIP712Domain(
+                "Seaport",
+                "1.1",
+                BigInteger.ONE,
+                Address("0x00000000006c3852cbEf3e08E8dF289169EdE581"),
+            )
+
+            val typeData = EIP712TypedData("OrderComponents", types, message, domain)
+
+            val sigHash = typeData.signatureHash()
+            Hash(sigHash) shouldBe Hash("0x0b8aa9f3712df0034bc29fe5b24dd88cfdba02c7f499856ab24632e2969709a8")
+
+            // Verify type encoding includes all dependent types
+            val encodedType = EIP712Codec.encodeType(typeData.primaryType, typeData.types)
+            encodedType shouldBe "OrderComponents(address offerer,address zone,OfferItem[] offer,uint256 startTime,uint256 endTime,bytes32 zoneHash,uint256 salt,bytes32 conduitKey,uint256 counter)OfferItem(address token)"
         }
     }
 })
