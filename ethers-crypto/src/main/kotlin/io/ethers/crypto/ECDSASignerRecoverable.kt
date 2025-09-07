@@ -84,6 +84,7 @@ internal class ECDSASignerRecoverable : ECConstants, DSAExt {
     }
 
     // 5.3 pg 28
+
     /**
      * generate a signature for the given message using the key we were
      * initialised with. For conventional DSA the message should be a SHA-1
@@ -142,6 +143,7 @@ internal class ECDSASignerRecoverable : ECConstants, DSAExt {
     }
 
     // 5.4 pg 29
+
     /**
      * return true if the value r and s represent a DSA signature for
      * the passed in message (for standard DSA the message should be

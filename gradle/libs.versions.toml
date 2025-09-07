@@ -18,7 +18,7 @@ hoplite = "2.9.0"
 kotlin-bom = { module = "org.jetbrains.kotlin:kotlin-bom", version.ref = "kotlin" }
 kotlin-gradle = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
 
-ktlint-gradle = { module = "org.jlleitschuh.gradle:ktlint-gradle", version = "12.1.0" }
+ktlint-gradle = { module = "org.jlleitschuh.gradle:ktlint-gradle", version = "13.1.0" }
 ktlint-bom = { module = "com.pinterest.ktlint:ktlint-bom", version.ref = "ktlint-tool" }
 ktlint-sarif = { module = "com.pinterest.ktlint:ktlint-cli-reporter-sarif", version.ref = "ktlint-tool" }
 
@@ -101,4 +101,4 @@ kotest = ["kotest-junit5", "kotest-assertions", "kotest-property", "kotest-frame
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-kapt = { id = "org.jetbrains.kotlin.kapt", version.ref = "kotlin" }
 shadow = { id = "com.github.johnrengelman.shadow", version = "8.1.1" }
-jreleaser = { id = "org.jreleaser", version = "1.19.0" }
+jreleaser = { id = "org.jreleaser", version = "1.20.0" }
