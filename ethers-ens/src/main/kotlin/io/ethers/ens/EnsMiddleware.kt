@@ -635,6 +635,7 @@ class EnsMiddleware @JvmOverloads constructor(
         }
 
         // Errors when getting resolver address
+
         /**
          * Error on getting resolver address from registry
          */
@@ -653,6 +654,7 @@ class EnsMiddleware @JvmOverloads constructor(
         data object UnknownResolver : Error()
 
         // Errors when resolving ENS name with resolver
+
         /**
          * Resolver does not support selector
          */
@@ -687,6 +689,7 @@ class EnsMiddleware @JvmOverloads constructor(
         }
 
         // Reverse lookup specific errors
+
         /**
          * Reverse lookup ENS name does not resolve to original address.
          * The owner of ENS name is incorrect
@@ -694,6 +697,7 @@ class EnsMiddleware @JvmOverloads constructor(
         data class IncorrectOwner(val message: String) : Error()
 
         // Avatar specific errors
+
         /**
          * Avatar URI scheme is not supported
          */
@@ -710,6 +714,7 @@ class EnsMiddleware @JvmOverloads constructor(
         }
 
         // CCIP specific errors
+
         /**
          * Cannot handle OffchainLookup raised inside nested call.
          */
