@@ -6,6 +6,7 @@ plugins {
 }
 
 ktlint {
+    val layout = project.layout
     val libs = the<LibrariesForLibs>()
 
     version = libs.versions.ktlint.tool.get()
