@@ -18,7 +18,7 @@ Sections:
 ### Security = Security patches.
 -->
 
-## [1.4.1] - 2025-09-07
+## [1.4.2] - 2025-09-07
 
 ### Bug Fixes
 
