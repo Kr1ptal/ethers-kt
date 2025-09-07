@@ -18,6 +18,12 @@ Sections:
 ### Security = Security patches.
 -->
 
+## [1.4.1] - 2025-09-07
+
+### Bug Fixes
+
+- Fix abigen plugin publishing by updating the shadowjar plugin to v9.1.0 
+
 ## [1.4.0] - 2025-09-07
 
 ### Bug Fixes

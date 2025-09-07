@@ -55,7 +55,7 @@ The codebase is divided into several modules, each with a specific purpose:
 ```bash
 # Add the abigen-plugin to your project's build.gradle.kts
 plugins {
-    id("io.kriptal.ethers.abigen-plugin") version "1.4.0"
+    id("io.kriptal.ethers.abigen-plugin") version "1.4.1"
 }
 
 # Configure the plugin

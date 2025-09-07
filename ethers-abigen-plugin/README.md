@@ -11,7 +11,7 @@ It supports the following configuration options:
 
 ```kotlin
 plugins {
-    id("io.kriptal.ethers.abigen-plugin") version "1.4.0"
+    id("io.kriptal.ethers.abigen-plugin") version "1.4.1"
 }
 
 ethersAbigen {
@@ -55,7 +55,7 @@ buildscript {
     }
 
     dependencies {
-        classpath(files("/absolute/path/ethers-abigen-plugin/build/libs/ethers-abigen-plugin-1.4.0-SNAPSHOT.jar"))
+        classpath(files("/absolute/path/ethers-abigen-plugin/build/libs/ethers-abigen-plugin-1.4.1-SNAPSHOT.jar"))
     }
 }
 
