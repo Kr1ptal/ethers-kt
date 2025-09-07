@@ -18,6 +18,41 @@ Sections:
 ### Security = Security patches.
 -->
 
+## [1.4.0] - 2025-09-07
+
+### Bug Fixes
+
+- Gradle plugin-publish version
+- Exclude ArbOS changes from state diff
+- Handle more `RpcError#isMethodNotFound` cases (#240)
+- [**breaking**] Lowercase ABI class names and flat package structure generation (#245)
+- Use env variables for publishing via jreleaser
+
+### Features
+
+- Use `jreleaser` for publishing to maven central (#251)
+- Support out-of-order batch responses (#250)
+- Add `CLAUDE.md` rules
+- Implement `TxSetCode` (#252)
+- [**breaking**] Replace `SubscriptionStream` with `channels-kt` library (#211)
+- [**breaking**] Abigen uses `List` instead of `Array` (#263)
+- Use kmp-friendly logging facade (#270)
+- Make "FastHex" decoding functions safe by default (#271)
+- Add fromHex/fromHexUnsafe helper functions to low-level types (#272)
+- Optimize struct ABI references and add typed StructFactory.abi (#276)
+- [**breaking**] Typed data signing (#283)
+- Specify annotation targets explicitly (#288)
+- Gradle config cache (#289)
+
+### Miscellaneous Tasks
+
+- Fix tagged version concurrency group
+
+### Refactor
+
+- [**breaking**] `GcpSigner` constructor no longer does an external call (#264)
+- Simplify `HttpClient` response body reading
+
 ## [1.3.2] - 2025-04-20
 
 ### Bug Fixes
