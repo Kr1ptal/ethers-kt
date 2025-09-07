@@ -2,7 +2,7 @@ plugins {
     `project-conventions`
     `signing-conventions`
     `java-gradle-plugin`
-    id("com.gradle.plugin-publish") version "1.3.1"
+    id("com.gradle.plugin-publish") version "2.0.0"
     alias(libs.plugins.shadow)
 }
 
@@ -22,6 +22,16 @@ dependencies {
 tasks.shadowJar {
     archiveClassifier.set("")
     mergeServiceFiles()
+}
+
+tasks.test {
+    javaLauncher.set(
+        javaToolchains.launcherFor {
+            languageVersion.set(JavaLanguageVersion.of(17))
+            vendor.set(JvmVendorSpec.ADOPTIUM)
+            implementation.set(JvmImplementation.VENDOR_SPECIFIC)
+        },
+    )
 }
 
 gradlePlugin {

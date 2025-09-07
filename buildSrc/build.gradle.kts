@@ -12,7 +12,7 @@ dependencies {
     implementation(files(libs.javaClass.superclass.protectionDomain.codeSource.location))
     implementation(libs.kotlin.gradle)
 
-    implementation(libs.ktlint.gradle)
     implementation(platform(libs.ktlint.bom))
+    implementation(libs.ktlint.gradle)
     implementation(libs.ktlint.sarif)
 }
