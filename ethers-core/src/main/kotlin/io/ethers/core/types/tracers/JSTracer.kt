@@ -9,7 +9,7 @@ import org.intellij.lang.annotations.Language
  * Evaluate JS functions on the relevant EVM hooks.
  */
 data class JSTracer(
-    @Language("JavaScript")
+    @param:Language("JavaScript")
     val code: String,
     val config: Map<String, Any>,
 ) : Tracer<JsonNode> {

@@ -71,15 +71,15 @@ data class JsonAbi(
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class JsonAbiItem(
-    @JsonProperty("type") val type: Type,
-    @JsonProperty("name") val name: String?,
-    @JsonProperty("inputs") val inputs: List<Component>? = null,
-    @JsonProperty("outputs") val outputs: List<Component>? = null,
-    @JsonProperty("anonymous") val anonymous: Boolean? = null,
+    @param:JsonProperty("type") val type: Type,
+    @param:JsonProperty("name") val name: String?,
+    @param:JsonProperty("inputs") val inputs: List<Component>? = null,
+    @param:JsonProperty("outputs") val outputs: List<Component>? = null,
+    @param:JsonProperty("anonymous") val anonymous: Boolean? = null,
 
-    @JsonProperty("stateMutability") private val stateMutability: Mutability = Mutability.NONPAYABLE,
-    @JsonProperty("constant") private val constant: Boolean = false, // legacy field since v0.5.0 - true if function is view or pure
-    @JsonProperty("payable") private val payable: Boolean = false, // legacy field since v0.5.0 - true if function is payable
+    @param:JsonProperty("stateMutability") private val stateMutability: Mutability = Mutability.NONPAYABLE,
+    @param:JsonProperty("constant") private val constant: Boolean = false, // legacy field since v0.5.0 - true if function is view or pure
+    @param:JsonProperty("payable") private val payable: Boolean = false, // legacy field since v0.5.0 - true if function is payable
 ) {
     val isPayable: Boolean
         get() = stateMutability == Mutability.PAYABLE || payable
@@ -105,11 +105,11 @@ data class JsonAbiItem(
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     data class Component(
-        @JsonProperty("type") val type: String,
-        @JsonProperty("internalType") val internalType: String?,
-        @JsonProperty("name") val name: String = "",
-        @JsonProperty("indexed") val indexed: Boolean = false,
-        @JsonProperty("components") val components: List<Component> = emptyList(),
+        @param:JsonProperty("type") val type: String,
+        @param:JsonProperty("internalType") val internalType: String?,
+        @param:JsonProperty("name") val name: String = "",
+        @param:JsonProperty("indexed") val indexed: Boolean = false,
+        @param:JsonProperty("components") val components: List<Component> = emptyList(),
     )
 }
 
