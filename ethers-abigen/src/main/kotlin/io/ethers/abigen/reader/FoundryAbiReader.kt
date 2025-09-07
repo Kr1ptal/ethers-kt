@@ -24,12 +24,12 @@ import java.net.URL
 object FoundryAbiReader : JsonAbiReader {
     @JsonIgnoreProperties(ignoreUnknown = true)
     private data class Artifact(
-        @JsonProperty("abi") val abi: List<JsonAbiItem>,
-        @JsonProperty("bytecode") val bytecode: Bytecode?,
+        @param:JsonProperty("abi") val abi: List<JsonAbiItem>,
+        @param:JsonProperty("bytecode") val bytecode: Bytecode?,
     ) {
         @JsonIgnoreProperties(ignoreUnknown = true)
         data class Bytecode(
-            @JsonProperty("object") val `object`: String,
+            @param:JsonProperty("object") val `object`: String,
         )
     }
 

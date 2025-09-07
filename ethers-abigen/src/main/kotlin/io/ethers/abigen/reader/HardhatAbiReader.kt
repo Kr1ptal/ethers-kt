@@ -24,8 +24,8 @@ import java.net.URL
 object HardhatAbiReader : JsonAbiReader {
     @JsonIgnoreProperties(ignoreUnknown = true)
     private data class HardhatArtifact(
-        @JsonProperty("abi") val abi: List<JsonAbiItem>,
-        @JsonProperty("bytecode") val bytecode: String,
+        @param:JsonProperty("abi") val abi: List<JsonAbiItem>,
+        @param:JsonProperty("bytecode") val bytecode: String,
     )
 
     override fun read(abi: URL): JsonAbi {
