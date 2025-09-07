@@ -30,7 +30,7 @@ abstract class EthersAbigenExtension(private val project: Project) {
      * */
     val sourceProviders: ListProperty<AbiSourceProvider> =
         factory.listProperty(AbiSourceProvider::class.java).convention(
-            listOf(DirectorySourceProvider(project, "src/main/abi")),
+            listOf(createDirectorySourceProvider("src/main/abi")),
         )
 
     /**
@@ -55,9 +55,15 @@ abstract class EthersAbigenExtension(private val project: Project) {
      * */
     @JvmOverloads
     fun directorySource(path: String, action: Action<in DirectorySourceProvider>? = null) {
-        val source = DirectorySourceProvider(project, path)
+        val source = createDirectorySourceProvider(path)
         action?.execute(source)
         sourceProviders.add(source)
+    }
+
+    private fun createDirectorySourceProvider(path: String): DirectorySourceProvider {
+        val source = factory.newInstance(DirectorySourceProvider::class.java)
+        source.sourceDirectory.set(project.layout.projectDirectory.dir(path))
+        return source
     }
 
     /**
@@ -69,8 +75,14 @@ abstract class EthersAbigenExtension(private val project: Project) {
      * */
     @JvmOverloads
     fun foundrySource(destinationPackage: String, action: Action<in FoundrySourceProvider>? = null) {
-        val source = FoundrySourceProvider(project, destinationPackage)
+        val source = createFoundrySourceProvider(destinationPackage)
         action?.execute(source)
         sourceProviders.add(source)
+    }
+
+    private fun createFoundrySourceProvider(destinationPackage: String): FoundrySourceProvider {
+        val source = factory.newInstance(FoundrySourceProvider::class.java)
+        source.destinationPackage.set(destinationPackage)
+        return source
     }
 }

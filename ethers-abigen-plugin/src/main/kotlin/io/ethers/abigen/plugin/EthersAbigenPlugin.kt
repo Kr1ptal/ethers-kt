@@ -19,6 +19,9 @@ abstract class EthersAbigenPlugin : Plugin<Project> {
             it.sourceProviders.set(ext.sourceProviders)
             it.functionRenames.set(ext.functionRenames)
             it.outputDir.set(ext.outputDir)
+
+            // Configure external properties only (internal properties are initialized in task)
+            it.projectPath.convention(target.path)
         }
 
         val kotlinCompileTasks = target.tasks.names.filter { it.contains("compile") && it.contains("Kotlin") }

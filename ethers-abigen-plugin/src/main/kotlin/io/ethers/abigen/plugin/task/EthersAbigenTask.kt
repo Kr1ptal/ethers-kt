@@ -2,13 +2,16 @@ package io.ethers.abigen.plugin.task
 
 import io.ethers.abigen.ErrorLoaderBuilder
 import io.ethers.abigen.plugin.source.AbiSourceProvider
+import org.gradle.api.DefaultTask
 import org.gradle.api.file.DirectoryProperty
-import org.gradle.api.internal.ConventionTask
+import org.gradle.api.file.ProjectLayout
+import org.gradle.api.model.ObjectFactory
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.MapProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.CacheableTask
 import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.Nested
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
@@ -19,7 +22,14 @@ import java.util.UUID
 import javax.inject.Inject
 
 @CacheableTask
-abstract class EthersAbigenTask @Inject constructor(private val executor: WorkerExecutor) : ConventionTask() {
+abstract class EthersAbigenTask @Inject constructor(private val executor: WorkerExecutor) : DefaultTask() {
+
+    @get:Inject
+    abstract val objectFactory: ObjectFactory
+
+    @get:Inject
+    abstract val projectLayout: ProjectLayout
+
     init {
         group = "ethers"
         description = "Generate Kotlin code from Solidity ABI files"
@@ -49,9 +59,8 @@ abstract class EthersAbigenTask @Inject constructor(private val executor: Worker
      * so all paths are relative to the project build directory.
      * */
     @get:OutputDirectory
-    @Suppress("LeakingThis")
-    internal val destinationDir: DirectoryProperty = project.objects.directoryProperty().convention(
-        project.layout.buildDirectory.dir(outputDir),
+    internal val destinationDir: DirectoryProperty = objectFactory.directoryProperty().convention(
+        projectLayout.buildDirectory.dir(outputDir),
     )
 
     /**
@@ -59,7 +68,23 @@ abstract class EthersAbigenTask @Inject constructor(private val executor: Worker
      * causes the new version of the plugin to invalidate previous output automatically.
      * */
     @get:Input
-    internal val outputVersion: Property<String> = project.objects.property(String::class.java).convention("5")
+    internal val outputVersion: Property<String> = objectFactory.property(String::class.java).convention("5")
+
+    /**
+     * Project path for generating loader prefix. This property is used instead of direct project.path access
+     * to ensure configuration cache compatibility.
+     * */
+    @get:Input
+    abstract val projectPath: Property<String>
+
+    /**
+     * Directory for temporary abigen results. This property is used instead of direct project.layout access
+     * during task execution to ensure configuration cache compatibility.
+     * */
+    @get:Internal
+    internal val resultsDirectory: DirectoryProperty = objectFactory.directoryProperty().convention(
+        projectLayout.buildDirectory.dir("tmp/abigen-results/"),
+    )
 
     @TaskAction
     fun run() {
@@ -74,7 +99,7 @@ abstract class EthersAbigenTask @Inject constructor(private val executor: Worker
 
         val destDir = destinationDir.get().asFile
 
-        var loaderPrefix = project.path.split(":", "-")
+        var loaderPrefix = projectPath.get().split(":", "-")
             .map { it.replaceFirstChar { c -> c.uppercase() } }
             .joinToString(separator = "") { it }
             .trim()
@@ -86,7 +111,7 @@ abstract class EthersAbigenTask @Inject constructor(private val executor: Worker
         val errorLoaderBuilder = ErrorLoaderBuilder(loaderPrefix, destDir)
         val results = Collections.synchronizedList(ArrayList<File>())
 
-        val resultsDir = File(project.layout.buildDirectory.get().asFile, "tmp/abigen-results/").apply { mkdirs() }
+        val resultsDir = resultsDirectory.get().asFile.apply { mkdirs() }
         val queue = executor.noIsolation()
 
         // TODO parallelize this
