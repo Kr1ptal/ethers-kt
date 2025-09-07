@@ -6,11 +6,14 @@ import com.sksamuel.hoplite.ConfigLoaderBuilder
 import com.sksamuel.hoplite.addFileSource
 import com.sksamuel.hoplite.defaultDecoders
 import com.sksamuel.hoplite.toml.TomlParser
-import org.gradle.api.Project
 import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.file.ProjectLayout
 import org.gradle.api.file.RegularFile
 import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.logging.Logger
+import org.gradle.api.model.ObjectFactory
 import org.gradle.api.provider.Property
+import org.gradle.api.provider.ProviderFactory
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputDirectory
 import org.gradle.api.tasks.InputFile
@@ -24,24 +27,37 @@ import java.io.File
 import java.nio.file.FileSystems
 import java.nio.file.PathMatcher
 import java.util.stream.Collectors
+import javax.inject.Inject
 
 /**
  * A Foundry [AbiSourceProvider] that builds the foundry project and reads the ABI files from the output directory.
  * Only contracts in from the source directory will be included. The contracts will be placed into [destinationPackage]
  * package, replicating the foundry source directory structure.
- *
- * @param destinationPackage the parent package name of the generated Kotlin files.
- * */
-open class FoundrySourceProvider(
-    private val project: Project,
-    @get:Input internal val destinationPackage: String,
-) : AbiSourceProvider {
-    private val LOG = project.logger
+ */
+abstract class FoundrySourceProvider : AbiSourceProvider {
+
+    @get:Inject
+    abstract val objectFactory: ObjectFactory
+
+    @get:Inject
+    abstract val projectLayout: ProjectLayout
+
+    @get:Inject
+    abstract val providerFactory: ProviderFactory
+
+    @get:Inject
+    abstract val logger: Logger
+
+    /**
+     * The parent package name of the generated Kotlin files.
+     */
+    @get:Input
+    abstract val destinationPackage: Property<String>
 
     // load the config file
-    private val config = project.provider { getFoundryConfig(foundryConfigFile.get()) }
-    private val srcDirProvider = project.provider { config.get().src }
-    private val outDirProvider = project.provider { config.get().out }
+    private val config = providerFactory.provider { getFoundryConfig(foundryConfigFile.get()) }
+    private val srcDirProvider = providerFactory.provider { config.get().src }
+    private val outDirProvider = providerFactory.provider { config.get().out }
 
     /**
      * The root directory of the foundry project, which contains the `foundry.toml` file. Defaults to
@@ -49,7 +65,7 @@ open class FoundrySourceProvider(
      * */
     @get:Optional
     @get:Input
-    val foundryRoot: Property<String> = project.objects.property(String::class.java).convention("src/main/solidity")
+    val foundryRoot: Property<String> = objectFactory.property(String::class.java).convention("src/main/solidity")
 
     /**
      * Foundry profile to use when building the project. Defaults to `default`. Will be passed to the `FOUNDRY_PROFILE`
@@ -57,7 +73,7 @@ open class FoundrySourceProvider(
      * */
     @get:Optional
     @get:Input
-    val foundryProfile: Property<String> = project.objects.property(String::class.java).convention("default")
+    val foundryProfile: Property<String> = objectFactory.property(String::class.java).convention("default")
 
     /**
      * List of glob patterns to filter out contracts that are not part of the source directory. Defaults to empty
@@ -68,12 +84,14 @@ open class FoundrySourceProvider(
      * */
     @get:Optional
     @get:Input
-    var contractGlobFilters: List<String> = emptyList()
+    @Suppress("UNCHECKED_CAST")
+    val contractGlobFilters: Property<List<String>> =
+        objectFactory.property(List::class.java as Class<List<String>>).convention(emptyList())
 
     @get:PathSensitive(PathSensitivity.RELATIVE)
     @get:InputFile
-    internal val foundryConfigFile: RegularFileProperty = project.objects.fileProperty().convention(
-        project.layout.projectDirectory.dir(foundryRoot).map { it.file("foundry.toml") },
+    val foundryConfigFile: RegularFileProperty = objectFactory.fileProperty().convention(
+        projectLayout.projectDirectory.dir(foundryRoot).map { it.file("foundry.toml") },
     )
 
     /**
@@ -82,8 +100,16 @@ open class FoundrySourceProvider(
     @get:SkipWhenEmpty
     @get:PathSensitive(PathSensitivity.RELATIVE)
     @get:InputDirectory
-    internal val srcDir: DirectoryProperty = project.objects.directoryProperty().convention(
-        project.layout.projectDirectory.dir(foundryRoot).flatMap { it.dir(srcDirProvider) },
+    val srcDir: DirectoryProperty = objectFactory.directoryProperty().convention(
+        projectLayout.projectDirectory.dir(foundryRoot).flatMap { it.dir(srcDirProvider) },
+    )
+
+    /**
+     * Root directory where foundry project is located.
+     * */
+    @get:InputDirectory
+    val foundryRootDir: DirectoryProperty = objectFactory.directoryProperty().convention(
+        projectLayout.projectDirectory.dir(foundryRoot),
     )
 
     override fun getSources(): List<AbiSource> {
@@ -93,18 +119,18 @@ open class FoundrySourceProvider(
 
         val jackson = ObjectMapper()
         val srcDir = srcDir.asFile.get()
-        val outDir = project.layout.projectDirectory.dir(foundryRoot).get().dir(outDirProvider).get().asFile
+        val outDir = foundryRootDir.get().dir(outDirProvider.get()).asFile
         val config = config.get()
-        val globMatchers = contractGlobFilters.map { FileSystems.getDefault().getPathMatcher("glob:$it") }
+        val globMatchers = contractGlobFilters.get().map { FileSystems.getDefault().getPathMatcher("glob:$it") }
         outDir.walkTopDown()
             .filter(File::isFile)
             .filter(::isMainContractJson)
             .forEach {
-                LOG.info("Found ABI file: ${it.absolutePath}")
+                logger.info("Found ABI file: ${it.absolutePath}")
 
                 val json = jackson.readTree(it)
                 if (json.get("abi").isEmpty) {
-                    LOG.info("Skipping, no external/public ABI functions: ${it.absolutePath}")
+                    logger.info("Skipping, no external/public ABI functions: ${it.absolutePath}")
                     return@forEach
                 }
 
@@ -113,7 +139,8 @@ open class FoundrySourceProvider(
                     ?: throw IllegalStateException("Compilation target not found in ${it.absolutePath}")
 
                 val relativePaths = ArrayList<String>()
-                (compilationTarget as ObjectNode).properties().iterator().forEach { entry -> relativePaths.add(entry.key) }
+                (compilationTarget as ObjectNode).properties().iterator()
+                    .forEach { entry -> relativePaths.add(entry.key) }
 
                 // find the relative path of the contract in the src dir
                 val relativePath = relativePaths
@@ -127,11 +154,11 @@ open class FoundrySourceProvider(
 
                 val sourceFile = File(srcDir, relativePath.substringAfter("/"))
                 if (!matchesGlobPatterns(sourceFile, srcDir, globMatchers)) {
-                    LOG.info("Skipping, does not match any glob pattern: ${sourceFile.absolutePath}")
+                    logger.info("Skipping, does not match any glob pattern: ${sourceFile.absolutePath}")
                     return@forEach
                 }
 
-                var destinationPackage = destinationPackage
+                var destinationPackage = this@FoundrySourceProvider.destinationPackage.get()
 
                 // if contract is not in root of src dir, replicate the package structure from the compilation target
                 if (relativePath.count { c -> c == '/' } > 1) {
@@ -166,10 +193,10 @@ open class FoundrySourceProvider(
         val errorOutput = ByteArrayOutputStream()
         val commands = listOf("forge", "build", "--force", "--extra-output", "abi", "metadata", "evm.bytecode")
 
-        val result = project.providers.exec {
+        val result = providerFactory.exec {
             it.commandLine(commands)
-            it.environment("FOUNDRY_PROFILE", foundryProfile)
-            it.workingDir = project.layout.projectDirectory.dir(foundryRoot).get().asFile
+            it.environment("FOUNDRY_PROFILE", foundryProfile.get())
+            it.workingDir = foundryRootDir.get().asFile
             it.errorOutput = errorOutput
         }.result.get()
 
@@ -178,15 +205,15 @@ open class FoundrySourceProvider(
             val errorReader = ByteArrayInputStream(errorOutput.toByteArray()).bufferedReader()
             val error = errorReader.lines().collect(Collectors.toList()).last()
 
-            LOG.error("Foundry build failed for command `$cmd` and profile `$foundryProfile`: $error")
+            logger.error("Foundry build failed for command `$cmd` and profile `${foundryProfile.get()}`: $error")
             result.rethrowFailure()
         }
 
-        LOG.info("Foundry build succeeded for command `$cmd` and profile `$foundryProfile`")
+        logger.info("Foundry build succeeded for command `$cmd` and profile `${foundryProfile.get()}`")
     }
 
     private fun getFoundryConfig(configFile: RegularFile): ProfileConfig {
-        LOG.info("Loading foundry config from ${configFile.asFile.absolutePath}")
+        logger.info("Loading foundry config from ${configFile.asFile.absolutePath}")
 
         data class FoundryConfig(private val profile: Map<String, ProfileConfig>) {
             fun getProfile(name: String): ProfileConfig {
