@@ -11,7 +11,7 @@ okhttp3 = "5.1.0"
 klogging = "7.0.13"
 ktlint-tool = "1.7.1"
 web3j = "4.10.3"
-ethers = "1.3.2"
+ethers = "1.4.2"
 hoplite = "2.9.0"
 
 [libraries]
