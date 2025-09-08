@@ -66,7 +66,7 @@ class TokenSwapWithEventListening(
         val deadline = ((System.currentTimeMillis() / 1000) + 1800).toBigInteger()
         val call = router.swapExactETHForTokens(
             BigInteger.ZERO, // amountOutMin
-            arrayOf(Address(wethAddress), Address(tokenAddress)), // path
+            listOf(Address(wethAddress), Address(tokenAddress)), // path
             signer.address, // to
             deadline,
         )
