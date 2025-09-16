@@ -1,7 +1,9 @@
 package io.ethers.abi
 
 import io.ethers.abi.eip712.EIP712Codec
+import io.ethers.abi.eip712.EIP712Domain
 import io.ethers.abi.eip712.EIP712Field
+import io.ethers.abi.eip712.EIP712TypedData
 
 /**
  * A contract-defined struct. Supports converting its fields to a tuple, and creating a struct from a tuple
@@ -44,6 +46,17 @@ interface ContractStruct {
      */
     fun toEIP712TypeMap(): Map<String, List<EIP712Field>> {
         return EIP712Codec.toTypeMap(this)
+    }
+
+    /**
+     * Converts a [ContractStruct] to an [EIP712TypedData].
+     *
+     * @param domain the [EIP712Domain]
+     *
+     * See [EIP712TypedData.from] for details.
+     */
+    fun toEIP712TypedData(domain: EIP712Domain): EIP712TypedData {
+        return EIP712TypedData.from(this, domain)
     }
 }
 

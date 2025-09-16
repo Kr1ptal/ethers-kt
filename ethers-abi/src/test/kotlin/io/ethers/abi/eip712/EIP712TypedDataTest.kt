@@ -264,6 +264,92 @@ class EIP712TypedDataTest : FunSpec({
             // Verify type encoding includes all dependent types
             val encodedType = EIP712Codec.encodeType(typeData.primaryType, typeData.types)
             encodedType shouldBe "OrderComponents(address offerer,address zone,OfferItem[] offer,uint256 startTime,uint256 endTime,bytes32 zoneHash,uint256 salt,bytes32 conduitKey,uint256 counter)OfferItem(address token)"
+
+            val json = Jackson.MAPPER.writeValueAsString(typeData)
+            Jackson.MAPPER.readValue(json, EIP712TypedData::class.java) shouldBe typeData
+        }
+
+        test("Seaport 1.6 OrderComponents encodes and hashes correctly") {
+            val types = mapOf(
+                "OrderComponents" to listOf(
+                    EIP712Field("offerer", "address"),
+                    EIP712Field("zone", "address"),
+                    EIP712Field("offer", "OfferItem[]"),
+                    EIP712Field("consideration", "ConsiderationItem[]"),
+                    EIP712Field("orderType", "uint8"),
+                    EIP712Field("startTime", "uint256"),
+                    EIP712Field("endTime", "uint256"),
+                    EIP712Field("zoneHash", "bytes32"),
+                    EIP712Field("salt", "uint256"),
+                    EIP712Field("conduitKey", "bytes32"),
+                    EIP712Field("counter", "uint256"),
+                ),
+                "OfferItem" to listOf(
+                    EIP712Field("itemType", "uint8"),
+                    EIP712Field("token", "address"),
+                    EIP712Field("identifierOrCriteria", "uint256"),
+                    EIP712Field("startAmount", "uint256"),
+                    EIP712Field("endAmount", "uint256"),
+                ),
+                "ConsiderationItem" to listOf(
+                    EIP712Field("itemType", "uint8"),
+                    EIP712Field("token", "address"),
+                    EIP712Field("identifierOrCriteria", "uint256"),
+                    EIP712Field("startAmount", "uint256"),
+                    EIP712Field("endAmount", "uint256"),
+                    EIP712Field("recipient", "address"),
+                ),
+            )
+
+            val message = mapOf(
+                "offerer" to "0x06Dcd83c991f83E2F8d5a43e62286f70c735EED5",
+                "zone" to "0x004C00500000aD104D7DBd00e3ae0A5C00560C00",
+                "orderType" to "0",
+                "offer" to listOf(
+                    mapOf(
+                        "itemType" to "2",
+                        "token" to "0xA604060890923Ff400e8c6f5290461A83AEDACec",
+                        "identifierOrCriteria" to "2",
+                        "startAmount" to "1000000000000000000",
+                        "endAmount" to "3000000000000000000",
+                    ),
+                ),
+                "consideration" to listOf(
+                    mapOf(
+                        "itemType" to "1",
+                        "token" to "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+                        "identifierOrCriteria" to "1",
+                        "startAmount" to "100000000000",
+                        "endAmount" to "300000000000",
+                        "recipient" to "0x6225dd7302a5aa91116a057a03722a2b12b87337",
+                    ),
+                ),
+                "startTime" to "1757856850",
+                "endTime" to "2757856850",
+                "zoneHash" to "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "salt" to "16178208897136618",
+                "conduitKey" to "0x0000007b02230091a7ed01230072f7006a004d60a8d4e71d599b8104250f0000",
+                "counter" to "0",
+            )
+
+            val domain = EIP712Domain(
+                "Seaport",
+                "1.6",
+                BigInteger.ONE,
+                Address("0x0000000000000068F116a894984e2DB1123eB395"),
+            )
+
+            val typeData = EIP712TypedData("OrderComponents", types, message, domain)
+
+            val sigHash = typeData.signatureHash()
+            Hash(sigHash) shouldBe Hash("0x820e4aeecf9a354e7831a0e4f3c943766641380ed70b0b8ee1eee3d9431d28f7")
+
+            // Verify type encoding includes all dependent types
+            val encodedType = EIP712Codec.encodeType(typeData.primaryType, typeData.types)
+            encodedType shouldBe "OrderComponents(address offerer,address zone,OfferItem[] offer,ConsiderationItem[] consideration,uint8 orderType,uint256 startTime,uint256 endTime,bytes32 zoneHash,uint256 salt,bytes32 conduitKey,uint256 counter)ConsiderationItem(uint8 itemType,address token,uint256 identifierOrCriteria,uint256 startAmount,uint256 endAmount,address recipient)OfferItem(uint8 itemType,address token,uint256 identifierOrCriteria,uint256 startAmount,uint256 endAmount)"
+
+            val json = Jackson.MAPPER.writeValueAsString(typeData)
+            Jackson.MAPPER.readValue(json, EIP712TypedData::class.java) shouldBe typeData
         }
     }
 })
