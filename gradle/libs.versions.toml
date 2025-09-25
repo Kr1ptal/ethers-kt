@@ -54,7 +54,7 @@ kotlinpoet = { module = "com.squareup:kotlinpoet", version = "2.2.0" }
 bouncycastle-provider = { module = "org.bouncycastle:bcprov-jdk15to18", version = "1.82" }
 gcp-kms = { module = "com.google.cloud:google-cloud-kms", version = "2.77.0" }
 
-ens-normalise = { module = "io.github.adraffy:ens-normalize", version = "0.2.0" }
+ens-normalise = { module = "io.github.adraffy:ens-normalize", version = "0.3.1" }
 kotlinx-cli = { module = "org.jetbrains.kotlinx:kotlinx-cli", version = "0.3.6" }
 
 hoplite-core = { module = "com.sksamuel.hoplite:hoplite-core", version.ref = "hoplite" }
