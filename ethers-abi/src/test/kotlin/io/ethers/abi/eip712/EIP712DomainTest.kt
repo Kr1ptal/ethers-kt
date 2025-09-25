@@ -158,7 +158,7 @@ class EIP712DomainTest : FunSpec({
             // Verify values are properly formatted
             jsonNode["name"].asText() shouldBe "FullDApp"
             jsonNode["version"].asText() shouldBe "2.1.0"
-            jsonNode["chainId"].asText() shouldBe "0x539" // 1337 in hex
+            jsonNode["chainId"].asText() shouldBe "1337"
             jsonNode["verifyingContract"].asText() shouldBe "0x4444444444444444444444444444444444444444"
             jsonNode["salt"].asText() shouldBe "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 

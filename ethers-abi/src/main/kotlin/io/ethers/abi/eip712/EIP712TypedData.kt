@@ -162,8 +162,8 @@ private class EIP712TypedDataDeserializer : JsonDeserializer<EIP712TypedData>() 
         p.forEachObjectField { field ->
             when (field) {
                 "primaryType" -> primaryType = p.text
-                "types" -> types = p.readMapOf({ it }, { readEIP712Fields() })
-                "message" -> message = p.readMapOf({ it }, Any::class.java)
+                "types" -> types = p.readMapOf({ it }, { readListOf(EIP712Field::class.java) })
+                "message" -> message = p.readMapOf({ it }, { deserializeAsStringifiedAny() })
                 "domain" -> domain = p.readValueAs(EIP712Domain::class.java)
                 else -> p.skipChildren()
             }
@@ -177,8 +177,22 @@ private class EIP712TypedDataDeserializer : JsonDeserializer<EIP712TypedData>() 
         )
     }
 
-    private fun JsonParser.readEIP712Fields(): List<EIP712Field> {
-        return readListOf(EIP712Field::class.java)
+    private fun JsonParser.deserializeAsStringifiedAny(): Any {
+        return when (currentToken) {
+            JsonToken.VALUE_STRING -> text
+            JsonToken.VALUE_NUMBER_INT,
+            JsonToken.VALUE_NUMBER_FLOAT,
+            -> text
+
+            JsonToken.VALUE_TRUE,
+            JsonToken.VALUE_FALSE,
+            -> text
+
+            JsonToken.VALUE_NULL -> throw IllegalArgumentException("Null values in EIP712TypedData are not supported")
+            JsonToken.START_ARRAY -> readListOf { deserializeAsStringifiedAny() }
+            JsonToken.START_OBJECT -> readMapOf({ it }, { deserializeAsStringifiedAny() })
+            else -> throw IllegalArgumentException("Unexpected token: $currentToken")
+        }
     }
 }
 
