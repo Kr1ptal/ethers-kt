@@ -15,7 +15,6 @@ import io.ethers.core.FastHex
 import io.ethers.core.forEachObjectField
 import io.ethers.core.readAddress
 import io.ethers.core.readBytes
-import io.ethers.core.readHexBigInteger
 import io.ethers.core.readOrNull
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
@@ -69,7 +68,7 @@ private class EIP712DomainSerializer : JsonSerializer<EIP712Domain>() {
         gen.writeStartObject()
         value.name?.let { gen.writeStringField("name", it) }
         value.version?.let { gen.writeStringField("version", it) }
-        value.chainId?.let { gen.writeStringField("chainId", FastHex.encodeWithPrefix(it)) }
+        value.chainId?.let { gen.writeStringField("chainId", it.toString()) }
         value.verifyingContract?.let { gen.writeStringField("verifyingContract", it.toString()) }
         value.salt?.let { gen.writeStringField("salt", FastHex.encodeWithPrefix(it.asByteArray())) }
         gen.writeEndObject()
@@ -92,7 +91,7 @@ private class EIP712DomainDeserializer : JsonDeserializer<EIP712Domain>() {
             when (field) {
                 "name" -> name = p.readOrNull { text }
                 "version" -> version = p.readOrNull { text }
-                "chainId" -> chainId = p.readOrNull { readHexBigInteger() }
+                "chainId" -> chainId = p.readOrNull { BigInteger(p.text) }
                 "verifyingContract" -> verifyingContract = p.readOrNull { readAddress() }
                 "salt" -> salt = p.readOrNull { readBytes() }
                 else -> p.skipChildren()
