@@ -1,12 +1,12 @@
 package io.ethers.core.types.transaction
 
 import io.ethers.core.types.Signature
+import io.ethers.core.types.transaction.TransactionUnsigned.Companion.rlpDecode
 import io.ethers.crypto.Hashing
 import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncodable
 import io.ethers.rlp.RlpEncoder
-import java.math.BigInteger
 
 /**
  * An unsigned [Transaction] with functions for signing.
@@ -41,40 +41,23 @@ sealed interface TransactionUnsigned : Transaction, RlpEncodable {
     }
 
     /**
-     * Encode [TransactionUnsigned] via provided [RlpEncoder]. This RLP format includes all-zero signature fields and
-     * is the inverse of [rlpDecode].
+     * Encode [TransactionUnsigned] via provided [RlpEncoder].
      */
     override fun rlpEncode(rlp: RlpEncoder) {
-        rlpEncodeEnveloped(rlp, EMPTY_SIGNATURE, true)
+        rlpEncodeEnveloped(rlp, null, true)
     }
 
     override fun rlpSize(): Int {
-        return rlpEnvelopedSize(EMPTY_SIGNATURE, true)
+        return rlpEnvelopedSize(null, true)
     }
 
     companion object : RlpDecodable<TransactionUnsigned> {
-        private val EMPTY_SIGNATURE = Signature(BigInteger.ZERO, BigInteger.ZERO, 0L)
-
-        override fun rlpDecode(rlp: RlpDecoder) = rlpDecode(rlp, ChainId.NONE)
-
-        /**
-         * Decode RLP data array. Compared to base [rlpDecode], this function provides additional [chainId]
-         * parameter which is needed for correct replay-protected [TxType.Legacy] transaction decoding.
-         */
-        fun rlpDecode(data: ByteArray, chainId: Long) = rlpDecode(RlpDecoder(data), chainId)
-
-        /**
-         * Decode [rlp]. Compared to base [rlpDecode], this function provides additional [chainId]
-         * parameter which is needed for correct replay-protected [TxType.Legacy] transaction decoding.
-         *
-         * This function is inverse of [rlpEncode].
-         */
-        fun rlpDecode(rlp: RlpDecoder, chainId: Long): TransactionUnsigned? {
+        override fun rlpDecode(rlp: RlpDecoder): TransactionUnsigned? {
             val type = rlp.peekByte().toUByte().toInt()
 
             // legacy tx
             if (type >= 0xc0) {
-                return rlp.decodeList { TxLegacy.rlpDecode(rlp, chainId).also { dropEmptyRSV() } }
+                return rlp.decodeList { TxLegacy.rlpDecode(rlp) }
             }
 
             return when (TxType.fromType(type)) {
@@ -82,33 +65,26 @@ sealed interface TransactionUnsigned : Transaction, RlpEncodable {
 
                 TxType.AccessList -> {
                     rlp.readByte()
-                    rlp.decodeList { TxAccessList.rlpDecode(rlp).also { dropEmptyRSV() } }
+                    rlp.decodeList { TxAccessList.rlpDecode(rlp) }
                 }
 
                 TxType.DynamicFee -> {
                     rlp.readByte()
-                    rlp.decodeList { TxDynamicFee.rlpDecode(rlp).also { dropEmptyRSV() } }
+                    rlp.decodeList { TxDynamicFee.rlpDecode(rlp) }
                 }
 
                 TxType.Blob -> {
                     rlp.readByte()
-                    rlp.decodeList { TxBlob.rlpDecode(rlp).also { dropEmptyRSV() } }
+                    rlp.decodeList { TxBlob.rlpDecode(rlp) }
                 }
 
                 TxType.SetCode -> {
                     rlp.readByte()
-                    rlp.decodeList { TxSetCode.rlpDecode(rlp).also { dropEmptyRSV() } }
+                    rlp.decodeList { TxSetCode.rlpDecode(rlp) }
                 }
 
                 is TxType.Unsupported -> null
             }
-        }
-
-        // Decode and ignore empty r, s, v signature fields
-        private fun RlpDecoder.dropEmptyRSV() {
-            decodeLong()
-            decodeLong()
-            decodeLong()
         }
     }
 }

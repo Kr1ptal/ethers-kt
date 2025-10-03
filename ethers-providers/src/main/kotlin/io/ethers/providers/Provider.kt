@@ -307,7 +307,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
                 var ret: TransactionUnsigned? = null
                 it.forEachObjectField { field ->
                     when (field) {
-                        "raw" -> ret = TransactionUnsigned.rlpDecode(it.readHexByteArray(), chainId)
+                        "raw" -> ret = TransactionUnsigned.rlpDecode(it.readHexByteArray())
                         else -> {}
                     }
                 }
