@@ -18,13 +18,16 @@ Sections:
 ### Security = Security patches.
 -->
 
-## [1.4.2] - 2025-09-07
+## [1.4.3] - 2025-09-07
 
 ### Bug Fixes
+- EIP712 numeric value decoding as string (#301)
+- TransactionUnsigned rlp encoding (#305)
 
-- Fix abigen plugin publishing by updating the shadowjar plugin to v9.1.0 
+### Features
+- Add seaport EIP712 signing example (#297)
 
-## [1.4.0] - 2025-09-07
+## [1.4.2] - 2025-09-07
 
 ### Bug Fixes
 
@@ -33,6 +36,7 @@ Sections:
 - Handle more `RpcError#isMethodNotFound` cases (#240)
 - [**breaking**] Lowercase ABI class names and flat package structure generation (#245)
 - Use env variables for publishing via jreleaser
+- Fix abigen plugin publishing by updating the shadowjar plugin to v9.1.0
 
 ### Features
 
