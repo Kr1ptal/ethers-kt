@@ -9,6 +9,9 @@ class RlpDecoder(private val array: ByteArray) {
     var position: Int = 0
         private set
 
+    val isDone: Boolean
+        get() = position >= array.size
+
     /**
      * Read a byte from the array without advancing the position.
      *

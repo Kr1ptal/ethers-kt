@@ -262,7 +262,7 @@ class TransactionUnsignedTest : FunSpec({
             tx.rlpEncode(encoder)
 
             val decoder = RlpDecoder(encoder.toByteArray())
-            TransactionUnsigned.rlpDecode(decoder, tx.chainId) shouldBe tx
+            TransactionUnsigned.rlpDecode(decoder) shouldBe tx
         }
     }
 })

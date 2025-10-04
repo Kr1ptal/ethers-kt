@@ -91,20 +91,8 @@ data class TxLegacy(
     }
 
     companion object : RlpDecodable<TxLegacy> {
-        /**
-         * Decode a non-replay protected legacy transaction from RLP. ChainId is encoded only in signature.
-         * */
         @JvmStatic
         override fun rlpDecode(rlp: RlpDecoder): TxLegacy {
-            return rlpDecode(rlp, ChainId.NONE)
-        }
-
-        /**
-         * Decode optionally replay-protected legacy transaction from RLP. Replay protected transactions
-         * must provide a valid [chainId] parameter.
-         */
-        @JvmStatic
-        fun rlpDecode(rlp: RlpDecoder, chainId: Long): TxLegacy {
             return TxLegacy(
                 nonce = rlp.decodeLong(),
                 gasPrice = rlp.decodeBigIntegerElse(BigInteger.ZERO),
@@ -112,8 +100,19 @@ data class TxLegacy(
                 to = rlp.decode(Address),
                 value = rlp.decodeBigIntegerElse(BigInteger.ZERO),
                 data = rlp.decode(Bytes),
-                chainId = chainId,
+                chainId = rlp.decodeChainId(),
             )
+        }
+
+        private fun RlpDecoder.decodeChainId(): Long {
+            if (isDone) {
+                return ChainId.NONE
+            }
+            // read chain id and drop remaining EIP-155 fields
+            val chainId = decodeLong()
+            decodeLong()
+            decodeLong()
+            return chainId
         }
     }
 }
