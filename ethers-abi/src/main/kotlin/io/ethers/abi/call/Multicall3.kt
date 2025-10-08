@@ -73,9 +73,28 @@ class Multicall3(
      * */
     @Suppress("UNCHECKED_CAST")
     fun <T> aggregateCalls(vararg calls: Aggregatable<out T>): FunctionCall<AggregationResult<T>> {
+        return aggregateCalls(calls.toList())
+    }
+
+    /**
+     * Contract call that aggregates multiple [Aggregatable] calls into a single [Multicall3] contract call.
+     *
+     * **IMPORTANT**: From the call, only [Aggregatable.to], [Aggregatable.value] and [Aggregatable.data] parameters
+     * are used. All others are ignored.
+     *
+     * The calls will be aggregated using as few calldata as possible, depending on the calls' properties. One of the
+     * following aggregation functions will be used:
+     * - [aggregate3Value], if any call is payable with non-zero value set,
+     * - [aggregate3], if calls have mixed failure conditions (i.e. some allow failure, some don't),
+     * - [tryAggregate], if all calls have the same failure condition, and are not payable or with zero value.
+     *
+     * Aggregate calls can be nested, i.e. an aggregate call can contain other aggregate calls.
+     * */
+    @Suppress("UNCHECKED_CAST")
+    fun <T> aggregateCalls(calls: List<Aggregatable<out T>>): FunctionCall<AggregationResult<T>> {
         return calls.withDataAndValue { data, value ->
             FunctionCall(this.provider, this.address, value, data) {
-                val decoded = FUNCTION_AGGREGATE3_VALUE.decodeResponse(it)[0] as Array<Result>
+                val decoded = FUNCTION_AGGREGATE3_VALUE.decodeResponse(it)[0] as List<Result>
 
                 val ret = arrayOfNulls<EthersResult<*, ContractError>>(decoded.size)
                 for (i in decoded.indices) {
@@ -97,27 +116,27 @@ class Multicall3(
         FUNCTION_AGGREGATE.encodeCall(listOf(calls)),
     ) {
         val data = FUNCTION_AGGREGATE.decodeResponse(it)
-        AggregateResult(data[0] as BigInteger, data[1] as Array<Bytes>)
+        AggregateResult(data[0] as BigInteger, data[1] as List<Bytes>)
     }
 
     @Suppress("UNCHECKED_CAST")
-    fun aggregate3(vararg calls: Call3): PayableFunctionCall<Array<Result>> = PayableFunctionCall(
+    fun aggregate3(vararg calls: Call3): PayableFunctionCall<List<Result>> = PayableFunctionCall(
         this.provider,
         this.address,
         FUNCTION_AGGREGATE3.encodeCall(listOf(calls)),
     ) {
         val data = FUNCTION_AGGREGATE3.decodeResponse(it)
-        data[0] as Array<Result>
+        data[0] as List<Result>
     }
 
     @Suppress("UNCHECKED_CAST")
-    fun aggregate3Value(vararg calls: Call3Value): PayableFunctionCall<Array<Result>> = PayableFunctionCall(
+    fun aggregate3Value(vararg calls: Call3Value): PayableFunctionCall<List<Result>> = PayableFunctionCall(
         this.provider,
         this.address,
         FUNCTION_AGGREGATE3_VALUE.encodeCall(listOf(calls)),
     ) {
         val data = FUNCTION_AGGREGATE3_VALUE.decodeResponse(it)
-        data[0] as Array<Result>
+        data[0] as List<Result>
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -130,7 +149,7 @@ class Multicall3(
         BlockAndAggregateResult(
             data[0] as BigInteger,
             data[1] as Bytes,
-            data[2] as Array<Result>,
+            data[2] as List<Result>,
         )
     }
 
@@ -225,13 +244,13 @@ class Multicall3(
     }
 
     @Suppress("UNCHECKED_CAST")
-    fun tryAggregate(requireSuccess: Boolean, vararg calls: Call): PayableFunctionCall<Array<Result>> = PayableFunctionCall(
+    fun tryAggregate(requireSuccess: Boolean, vararg calls: Call): PayableFunctionCall<List<Result>> = PayableFunctionCall(
         this.provider,
         this.address,
         FUNCTION_TRY_AGGREGATE.encodeCall(listOf(requireSuccess, calls)),
     ) {
         val data = FUNCTION_TRY_AGGREGATE.decodeResponse(it)
-        data[0] as Array<Result>
+        data[0] as List<Result>
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -247,7 +266,7 @@ class Multicall3(
         TryBlockAndAggregateResult(
             data[0] as BigInteger,
             data[1] as Bytes,
-            data[2] as Array<Result>,
+            data[2] as List<Result>,
         )
     }
 
@@ -277,68 +296,19 @@ class Multicall3(
     data class BlockAndAggregateResult(
         val blockNumber: BigInteger,
         val blockHash: Bytes,
-        val returnData: Array<Result>,
-    ) {
-        override fun equals(other: Any?): Boolean {
-            if (this === other) return true
-            if (javaClass != other?.javaClass) return false
-            other as BlockAndAggregateResult
-            if (blockNumber != other.blockNumber) return false
-            if (blockHash != other.blockHash) return false
-            if (!returnData.contentEquals(other.returnData)) return false
-            return true
-        }
-
-        override fun hashCode(): Int {
-            var result = blockNumber.hashCode()
-            result = 31 * result + blockHash.hashCode()
-            result = 31 * result + returnData.contentHashCode()
-            return result
-        }
-    }
+        val returnData: List<Result>,
+    )
 
     data class AggregateResult(
         val blockNumber: BigInteger,
-        val returnData: Array<Bytes>,
-    ) {
-        override fun equals(other: Any?): Boolean {
-            if (this === other) return true
-            if (javaClass != other?.javaClass) return false
-            other as AggregateResult
-            if (blockNumber != other.blockNumber) return false
-            if (!returnData.contentEquals(other.returnData)) return false
-            return true
-        }
-
-        override fun hashCode(): Int {
-            var result = blockNumber.hashCode()
-            result = 31 * result + returnData.contentHashCode()
-            return result
-        }
-    }
+        val returnData: List<Bytes>,
+    )
 
     data class TryBlockAndAggregateResult(
         val blockNumber: BigInteger,
         val blockHash: Bytes,
-        val returnData: Array<Result>,
-    ) {
-        override fun equals(other: Any?): Boolean {
-            if (this === other) return true
-            if (javaClass != other?.javaClass) return false
-            other as TryBlockAndAggregateResult
-            if (blockNumber != other.blockNumber) return false
-            if (blockHash != other.blockHash) return false
-            if (!returnData.contentEquals(other.returnData)) return false
-            return true
-        }
-
-        override fun hashCode(): Int {
-            var result = blockNumber.hashCode()
-            result = 31 * result + blockHash.hashCode()
-            result = 31 * result + returnData.contentHashCode()
-            return result
-        }
-    }
+        val returnData: List<Result>,
+    )
 
     data class Call(
         val target: Address,
@@ -348,21 +318,6 @@ class Multicall3(
 
         override val abiType: AbiType.Struct<*>
             get() = abi
-
-        override fun equals(other: Any?): Boolean {
-            if (this === other) return true
-            if (javaClass != other?.javaClass) return false
-            other as Call
-            if (target != other.target) return false
-            if (callData != other.callData) return false
-            return true
-        }
-
-        override fun hashCode(): Int {
-            var result = target.hashCode()
-            result = 31 * result + callData.hashCode()
-            return result
-        }
 
         companion object : StructFactory<Call> {
             @JvmStatic
@@ -387,23 +342,6 @@ class Multicall3(
 
         override val abiType: AbiType.Struct<*>
             get() = abi
-
-        override fun equals(other: Any?): Boolean {
-            if (this === other) return true
-            if (javaClass != other?.javaClass) return false
-            other as Call3
-            if (target != other.target) return false
-            if (allowFailure != other.allowFailure) return false
-            if (callData != other.callData) return false
-            return true
-        }
-
-        override fun hashCode(): Int {
-            var result = target.hashCode()
-            result = 31 * result + allowFailure.hashCode()
-            result = 31 * result + callData.hashCode()
-            return result
-        }
 
         companion object : StructFactory<Call3> {
             @JvmStatic
@@ -435,25 +373,6 @@ class Multicall3(
         override val abiType: AbiType.Struct<*>
             get() = abi
 
-        override fun equals(other: Any?): Boolean {
-            if (this === other) return true
-            if (javaClass != other?.javaClass) return false
-            other as Call3Value
-            if (target != other.target) return false
-            if (allowFailure != other.allowFailure) return false
-            if (value != other.value) return false
-            if (callData != other.callData) return false
-            return true
-        }
-
-        override fun hashCode(): Int {
-            var result = target.hashCode()
-            result = 31 * result + allowFailure.hashCode()
-            result = 31 * result + value.hashCode()
-            result = 31 * result + callData.hashCode()
-            return result
-        }
-
         companion object : StructFactory<Call3Value> {
             @JvmStatic
             override val abi: AbiType.Struct<Call3Value> = AbiType.Struct(
@@ -483,21 +402,6 @@ class Multicall3(
 
         override val abiType: AbiType.Struct<*>
             get() = abi
-
-        override fun equals(other: Any?): Boolean {
-            if (this === other) return true
-            if (javaClass != other?.javaClass) return false
-            other as Result
-            if (success != other.success) return false
-            if (returnData != other.returnData) return false
-            return true
-        }
-
-        override fun hashCode(): Int {
-            var result = success.hashCode()
-            result = 31 * result + returnData.hashCode()
-            return result
-        }
 
         companion object : StructFactory<Result> {
             @JvmStatic
@@ -598,12 +502,31 @@ class Multicall3(
          * */
         @JvmStatic
         fun <T> aggregate(vararg calls: Aggregatable<out T>): FunctionCall<AggregationResult<T>> {
+            return aggregate(calls.toList())
+        }
+
+        /**
+         * Contract call that aggregates multiple [Aggregatable] calls into a single [Multicall3] contract call.
+         *
+         * **IMPORTANT**: From the call, only [Aggregatable.to], [Aggregatable.value] and [Aggregatable.data] parameters
+         * are used. All others are ignored.
+         *
+         * The calls will be aggregated using as few calldata as possible, depending on the calls' properties. One of
+         * the following aggregation functions will be used:
+         * - [aggregate3Value], if any call is payable with non-zero value set,
+         * - [aggregate3], if calls have mixed failure conditions (i.e. some allow failure, some don't),
+         * - [tryAggregate], if all calls have the same failure condition, and are not payable or with zero value.
+         *
+         * Aggregate calls can be nested, i.e. an aggregate call can contain other aggregate calls.
+         * */
+        @JvmStatic
+        fun <T> aggregate(calls: List<Aggregatable<out T>>): FunctionCall<AggregationResult<T>> {
             if (calls.isEmpty()) {
                 throw IllegalArgumentException("No calls to aggregate")
             }
 
             val provider = calls.first().provider
-            return getInstance(provider).aggregateCalls(*calls)
+            return getInstance(provider).aggregateCalls(calls)
         }
 
         private data class MulticallDeployment(
@@ -745,9 +668,9 @@ class Multicall3(
 
 /**
  * Encode the [Multicall3.Aggregatable] calls into as few calldata as possible. All the functions return the same
- * type: array of [Multicall3.Result]'s.
+ * type: list of [Multicall3.Result]'s.
  * */
-private inline fun <T> Array<out Multicall3.Aggregatable<*>>.withDataAndValue(consumer: (Bytes, BigInteger?) -> T): T {
+private inline fun <T> List<Multicall3.Aggregatable<*>>.withDataAndValue(consumer: (Bytes, BigInteger?) -> T): T {
     if (this.isEmpty()) {
         return consumer(Bytes.EMPTY, null)
     }
@@ -771,7 +694,7 @@ private inline fun <T> Array<out Multicall3.Aggregatable<*>>.withDataAndValue(co
     return when {
         anyPayable -> {
             var totalValue = BigInteger.ZERO
-            val arr = Array(this.size) {
+            val arr = List(this.size) {
                 val req = this[it]
                 val value = req.value ?: BigInteger.ZERO
                 totalValue += value
@@ -783,7 +706,7 @@ private inline fun <T> Array<out Multicall3.Aggregatable<*>>.withDataAndValue(co
         }
 
         mixedFailureConditions -> {
-            val arr = Array(this.size) {
+            val arr = List(this.size) {
                 val req = this[it]
                 Multicall3.Call3(req.to!!, req.allowFailure, req.data ?: Bytes.EMPTY)
             }
@@ -793,7 +716,7 @@ private inline fun <T> Array<out Multicall3.Aggregatable<*>>.withDataAndValue(co
 
         else -> {
             val allowFailure = this[0].allowFailure
-            val arr = Array(this.size) {
+            val arr = List(this.size) {
                 val req = this[it]
                 Multicall3.Call(req.to!!, req.data ?: Bytes.EMPTY)
             }
@@ -808,6 +731,6 @@ private inline fun <T> Array<out Multicall3.Aggregatable<*>>.withDataAndValue(co
  * fields are used from the calls.
  * */
 fun <T> Iterable<Multicall3.Aggregatable<T>>.aggregate(): FunctionCall<AggregationResult<T>> {
-    val collection = this as? Collection<Multicall3.Aggregatable<T>> ?: toList()
-    return Multicall3.aggregate(*collection.toTypedArray())
+    val collection = this as? List<Multicall3.Aggregatable<T>> ?: toList()
+    return Multicall3.aggregate(collection)
 }

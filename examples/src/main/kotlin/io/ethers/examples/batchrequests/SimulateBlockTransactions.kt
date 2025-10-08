@@ -65,9 +65,8 @@ class SimulateBlockTransactions(
 
 fun main(args: Array<String>) {
     // Parse input arguments
-    val argParser = ArgParser("IntoCallRequest")
+    val argParser = ArgParser("SimulateBlockTransactions")
 
-    // Problems with public ws rpc url - add your own
     val rpcUrl by argParser.option(ArgType.String, description = "RPC URL").required()
 
     argParser.parse(args)

@@ -64,8 +64,6 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) {
             return CompletableFuture.completedFuture(false)
         }
 
-        markAsSent()
-
         return client!!.requestBatch(this)
     }
 
