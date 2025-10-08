@@ -17,13 +17,15 @@ in [JsonParserExtensions](src/main/kotlin/io/ethers/core/JsonParserExtensions.kt
 
 ```
 Transaction
-  ├── TransactionUnsigned
+  ├── TransactionUnsigned (no Signature, RLP-encodable)
+  │      ├── TxLegacy
   │      ├── TxAccessList
   │      ├── TxDynamicFee
-  │      └── TxLegacy
-  └── TransactionRecovered
+  │      ├── TxBlob
+  │      └── TxSetCode
+  └── TransactionRecovered ( + "hash", "from" fields)
      ├── RPCTransaction
-     └── TransactionSigned
+     └── TransactionSigned (with Signature, RLP-encodable)
 ```
 
 tl;dr: for sending transactions use one of the `TransactionUnsigned` subclasses, which - when signed - produces
