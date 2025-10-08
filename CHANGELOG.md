@@ -18,6 +18,16 @@ Sections:
 ### Security = Security patches.
 -->
 
+## [1.4.4] - 2025-10-08
+
+### Bug Fixes
+
+- `Multicall3` abi encoding and `BatchRpcRequest` sent batch tracking (#311)
+
+### Misc
+
+- Update transaction types docs
+
 ## [1.4.3] - 2025-09-07
 
 ### Bug Fixes
