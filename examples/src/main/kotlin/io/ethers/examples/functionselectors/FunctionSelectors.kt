@@ -56,7 +56,7 @@ fun main(args: Array<String>) {
     val argParser = ArgParser("FunctionSelectors")
 
     val rpcUrl by argParser.option(ArgType.String, description = "RPC URL")
-        .default("wss://ethereum.publicnode.com") // Mainnet WS url
+        .default("wss://0xrpc.io/eth") // Mainnet WS url
     val abiFunctionSignature by argParser.option(ArgType.String, description = "Function signature")
         .default("swapExactTokensForTokens(uint256,uint256,address[],address,uint256)") // selector: 0x38ed1739
     val maxBlocks by argParser.option(ArgType.String, description = "Max blocks - how many blocks to search")

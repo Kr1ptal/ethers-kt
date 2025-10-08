@@ -9,7 +9,6 @@ import io.ethers.providers.types.unwrap
 import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
 import kotlinx.cli.default
-import kotlinx.cli.required
 import java.math.BigInteger
 
 /**
@@ -39,12 +38,20 @@ class BalanceTracker(
         println("ETH - ${balanceEth.toBigDecimal(18).toPlainString()}")
         displayTokenBalances(symbols, decimals, balances)
 
+        // try subscribing via websockets, falling back to polling a filter
+        val newBlocks = provider.subscribeNewHeads()
+            .map { it.map { head -> head.hash!! } }
+            .sendAwait()
+            .orElse { provider.watchNewBlockHashes().sendAwait() }
+            .unwrap()
+
         // For each new block, update token balances and display them
-        provider.subscribeNewHeads().sendAwait().unwrap().forEach { head ->
+        newBlocks.forEach {
+            val blockNumber = provider.getBlockNumber()
             balanceEth = provider.getBalance(address, BlockId.LATEST).sendAwait().unwrap()
             balances = tokens.map { it.balanceOf(address).call(BlockId.LATEST) }.sendAwait().unwrap()
 
-            println("\nBalances for block ${head.number}")
+            println("\nBalances for block $blockNumber")
             println("ETH - ${balanceEth.toBigDecimal(18).toPlainString()}")
             displayTokenBalances(symbols, decimals, balances)
         }
@@ -64,7 +71,7 @@ fun main(args: Array<String>) {
     val argParser = ArgParser("BalanceTracker")
 
     // Problems with public ws rpc url - add your own
-    val rpcUrl by argParser.option(ArgType.String, description = "RPC URL").required()
+    val rpcUrl by argParser.option(ArgType.String, description = "RPC URL").default("wss://0xrpc.io/eth")
     val address by argParser.option(ArgType.String, description = "Token holder address")
         .default("0x0D0707963952f2fBA59dD06f2b425ace40b492Fe") // Gate.io address
     val tokenList by argParser.option(ArgType.String, description = "Observed token list, separated by ','")
