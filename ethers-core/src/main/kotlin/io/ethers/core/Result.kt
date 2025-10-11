@@ -55,10 +55,6 @@ sealed class Result<out T : Any?, out E : Result.Error> {
         override fun hashCode() = error.hashCode()
     }
 
-    abstract override fun toString(): String
-    abstract override fun equals(other: Any?): Boolean
-    abstract override fun hashCode(): Int
-
     /**
      * Returns true if [Result] is [Success], false otherwise.
      *
@@ -275,13 +271,11 @@ inline fun <reified T : Result.Error> Result.Error.asTypeOrNull(): T? {
 /**
  * Return a [Result.Success] with the given [value].
  * */
-@JvmSynthetic
 fun <T : Any?> success(value: T): Result<T, Nothing> = Result.success(value)
 
 /**
  * Return a [Result.Failure] with the given [error].
  * */
-@JvmSynthetic
 fun <E : Result.Error> failure(error: E) = Result.failure<Nothing, E>(error)
 
 /**
