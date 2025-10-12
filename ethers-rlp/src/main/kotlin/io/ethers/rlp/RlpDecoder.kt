@@ -16,6 +16,9 @@ class RlpDecoder(private val array: ByteArray) {
     val isDone: Boolean
         get() = position >= array.size
 
+    private val remaining: Int
+        get() = array.size - position
+
     /**
      * Read a byte from the array without advancing the position.
      *
@@ -134,12 +137,17 @@ class RlpDecoder(private val array: ByteArray) {
      * Returns true if the next element is a list, false otherwise.
      * */
     fun isNextElementList(): Boolean {
+        if (isDone) return false
+
         val flag = peekFlag()
         return when {
             flag < RLP_LIST_SHORT -> false
             flag == RLP_LIST_SHORT -> true
             flag <= RLP_LIST_SHORT + MAX_SHORT_LENGTH -> true
-            flag <= 0xff -> true
+            flag <= 0xff -> {
+                val lengthOfSize = flag - RLP_LIST_LONG
+                return lengthOfSize <= MAX_LENGTH_OF_SIZE
+            }
             else -> false
         }
     }
@@ -214,11 +222,16 @@ class RlpDecoder(private val array: ByteArray) {
      * @return true if the next element is a valid [BigInteger], false otherwise.
      * */
     fun isNextElementBigInteger(): Boolean {
+        if (isDone) return false
+
         val flag = peekFlag()
         return when {
             flag == RLP_NULL -> true
             flag < RLP_STRING_SHORT -> true
-            flag <= RLP_STRING_SHORT + MAX_SHORT_LENGTH -> true
+            flag <= RLP_STRING_SHORT + MAX_SHORT_LENGTH -> {
+                val size = flag - RLP_STRING_SHORT
+                size <= 32 && remaining >= size
+            }
             else -> false
         }
     }
@@ -267,13 +280,15 @@ class RlpDecoder(private val array: ByteArray) {
      * @return true if the next element is a valid [Long], false otherwise.
      * */
     fun isNextElementLong(): Boolean {
+        if (isDone) return false
+
         val flag = peekFlag()
         return when {
             flag == RLP_NULL -> true
             flag < RLP_NULL -> true
             flag <= RLP_STRING_SHORT + MAX_SHORT_LENGTH -> {
                 val size = flag - RLP_STRING_SHORT
-                size <= 8 // long is max 8 bytes
+                size <= 8 && remaining >= size
             }
             else -> false
         }
@@ -336,7 +351,27 @@ class RlpDecoder(private val array: ByteArray) {
      * @return true if the next element is a valid byte array, false otherwise.
      * */
     fun isNextElementByteArray(): Boolean {
-        return peekFlag() < RLP_LIST_SHORT // anything that's not a list
+        if (isDone) return false
+
+        val flag = peekFlag()
+        if (flag == RLP_NULL) return true
+
+        when {
+            flag < RLP_STRING_SHORT -> remaining >= 1
+            flag <= RLP_STRING_SHORT + MAX_SHORT_LENGTH -> {
+                val size = flag - RLP_STRING_SHORT
+                remaining >= size
+            }
+            flag <= RLP_LIST_SHORT -> {
+                val lengthOfSize = flag - RLP_STRING_LONG
+                if (remaining < lengthOfSize) return false
+
+                val size = peekSizeWithLength(lengthOfSize)
+                remaining >= (lengthOfSize + size)
+            }
+        }
+
+        return false
     }
 
     /**
@@ -397,16 +432,23 @@ class RlpDecoder(private val array: ByteArray) {
     }
 
     private fun takeSizeWithLength(lengthOfSize: Int): Int {
+        val size = peekSizeWithLength(lengthOfSize)
+        position += lengthOfSize
+        return size
+    }
+
+    private fun peekSizeWithLength(lengthOfSize: Int): Int {
         return when (lengthOfSize) {
-            1 -> array[position++].toInt() and 0xff
-            2 -> (array[position++].toInt() and 0xff) shl 8 or (array[position++].toInt() and 0xff)
-            3 -> (array[position++].toInt() and 0xff) shl 16 or ((array[position++].toInt() and 0xff) shl 8) or (array[position++].toInt() and 0xff)
-            4 -> (array[position++].toInt() and 0xff) shl 24 or ((array[position++].toInt() and 0xff) shl 16) or ((array[position++].toInt() and 0xff) shl 8) or (array[position++].toInt() and 0xff)
-            else -> throw IllegalArgumentException("Size not supported: $lengthOfSize")
+            1 -> array[position].toInt() and 0xff
+            2 -> (array[position].toInt() and 0xff) shl 8 or (array[position + 1].toInt() and 0xff)
+            3 -> (array[position].toInt() and 0xff) shl 16 or ((array[position + 1].toInt() and 0xff) shl 8) or (array[position + 2].toInt() and 0xff)
+            4 -> (array[position].toInt() and 0xff) shl 24 or ((array[position + 1].toInt() and 0xff) shl 16) or ((array[position + 2].toInt() and 0xff) shl 8) or (array[position + 3].toInt() and 0xff)
+            else -> throw IllegalArgumentException("Size is encoded with $lengthOfSize bytes. Max supported length is $MAX_LENGTH_OF_SIZE")
         }
     }
 
     companion object {
+        private const val MAX_LENGTH_OF_SIZE = 4
         private val EMPTY_BYTE_ARRAY = ByteArray(0)
     }
 }

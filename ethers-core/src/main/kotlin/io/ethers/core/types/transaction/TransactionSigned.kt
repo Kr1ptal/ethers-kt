@@ -143,7 +143,7 @@ class TransactionSigned @JvmOverloads constructor(
             }
 
             return when (TxType.fromType(type)) {
-                TxType.Legacy -> throw IllegalStateException("Should not happen")
+                TxType.Legacy -> null // should not happen, unless we have invalid RLP
                 TxType.AccessList -> {
                     rlp.readByte()
 
