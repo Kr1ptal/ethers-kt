@@ -92,27 +92,44 @@ data class TxLegacy(
 
     companion object : RlpDecodable<TxLegacy> {
         @JvmStatic
-        override fun rlpDecode(rlp: RlpDecoder): TxLegacy {
-            return TxLegacy(
-                nonce = rlp.decodeLong(),
-                gasPrice = rlp.decodeBigIntegerElse(BigInteger.ZERO),
-                gas = rlp.decodeLong(),
-                to = rlp.decode(Address),
-                value = rlp.decodeBigIntegerElse(BigInteger.ZERO),
-                data = rlp.decode(Bytes),
-                chainId = rlp.decodeChainId(),
-            )
+        override fun rlpDecode(rlp: RlpDecoder): TxLegacy? {
+            return rlpDecode(rlp, false)
         }
 
-        private fun RlpDecoder.decodeChainId(): Long {
-            if (isDone) {
-                return ChainId.NONE
+        fun rlpDecode(rlp: RlpDecoder, signedTx: Boolean): TxLegacy? {
+            val nonce = rlp.decodeLongOrElse { return null }
+            val gasPrice = rlp.decodeBigIntegerOrElse { return null }
+            val gas = rlp.decodeLongOrElse { return null }
+            val to = rlp.decode(Address)
+            val value = rlp.decodeBigIntegerOrElse { return null }
+            val data = rlp.decode(Bytes)
+            val chainId = when {
+                signedTx -> ChainId.NONE
+                rlp.isDone -> ChainId.NONE
+                else -> {
+                    // read chain id and drop remaining EIP-155 fields
+                    val chainId = rlp.decodeLongOrElse { return null }
+                    val emptyR = rlp.decodeLongOrElse { return null }
+                    val emptyS = rlp.decodeLongOrElse { return null }
+
+                    // validate this is indeed the expected EIP-155 signature placeholder
+                    if (emptyR != 0L || emptyS != 0L) {
+                        return null
+                    }
+
+                    chainId
+                }
             }
-            // read chain id and drop remaining EIP-155 fields
-            val chainId = decodeLong()
-            decodeLong()
-            decodeLong()
-            return chainId
+
+            return TxLegacy(
+                to = to,
+                value = value,
+                nonce = nonce,
+                gas = gas,
+                gasPrice = gasPrice,
+                data = data?.takeIf { it.size > 0 },
+                chainId = chainId,
+            )
         }
     }
 }

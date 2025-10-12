@@ -53,6 +53,7 @@ sealed interface TransactionUnsigned : Transaction, RlpEncodable {
 
     companion object : RlpDecodable<TransactionUnsigned> {
         override fun rlpDecode(rlp: RlpDecoder): TransactionUnsigned? {
+            if (rlp.isDone) return null
             val type = rlp.peekByte().toUByte().toInt()
 
             // legacy tx

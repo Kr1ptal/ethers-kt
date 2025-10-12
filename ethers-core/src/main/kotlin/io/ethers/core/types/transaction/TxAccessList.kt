@@ -85,16 +85,16 @@ data class TxAccessList(
 
     companion object : RlpDecodable<TxAccessList> {
         @JvmStatic
-        override fun rlpDecode(rlp: RlpDecoder): TxAccessList {
+        override fun rlpDecode(rlp: RlpDecoder): TxAccessList? {
             return TxAccessList(
-                chainId = rlp.decodeLong(),
-                nonce = rlp.decodeLong(),
-                gasPrice = rlp.decodeBigIntegerElse(BigInteger.ZERO),
-                gas = rlp.decodeLong(),
+                chainId = rlp.decodeLongOrElse { return null },
+                nonce = rlp.decodeLongOrElse { return null },
+                gasPrice = rlp.decodeBigIntegerOrElse { return null },
+                gas = rlp.decodeLongOrElse { return null },
                 to = rlp.decode(Address),
-                value = rlp.decodeBigIntegerElse(BigInteger.ZERO),
-                data = rlp.decode(Bytes),
-                accessList = rlp.decodeAsList(AccessList.Item),
+                value = rlp.decodeBigIntegerOrElse { return null },
+                data = rlp.decode(Bytes)?.takeIf { it.size > 0 },
+                accessList = rlp.decodeAsList(AccessList.Item) ?: return null,
             )
         }
     }

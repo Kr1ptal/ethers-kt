@@ -173,9 +173,9 @@ class Signature(
 
         @JvmStatic
         override fun rlpDecode(rlp: RlpDecoder): Signature? {
-            val v = rlp.decodeLong()
-            val r = rlp.decodeBigInteger() ?: return null
-            val s = rlp.decodeBigInteger() ?: return null
+            val v = rlp.decodeLongOrElse { return null }
+            val r = rlp.decodeBigIntegerOrElse { return null }
+            val s = rlp.decodeBigIntegerOrElse { return null }
             return Signature(r, s, v)
         }
 

@@ -93,7 +93,9 @@ class Hash(private val value: ByteArray) : RlpEncodable {
 
         @JvmStatic
         override fun rlpDecode(rlp: RlpDecoder): Hash? {
-            return rlp.decodeByteArray(::Hash)
+            val arr = rlp.decodeByteArrayOrElse { return null }
+            if (arr.size != 32) return null
+            return Hash(arr)
         }
 
         /**

@@ -18,7 +18,7 @@ class RlpDecoderTest : FunSpec({
             maxUint256 to "a0ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
         ) { (result, input) ->
             val rlp = RlpDecoder(input.hexToByteArray())
-            val v = rlp.decodeBigIntegerElse(BigInteger.ZERO)
+            val v = rlp.decodeBigInteger()
             v shouldBe result
         }
     }
@@ -46,21 +46,21 @@ class RlpDecoderTest : FunSpec({
                 ByteArray(190) { -81 } to ("b8be" + "af".repeat(190)),
             ) { (result, input) ->
                 val rlp = RlpDecoder(input.hexToByteArray())
-                val v = rlp.decodeByteArray() ?: byteArrayOf()
+                val v = rlp.decodeByteArray()
                 v shouldBe result
             }
         }
 
         context("decode and transform") {
             withData(
-                null to "80",
+                byteArrayOf() to "80",
                 byteArrayOf(123) to "7b",
                 byteArrayOf(-128) to "8180",
                 byteArrayOf(-85, -70) to "82abba",
             ) { (result, input) ->
                 val rlp = RlpDecoder(input.hexToByteArray())
-                val v = rlp.decodeByteArray { it.toHexString().toBigInteger(16) }
-                v shouldBe result?.toHexString()?.toBigInteger(16)
+                val v = rlp.decodeByteArray { it.toHexString() }
+                v shouldBe result.toHexString()
             }
         }
     }
@@ -104,7 +104,7 @@ class RlpDecoderTest : FunSpec({
             val rlp = RlpDecoder(
                 "f84483646f6783676f64836361748374616383746163837461638374616383746163837461638374616383746163837461638374616383746163837461638374616383746163".hexToByteArray(),
             )
-            val v = rlp.decodeAsList { decodeByteArray() ?: byteArrayOf() }
+            val v = rlp.decodeAsList { decodeByteArray() }
 
             v shouldContainExactly listOf(
                 "dog".toByteArray(),
