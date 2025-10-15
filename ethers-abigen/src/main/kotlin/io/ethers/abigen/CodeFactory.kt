@@ -24,7 +24,11 @@ object CodeFactory {
         }
 
         decorator(builder, constructor)
-        addEqualsAndHashCode(name, builder, constructor.parameters)
+
+        // add explicit equals/hashCode only for non-data classes
+        if (!builder.modifiers.contains(KModifier.DATA)) {
+            addEqualsAndHashCode(name, builder, constructor.parameters)
+        }
 
         return builder.primaryConstructor(constructor.build()).build()
     }
