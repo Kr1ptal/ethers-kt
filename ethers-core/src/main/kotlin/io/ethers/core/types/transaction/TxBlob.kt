@@ -203,11 +203,11 @@ data class TxBlob(
             const val COMMITMENT_LENGTH = 48
             const val PROOF_LENGTH = 48
 
-            override fun rlpDecode(rlp: RlpDecoder): Sidecar {
+            override fun rlpDecode(rlp: RlpDecoder): Sidecar? {
                 return Sidecar(
-                    blobs = rlp.decodeAsList(Bytes),
-                    commitments = rlp.decodeAsList(Bytes),
-                    proofs = rlp.decodeAsList(Bytes),
+                    blobs = rlp.decodeAsList(Bytes) ?: return null,
+                    commitments = rlp.decodeAsList(Bytes) ?: return null,
+                    proofs = rlp.decodeAsList(Bytes) ?: return null,
                 )
             }
         }
@@ -219,17 +219,17 @@ data class TxBlob(
         @JvmStatic
         override fun rlpDecode(rlp: RlpDecoder): TxBlob? {
             return TxBlob(
-                chainId = rlp.decodeLong(),
-                nonce = rlp.decodeLong(),
-                gasTipCap = rlp.decodeBigIntegerElse(BigInteger.ZERO),
-                gasFeeCap = rlp.decodeBigIntegerElse(BigInteger.ZERO),
-                gas = rlp.decodeLong(),
+                chainId = rlp.decodeLongOrElse { return null },
+                nonce = rlp.decodeLongOrElse { return null },
+                gasTipCap = rlp.decodeBigIntegerOrElse { return null },
+                gasFeeCap = rlp.decodeBigIntegerOrElse { return null },
+                gas = rlp.decodeLongOrElse { return null },
                 to = rlp.decode(Address) ?: return null,
-                value = rlp.decodeBigIntegerElse(BigInteger.ZERO),
-                data = rlp.decode(Bytes),
-                accessList = rlp.decodeAsList(AccessList.Item),
-                blobFeeCap = rlp.decodeBigIntegerElse(BigInteger.ZERO),
-                blobVersionedHashes = rlp.decodeAsList(Hash),
+                value = rlp.decodeBigIntegerOrElse { return null },
+                data = rlp.decode(Bytes)?.takeIf { it.size > 0 },
+                accessList = rlp.decodeAsList(AccessList.Item) ?: return null,
+                blobFeeCap = rlp.decodeBigIntegerOrElse { return null },
+                blobVersionedHashes = rlp.decodeAsList(Hash) ?: return null,
             )
         }
     }
