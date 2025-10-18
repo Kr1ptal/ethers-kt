@@ -3,6 +3,7 @@ package io.ethers.abigen.reader
 import io.ethers.abigen.JsonAbi
 import io.ethers.abigen.JsonAbiItem
 import io.ethers.core.Jackson
+import java.io.InputStream
 import java.net.URL
 
 /**
@@ -20,7 +21,7 @@ import java.net.URL
 object EtherscanAbiReader : JsonAbiReader {
     private val reader = Jackson.MAPPER.readerFor(JsonAbiItem::class.java)
 
-    override fun read(abi: URL): JsonAbi {
+    override fun read(abi: InputStream): JsonAbi {
         val abiItems = reader.readValues<JsonAbiItem>(abi).readAll()
         return JsonAbi(abiItems, null)
     }

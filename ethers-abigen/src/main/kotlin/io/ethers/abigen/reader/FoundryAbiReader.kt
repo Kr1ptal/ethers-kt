@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty
 import io.ethers.abigen.JsonAbi
 import io.ethers.abigen.JsonAbiItem
 import io.ethers.core.Jackson
+import java.io.InputStream
 import java.net.URL
 
 /**
@@ -33,7 +34,7 @@ object FoundryAbiReader : JsonAbiReader {
         )
     }
 
-    override fun read(abi: URL): JsonAbi {
+    override fun read(abi: InputStream): JsonAbi {
         val artifact = Jackson.MAPPER.readValue(abi, Artifact::class.java)
         return JsonAbi(artifact.abi, artifact.bytecode?.`object`)
     }
