@@ -7,6 +7,7 @@ import io.ethers.abigen.reader.JsonAbiReaderRegistry.tryReadAbi
 import io.ethers.core.Result
 import io.ethers.core.failure
 import io.ethers.core.success
+import java.io.InputStream
 import java.net.URL
 
 /**
@@ -21,6 +22,7 @@ object JsonAbiReaderRegistry {
         add(FoundryAbiReader)
         add(HardhatAbiReader)
         add(EtherscanAbiReader)
+        add(SingleElementAbiReader)
     }
 
     /**
@@ -42,13 +44,35 @@ object JsonAbiReaderRegistry {
     }
 
     /**
-     * Read the ABI from the given URL. Returns null if the URL does not contain an ABI that any of the readers can read.
+     * Read the ABI from the given [String]. Returns null if the source does not contain an ABI that any of the readers can read.
      *
      * See [tryReadAbi] for a version that returns a [Result] with all errors instead.
      *
-     * @return the [JsonAbi], or null if the URL does not contain an ABI that any of the readers can read.
+     * @return the [JsonAbi], or null if the source does not contain an ABI that any of the readers can read.
+     * */
+    fun readAbi(abi: String): JsonAbi? {
+        return readAbi(abi.byteInputStream())
+    }
+
+    /**
+     * Read the ABI from the given [URL]. Returns null if the source does not contain an ABI that any of the readers can read.
+     *
+     * See [tryReadAbi] for a version that returns a [Result] with all errors instead.
+     *
+     * @return the [JsonAbi], or null if the source does not contain an ABI that any of the readers can read.
      * */
     fun readAbi(abi: URL): JsonAbi? {
+        return readAbi(abi.openStream())
+    }
+
+    /**
+     * Read the ABI from the given [InputStream]. Returns null if the source does not contain an ABI that any of the readers can read.
+     *
+     * See [tryReadAbi] for a version that returns a [Result] with all errors instead.
+     *
+     * @return the [JsonAbi], or null if the source does not contain an ABI that any of the readers can read.
+     * */
+    fun readAbi(abi: InputStream): JsonAbi? {
         for (i in readers.indices) {
             try {
                 val jsonAbi = readers[i].read(abi)
@@ -62,12 +86,32 @@ object JsonAbiReaderRegistry {
     }
 
     /**
-     * Read the ABI from the given URL. On failure, it returns a [AbiReadError] containing a list of all exceptions
+     * Read the ABI from the given [String]. On failure, it returns a [AbiReadError] containing a list of all exceptions
+     * that were thrown by the readers.
+     *
+     * @return the resulting [JsonAbi], or an [AbiReadError] if reading failed.
+     * */
+    fun tryReadAbi(abi: String): Result<JsonAbi, AbiReadError> {
+        return tryReadAbi(abi.byteInputStream()).mapError { AbiReadError(abi, it.causes) }
+    }
+
+    /**
+     * Read the ABI from the given [URL]. On failure, it returns a [AbiReadError] containing a list of all exceptions
      * that were thrown by the readers.
      *
      * @return the resulting [JsonAbi], or an [AbiReadError] if reading failed.
      * */
     fun tryReadAbi(abi: URL): Result<JsonAbi, AbiReadError> {
+        return tryReadAbi(abi.openStream()).mapError { AbiReadError(abi, it.causes) }
+    }
+
+    /**
+     * Read the ABI from the given [String]. On failure, it returns a [AbiReadError] containing a list of all exceptions
+     * that were thrown by the readers.
+     *
+     * @return the resulting [JsonAbi], or an [AbiReadError] if reading failed.
+     * */
+    fun tryReadAbi(abi: InputStream): Result<JsonAbi, AbiReadError> {
         var causes: MutableList<Exception>? = null
         for (i in readers.indices) {
             try {
@@ -89,11 +133,20 @@ object JsonAbiReaderRegistry {
     /**
      * Error returned when reading ABI fails. It contains a list of all exceptions that were thrown by the readers.
      * */
-    class AbiReadError(val url: URL, val causes: List<Exception>) : Result.Error {
+    data class AbiReadError(val source: Source, val causes: List<Exception>) : Result.Error {
+        constructor(url: URL, causes: List<Exception>) : this(URLSource(url), causes)
+        constructor(inputStream: InputStream, causes: List<Exception>) : this(InputStreamSource(inputStream), causes)
+        constructor(string: String, causes: List<Exception>) : this(StringSource(string), causes)
+
         override fun doThrow(): Nothing {
-            throw RuntimeException("Failed to read ABI: $url").also { parent ->
+            throw RuntimeException("Failed to read ABI: $source").also { parent ->
                 causes.forEach { parent.addSuppressed(it) }
             }
         }
+
+        sealed interface Source
+        data class URLSource(val url: URL) : Source
+        data class InputStreamSource(val inputStream: InputStream) : Source
+        data class StringSource(val string: String) : Source
     }
 }

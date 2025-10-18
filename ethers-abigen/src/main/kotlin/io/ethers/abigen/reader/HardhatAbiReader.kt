@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty
 import io.ethers.abigen.JsonAbi
 import io.ethers.abigen.JsonAbiItem
 import io.ethers.core.Jackson
+import java.io.InputStream
 import java.net.URL
 
 /**
@@ -28,7 +29,7 @@ object HardhatAbiReader : JsonAbiReader {
         @param:JsonProperty("bytecode") val bytecode: String,
     )
 
-    override fun read(abi: URL): JsonAbi {
+    override fun read(abi: InputStream): JsonAbi {
         val artifact = Jackson.MAPPER.readValue(abi, HardhatArtifact::class.java)
         return JsonAbi(artifact.abi, artifact.bytecode)
     }
