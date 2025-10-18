@@ -7,6 +7,7 @@ import io.ethers.abigen.reader.JsonAbiReaderRegistry.tryReadAbi
 import io.ethers.core.Result
 import io.ethers.core.failure
 import io.ethers.core.success
+import java.io.ByteArrayInputStream
 import java.io.InputStream
 import java.net.URL
 
@@ -73,9 +74,10 @@ object JsonAbiReaderRegistry {
      * @return the [JsonAbi], or null if the source does not contain an ABI that any of the readers can read.
      * */
     fun readAbi(abi: InputStream): JsonAbi? {
+        val array = abi.readAllBytes()
         for (i in readers.indices) {
             try {
-                val jsonAbi = readers[i].read(abi)
+                val jsonAbi = readers[i].read(ByteArrayInputStream(array))
                 if (jsonAbi != null) {
                     return jsonAbi
                 }
@@ -112,10 +114,11 @@ object JsonAbiReaderRegistry {
      * @return the resulting [JsonAbi], or an [AbiReadError] if reading failed.
      * */
     fun tryReadAbi(abi: InputStream): Result<JsonAbi, AbiReadError> {
+        val array = abi.readAllBytes()
         var causes: MutableList<Exception>? = null
         for (i in readers.indices) {
             try {
-                val jsonAbi = readers[i].read(abi)
+                val jsonAbi = readers[i].read(ByteArrayInputStream(array))
                 if (jsonAbi != null) {
                     return success(jsonAbi)
                 }
