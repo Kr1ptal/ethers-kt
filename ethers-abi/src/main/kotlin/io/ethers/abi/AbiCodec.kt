@@ -569,7 +569,7 @@ object AbiCodec {
                 val offset = currOffset + buff.skip(28).getInt()
                 val endPosition = buff.position()
 
-                buff.ensureValidOffset(offset).ensureRemaining(WORD_SIZE_BYTES)
+                buff.ensureValidOffset(offset, currOffset).ensureRemaining(WORD_SIZE_BYTES)
                 val length = buff.position(offset).skip(28).getInt()
                 if (length < 0) {
                     throw AbiCodecException("Bytes length must be greater than zero, got: $length")
@@ -589,7 +589,7 @@ object AbiCodec {
                 val offset = currOffset + buff.skip(28).getInt()
                 val endPosition = buff.position()
 
-                buff.ensureValidOffset(offset).ensureRemaining(WORD_SIZE_BYTES)
+                buff.ensureValidOffset(offset, currOffset).ensureRemaining(WORD_SIZE_BYTES)
                 val length = buff.position(offset).skip(28).getInt()
                 if (length < 0) {
                     throw AbiCodecException("String length must be greater than zero, got: $length")
@@ -609,7 +609,7 @@ object AbiCodec {
                 var offset = currOffset + buff.skip(28).getInt()
                 val endPosition = buff.position()
 
-                buff.ensureValidOffset(offset).ensureRemaining(WORD_SIZE_BYTES)
+                buff.ensureValidOffset(offset, currOffset).ensureRemaining(WORD_SIZE_BYTES)
                 val length = buff.position(offset).skip(28).getInt()
                 if (length < 0) {
                     throw AbiCodecException("Array length must be greater than zero, got: $length")
@@ -635,7 +635,7 @@ object AbiCodec {
                     val offset = currOffset + buff.skip(28).getInt()
                     val endPosition = buff.position()
 
-                    buff.ensureValidOffset(offset)
+                    buff.ensureValidOffset(offset, currOffset)
                     buff.position(offset)
 
                     for (i in 0..<type.length) {
@@ -662,7 +662,7 @@ object AbiCodec {
                     val offset = currOffset + buff.skip(28).getInt()
                     val endPosition = buff.position()
 
-                    buff.ensureValidOffset(offset)
+                    buff.ensureValidOffset(offset, currOffset)
                     buff.position(offset)
 
                     for (i in type.types.indices) {
@@ -888,11 +888,11 @@ private fun ByteBuffer.ensureRemaining(n: Int): ByteBuffer {
     return this
 }
 
-private fun ByteBuffer.ensureValidOffset(offset: Int): ByteBuffer {
-    val wordRemainder = offset % AbiCodec.WORD_SIZE_BYTES
+private fun ByteBuffer.ensureValidOffset(offset: Int, currentOffset: Int): ByteBuffer {
+    // subtract current offset in case we're decoding data with prefix, which needs to be ignored
+    val wordRemainder = (offset - currentOffset) % AbiCodec.WORD_SIZE_BYTES
 
-    // with and without function prefix
-    if (wordRemainder != 4 && wordRemainder != 0) {
+    if (wordRemainder != 0) {
         throw AbiCodecException("Offset is not 32 byte word-aligned: $offset")
     }
 
