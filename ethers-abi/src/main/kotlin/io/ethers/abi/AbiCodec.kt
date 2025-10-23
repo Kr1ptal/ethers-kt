@@ -15,6 +15,8 @@ object AbiCodec {
      * Encode [data] as [types], prepended with [prefix]. Prefix is usually one of:
      * - `method selector`
      * - `deploy bytecode`
+     *
+     * @throws [AbiCodecException] if encoding failed.
      * */
     @JvmStatic
     fun <T : Any> encodeWithPrefix(
@@ -27,7 +29,7 @@ object AbiCodec {
         }
 
         if (types.size != data.size) {
-            throw IllegalArgumentException("Expected ${types.size} arguments, got ${data.size}")
+            throw AbiCodecException("Expected ${types.size} arguments, got ${data.size}")
         }
 
         withHeadTailLengths(types, data) { head, tail ->
@@ -40,15 +42,17 @@ object AbiCodec {
 
     /**
      * Encode [data] as [types].
+     *
+     * @throws [AbiCodecException] if encoding failed.
      * */
     @JvmStatic
     fun <T : Any> encode(types: List<AbiType<out T>>, data: List<T>): ByteArray {
         if (types.isEmpty()) {
-            throw IllegalArgumentException("Cannot encode empty tokens")
+            throw AbiCodecException("Cannot encode empty tokens")
         }
 
         if (types.size != data.size) {
-            throw IllegalArgumentException("Expected ${types.size} arguments, got ${data.size}")
+            throw AbiCodecException("Expected ${types.size} arguments, got ${data.size}")
         }
 
         withHeadTailLengths(types, data) { head, tail ->
@@ -60,6 +64,8 @@ object AbiCodec {
 
     /**
      * Encode [data] as a single [type].
+     *
+     * @throws [AbiCodecException] if encoding failed.
      * */
     @JvmStatic
     fun <T : Any> encode(type: AbiType<out T>, data: T): ByteArray {
@@ -77,19 +83,21 @@ object AbiCodec {
      * Decode [data] as [types], skipping [prefixSize] bytes. Prefix is usually one of:
      * - `method selector`
      * - `deploy bytecode`
+     *
+     * @throws [AbiCodecException] if decoding failed.
      * */
     @JvmStatic
     fun <T : Any> decodeWithPrefix(prefixSize: Int, types: List<AbiType<out T>>, data: ByteArray): List<T> {
         if (data.size < prefixSize) {
-            throw IllegalArgumentException("Data is too short: ${data.size}")
+            throw AbiCodecException("Data is too short: ${data.size}")
         }
 
         if (types.isEmpty() && data.size > prefixSize) {
-            throw IllegalArgumentException("Expected empty input, got: ${FastHex.encodeWithoutPrefix(data)}")
+            throw AbiCodecException("Expected empty input, got: ${FastHex.encodeWithoutPrefix(data)}")
         }
 
         if (types.isNotEmpty() && data.size == prefixSize) {
-            throw IllegalArgumentException("Expected input, got empty data")
+            throw AbiCodecException("Expected input, got empty data")
         }
 
         if (types.isEmpty()) {
@@ -103,15 +111,17 @@ object AbiCodec {
 
     /**
      * Decode [data] as [types].
+     *
+     * @throws [AbiCodecException] if decoding failed.
      * */
     @JvmStatic
     fun <T : Any> decode(types: List<AbiType<out T>>, data: ByteArray): List<T> {
         if (types.isEmpty()) {
-            throw IllegalArgumentException("Cannot decode empty tokens")
+            throw AbiCodecException("Cannot decode empty tokens")
         }
 
         if (data.size < WORD_SIZE_BYTES) {
-            throw IllegalArgumentException("Cannot decode empty data: ${FastHex.encodeWithoutPrefix(data)}")
+            throw AbiCodecException("Cannot decode empty data: ${FastHex.encodeWithoutPrefix(data)}")
         }
 
         @Suppress("UNCHECKED_CAST")
@@ -120,12 +130,14 @@ object AbiCodec {
 
     /**
      * Decode [data] as a single [type].
+     *
+     * @throws [AbiCodecException] if decoding failed.
      * */
     @JvmStatic
     fun <T : Any> decode(type: AbiType<T>, data: ByteArray): T {
         // if we don't have at least one word, throw
         if (data.size < WORD_SIZE_BYTES) {
-            throw IllegalArgumentException("Cannot decode empty data: ${FastHex.encodeWithoutPrefix(data)}")
+            throw AbiCodecException("Cannot decode empty data: ${FastHex.encodeWithoutPrefix(data)}")
         }
 
         @Suppress("UNCHECKED_CAST")
@@ -174,7 +186,7 @@ object AbiCodec {
             is AbiType.Int -> {
                 val v = data as BigInteger
                 if (v.bitLength() > type.bitSize - 1) {
-                    throw IllegalArgumentException("Provided INT value has more than ${type.bitSize - 1} bits: ${v.bitLength()}")
+                    throw AbiCodecException("Provided INT value has more than ${type.bitSize - 1} bits: ${v.bitLength()}")
                 }
 
                 // if value is negative, convert to two's complement 256-bit number
@@ -200,18 +212,18 @@ object AbiCodec {
             is AbiType.UInt -> {
                 val v = data as BigInteger
                 if (v.signum() == -1) {
-                    throw IllegalArgumentException("Expected UINT, got INT: $v")
+                    throw AbiCodecException("Expected UINT, got INT: $v")
                 }
 
                 if (v.bitLength() > type.bitSize) {
-                    throw IllegalArgumentException("Provided UINT value has more than ${type.bitSize} bits: ${v.bitLength()}")
+                    throw AbiCodecException("Provided UINT value has more than ${type.bitSize} bits: ${v.bitLength()}")
                 }
 
                 // TODO this could be optimized by accessing the underlying array directly (e.g. method handle to BigInteger#getInt(index))
                 //      and writing directly to buff. This would avoid the intermediate array allocation and copy.
                 val arr = v.toByteArray()
                 if (arr.size > 33 || arr.size == 33 && arr[0].toInt() != 0) {
-                    throw IllegalArgumentException("Provided value has more than 256 bits: $v")
+                    throw AbiCodecException("Provided value has more than 256 bits: $v")
                 }
 
                 if (arr.size == 33 && arr[0].toInt() == 0) {
@@ -226,7 +238,7 @@ object AbiCodec {
             is AbiType.FixedBytes -> {
                 val value = data as Bytes
                 if (value.size != type.length) {
-                    throw IllegalArgumentException("Provided value has length ${value.size}, expected ${type.length}")
+                    throw AbiCodecException("Provided value has length ${value.size}, expected ${type.length}")
                 }
 
                 val rem = WORD_SIZE_BYTES - value.size
@@ -253,7 +265,7 @@ object AbiCodec {
 
                 val value = data as List<*>
                 if (value.size != type.length) {
-                    throw IllegalArgumentException("Provided value has length ${value.size}, expected ${type.length}")
+                    throw AbiCodecException("Provided value has length ${value.size}, expected ${type.length}")
                 }
 
                 for (i in value.indices) {
@@ -272,7 +284,7 @@ object AbiCodec {
 
                 val value = type.dataAsTuple(data)
                 if (value.size != type.types.size) {
-                    throw IllegalArgumentException("Provided value has length ${value.size}, expected ${type.types.size}")
+                    throw AbiCodecException("Provided value has length ${value.size}, expected ${type.types.size}")
                 }
 
                 for (i in type.types.indices) {
@@ -349,7 +361,7 @@ object AbiCodec {
                 @Suppress("UNCHECKED_CAST")
                 val value = data as List<Any>
                 if (value.size != type.length) {
-                    throw IllegalArgumentException("Provided value has length ${value.size}, expected ${type.length}")
+                    throw AbiCodecException("Provided value has length ${value.size}, expected ${type.length}")
                 }
 
                 var headLength = 0
@@ -367,7 +379,7 @@ object AbiCodec {
                 }
                 val value = type.dataAsTuple(data)
                 if (value.size != type.types.size) {
-                    throw IllegalArgumentException("Provided value has length ${value.size}, expected ${type.types.size}")
+                    throw AbiCodecException("Provided value has length ${value.size}, expected ${type.types.size}")
                 }
                 var headLength = 0
                 for (i in value.indices) {
@@ -517,6 +529,8 @@ object AbiCodec {
     private fun decodeToken(type: AbiType<*>, buff: ByteBuffer, currOffset: Int): Any {
         when (type) {
             AbiType.Address -> {
+                buff.ensureRemaining(WORD_SIZE_BYTES)
+
                 val arr = ByteArray(20)
                 buff.skip(12).get(arr)
                 return Address(arr)
@@ -526,28 +540,43 @@ object AbiCodec {
 
             // left-padded
             is AbiType.FixedBytes -> {
+                buff.ensureRemaining(WORD_SIZE_BYTES)
+
                 val arr = ByteArray(type.length)
                 buff.get(arr).skip(32 - type.length)
                 return Bytes(arr)
             }
 
             is AbiType.Int -> {
+                buff.ensureRemaining(WORD_SIZE_BYTES)
+
                 val ret = BigInteger(buff.array(), buff.position(), 32)
                 buff.skip(32)
                 return ret
             }
 
             is AbiType.UInt -> {
+                buff.ensureRemaining(WORD_SIZE_BYTES)
+
                 val ret = BigInteger(1, buff.array(), buff.position(), 32)
                 buff.skip(32)
                 return ret
             }
 
             AbiType.Bytes -> {
+                buff.ensureRemaining(WORD_SIZE_BYTES)
+
                 val offset = currOffset + buff.skip(28).getInt()
                 val endPosition = buff.position()
 
+                buff.ensureValidOffset(offset).ensureRemaining(WORD_SIZE_BYTES)
                 val length = buff.position(offset).skip(28).getInt()
+                if (length < 0) {
+                    throw AbiCodecException("Bytes length must be greater than zero, got: $length")
+                }
+
+                buff.ensureRemaining(length)
+
                 val arr = ByteArray(length)
                 buff.get(arr).position(endPosition)
 
@@ -555,10 +584,19 @@ object AbiCodec {
             }
 
             AbiType.String -> {
+                buff.ensureRemaining(WORD_SIZE_BYTES)
+
                 val offset = currOffset + buff.skip(28).getInt()
                 val endPosition = buff.position()
 
+                buff.ensureValidOffset(offset).ensureRemaining(WORD_SIZE_BYTES)
                 val length = buff.position(offset).skip(28).getInt()
+                if (length < 0) {
+                    throw AbiCodecException("String length must be greater than zero, got: $length")
+                }
+
+                buff.ensureRemaining(length)
+
                 val ret = String(buff.array(), buff.position(), length, Charsets.UTF_8)
                 buff.position(endPosition)
 
@@ -566,10 +604,17 @@ object AbiCodec {
             }
 
             is AbiType.Array<*> -> {
+                buff.ensureRemaining(WORD_SIZE_BYTES)
+
                 var offset = currOffset + buff.skip(28).getInt()
                 val endPosition = buff.position()
 
+                buff.ensureValidOffset(offset).ensureRemaining(WORD_SIZE_BYTES)
                 val length = buff.position(offset).skip(28).getInt()
+                if (length < 0) {
+                    throw AbiCodecException("Array length must be greater than zero, got: $length")
+                }
+
                 offset += WORD_SIZE_BYTES
 
                 val arr = ArrayList<Any>(length)
@@ -585,8 +630,12 @@ object AbiCodec {
                 val arr = ArrayList<Any>(type.length)
 
                 if (type.isDynamic) {
+                    buff.ensureRemaining(WORD_SIZE_BYTES)
+
                     val offset = currOffset + buff.skip(28).getInt()
                     val endPosition = buff.position()
+
+                    buff.ensureValidOffset(offset)
                     buff.position(offset)
 
                     for (i in 0..<type.length) {
@@ -609,8 +658,11 @@ object AbiCodec {
                 val arr = ArrayList<Any>(type.types.size)
 
                 if (type.isDynamic) {
+                    buff.ensureRemaining(WORD_SIZE_BYTES)
                     val offset = currOffset + buff.skip(28).getInt()
                     val endPosition = buff.position()
+
+                    buff.ensureValidOffset(offset)
                     buff.position(offset)
 
                     for (i in type.types.indices) {
@@ -667,7 +719,7 @@ object AbiCodec {
             AbiType.String -> Utf8.encodedLength(data as String)
             is AbiType.Array<*> -> {
                 if (type.type.isDynamic || type.type is AbiType.Array<*>) {
-                    throw IllegalArgumentException("Cannot encode dynamic or nested arrays in packed format")
+                    throw AbiCodecException("Cannot encode dynamic or nested arrays in packed format")
                 }
 
                 var size = 0
@@ -681,7 +733,7 @@ object AbiCodec {
 
             is AbiType.FixedArray<*> -> {
                 if (type.type.isDynamic || type.type is AbiType.Array<*>) {
-                    throw IllegalArgumentException("Cannot encode dynamic or nested arrays in packed format")
+                    throw AbiCodecException("Cannot encode dynamic or nested arrays in packed format")
                 }
 
                 var size = 0
@@ -695,7 +747,7 @@ object AbiCodec {
 
             is AbiType.Struct<*>,
             is AbiType.Tuple,
-            -> throw IllegalArgumentException("Cannot encode tuple in packed format")
+            -> throw AbiCodecException("Cannot encode tuple in packed format")
         }
     }
 
@@ -718,7 +770,7 @@ object AbiCodec {
             is AbiType.FixedBytes -> {
                 val value = data as Bytes
                 if (value.size != type.length) {
-                    throw IllegalArgumentException("Provided value has length ${value.size}, expected ${type.length}")
+                    throw AbiCodecException("Provided value has length ${value.size}, expected ${type.length}")
                 }
 
                 buff.put(value.asByteArray())
@@ -732,7 +784,7 @@ object AbiCodec {
             is AbiType.Int -> {
                 val v = data as BigInteger
                 if (v.bitLength() > type.bitSize - 1) {
-                    throw IllegalArgumentException("Provided INT value has more than ${type.bitSize - 1} bits: ${v.bitLength()}")
+                    throw AbiCodecException("Provided INT value has more than ${type.bitSize - 1} bits: ${v.bitLength()}")
                 }
 
                 // TODO this could be optimized by accessing the underlying array directly (e.g. method handle to BigInteger#getInt(index))
@@ -764,18 +816,18 @@ object AbiCodec {
             is AbiType.UInt -> {
                 val v = data as BigInteger
                 if (v.signum() == -1) {
-                    throw IllegalArgumentException("Expected UINT, got INT: $v")
+                    throw AbiCodecException("Expected UINT, got INT: $v")
                 }
 
                 if (v.bitLength() > type.bitSize) {
-                    throw IllegalArgumentException("Provided UINT value has more than ${type.bitSize} bits: ${v.bitLength()}")
+                    throw AbiCodecException("Provided UINT value has more than ${type.bitSize} bits: ${v.bitLength()}")
                 }
 
                 // TODO this could be optimized by accessing the underlying array directly (e.g. method handle to BigInteger#getInt(index))
                 //      and writing directly to buff. This would avoid the intermediate array allocation and copy.
                 val arr = v.toByteArray()
                 if (arr.size > 33 || arr.size == 33 && arr[0].toInt() != 0) {
-                    throw IllegalArgumentException("Provided value has more than 256 bits: $v")
+                    throw AbiCodecException("Provided value has more than 256 bits: $v")
                 }
 
                 if (arr.size == 33 && arr[0].toInt() == 0) {
@@ -802,7 +854,7 @@ object AbiCodec {
             is AbiType.FixedArray<*> -> {
                 val values = data as List<*>
                 if (values.size != type.length) {
-                    throw IllegalArgumentException("Provided value has length ${values.size}, expected ${type.length}")
+                    throw AbiCodecException("Provided value has length ${values.size}, expected ${type.length}")
                 }
 
                 for (i in values.indices) {
@@ -812,14 +864,40 @@ object AbiCodec {
 
             is AbiType.Struct<*>,
             is AbiType.Tuple,
-            -> throw IllegalArgumentException("Cannot encode tuple in packed format")
+            -> throw AbiCodecException("Cannot encode tuple in packed format")
         }
     }
 }
+
+/**
+ * Exception thrown when decoding/encoding of data in [AbiCodec] fails.
+ *  */
+data class AbiCodecException(override val message: String) : RuntimeException()
 
 private fun ByteBuffer.skip(n: Int): ByteBuffer {
     if (n <= 0) {
         return this
     }
     return position(position() + n)
+}
+
+private fun ByteBuffer.ensureRemaining(n: Int): ByteBuffer {
+    if (this.remaining() < n) {
+        throw AbiCodecException("Not enough bytes left. Wanted $n, have ${this.remaining()}")
+    }
+    return this
+}
+
+private fun ByteBuffer.ensureValidOffset(offset: Int): ByteBuffer {
+    val wordRemainder = offset % AbiCodec.WORD_SIZE_BYTES
+
+    // with and without function prefix
+    if (wordRemainder != 4 && wordRemainder != 0) {
+        throw AbiCodecException("Offset is not 32 byte word-aligned: $offset")
+    }
+
+    if (this.capacity() < offset) {
+        throw AbiCodecException("Invalid offset '$offset'. Buffer capacity: ${this.capacity()}")
+    }
+    return this
 }
