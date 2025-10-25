@@ -1,10 +1,12 @@
 package io.ethers.abi
 
+import io.ethers.abi.AbiCodec.WORD_SIZE_BYTES
 import io.ethers.core.FastHex
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import java.math.BigInteger
 import java.nio.ByteBuffer
+import java.util.BitSet
 
 object AbiCodec {
     private val TWOS_COMPLEMENT_PADDING = (0..<32).map { ByteArray(it) { 0xff.toByte() } }.toTypedArray()
@@ -186,8 +188,9 @@ object AbiCodec {
             throw AbiCodecException("Cannot decode empty data: ${FastHex.encodeWithoutPrefix(data)}")
         }
 
+        val visitedOffsets = BitSet(data.size / WORD_SIZE_BYTES)
         @Suppress("UNCHECKED_CAST")
-        return decodeToken(type, ByteBuffer.wrap(data), 0) as T
+        return decodeToken(type, ByteBuffer.wrap(data), 0, 1, visitedOffsets) as T
     }
 
     private fun encodeTokensHeadTail(buff: ByteBuffer, types: List<AbiType<*>>, data: List<Any>, headLength: Int) {
@@ -566,13 +569,20 @@ object AbiCodec {
 
         // to account for 4byte selector
         val offset = buff.position()
+        val visitedOffsets = BitSet(buff.capacity() / WORD_SIZE_BYTES)
         for (i in types.indices) {
-            ret.add(decodeToken(types[i], buff, offset))
+            ret.add(decodeToken(types[i], buff, offset, 1, visitedOffsets))
         }
         return ret
     }
 
-    private fun decodeToken(type: AbiType<*>, buff: ByteBuffer, currOffset: Int, depth: Int = 1): Any {
+    private fun decodeToken(
+        type: AbiType<*>,
+        buff: ByteBuffer,
+        currOffset: Int,
+        depth: Int,
+        visitedOffsets: BitSet,
+    ): Any {
         if (depth > MAX_RECURSION_DEPTH) {
             throw AbiCodecException("Recursion depth $depth exceeds maximum: $MAX_RECURSION_DEPTH")
         }
@@ -628,7 +638,7 @@ object AbiCodec {
                 val offset = currOffset + buff.skip(28).getInt()
                 val endPosition = buff.position()
 
-                buff.ensureValidOffset(offset, currOffset).ensureRemaining(WORD_SIZE_BYTES)
+                buff.ensureValidOffset(offset, currOffset, visitedOffsets).ensureRemaining(WORD_SIZE_BYTES)
                 val length = buff.position(offset).skip(28).getInt()
                 if (length < 0) {
                     throw AbiCodecException("Bytes length must be greater than zero, got: $length")
@@ -648,7 +658,7 @@ object AbiCodec {
                 val offset = currOffset + buff.skip(28).getInt()
                 val endPosition = buff.position()
 
-                buff.ensureValidOffset(offset, currOffset).ensureRemaining(WORD_SIZE_BYTES)
+                buff.ensureValidOffset(offset, currOffset, visitedOffsets).ensureRemaining(WORD_SIZE_BYTES)
                 val length = buff.position(offset).skip(28).getInt()
                 if (length < 0) {
                     throw AbiCodecException("String length must be greater than zero, got: $length")
@@ -668,7 +678,7 @@ object AbiCodec {
                 var offset = currOffset + buff.skip(28).getInt()
                 val endPosition = buff.position()
 
-                buff.ensureValidOffset(offset, currOffset).ensureRemaining(WORD_SIZE_BYTES)
+                buff.ensureValidOffset(offset, currOffset, visitedOffsets).ensureRemaining(WORD_SIZE_BYTES)
                 val length = buff.position(offset).skip(28).getInt()
                 if (length < 0) {
                     throw AbiCodecException("Array length must be greater than zero, got: $length")
@@ -678,7 +688,7 @@ object AbiCodec {
 
                 val arr = ArrayList<Any>(length)
                 for (i in 0..<length) {
-                    arr.add(decodeToken(type.type, buff, offset, depth + 1))
+                    arr.add(decodeToken(type.type, buff, offset, depth + 1, visitedOffsets))
                 }
 
                 buff.position(endPosition)
@@ -694,17 +704,17 @@ object AbiCodec {
                     val offset = currOffset + buff.skip(28).getInt()
                     val endPosition = buff.position()
 
-                    buff.ensureValidOffset(offset, currOffset)
+                    buff.ensureValidOffset(offset, currOffset, visitedOffsets)
                     buff.position(offset)
 
                     for (i in 0..<type.length) {
-                        arr.add(decodeToken(type.type, buff, offset, depth + 1))
+                        arr.add(decodeToken(type.type, buff, offset, depth + 1, visitedOffsets))
                     }
 
                     buff.position(endPosition)
                 } else {
                     for (i in 0..<type.length) {
-                        arr.add(decodeToken(type.type, buff, currOffset, depth + 1))
+                        arr.add(decodeToken(type.type, buff, currOffset, depth + 1, visitedOffsets))
                     }
                 }
 
@@ -721,17 +731,17 @@ object AbiCodec {
                     val offset = currOffset + buff.skip(28).getInt()
                     val endPosition = buff.position()
 
-                    buff.ensureValidOffset(offset, currOffset)
+                    buff.ensureValidOffset(offset, currOffset, visitedOffsets)
                     buff.position(offset)
 
                     for (i in type.types.indices) {
-                        arr.add(decodeToken(type.types[i], buff, offset, depth + 1))
+                        arr.add(decodeToken(type.types[i], buff, offset, depth + 1, visitedOffsets))
                     }
 
                     buff.position(endPosition)
                 } else {
                     for (i in type.types.indices) {
-                        arr.add(decodeToken(type.types[i], buff, currOffset, depth + 1))
+                        arr.add(decodeToken(type.types[i], buff, currOffset, depth + 1, visitedOffsets))
                     }
                 }
 
@@ -947,11 +957,19 @@ private fun ByteBuffer.ensureRemaining(n: Int): ByteBuffer {
     return this
 }
 
-private fun ByteBuffer.ensureValidOffset(offset: Int, currentOffset: Int): ByteBuffer {
+private fun ByteBuffer.ensureValidOffset(offset: Int, currentOffset: Int, visitedOffsets: BitSet): ByteBuffer {
     // can only move forward
     if (offset < currentOffset) {
         throw AbiCodecException("Invalid backwards offset: $offset (currentOffset: $currentOffset)")
     }
+
+    // Check for circular offset reference
+    val offsetIndex = offset / WORD_SIZE_BYTES
+    if (visitedOffsets.get(offsetIndex)) {
+        throw AbiCodecException("Circular offset detected: $offset")
+    }
+
+    visitedOffsets.set(offsetIndex)
 
     // subtract current offset in case we're decoding data with prefix, which needs to be ignored
     val wordRemainder = (offset - currentOffset) % AbiCodec.WORD_SIZE_BYTES
