@@ -948,6 +948,11 @@ private fun ByteBuffer.ensureRemaining(n: Int): ByteBuffer {
 }
 
 private fun ByteBuffer.ensureValidOffset(offset: Int, currentOffset: Int): ByteBuffer {
+    // can only move forward
+    if (offset < currentOffset) {
+        throw AbiCodecException("Invalid backwards offset: $offset (currentOffset: $currentOffset)")
+    }
+
     // subtract current offset in case we're decoding data with prefix, which needs to be ignored
     val wordRemainder = (offset - currentOffset) % AbiCodec.WORD_SIZE_BYTES
 
