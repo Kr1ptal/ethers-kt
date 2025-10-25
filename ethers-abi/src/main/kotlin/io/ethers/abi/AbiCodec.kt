@@ -26,6 +26,38 @@ object AbiCodec {
     private const val MAX_RECURSION_DEPTH = 16
 
     /**
+     * Checks if a type is a zero-sized type (ZST).
+     *
+     * Zero-sized types can be exploited for DoS attacks where tiny payloads
+     * claim to contain billions of elements, causing excessive memory allocation.
+     *
+     * Modern Solidity and Vyper versions disallow defining ZSTs.
+     *
+     * Examples of ZSTs:
+     * - Empty tuples: ()
+     * - Empty structs
+     * - Zero-length fixed arrays: T[0]
+     * - Arrays of ZSTs: ()[], T[0][]
+     */
+    private fun isZeroSizedType(type: AbiType<*>): Boolean {
+        return when (type) {
+            // Empty tuple/struct - has no fields
+            is AbiType.Struct<*>,
+            is AbiType.Tuple,
+            -> type.types.isEmpty()
+
+            // Fixed array with zero length
+            is AbiType.FixedArray<*> -> type.length == 0 || isZeroSizedType(type.type)
+
+            // Dynamic/fixed array containing ZST elements
+            is AbiType.Array<*> -> isZeroSizedType(type.type)
+
+            // All primitive types (address, bool, int, uint, bytes, string, fixedBytes) are non-zero
+            else -> false
+        }
+    }
+
+    /**
      * Encode [data] as [types], prepended with [prefix]. Prefix is usually one of:
      * - `method selector`
      * - `deploy bytecode`
@@ -543,6 +575,15 @@ object AbiCodec {
     private fun decodeToken(type: AbiType<*>, buff: ByteBuffer, currOffset: Int, depth: Int = 1): Any {
         if (depth > MAX_RECURSION_DEPTH) {
             throw AbiCodecException("Recursion depth $depth exceeds maximum: $MAX_RECURSION_DEPTH")
+        }
+
+        // Reject zero-sized types to prevent DoS attacks
+        if (isZeroSizedType(type)) {
+            throw AbiCodecException(
+                "Zero-sized type detected: $type. " +
+                    "ZSTs are not allowed per modern Solidity/Vyper and may indicate " +
+                    "a malicious payload or corrupted data.",
+            )
         }
 
         when (type) {
