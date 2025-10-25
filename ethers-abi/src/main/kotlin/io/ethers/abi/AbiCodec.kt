@@ -12,6 +12,20 @@ object AbiCodec {
     const val WORD_SIZE_BYTES = 32
 
     /**
+     * Maximum recursion depth for nested ABI types during decoding.
+     *
+     * This limit matches the EVM's 16-slot stack access constraint (DUP16/SWAP16 opcodes).
+     * While the ABI specification doesn't mandate this limit, practical Solidity contracts
+     * cannot produce structures deeper than 16 levels due to EVM constraints.
+     *
+     * This protects against:
+     * - Stack overflow attacks from maliciously crafted deeply nested data
+     * - "Billion laughs" style DoS attacks via recursive structures
+     * - OOM conditions from excessive memory allocation
+     */
+    private const val MAX_RECURSION_DEPTH = 16
+
+    /**
      * Encode [data] as [types], prepended with [prefix]. Prefix is usually one of:
      * - `method selector`
      * - `deploy bytecode`
@@ -526,7 +540,11 @@ object AbiCodec {
         return ret
     }
 
-    private fun decodeToken(type: AbiType<*>, buff: ByteBuffer, currOffset: Int): Any {
+    private fun decodeToken(type: AbiType<*>, buff: ByteBuffer, currOffset: Int, depth: Int = 1): Any {
+        if (depth > MAX_RECURSION_DEPTH) {
+            throw AbiCodecException("Recursion depth $depth exceeds maximum: $MAX_RECURSION_DEPTH")
+        }
+
         when (type) {
             AbiType.Address -> {
                 buff.ensureRemaining(WORD_SIZE_BYTES)
@@ -619,7 +637,7 @@ object AbiCodec {
 
                 val arr = ArrayList<Any>(length)
                 for (i in 0..<length) {
-                    arr.add(decodeToken(type.type, buff, offset))
+                    arr.add(decodeToken(type.type, buff, offset, depth + 1))
                 }
 
                 buff.position(endPosition)
@@ -639,13 +657,13 @@ object AbiCodec {
                     buff.position(offset)
 
                     for (i in 0..<type.length) {
-                        arr.add(decodeToken(type.type, buff, offset))
+                        arr.add(decodeToken(type.type, buff, offset, depth + 1))
                     }
 
                     buff.position(endPosition)
                 } else {
                     for (i in 0..<type.length) {
-                        arr.add(decodeToken(type.type, buff, currOffset))
+                        arr.add(decodeToken(type.type, buff, currOffset, depth + 1))
                     }
                 }
 
@@ -666,13 +684,13 @@ object AbiCodec {
                     buff.position(offset)
 
                     for (i in type.types.indices) {
-                        arr.add(decodeToken(type.types[i], buff, offset))
+                        arr.add(decodeToken(type.types[i], buff, offset, depth + 1))
                     }
 
                     buff.position(endPosition)
                 } else {
                     for (i in type.types.indices) {
-                        arr.add(decodeToken(type.types[i], buff, currOffset))
+                        arr.add(decodeToken(type.types[i], buff, currOffset, depth + 1))
                     }
                 }
 
