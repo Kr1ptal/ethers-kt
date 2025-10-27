@@ -28,7 +28,7 @@ jobs:
       - name: Gradle ktlint
         run: ./gradlew ktlintCheck --no-watch-fs --stacktrace
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: failure()
         with:
           name: report-lint
@@ -37,7 +37,7 @@ jobs:
       - name: Gradle test
         run: ./gradlew test --no-watch-fs --stacktrace -Dlog.level=debug
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: failure()
         with:
           name: report-unit-test
