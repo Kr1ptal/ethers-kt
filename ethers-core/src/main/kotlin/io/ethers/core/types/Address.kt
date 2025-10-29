@@ -124,7 +124,9 @@ class Address(private val value: ByteArray) : RlpEncodable {
 
         @JvmStatic
         override fun rlpDecode(rlp: RlpDecoder): Address? {
-            return rlp.decodeByteArray(::Address)
+            val arr = rlp.decodeByteArrayOrElse { return null }
+            if (arr.size != 20) return null
+            return Address(arr)
         }
 
         /**

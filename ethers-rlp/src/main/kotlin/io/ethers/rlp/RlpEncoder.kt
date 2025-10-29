@@ -139,18 +139,13 @@ class RlpEncoder @JvmOverloads constructor(
     }
 
     fun encode(value: BigInteger?): RlpEncoder {
-        if (value == null) {
+        if (value == null || value == BigInteger.ZERO) {
             buffer.ensureCapacity(1).put(RLP_NULL.toByte())
             return this
         }
 
         if (value < BigInteger.ZERO) {
             throw IllegalArgumentException("Negative values are not supported: $value")
-        }
-
-        if (value == BigInteger.ZERO) {
-            buffer.ensureCapacity(1).put(RLP_NULL.toByte())
-            return this
         }
 
         val bytes = value.toByteArray()
