@@ -42,6 +42,7 @@ import java.io.File
 import java.math.BigInteger
 import java.util.function.Function
 import javax.lang.model.SourceVersion
+import kotlin.reflect.full.functions
 import kotlin.reflect.full.memberProperties
 
 /**
@@ -682,7 +683,7 @@ class AbiContractBuilder(
         val topicOffset = if (isAnonymous) 0 else 1
         indexedInputs.forEachIndexed { index, param ->
             val topicIndex = index + topicOffset
-            val methodName = getFilterMethodName(param.name)
+            val methodName = getFilterFunctionName(param.name)
 
             // Determine how to handle the parameter type
             // LogFilter.topicN only supports Hash
@@ -718,14 +719,8 @@ class AbiContractBuilder(
         return filterBuilder.build()
     }
 
-    private fun getFilterMethodName(paramName: String): String {
-        // Check if the parameter name conflicts with inherited EventFilterBase methods
-        val reservedNames = setOf(
-            "watch", "subscribe", "query", "blockRange", "atBlock", "address",
-            "topic0", "topic1", "topic2", "topic3",
-        )
-
-        return if (reservedNames.contains(paramName)) {
+    private fun getFilterFunctionName(paramName: String): String {
+        return if (RESERVED_EVENT_FILTER_FUNCTION_NAMES.contains(paramName)) {
             "_$paramName"
         } else {
             paramName
@@ -1022,6 +1017,7 @@ class AbiContractBuilder(
     companion object {
         private val RESERVED_DEPLOY_FUNCTION_ARG_NAMES = setOf("provider")
         private val RESERVED_EVENT_FIELD_NAMES = ContractEvent::class.memberProperties.map { it.name }.toSet()
+        private val RESERVED_EVENT_FILTER_FUNCTION_NAMES = EventFilterBase::class.functions.map { it.name }.toSet()
         private val RESERVED_ERROR_FIELD_NAMES = ContractError::class.memberProperties.map { it.name }.toSet()
     }
 }
