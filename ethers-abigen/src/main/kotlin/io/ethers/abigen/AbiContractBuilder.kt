@@ -18,9 +18,11 @@ import io.ethers.abi.AbiEvent
 import io.ethers.abi.AbiFunction
 import io.ethers.abi.AbiType
 import io.ethers.abi.AnonymousEventFilter
+import io.ethers.abi.AnonymousEventFilterBase
 import io.ethers.abi.ContractEvent
 import io.ethers.abi.EventFactory
 import io.ethers.abi.EventFilter
+import io.ethers.abi.EventFilterBase
 import io.ethers.abi.call.ConstructorCall
 import io.ethers.abi.call.FunctionCall
 import io.ethers.abi.call.PayableConstructorCall
@@ -505,19 +507,34 @@ class AbiContractBuilder(
         }*/
 
         val inputs = event.inputs.toAbiTypeParameters()
+        val indexedInputs = inputs.filter { it.indexed }
+
+        // Determine if we need a custom filter class
+        val needsCustomFilter = indexedInputs.isNotEmpty()
+        val filterClassName = if (needsCustomFilter) {
+            eventClassName.nestedClass("Filter")
+        } else {
+            if (event.anonymous) AnonymousEventFilter::class.asClassName() else EventFilter::class.asClassName()
+        }
+
         val factoryBuilder = TypeSpec.companionObjectBuilder()
             .addSuperinterface(EventFactory::class.asClassName().parameterizedBy(eventClassName))
             .addProperty(createAbiEventProperty(event.name, inputs, event.anonymous))
 
         // filter function
-        val filterReturnClass = if (event.anonymous) AnonymousEventFilter::class else EventFilter::class
         factoryBuilder.addFunction(
             FunSpec.builder(EventFactory<*>::filter.name)
                 .addAnnotation(JvmStatic::class)
                 .addModifiers(KModifier.OVERRIDE)
                 .addParameter("provider", Middleware::class)
-                .addCode("return %T(provider, this)", filterReturnClass)
-                .returns(filterReturnClass.asClassName().parameterizedBy(eventClassName))
+                .addCode("return %T(provider, this)", filterClassName)
+                .returns(
+                    if (needsCustomFilter) {
+                        filterClassName
+                    } else {
+                        filterClassName.parameterizedBy(eventClassName)
+                    },
+                )
                 .build(),
         )
 
@@ -580,11 +597,11 @@ class AbiContractBuilder(
             builder.addKdoc(
                 """
                 Contract event (indexed dynamic types are replaced with `bytes32`)
-                
+
                 Topic ID: `$topicId`
-                
+
                 Anonymous: `${event.anonymous}`
-                
+
                 Signature:
                 ```solidity
                     event ${event.name}(${inputs.toCanonicalSignature()});
@@ -601,8 +618,117 @@ class AbiContractBuilder(
                 KModifier.OVERRIDE,
             )
 
+            // add custom filter class if event has indexed parameters
+            if (needsCustomFilter) {
+                builder.addType(createEventFilterClass(eventClassName, event.anonymous, indexedInputs))
+            }
+
             // add factory companion object
             builder.addType(factoryBuilder.build())
+        }
+    }
+
+    private fun createEventFilterClass(
+        eventClassName: ClassName,
+        isAnonymous: Boolean,
+        indexedInputs: List<AbiTypeParameter>,
+    ): TypeSpec {
+        val filterClassName = eventClassName.nestedClass("Filter")
+
+        val baseClass = when {
+            isAnonymous -> AnonymousEventFilterBase::class
+            else -> EventFilterBase::class
+        }
+
+        val filterBuilder = TypeSpec.classBuilder("Filter")
+            .superclass(
+                baseClass.asClassName().parameterizedBy(
+                    eventClassName,
+                    filterClassName,
+                ),
+            )
+
+        // Constructor
+        val constructor = FunSpec.constructorBuilder()
+            .addParameter("provider", Middleware::class)
+            .addParameter(
+                ParameterSpec.builder(
+                    "factory",
+                    EventFactory::class.asClassName().parameterizedBy(eventClassName),
+                ).build(),
+            )
+
+        filterBuilder.primaryConstructor(constructor.build())
+        filterBuilder.addSuperclassConstructorParameter("provider, factory")
+
+        // Override self property
+        filterBuilder.addProperty(
+            PropertySpec.builder("self", filterClassName)
+                .addModifiers(KModifier.OVERRIDE)
+                .initializer("this")
+                .build(),
+        )
+
+        // Add init block for non-anonymous events
+        if (!isAnonymous) {
+            filterBuilder.addInitializerBlock(
+                CodeBlock.builder()
+                    .addStatement("filter.topic0(factory.abi.topicId)")
+                    .build(),
+            )
+        }
+
+        // Generate filter methods for each indexed parameter
+        val topicOffset = if (isAnonymous) 0 else 1
+        indexedInputs.forEachIndexed { index, param ->
+            val topicIndex = index + topicOffset
+            val methodName = getFilterMethodName(param.name)
+
+            // Determine how to handle the parameter type
+            // LogFilter.topicN only supports Hash
+            // EventFilterBase adds overloads for BigInteger, Address, Bytes, and Boolean
+            when (param.apiType) {
+                else -> {
+                    // For all supported types (Hash, BigInteger, Address, Bytes, Boolean), use EventFilterBase overloads
+                    // Single value method
+                    filterBuilder.addFunction(
+                        FunSpec.builder(methodName)
+                            .addParameter(param.name, param.apiType)
+                            .addStatement("return topic$topicIndex(%N)", param.name)
+                            .returns(filterClassName)
+                            .build(),
+                    )
+
+                    // Vararg method
+                    filterBuilder.addFunction(
+                        FunSpec.builder(methodName)
+                            .addParameter(
+                                ParameterSpec.builder(param.name, param.apiType)
+                                    .addModifiers(KModifier.VARARG)
+                                    .build(),
+                            )
+                            .addStatement("return topic$topicIndex(*%N)", param.name)
+                            .returns(filterClassName)
+                            .build(),
+                    )
+                }
+            }
+        }
+
+        return filterBuilder.build()
+    }
+
+    private fun getFilterMethodName(paramName: String): String {
+        // Check if the parameter name conflicts with inherited EventFilterBase methods
+        val reservedNames = setOf(
+            "watch", "subscribe", "query", "blockRange", "atBlock", "address",
+            "topic0", "topic1", "topic2", "topic3",
+        )
+
+        return if (reservedNames.contains(paramName)) {
+            "_$paramName"
+        } else {
+            paramName
         }
     }
 
