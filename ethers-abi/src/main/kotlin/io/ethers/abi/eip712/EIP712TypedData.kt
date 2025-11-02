@@ -88,6 +88,7 @@ data class EIP712TypedData(
          * @param domain The EIP712 domain for signature context and replay protection
          * @return A new EIP712TypedData instance ready for signing
          */
+        @JvmStatic
         fun from(message: ContractStruct, domain: EIP712Domain): EIP712TypedData {
             val messageTypes = EIP712Codec.toTypeMap(message)
             val domainTypes = EIP712Codec.toTypeMap(domain)
