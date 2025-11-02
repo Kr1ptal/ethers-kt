@@ -12,8 +12,8 @@ interface EventFactory<T : ContractEvent> {
     /**
      * Create a filter for this event to query/stream them from the [provider].
      *
-     * NOTE: When implementing this function, change the return type to either [EventFilter] or [AnonymousEventFilter],
-     * depending on whether this event is anonymous or not.
+     * NOTE: When implementing this function, change the return type to either [EventFilter], [AnonymousEventFilter],
+     * or a custom filter class with type-specific filtering methods.
      * */
     fun filter(provider: Middleware): EventFilterBase<T, *>
 
