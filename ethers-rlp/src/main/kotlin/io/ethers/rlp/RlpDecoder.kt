@@ -146,7 +146,7 @@ class RlpDecoder(private val array: ByteArray) {
             flag <= RLP_LIST_SHORT + MAX_SHORT_LENGTH -> true
             flag <= 0xff -> {
                 val lengthOfSize = flag - RLP_LIST_LONG
-                return lengthOfSize <= MAX_LENGTH_OF_SIZE
+                lengthOfSize <= MAX_LENGTH_OF_SIZE && remaining >= (lengthOfSize + 1)
             }
             else -> false
         }
@@ -170,9 +170,9 @@ class RlpDecoder(private val array: ByteArray) {
         val listByteLength = when {
             flag == RLP_LIST_SHORT -> 0
 
-            flag <= RLP_LIST_SHORT + MAX_SHORT_LENGTH -> flag - RLP_LIST_SHORT
+            flag > RLP_LIST_SHORT && flag <= RLP_LIST_SHORT + MAX_SHORT_LENGTH -> flag - RLP_LIST_SHORT
 
-            flag <= 0xff -> {
+            flag > RLP_LIST_SHORT + MAX_SHORT_LENGTH && flag <= 0xff -> {
                 val lengthOfSize = flag - RLP_LIST_LONG
                 takeSizeWithLength(lengthOfSize)
             }
@@ -230,7 +230,7 @@ class RlpDecoder(private val array: ByteArray) {
             flag < RLP_STRING_SHORT -> true
             flag <= RLP_STRING_SHORT + MAX_SHORT_LENGTH -> {
                 val size = flag - RLP_STRING_SHORT
-                size <= 32 && remaining >= size
+                size <= 32 && remaining >= (size + 1)
             }
             else -> false
         }
@@ -288,7 +288,7 @@ class RlpDecoder(private val array: ByteArray) {
             flag < RLP_NULL -> true
             flag <= RLP_STRING_SHORT + MAX_SHORT_LENGTH -> {
                 val size = flag - RLP_STRING_SHORT
-                size <= 8 && remaining >= size
+                size <= 8 && remaining >= (size + 1)
             }
             else -> false
         }
@@ -356,22 +356,22 @@ class RlpDecoder(private val array: ByteArray) {
         val flag = peekFlag()
         if (flag == RLP_NULL) return true
 
-        when {
+        return when {
             flag < RLP_STRING_SHORT -> remaining >= 1
             flag <= RLP_STRING_SHORT + MAX_SHORT_LENGTH -> {
                 val size = flag - RLP_STRING_SHORT
-                remaining >= size
+                remaining >= (size + 1)
             }
             flag <= RLP_LIST_SHORT -> {
                 val lengthOfSize = flag - RLP_STRING_LONG
                 if (remaining < lengthOfSize) return false
 
-                val size = peekSizeWithLength(lengthOfSize)
-                remaining >= (lengthOfSize + size)
+                // offset for flag
+                val size = peekSizeWithLength(1, lengthOfSize)
+                remaining >= (lengthOfSize + size + 1)
             }
+            else -> false
         }
-
-        return false
     }
 
     /**
@@ -432,17 +432,18 @@ class RlpDecoder(private val array: ByteArray) {
     }
 
     private fun takeSizeWithLength(lengthOfSize: Int): Int {
-        val size = peekSizeWithLength(lengthOfSize)
+        val size = peekSizeWithLength(0, lengthOfSize)
         position += lengthOfSize
         return size
     }
 
-    private fun peekSizeWithLength(lengthOfSize: Int): Int {
+    private fun peekSizeWithLength(offset: Int, lengthOfSize: Int): Int {
+        val pos = position + offset
         return when (lengthOfSize) {
-            1 -> array[position].toInt() and 0xff
-            2 -> (array[position].toInt() and 0xff) shl 8 or (array[position + 1].toInt() and 0xff)
-            3 -> (array[position].toInt() and 0xff) shl 16 or ((array[position + 1].toInt() and 0xff) shl 8) or (array[position + 2].toInt() and 0xff)
-            4 -> (array[position].toInt() and 0xff) shl 24 or ((array[position + 1].toInt() and 0xff) shl 16) or ((array[position + 2].toInt() and 0xff) shl 8) or (array[position + 3].toInt() and 0xff)
+            1 -> array[pos].toInt() and 0xff
+            2 -> (array[pos].toInt() and 0xff) shl 8 or (array[pos + 1].toInt() and 0xff)
+            3 -> (array[pos].toInt() and 0xff) shl 16 or ((array[pos + 1].toInt() and 0xff) shl 8) or (array[pos + 2].toInt() and 0xff)
+            4 -> (array[pos].toInt() and 0xff) shl 24 or ((array[pos + 1].toInt() and 0xff) shl 16) or ((array[pos + 2].toInt() and 0xff) shl 8) or (array[pos + 3].toInt() and 0xff)
             else -> throw IllegalArgumentException("Size is encoded with $lengthOfSize bytes. Max supported length is $MAX_LENGTH_OF_SIZE")
         }
     }
