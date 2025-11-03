@@ -188,7 +188,7 @@ class RlpDecoderTest : FunSpec({
 
                 rlp.finishList(listEndPosition)
 
-                shouldThrow<IllegalStateException> {
+                shouldThrow<RlpDecoderException> {
                     rlp.finishList(listEndPosition)
                 }
             }
@@ -203,7 +203,7 @@ class RlpDecoderTest : FunSpec({
                 ret.add(rlp.decodeBigInteger())
                 ret.add(rlp.decodeBigInteger())
 
-                shouldThrow<IllegalStateException> {
+                shouldThrow<RlpDecoderException> {
                     rlp.finishList(listEndPosition)
                 }
             }

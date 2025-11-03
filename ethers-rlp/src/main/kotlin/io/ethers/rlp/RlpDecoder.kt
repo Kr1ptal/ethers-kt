@@ -5,9 +5,13 @@ import java.util.function.Supplier
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
+import kotlin.math.absoluteValue
 
 @OptIn(ExperimentalContracts::class)
 class RlpDecoder(private val array: ByteArray) {
+    var error: Error? = null
+        private set
+
     private var startedListCount = 0
 
     var position: Int = 0
@@ -35,15 +39,6 @@ class RlpDecoder(private val array: ByteArray) {
      * */
     fun readByte(): Byte {
         return array[position++]
-    }
-
-    /**
-     * Decode and return the result using [decodable].
-     *
-     * @return result of [decodable].
-     * */
-    fun <T> decode(decodable: RlpDecodable<T>): T? {
-        return decodable.rlpDecode(this)
     }
 
     /**
@@ -148,6 +143,7 @@ class RlpDecoder(private val array: ByteArray) {
                 val lengthOfSize = flag - RLP_LIST_LONG
                 lengthOfSize <= MAX_LENGTH_OF_SIZE && remaining >= (lengthOfSize + 1)
             }
+
             else -> false
         }
     }
@@ -163,26 +159,15 @@ class RlpDecoder(private val array: ByteArray) {
      * Prefer using [decodeList] instead of this function directly as it handles the validation for you.
      *
      * @return end position of the list.
-     * @throws IllegalStateException if element is not a list.
+     * @throws RlpDecoderException if element is not a list.
      * */
     fun startList(): Int {
-        val flag = takeFlag()
-        val listByteLength = when {
-            flag == RLP_LIST_SHORT -> 0
-
-            flag > RLP_LIST_SHORT && flag <= RLP_LIST_SHORT + MAX_SHORT_LENGTH -> flag - RLP_LIST_SHORT
-
-            flag > RLP_LIST_SHORT + MAX_SHORT_LENGTH && flag <= 0xff -> {
-                val lengthOfSize = flag - RLP_LIST_LONG
-                takeSizeWithLength(lengthOfSize)
-            }
-
-            else -> throw IllegalStateException("Not a list: $flag")
-        }
+        val listByteLength = getNextElement(true) { it }
+            ?: throw RlpDecoderException("Not a list")
 
         startedListCount++
 
-        // IMPORTANT: get position last in this function, so it has correct index
+        // IMPORTANT: get position last in this function, so it has a correct index
         return position + listByteLength
     }
 
@@ -192,15 +177,15 @@ class RlpDecoder(private val array: ByteArray) {
      *
      * Prefer using [decodeList] instead of this function directly as it handles the validation for you.
      *
-     * @throws IllegalStateException if list was not decoded correctly.
+     * @throws RlpDecoderException if list was not decoded correctly.
      * */
     fun finishList(listEndPosition: Int) {
         if (--startedListCount < 0) {
-            throw IllegalStateException("Not all list decodings were finished. Need to close $startedListCount more.")
+            throw RlpDecoderException("Not all list decodings were finished. Need to close ${startedListCount.absoluteValue} more.")
         }
 
         if (position != listEndPosition) {
-            throw IllegalStateException("List not decoded correctly. Expected end position to be $listEndPosition, got $position")
+            throw RlpDecoderException("List not decoded correctly. Expected end position to be $listEndPosition, got $position")
         }
     }
 
@@ -213,53 +198,25 @@ class RlpDecoder(private val array: ByteArray) {
         contract {
             callsInPlace(default, InvocationKind.AT_MOST_ONCE)
         }
-        return if (isNextElementBigInteger()) decodeBigInteger() else default()
+
+        val ret = decodeBigIntegerOrNull()
+        return if (error == null) ret!! else default()
     }
 
     /**
-     * Check if the next element can be decoded as a [BigInteger] without consuming it.
+     * Decode the element as a [BigInteger], or ZERO if an element
      *
-     * @return true if the next element is a valid [BigInteger], false otherwise.
-     * */
-    fun isNextElementBigInteger(): Boolean {
-        if (isDone) return false
-
-        val flag = peekFlag()
-        return when {
-            flag == RLP_NULL -> true
-            flag < RLP_STRING_SHORT -> true
-            flag <= RLP_STRING_SHORT + MAX_SHORT_LENGTH -> {
-                val size = flag - RLP_STRING_SHORT
-                size <= 32 && remaining >= (size + 1)
-            }
-            else -> false
-        }
-    }
-
-    /**
-     * Decode element as a [BigInteger], or null if element is empty.
-     *
-     * @return decoded [BigInteger], or null if RLP element is empty.
-     * @throws IllegalStateException if element is not a [BigInteger].
+     * @return decoded [BigInteger], or ZERO if RLP element is empty.
+     * @throws RlpDecoderException if element is not a [BigInteger].
      * */
     fun decodeBigInteger(): BigInteger {
-        val flag = takeFlag()
-        if (flag == RLP_NULL) {
-            return BigInteger.ZERO
-        }
+        val ret = decodeBigIntegerOrNull()
+        error?.doThrow()
+        return ret!!
+    }
 
-        if (flag < RLP_STRING_SHORT) {
-            return BigInteger.valueOf(flag.toLong())
-        }
-
-        when {
-            flag <= RLP_STRING_SHORT + MAX_SHORT_LENGTH -> {
-                val size = flag - RLP_STRING_SHORT
-                return BigInteger(1, takeByteArray(size))
-            }
-
-            else -> throw IllegalStateException("Not a BigInteger: $flag")
-        }
+    fun decodeBigIntegerOrNull(): BigInteger? {
+        return getNextElement(false, ::decodeBigIntegerOrNull)
     }
 
     /**
@@ -271,152 +228,186 @@ class RlpDecoder(private val array: ByteArray) {
         contract {
             callsInPlace(default, InvocationKind.AT_MOST_ONCE)
         }
-        return if (isNextElementLong()) decodeLong() else default()
-    }
-
-    /**
-     * Check if the next element can be decoded as a [Long] without consuming it.
-     *
-     * @return true if the next element is a valid [Long], false otherwise.
-     * */
-    fun isNextElementLong(): Boolean {
-        if (isDone) return false
-
-        val flag = peekFlag()
-        return when {
-            flag == RLP_NULL -> true
-            flag < RLP_NULL -> true
-            flag <= RLP_STRING_SHORT + MAX_SHORT_LENGTH -> {
-                val size = flag - RLP_STRING_SHORT
-                size <= 8 && remaining >= (size + 1)
-            }
-            else -> false
-        }
+        val ret = decodeLongOrNull()
+        return if (error == null) ret!! else default()
     }
 
     /**
      * Decode element as a primitive [Long].
      *
      * @return decoded [Long], or 0 if RLP element is empty.
-     * @throws IllegalStateException if element is not a [Long].
+     * @throws RlpDecoderException if element is not a [Long].
      * */
     fun decodeLong(): Long {
-        val flag = takeFlag()
-        if (flag == RLP_NULL) {
-            return 0
-        }
+        val ret = decodeLongOrNull()
+        error?.doThrow()
+        return ret!!
+    }
 
-        if (flag < RLP_NULL) {
-            return flag.toLong()
-        }
-
-        when {
-            flag <= RLP_STRING_SHORT + MAX_SHORT_LENGTH -> {
-                val size = flag - RLP_STRING_SHORT
-                return takeLong(size)
-            }
-
-            else -> throw IllegalStateException("Not a long: $flag")
-        }
+    fun decodeLongOrNull(): Long? {
+        return getNextElement(false, ::takeLong)
     }
 
     /**
-     * Decode element as a byte array, and apply [consumer] on the non-null result.
+     * Decode and return the result using [decodable].
      *
-     * @return result from [consumer], or null if byte array is empty.
-     * @throws IllegalStateException if element is not a byte array.
+     * @return result of [decodable].
+     * */
+    fun <T> decode(decodable: RlpDecodable<T>): T? {
+        return decodable.rlpDecode(this)
+    }
+
+    /**
+     * Decode the [ByteArray] of next element, or null if it cannot be decoded.
+     *
+     * @return the decoded [T], or null if the element cannot be decoded.
      * */
     inline fun <T> decodeByteArray(consumer: (ByteArray) -> T): T? {
         contract {
             callsInPlace(consumer, InvocationKind.AT_MOST_ONCE)
         }
-        return decodeByteArrayOrElse { return null }.let(consumer)
+        val ret = decodeByteArrayOrNull()
+        return if (error == null) consumer(ret!!) else null
     }
 
     /**
-     * Decode element as a [ByteArray], or return result of [default] if element cannot be decoded.
+     * Decode the next element as a [ByteArray], or return result of [default] if it cannot be decoded.
      *
-     * @return decoded [ByteArray], or result of [default] if element cannot be decoded as [ByteArray].
+     * @return decoded [ByteArray], or result of [default] if the next element cannot be decoded as [ByteArray].
      * */
     inline fun decodeByteArrayOrElse(default: () -> ByteArray): ByteArray {
         contract {
             callsInPlace(default, InvocationKind.AT_MOST_ONCE)
         }
-        return if (isNextElementByteArray()) decodeByteArray() else default()
+        val ret = decodeByteArrayOrNull()
+        return if (error == null) ret!! else default()
     }
 
     /**
-     * Check if the next element can be decoded as a byte array without consuming it.
+     * Decode the next element as a [ByteArray], throwing if the element could not be read.
      *
-     * @return true if the next element is a valid byte array, false otherwise.
-     * */
-    fun isNextElementByteArray(): Boolean {
-        if (isDone) return false
-
-        val flag = peekFlag()
-        if (flag == RLP_NULL) return true
-
-        return when {
-            flag < RLP_STRING_SHORT -> remaining >= 1
-            flag <= RLP_STRING_SHORT + MAX_SHORT_LENGTH -> {
-                val size = flag - RLP_STRING_SHORT
-                remaining >= (size + 1)
-            }
-            flag <= RLP_LIST_SHORT -> {
-                val lengthOfSize = flag - RLP_STRING_LONG
-                if (remaining < lengthOfSize) return false
-
-                // offset for flag
-                val size = peekSizeWithLength(1, lengthOfSize)
-                remaining >= (lengthOfSize + size + 1)
-            }
-            else -> false
-        }
-    }
-
-    /**
-     * Decode element as a byte array.
-     *
-     * @return a byte array, or null if empty.
-     * @throws IllegalStateException if element is not a byte array.
+     * @return the decoded [ByteArray].
+     * @throws RlpDecoderException if the next element could not be read as a [ByteArray].
      * */
     fun decodeByteArray(): ByteArray {
-        val flag = takeFlag()
-        if (flag == RLP_NULL) {
-            return EMPTY_BYTE_ARRAY
+        val ret = decodeByteArrayOrNull()
+        error?.doThrow()
+        return ret!!
+    }
+
+    /**
+     * Decode the next element as a [ByteArray], returning null if the element could not be read.
+     *
+     * @return the decoded [ByteArray], or null if the element cannot be decoded.
+     * */
+    fun decodeByteArrayOrNull(): ByteArray? {
+        return getNextElement(false, ::takeByteArray)
+    }
+
+    // loosely based on: https://github.com/alloy-rs/rlp/blob/323dcd751ecec18a88690f744c3a7c389b924236/crates/rlp/src/header.rs#L21-L21
+    private inline fun <T> getNextElement(
+        expectList: Boolean,
+        decoder: (payloadSize: Int) -> T,
+    ): T? {
+        if (error != null) return null
+
+        if (remaining < 1) {
+            this.error = Error.inputTooShort(position)
+            return null
         }
 
+        var isList: Boolean
+        var payloadSize: Int
+
+        val flag = peekFlag()
         when {
             flag < RLP_STRING_SHORT -> {
-                val result = ByteArray(1)
-                result[0] = flag.toByte()
-                return result
+                isList = false
+                payloadSize = 1
             }
 
-            flag <= RLP_STRING_SHORT + MAX_SHORT_LENGTH -> {
+            flag in RLP_STRING_SHORT..RLP_STRING_LONG -> {
+                position++
+
                 val size = flag - RLP_STRING_SHORT
-                return takeByteArray(size)
+                if (size == 1) {
+                    if (remaining < size) {
+                        this.error = Error.inputTooShort(position)
+                        return null
+                    }
+
+                    if (peekFlag() < RLP_STRING_SHORT) {
+                        this.error = Error("Invalid single byte value at position $position")
+                        return null
+                    }
+                }
+
+                isList = false
+                payloadSize = size
             }
 
-            flag <= RLP_LIST_SHORT -> {
-                val lengthOfSize = flag - RLP_STRING_LONG
+            flag in (RLP_STRING_LONG + 1)..<RLP_LIST_SHORT || flag in (RLP_LIST_LONG + 1)..0xff -> {
+                position++
+
+                isList = flag > RLP_LIST_LONG
+
+                val lengthOfSize = flag - if (isList) RLP_LIST_LONG else RLP_STRING_LONG
+                if (remaining < lengthOfSize) {
+                    this.error = Error.inputTooShort(position)
+                    return null
+                }
+
+                if (lengthOfSize !in 1..4) {
+                    this.error = Error("Invalid length of size at position $position: $lengthOfSize")
+                    return null
+                }
+
                 val size = takeSizeWithLength(lengthOfSize)
-                return takeByteArray(size)
+                if (size < 56) {
+                    this.error = Error("Encoded size too short at position $position: $size")
+                    return null
+                }
+
+                payloadSize = size
             }
 
-            else -> throw IllegalStateException("Not a byte array: $flag")
+            flag in RLP_LIST_SHORT..RLP_LIST_LONG -> {
+                position++
+
+                isList = true
+                payloadSize = flag - RLP_LIST_SHORT
+            }
+
+            else -> throw IllegalStateException("Impossible flag value: $flag")
         }
+
+        if (expectList != isList) {
+            val expectation = if (expectList) "Expected" else "Unexpected"
+            this.error = Error("$expectation list at position $position")
+            return null
+        }
+
+        if (remaining < payloadSize) {
+            this.error = Error.inputTooShort(position)
+            return null
+        }
+
+        return decoder(payloadSize)
     }
 
     private fun peekFlag(): Int {
         return array[position].toUByte().toInt()
     }
 
-    private fun takeFlag(): Int {
-        return array[position++].toUByte().toInt()
+    private fun decodeBigIntegerOrNull(size: Int): BigInteger {
+        if (size == 0) return BigInteger.ZERO
+
+        return BigInteger(1, takeByteArray(size))
     }
 
     private fun takeLong(size: Int): Long {
+        if (size == 0) return 0L
+
         var result = 0L
         for (i in 0..<size) {
             result = result shl 8 or (array[position++].toLong() and 0xff)
@@ -425,6 +416,8 @@ class RlpDecoder(private val array: ByteArray) {
     }
 
     private fun takeByteArray(size: Int): ByteArray {
+        if (size == 0) return EMPTY_BYTE_ARRAY
+
         val result = ByteArray(size)
         System.arraycopy(array, position, result, 0, size)
         position += size
@@ -432,19 +425,25 @@ class RlpDecoder(private val array: ByteArray) {
     }
 
     private fun takeSizeWithLength(lengthOfSize: Int): Int {
-        val size = peekSizeWithLength(0, lengthOfSize)
-        position += lengthOfSize
-        return size
+        return when (lengthOfSize) {
+            1 -> array[position++].toInt() and 0xff
+            2 -> (array[position++].toInt() and 0xff) shl 8 or (array[position++].toInt() and 0xff)
+            3 -> (array[position++].toInt() and 0xff) shl 16 or ((array[position++].toInt() and 0xff) shl 8) or (array[position++].toInt() and 0xff)
+            4 -> (array[position++].toInt() and 0xff) shl 24 or ((array[position++].toInt() and 0xff) shl 16) or ((array[position++].toInt() and 0xff) shl 8) or (array[position++].toInt() and 0xff)
+            else -> throw IllegalStateException("Impossible length value: $lengthOfSize")
+        }
     }
 
-    private fun peekSizeWithLength(offset: Int, lengthOfSize: Int): Int {
-        val pos = position + offset
-        return when (lengthOfSize) {
-            1 -> array[pos].toInt() and 0xff
-            2 -> (array[pos].toInt() and 0xff) shl 8 or (array[pos + 1].toInt() and 0xff)
-            3 -> (array[pos].toInt() and 0xff) shl 16 or ((array[pos + 1].toInt() and 0xff) shl 8) or (array[pos + 2].toInt() and 0xff)
-            4 -> (array[pos].toInt() and 0xff) shl 24 or ((array[pos + 1].toInt() and 0xff) shl 16) or ((array[pos + 2].toInt() and 0xff) shl 8) or (array[pos + 3].toInt() and 0xff)
-            else -> throw IllegalArgumentException("Size is encoded with $lengthOfSize bytes. Max supported length is $MAX_LENGTH_OF_SIZE")
+    // an error wrapper to avoid capturing a stacktrace unless actually throwing an exception
+    data class Error(val message: String) {
+        fun doThrow(): Nothing {
+            throw RlpDecoderException(message)
+        }
+
+        companion object {
+            fun inputTooShort(position: Int): Error {
+                return Error("Remaining input too short at position $position")
+            }
         }
     }
 
