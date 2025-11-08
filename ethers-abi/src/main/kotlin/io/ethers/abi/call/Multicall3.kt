@@ -322,8 +322,8 @@ class Multicall3(
         companion object : StructFactory<Call> {
             @JvmStatic
             override val abi: AbiType.Struct<Call> = AbiType.Struct(
-                Call::class,
-                ::fromTuple,
+                Call::class.java,
+                this,
                 AbiType.Struct.Field("target", AbiType.Address),
                 AbiType.Struct.Field("callData", AbiType.Bytes),
             )
@@ -346,8 +346,8 @@ class Multicall3(
         companion object : StructFactory<Call3> {
             @JvmStatic
             override val abi: AbiType.Struct<Call3> = AbiType.Struct(
-                Call3::class,
-                ::fromTuple,
+                Call3::class.java,
+                this,
                 AbiType.Struct.Field("target", AbiType.Address),
                 AbiType.Struct.Field("allowFailure", AbiType.Bool),
                 AbiType.Struct.Field("callData", AbiType.Bytes),
@@ -376,8 +376,8 @@ class Multicall3(
         companion object : StructFactory<Call3Value> {
             @JvmStatic
             override val abi: AbiType.Struct<Call3Value> = AbiType.Struct(
-                Call3Value::class,
-                ::fromTuple,
+                Call3Value::class.java,
+                this,
                 AbiType.Struct.Field("target", AbiType.Address),
                 AbiType.Struct.Field("allowFailure", AbiType.Bool),
                 AbiType.Struct.Field("value", AbiType.UInt(256)),
@@ -406,8 +406,8 @@ class Multicall3(
         companion object : StructFactory<Result> {
             @JvmStatic
             override val abi: AbiType.Struct<Result> = AbiType.Struct(
-                Result::class,
-                ::fromTuple,
+                Result::class.java,
+                this,
                 AbiType.Struct.Field("success", AbiType.Bool),
                 AbiType.Struct.Field("returnData", AbiType.Bytes),
             )

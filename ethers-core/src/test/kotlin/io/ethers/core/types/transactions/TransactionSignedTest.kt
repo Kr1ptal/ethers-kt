@@ -1,5 +1,7 @@
 package io.ethers.core.types.transactions
 
+import com.fasterxml.jackson.annotation.JsonCreator
+import com.fasterxml.jackson.annotation.JsonProperty
 import fixtures.AuthorizationFactory
 import fixtures.TxSetCodeFactory
 import io.ethers.core.Jackson
@@ -274,7 +276,11 @@ class TransactionSignedTest : FunSpec({
         }
     }
 }) {
-    data class RoundtripCase(val hash: Hash, val from: Address, val rlp: Bytes) : WithDataTestName {
+    data class RoundtripCase @JsonCreator constructor(
+        @param:JsonProperty("hash") val hash: Hash,
+        @param:JsonProperty("from") val from: Address,
+        @param:JsonProperty("rlp") val rlp: Bytes,
+    ) : WithDataTestName {
         override fun dataTestName() = hash.toString()
     }
 }

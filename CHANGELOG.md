@@ -18,6 +18,15 @@ Sections:
 ### Security = Security patches.
 -->
 
+## [Unreleased]
+
+### Changed
+- Removed the transitive `jackson-module-kotlin` dependency and reconfigured the shared `Jackson` mapper plus downstream modules to rely on explicit `@JsonProperty` annotations and purpose-built deserializers (e.g. `TxTraceResult`).
+- Regenerated ABI struct metadata now uses the `Class` + `StructFactory` constructors to avoid the Kotlin reflection runtime on the critical path.
+
+### Deprecated
+- Deprecated the `KClass`-based `AbiType.Struct` constructors in favor of the new overloads that accept `Class`/`StructFactory`, as part of the effort to remove `kotlin-reflect` from runtime artifacts.
+
 ## [1.4.4] - 2025-10-08
 
 ### Bug Fixes

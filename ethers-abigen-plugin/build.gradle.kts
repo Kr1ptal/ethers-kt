@@ -10,6 +10,7 @@ dependencies {
     api(project(":ethers-abigen"))
 
     implementation(libs.kotlin.gradle)
+    implementation(libs.kotlin.reflect)
     implementation(libs.hoplite.core)
     implementation(libs.hoplite.toml)
     implementation(libs.bundles.jackson)

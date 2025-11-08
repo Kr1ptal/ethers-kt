@@ -7,11 +7,12 @@ import io.ethers.abi.AbiType.FixedArray
 import io.ethers.abi.AbiType.Tuple
 import io.ethers.abi.AbiType.Tuple.Companion.invoke
 import io.ethers.abi.eip712.EIP712Codec
+import io.ethers.abi.StructFactory
 import io.ethers.crypto.Hashing
+import java.lang.reflect.Modifier
 import java.math.BigInteger
 import java.util.function.Function
 import kotlin.reflect.KClass
-import kotlin.reflect.full.companionObject
 
 /**
  * Abi type definitions.
@@ -137,15 +138,45 @@ sealed interface AbiType<T : Any> {
             fields.toList(),
         )
 
+        constructor(classType: Class<T>, factory: StructFactory<T>, vararg fields: Field) : this(
+            classType,
+            factory.asTupleFactory(),
+            fields.toList(),
+        )
+
+        constructor(classType: Class<T>, factory: StructFactory<T>, fields: List<Field>) : this(
+            classType,
+            factory.asTupleFactory(),
+            fields,
+        )
+
+        @Deprecated(
+            message = "Use the Class-based overload instead.",
+            replaceWith = ReplaceWith("AbiType.Struct(classType.java, factory, *fields)"),
+        )
         constructor(classType: KClass<T>, factory: Function<List<Any>, T>, vararg fields: Field) : this(
             classType.java,
             factory,
             fields.toList(),
         )
 
+        @Deprecated(
+            message = "Use the Class-based overload instead.",
+            replaceWith = ReplaceWith("AbiType.Struct(classType.java, structFactory, *fields)"),
+        )
+        constructor(classType: KClass<T>, factory: StructFactory<T>, vararg fields: Field) : this(
+            classType.java,
+            factory,
+            fields.toList(),
+        )
+
+        @Deprecated(
+            message = "Use the overload that accepts StructFactory explicitly.",
+            replaceWith = ReplaceWith("AbiType.Struct(classType.java, structFactory, *fields)"),
+        )
         constructor(classType: KClass<T>, vararg fields: Field) : this(
             classType.java,
-            classType.getFactoryOrThrow(),
+            classType.java.getFactoryOrThrow(),
             fields.toList(),
         )
 
@@ -169,17 +200,31 @@ sealed interface AbiType<T : Any> {
         }
 
         companion object {
-            private fun <T : ContractStruct> KClass<T>.getFactoryOrThrow(): Function<List<Any>, T> {
-                val companion = this.companionObject?.objectInstance
-                    ?: throw IllegalArgumentException("Class must have a companion object")
+            private fun <T : ContractStruct> StructFactory<T>.asTupleFactory(): Function<List<Any>, T> {
+                return Function { fromTuple(it) }
+            }
 
-                if (companion !is StructFactory<*>) {
+            private fun <T : ContractStruct> Class<T>.getFactoryOrThrow(): StructFactory<T> {
+                val companionField = try {
+                    getDeclaredField("Companion")
+                } catch (_: NoSuchFieldException) {
+                    throw IllegalArgumentException("Class must have a companion object")
+                }
+
+                if (!Modifier.isStatic(companionField.modifiers)) {
+                    throw IllegalArgumentException("Companion object must be static")
+                }
+
+                companionField.isAccessible = true
+                val instance = companionField.get(null)
+                    ?: throw IllegalArgumentException("Companion object must implement StructFactory")
+
+                if (instance !is StructFactory<*>) {
                     throw IllegalArgumentException("Companion object must implement StructFactory")
                 }
 
                 @Suppress("UNCHECKED_CAST")
-                val factory = companion as StructFactory<T>
-                return Function { factory.fromTuple(it) }
+                return instance as StructFactory<T>
             }
         }
     }

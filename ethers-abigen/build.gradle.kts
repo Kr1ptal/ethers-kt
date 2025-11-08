@@ -8,6 +8,7 @@ dependencies {
     api(project(":ethers-providers"))
     api(project(":ethers-abi"))
 
+    implementation(libs.kotlin.reflect)
     implementation(libs.kotlinpoet) {
         // don't need this dependency: https://square.github.io/kotlinpoet/#kotlin-reflect
         exclude(module = "kotlin-reflect")

@@ -1,5 +1,6 @@
 package io.ethers.abigen
 
+import com.fasterxml.jackson.annotation.JsonCreator
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonProperty
 
@@ -70,7 +71,7 @@ data class JsonAbi(
 }
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-data class JsonAbiItem(
+data class JsonAbiItem @JsonCreator constructor(
     @param:JsonProperty("type") val type: Type,
     @param:JsonProperty("name") val name: String?,
     @param:JsonProperty("inputs") val inputs: List<Component>? = null,
@@ -104,7 +105,7 @@ data class JsonAbiItem(
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    data class Component(
+    data class Component @JsonCreator constructor(
         @param:JsonProperty("type") val type: String,
         @param:JsonProperty("internalType") val internalType: String?,
         @param:JsonProperty("name") val name: String = "",
