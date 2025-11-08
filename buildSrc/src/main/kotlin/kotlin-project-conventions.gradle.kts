@@ -11,8 +11,6 @@ repositories {
 }
 
 project.pluginManager.withPlugin("java") {
-    val jvmTarget = the<JavaPluginExtension>().toolchain.languageVersion.get().asInt().toString()
-
     // disable runtime nullable call and argument checks for improved performance - they're left in tests to catch early bugs
     val kotlinCompilerConfig: KotlinJvmCompilerOptions.(Boolean) -> Unit = { isTestTask ->
         val defaultArgs = listOf(
@@ -35,6 +33,8 @@ project.pluginManager.withPlugin("java") {
             )
         }
 
+        val version = if (isTestTask) Constants.testJavaVersion else Constants.compileJavaVersion
+        jvmTarget = JvmTarget.fromTarget(version.majorVersion)
         freeCompilerArgs.addAll(defaultArgs + specificArgs)
     }
 
@@ -43,7 +43,6 @@ project.pluginManager.withPlugin("java") {
 
     tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
         compilerOptions {
-            this.jvmTarget = JvmTarget.fromTarget(jvmTarget)
             kotlinCompilerConfig(isTestTask(name))
         }
     }
@@ -51,7 +50,6 @@ project.pluginManager.withPlugin("java") {
     project.pluginManager.withPlugin("kapt") {
         tasks.withType<org.jetbrains.kotlin.gradle.tasks.KaptGenerateStubs>().configureEach {
             compilerOptions {
-                this.jvmTarget = JvmTarget.fromTarget(jvmTarget)
                 kotlinCompilerConfig(isTestTask(name))
             }
         }
