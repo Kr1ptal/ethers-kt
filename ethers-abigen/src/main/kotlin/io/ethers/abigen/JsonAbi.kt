@@ -5,7 +5,9 @@ import com.fasterxml.jackson.annotation.JsonProperty
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class JsonAbi(
+    @param:JsonProperty("abi")
     private val abi: List<JsonAbiItem>,
+    @param:JsonProperty("bytecode")
     val bytecode: String? = null,
 ) {
     val functions: List<JsonAbiFunction>

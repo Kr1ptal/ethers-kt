@@ -17,6 +17,7 @@ hoplite = "2.9.0"
 [libraries]
 kotlin-bom = { module = "org.jetbrains.kotlin:kotlin-bom", version.ref = "kotlin" }
 kotlin-gradle = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
+kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlin" }
 
 ktlint-gradle = { module = "org.jlleitschuh.gradle:ktlint-gradle", version = "13.1.0" }
 ktlint-bom = { module = "com.pinterest.ktlint:ktlint-bom", version.ref = "ktlint-tool" }
@@ -88,7 +89,7 @@ web3j-crypto = { module = "corg.web3j:crypto", version.ref = "web3j" }
 
 [bundles]
 log4j2 = ["log4j2-core", "log4j2-api", "log4j2-slf4j"]
-jackson = ["jackson-databind", "jackson-kotlin"]
+jackson = ["jackson-databind"]
 eclipse-collections = ["eclipse-collections-core", "eclipse-collections-api"]
 okhttp3 = ["okhttp3-core", "okhttp3-logging"]
 ethers = ["ethers-abi", "ethers-core", "ethers-crypto", "ethers-ens", "ethers-providers", "ethers-rlp", "ethers-signers"]

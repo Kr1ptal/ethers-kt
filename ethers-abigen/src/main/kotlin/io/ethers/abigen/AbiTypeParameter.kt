@@ -131,8 +131,9 @@ sealed interface AbiTypeParameter {
                         .addModifiers(KModifier.OVERRIDE)
                         .addAnnotation(JvmStatic::class)
                         .initializer(
-                            "%T(${className.simpleName}::class, ::fromTuple, %L)",
+                            "%T(%T::class.java, ::fromTuple, %L)",
                             AbiType.Struct::class,
+                            className,
                             getFieldAbiInitializers(),
                         )
                         .build(),

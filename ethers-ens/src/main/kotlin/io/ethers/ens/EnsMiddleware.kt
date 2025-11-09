@@ -1,5 +1,7 @@
 package io.ethers.ens
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+import com.fasterxml.jackson.annotation.JsonProperty
 import io.ethers.abi.AbiCodec
 import io.ethers.abi.AbiFunction
 import io.ethers.abi.AbiType
@@ -774,5 +776,11 @@ class EnsMiddleware @JvmOverloads constructor(
     }
 }
 
-private data class EnsGatewayRequestDTO(val data: Bytes, val sender: String)
-private data class EnsGatewayResponseDTO(val data: Bytes)
+@JsonIgnoreProperties(ignoreUnknown = true)
+private data class EnsGatewayRequestDTO(
+    @param:JsonProperty("data") val data: Bytes,
+    @param:JsonProperty("sender") val sender: String,
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+private data class EnsGatewayResponseDTO(@param:JsonProperty("data") val data: Bytes)

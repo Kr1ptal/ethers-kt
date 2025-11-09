@@ -6,7 +6,6 @@ import io.ethers.abigen.JsonAbi
 import io.ethers.abigen.JsonAbiItem
 import io.ethers.core.Jackson
 import java.io.InputStream
-import java.net.URL
 
 /**
  * Reader for Foundry ABI files. Foundry ABI files are JSON files that contain an object with `abi` and `bytecode`

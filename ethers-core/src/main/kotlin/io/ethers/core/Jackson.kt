@@ -14,7 +14,6 @@ import com.fasterxml.jackson.databind.deser.std.StdDeserializer
 import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.databind.module.SimpleModule
 import com.fasterxml.jackson.databind.ser.std.StdSerializer
-import com.fasterxml.jackson.module.kotlin.KotlinModule
 import java.io.InputStream
 import java.math.BigInteger
 
@@ -26,7 +25,6 @@ object Jackson {
     @JvmField
     val MAPPER: JsonMapper = JsonMapper.builder()
         .enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_ENUMS)
-        .addModule(KotlinModule.Builder().withReflectionCacheSize(512).build())
         .addModule(
             SimpleModule()
                 .addSerializer(ByteArray::class.java, ByteArrayHexSerializer())

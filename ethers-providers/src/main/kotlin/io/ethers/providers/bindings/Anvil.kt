@@ -6,7 +6,6 @@ import io.ethers.core.failure
 import io.ethers.core.success
 import io.ethers.core.types.Hash
 import io.ethers.crypto.bip39.MnemonicCode
-import io.ethers.providers.AnvilProvider
 import io.ethers.signers.PrivateKeySigner
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit

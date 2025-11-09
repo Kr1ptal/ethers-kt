@@ -1,6 +1,7 @@
 package io.ethers.ens
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+import com.fasterxml.jackson.annotation.JsonProperty
 import io.ethers.core.Result
 import io.ethers.core.failure
 import io.ethers.core.success
@@ -10,7 +11,10 @@ import java.math.BigInteger
 import java.net.URI
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-internal data class MetadataDTO(val image: String)
+internal data class MetadataDTO(
+    @param:JsonProperty("image")
+    val image: String,
+)
 
 internal enum class AvatarNFTType {
     ERC721,
