@@ -13,6 +13,7 @@ import io.ethers.core.types.transaction.TxAccessList
 import io.ethers.core.types.transaction.TxBlob
 import io.ethers.core.types.transaction.TxDynamicFee
 import io.ethers.core.types.transaction.TxLegacy
+import io.ethers.core.types.transaction.TxType
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncoder
 import io.kotest.core.spec.style.FunSpec
@@ -22,8 +23,17 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldBeEqualIgnoringCase
+import io.kotest.property.Arb
+import io.kotest.property.Exhaustive
+import io.kotest.property.arbitrary.int
+import io.kotest.property.arbitrary.map
+import io.kotest.property.arbitrary.next
+import io.kotest.property.checkAll
+import io.kotest.property.exhaustive.map
+import io.kotest.property.exhaustive.of
 import java.io.File
 import java.math.BigInteger
+import kotlin.random.Random
 
 class TransactionSignedTest : FunSpec({
     test("rlp encode/decode TxLegacy without chain ID") {
@@ -271,6 +281,15 @@ class TransactionSignedTest : FunSpec({
                     rlpEncoded shouldBe it.rlp
                 }
             }
+        }
+    }
+
+    context("RLP decode failure return null") {
+        val txTypes = Exhaustive.of(0xc0, TxType.AccessList.type, TxType.DynamicFee.type, TxType.Blob.type, TxType.SetCode.type).map { it.toByte() }
+        Arb.int(1, 100000).map(Random::nextBytes).checkAll(iterations = 5000) {
+            val rlp = byteArrayOf(txTypes.toArb().next()) + it
+            val decoded = TransactionSigned.rlpDecode(rlp)
+            decoded shouldBe null
         }
     }
 }) {

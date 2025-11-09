@@ -74,6 +74,8 @@ class RlpDecoder(private val array: ByteArray) {
      * */
     inline fun <T> decodeAsListOrNull(consumer: RlpDecoder.() -> T?): List<T>? {
         val listEndPosition = startListOrMinusOne()
+        if (listEndPosition == -1) return null
+
         if (position == listEndPosition) {
             return emptyList()
         }
@@ -84,7 +86,10 @@ class RlpDecoder(private val array: ByteArray) {
             ret.add(v)
         }
 
-        finishList(listEndPosition)
+        if (finishListOrMinusOne(listEndPosition) == -1) {
+            return null
+        }
+
         return ret
     }
 
