@@ -10,6 +10,7 @@ import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncoder
 import java.math.BigInteger
+import kotlin.jvm.optionals.getOrNull
 
 data class TxLegacy(
     override val to: Address?,
@@ -98,11 +99,11 @@ data class TxLegacy(
 
         fun rlpDecode(rlp: RlpDecoder, signedTx: Boolean): TxLegacy? {
             val nonce = rlp.decodeLongOrElse { return null }
-            val gasPrice = rlp.decodeBigIntegerOrElse { return null }
+            val gasPrice = rlp.decodeBigIntegerOrNull() ?: return null
             val gas = rlp.decodeLongOrElse { return null }
-            val to = rlp.decode(Address)
-            val value = rlp.decodeBigIntegerOrElse { return null }
-            val data = rlp.decode(Bytes)
+            val to = rlp.decodeOptionalOrNull(Address) ?: return null
+            val value = rlp.decodeBigIntegerOrNull() ?: return null
+            val data = rlp.decodeOrNull(Bytes)
             val chainId = when {
                 signedTx -> ChainId.NONE
                 rlp.isDone -> ChainId.NONE
@@ -122,7 +123,7 @@ data class TxLegacy(
             }
 
             return TxLegacy(
-                to = to,
+                to = to.getOrNull(),
                 value = value,
                 nonce = nonce,
                 gas = gas,

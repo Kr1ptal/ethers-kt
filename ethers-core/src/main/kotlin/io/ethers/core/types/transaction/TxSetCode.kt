@@ -93,14 +93,14 @@ data class TxSetCode(
             return TxSetCode(
                 chainId = rlp.decodeLongOrElse { return null },
                 nonce = rlp.decodeLongOrElse { return null },
-                gasTipCap = rlp.decodeBigIntegerOrElse { return null },
-                gasFeeCap = rlp.decodeBigIntegerOrElse { return null },
+                gasTipCap = rlp.decodeBigIntegerOrNull() ?: return null,
+                gasFeeCap = rlp.decodeBigIntegerOrNull() ?: return null,
                 gas = rlp.decodeLongOrElse { return null },
-                to = rlp.decode(Address) ?: return null,
-                value = rlp.decodeBigIntegerOrElse { return null },
-                data = rlp.decode(Bytes)?.takeIf { it.size > 0 },
-                accessList = rlp.decodeAsList(AccessList.Item) ?: return null,
-                authorizationList = rlp.decodeAsList(Authorization) ?: return null,
+                to = rlp.decodeOrNull(Address) ?: return null,
+                value = rlp.decodeBigIntegerOrNull() ?: return null,
+                data = rlp.decodeOrNull(Bytes)?.takeIf { it.size > 0 },
+                accessList = rlp.decodeAsListOrNull(AccessList.Item) ?: return null,
+                authorizationList = rlp.decodeAsListOrNull(Authorization) ?: return null,
             )
         }
     }

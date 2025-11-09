@@ -10,6 +10,7 @@ import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncoder
 import java.math.BigInteger
+import kotlin.jvm.optionals.getOrNull
 
 /**
  * EIP-1559 transaction with optional access list and [gasFeeCap]/[gasTipCap] instead of [gasPrice].
@@ -89,13 +90,13 @@ data class TxDynamicFee(
             return TxDynamicFee(
                 chainId = rlp.decodeLongOrElse { return null },
                 nonce = rlp.decodeLongOrElse { return null },
-                gasTipCap = rlp.decodeBigIntegerOrElse { return null },
-                gasFeeCap = rlp.decodeBigIntegerOrElse { return null },
+                gasTipCap = rlp.decodeBigIntegerOrNull() ?: return null,
+                gasFeeCap = rlp.decodeBigIntegerOrNull() ?: return null,
                 gas = rlp.decodeLongOrElse { return null },
-                to = rlp.decode(Address),
-                value = rlp.decodeBigIntegerOrElse { return null },
-                data = rlp.decode(Bytes)?.takeIf { it.size > 0 },
-                accessList = rlp.decodeAsList(AccessList.Item) ?: return null,
+                to = (rlp.decodeOptionalOrNull(Address) ?: return null).getOrNull(),
+                value = rlp.decodeBigIntegerOrNull() ?: return null,
+                data = (rlp.decodeOrNull(Bytes) ?: return null).takeIf { it.size > 0 },
+                accessList = rlp.decodeAsListOrNull(AccessList.Item) ?: return null,
             )
         }
     }

@@ -124,11 +124,16 @@ class TransactionSigned @JvmOverloads constructor(
 
         @JvmStatic
         override fun rlpDecode(rlp: RlpDecoder): TransactionSigned? {
+            if (rlp.isDone) return null
             val type = rlp.peekByte().toUByte().toInt()
 
-            // legacy tx
-            if (type >= 0xc0) {
-                return rlp.decodeList {
+            val txType = when {
+                type >= 0xc0 -> TxType.Legacy
+                else -> TxType.fromType(type)
+            }
+
+            return when (txType) {
+                TxType.Legacy -> rlp.decodeListOrNull {
                     var tx = TxLegacy.rlpDecode(rlp, true) ?: return null
                     val signature = Signature.rlpDecode(rlp) ?: return null
 
@@ -140,14 +145,11 @@ class TransactionSigned @JvmOverloads constructor(
 
                     TransactionSigned(tx, signature)
                 }
-            }
 
-            return when (TxType.fromType(type)) {
-                TxType.Legacy -> null // should not happen, unless we have invalid RLP
                 TxType.AccessList -> {
                     rlp.readByte()
 
-                    rlp.decodeList {
+                    rlp.decodeListOrNull {
                         val tx = TxAccessList.rlpDecode(rlp) ?: return null
                         val signature = Signature.rlpDecode(rlp) ?: return null
                         TransactionSigned(tx, signature)
@@ -157,7 +159,7 @@ class TransactionSigned @JvmOverloads constructor(
                 TxType.DynamicFee -> {
                     rlp.readByte()
 
-                    rlp.decodeList {
+                    rlp.decodeListOrNull {
                         val tx = TxDynamicFee.rlpDecode(rlp) ?: return null
                         val signature = Signature.rlpDecode(rlp) ?: return null
                         TransactionSigned(tx, signature)
@@ -167,14 +169,14 @@ class TransactionSigned @JvmOverloads constructor(
                 TxType.Blob -> {
                     rlp.readByte()
 
-                    rlp.decodeList {
+                    rlp.decodeListOrNull {
                         // see: https://eips.ethereum.org/EIPS/eip-4844#networking
                         val isNetworkEncoding = rlp.isNextElementList()
 
                         if (isNetworkEncoding) {
                             lateinit var tx: TxBlob
                             lateinit var signature: Signature
-                            rlp.decodeList {
+                            rlp.decodeListOrNull {
                                 tx = TxBlob.rlpDecode(rlp) ?: return null
                                 signature = Signature.rlpDecode(rlp) ?: return null
                             }
@@ -193,7 +195,7 @@ class TransactionSigned @JvmOverloads constructor(
                 TxType.SetCode -> {
                     rlp.readByte()
 
-                    rlp.decodeList {
+                    rlp.decodeListOrNull {
                         val tx = TxSetCode.rlpDecode(rlp) ?: return null
                         val signature = Signature.rlpDecode(rlp) ?: return null
                         TransactionSigned(tx, signature)

@@ -59,7 +59,7 @@ class RlpDecoderTest : FunSpec({
                 byteArrayOf(-85, -70) to "82abba",
             ) { (result, input) ->
                 val rlp = RlpDecoder(input.hexToByteArray())
-                val v = rlp.decodeByteArray { it.toHexString() }
+                val v = rlp.decodeByteArray().toHexString()
                 v shouldBe result.toHexString()
             }
         }
@@ -68,19 +68,19 @@ class RlpDecoderTest : FunSpec({
     context("decodeList") {
         test("empty list") {
             val rlp = RlpDecoder("c0".hexToByteArray())
-            val v = rlp.decodeList { } ?: emptyList<Any>()
+            val v = rlp.decodeListOrNull { } ?: emptyList<Any>()
             v shouldBe emptyList<Any>()
         }
 
         test("list of one") {
             val rlp = RlpDecoder("c101".hexToByteArray())
-            val v = rlp.decodeList { decodeLong() }
+            val v = rlp.decodeListOrNull { decodeLong() }
             v shouldBe 1L
         }
 
         test("list of two longs") {
             val rlp = RlpDecoder("c883ffccb583ffc0b5".hexToByteArray())
-            val v = rlp.decodeList {
+            val v = rlp.decodeListOrNull {
                 listOf(decodeLong(), decodeLong())
             }
             v shouldContainExactly listOf(0xFFCCB5L, 0xFFC0B5L)
@@ -88,10 +88,10 @@ class RlpDecoderTest : FunSpec({
 
         test("nested list") {
             val rlp = RlpDecoder("d2c883ffccb583ffc0b5c883ffccb583ffc0b5".hexToByteArray())
-            val v = rlp.decodeList {
+            val v = rlp.decodeListOrNull {
                 listOf(
-                    decodeList { listOf(decodeLong(), decodeLong()) },
-                    decodeList { listOf(decodeLong(), decodeLong()) },
+                    decodeListOrNull { listOf(decodeLong(), decodeLong()) },
+                    decodeListOrNull { listOf(decodeLong(), decodeLong()) },
                 )
             }
             v shouldContainExactly listOf(
@@ -104,7 +104,7 @@ class RlpDecoderTest : FunSpec({
             val rlp = RlpDecoder(
                 "f84483646f6783676f64836361748374616383746163837461638374616383746163837461638374616383746163837461638374616383746163837461638374616383746163".hexToByteArray(),
             )
-            val v = rlp.decodeAsList { decodeByteArray() }
+            val v = rlp.decodeAsListOrNull { decodeByteArray() }
 
             v shouldContainExactly listOf(
                 "dog".toByteArray(),
@@ -129,7 +129,7 @@ class RlpDecoderTest : FunSpec({
 
         test("decode via Supplier") {
             val rlp = RlpDecoder("d483646f6783676f64836361748374616383746163".hexToByteArray())
-            val v = rlp.decodeList(
+            val v = rlp.decodeListOrNull(
                 Supplier {
                     listOf(
                         rlp.decodeByteArray(),
