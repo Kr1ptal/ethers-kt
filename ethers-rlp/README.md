@@ -36,9 +36,15 @@ data class MyData(val a: BigInteger, val b: Long) : RlpEncodable {
     }
 
     companion object : RlpDecodable<MyData> {
-        override fun rlpDecode(rlp: RlpDecoder): MyData {
-            return rlp.decodeList {
-                MyData(decodeBigInteger(), decodeLong())
+        override fun rlpDecode(rlp: RlpDecoder): MyData? {
+            return rlp.decodeListOrNull {
+                MyData(
+                    // returns null on error instead of throwing
+                    decodeBigIntegerOrNull() ?: return null,
+                    // we call an inline function instead of using "decodeLongOrNull"
+                    // to avoid boxing the "long" primitive.
+                    decodeLongOrElse { return null },
+                )
             }
         }
     }
