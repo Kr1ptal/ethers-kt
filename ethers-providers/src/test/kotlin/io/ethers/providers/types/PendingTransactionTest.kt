@@ -1,6 +1,5 @@
 package io.ethers.providers.types
 
-import io.ethers.core.Jackson
 import io.ethers.core.isFailure
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bloom
@@ -9,6 +8,7 @@ import io.ethers.core.types.Hash
 import io.ethers.core.types.Log
 import io.ethers.core.types.TransactionReceipt
 import io.ethers.core.types.transaction.TxType
+import io.ethers.json.jackson.Jackson
 import io.ethers.providers.Provider
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe

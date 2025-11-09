@@ -8,14 +8,17 @@ plugins {
 }
 
 dependencies {
+    api(project(":ethers-json"))
     api(project(":ethers-rlp"))
     api(project(":ethers-crypto"))
 
-    api(libs.bundles.jackson)
+    // Jackson is used for annotations on types, but not exposed in API
+    implementation(libs.bundles.jackson)
     implementation(libs.bouncycastle.provider)
 
     testImplementation(libs.bundles.junit)
     testImplementation(libs.bundles.kotest)
+    testImplementation(project(":ethers-json-jackson"))
 
     jmhImplementation(libs.jmh.core)
     jmhAnnotationProcessor(libs.jmh.generator)

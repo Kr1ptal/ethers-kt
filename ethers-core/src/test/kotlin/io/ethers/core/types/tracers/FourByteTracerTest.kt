@@ -1,7 +1,7 @@
 package io.ethers.core.types.tracers
 
-import io.ethers.core.Jackson
-import io.ethers.core.Jackson.createAndInitParser
+import io.ethers.json.jackson.Jackson
+import io.ethers.json.jackson.Jackson.createAndInitParser
 import io.kotest.assertions.json.shouldEqualJson
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
