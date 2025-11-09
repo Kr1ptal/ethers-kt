@@ -1,7 +1,6 @@
 package io.ethers.core.types.transaction
 
 import io.ethers.core.types.Signature
-import io.ethers.core.types.transaction.TransactionUnsigned.Companion.rlpDecode
 import io.ethers.crypto.Hashing
 import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder

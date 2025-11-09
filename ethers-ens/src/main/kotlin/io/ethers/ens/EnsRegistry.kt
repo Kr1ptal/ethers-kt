@@ -16,13 +16,6 @@ import io.ethers.core.types.Bytes
 import io.ethers.core.types.Log
 import io.ethers.providers.middleware.Middleware
 import java.math.BigInteger
-import kotlin.Any
-import kotlin.Boolean
-import kotlin.Int
-import kotlin.Suppress
-import kotlin.Unit
-import kotlin.jvm.JvmField
-import kotlin.jvm.JvmStatic
 
 public class EnsRegistry(
     provider: Middleware,

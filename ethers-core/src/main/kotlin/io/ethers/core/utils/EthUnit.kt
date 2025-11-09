@@ -1,5 +1,8 @@
 package io.ethers.core.utils
 
+import io.ethers.core.utils.EthUnit.Companion.ETHER
+import io.ethers.core.utils.EthUnit.Companion.GWEI
+import io.ethers.core.utils.EthUnit.Companion.WEI
 import java.math.BigDecimal
 import java.math.BigInteger
 import java.math.RoundingMode
