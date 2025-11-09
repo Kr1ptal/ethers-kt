@@ -10,6 +10,7 @@ import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncoder
 import java.math.BigInteger
+import kotlin.jvm.optionals.getOrNull
 
 /**
  * EIP-2930 transaction with optional access list.
@@ -85,16 +86,16 @@ data class TxAccessList(
 
     companion object : RlpDecodable<TxAccessList> {
         @JvmStatic
-        override fun rlpDecode(rlp: RlpDecoder): TxAccessList {
+        override fun rlpDecode(rlp: RlpDecoder): TxAccessList? {
             return TxAccessList(
-                chainId = rlp.decodeLong(),
-                nonce = rlp.decodeLong(),
-                gasPrice = rlp.decodeBigIntegerElse(BigInteger.ZERO),
-                gas = rlp.decodeLong(),
-                to = rlp.decode(Address),
-                value = rlp.decodeBigIntegerElse(BigInteger.ZERO),
-                data = rlp.decode(Bytes),
-                accessList = rlp.decodeAsList(AccessList.Item),
+                chainId = rlp.decodeLongOrElse { return null },
+                nonce = rlp.decodeLongOrElse { return null },
+                gasPrice = rlp.decodeBigIntegerOrNull() ?: return null,
+                gas = rlp.decodeLongOrElse { return null },
+                to = (rlp.decodeOptionalOrNull(Address) ?: return null).getOrNull(),
+                value = rlp.decodeBigIntegerOrNull() ?: return null,
+                data = rlp.decodeOrNull(Bytes)?.takeIf { it.size > 0 },
+                accessList = rlp.decodeAsListOrNull(AccessList.Item) ?: return null,
             )
         }
     }

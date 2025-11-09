@@ -203,11 +203,11 @@ data class TxBlob(
             const val COMMITMENT_LENGTH = 48
             const val PROOF_LENGTH = 48
 
-            override fun rlpDecode(rlp: RlpDecoder): Sidecar {
+            override fun rlpDecode(rlp: RlpDecoder): Sidecar? {
                 return Sidecar(
-                    blobs = rlp.decodeAsList(Bytes),
-                    commitments = rlp.decodeAsList(Bytes),
-                    proofs = rlp.decodeAsList(Bytes),
+                    blobs = rlp.decodeAsListOrNull(Bytes) ?: return null,
+                    commitments = rlp.decodeAsListOrNull(Bytes) ?: return null,
+                    proofs = rlp.decodeAsListOrNull(Bytes) ?: return null,
                 )
             }
         }
@@ -219,17 +219,17 @@ data class TxBlob(
         @JvmStatic
         override fun rlpDecode(rlp: RlpDecoder): TxBlob? {
             return TxBlob(
-                chainId = rlp.decodeLong(),
-                nonce = rlp.decodeLong(),
-                gasTipCap = rlp.decodeBigIntegerElse(BigInteger.ZERO),
-                gasFeeCap = rlp.decodeBigIntegerElse(BigInteger.ZERO),
-                gas = rlp.decodeLong(),
-                to = rlp.decode(Address) ?: return null,
-                value = rlp.decodeBigIntegerElse(BigInteger.ZERO),
-                data = rlp.decode(Bytes),
-                accessList = rlp.decodeAsList(AccessList.Item),
-                blobFeeCap = rlp.decodeBigIntegerElse(BigInteger.ZERO),
-                blobVersionedHashes = rlp.decodeAsList(Hash),
+                chainId = rlp.decodeLongOrElse { return null },
+                nonce = rlp.decodeLongOrElse { return null },
+                gasTipCap = rlp.decodeBigIntegerOrNull() ?: return null,
+                gasFeeCap = rlp.decodeBigIntegerOrNull() ?: return null,
+                gas = rlp.decodeLongOrElse { return null },
+                to = rlp.decodeOrNull(Address) ?: return null,
+                value = rlp.decodeBigIntegerOrNull() ?: return null,
+                data = rlp.decodeOrNull(Bytes)?.takeIf { it.size > 0 },
+                accessList = rlp.decodeAsListOrNull(AccessList.Item) ?: return null,
+                blobFeeCap = rlp.decodeBigIntegerOrNull() ?: return null,
+                blobVersionedHashes = rlp.decodeAsListOrNull(Hash) ?: return null,
             )
         }
     }

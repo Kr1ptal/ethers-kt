@@ -93,7 +93,11 @@ class Hash(private val value: ByteArray) : RlpEncodable {
 
         @JvmStatic
         override fun rlpDecode(rlp: RlpDecoder): Hash? {
-            return rlp.decodeByteArray(::Hash)
+            val arr = rlp.decodeByteArrayOrNull() ?: return null
+            return when {
+                arr.size != 32 -> rlp.error("Invalid hash length: ${arr.size}")
+                else -> Hash(arr)
+            }
         }
 
         /**

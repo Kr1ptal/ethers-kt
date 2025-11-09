@@ -121,13 +121,13 @@ data class Authorization(
 
         @JvmStatic
         override fun rlpDecode(rlp: RlpDecoder): Authorization? {
-            return rlp.decodeList {
-                val chainId = rlp.decodeLong()
-                val address = rlp.decode(Address) ?: return null
-                val nonce = rlp.decodeLong()
-                val yParity = rlp.decodeLong()
-                val r = rlp.decodeBigInteger() ?: return null
-                val s = rlp.decodeBigInteger() ?: return null
+            return rlp.decodeListOrNull {
+                val chainId = rlp.decodeLongOrElse { return null }
+                val address = rlp.decodeOrNull(Address) ?: return null
+                val nonce = rlp.decodeLongOrElse { return null }
+                val yParity = rlp.decodeLongOrElse { return null }
+                val r = rlp.decodeBigIntegerOrNull() ?: return null
+                val s = rlp.decodeBigIntegerOrNull() ?: return null
 
                 Authorization(chainId, address, nonce, yParity, r, s)
             }

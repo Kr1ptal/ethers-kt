@@ -20,6 +20,7 @@ import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncodable
 import io.ethers.rlp.RlpEncoder
+import java.util.Optional
 import kotlin.random.Random
 
 /**
@@ -124,7 +125,12 @@ class Address(private val value: ByteArray) : RlpEncodable {
 
         @JvmStatic
         override fun rlpDecode(rlp: RlpDecoder): Address? {
-            return rlp.decodeByteArray(::Address)
+            val arr = rlp.decodeByteArrayOrNull() ?: return null
+            return when {
+                arr.isEmpty() -> null
+                arr.size != 20 -> rlp.error("Invalid address length: ${arr.size}")
+                else -> Address(arr)
+            }
         }
 
         /**

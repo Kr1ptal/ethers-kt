@@ -44,9 +44,9 @@ object AccessList {
         companion object : RlpDecodable<Item> {
             @JvmStatic
             override fun rlpDecode(rlp: RlpDecoder): Item? {
-                return rlp.decodeList {
-                    val address = rlp.decode(Address) ?: return null
-                    val storageKeys = rlp.decodeAsList(Hash)
+                return rlp.decodeListOrNull {
+                    val address = rlp.decodeOrNull(Address) ?: return null
+                    val storageKeys = rlp.decodeAsListOrNull(Hash) ?: return null
 
                     Item(address, storageKeys)
                 }

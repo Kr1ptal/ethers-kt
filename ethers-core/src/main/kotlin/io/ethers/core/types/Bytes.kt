@@ -215,7 +215,8 @@ class Bytes(private val value: ByteArray) : RlpEncodable {
         val EMPTY = Bytes(ByteArray(0))
 
         override fun rlpDecode(rlp: RlpDecoder): Bytes? {
-            return rlp.decodeByteArray(::Bytes)
+            val arr = rlp.decodeByteArrayOrNull() ?: return null
+            return Bytes(arr)
         }
 
         /**

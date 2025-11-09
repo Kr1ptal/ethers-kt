@@ -91,16 +91,16 @@ data class TxSetCode(
         @JvmStatic
         override fun rlpDecode(rlp: RlpDecoder): TxSetCode? {
             return TxSetCode(
-                chainId = rlp.decodeLong(),
-                nonce = rlp.decodeLong(),
-                gasTipCap = rlp.decodeBigIntegerElse(BigInteger.ZERO),
-                gasFeeCap = rlp.decodeBigIntegerElse(BigInteger.ZERO),
-                gas = rlp.decodeLong(),
-                to = rlp.decode(Address) ?: return null,
-                value = rlp.decodeBigIntegerElse(BigInteger.ZERO),
-                data = rlp.decode(Bytes),
-                accessList = rlp.decodeAsList(AccessList.Item),
-                authorizationList = rlp.decodeAsList(Authorization),
+                chainId = rlp.decodeLongOrElse { return null },
+                nonce = rlp.decodeLongOrElse { return null },
+                gasTipCap = rlp.decodeBigIntegerOrNull() ?: return null,
+                gasFeeCap = rlp.decodeBigIntegerOrNull() ?: return null,
+                gas = rlp.decodeLongOrElse { return null },
+                to = rlp.decodeOrNull(Address) ?: return null,
+                value = rlp.decodeBigIntegerOrNull() ?: return null,
+                data = rlp.decodeOrNull(Bytes)?.takeIf { it.size > 0 },
+                accessList = rlp.decodeAsListOrNull(AccessList.Item) ?: return null,
+                authorizationList = rlp.decodeAsListOrNull(Authorization) ?: return null,
             )
         }
     }

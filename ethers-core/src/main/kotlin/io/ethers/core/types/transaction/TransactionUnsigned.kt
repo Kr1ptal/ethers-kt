@@ -1,7 +1,6 @@
 package io.ethers.core.types.transaction
 
 import io.ethers.core.types.Signature
-import io.ethers.core.types.transaction.TransactionUnsigned.Companion.rlpDecode
 import io.ethers.crypto.Hashing
 import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
@@ -53,34 +52,37 @@ sealed interface TransactionUnsigned : Transaction, RlpEncodable {
 
     companion object : RlpDecodable<TransactionUnsigned> {
         override fun rlpDecode(rlp: RlpDecoder): TransactionUnsigned? {
+            if (rlp.isDone) return null
             val type = rlp.peekByte().toUByte().toInt()
 
-            // legacy tx
-            if (type >= 0xc0) {
-                return rlp.decodeList { TxLegacy.rlpDecode(rlp) }
+            val txType = when {
+                type >= 0xc0 -> TxType.Legacy
+                else -> TxType.fromType(type)
             }
 
-            return when (TxType.fromType(type)) {
-                TxType.Legacy -> throw IllegalStateException("Should not happen")
+            return when (txType) {
+                TxType.Legacy -> {
+                    rlp.decodeListOrNull { TxLegacy.rlpDecode(rlp) }
+                }
 
                 TxType.AccessList -> {
                     rlp.readByte()
-                    rlp.decodeList { TxAccessList.rlpDecode(rlp) }
+                    rlp.decodeListOrNull { TxAccessList.rlpDecode(rlp) }
                 }
 
                 TxType.DynamicFee -> {
                     rlp.readByte()
-                    rlp.decodeList { TxDynamicFee.rlpDecode(rlp) }
+                    rlp.decodeListOrNull { TxDynamicFee.rlpDecode(rlp) }
                 }
 
                 TxType.Blob -> {
                     rlp.readByte()
-                    rlp.decodeList { TxBlob.rlpDecode(rlp) }
+                    rlp.decodeListOrNull { TxBlob.rlpDecode(rlp) }
                 }
 
                 TxType.SetCode -> {
                     rlp.readByte()
-                    rlp.decodeList { TxSetCode.rlpDecode(rlp) }
+                    rlp.decodeListOrNull { TxSetCode.rlpDecode(rlp) }
                 }
 
                 is TxType.Unsupported -> null
