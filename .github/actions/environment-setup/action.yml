@@ -7,10 +7,7 @@ runs:
   steps:
     - uses: actions/setup-java@v5
       with:
-        # Install both Java 11 (for compilation toolchain) and Java 17 (for Gradle daemon)
-        java-version: |
-          11
-          17
+        java-version: 17
         java-package: jdk
         distribution: "temurin"
         cache: gradle
