@@ -1,6 +1,5 @@
 package io.ethers.ens
 
-import com.fasterxml.jackson.annotation.JsonCreator
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonProperty
 import io.ethers.core.Result
@@ -12,7 +11,7 @@ import java.math.BigInteger
 import java.net.URI
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-internal data class MetadataDTO @JsonCreator constructor(
+internal data class MetadataDTO(
     @param:JsonProperty("image")
     val image: String,
 )

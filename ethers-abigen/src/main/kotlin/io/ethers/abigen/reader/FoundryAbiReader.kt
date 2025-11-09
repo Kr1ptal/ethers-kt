@@ -1,13 +1,11 @@
 package io.ethers.abigen.reader
 
-import com.fasterxml.jackson.annotation.JsonCreator
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonProperty
 import io.ethers.abigen.JsonAbi
 import io.ethers.abigen.JsonAbiItem
 import io.ethers.core.Jackson
 import java.io.InputStream
-import java.net.URL
 
 /**
  * Reader for Foundry ABI files. Foundry ABI files are JSON files that contain an object with `abi` and `bytecode`
@@ -25,12 +23,12 @@ import java.net.URL
  * */
 object FoundryAbiReader : JsonAbiReader {
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private data class Artifact @JsonCreator constructor(
+    private data class Artifact(
         @param:JsonProperty("abi") val abi: List<JsonAbiItem>,
         @param:JsonProperty("bytecode") val bytecode: Bytecode?,
     ) {
         @JsonIgnoreProperties(ignoreUnknown = true)
-        data class Bytecode @JsonCreator constructor(
+        data class Bytecode(
             @param:JsonProperty("object") val `object`: String,
         )
     }

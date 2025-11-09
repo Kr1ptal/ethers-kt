@@ -5,9 +5,7 @@ import io.ethers.abi.AbiType.Companion.PRIMITIVE_TYPES
 import io.ethers.abi.AbiType.Companion.canonicalSignature
 import io.ethers.abi.AbiType.FixedArray
 import io.ethers.abi.AbiType.Tuple
-import io.ethers.abi.AbiType.Tuple.Companion.invoke
 import io.ethers.abi.eip712.EIP712Codec
-import io.ethers.abi.StructFactory
 import io.ethers.crypto.Hashing
 import java.lang.reflect.Modifier
 import java.math.BigInteger
@@ -138,15 +136,9 @@ sealed interface AbiType<T : Any> {
             fields.toList(),
         )
 
-        constructor(classType: Class<T>, factory: StructFactory<T>, vararg fields: Field) : this(
-            classType,
-            factory.asTupleFactory(),
-            fields.toList(),
-        )
-
         constructor(classType: Class<T>, factory: StructFactory<T>, fields: List<Field>) : this(
             classType,
-            factory.asTupleFactory(),
+            factory::fromTuple,
             fields,
         )
 
@@ -200,10 +192,6 @@ sealed interface AbiType<T : Any> {
         }
 
         companion object {
-            private fun <T : ContractStruct> StructFactory<T>.asTupleFactory(): Function<List<Any>, T> {
-                return Function { fromTuple(it) }
-            }
-
             private fun <T : ContractStruct> Class<T>.getFactoryOrThrow(): StructFactory<T> {
                 val companionField = try {
                     getDeclaredField("Companion")

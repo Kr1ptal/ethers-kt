@@ -127,17 +127,17 @@ sealed interface AbiTypeParameter {
                     PropertySpec.builder(
                         StructFactory<*>::abi.name,
                         AbiType.Struct::class.asClassName().parameterizedBy(className),
-                )
-                    .addModifiers(KModifier.OVERRIDE)
-                    .addAnnotation(JvmStatic::class)
-                    .initializer(
-                        "%T(%T::class.java, this, %L)",
-                        AbiType.Struct::class,
-                        className,
-                        getFieldAbiInitializers(),
                     )
-                    .build(),
-            )
+                        .addModifiers(KModifier.OVERRIDE)
+                        .addAnnotation(JvmStatic::class)
+                        .initializer(
+                            "%T(%T::class.java, ::fromTuple, %L)",
+                            AbiType.Struct::class,
+                            className,
+                            getFieldAbiInitializers(),
+                        )
+                        .build(),
+                )
                 .addFunction(
                     FunSpec.builder(StructFactory<*>::fromTuple.name)
                         .addAnnotation(JvmStatic::class)
