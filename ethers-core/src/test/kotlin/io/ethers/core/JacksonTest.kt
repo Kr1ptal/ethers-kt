@@ -1,5 +1,6 @@
 package io.ethers.core
 
+import io.ethers.json.jackson.Jackson
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData
 import io.kotest.matchers.shouldBe

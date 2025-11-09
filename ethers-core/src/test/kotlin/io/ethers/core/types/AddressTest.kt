@@ -1,7 +1,7 @@
 package io.ethers.core.types
 
-import io.ethers.core.Jackson
 import io.ethers.crypto.Hashing
+import io.ethers.json.jackson.Jackson
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.WithDataTestName
 import io.kotest.datatest.withData

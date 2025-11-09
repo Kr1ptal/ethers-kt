@@ -1,11 +1,11 @@
 package io.ethers.providers.types
 
-import io.ethers.core.Jackson
 import io.ethers.core.types.Address
 import io.ethers.core.types.BlockId
 import io.ethers.core.types.BlockOverride
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.CallRequest
+import io.ethers.json.jackson.Jackson
 import io.kotest.assertions.json.shouldEqualJson
 import io.kotest.core.spec.style.FunSpec
 import org.intellij.lang.annotations.Language

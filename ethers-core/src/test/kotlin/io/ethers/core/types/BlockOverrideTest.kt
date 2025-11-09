@@ -1,6 +1,6 @@
 package io.ethers.core.types
 
-import io.ethers.core.Jackson
+import io.ethers.json.jackson.Jackson
 import io.kotest.assertions.json.shouldEqualJson
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
