@@ -102,4 +102,4 @@ kotest = ["kotest-junit5", "kotest-assertions", "kotest-property", "kotest-frame
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-kapt = { id = "org.jetbrains.kotlin.kapt", version.ref = "kotlin" }
 shadow = { id = "com.gradleup.shadow", version = "9.2.2" }
-jreleaser = { id = "org.jreleaser", version = "1.20.0" }
+jreleaser = { id = "org.jreleaser", version = "1.21.0" }
