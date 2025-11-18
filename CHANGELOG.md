@@ -18,6 +18,33 @@ Sections:
 ### Security = Security patches.
 -->
 
+## [1.5.0] - 2025-11-18
+
+### Bug Fixes
+
+- [**breaking**] RLP decoding to return null instead of throwing (#314)
+
+### Features
+
+- Implement `SingleElementAbiReader` (#318)
+- Improve `AbiCodec` decoder validations (#322)
+- Generate event filter subclasses with indexed parameter filters (#327)
+
+### Performance
+
+- Optimize `Result` type
+
+### Refactor
+
+- Skip explicit generating of equals/hashCode for data classe… (#312)
+- Remove kotlin-reflect from runtime (#332)
+
+### Misc
+
+- Target java 11 compile compatibility
+- Update `ethers-rlp` README.md
+
+
 ## [1.4.4] - 2025-10-08
 
 ### Bug Fixes
