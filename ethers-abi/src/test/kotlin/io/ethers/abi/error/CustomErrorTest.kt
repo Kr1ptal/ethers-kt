@@ -114,6 +114,7 @@ class CustomErrorTest : FunSpec({
             @JvmStatic
             override val abi: AbiType.Struct<ErrorMsg> = AbiType.Struct(
                 ErrorMsg::class,
+                ::fromTuple,
                 AbiType.Struct.Field("msg", AbiType.String),
                 AbiType.Struct.Field("value", AbiType.UInt(256)),
                 AbiType.Struct.Field("flags", AbiType.Array(AbiType.Bool)),

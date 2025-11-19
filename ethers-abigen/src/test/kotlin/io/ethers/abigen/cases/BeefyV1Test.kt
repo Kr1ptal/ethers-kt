@@ -86,6 +86,7 @@ class BeefyV1Test : FunSpec({
         test("AbiFunction field") {
             val authoritySetCommitment = AbiType.Struct(
                 clazz.typedNestedClass("AuthoritySetCommitment"),
+                { throw kotlin.UnsupportedOperationException() },
                 AbiType.Struct.Field("id", AbiType.UInt(256)),
                 AbiType.Struct.Field("len", AbiType.UInt(256)),
                 AbiType.Struct.Field("root", AbiType.FixedBytes(32)),
@@ -93,6 +94,7 @@ class BeefyV1Test : FunSpec({
 
             val beefyConsensusState = AbiType.Struct(
                 clazz.typedNestedClass("BeefyConsensusState"),
+                { throw kotlin.UnsupportedOperationException() },
                 AbiType.Struct.Field("latestHeight", AbiType.UInt(256)),
                 AbiType.Struct.Field("latestTimestamp", AbiType.UInt(256)),
                 AbiType.Struct.Field("frozenHeight", AbiType.UInt(256)),
@@ -104,12 +106,14 @@ class BeefyV1Test : FunSpec({
 
             val payload = AbiType.Struct(
                 clazz.typedNestedClass("Payload"),
+                { throw kotlin.UnsupportedOperationException() },
                 AbiType.Struct.Field("id", AbiType.FixedBytes(2)),
                 AbiType.Struct.Field("data", AbiType.Bytes),
             )
 
             val commitment = AbiType.Struct(
                 clazz.typedNestedClass("Commitment"),
+                { throw kotlin.UnsupportedOperationException() },
                 AbiType.Struct.Field("payload", AbiType.Array(payload)),
                 AbiType.Struct.Field("blockNumber", AbiType.UInt(256)),
                 AbiType.Struct.Field("validatorSetId", AbiType.UInt(256)),
@@ -117,24 +121,28 @@ class BeefyV1Test : FunSpec({
 
             val signature = AbiType.Struct(
                 clazz.typedNestedClass("Signature"),
+                { throw kotlin.UnsupportedOperationException() },
                 AbiType.Struct.Field("signature", AbiType.Bytes),
                 AbiType.Struct.Field("authorityIndex", AbiType.UInt(256)),
             )
 
             val signedCommitment = AbiType.Struct(
                 clazz.typedNestedClass("SignedCommitment"),
+                { throw kotlin.UnsupportedOperationException() },
                 AbiType.Struct.Field("commitment", commitment),
                 AbiType.Struct.Field("signatures", AbiType.Array(signature)),
             )
 
             val proofNode = AbiType.Struct(
                 clazz.typedNestedClass("ProofNode"),
+                { throw kotlin.UnsupportedOperationException() },
                 AbiType.Struct.Field("k_index", AbiType.UInt(256)),
                 AbiType.Struct.Field("node", AbiType.FixedBytes(32)),
             )
 
             val beefyMmrLeaf = AbiType.Struct(
                 clazz.typedNestedClass("BeefyMmrLeaf"),
+                { throw kotlin.UnsupportedOperationException() },
                 AbiType.Struct.Field("version", AbiType.UInt(256)),
                 AbiType.Struct.Field("parentNumber", AbiType.UInt(256)),
                 AbiType.Struct.Field("parentHash", AbiType.FixedBytes(32)),
@@ -145,6 +153,7 @@ class BeefyV1Test : FunSpec({
 
             val beefyConsensusProof = AbiType.Struct(
                 clazz.typedNestedClass("BeefyConsensusProof"),
+                { throw kotlin.UnsupportedOperationException() },
                 AbiType.Struct.Field("signedCommitment", signedCommitment),
                 AbiType.Struct.Field("latestMmrLeaf", beefyMmrLeaf),
                 AbiType.Struct.Field("mmrProof", AbiType.Array(AbiType.FixedBytes(32))),
@@ -157,18 +166,21 @@ class BeefyV1Test : FunSpec({
 
             val stateCommitment = AbiType.Struct(
                 clazz.typedNestedClass("StateCommitment"),
+                { throw kotlin.UnsupportedOperationException() },
                 AbiType.Struct.Field("timestamp", AbiType.UInt(256)),
                 AbiType.Struct.Field("commitment", AbiType.FixedBytes(32)),
             )
 
             val stateMachineHeight = AbiType.Struct(
                 clazz.typedNestedClass("StateMachineHeight"),
+                { throw kotlin.UnsupportedOperationException() },
                 AbiType.Struct.Field("stateMachineId", AbiType.UInt(256)),
                 AbiType.Struct.Field("height", AbiType.UInt(256)),
             )
 
             val intermediateState = AbiType.Struct(
                 clazz.typedNestedClass("IntermediateState"),
+                { throw kotlin.UnsupportedOperationException() },
                 AbiType.Struct.Field("height", stateMachineHeight),
                 AbiType.Struct.Field("commitment", stateCommitment),
             )

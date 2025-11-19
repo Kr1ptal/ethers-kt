@@ -50,7 +50,7 @@ class MnemonicCodeTest : FunSpec({
 
         test("english") {
             val vectors = mapper.readerForListOf(TestVector::class.java).readValue<List<TestVector>>(
-                javaClass.getResource("/bip39/wordlist_english_test_vector.json"),
+                javaClass.getResource("/bip39/wordlist_english_test_vector.json").openStream(),
             )
 
             vectors.forAll { vector ->

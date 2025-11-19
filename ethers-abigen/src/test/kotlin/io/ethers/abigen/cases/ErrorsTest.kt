@@ -43,6 +43,7 @@ class ErrorsTest : FunSpec({
                     AbiType.Array(
                         AbiType.Struct(
                             detailsClass,
+                            { throw kotlin.UnsupportedOperationException() },
                             AbiType.Struct.Field("success", AbiType.Bool),
                             AbiType.Struct.Field("data", AbiType.Bytes),
                         ),
@@ -92,6 +93,7 @@ class ErrorsTest : FunSpec({
                         AbiType.Array(
                             AbiType.Struct(
                                 clazz.typedNestedClass("Details"),
+                                { throw kotlin.UnsupportedOperationException() },
                                 AbiType.Struct.Field("success", AbiType.Bool),
                                 AbiType.Struct.Field("data", AbiType.Bytes),
                             ),

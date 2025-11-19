@@ -142,20 +142,12 @@ sealed interface AbiType<T : Any> {
             fields,
         )
 
-        @Deprecated(
-            message = "Use the Class-based overload instead.",
-            replaceWith = ReplaceWith("AbiType.Struct(classType.java, factory, *fields)"),
-        )
         constructor(classType: KClass<T>, factory: Function<List<Any>, T>, vararg fields: Field) : this(
             classType.java,
             factory,
             fields.toList(),
         )
 
-        @Deprecated(
-            message = "Use the Class-based overload instead.",
-            replaceWith = ReplaceWith("AbiType.Struct(classType.java, structFactory, *fields)"),
-        )
         constructor(classType: KClass<T>, factory: StructFactory<T>, vararg fields: Field) : this(
             classType.java,
             factory,
