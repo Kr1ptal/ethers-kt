@@ -3,7 +3,7 @@ project.pluginManager.withPlugin("java") {
     val javaToolchainService = the<JavaToolchainService>()
 
     extension.toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
+        languageVersion = JavaLanguageVersion.of(Constants.testJavaVersion.majorVersion)
         vendor = JvmVendorSpec.ADOPTIUM
         implementation = JvmImplementation.VENDOR_SPECIFIC
     }
