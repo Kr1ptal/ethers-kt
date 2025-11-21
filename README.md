@@ -108,8 +108,7 @@ a more in-depth explanation, please refer to the individual module's *README.md*
 ## 🙋‍♂️ Contributing
 
 We are happy to have you here! Opportunities to get involved with **ethers-kt** are open to everyone, no matter your
-level of expertise. Please check the [CONTRIBUTING.md][contributing-md] to get started. To chat with fellow
-contributors, join our [Discord channel][discord-channel].
+level of expertise. Please check the [CONTRIBUTING.md][contributing-md] to get started.
 
 Before submitting a PR make sure to format the code and run all checks using the following command:
 
@@ -120,12 +119,7 @@ Before submitting a PR make sure to format the code and run all checks using the
 ## Need help❓
 
 First, check if any of the README files under each module answers your question. If the answer is not there please don't
-open an issue.
-
-Instead, you can:
-
-- ask on [Discord][discord-channel].
-- open a thread under [Discussions](https://github.com/Kr1ptal/ethers-kt/discussions).
+open an issue. Instead, you can open a thread under [Discussions](https://github.com/Kr1ptal/ethers-kt/discussions).
 
 ## ❤️ Acknowledgements
 
@@ -139,8 +133,6 @@ This library has been made possible thanks to the inspiration provided by the fo
 ----------------------
 
 <p style="text-align: center;"> <b>Proof of Work:</b> <a href="https://etherscan.io/tx/0x6b0f9ff6f53ec22d8d2d92b1beb193cdc523628951b5c81779fabce9f51db351">0x6b0f9ff6f53ec22d8d2d92b1beb193cdc523628951b5c81779fabce9f51db351</a> </p>
-
-[discord-channel]: https://discord.gg/rx35NzQGSb
 
 [contributing-md]: https://github.com/Kr1ptal/ethers-kt/blob/master/CONTRIBUTING.md
 

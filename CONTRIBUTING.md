@@ -37,9 +37,8 @@ guidelines, please report it to [report@kriptal.io](mailto:report@kriptal.io).
 
 > ## ❓ I just have a quick question!
 >
-> Please avoid opening an issue for questions. You'll get faster response by reaching out to us directly
-> via [Discord channel][discord-channel]. Alternatively, you can open a thread
-> under [Discussions](https://github.com/Kr1ptal/ethers-kt/discussions).
+> Please open a thread under [Discussions](https://github.com/Kr1ptal/ethers-kt/discussions) instead of creating an
+> issue.
 >
 
 ## 👥 How Can I Contribute?
@@ -94,7 +93,7 @@ Not sure where to get started? You can begin by exploring issues with the follow
 - [type: research][search-label-type-research] - A bit more involved tasks that are great for contributors looking for a
   slightly more complex challenge, which require additional research before resolving them.
 
-If you're still unsure where to begin, feel free to reach out to us via [Discord channel][discord-channel].
+If you're still unsure where to begin, feel free to reach out to us!
 
 ### 📝 Pull Requests
 
@@ -204,8 +203,6 @@ Issue labels are organized into three primary categories: `type`, `status`, `dif
 | `difficulty: medium`  | [search][search-label-difficulty-medium] | Medium issues requiring additional skills.                                                                                                  |
 | `difficulty: hard`    | [search][search-label-difficulty-hard]   | Hard issues to resolve, which usually involve additional discussion with maintainers before being implemented.                              |
 | `chain: <chain_name>` | /                                        | Blockchain specific issues.                                                                                                                 |
-
-[discord-channel]: https://discord.gg/rx35NzQGSb
 
 [search-label-type-bug]: https://github.com/Kr1ptal/ethers-kt/issues?q=is%3Aissue+is%3Aopen+label%3A%22type%3A+bug%22
 
