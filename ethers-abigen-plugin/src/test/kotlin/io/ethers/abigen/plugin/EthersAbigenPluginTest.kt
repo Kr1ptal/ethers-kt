@@ -4,7 +4,10 @@ import io.ethers.abigen.plugin.task.EthersAbigenTask
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import org.gradle.api.GradleException
+import org.gradle.api.ProjectConfigurationException
 import org.gradle.api.internal.plugins.PluginApplicationException
+import org.gradle.api.internal.project.ProjectInternal
 import org.gradle.testfixtures.ProjectBuilder
 import org.gradle.testkit.runner.GradleRunner
 import org.gradle.testkit.runner.TaskOutcome
@@ -35,9 +38,10 @@ class EthersAbigenPluginTest : FunSpec({
 
     test("fail to apply plugin if no kotlin plugin is applied to project") {
         val project = ProjectBuilder.builder().build()
+        project.plugins.apply("io.kriptal.ethers.abigen-plugin")
 
-        shouldThrow<PluginApplicationException> {
-            project.plugins.apply("io.kriptal.ethers.abigen-plugin")
+        shouldThrow<ProjectConfigurationException> {
+            (project as ProjectInternal).evaluate()
         }
     }
 

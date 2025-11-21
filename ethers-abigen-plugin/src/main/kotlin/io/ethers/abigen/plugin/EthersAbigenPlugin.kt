@@ -24,16 +24,17 @@ abstract class EthersAbigenPlugin : Plugin<Project> {
             it.projectPath.convention(target.path)
         }
 
-        val kotlinCompileTasks = target.tasks.names.filter { it.contains("compile") && it.contains("Kotlin") }
-        if (kotlinCompileTasks.isEmpty()) {
-            throw GradleException("No Kotlin compile tasks found in project. Apply one of the Kotlin plugins to the project if you want to use the abigen plugin.")
-        }
-
-        kotlinCompileTasks.forEach { taskName ->
-            target.tasks.named(taskName).configure { it.dependsOn(abigenTask) }
-        }
-
         target.afterEvaluate {
+            val kotlinCompileTasks = target.tasks.names.filter { it.contains("compile") && it.contains("Kotlin") }
+
+            if (kotlinCompileTasks.isEmpty()) {
+                throw GradleException("No Kotlin compile tasks found in project. Apply one of the Kotlin plugins to the project if you want to use the abigen plugin.")
+            }
+
+            kotlinCompileTasks.forEach { taskName ->
+                target.tasks.named(taskName).configure { it.dependsOn(abigenTask) }
+            }
+
             runCatching { target.extensions.getByType(KotlinMultiplatformExtension::class.java) }
                 .onSuccess {
                     logger.info("Running in environment: ${it.javaClass.simpleName}")
