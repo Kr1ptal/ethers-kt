@@ -2,8 +2,8 @@ package io.ethers.providers
 
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.JsonNode
-import io.ethers.core.Jackson
 import io.ethers.core.isSuccess
+import io.ethers.json.jackson.Jackson
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe

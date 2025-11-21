@@ -13,10 +13,11 @@ dependencies {
 
     api(project(":ethers-core"))
     api(project(":ethers-signers"))
+    api(project(":ethers-json"))
 
     implementation(project(":logger"))
+    implementation(project(":ethers-json-jackson"))
     implementation(libs.jctools)
-    implementation(libs.bundles.jackson)
 
     testImplementation(libs.bundles.junit)
     testImplementation(libs.bundles.kotest)

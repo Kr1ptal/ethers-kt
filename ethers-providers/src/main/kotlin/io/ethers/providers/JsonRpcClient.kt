@@ -9,7 +9,7 @@ import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import io.channels.core.ChannelReceiver
 import io.ethers.core.Result
-import io.ethers.core.forEachObjectField
+import io.ethers.json.jackson.forEachObjectField
 import io.ethers.providers.types.BatchRpcRequest
 import okhttp3.OkHttpClient
 import java.io.Closeable

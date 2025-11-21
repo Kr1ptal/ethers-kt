@@ -1,8 +1,8 @@
 package io.ethers.core.types
 
-import io.ethers.core.Jackson
 import io.ethers.core.types.transaction.TxBlob
 import io.ethers.core.types.transaction.TxType
+import io.ethers.json.jackson.Jackson
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import org.intellij.lang.annotations.Language
