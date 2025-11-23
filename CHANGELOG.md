@@ -18,6 +18,26 @@ Sections:
 ### Security = Security patches.
 -->
 
+## [1.5.1] - 2025-11-23
+
+### Bug Fixes
+
+- Kotlin compile tasks detection (#335)
+
+### Refactor
+
+- Stop using deprecated functionality
+
+### Misc
+
+- Bump gradle version to 9.2.1
+- Use jvm version from constants
+- Remove discord references
+
+### Release
+
+- Move to the next SNAPSHOT version
+
 ## [1.5.0] - 2025-11-18
 
 ### Bug Fixes
