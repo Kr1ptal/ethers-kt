@@ -1,8 +1,8 @@
 package io.ethers.core.types
 
 import fixtures.AuthorizationFactory
-import io.ethers.core.Jackson
 import io.ethers.core.types.Authorization.Companion.MAGIC
+import io.ethers.json.jackson.Jackson
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncoder
 import io.kotest.assertions.throwables.shouldThrow

@@ -2,11 +2,11 @@ package io.ethers.providers
 
 import io.ethers.core.FastHex
 import io.ethers.core.Result
-import io.ethers.core.readBytes
-import io.ethers.core.readHexBigInteger
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
+import io.ethers.json.jackson.readBytes
+import io.ethers.json.jackson.readHexBigInteger
 import io.ethers.providers.bindings.AnvilInstance
 import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.RpcCall
