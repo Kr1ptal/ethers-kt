@@ -18,10 +18,6 @@
  */
 package io.ethers.crypto
 
-import org.bouncycastle.jcajce.provider.digest.SHA256
-import java.math.BigInteger
-import java.nio.charset.StandardCharsets
-
 /**
  *
  * Base58 is a way to encode Bitcoin addresses as numbers and letters. Note that this is not the same base58 as used by
@@ -90,7 +86,7 @@ object Base58 {
             temp[--j] = ALPHABET[0].code.toByte()
         }
         val output = copyOfRange(temp, j, temp.size)
-        return String(output, StandardCharsets.US_ASCII)
+        return String(output, Charsets.US_ASCII)
     }
 
     fun decode(input: String): ByteArray {
@@ -129,39 +125,6 @@ object Base58 {
             ++j
         }
         return copyOfRange(temp, j - zeroCount, temp.size)
-    }
-
-    fun decodeToBigInteger(input: String): BigInteger {
-        return BigInteger(1, decode(input))
-    }
-
-    /**
-     * Uses the checksum in the last 4 bytes of the decoded data to verify the rest are correct. The checksum is
-     * removed from the returned data.
-     *
-     * @throws RuntimeException if the input is not base 58 or the checksum does not validate.
-     */
-    fun decodeChecked(input: String): ByteArray {
-        var tmp = decode(input)
-        require(tmp.size >= 4) { "Input to short" }
-        val bytes = copyOfRange(tmp, 0, tmp.size - 4)
-        val checksum = copyOfRange(tmp, tmp.size - 4, tmp.size)
-        tmp = doubleDigest(bytes)
-        val hash = copyOfRange(tmp, 0, 4)
-        if (!checksum.contentEquals(hash)) throw RuntimeException("Checksum does not validate")
-        return bytes
-    }
-
-    /**
-     * Calculates the SHA-256 hash of the given byte range, and then hashes the resulting hash again. This is
-     * standard procedure in Bitcoin. The resulting hash is in big endian form.
-     */
-    private fun doubleDigest(input: ByteArray): ByteArray {
-        val digest = SHA256.Digest()
-        digest.reset()
-        digest.update(input)
-        val first = digest.digest()
-        return digest.digest(first)
     }
 
     // number -> number / 58, returns number % 58
