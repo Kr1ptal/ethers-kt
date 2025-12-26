@@ -3,7 +3,6 @@ package io.ethers.core.types.transactions
 import com.fasterxml.jackson.annotation.JsonProperty
 import fixtures.AuthorizationFactory
 import fixtures.TxSetCodeFactory
-import io.ethers.core.Jackson
 import io.ethers.core.types.AccessList
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
@@ -15,6 +14,7 @@ import io.ethers.core.types.transaction.TxBlob
 import io.ethers.core.types.transaction.TxDynamicFee
 import io.ethers.core.types.transaction.TxLegacy
 import io.ethers.core.types.transaction.TxType
+import io.ethers.json.jackson.Jackson
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncoder
 import io.kotest.core.spec.style.FunSpec

@@ -1,11 +1,11 @@
 package io.ethers.core.types.tracers
 
-import io.ethers.core.Jackson
-import io.ethers.core.Jackson.createAndInitParser
 import io.ethers.core.types.AccountOverride
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
+import io.ethers.json.jackson.Jackson
+import io.ethers.json.jackson.Jackson.createAndInitParser
 import io.kotest.assertions.json.shouldEqualJson
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.maps.shouldContainExactly
