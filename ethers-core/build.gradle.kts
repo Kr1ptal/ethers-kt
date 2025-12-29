@@ -12,7 +12,6 @@ dependencies {
     api(project(":ethers-crypto"))
 
     api(libs.bundles.jackson)
-    implementation(libs.bouncycastle.provider)
 
     testImplementation(libs.bundles.junit)
     testImplementation(libs.bundles.kotest)

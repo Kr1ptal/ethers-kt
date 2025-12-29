@@ -11,7 +11,7 @@ class ExtendedSigningKeyTest : FunSpec({
                 val seed = vector.seedHex.hexToByteArray()
                 val key = ExtendedSigningKey.fromSeed(seed).derivePath(HDPath.parse(vector.path))
 
-                key.signingKey.publicPoint.getEncoded(true) shouldBe vector.publicKey
+                key.signingKey.publicKeyCompressed shouldBe vector.publicKey
                 key.signingKey.privateKey shouldBe vector.privateKey
                 key.chainCode shouldBe vector.chainCode
             }
@@ -22,7 +22,7 @@ class ExtendedSigningKeyTest : FunSpec({
                 val seed = vector.seedHex.hexToByteArray()
                 val key = ExtendedSigningKey.fromSeed(seed).derivePath(HDPath.parse(vector.path))
 
-                key.signingKey.publicPoint.getEncoded(true) shouldBe vector.publicKey
+                key.signingKey.publicKeyCompressed shouldBe vector.publicKey
                 key.signingKey.privateKey shouldBe vector.privateKey
                 key.chainCode shouldBe vector.chainCode
             }
@@ -33,7 +33,7 @@ class ExtendedSigningKeyTest : FunSpec({
                 val seed = vector.seedHex.hexToByteArray()
                 val key = ExtendedSigningKey.fromSeed(seed).derivePath(HDPath.parse(vector.path))
 
-                key.signingKey.publicPoint.getEncoded(true) shouldBe vector.publicKey
+                key.signingKey.publicKeyCompressed shouldBe vector.publicKey
                 key.signingKey.privateKey shouldBe vector.privateKey
                 key.chainCode shouldBe vector.chainCode
             }
@@ -44,7 +44,7 @@ class ExtendedSigningKeyTest : FunSpec({
                 val seed = vector.seedHex.hexToByteArray()
                 val key = ExtendedSigningKey.fromSeed(seed).derivePath(HDPath.parse(vector.path))
 
-                key.signingKey.publicPoint.getEncoded(true) shouldBe vector.publicKey
+                key.signingKey.publicKeyCompressed shouldBe vector.publicKey
                 key.signingKey.privateKey shouldBe vector.privateKey
                 key.chainCode shouldBe vector.chainCode
             }

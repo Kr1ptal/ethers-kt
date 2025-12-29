@@ -3,7 +3,6 @@ package io.ethers.crypto.bip32
 import io.ethers.crypto.Hashing
 import io.ethers.crypto.Secp256k1
 import java.nio.ByteBuffer
-import java.nio.charset.StandardCharsets
 
 /**
  * Implementation of [BIP-0032](https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki) extended keys with
@@ -21,13 +20,11 @@ class ExtendedSigningKey(privateKey: ByteArray, val chainCode: ByteArray) {
         }
     }
 
-    private val pubCompressed by lazy(LazyThreadSafetyMode.NONE) { signingKey.publicPoint.getEncoded(true) }
-
     /**
      * Return fingerprint, which is the first 4 bytes of the identifier of the public key.
      * */
     val fingerprint by lazy(LazyThreadSafetyMode.NONE) {
-        val id = Hashing.sha256ripe160(pubCompressed)
+        val id = Hashing.sha256ripe160(signingKey.publicKeyCompressed)
         id[3].toInt() and 0xFF or (id[2].toInt() and 0xFF shl 8) or (id[1].toInt() and 0xFF shl 16) or (id[0].toInt() and 0xFF shl 24)
     }
 
@@ -52,7 +49,7 @@ class ExtendedSigningKey(privateKey: ByteArray, val chainCode: ByteArray) {
             buff.position(1)
             buff.put(signingKey.privateKey)
         } else {
-            buff.put(pubCompressed)
+            buff.put(signingKey.publicKeyCompressed)
         }
 
         buff.putInt(index)
@@ -82,7 +79,7 @@ class ExtendedSigningKey(privateKey: ByteArray, val chainCode: ByteArray) {
     }
 
     companion object {
-        private val PREFIX_KEY_BYTES = "Bitcoin seed".toByteArray(StandardCharsets.UTF_8)
+        private val PREFIX_KEY_BYTES = "Bitcoin seed".toByteArray(Charsets.UTF_8)
 
         @JvmStatic
         fun fromSeed(seed: ByteArray): ExtendedSigningKey {

@@ -13,6 +13,9 @@ ktlint-tool = "1.7.1"
 web3j = "4.10.3"
 ethers = "1.5.1"
 hoplite = "2.9.0"
+kotlincrypto = "0.8.0"
+secp256k1 = "0.22.0"
+cryptography = "0.5.0"
 
 [libraries]
 kotlin-bom = { module = "org.jetbrains.kotlin:kotlin-bom", version.ref = "kotlin" }
@@ -53,6 +56,16 @@ okhttp3-mockwebserver = { module = "com.squareup.okhttp3:mockwebserver", version
 kotlinpoet = { module = "com.squareup:kotlinpoet", version = "2.2.0" }
 
 bouncycastle-provider = { module = "org.bouncycastle:bcprov-jdk15to18", version = "1.83" }
+
+kotlincrypto-hash-sha3 = { module = "org.kotlincrypto.hash:sha3", version.ref = "kotlincrypto" }
+
+secp256k1-kmp = { module = "fr.acinq.secp256k1:secp256k1-kmp", version.ref = "secp256k1" }
+secp256k1-kmp-jni = { module = "fr.acinq.secp256k1:secp256k1-kmp-jni-jvm", version.ref = "secp256k1" }
+
+whyoleg-cryptography-core = { module = "dev.whyoleg.cryptography:cryptography-core", version.ref = "cryptography" }
+whyoleg-cryptography-random = { module = "dev.whyoleg.cryptography:cryptography-random", version.ref = "cryptography" }
+whyoleg-cryptography-jdk = { module = "dev.whyoleg.cryptography:cryptography-provider-jdk", version.ref = "cryptography" }
+
 gcp-kms = { module = "com.google.cloud:google-cloud-kms", version = "2.84.0" }
 
 ens-normalise = { module = "io.github.adraffy:ens-normalize", version = "0.2.0" }
@@ -90,7 +103,6 @@ web3j-crypto = { module = "corg.web3j:crypto", version.ref = "web3j" }
 [bundles]
 log4j2 = ["log4j2-core", "log4j2-api", "log4j2-slf4j"]
 jackson = ["jackson-databind"]
-eclipse-collections = ["eclipse-collections-core", "eclipse-collections-api"]
 okhttp3 = ["okhttp3-core", "okhttp3-logging"]
 ethers = ["ethers-abi", "ethers-core", "ethers-crypto", "ethers-ens", "ethers-providers", "ethers-rlp", "ethers-signers"]
 

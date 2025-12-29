@@ -153,7 +153,7 @@ object Base58 {
 
     private fun copyOfRange(source: ByteArray, from: Int, to: Int): ByteArray {
         val range = ByteArray(to - from)
-        System.arraycopy(source, from, range, 0, range.size)
+        source.copyInto(range, 0, from, to)
         return range
     }
 }
