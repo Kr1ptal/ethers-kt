@@ -4,10 +4,12 @@ plugins {
 }
 
 // Create separate runtime configurations for each platform
+// These extend from 'implementation' (not runtimeClasspath) to avoid inheriting
+// the runtimeOnly JVM JNI, allowing each variant to declare its own JNI dependency
 val jvmRuntimeElements: Configuration by configurations.creating {
     isCanBeConsumed = true
     isCanBeResolved = false
-    extendsFrom(configurations.runtimeClasspath.get())
+    extendsFrom(configurations.implementation.get())
     attributes {
         attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category::class.java, Category.LIBRARY))
         attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage::class.java, Usage.JAVA_RUNTIME))
@@ -20,7 +22,7 @@ val jvmRuntimeElements: Configuration by configurations.creating {
 val androidRuntimeElements: Configuration by configurations.creating {
     isCanBeConsumed = true
     isCanBeResolved = false
-    extendsFrom(configurations.runtimeClasspath.get())
+    extendsFrom(configurations.implementation.get())
     attributes {
         attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category::class.java, Category.LIBRARY))
         attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage::class.java, Usage.JAVA_RUNTIME))
@@ -38,8 +40,8 @@ dependencies {
     implementation(libs.whyoleg.cryptography.jdk)
     implementation(libs.secp256k1.kmp)
 
-    // JVM JNI - available transitively for internal project dependencies
-    // Published artifacts use variant-specific configurations below
+    // JVM JNI - available transitively for internal project dependencies and their tests
+    // This is NOT included in the published variant configurations (they use implementation, not runtimeClasspath)
     runtimeOnly(libs.secp256k1.kmp.jni)
 
     // Platform-specific JNI dependencies for published variants
