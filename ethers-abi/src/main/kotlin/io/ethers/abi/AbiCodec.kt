@@ -1,11 +1,12 @@
 package io.ethers.abi
 
+import com.ditchoom.buffer.PlatformBuffer
+import com.ditchoom.buffer.wrap
 import io.ethers.abi.AbiCodec.WORD_SIZE_BYTES
 import io.ethers.core.FastHex
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import java.math.BigInteger
-import java.nio.ByteBuffer
 import java.util.BitSet
 
 object AbiCodec {
@@ -81,10 +82,11 @@ object AbiCodec {
         }
 
         withHeadTailLengths(types, data) { head, tail ->
-            val ret = ByteBuffer.allocate(prefix.size + head + tail)
-            ret.put(prefix.asByteArray())
+            val arr = ByteArray(prefix.size + head + tail)
+            val ret = PlatformBuffer.wrap(arr)
+            ret.writeBytes(prefix.asByteArray())
             encodeTokensHeadTail(ret, types, data, head)
-            return ret.array()
+            return arr
         }
     }
 
@@ -104,9 +106,10 @@ object AbiCodec {
         }
 
         withHeadTailLengths(types, data) { head, tail ->
-            val ret = ByteBuffer.allocate(head + tail)
+            val arr = ByteArray(head + tail)
+            val ret = PlatformBuffer.wrap(arr)
             encodeTokensHeadTail(ret, types, data, head)
-            return ret.array()
+            return arr
         }
     }
 
@@ -120,11 +123,12 @@ object AbiCodec {
         val head = getTokenHeadLength(type, data)
         val tail = getTokenTailLength(type, data)
 
-        val ret = ByteBuffer.allocate(head + tail)
+        val arr = ByteArray(head + tail)
+        val ret = PlatformBuffer.wrap(arr)
         encodeTokenHead(ret, type, data, head)
         encodeTokenTail(ret, type, data)
 
-        return ret.array()
+        return arr
     }
 
     /**
@@ -153,8 +157,10 @@ object AbiCodec {
             return emptyList<Any>() as List<T>
         }
 
+        val buff = PlatformBuffer.wrap(data)
+        buff.position(prefixSize)
         @Suppress("UNCHECKED_CAST")
-        return decodeTokens(types, ByteBuffer.wrap(data).position(prefixSize)) as List<T>
+        return decodeTokens(types, buff, data) as List<T>
     }
 
     /**
@@ -173,7 +179,7 @@ object AbiCodec {
         }
 
         @Suppress("UNCHECKED_CAST")
-        return decodeTokens(types, ByteBuffer.wrap(data)) as List<T>
+        return decodeTokens(types, PlatformBuffer.wrap(data), data) as List<T>
     }
 
     /**
@@ -190,10 +196,10 @@ object AbiCodec {
 
         val visitedOffsets = BitSet(data.size / WORD_SIZE_BYTES)
         @Suppress("UNCHECKED_CAST")
-        return decodeToken(type, ByteBuffer.wrap(data), 0, 1, visitedOffsets) as T
+        return decodeToken(type, PlatformBuffer.wrap(data), data, 0, 1, visitedOffsets) as T
     }
 
-    private fun encodeTokensHeadTail(buff: ByteBuffer, types: List<AbiType<*>>, data: List<Any>, headLength: Int) {
+    private fun encodeTokensHeadTail(buff: PlatformBuffer, types: List<AbiType<*>>, data: List<Any>, headLength: Int) {
         var headOffset = headLength
         for (i in types.indices) {
             encodeTokenHead(buff, types[i], data[i], headOffset)
@@ -205,7 +211,7 @@ object AbiCodec {
         }
     }
 
-    private fun encodeTokensHeadTail(buff: ByteBuffer, type: AbiType<*>, data: List<Any>, headLength: Int) {
+    private fun encodeTokensHeadTail(buff: PlatformBuffer, type: AbiType<*>, data: List<Any>, headLength: Int) {
         var headOffset = headLength
         for (i in data.indices) {
             encodeTokenHead(buff, type, data[i], headOffset)
@@ -217,19 +223,19 @@ object AbiCodec {
         }
     }
 
-    private fun encodeTokenHead(buff: ByteBuffer, type: AbiType<*>, data: Any, headOffset: Int) {
+    private fun encodeTokenHead(buff: PlatformBuffer, type: AbiType<*>, data: Any, headOffset: Int) {
         when (type) {
             // head-only, right-padded
             AbiType.Address -> {
                 val value = data as Address
                 buff.position(buff.position() + 12)
-                buff.put(value.asByteArray())
+                buff.writeBytes(value.asByteArray())
             }
 
             AbiType.Bool -> {
                 val value = data as Boolean
                 buff.position(buff.position() + 31)
-                buff.put(if (value) 1 else 0)
+                buff.writeByte(if (value) 1 else 0)
             }
 
             is AbiType.Int -> {
@@ -242,8 +248,8 @@ object AbiCodec {
                 if (v.signum() == -1) {
                     val arr = v.toByteArray()
 
-                    buff.put(TWOS_COMPLEMENT_PADDING[32 - arr.size])
-                    buff.put(arr)
+                    buff.writeBytes(TWOS_COMPLEMENT_PADDING[32 - arr.size])
+                    buff.writeBytes(arr)
                     return
                 }
 
@@ -251,10 +257,10 @@ object AbiCodec {
                 //      and writing directly to buff. This would avoid the intermediate array allocation and copy.
                 val arr = v.toByteArray()
                 if (arr.size == 33 && arr[0].toInt() == 0) {
-                    buff.put(arr, 1, 32)
+                    buff.writeBytes(arr, 1, 32)
                 } else {
                     buff.position(buff.position() + (32 - arr.size))
-                    buff.put(arr)
+                    buff.writeBytes(arr)
                 }
             }
 
@@ -276,10 +282,10 @@ object AbiCodec {
                 }
 
                 if (arr.size == 33 && arr[0].toInt() == 0) {
-                    buff.put(arr, 1, 32)
+                    buff.writeBytes(arr, 1, 32)
                 } else {
                     buff.position(buff.position() + (32 - arr.size))
-                    buff.put(arr)
+                    buff.writeBytes(arr)
                 }
             }
 
@@ -292,7 +298,7 @@ object AbiCodec {
 
                 val rem = WORD_SIZE_BYTES - value.size
 
-                buff.put(value.asByteArray())
+                buff.writeBytes(value.asByteArray())
                 if (rem > 0) {
                     buff.position(buff.position() + rem)
                 }
@@ -301,14 +307,14 @@ object AbiCodec {
             // head-only, bytes/string left-padded
             AbiType.Bytes, AbiType.String, is AbiType.Array<*> -> {
                 buff.position(buff.position() + 28)
-                buff.putInt(headOffset)
+                buff.writeInt(headOffset)
             }
 
             // tail-only if dynamic, else all elements are encoded as head
             is AbiType.FixedArray<*> -> {
                 if (type.isDynamic) {
                     buff.position(buff.position() + 28)
-                    buff.putInt(headOffset)
+                    buff.writeInt(headOffset)
                     return
                 }
 
@@ -327,7 +333,7 @@ object AbiCodec {
             -> {
                 if (type.isDynamic) {
                     buff.position(buff.position() + 28)
-                    buff.putInt(headOffset)
+                    buff.writeInt(headOffset)
                     return
                 }
 
@@ -343,7 +349,7 @@ object AbiCodec {
         }
     }
 
-    private fun encodeTokenTail(buff: ByteBuffer, type: AbiType<*>, data: Any) {
+    private fun encodeTokenTail(buff: PlatformBuffer, type: AbiType<*>, data: Any) {
         when (type) {
             // head-only
             AbiType.Address, AbiType.Bool, is AbiType.Int, is AbiType.UInt, is AbiType.FixedBytes -> {}
@@ -352,14 +358,14 @@ object AbiCodec {
             AbiType.Bytes -> {
                 val value = (data as Bytes).asByteArray()
                 buff.position(buff.position() + 28)
-                buff.putInt(value.size)
+                buff.writeInt(value.size)
 
                 val numOfWords = (value.size + WORD_SIZE_BYTES - 1) / WORD_SIZE_BYTES
                 for (i in 0..<numOfWords) {
                     val start = i * WORD_SIZE_BYTES
                     val end = minOf(start + WORD_SIZE_BYTES, value.size)
                     val length = end - start
-                    buff.put(value, start, length)
+                    buff.writeBytes(value, start, length)
 
                     if (length < WORD_SIZE_BYTES) {
                         buff.position(buff.position() + (WORD_SIZE_BYTES - length))
@@ -370,14 +376,14 @@ object AbiCodec {
             AbiType.String -> {
                 val value = (data as String).toByteArray(Charsets.UTF_8)
                 buff.position(buff.position() + 28)
-                buff.putInt(value.size)
+                buff.writeInt(value.size)
 
                 val numOfWords = (value.size + WORD_SIZE_BYTES - 1) / WORD_SIZE_BYTES
                 for (i in 0..<numOfWords) {
                     val start = i * WORD_SIZE_BYTES
                     val end = minOf(start + WORD_SIZE_BYTES, value.size)
                     val length = end - start
-                    buff.put(value, start, length)
+                    buff.writeBytes(value, start, length)
 
                     if (length < WORD_SIZE_BYTES) {
                         buff.position(buff.position() + (WORD_SIZE_BYTES - length))
@@ -389,7 +395,7 @@ object AbiCodec {
                 @Suppress("UNCHECKED_CAST")
                 val value = data as List<Any>
                 buff.position(buff.position() + 28)
-                buff.putInt(value.size)
+                buff.writeInt(value.size)
 
                 if (value.isNotEmpty()) {
                     var headLength = 0
@@ -564,21 +570,22 @@ object AbiCodec {
         }
     }
 
-    private fun decodeTokens(types: List<AbiType<*>>, buff: ByteBuffer): List<Any> {
+    private fun decodeTokens(types: List<AbiType<*>>, buff: PlatformBuffer, rawData: ByteArray): List<Any> {
         val ret = ArrayList<Any>(types.size)
 
         // to account for 4byte selector
         val offset = buff.position()
-        val visitedOffsets = BitSet(buff.capacity() / WORD_SIZE_BYTES)
+        val visitedOffsets = BitSet(buff.capacity / WORD_SIZE_BYTES)
         for (i in types.indices) {
-            ret.add(decodeToken(types[i], buff, offset, 1, visitedOffsets))
+            ret.add(decodeToken(types[i], buff, rawData, offset, 1, visitedOffsets))
         }
         return ret
     }
 
     private fun decodeToken(
         type: AbiType<*>,
-        buff: ByteBuffer,
+        buff: PlatformBuffer,
+        rawData: ByteArray,
         currOffset: Int,
         depth: Int,
         visitedOffsets: BitSet,
@@ -600,26 +607,29 @@ object AbiCodec {
             AbiType.Address -> {
                 buff.ensureRemaining(WORD_SIZE_BYTES)
 
-                val arr = ByteArray(20)
-                buff.skip(12).get(arr)
+                buff.skip(12)
+                val arr = buff.readByteArray(20)
                 return Address(arr)
             }
 
-            AbiType.Bool -> return buff.skip(31).get().toInt() == 1
+            AbiType.Bool -> {
+                buff.skip(31)
+                return buff.readByte().toInt() == 1
+            }
 
             // left-padded
             is AbiType.FixedBytes -> {
                 buff.ensureRemaining(WORD_SIZE_BYTES)
 
-                val arr = ByteArray(type.length)
-                buff.get(arr).skip(32 - type.length)
+                val arr = buff.readByteArray(type.length)
+                buff.skip(32 - type.length)
                 return Bytes(arr)
             }
 
             is AbiType.Int -> {
                 buff.ensureRemaining(WORD_SIZE_BYTES)
 
-                val ret = BigInteger(buff.array(), buff.position(), 32)
+                val ret = BigInteger(rawData, buff.position(), 32)
                 buff.skip(32)
                 return ret
             }
@@ -627,7 +637,7 @@ object AbiCodec {
             is AbiType.UInt -> {
                 buff.ensureRemaining(WORD_SIZE_BYTES)
 
-                val ret = BigInteger(1, buff.array(), buff.position(), 32)
+                val ret = BigInteger(1, rawData, buff.position(), 32)
                 buff.skip(32)
                 return ret
             }
@@ -635,19 +645,22 @@ object AbiCodec {
             AbiType.Bytes -> {
                 buff.ensureRemaining(WORD_SIZE_BYTES)
 
-                val offset = currOffset + buff.skip(28).getInt()
+                buff.skip(28)
+                val offset = currOffset + buff.readInt()
                 val endPosition = buff.position()
 
                 buff.ensureValidOffset(offset, currOffset, visitedOffsets).ensureRemaining(WORD_SIZE_BYTES)
-                val length = buff.position(offset).skip(28).getInt()
+                buff.position(offset)
+                buff.skip(28)
+                val length = buff.readInt()
                 if (length < 0) {
                     throw AbiCodecException("Bytes length must be greater than zero, got: $length")
                 }
 
                 buff.ensureRemaining(length)
 
-                val arr = ByteArray(length)
-                buff.get(arr).position(endPosition)
+                val arr = buff.readByteArray(length)
+                buff.position(endPosition)
 
                 return Bytes(arr)
             }
@@ -655,18 +668,21 @@ object AbiCodec {
             AbiType.String -> {
                 buff.ensureRemaining(WORD_SIZE_BYTES)
 
-                val offset = currOffset + buff.skip(28).getInt()
+                buff.skip(28)
+                val offset = currOffset + buff.readInt()
                 val endPosition = buff.position()
 
                 buff.ensureValidOffset(offset, currOffset, visitedOffsets).ensureRemaining(WORD_SIZE_BYTES)
-                val length = buff.position(offset).skip(28).getInt()
+                buff.position(offset)
+                buff.skip(28)
+                val length = buff.readInt()
                 if (length < 0) {
                     throw AbiCodecException("String length must be greater than zero, got: $length")
                 }
 
                 buff.ensureRemaining(length)
 
-                val ret = String(buff.array(), buff.position(), length, Charsets.UTF_8)
+                val ret = String(rawData, buff.position(), length, Charsets.UTF_8)
                 buff.position(endPosition)
 
                 return ret
@@ -675,11 +691,14 @@ object AbiCodec {
             is AbiType.Array<*> -> {
                 buff.ensureRemaining(WORD_SIZE_BYTES)
 
-                var offset = currOffset + buff.skip(28).getInt()
+                buff.skip(28)
+                var offset = currOffset + buff.readInt()
                 val endPosition = buff.position()
 
                 buff.ensureValidOffset(offset, currOffset, visitedOffsets).ensureRemaining(WORD_SIZE_BYTES)
-                val length = buff.position(offset).skip(28).getInt()
+                buff.position(offset)
+                buff.skip(28)
+                val length = buff.readInt()
                 if (length < 0) {
                     throw AbiCodecException("Array length must be greater than zero, got: $length")
                 }
@@ -688,7 +707,7 @@ object AbiCodec {
 
                 val arr = ArrayList<Any>(length)
                 for (i in 0..<length) {
-                    arr.add(decodeToken(type.type, buff, offset, depth + 1, visitedOffsets))
+                    arr.add(decodeToken(type.type, buff, rawData, offset, depth + 1, visitedOffsets))
                 }
 
                 buff.position(endPosition)
@@ -701,20 +720,21 @@ object AbiCodec {
                 if (type.isDynamic) {
                     buff.ensureRemaining(WORD_SIZE_BYTES)
 
-                    val offset = currOffset + buff.skip(28).getInt()
+                    buff.skip(28)
+                    val offset = currOffset + buff.readInt()
                     val endPosition = buff.position()
 
                     buff.ensureValidOffset(offset, currOffset, visitedOffsets)
                     buff.position(offset)
 
                     for (i in 0..<type.length) {
-                        arr.add(decodeToken(type.type, buff, offset, depth + 1, visitedOffsets))
+                        arr.add(decodeToken(type.type, buff, rawData, offset, depth + 1, visitedOffsets))
                     }
 
                     buff.position(endPosition)
                 } else {
                     for (i in 0..<type.length) {
-                        arr.add(decodeToken(type.type, buff, currOffset, depth + 1, visitedOffsets))
+                        arr.add(decodeToken(type.type, buff, rawData, currOffset, depth + 1, visitedOffsets))
                     }
                 }
 
@@ -728,20 +748,21 @@ object AbiCodec {
 
                 if (type.isDynamic) {
                     buff.ensureRemaining(WORD_SIZE_BYTES)
-                    val offset = currOffset + buff.skip(28).getInt()
+                    buff.skip(28)
+                    val offset = currOffset + buff.readInt()
                     val endPosition = buff.position()
 
                     buff.ensureValidOffset(offset, currOffset, visitedOffsets)
                     buff.position(offset)
 
                     for (i in type.types.indices) {
-                        arr.add(decodeToken(type.types[i], buff, offset, depth + 1, visitedOffsets))
+                        arr.add(decodeToken(type.types[i], buff, rawData, offset, depth + 1, visitedOffsets))
                     }
 
                     buff.position(endPosition)
                 } else {
                     for (i in type.types.indices) {
-                        arr.add(decodeToken(type.types[i], buff, currOffset, depth + 1, visitedOffsets))
+                        arr.add(decodeToken(type.types[i], buff, rawData, currOffset, depth + 1, visitedOffsets))
                     }
                 }
 
@@ -770,11 +791,12 @@ object AbiCodec {
             encodedSize += packEncodedSize(types[i], data[i], false)
         }
 
-        val ret = ByteBuffer.allocate(encodedSize)
+        val arr = ByteArray(encodedSize)
+        val ret = PlatformBuffer.wrap(arr)
         for (i in types.indices) {
             encodePacked(ret, types[i], data[i], false)
         }
-        return Bytes(ret.array())
+        return Bytes(arr)
     }
 
     private fun packEncodedSize(type: AbiType<*>, data: Any, inArray: Boolean): Int {
@@ -820,20 +842,20 @@ object AbiCodec {
         }
     }
 
-    private fun encodePacked(buff: ByteBuffer, type: AbiType<*>, data: Any, inArray: Boolean) {
+    private fun encodePacked(buff: PlatformBuffer, type: AbiType<*>, data: Any, inArray: Boolean) {
         when (type) {
             AbiType.Address -> {
                 if (inArray) {
                     buff.skip(12)
                 }
-                buff.put((data as Address).asByteArray())
+                buff.writeBytes((data as Address).asByteArray())
             }
 
             AbiType.Bool -> {
                 if (inArray) {
                     buff.skip(31)
                 }
-                buff.put(if (data as Boolean) 1 else 0)
+                buff.writeByte(if (data as Boolean) 1 else 0)
             }
 
             is AbiType.FixedBytes -> {
@@ -842,11 +864,11 @@ object AbiCodec {
                     throw AbiCodecException("Provided value has length ${value.size}, expected ${type.length}")
                 }
 
-                buff.put(value.asByteArray())
+                buff.writeBytes(value.asByteArray())
 
-                // padded at the end
+                // padded at the end to 32 bytes when in array
                 if (inArray) {
-                    buff.skip(type.length - value.size)
+                    buff.skip(WORD_SIZE_BYTES - type.length)
                 }
             }
 
@@ -864,12 +886,12 @@ object AbiCodec {
                 if (v.signum() == -1) {
                     // if in array, fully extend the sign, otherwise just extend it, so it fills full byte size of the type
                     if (inArray) {
-                        buff.put(TWOS_COMPLEMENT_PADDING[32 - arr.size])
+                        buff.writeBytes(TWOS_COMPLEMENT_PADDING[32 - arr.size])
                     } else {
-                        buff.put(TWOS_COMPLEMENT_PADDING[(type.bitSize / 8) - arr.size])
+                        buff.writeBytes(TWOS_COMPLEMENT_PADDING[(type.bitSize / 8) - arr.size])
                     }
 
-                    buff.put(arr)
+                    buff.writeBytes(arr)
                     return
                 }
 
@@ -879,7 +901,7 @@ object AbiCodec {
                     buff.skip((type.bitSize / 8) - arr.size)
                 }
 
-                buff.put(arr)
+                buff.writeBytes(arr)
             }
 
             is AbiType.UInt -> {
@@ -900,19 +922,19 @@ object AbiCodec {
                 }
 
                 if (arr.size == 33 && arr[0].toInt() == 0) {
-                    buff.put(arr, 1, 32)
+                    buff.writeBytes(arr, 1, 32)
                 } else {
                     if (inArray) {
                         buff.skip(32 - arr.size)
                     } else {
                         buff.skip((type.bitSize / 8) - arr.size)
                     }
-                    buff.put(arr)
+                    buff.writeBytes(arr)
                 }
             }
 
-            AbiType.Bytes -> buff.put((data as Bytes).asByteArray())
-            AbiType.String -> buff.put((data as String).toByteArray(Charsets.UTF_8))
+            AbiType.Bytes -> buff.writeBytes((data as Bytes).asByteArray())
+            AbiType.String -> buff.writeBytes((data as String).toByteArray(Charsets.UTF_8))
             is AbiType.Array<*> -> {
                 val values = data as List<*>
                 for (i in values.indices) {
@@ -943,21 +965,23 @@ object AbiCodec {
  *  */
 data class AbiCodecException(override val message: String) : RuntimeException()
 
-private fun ByteBuffer.skip(n: Int): ByteBuffer {
+private fun PlatformBuffer.skip(n: Int): PlatformBuffer {
     if (n <= 0) {
         return this
     }
-    return position(position() + n)
+    position(position() + n)
+    return this
 }
 
-private fun ByteBuffer.ensureRemaining(n: Int): ByteBuffer {
-    if (this.remaining() < n) {
-        throw AbiCodecException("Not enough bytes left. Wanted $n, have ${this.remaining()}")
+private fun PlatformBuffer.ensureRemaining(n: Int): PlatformBuffer {
+    val remaining = capacity - position()
+    if (remaining < n) {
+        throw AbiCodecException("Not enough bytes left. Wanted $n, have $remaining")
     }
     return this
 }
 
-private fun ByteBuffer.ensureValidOffset(offset: Int, currentOffset: Int, visitedOffsets: BitSet): ByteBuffer {
+private fun PlatformBuffer.ensureValidOffset(offset: Int, currentOffset: Int, visitedOffsets: BitSet): PlatformBuffer {
     // can only move forward
     if (offset < currentOffset) {
         throw AbiCodecException("Invalid backwards offset: $offset (currentOffset: $currentOffset)")
@@ -978,8 +1002,8 @@ private fun ByteBuffer.ensureValidOffset(offset: Int, currentOffset: Int, visite
         throw AbiCodecException("Offset is not 32 byte word-aligned: $offset")
     }
 
-    if (this.capacity() < offset) {
-        throw AbiCodecException("Invalid offset '$offset'. Buffer capacity: ${this.capacity()}")
+    if (this.capacity < offset) {
+        throw AbiCodecException("Invalid offset '$offset'. Buffer capacity: ${this.capacity}")
     }
     return this
 }

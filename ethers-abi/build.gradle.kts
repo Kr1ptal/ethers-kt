@@ -10,6 +10,7 @@ dependencies {
     api(project(":ethers-core"))
     api(project(":ethers-providers"))
     api(project(":ethers-signers"))
+    implementation(libs.ditchoom.buffer)
 
     testImplementation(libs.bundles.kotest)
 

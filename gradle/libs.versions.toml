@@ -16,6 +16,7 @@ hoplite = "2.9.0"
 kotlincrypto = "0.8.0"
 secp256k1 = "0.22.0"
 cryptography = "0.5.0"
+ditchoom-buffer = "1.4.2"
 
 [libraries]
 kotlin-bom = { module = "org.jetbrains.kotlin:kotlin-bom", version.ref = "kotlin" }
@@ -67,6 +68,8 @@ whyoleg-cryptography-jdk = { module = "dev.whyoleg.cryptography:cryptography-pro
 whyoleg-cryptography-asn1 = { module = "dev.whyoleg.cryptography:cryptography-serialization-asn1-modules", version.ref = "cryptography" }
 
 gcp-kms = { module = "com.google.cloud:google-cloud-kms", version = "2.84.0" }
+
+ditchoom-buffer = { module = "com.ditchoom:buffer", version.ref = "ditchoom-buffer" }
 
 ens-normalise = { module = "io.github.adraffy:ens-normalize", version = "0.2.0" }
 kotlinx-cli = { module = "org.jetbrains.kotlinx:kotlinx-cli", version = "0.3.6" }

@@ -1,8 +1,9 @@
 package io.ethers.crypto.bip32
 
+import com.ditchoom.buffer.PlatformBuffer
+import com.ditchoom.buffer.wrap
 import io.ethers.crypto.Hashing
 import io.ethers.crypto.Secp256k1
-import java.nio.ByteBuffer
 
 /**
  * Implementation of [BIP-0032](https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki) extended keys with
@@ -44,17 +45,18 @@ class ExtendedSigningKey(privateKey: ByteArray, val chainCode: ByteArray) {
      * Derive a child key from this key, based on the given index.
      * */
     fun deriveChild(index: Int): ExtendedSigningKey {
-        val buff = ByteBuffer.allocate(37)
+        val arr = ByteArray(37)
+        val buff = PlatformBuffer.wrap(arr)
         if (HDPath.isHardened(index)) {
-            buff.position(1)
-            buff.put(signingKey.privateKey)
+            buff.writeByte(0) // Skip 1 byte (padding)
+            buff.writeBytes(signingKey.privateKey)
         } else {
-            buff.put(signingKey.publicKeyCompressed)
+            buff.writeBytes(signingKey.publicKeyCompressed)
         }
 
-        buff.putInt(index)
+        buff.writeInt(index)
 
-        val hmac = Hashing.hmacSha512(chainCode, buff.array())
+        val hmac = Hashing.hmacSha512(chainCode, arr)
         val privateKeyNew = Secp256k1.privateKeyAdd(signingKey.privateKey, hmac.copyOfRange(0, 32))
         val chainCodeNew = hmac.copyOfRange(32, 64)
         return ExtendedSigningKey(privateKeyNew, chainCodeNew)

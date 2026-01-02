@@ -112,6 +112,14 @@ The project uses Kotest and JUnit for testing. Tests are organized by module:
 - Unit tests are located in each module's `src/test` directory
 - Integration tests using real contract interactions are in the examples
 
+## Performance Guidelines
+
+1. **Avoid unnecessary allocations and copies**: Return or reuse existing data structures directly instead of creating copies. If you already have the data in the right format, don't copy it.
+
+2. **Prefer in-place operations**: Modify data structures in-place instead of creating temporary objects. For example, use `copyInto()` for shifting elements within a collection rather than creating intermediate collections.
+
+3. **Use stdlib functions over manual implementations**: Standard library functions like `copyInto()`, `copyOf()`, `sortedBy()`, etc. are optimized and battle-tested. Avoid reimplementing them with manual loops.
+
 ## Contribution Guidelines
 
 Before submitting code:

@@ -39,6 +39,7 @@ dependencies {
     implementation(libs.whyoleg.cryptography.random)
     implementation(libs.whyoleg.cryptography.jdk)
     implementation(libs.secp256k1.kmp)
+    implementation(libs.ditchoom.buffer)
 
     // JVM JNI - available transitively for internal project dependencies and their tests
     // This is NOT included in the published variant configurations (they use implementation, not runtimeClasspath)
