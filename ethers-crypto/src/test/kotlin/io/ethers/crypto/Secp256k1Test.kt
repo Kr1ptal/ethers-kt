@@ -8,7 +8,6 @@ import io.kotest.matchers.shouldNotBe
 import io.kotest.property.Arb
 import io.kotest.property.arbitrary.bigInt
 import io.kotest.property.checkAll
-import org.bouncycastle.math.ec.custom.sec.SecP256K1Curve
 import java.math.BigInteger
 
 class Secp256k1Test : FunSpec({
@@ -56,7 +55,9 @@ class Secp256k1Test : FunSpec({
         }
 
         test("x-coordinate overflow") {
-            val recoveredPublicKey = Secp256k1.recoverPublicKey(ByteArray(0), SecP256K1Curve.q, BigInteger.ZERO, 0)
+            // secp256k1 curve order (q)
+            val curveOrder = BigInteger("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F", 16)
+            val recoveredPublicKey = Secp256k1.recoverPublicKey(ByteArray(32), curveOrder, BigInteger.ZERO, 0)
             recoveredPublicKey shouldBe null
         }
 
@@ -80,7 +81,7 @@ class Secp256k1Test : FunSpec({
                     val signingKey = Secp256k1.SigningKey(it)
                     val signature = signingKey.signHash(messageHash)
 
-                    val recoveredPublicKey = Secp256k1.recoverPublicKey(messageHash, signature[0], signature[1], signature[2].toLong())
+                    val recoveredPublicKey = Secp256k1.recoverPublicKey(messageHash, signature.r, signature.s, signature.v)
 
                     recoveredPublicKey shouldNotBe null
                     recoveredPublicKey!! shouldBe signingKey.publicKey
@@ -92,9 +93,9 @@ class Secp256k1Test : FunSpec({
     test("SigningKey.signHash") {
         val signingKey = Secp256k1.SigningKey(BigInteger("ebb2c082fd7727890a28ac82f6bdf97bad8de9f5d7c9028692de1a255cad3e0f", 16))
         val messageToSignature = mapOf(
-            "Hello World!" to listOf(BigInteger("84572906993412228422871642307501242289993000969311520014597794884839393205535"), BigInteger("26244937144775656547977617151742385694940367005398956818746682468573787954744"), BigInteger.ONE),
-            "Goodbye Jupiter!" to listOf(BigInteger("12214342688069944347190031536677236041083812119384431199873468508255367379356"), BigInteger("28646747756097151676398005985657445829994264100612970196164466070463142098670"), BigInteger.ONE),
-            "Maarten Bodewes generated this test vector on 2016-11-08" to listOf(BigInteger("20626276573946388582327645212475513911425089904966284059462614374701078664109"), BigInteger("11741197901064219810343800021622017182168173453043216148594072691886809006848"), BigInteger.ZERO),
+            "Hello World!" to Secp256k1.ECDSASignature(BigInteger("84572906993412228422871642307501242289993000969311520014597794884839393205535"), BigInteger("26244937144775656547977617151742385694940367005398956818746682468573787954744"), 1),
+            "Goodbye Jupiter!" to Secp256k1.ECDSASignature(BigInteger("12214342688069944347190031536677236041083812119384431199873468508255367379356"), BigInteger("28646747756097151676398005985657445829994264100612970196164466070463142098670"), 1),
+            "Maarten Bodewes generated this test vector on 2016-11-08" to Secp256k1.ECDSASignature(BigInteger("20626276573946388582327645212475513911425089904966284059462614374701078664109"), BigInteger("11741197901064219810343800021622017182168173453043216148594072691886809006848"), 0),
         )
 
         messageToSignature.forAll { (message, signature) ->

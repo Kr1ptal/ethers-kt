@@ -19,11 +19,10 @@ class PrivateKeySigner(val signingKey: Secp256k1.SigningKey) : Signer {
 
     override fun signHash(hash: ByteArray): Signature {
         val sig = signingKey.signHash(hash)
-
         return Signature(
-            r = sig[0],
-            s = sig[1],
-            v = sig[2].toLong(),
+            r = sig.r,
+            s = sig.s,
+            v = sig.v,
         )
     }
 
@@ -62,12 +61,11 @@ class PrivateKeySigner(val signingKey: Secp256k1.SigningKey) : Signer {
         }
 
         /**
-         * Create a new [PrivateKeySigner] from random entropy, using [Hashing.secureRandom].
+         * Create a new [PrivateKeySigner] from random entropy, using [Hashing.generateRandomBytes].
          * */
         @JvmStatic
         fun random(): PrivateKeySigner {
-            val privateKey = ByteArray(32)
-            Hashing.secureRandom().nextBytes(privateKey)
+            val privateKey = Hashing.generateRandomBytes(32)
             return PrivateKeySigner(privateKey)
         }
     }

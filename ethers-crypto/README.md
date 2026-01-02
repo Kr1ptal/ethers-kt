@@ -4,11 +4,6 @@ Includes cryptographic utilities for both signing and verifying **ECDSA** signat
 computing the **keccak256** hash. All signatures are canonicalized so the `s` value is always in the lower half of the
 curve.
 
-The [ECDSASignerRecoverable][ecdsa-recoverable-source] has been forked from the Bouncy Castle library and modified to
-support returning the `y` value of the signature when signing a hash. This makes it possible to compute the recovery
-id of the signature without brute-forcing it. This file should be kept in sync with the upstream version, with minimal
-modifications.
-
 ## 💻 Code Examples
 
 - Use `keccak256` to hash raw data or a message based on the [EIP-191](https://eips.ethereum.org/EIPS/eip-191) standard.

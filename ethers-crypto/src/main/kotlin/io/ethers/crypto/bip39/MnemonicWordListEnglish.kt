@@ -1,6 +1,7 @@
 package io.ethers.crypto.bip39
 
-import org.bouncycastle.jcajce.provider.digest.SHA256
+import dev.whyoleg.cryptography.CryptographyProvider
+import dev.whyoleg.cryptography.algorithms.SHA256
 import java.math.BigInteger
 
 /**
@@ -18,10 +19,10 @@ data object MnemonicWordListEnglish : MnemonicWordList {
 
         this.words = stream.bufferedReader().readLines()
 
-        val sha256 = SHA256.Digest()
-        words.forEach { sha256.update(it.toByteArray()) }
+        val hashFunction = CryptographyProvider.Default.get(SHA256).hasher().createHashFunction()
+        words.forEach { hashFunction.update(it.toByteArray()) }
 
-        val digest = sha256.digest()
+        val digest = hashFunction.hashToByteArray()
         val digestHex = BigInteger(1, digest).toString(16)
         if (digestHex != BIP39_ENGLISH_SHA256) {
             throw RuntimeException("Invalid SHA256 digest for english wordlist. Expected: '$BIP39_ENGLISH_SHA256', got: '$digestHex'")

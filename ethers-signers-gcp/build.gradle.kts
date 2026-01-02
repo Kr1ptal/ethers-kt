@@ -6,8 +6,9 @@ plugins {
 dependencies {
     api(project(":ethers-signers"))
 
-    implementation(libs.bouncycastle.provider)
     implementation(libs.gcp.kms)
+    implementation(libs.whyoleg.cryptography.asn1)
 
     testImplementation(libs.bundles.kotest)
+    testImplementation(libs.mockk)
 }

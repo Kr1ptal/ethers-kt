@@ -11,7 +11,7 @@ class ExtendedSigningKeyTest : FunSpec({
                 val seed = vector.seedHex.hexToByteArray()
                 val key = ExtendedSigningKey.fromSeed(seed).derivePath(HDPath.parse(vector.path))
 
-                key.signingKey.publicPoint.getEncoded(true) shouldBe vector.publicKey
+                key.signingKey.publicKeyCompressed shouldBe vector.publicKey
                 key.signingKey.privateKey shouldBe vector.privateKey
                 key.chainCode shouldBe vector.chainCode
             }
@@ -22,7 +22,7 @@ class ExtendedSigningKeyTest : FunSpec({
                 val seed = vector.seedHex.hexToByteArray()
                 val key = ExtendedSigningKey.fromSeed(seed).derivePath(HDPath.parse(vector.path))
 
-                key.signingKey.publicPoint.getEncoded(true) shouldBe vector.publicKey
+                key.signingKey.publicKeyCompressed shouldBe vector.publicKey
                 key.signingKey.privateKey shouldBe vector.privateKey
                 key.chainCode shouldBe vector.chainCode
             }
@@ -33,7 +33,7 @@ class ExtendedSigningKeyTest : FunSpec({
                 val seed = vector.seedHex.hexToByteArray()
                 val key = ExtendedSigningKey.fromSeed(seed).derivePath(HDPath.parse(vector.path))
 
-                key.signingKey.publicPoint.getEncoded(true) shouldBe vector.publicKey
+                key.signingKey.publicKeyCompressed shouldBe vector.publicKey
                 key.signingKey.privateKey shouldBe vector.privateKey
                 key.chainCode shouldBe vector.chainCode
             }
@@ -44,7 +44,7 @@ class ExtendedSigningKeyTest : FunSpec({
                 val seed = vector.seedHex.hexToByteArray()
                 val key = ExtendedSigningKey.fromSeed(seed).derivePath(HDPath.parse(vector.path))
 
-                key.signingKey.publicPoint.getEncoded(true) shouldBe vector.publicKey
+                key.signingKey.publicKeyCompressed shouldBe vector.publicKey
                 key.signingKey.privateKey shouldBe vector.privateKey
                 key.chainCode shouldBe vector.chainCode
             }
@@ -64,11 +64,11 @@ class ExtendedSigningKeyTest : FunSpec({
 
         // decoding based on: https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki#Serialization-format
         init {
-            val decodedPublic = Base58.decodeChecked(publicKeyBase58)
+            val decodedPublic = Base58.decode(publicKeyBase58).dropLast(4).toByteArray()
             val chainCodePublic = decodedPublic.copyOfRange(13, 45)
             this.publicKey = decodedPublic.copyOfRange(45, 78)
 
-            val decodedPrivate = Base58.decodeChecked(privateKeyBase58)
+            val decodedPrivate = Base58.decode(privateKeyBase58).dropLast(4).toByteArray()
             val chainCodePrivate = decodedPrivate.copyOfRange(13, 45)
             this.privateKey = decodedPrivate.copyOfRange(46, 78) // skip leading 0 byte
 

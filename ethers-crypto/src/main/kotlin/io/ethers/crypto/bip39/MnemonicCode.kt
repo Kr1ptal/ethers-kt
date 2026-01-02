@@ -1,11 +1,10 @@
 package io.ethers.crypto.bip39
 
+import dev.whyoleg.cryptography.BinarySize.Companion.bytes
+import dev.whyoleg.cryptography.CryptographyProvider
+import dev.whyoleg.cryptography.algorithms.PBKDF2
+import dev.whyoleg.cryptography.algorithms.SHA512
 import io.ethers.crypto.Hashing
-import org.bouncycastle.crypto.digests.SHA512Digest
-import org.bouncycastle.crypto.generators.PKCS5S2ParametersGenerator
-import org.bouncycastle.crypto.params.KeyParameter
-import org.bouncycastle.jcajce.provider.digest.SHA256
-import java.nio.charset.StandardCharsets
 
 /**
  * Mnemonic code for generating deterministic keys.
@@ -52,17 +51,19 @@ class MnemonicCode @JvmOverloads constructor(
      * */
     @JvmOverloads
     fun getSeed(passphrase: String = ""): ByteArray {
-        val salt = String.format("mnemonic%s", passphrase)
+        val input = words.joinToString(separator = wordList.separator.toString()).toByteArray(Charsets.UTF_8)
+        val salt = "mnemonic$passphrase".toByteArray(Charsets.UTF_8)
 
-        return PKCS5S2ParametersGenerator(SHA512Digest()).run {
-            init(
-                words.joinToString(separator = wordList.separator.toString()).toByteArray(StandardCharsets.UTF_8),
-                salt.toByteArray(StandardCharsets.UTF_8),
-                SEED_ITERATIONS,
+        val secretDerivation = CryptographyProvider.Default
+            .get(PBKDF2)
+            .secretDerivation(
+                digest = SHA512,
+                iterations = SEED_ITERATIONS,
+                outputSize = SEED_KEY_SIZE.bytes,
+                salt = salt,
             )
 
-            (generateDerivedParameters(SEED_KEY_SIZE) as KeyParameter).key
-        }
+        return secretDerivation.deriveSecretBlocking(input).toByteArray()
     }
 
     /**
@@ -99,7 +100,7 @@ class MnemonicCode @JvmOverloads constructor(
         }
 
         // Take the digest of the entropy.
-        val hash = SHA256.Digest().digest(entropy)
+        val hash = Hashing.sha256(entropy)
         val hashBits = bytesToBits(hash)
 
         // Check all the checksum bits.
@@ -125,21 +126,22 @@ class MnemonicCode @JvmOverloads constructor(
     }
 
     companion object {
-        private const val SEED_KEY_SIZE = 512
         private const val SEED_ITERATIONS = 2048
+        private const val SEED_KEY_SIZE = 64 // 512 bits
 
         /**
-         * Create a new mnemonic code from random entropy, using [Hashing.secureRandom].
-         * */
+         * Create a new mnemonic code from random entropy.
+         *
+         * @param bitsOfEntropy The number of bits of entropy (128, 160, 192, 224, or 256).
+         * @param wordList Word list to use. Default is [MnemonicWordListEnglish].
+         */
         @JvmStatic
         @JvmOverloads
         fun fromRandomEntropy(
             bitsOfEntropy: Int = 256,
             wordList: MnemonicWordList = MnemonicWordListEnglish,
         ): MnemonicCode {
-            val entropy = ByteArray(bitsOfEntropy / 8)
-            Hashing.secureRandom().nextBytes(entropy)
-
+            val entropy = Hashing.generateRandomBytes(bitsOfEntropy / 8)
             return fromEntropy(entropy, wordList)
         }
 
@@ -164,15 +166,20 @@ class MnemonicCode @JvmOverloads constructor(
 
             // We take initial entropy of ENT bits and compute its
             // checksum by taking first ENT / 32 bits of its SHA256 hash.
-            val hash = SHA256.Digest().digest(entropy)
+            val hash = Hashing.sha256(entropy)
             val hashBits = bytesToBits(hash)
             val entropyBits = bytesToBits(entropy)
             val checksumLengthBits = entropyBits.size / 32
 
             // We append these bits to the end of the initial entropy.
             val concatBits = BooleanArray(entropyBits.size + checksumLengthBits)
-            System.arraycopy(entropyBits, 0, concatBits, 0, entropyBits.size)
-            System.arraycopy(hashBits, 0, concatBits, entropyBits.size, checksumLengthBits)
+            entropyBits.copyInto(concatBits)
+            hashBits.copyInto(
+                concatBits,
+                destinationOffset = entropyBits.size,
+                startIndex = 0,
+                endIndex = checksumLengthBits,
+            )
 
             // Next we take these concatenated bits and split them into
             // groups of 11 bits. Each group encodes number from 0-2047
