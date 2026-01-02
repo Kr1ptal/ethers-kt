@@ -38,12 +38,13 @@ dependencies {
     implementation(libs.whyoleg.cryptography.jdk)
     implementation(libs.secp256k1.kmp)
 
-    // Platform-specific JNI dependencies
+    // JVM JNI - available transitively for internal project dependencies
+    // Published artifacts use variant-specific configurations below
+    runtimeOnly(libs.secp256k1.kmp.jni)
+
+    // Platform-specific JNI dependencies for published variants
     jvmRuntimeElements(libs.secp256k1.kmp.jni)
     androidRuntimeElements(libs.secp256k1.kmp.jni.android)
-
-    // Tests need JVM JNI at runtime
-    testRuntimeOnly(libs.secp256k1.kmp.jni)
 
     testImplementation(libs.bundles.kotest)
     testImplementation(libs.bundles.jackson)
