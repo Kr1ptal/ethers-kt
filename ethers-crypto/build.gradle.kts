@@ -1,6 +1,18 @@
 plugins {
     `project-conventions`
     `maven-publish-conventions`
+    `static-data-generator`
+}
+
+staticDataGenerator {
+    generators {
+        create("bip39Wordlist") {
+            inputFile.set(file("src/main/resources/bip39/wordlist_english.txt"))
+            packageName.set("io.ethers.crypto.bip39")
+            objectName.set("BIP39WordListEnglishData")
+            generatorType.set("bip39-wordlist")
+        }
+    }
 }
 
 // Create separate runtime configurations for each platform
