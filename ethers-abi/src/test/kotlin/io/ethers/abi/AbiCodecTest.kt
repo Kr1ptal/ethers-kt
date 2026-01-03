@@ -874,6 +874,21 @@ class AbiCodecTest : FunSpec({
             encoded shouldBe "0xabcdef1244935340812435140000000000000000000000000000000000000000"
         }
 
+        test("encode multiple FixedBytes in array should pad each element to 32 bytes") {
+            // This test verifies that FixedBytes elements inside arrays are correctly
+            // padded to 32 bytes each, not just the data length
+            val encoded = AbiCodec.encodePacked(
+                listOf(AbiType.FixedArray(2, AbiType.FixedBytes(4))),
+                listOf(listOf(Bytes("aabbccdd"), Bytes("11223344"))),
+            ).toString()
+
+            // Each bytes4 should be padded to 32 bytes when in array:
+            // aabbccdd + 28 zero bytes + 11223344 + 28 zero bytes
+            encoded shouldBe "0x" +
+                "aabbccdd" + "00".repeat(28) +
+                "11223344" + "00".repeat(28)
+        }
+
         test("encode single positive int16") {
             val encoded = AbiCodec.encodePacked(
                 listOf(AbiType.Int(16)),

@@ -1,7 +1,8 @@
 package io.ethers.rlp
 
+import com.ditchoom.buffer.PlatformBuffer
+import com.ditchoom.buffer.wrap
 import java.math.BigInteger
-import java.nio.ByteBuffer
 import kotlin.math.max
 
 /**
@@ -10,10 +11,10 @@ import kotlin.math.max
  * Docs: [RLP](https://ethereum.org/en/developers/docs/data-structures-and-encoding/rlp/)
  * */
 class RlpEncoder @JvmOverloads constructor(
-    array: ByteArray,
+    private var array: ByteArray,
     private val isExactSize: Boolean = false,
 ) {
-    private var buffer: ByteBuffer = ByteBuffer.wrap(array)
+    private var buffer: PlatformBuffer = PlatformBuffer.wrap(array)
     private var startedListCount = 0
 
     @JvmOverloads
@@ -23,15 +24,16 @@ class RlpEncoder @JvmOverloads constructor(
         if (startedListCount != 0) {
             throw IllegalStateException("Not all list encodings were finished. Need to close $startedListCount more.")
         }
-        if (isExactSize || buffer.position() == buffer.capacity()) {
-            if (buffer.position() != buffer.capacity()) {
-                throw IllegalStateException("Incorrectly sized RLP Encoder: got size ${buffer.position()}, expected ${buffer.capacity()}")
+        val writtenBytes = buffer.position()
+        if (isExactSize || writtenBytes == array.size) {
+            if (writtenBytes != array.size) {
+                throw IllegalStateException("Incorrectly sized RLP Encoder: got size $writtenBytes, expected ${array.size}")
             }
 
-            return buffer.array()
+            return array
         }
 
-        return buffer.array().copyOfRange(0, buffer.position())
+        return array.copyOf(writtenBytes)
     }
 
     /**
@@ -39,7 +41,8 @@ class RlpEncoder @JvmOverloads constructor(
      * to a new byte array just to prepend the type byte.
      * */
     fun appendRaw(byte: Byte): RlpEncoder {
-        buffer.ensureCapacity(1).put(byte)
+        ensureCapacity(1)
+        buffer.writeByte(byte)
         return this
     }
 
@@ -83,12 +86,15 @@ class RlpEncoder @JvmOverloads constructor(
             // if we know the size of the list body in advance, we encode it here and avoid copying the bytes later
             bodySize > MAX_SHORT_LENGTH -> {
                 val lengthOfSize = lengthOfSizeInBytes(bodySize)
-                buffer.ensureCapacity(1 + lengthOfSize + bodySize)
-                buffer.put((RLP_LIST_LONG + lengthOfSize).toByte())
+                ensureCapacity(1 + lengthOfSize + bodySize)
+                buffer.writeByte((RLP_LIST_LONG + lengthOfSize).toByte())
                 encodeSize(lengthOfSize, bodySize)
             }
             // body size is unknown or short enough to not require length encoding, just reserve space for the prefix
-            else -> buffer.ensureCapacity(1).put(RLP_LIST_SHORT.toByte())
+            else -> {
+                ensureCapacity(1)
+                buffer.writeByte(RLP_LIST_SHORT.toByte())
+            }
         }
 
         startedListCount++
@@ -103,17 +109,19 @@ class RlpEncoder @JvmOverloads constructor(
         when {
             size == 0 -> {}
             size <= MAX_SHORT_LENGTH -> {
-                buffer.put(bufferStartPosition, (RLP_LIST_SHORT + size).toByte())
+                buffer.set(bufferStartPosition, (RLP_LIST_SHORT + size).toByte())
             }
 
             // if prefix does not already contain the size, we need to encode it
             bodySize <= 0 -> {
                 val lengthOfSize = lengthOfSizeInBytes(size)
-                buffer.put(bufferStartPosition, (RLP_LIST_LONG + lengthOfSize).toByte())
+                array[bufferStartPosition] = (RLP_LIST_LONG + lengthOfSize).toByte()
 
                 val startIndex = bufferStartPosition + 1
-                buffer.ensureCapacity(lengthOfSize)
-                buffer.array().copyInto(buffer.array(), startIndex + lengthOfSize, startIndex, bufferEndPosition)
+                ensureCapacity(lengthOfSize)
+
+                // Shift bytes forward in the array to make room for size encoding
+                array.copyInto(array, startIndex + lengthOfSize, startIndex, bufferEndPosition)
 
                 buffer.position(startIndex)
                 encodeSize(lengthOfSize, size)
@@ -140,7 +148,8 @@ class RlpEncoder @JvmOverloads constructor(
 
     fun encode(value: BigInteger?): RlpEncoder {
         if (value == null || value == BigInteger.ZERO) {
-            buffer.ensureCapacity(1).put(RLP_NULL.toByte())
+            ensureCapacity(1)
+            buffer.writeByte(RLP_NULL.toByte())
             return this
         }
 
@@ -158,15 +167,16 @@ class RlpEncoder @JvmOverloads constructor(
 
         when {
             nonZeroLength == 1 && bytes[offset].toUByte().toInt() < RLP_STRING_SHORT -> {
-                buffer.ensureCapacity(1).put(bytes[offset])
+                ensureCapacity(1)
+                buffer.writeByte(bytes[offset])
             }
 
             // always true, number can have max 32 bytes (uint256):
             // bytes.size <= MAX_SHORT_LENGTH -> {
             else -> {
-                buffer.ensureCapacity(1 + nonZeroLength)
-                buffer.put((RLP_STRING_SHORT + nonZeroLength).toByte())
-                buffer.put(bytes, offset, nonZeroLength)
+                ensureCapacity(1 + nonZeroLength)
+                buffer.writeByte((RLP_STRING_SHORT + nonZeroLength).toByte())
+                buffer.writeBytes(bytes, offset, nonZeroLength)
             }
         }
 
@@ -179,7 +189,8 @@ class RlpEncoder @JvmOverloads constructor(
         }
 
         if (value == 0L) {
-            buffer.ensureCapacity(1).put(RLP_NULL.toByte())
+            ensureCapacity(1)
+            buffer.writeByte(RLP_NULL.toByte())
             return this
         }
 
@@ -192,17 +203,18 @@ class RlpEncoder @JvmOverloads constructor(
 
         when {
             nonZeroLength == 1 && value < RLP_STRING_SHORT -> {
-                buffer.ensureCapacity(1).put(value.toByte())
+                ensureCapacity(1)
+                buffer.writeByte(value.toByte())
             }
 
             // always true, long == 8 bytes:
             // nonZeroLength <= MAX_SHORT_LENGTH -> {
             else -> {
-                buffer.ensureCapacity(1 + nonZeroLength)
+                ensureCapacity(1 + nonZeroLength)
 
-                buffer.put((RLP_STRING_SHORT + nonZeroLength).toByte())
+                buffer.writeByte((RLP_STRING_SHORT + nonZeroLength).toByte())
                 while (bitShift >= 0) {
-                    buffer.put((value shr bitShift and 0xff).toByte())
+                    buffer.writeByte((value shr bitShift and 0xff).toByte())
                     bitShift -= 8
                 }
             }
@@ -213,28 +225,30 @@ class RlpEncoder @JvmOverloads constructor(
 
     fun encode(value: ByteArray?): RlpEncoder {
         if (value == null || value.isEmpty()) {
-            buffer.ensureCapacity(1).put(RLP_NULL.toByte())
+            ensureCapacity(1)
+            buffer.writeByte(RLP_NULL.toByte())
             return this
         }
 
         when {
             value.size == 1 && value[0].toUByte().toInt() < RLP_STRING_SHORT -> {
-                buffer.ensureCapacity(1).put(value[0])
+                ensureCapacity(1)
+                buffer.writeByte(value[0])
             }
 
             value.size <= MAX_SHORT_LENGTH -> {
-                buffer.ensureCapacity(1 + value.size)
-                buffer.put((RLP_STRING_SHORT + value.size).toByte())
-                buffer.put(value)
+                ensureCapacity(1 + value.size)
+                buffer.writeByte((RLP_STRING_SHORT + value.size).toByte())
+                buffer.writeBytes(value)
             }
 
             else -> {
                 val lengthOfSize = lengthOfSizeInBytes(value.size)
-                buffer.ensureCapacity(1 + lengthOfSize + value.size)
+                ensureCapacity(1 + lengthOfSize + value.size)
 
-                buffer.put((RLP_STRING_LONG + lengthOfSize).toByte())
+                buffer.writeByte((RLP_STRING_LONG + lengthOfSize).toByte())
                 encodeSize(lengthOfSize, value.size)
-                buffer.put(value)
+                buffer.writeBytes(value)
             }
         }
         return this
@@ -242,42 +256,42 @@ class RlpEncoder @JvmOverloads constructor(
 
     private fun encodeSize(lengthOfSize: Int, size: Int) {
         when (lengthOfSize) {
-            1 -> buffer.put((size and 0xff).toByte())
+            1 -> buffer.writeByte((size and 0xff).toByte())
 
             2 -> {
-                buffer.put((size shr 8 and 0xff).toByte())
-                buffer.put((size and 0xff).toByte())
+                buffer.writeByte((size shr 8 and 0xff).toByte())
+                buffer.writeByte((size and 0xff).toByte())
             }
 
             3 -> {
-                buffer.put((size shr 16 and 0xff).toByte())
-                buffer.put((size shr 8 and 0xff).toByte())
-                buffer.put((size and 0xff).toByte())
+                buffer.writeByte((size shr 16 and 0xff).toByte())
+                buffer.writeByte((size shr 8 and 0xff).toByte())
+                buffer.writeByte((size and 0xff).toByte())
             }
 
             4 -> {
-                buffer.put((size shr 24 and 0xff).toByte())
-                buffer.put((size shr 16 and 0xff).toByte())
-                buffer.put((size shr 8 and 0xff).toByte())
-                buffer.put((size and 0xff).toByte())
+                buffer.writeByte((size shr 24 and 0xff).toByte())
+                buffer.writeByte((size shr 16 and 0xff).toByte())
+                buffer.writeByte((size shr 8 and 0xff).toByte())
+                buffer.writeByte((size and 0xff).toByte())
             }
         }
     }
 
-    private fun ByteBuffer.ensureCapacity(sizeIncrement: Int): ByteBuffer {
-        if (isExactSize || remaining() >= sizeIncrement) {
-            return this
+    private fun ensureCapacity(sizeIncrement: Int) {
+        val remaining = array.size - buffer.position()
+        if (isExactSize || remaining >= sizeIncrement) {
+            return
         }
 
-        val newCapacity = max(capacity() + sizeIncrement, (capacity() * BUFFER_GROWTH_FACTOR).toInt())
-        val newBuffer = buffer.array().copyOf(newCapacity)
+        val originalPosition = buffer.position()
+        val newCapacity = max(array.size + sizeIncrement, (array.size * BUFFER_GROWTH_FACTOR).toInt())
 
-        val originalPosition = position()
+        // Resize the array in place using copyOf
+        array = array.copyOf(newCapacity)
 
-        buffer = ByteBuffer.wrap(newBuffer)
+        buffer = PlatformBuffer.wrap(array)
         buffer.position(originalPosition)
-
-        return buffer
     }
 
     companion object {

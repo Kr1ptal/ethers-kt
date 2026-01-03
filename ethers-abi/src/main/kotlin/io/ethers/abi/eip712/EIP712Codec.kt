@@ -1,5 +1,7 @@
 package io.ethers.abi.eip712
 
+import com.ditchoom.buffer.PlatformBuffer
+import com.ditchoom.buffer.wrap
 import io.ethers.abi.AbiCodec
 import io.ethers.abi.AbiType
 import io.ethers.abi.ContractStruct
@@ -7,7 +9,6 @@ import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.crypto.Hashing
 import java.math.BigInteger
-import java.nio.ByteBuffer
 
 object EIP712Codec {
     /**
@@ -250,23 +251,22 @@ object EIP712Codec {
      */
     fun hashStruct(abi: AbiType.Struct<*>, tuple: List<Any>): ByteArray {
         // typeHash + encoded data words
-        val buff = ByteBuffer.allocate(
-            AbiCodec.WORD_SIZE_BYTES * (1 + abi.fields.size),
-        )
+        val arr = ByteArray(AbiCodec.WORD_SIZE_BYTES * (1 + abi.fields.size))
+        val buff = PlatformBuffer.wrap(arr)
 
         // typeHash
         val encodedType = encodeType(abi)
-        buff.put(Hashing.keccak256(encodedType.toByteArray(Charsets.UTF_8)))
+        buff.writeBytes(Hashing.keccak256(encodedType.toByteArray(Charsets.UTF_8)))
 
         // encoded data words
         for (i in 0 until tuple.size) {
             val type = abi.fields[i].type
             val value = tuple[i]
 
-            buff.put(encodeDataWord(value, type))
+            buff.writeBytes(encodeDataWord(value, type))
         }
 
-        return Hashing.keccak256(buff.array())
+        return Hashing.keccak256(arr)
     }
 
     /**
@@ -301,22 +301,21 @@ object EIP712Codec {
         val typeHash = Hashing.keccak256(encodedType.toByteArray(Charsets.UTF_8))
 
         // Allocate buffer for typeHash + encoded data words
-        val buff = ByteBuffer.allocate(
-            AbiCodec.WORD_SIZE_BYTES * (1 + fields.size),
-        )
+        val arr = ByteArray(AbiCodec.WORD_SIZE_BYTES * (1 + fields.size))
+        val buff = PlatformBuffer.wrap(arr)
 
         // Add typeHash
-        buff.put(typeHash)
+        buff.writeBytes(typeHash)
 
         // Encode each field
         for (field in fields) {
             val value = message[field.name]
                 ?: throw IllegalArgumentException("Field '${field.name}' not found in message")
 
-            buff.put(encodeDataWord(value, field.type, types))
+            buff.writeBytes(encodeDataWord(value, field.type, types))
         }
 
-        return Hashing.keccak256(buff.array())
+        return Hashing.keccak256(arr)
     }
 
     /**
@@ -356,12 +355,13 @@ object EIP712Codec {
             val innerType = fieldType.take(arrayStartIndex)
 
             // For arrays, hash the concatenated encoded elements
-            val buff = ByteBuffer.allocate(array.size * AbiCodec.WORD_SIZE_BYTES)
+            val arr = ByteArray(array.size * AbiCodec.WORD_SIZE_BYTES)
+            val buff = PlatformBuffer.wrap(arr)
             for (element in array) {
-                buff.put(encodeDataWord(element!!, innerType, types))
+                buff.writeBytes(encodeDataWord(element!!, innerType, types))
             }
 
-            return Hashing.keccak256(buff.array())
+            return Hashing.keccak256(arr)
         }
 
         // third, handle remaining primitive types
@@ -414,20 +414,22 @@ object EIP712Codec {
 
             is AbiType.Array<*> -> {
                 val array = value as List<*>
-                val buff = ByteBuffer.allocate(array.size * AbiCodec.WORD_SIZE_BYTES)
+                val arr = ByteArray(array.size * AbiCodec.WORD_SIZE_BYTES)
+                val buff = PlatformBuffer.wrap(arr)
                 for (i in 0 until array.size) {
-                    buff.put(encodeDataWord(array[i] as Any, type.type))
+                    buff.writeBytes(encodeDataWord(array[i] as Any, type.type))
                 }
-                buff.array()
+                arr
             }
 
             is AbiType.FixedArray<*> -> {
                 val array = value as List<*>
-                val buff = ByteBuffer.allocate(array.size * AbiCodec.WORD_SIZE_BYTES)
+                val arr = ByteArray(array.size * AbiCodec.WORD_SIZE_BYTES)
+                val buff = PlatformBuffer.wrap(arr)
                 for (i in 0 until array.size) {
-                    buff.put(encodeDataWord(array[i] as Any, type.type))
+                    buff.writeBytes(encodeDataWord(array[i] as Any, type.type))
                 }
-                buff.array()
+                arr
             }
         }
 

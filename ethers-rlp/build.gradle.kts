@@ -6,6 +6,8 @@ plugins {
 }
 
 dependencies {
+    implementation(libs.ditchoom.buffer)
+
     testImplementation(libs.bundles.kotest)
 
     jmhImplementation(libs.jmh.core)
