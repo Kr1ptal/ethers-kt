@@ -110,7 +110,8 @@ Multiple options for transaction signing:
 
 The project uses Kotest and JUnit for testing. Tests are organized by module:
 - Unit tests are located in each module's `src/test` directory
-- Integration tests using real contract interactions are in the examples
+- Bug fixes must include a regression test that explicitly exercises the fixed behavior to prevent regressions
+- New features must have tests covering the happy path, obvious failures, and edge cases
 
 ## Performance Guidelines
 
