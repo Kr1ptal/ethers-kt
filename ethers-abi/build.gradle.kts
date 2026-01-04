@@ -1,3 +1,5 @@
+import com.fasterxml.jackson.databind.ObjectMapper
+
 @Suppress("DSL_SCOPE_VIOLATION")
 plugins {
     `project-conventions`
@@ -13,7 +15,10 @@ staticDataGenerator {
             inputFile.set(file("src/main/resources/multicall3-deployments.json"))
             packageName.set("io.ethers.abi.call")
             objectName.set("Multicall3DeploymentsData")
-            generatorType.set("multicall3-deployments")
+            propertyName.set("DEPLOYMENTS")
+            data { file ->
+                ObjectMapper().readTree(file)
+            }
         }
     }
 }

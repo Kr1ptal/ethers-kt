@@ -1,3 +1,5 @@
+import com.fasterxml.jackson.databind.ObjectMapper
+
 plugins {
     `project-conventions`
     `maven-publish-conventions`
@@ -10,7 +12,12 @@ staticDataGenerator {
             inputFile.set(file("src/main/resources/bip39/wordlist_english.txt"))
             packageName.set("io.ethers.crypto.bip39")
             objectName.set("BIP39WordListEnglishData")
-            generatorType.set("bip39-wordlist")
+            propertyName.set("WORDS")
+            data { file ->
+                val words = file.readLines().filter { it.isNotBlank() }
+                require(words.size == 2048) { "BIP39 wordlist must contain exactly 2048 words, found ${words.size}" }
+                ObjectMapper().valueToTree(words)
+            }
         }
     }
 }

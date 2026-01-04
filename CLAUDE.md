@@ -113,6 +113,10 @@ The project uses Kotest and JUnit for testing. Tests are organized by module:
 - Bug fixes must include a regression test that explicitly exercises the fixed behavior to prevent regressions
 - New features must have tests covering the happy path, obvious failures, and edge cases
 
+## Code Style Guidelines
+
+1. **Use regular imports, not fully qualified names**: Always use import statements at the top of the file rather than fully qualified class names inline. The only exception is when there's a naming conflict with another class that's already imported in the same file.
+
 ## Performance Guidelines
 
 1. **Avoid unnecessary allocations and copies**: Return or reuse existing data structures directly instead of creating copies. If you already have the data in the right format, don't copy it.
