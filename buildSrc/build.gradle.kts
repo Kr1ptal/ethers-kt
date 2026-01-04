@@ -15,4 +15,8 @@ dependencies {
     implementation(platform(libs.ktlint.bom))
     implementation(libs.ktlint.gradle)
     implementation(libs.ktlint.sarif)
+
+    // For static data code generation
+    implementation(libs.kotlinpoet)
+    implementation(libs.jackson.databind)
 }
