@@ -8,7 +8,7 @@ plugins {
 
 staticDataGenerator {
     generators {
-        create("bip39Wordlist") {
+        create("bip39EnglishWordlist") {
             inputFile.set(file("src/main/resources/bip39/wordlist_english.txt"))
             packageName.set("io.ethers.crypto.bip39")
             propertyName.set("WORDS")

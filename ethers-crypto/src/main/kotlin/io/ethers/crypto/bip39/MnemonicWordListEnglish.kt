@@ -5,5 +5,5 @@ package io.ethers.crypto.bip39
  * */
 data object MnemonicWordListEnglish : MnemonicWordList {
     override val separator: Char = ' '
-    override val words: List<String> = Bip39WordlistData.WORDS.asList()
+    override val words: List<String> = Bip39EnglishWordlistData.WORDS.asList()
 }
