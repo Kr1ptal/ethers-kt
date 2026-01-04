@@ -9,30 +9,34 @@ import com.squareup.kotlinpoet.TypeName
 import com.squareup.kotlinpoet.TypeSpec
 import com.squareup.kotlinpoet.asClassName
 import com.squareup.kotlinpoet.asTypeName
+import org.gradle.api.DefaultTask
+import org.gradle.api.Named
+import org.gradle.api.NamedDomainObjectContainer
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.CacheableTask
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFile
+import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
-import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.TaskAction
+import org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension
 import java.io.File
 
 /**
  * Extension for configuring static data generation.
  */
 abstract class StaticDataGeneratorExtension {
-    abstract val generators: org.gradle.api.NamedDomainObjectContainer<StaticDataConfig>
+    abstract val generators: NamedDomainObjectContainer<StaticDataConfig>
 }
 
 /**
  * Configuration for a single static data generator.
  */
-abstract class StaticDataConfig(val configName: String) : org.gradle.api.Named {
+abstract class StaticDataConfig(val configName: String) : Named {
     abstract val inputFile: RegularFileProperty
     abstract val packageName: Property<String>
     abstract val objectName: Property<String>
@@ -55,7 +59,7 @@ abstract class StaticDataConfig(val configName: String) : org.gradle.api.Named {
  * Task that generates Kotlin source files from static data files.
  */
 @CacheableTask
-abstract class GenerateStaticDataTask : org.gradle.api.DefaultTask() {
+abstract class GenerateStaticDataTask : DefaultTask() {
     @get:InputFile
     @get:PathSensitive(PathSensitivity.RELATIVE)
     abstract val inputFile: RegularFileProperty
@@ -332,7 +336,7 @@ val generatedSourceDir = layout.buildDirectory.dir("generated/source/staticData/
 
 // Hook into Kotlin source sets when Kotlin plugin is applied
 pluginManager.withPlugin("org.jetbrains.kotlin.jvm") {
-    val kotlin = extensions.getByType<org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension>()
+    val kotlin = extensions.getByType<KotlinJvmProjectExtension>()
     kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedSourceDir)
 }
 
