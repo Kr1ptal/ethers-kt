@@ -14,7 +14,6 @@ staticDataGenerator {
         create("multicall3Deployments") {
             inputFile.set(file("src/main/resources/multicall3-deployments.json"))
             packageName.set("io.ethers.abi.call")
-            objectName.set("Multicall3DeploymentsData")
             propertyName.set("DEPLOYMENTS")
             data { file ->
                 ObjectMapper().readTree(file)

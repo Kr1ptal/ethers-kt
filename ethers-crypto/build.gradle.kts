@@ -11,7 +11,6 @@ staticDataGenerator {
         create("bip39Wordlist") {
             inputFile.set(file("src/main/resources/bip39/wordlist_english.txt"))
             packageName.set("io.ethers.crypto.bip39")
-            objectName.set("BIP39WordListEnglishData")
             propertyName.set("WORDS")
             data { file ->
                 val words = file.readLines().filter { it.isNotBlank() }

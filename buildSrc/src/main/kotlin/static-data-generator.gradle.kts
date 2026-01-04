@@ -39,7 +39,6 @@ abstract class StaticDataGeneratorExtension {
 abstract class StaticDataConfig(val configName: String) : Named {
     abstract val inputFile: RegularFileProperty
     abstract val packageName: Property<String>
-    abstract val objectName: Property<String>
     abstract val propertyName: Property<String>
 
     internal var dataProvider: ((File) -> JsonNode)? = null
@@ -53,6 +52,12 @@ abstract class StaticDataConfig(val configName: String) : Named {
     }
 
     override fun getName(): String = configName
+
+    /**
+     * Derives the object name from the config name by capitalizing first letter and appending "Data".
+     * e.g., "multicall3Deployments" -> "Multicall3DeploymentsData"
+     */
+    internal fun deriveObjectName(): String = configName.replaceFirstChar { it.uppercase() } + "Data"
 }
 
 /**
@@ -348,7 +353,7 @@ afterEvaluate {
         val task = tasks.register<GenerateStaticDataTask>(taskName) {
             inputFile.set(config.inputFile)
             packageName.set(config.packageName)
-            objectName.set(config.objectName)
+            objectName.set(config.deriveObjectName())
             propertyName.set(config.propertyName)
             outputDir.set(generatedSourceDir)
             dataProvider = config.dataProvider
