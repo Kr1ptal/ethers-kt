@@ -15,7 +15,7 @@ project.pluginManager.withPlugin("java") {
     val kotlinCompilerConfig: KotlinJvmCompilerOptions.(Boolean) -> Unit = { isTestTask ->
         val defaultArgs = listOf(
             "-progressive",
-            "-Xjvm-default=all",
+            "-jvm-default=no-compatibility",
             // TODO re-add when this is fixed: https://youtrack.jetbrains.com/issue/KT-78923
             //"-Xbackend-threads=0", // use all available processors
         )
