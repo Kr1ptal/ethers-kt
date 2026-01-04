@@ -339,13 +339,7 @@ val extension = extensions.create<StaticDataGeneratorExtension>("staticDataGener
 // Configure the output directory
 val generatedSourceDir = layout.buildDirectory.dir("generated/source/staticData/main/kotlin")
 
-// Hook into Kotlin source sets when Kotlin plugin is applied
-pluginManager.withPlugin("org.jetbrains.kotlin.jvm") {
-    val kotlin = extensions.getByType<KotlinJvmProjectExtension>()
-    kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedSourceDir)
-}
-
-// Create tasks for each generator after evaluation
+// Create tasks and wire source sets after evaluation
 afterEvaluate {
     extension.generators.forEach { config ->
         val taskName = "generate${config.name.replaceFirstChar { it.uppercase() }}StaticData"
@@ -359,18 +353,11 @@ afterEvaluate {
             dataProvider = config.dataProvider
         }
 
-        tasks.named("compileKotlin").configure {
-            dependsOn(task)
-        }
-
-        // Also wire up kapt if present
-        tasks.matching { it.name == "kaptGenerateStubsKotlin" }.configureEach {
-            dependsOn(task)
-        }
-
-        // Wire up ktlint tasks
-        tasks.matching { it.name.startsWith("runKtlint") && it.name.contains("MainSourceSet") }.configureEach {
-            dependsOn(task)
+        // Register task with Kotlin source sets - Gradle automatically infers dependencies
+        // for all consuming tasks (compileKotlin, sourcesJar, ktlint, etc.)
+        pluginManager.withPlugin("org.jetbrains.kotlin.jvm") {
+            val kotlin = extensions.getByType<KotlinJvmProjectExtension>()
+            kotlin.sourceSets.getByName("main").kotlin.srcDir(task)
         }
     }
 }
