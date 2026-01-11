@@ -30,7 +30,7 @@ sealed interface AbiTypeParameter {
         override val abiType: AbiType<*>,
         override val indexed: Boolean,
     ) : AbiTypeParameter {
-        override val apiType: TypeName = abiType.classType.kotlin.asClassName()
+        override val apiType: TypeName = abiType.classType.asClassName()
         override val originalType: String = abiType.abiType
         override val abiTypeInitializer: String
 

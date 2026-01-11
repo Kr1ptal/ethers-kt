@@ -42,8 +42,8 @@ data class EIP712Domain(
     }
 
     override val abiType = AbiType.Struct(
-        EIP712Domain::class.java,
-        { data ->
+        EIP712Domain::class,
+        { data: List<Any> ->
             var index = 0
             EIP712Domain(
                 name = if (this.name != null) data[index++] as String else null,
