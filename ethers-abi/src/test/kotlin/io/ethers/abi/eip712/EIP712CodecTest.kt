@@ -50,7 +50,7 @@ class EIP712CodecTest : FunSpec({
             // Create a simple self-referencing struct type
             val fields = mutableListOf<AbiType.Struct.Field>()
             val selfRefType = AbiType.Struct(
-                TestStruct::class.java,
+                TestStruct::class,
                 { TestStruct() },
                 fields,
             )
@@ -71,13 +71,13 @@ class EIP712CodecTest : FunSpec({
             val fieldsB = mutableListOf<AbiType.Struct.Field>()
 
             val typeA = AbiType.Struct(
-                TestStruct::class.java,
+                TestStruct::class,
                 { TestStruct() },
                 fieldsA,
             )
 
             val typeB = AbiType.Struct(
-                TestStruct::class.java,
+                TestStruct::class,
                 { TestStruct() },
                 fieldsB,
             )
@@ -101,13 +101,13 @@ class EIP712CodecTest : FunSpec({
             val fieldsB = mutableListOf<AbiType.Struct.Field>()
 
             val typeA = AbiType.Struct(
-                TestStruct::class.java,
+                TestStruct::class,
                 { TestStruct() },
                 fieldsA,
             )
 
             val typeB = AbiType.Struct(
-                TestStruct::class.java,
+                TestStruct::class,
                 { TestStruct() },
                 fieldsB,
             )

@@ -42,6 +42,7 @@ import java.io.File
 import java.math.BigInteger
 import java.util.function.Function
 import javax.lang.model.SourceVersion
+import kotlin.reflect.KClass
 import kotlin.reflect.full.functions
 import kotlin.reflect.full.memberProperties
 
@@ -978,7 +979,7 @@ class AbiContractBuilder(
      * [uniqueFunctionNames] contains a name. Each new unique name + inputs combination is added to this set. If
      * there is a collision, the function name is suffixed with the selector.
      * */
-    private fun getNextUniqueFunctionName(baseName: String, inputs: List<Class<*>>, selector: Bytes): String {
+    private fun getNextUniqueFunctionName(baseName: String, inputs: List<KClass<*>>, selector: Bytes): String {
         @Suppress("NAME_SHADOWING")
         var baseName = baseName
         if (isReservedJavaName(baseName)) {
@@ -1012,7 +1013,7 @@ class AbiContractBuilder(
     /**
      * Function uniqueness key, containing the function name and the list of input java types.
      * */
-    private data class UniqueFunction(val name: String, val inputs: List<Class<*>>)
+    private data class UniqueFunction(val name: String, val inputs: List<KClass<*>>)
 
     companion object {
         private val RESERVED_DEPLOY_FUNCTION_ARG_NAMES = setOf("provider")

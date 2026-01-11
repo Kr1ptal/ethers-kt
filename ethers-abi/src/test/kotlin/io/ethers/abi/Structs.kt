@@ -9,7 +9,7 @@ data class Inbox(val name: String, val mails: List<Mail>) : ContractStruct {
 
     companion object : StructFactory<Inbox> {
         override val abi: AbiType.Struct<Inbox> = AbiType.Struct(
-            Inbox::class.java,
+            Inbox::class,
             ::fromTuple,
             AbiType.Struct.Field("name", AbiType.String),
             AbiType.Struct.Field("mails", AbiType.Array(Mail)),
@@ -32,7 +32,7 @@ data class Mail(val from: Person, val to: Person, val contents: String) : Contra
 
     companion object : StructFactory<Mail> {
         override val abi: AbiType.Struct<Mail> = AbiType.Struct(
-            Mail::class.java,
+            Mail::class,
             ::fromTuple,
             AbiType.Struct.Field("from", Person),
             AbiType.Struct.Field("to", Person),
@@ -56,7 +56,7 @@ data class Person(val name: String, val wallet: Address) : ContractStruct {
 
     companion object : StructFactory<Person> {
         override val abi: AbiType.Struct<Person> = AbiType.Struct(
-            Person::class.java,
+            Person::class,
             ::fromTuple,
             AbiType.Struct.Field("name", AbiType.String),
             AbiType.Struct.Field("wallet", AbiType.Address),

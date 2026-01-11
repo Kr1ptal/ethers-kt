@@ -24,9 +24,9 @@ sealed interface AbiType<T : Any> {
     val abiType: kotlin.String
 
     /**
-     * Java class type of this abi type.
+     * Kotlin class type of this abi type.
      * */
-    val classType: Class<T>
+    val classType: KClass<T>
 
     /**
      * Whether this type is dynamic or has a fixed size when encoded.
@@ -35,13 +35,13 @@ sealed interface AbiType<T : Any> {
 
     data object Address : AbiType<io.ethers.core.types.Address> {
         override val abiType: kotlin.String = "address"
-        override val classType = io.ethers.core.types.Address::class.java
+        override val classType = io.ethers.core.types.Address::class
         override val isDynamic: Boolean = false
     }
 
     data class FixedBytes(val length: kotlin.Int) : AbiType<io.ethers.core.types.Bytes> {
         override val abiType: kotlin.String = "bytes$length"
-        override val classType = io.ethers.core.types.Bytes::class.java
+        override val classType = io.ethers.core.types.Bytes::class
         override val isDynamic: Boolean = false
 
         init {
@@ -53,13 +53,13 @@ sealed interface AbiType<T : Any> {
 
     data object Bytes : AbiType<io.ethers.core.types.Bytes> {
         override val abiType: kotlin.String = "bytes"
-        override val classType = io.ethers.core.types.Bytes::class.java
+        override val classType = io.ethers.core.types.Bytes::class
         override val isDynamic: Boolean = true
     }
 
     data class Int(val bitSize: kotlin.Int) : AbiType<BigInteger> {
         override val abiType: kotlin.String = "int$bitSize"
-        override val classType = BigInteger::class.java
+        override val classType = BigInteger::class
         override val isDynamic: Boolean = false
 
         init {
@@ -71,7 +71,7 @@ sealed interface AbiType<T : Any> {
 
     data class UInt(val bitSize: kotlin.Int) : AbiType<BigInteger> {
         override val abiType: kotlin.String = "uint$bitSize"
-        override val classType = BigInteger::class.java
+        override val classType = BigInteger::class
         override val isDynamic: Boolean = false
 
         init {
@@ -83,13 +83,13 @@ sealed interface AbiType<T : Any> {
 
     data object Bool : AbiType<Boolean> {
         override val abiType: kotlin.String = "bool"
-        override val classType = Boolean::class.java
+        override val classType = Boolean::class
         override val isDynamic: Boolean = false
     }
 
     data object String : AbiType<kotlin.String> {
         override val abiType: kotlin.String = "string"
-        override val classType = kotlin.String::class.java
+        override val classType = kotlin.String::class
         override val isDynamic: Boolean = true
     }
 
@@ -97,7 +97,7 @@ sealed interface AbiType<T : Any> {
         override val abiType: kotlin.String = "${type.abiType}[$length]"
 
         @Suppress("UNCHECKED_CAST")
-        override val classType = List::class.java as Class<List<T>>
+        override val classType = List::class as KClass<List<T>>
         override val isDynamic: Boolean = type.isDynamic
 
         companion object {
@@ -113,7 +113,7 @@ sealed interface AbiType<T : Any> {
         override val abiType: kotlin.String = "${type.abiType}[]"
 
         @Suppress("UNCHECKED_CAST")
-        override val classType = List::class.java as Class<List<T>>
+        override val classType = List::class as KClass<List<T>>
         override val isDynamic: Boolean = true
 
         companion object {
@@ -129,7 +129,7 @@ sealed interface AbiType<T : Any> {
         classType: Class<T>,
         factory: Function<List<Any>, T>,
         val fields: List<Field>,
-    ) : Tuple<T>(classType, factory, fields.map { it.type }), AbiType<T> {
+    ) : Tuple<T>(classType.kotlin, factory, fields.map { it.type }), AbiType<T> {
         constructor(classType: Class<T>, factory: Function<List<Any>, T>, vararg fields: Field) : this(
             classType,
             factory,
@@ -139,6 +139,12 @@ sealed interface AbiType<T : Any> {
         constructor(classType: Class<T>, factory: StructFactory<T>, fields: List<Field>) : this(
             classType,
             factory::fromTuple,
+            fields,
+        )
+
+        constructor(classType: KClass<T>, factory: Function<List<Any>, T>, fields: List<Field>) : this(
+            classType.java,
+            factory,
             fields,
         )
 
@@ -167,7 +173,7 @@ sealed interface AbiType<T : Any> {
         /**
          * Get the name of the struct.
          * */
-        val name: kotlin.String = classType.simpleName
+        val name: kotlin.String = classType.simpleName!!
 
         /**
          * Get the root EIP-712 definition of this struct.
@@ -210,10 +216,16 @@ sealed interface AbiType<T : Any> {
     }
 
     open class Tuple<T : Any>(
-        override val classType: Class<T>,
+        override val classType: KClass<T>,
         val factory: Function<List<Any>, *>,
         val types: List<AbiType<*>>,
     ) : AbiType<T> {
+        constructor(classType: Class<T>, factory: Function<List<Any>, *>, types: List<AbiType<*>>) : this(
+            classType.kotlin,
+            factory,
+            types,
+        )
+
         override val abiType: kotlin.String = run {
             val builder = StringBuilder("(")
             for (i in types.indices) {
@@ -259,7 +271,7 @@ sealed interface AbiType<T : Any> {
         }
 
         companion object {
-            private val CLASS_TYPE_TUPLE = emptyList<Any>()::class.java
+            private val CLASS_TYPE_TUPLE = emptyList<Any>()::class
             private val TUPLE_FACTORY = Function.identity<List<Any>>()
 
             /**
