@@ -1,6 +1,7 @@
 package io.ethers.providers
 
 import java.io.InputStream
+import java.util.concurrent.CompletableFuture
 
 /**
  * HTTP transport abstraction. The transport is pre-configured with URL and headers.
@@ -10,51 +11,27 @@ interface HttpTransport {
      * Execute an HTTP POST request with the given body.
      *
      * @param body The request body bytes
-     * @param callback Callback for handling the response
+     * @return A future that completes with the result
      */
-    fun execute(body: ByteArray, callback: HttpCallback)
+    fun execute(body: ByteArray): CompletableFuture<HttpResult>
 }
 
 /**
- * Callback interface for HTTP responses.
+ * Result of an HTTP request.
  */
-interface HttpCallback {
+sealed class HttpResult {
     /**
-     * Called when a response is received (may be successful or not).
-     *
-     * @param response The HTTP response
+     * Successful HTTP response (2xx status code).
      */
-    fun onResponse(response: HttpResponse)
+    class Success(val body: InputStream) : HttpResult()
 
     /**
-     * Called when the request fails (network error, etc.).
-     *
-     * @param error The exception that occurred
+     * HTTP error response (non-2xx status code).
      */
-    fun onFailure(error: Throwable)
-}
-
-/**
- * HTTP response abstraction.
- */
-interface HttpResponse : AutoCloseable {
-    /**
-     * Whether the response was successful (2xx status code).
-     */
-    val isSuccessful: Boolean
+    class HttpError(val code: Int, val message: String, val body: InputStream) : HttpResult()
 
     /**
-     * The HTTP status code.
+     * Network or other failure (no response received).
      */
-    val code: Int
-
-    /**
-     * The HTTP status message.
-     */
-    val message: String
-
-    /**
-     * The response body as an input stream.
-     */
-    val body: InputStream
+    class Failure(val error: Throwable) : HttpResult()
 }
