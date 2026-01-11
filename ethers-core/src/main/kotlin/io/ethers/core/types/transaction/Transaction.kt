@@ -109,7 +109,7 @@ sealed class TxType(val type: Int) {
     class Unsupported(type: Int) : TxType(type) {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
-            if (javaClass != other?.javaClass) return false
+            if (other == null || this::class != other::class) return false
             return type == (other as Unsupported).type
         }
 

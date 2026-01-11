@@ -10,8 +10,8 @@ import kotlin.contracts.contract
  * Result represents a value that can be either a [Success] or a [Failure].
  * */
 // code is optimized to avoid branching operators (if/else) for better JIT compiler optimizations
-sealed class Result<out T : Any?, out E : Result.Error> {
-    class Success<out T : Any?>(val value: T) : Result<T, Nothing>() {
+sealed class Result<out T, out E : Result.Error> {
+    class Success<out T>(val value: T) : Result<T, Nothing>() {
         override fun <R> fold(
             onSuccess: Transformer<Success<T>, R>,
             onFailure: Transformer<Failure<Nothing>, R>,
@@ -23,7 +23,7 @@ sealed class Result<out T : Any?, out E : Result.Error> {
 
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
-            if (javaClass != other?.javaClass) return false
+            if (other == null || this::class != other::class) return false
 
             other as Success<*>
 
@@ -45,7 +45,7 @@ sealed class Result<out T : Any?, out E : Result.Error> {
 
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
-            if (javaClass != other?.javaClass) return false
+            if (other == null || this::class != other::class) return false
 
             other as Failure<*>
 

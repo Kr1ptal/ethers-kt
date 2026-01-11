@@ -226,7 +226,7 @@ public class EnsRegistry(
     ) : EnsRegistry.Event() {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
-            if (javaClass != other?.javaClass) return false
+            if (other == null || this::class != other::class) return false
             other as ApprovalForAll
             if (owner != other.owner) return false
             if (operator != other.operator) return false
@@ -279,7 +279,7 @@ public class EnsRegistry(
     ) : EnsRegistry.Event() {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
-            if (javaClass != other?.javaClass) return false
+            if (other == null || this::class != other::class) return false
             other as NewOwner
             if (node != other.node) return false
             if (label != other.label) return false
@@ -331,7 +331,7 @@ public class EnsRegistry(
     ) : EnsRegistry.Event() {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
-            if (javaClass != other?.javaClass) return false
+            if (other == null || this::class != other::class) return false
             other as NewResolver
             if (node != other.node) return false
             if (resolver != other.resolver) return false
@@ -381,7 +381,7 @@ public class EnsRegistry(
     ) : EnsRegistry.Event() {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
-            if (javaClass != other?.javaClass) return false
+            if (other == null || this::class != other::class) return false
             other as NewTTL
             if (node != other.node) return false
             if (ttl != other.ttl) return false
@@ -431,7 +431,7 @@ public class EnsRegistry(
     ) : EnsRegistry.Event() {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
-            if (javaClass != other?.javaClass) return false
+            if (other == null || this::class != other::class) return false
             other as Transfer
             if (node != other.node) return false
             if (owner != other.owner) return false

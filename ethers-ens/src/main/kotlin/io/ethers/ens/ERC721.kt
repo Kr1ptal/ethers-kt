@@ -307,7 +307,7 @@ public class ERC721(
     ) : ERC721.Event() {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
-            if (javaClass != other?.javaClass) return false
+            if (other == null || this::class != other::class) return false
             other as Approval
             if (_owner != other._owner) return false
             if (_approved != other._approved) return false
@@ -360,7 +360,7 @@ public class ERC721(
     ) : ERC721.Event() {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
-            if (javaClass != other?.javaClass) return false
+            if (other == null || this::class != other::class) return false
             other as ApprovalForAll
             if (_owner != other._owner) return false
             if (_operator != other._operator) return false
@@ -413,7 +413,7 @@ public class ERC721(
     ) : ERC721.Event() {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
-            if (javaClass != other?.javaClass) return false
+            if (other == null || this::class != other::class) return false
             other as Transfer
             if (_from != other._from) return false
             if (_to != other._to) return false

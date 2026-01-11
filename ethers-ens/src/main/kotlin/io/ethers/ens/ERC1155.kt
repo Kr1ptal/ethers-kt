@@ -243,7 +243,7 @@ public class ERC1155(
     ) : ERC1155.Event() {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
-            if (javaClass != other?.javaClass) return false
+            if (other == null || this::class != other::class) return false
             other as ApprovalForAll
             if (_owner != other._owner) return false
             if (_operator != other._operator) return false
@@ -311,7 +311,7 @@ public class ERC1155(
     ) : ERC1155.Event() {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
-            if (javaClass != other?.javaClass) return false
+            if (other == null || this::class != other::class) return false
             other as TransferBatch
             if (_operator != other._operator) return false
             if (_from != other._from) return false
@@ -387,7 +387,7 @@ public class ERC1155(
     ) : ERC1155.Event() {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
-            if (javaClass != other?.javaClass) return false
+            if (other == null || this::class != other::class) return false
             other as TransferSingle
             if (_operator != other._operator) return false
             if (_from != other._from) return false
@@ -460,7 +460,7 @@ public class ERC1155(
     ) : ERC1155.Event() {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
-            if (javaClass != other?.javaClass) return false
+            if (other == null || this::class != other::class) return false
             other as URI
             if (_value != other._value) return false
             if (_id != other._id) return false
