@@ -15,19 +15,9 @@ import io.ethers.logger.err
 import io.ethers.logger.getLogger
 import io.ethers.logger.trc
 import io.ethers.providers.types.BatchRpcRequest
-import okhttp3.Call
-import okhttp3.Callback
-import okhttp3.Headers
-import okhttp3.HttpUrl.Companion.toHttpUrl
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody
-import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.Response
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
-import java.io.IOException
 import java.io.InputStream
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.atomic.AtomicLong
@@ -38,21 +28,21 @@ import java.util.function.Function
  * supported.
  */
 class HttpClient(
-    url: String,
-    private val client: OkHttpClient,
-    headers: Map<String, String> = emptyMap(),
+    private val transport: HttpTransport,
 ) : JsonRpcClient {
     @JvmOverloads
     constructor(url: String, config: RpcClientConfig = RpcClientConfig()) : this(
-        url,
-        config.client!!,
-        config.requestHeaders,
+        OkHttpTransport(url, config.requestHeaders, config.client!!),
     )
 
+    constructor(
+        url: String,
+        client: OkHttpClient,
+        headers: Map<String, String> = emptyMap(),
+    ) : this(OkHttpTransport(url, headers, client))
+
     private val LOG = getLogger()
-    private val httpUrl = url.toHttpUrl()
     private val requestId = AtomicLong(1)
-    private val headers = Headers.Builder().apply { headers.forEach { (k, v) -> add(k, v) } }.build()
 
     override fun requestBatch(batch: BatchRpcRequest): CompletableFuture<Boolean> {
         batch.markAsSent()
@@ -64,103 +54,105 @@ class HttpClient(
         val ret = CompletableFuture<Boolean>()
 
         val (body, requestIndexPerId) = batch.toRequestBody()
-        val call = client.newCall(Request.Builder().url(httpUrl).headers(headers).post(body).build())
 
-        call.enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                LOG.err(e) { "Error sending batch request" }
+        transport.execute(
+            body,
+            object : HttpCallback {
+                override fun onFailure(error: Throwable) {
+                    LOG.err(error) { "Error sending batch request" }
 
-                // complete all requests and the batch future
-                val response = getResponseFromException(e)
-                for (i in batch.responses.indices) {
-                    batch.responses[i].complete(response)
+                    // complete all requests and the batch future
+                    val response = getResponseFromException(error)
+                    for (i in batch.responses.indices) {
+                        batch.responses[i].complete(response)
+                    }
+
+                    ret.complete(false)
                 }
 
-                ret.complete(false)
-            }
-
-            override fun onResponse(call: Call, response: Response) {
-                response.use {
-                    try {
-                        var stream = it.body.byteStream()
-                        LOG.trc {
-                            // reading from the response body consumes it, so we need to create a new stream
-                            val arr = stream.readBytes()
-                            stream = ByteArrayInputStream(arr)
-                            "Batch response: ${String(arr)}".removeSuffix("\n")
-                        }
-
-                        if (!it.isSuccessful) {
-                            val bytes = stream.readBytes()
-
-                            // first, try to decode a JSON response
-                            try {
-                                ByteArrayInputStream(bytes).useJsonParser {
-                                    val parser = this
-
-                                    parser.forEachArrayElement {
-                                        var index = -1
-                                        val result = parser.decodeNextResult { id ->
-                                            index = requestIndexPerId[id] ?: throw Exception("Invalid response ID: $id")
-                                            batch.requests[index].resultDecoder
-                                        }
-
-                                        batch.responses[index].complete(result)
-                                    }
-                                }
-
-                                ret.complete(true)
-                                return
-                            } catch (_: Exception) {
+                override fun onResponse(response: HttpResponse) {
+                    response.use {
+                        try {
+                            var stream = it.body
+                            LOG.trc {
+                                // reading from the response body consumes it, so we need to create a new stream
+                                val arr = stream.readBytes()
+                                stream = ByteArrayInputStream(arr)
+                                "Batch response: ${String(arr)}".removeSuffix("\n")
                             }
 
-                            // second, if decoding fails, return the response as a message and complete all requests
-                            // including the batch future
-                            val message = "HTTP ${it.code}: ${it.message}"
-                            val data = Jackson.MAPPER.valueToTree<JsonNode>(String(bytes))
-                            val error = RpcError(RpcError.CODE_CALL_FAILED, message, data)
-                            val failure = failure(error)
+                            if (!it.isSuccessful) {
+                                val bytes = stream.readBytes()
 
-                            LOG.err { "Batch request failed: $error" }
+                                // first, try to decode a JSON response
+                                try {
+                                    ByteArrayInputStream(bytes).useJsonParser {
+                                        val parser = this
 
+                                        parser.forEachArrayElement {
+                                            var index = -1
+                                            val result = parser.decodeNextResult { id ->
+                                                index = requestIndexPerId[id] ?: throw Exception("Invalid response ID: $id")
+                                                batch.requests[index].resultDecoder
+                                            }
+
+                                            batch.responses[index].complete(result)
+                                        }
+                                    }
+
+                                    ret.complete(true)
+                                    return
+                                } catch (_: Exception) {
+                                }
+
+                                // second, if decoding fails, return the response as a message and complete all requests
+                                // including the batch future
+                                val message = "HTTP ${it.code}: ${it.message}"
+                                val data = Jackson.MAPPER.valueToTree<JsonNode>(String(bytes))
+                                val error = RpcError(RpcError.CODE_CALL_FAILED, message, data)
+                                val failure = failure(error)
+
+                                LOG.err { "Batch request failed: $error" }
+
+                                for (i in batch.responses.indices) {
+                                    batch.responses[i].complete(failure)
+                                }
+
+                                ret.complete(false)
+                                return
+                            }
+
+                            stream.useJsonParser {
+                                val parser = this
+
+                                parser.forEachArrayElement {
+                                    var index = -1
+                                    val result = parser.decodeNextResult { id ->
+                                        index = requestIndexPerId[id] ?: throw Exception("Invalid response ID: $id")
+                                        batch.requests[index].resultDecoder
+                                    }
+
+                                    batch.responses[index].complete(result)
+                                }
+                            }
+
+                            ret.complete(true)
+                        } catch (e: Exception) {
+                            LOG.err(e) { "Error processing batch response" }
+                            val rpcResponse = getResponseFromException(e)
+
+                            // complete all requests and the batch future
                             for (i in batch.responses.indices) {
-                                batch.responses[i].complete(failure)
+                                batch.responses[i].complete(rpcResponse)
                             }
 
                             ret.complete(false)
                             return
                         }
-
-                        stream.useJsonParser {
-                            val parser = this
-
-                            parser.forEachArrayElement {
-                                var index = -1
-                                val result = parser.decodeNextResult { id ->
-                                    index = requestIndexPerId[id] ?: throw Exception("Invalid response ID: $id")
-                                    batch.requests[index].resultDecoder
-                                }
-
-                                batch.responses[index].complete(result)
-                            }
-                        }
-
-                        ret.complete(true)
-                    } catch (e: Exception) {
-                        LOG.err(e) { "Error processing batch response" }
-                        val rpcResponse = getResponseFromException(e)
-
-                        // complete all requests and the batch future
-                        for (i in batch.responses.indices) {
-                            batch.responses[i].complete(rpcResponse)
-                        }
-
-                        ret.complete(false)
-                        return
                     }
                 }
-            }
-        })
+            },
+        )
 
         return ret
     }
@@ -173,56 +165,58 @@ class HttpClient(
         val ret = CompletableFuture<Result<T, RpcError>>()
 
         val body = createJsonRpcRequestBody(method, params)
-        val call = client.newCall(Request.Builder().url(httpUrl).headers(headers).post(body).build())
 
-        call.enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                LOG.err(e) { "Error sending request for method=$method, params=${params.contentToString()}" }
+        transport.execute(
+            body,
+            object : HttpCallback {
+                override fun onFailure(error: Throwable) {
+                    LOG.err(error) { "Error sending request for method=$method, params=${params.contentToString()}" }
 
-                ret.complete(getResponseFromException(e))
-            }
+                    ret.complete(getResponseFromException(error))
+                }
 
-            override fun onResponse(call: Call, response: Response) {
-                response.use {
-                    try {
-                        var stream = it.body.byteStream()
-                        LOG.trc {
-                            // reading from the response body consumes it, so we need to create a new stream
-                            val arr = stream.readBytes()
-                            stream = ByteArrayInputStream(arr)
-                            "Response: ${String(arr)}".removeSuffix("\n")
-                        }
-
-                        if (!it.isSuccessful) {
-                            val bytes = stream.readBytes()
-
-                            // first, try to decode a JSON response
-                            try {
-                                ret.complete(ByteArrayInputStream(bytes).decodeResult(resultDecoder))
-                                return
-                            } catch (_: Exception) {
+                override fun onResponse(response: HttpResponse) {
+                    response.use {
+                        try {
+                            var stream = it.body
+                            LOG.trc {
+                                // reading from the response body consumes it, so we need to create a new stream
+                                val arr = stream.readBytes()
+                                stream = ByteArrayInputStream(arr)
+                                "Response: ${String(arr)}".removeSuffix("\n")
                             }
 
-                            // second, if decoding fails, return the response as a message
-                            val message = "HTTP ${it.code}: ${it.message}"
-                            val data = Jackson.MAPPER.valueToTree<JsonNode>(String(bytes))
-                            val error = RpcError(RpcError.CODE_CALL_FAILED, message, data)
-                            LOG.err { "Call failed for method=$method, params=${params.contentToString()}: $error" }
+                            if (!it.isSuccessful) {
+                                val bytes = stream.readBytes()
 
-                            ret.complete(failure(error))
+                                // first, try to decode a JSON response
+                                try {
+                                    ret.complete(ByteArrayInputStream(bytes).decodeResult(resultDecoder))
+                                    return
+                                } catch (_: Exception) {
+                                }
+
+                                // second, if decoding fails, return the response as a message
+                                val message = "HTTP ${it.code}: ${it.message}"
+                                val data = Jackson.MAPPER.valueToTree<JsonNode>(String(bytes))
+                                val error = RpcError(RpcError.CODE_CALL_FAILED, message, data)
+                                LOG.err { "Call failed for method=$method, params=${params.contentToString()}: $error" }
+
+                                ret.complete(failure(error))
+                                return
+                            }
+
+                            ret.complete(stream.decodeResult(resultDecoder))
+                        } catch (e: Exception) {
+                            LOG.err(e) { "Error processing response for method=$method, params=${params.contentToString()}" }
+
+                            ret.complete(getResponseFromException(e))
                             return
                         }
-
-                        ret.complete(stream.decodeResult(resultDecoder))
-                    } catch (e: Exception) {
-                        LOG.err(e) { "Error processing response for method=$method, params=${params.contentToString()}" }
-
-                        ret.complete(getResponseFromException(e))
-                        return
                     }
                 }
-            }
-        })
+            },
+        )
 
         return ret
     }
@@ -284,7 +278,7 @@ class HttpClient(
         // no-op
     }
 
-    private fun BatchRpcRequest.toRequestBody(): Pair<RequestBody, HashMap<Long, Int>> {
+    private fun BatchRpcRequest.toRequestBody(): Pair<ByteArray, HashMap<Long, Int>> {
         val requestIndexPerId = HashMap<Long, Int>(requests.size, 1.0F)
 
         val output = DirectByteArrayOutputStream(requests.size * BYTE_BUFFER_DEFAULT_SIZE)
@@ -304,10 +298,10 @@ class HttpClient(
         }
 
         LOG.trc { "Request: ${String(output.toByteArray())}" }
-        return output.internalBuffer.toRequestBody(JSON_MEDIA_TYPE, byteCount = output.size()) to requestIndexPerId
+        return output.toByteArray() to requestIndexPerId
     }
 
-    private fun createJsonRpcRequestBody(method: String, params: Array<*>): RequestBody {
+    private fun createJsonRpcRequestBody(method: String, params: Array<*>): ByteArray {
         val output = DirectByteArrayOutputStream(BYTE_BUFFER_DEFAULT_SIZE)
 
         output.use { out ->
@@ -316,7 +310,7 @@ class HttpClient(
         }
 
         LOG.trc { "Request: ${String(output.toByteArray())}" }
-        return output.internalBuffer.toRequestBody(JSON_MEDIA_TYPE, byteCount = output.size())
+        return output.toByteArray()
     }
 
     private class DirectByteArrayOutputStream(size: Int) : ByteArrayOutputStream(size) {
@@ -333,7 +327,6 @@ class HttpClient(
         // one of the smallest possible requests, `eth_chainID`, takes 59 bytes. Most requests use more,
         // around 100 bytes, so we use a buffer of 128 bytes to try and avoid reallocations in most cases
         private const val BYTE_BUFFER_DEFAULT_SIZE = 128
-        private val JSON_MEDIA_TYPE = "application/json".toMediaType()
 
         private val ERROR_SUBSCRIPTION_UNSUPPORTED = failure(
             RpcError(
@@ -358,11 +351,11 @@ class HttpClient(
 
         internal val ERROR_CALL_TIMEOUT = failure(RpcError(RpcError.CODE_CALL_TIMEOUT, "Call timeout", null))
 
-        private fun getResponseFromException(e: Exception): Result<Nothing, RpcError> {
+        private fun getResponseFromException(e: Throwable): Result<Nothing, RpcError> {
             val msg = e.message
             return when {
                 msg != null && msg.contains("timeout") -> ERROR_CALL_TIMEOUT
-                else -> failure(RpcError(RpcError.CODE_CALL_FAILED, msg ?: "call failed", null, e))
+                else -> failure(RpcError(RpcError.CODE_CALL_FAILED, msg ?: "call failed", null, e as? Exception))
             }
         }
     }
