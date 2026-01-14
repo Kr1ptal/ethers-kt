@@ -350,6 +350,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         val sender = call.from
         val nonceFut = when {
             call.nonce >= 0L -> null
+
             sender == null -> return failure(
                 RpcError(
                     RpcError.CODE_CALL_FAILED,
@@ -365,7 +366,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             else -> provider.estimateGas(call, BlockId.LATEST).sendAsync()
         }
 
-        val txFeesSet = call.gasPrice != null || call.gasTipCap != null && call.gasFeeCap != null
+        val txFeesSet = call.gasPrice != null || (call.gasTipCap != null && call.gasFeeCap != null)
         val blobFeesSet = call.blobVersionedHashes == null || call.blobFeeCap != null
         val feeHistoryFut = when {
             txFeesSet && blobFeesSet -> null

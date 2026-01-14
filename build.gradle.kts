@@ -44,9 +44,7 @@ allprojects {
 }
 
 subprojects {
-    /**
-     * Analyze sizes of added dependencies.
-     */
+    // Analyze sizes of added dependencies.
     tasks.register("depsize", Task::class.java) {
         doLast {
             // skip depsize task if no runtime classpath is defined
