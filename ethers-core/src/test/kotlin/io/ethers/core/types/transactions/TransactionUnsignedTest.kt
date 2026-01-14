@@ -5,6 +5,7 @@ import io.ethers.core.types.AccessList
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
+import io.ethers.core.types.Signature
 import io.ethers.core.types.transaction.TransactionUnsigned
 import io.ethers.core.types.transaction.TxAccessList
 import io.ethers.core.types.transaction.TxBlob
@@ -18,6 +19,7 @@ import io.kotest.datatest.withData
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import java.math.BigInteger
 
 class TransactionUnsignedTest : FunSpec({
     val accessList = listOf(
@@ -269,6 +271,8 @@ class TransactionUnsignedTest : FunSpec({
     }
 
     context("RLP decoding with trailing signature fields") {
+        val emptySignature = Signature(BigInteger.ZERO, BigInteger.ZERO, 0)
+
         test("TxDynamicFee from eth_fillTransaction with zeroed signature fields") {
             // Raw transaction from eth_fillTransaction response that includes zeroed signature fields (v=0, r=0, s=0)
             // The trailing bytes c0808080 are: c0=empty accessList, 80=0 (v), 80=0 (r), 80=0 (s)
@@ -304,21 +308,7 @@ class TransactionUnsignedTest : FunSpec({
 
             // Encode with zero signature appended
             val encoder = RlpEncoder()
-            encoder.appendRaw(0x01.toByte()) // type byte
-            encoder.encodeList {
-                encoder.encode(original.chainId)
-                encoder.encode(original.nonce)
-                encoder.encode(original.gasPrice)
-                encoder.encode(original.gas)
-                encoder.encode(original.to)
-                encoder.encode(original.value)
-                encoder.encode(original.data)
-                encoder.encodeList(original.accessList)
-                // Append zero signature fields
-                encoder.encode(0L)
-                encoder.encode(0.toBigInteger())
-                encoder.encode(0.toBigInteger())
-            }
+            original.rlpEncodeEnveloped(encoder, emptySignature, false)
 
             val decoded = TransactionUnsigned.rlpDecode(encoder.toByteArray())
             decoded shouldNotBe null
@@ -341,22 +331,7 @@ class TransactionUnsignedTest : FunSpec({
 
             // Encode with zero signature appended
             val encoder = RlpEncoder()
-            encoder.appendRaw(0x02.toByte()) // type byte
-            encoder.encodeList {
-                encoder.encode(original.chainId)
-                encoder.encode(original.nonce)
-                encoder.encode(original.gasTipCap)
-                encoder.encode(original.gasFeeCap)
-                encoder.encode(original.gas)
-                encoder.encode(original.to)
-                encoder.encode(original.value)
-                encoder.encode(original.data)
-                encoder.encodeList(original.accessList)
-                // Append zero signature fields
-                encoder.encode(0L)
-                encoder.encode(0.toBigInteger())
-                encoder.encode(0.toBigInteger())
-            }
+            original.rlpEncodeEnveloped(encoder, emptySignature, false)
 
             val decoded = TransactionUnsigned.rlpDecode(encoder.toByteArray())
             decoded shouldNotBe null
@@ -381,24 +356,7 @@ class TransactionUnsignedTest : FunSpec({
 
             // Encode with zero signature appended
             val encoder = RlpEncoder()
-            encoder.appendRaw(0x03.toByte()) // type byte
-            encoder.encodeList {
-                encoder.encode(original.chainId)
-                encoder.encode(original.nonce)
-                encoder.encode(original.gasTipCap)
-                encoder.encode(original.gasFeeCap)
-                encoder.encode(original.gas)
-                encoder.encode(original.to)
-                encoder.encode(original.value)
-                encoder.encode(original.data)
-                encoder.encodeList(original.accessList)
-                encoder.encode(original.blobFeeCap)
-                encoder.encodeList(original.blobVersionedHashes.orEmpty())
-                // Append zero signature fields
-                encoder.encode(0L)
-                encoder.encode(0.toBigInteger())
-                encoder.encode(0.toBigInteger())
-            }
+            original.rlpEncodeEnveloped(encoder, emptySignature, false)
 
             val decoded = TransactionUnsigned.rlpDecode(encoder.toByteArray())
             decoded shouldNotBe null
@@ -422,23 +380,7 @@ class TransactionUnsignedTest : FunSpec({
 
             // Encode with zero signature appended
             val encoder = RlpEncoder()
-            encoder.appendRaw(0x04.toByte()) // type byte
-            encoder.encodeList {
-                encoder.encode(original.chainId)
-                encoder.encode(original.nonce)
-                encoder.encode(original.gasTipCap)
-                encoder.encode(original.gasFeeCap)
-                encoder.encode(original.gas)
-                encoder.encode(original.to)
-                encoder.encode(original.value)
-                encoder.encode(original.data)
-                encoder.encodeList(original.accessList)
-                encoder.encodeList(original.authorizationList.orEmpty())
-                // Append zero signature fields
-                encoder.encode(0L)
-                encoder.encode(0.toBigInteger())
-                encoder.encode(0.toBigInteger())
-            }
+            original.rlpEncodeEnveloped(encoder, emptySignature, false)
 
             val decoded = TransactionUnsigned.rlpDecode(encoder.toByteArray())
             decoded shouldNotBe null
