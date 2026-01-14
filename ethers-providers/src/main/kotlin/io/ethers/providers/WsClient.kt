@@ -22,16 +22,9 @@ import io.ethers.logger.inf
 import io.ethers.logger.trc
 import io.ethers.logger.wrn
 import io.ethers.providers.types.BatchRpcRequest
-import okhttp3.Headers
 import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.Response
-import okhttp3.WebSocket
-import okhttp3.WebSocketListener
-import okio.ByteString
 import org.jctools.queues.MpscUnboundedXaddArrayQueue
 import org.jctools.queues.SpscUnboundedArrayQueue
-import java.io.IOException
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
@@ -49,16 +42,18 @@ import kotlin.time.TimeSource
  * the response was not received are automatically resubmitted when new connection is established.
  */
 class WsClient(
-    url: String,
-    client: OkHttpClient,
-    headers: Map<String, String> = emptyMap(),
+    private val transport: WebSocketTransport,
 ) : JsonRpcClient {
     @JvmOverloads
     constructor(url: String, config: RpcClientConfig = RpcClientConfig()) : this(
-        url,
-        config.client!!,
-        config.requestHeaders,
+        OkHttpWebSocketTransport(url, config.requestHeaders, config.client!!),
     )
+
+    constructor(
+        url: String,
+        client: OkHttpClient,
+        headers: Map<String, String> = emptyMap(),
+    ) : this(OkHttpWebSocketTransport(url, headers, client))
 
     private val LOG = getLogger()
 
@@ -90,33 +85,28 @@ class WsClient(
     private var stopping = false
 
     init {
-        val requestHeaders = Headers.Builder().apply { headers.forEach { (key, value) -> add(key, value) } }.build()
-        val wsRequest = Request.Builder().url(url).headers(requestHeaders).build()
-        val wsListener = object : WebSocketListener() {
-            override fun onOpen(webSocket: WebSocket, response: Response) {
+        var connection: WebSocketConnection? = null
+
+        val wsListener = object : WebSocketListener {
+            override fun onOpen() {
                 LOG.inf { "WebSocket connection opened" }
 
                 eventLock.withLock { connectionOpenedCondition.signalAll() }
             }
 
-            override fun onMessage(webSocket: WebSocket, text: String) {
+            override fun onMessage(text: String) {
                 messageQueue.add(text)
 
                 eventLock.withLock { newEventCondition.signalAll() }
             }
 
-            override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
-                // will trigger "onFailure" callback
-                throw IOException("Binary messages are not supported")
-            }
-
-            override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+            override fun onClosing(code: Int, reason: String) {
                 LOG.dbg { "WebSocket connection closing: $code $reason. Closing our side as well." }
 
-                webSocket.close(code, reason)
+                connection?.close(code, reason)
             }
 
-            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+            override fun onClosed(code: Int, reason: String) {
                 LOG.dbg { "WebSocket connection closed: $code $reason" }
 
                 eventLock.withLock { connectionClosedCondition.signalAll() }
@@ -124,15 +114,15 @@ class WsClient(
                 requestReconnect()
             }
 
-            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+            override fun onFailure(error: Throwable) {
                 eventLock.withLock { connectionClosedCondition.signalAll() }
 
                 if (stopping) {
-                    LOG.dbg(t) { "WebSocket failure ignored because we are stopping" }
+                    LOG.dbg(error) { "WebSocket failure ignored because we are stopping" }
                     return
                 }
 
-                LOG.err(t) { "WebSocket failure" }
+                LOG.err(error) { "WebSocket failure" }
                 requestReconnect()
             }
 
@@ -147,12 +137,11 @@ class WsClient(
         val processorThread = AsyncExecutor.maybeVirtualThread {
             LOG.inf { "Starting WebSocket processor thread and connecting to websocket" }
 
-            var websocket: WebSocket
             eventLock.withLock {
-                websocket = client.newWebSocket(wsRequest, wsListener)
+                connection = transport.connect(wsListener)
 
                 connectionOpenedCondition.await(
-                    client.connectTimeoutMillis.toLong(),
+                    transport.connectTimeout.inWholeMilliseconds,
                     TimeUnit.MILLISECONDS,
                 )
             }
@@ -188,11 +177,11 @@ class WsClient(
                         while (!reconnectSuccessful && !stopping) {
                             LOG.dbg { "Trying to reconnect WebSocket" }
 
-                            // close the old websocket, just in case. Do this while holding a lock, so we don't start
+                            // close the old connection, just in case. Do this while holding a lock, so we don't start
                             // awaiting on the condition after the ws listener already notified it, which would lead
                             // to a deadlock
                             eventLock.withLock {
-                                if (websocket.close(1000, "Close")) {
+                                if (connection?.close(1000, "Close") == true) {
                                     connectionClosedCondition.await()
                                 }
                             }
@@ -205,16 +194,16 @@ class WsClient(
                             // and wait explicitly for the new connection to be opened, the delay acting as a back-off
                             reconnectSuccessful = eventLock.withLock {
                                 // sends the connection request asynchronously, so the lock won't be held very long
-                                websocket = client.newWebSocket(wsRequest, wsListener)
+                                connection = transport.connect(wsListener)
 
                                 connectionOpenedCondition.await(
-                                    client.connectTimeoutMillis.toLong(),
+                                    transport.connectTimeout.inWholeMilliseconds,
                                     TimeUnit.MILLISECONDS,
                                 )
                             }
 
                             if (!reconnectSuccessful) {
-                                handleTimeouts(client.readTimeoutMillis.toLong().milliseconds)
+                                handleTimeouts(transport.readTimeout)
 
                                 Thread.sleep(2000L)
                             }
@@ -270,7 +259,7 @@ class WsClient(
                                     gen.writeJsonRpcRequest("eth_subscribe", id, sub.params)
                                 }
 
-                                websocket.send(writer.andClear)
+                                connection?.send(writer.andClear)
                             }
                         }
                     }
@@ -287,7 +276,7 @@ class WsClient(
 
                         LOG.trc { "Processing request: $req" }
                         inFlightRequests[id] = request!!
-                        websocket.send(req)
+                        connection?.send(req)
                     }
 
                     while (batchRequestQueue.poll().also { batchRequest = it } != null) {
@@ -316,7 +305,7 @@ class WsClient(
 
                         LOG.trc { "Processing batch request: $req" }
                         inFlightBatchRequests[batchId] = Pair(batchRequest, idToIndex)
-                        websocket.send(req)
+                        connection?.send(req)
                         batchRequest.request.markAsSent()
                     }
 
@@ -332,12 +321,12 @@ class WsClient(
 
                         LOG.trc { "Processing subscription request: $req" }
                         inFlightSubscriptionRequests[id] = subscriptionRequest!!
-                        websocket.send(req)
+                        connection?.send(req)
                     }
 
                     // check and handle timed-out requests every 1000ms
                     if (lastTimeoutCheck.elapsedNow() > 1000.milliseconds) {
-                        handleTimeouts(client.readTimeoutMillis.toLong().milliseconds)
+                        handleTimeouts(transport.readTimeout)
                         lastTimeoutCheck = TimeSource.Monotonic.markNow()
                     }
 
@@ -356,8 +345,8 @@ class WsClient(
                 }
             }
 
-            // close the websocket, expire all remaining requests, and unsubscribe from all subscriptions
-            websocket.close(1000, "Close")
+            // close the connection, expire all remaining requests, and unsubscribe from all subscriptions
+            connection?.close(1000, "Close")
             handleTimeouts(Duration.ZERO)
             requestIdToSubscription.values.forEach { it.stream.close() }
         }
