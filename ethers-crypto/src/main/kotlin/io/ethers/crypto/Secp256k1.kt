@@ -75,7 +75,7 @@ object Secp256k1 {
 
     private fun bigIntegerToByteArray32(value: BigInteger): ByteArray {
         val bytes = value.toByteArray()
-        if (bytes.size > 33 || bytes.size == 33 && bytes[0] != 0.toByte()) {
+        if (bytes.size > 33 || (bytes.size == 33 && bytes[0] != 0.toByte())) {
             throw IllegalArgumentException("Input is too large to put in byte array of size 32")
         }
 

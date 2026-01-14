@@ -277,7 +277,7 @@ object AbiCodec {
                 // TODO this could be optimized by accessing the underlying array directly (e.g. method handle to BigInteger#getInt(index))
                 //      and writing directly to buff. This would avoid the intermediate array allocation and copy.
                 val arr = v.toByteArray()
-                if (arr.size > 33 || arr.size == 33 && arr[0].toInt() != 0) {
+                if (arr.size > 33 || (arr.size == 33 && arr[0].toInt() != 0)) {
                     throw AbiCodecException("Provided value has more than 256 bits: $v")
                 }
 
@@ -917,7 +917,7 @@ object AbiCodec {
                 // TODO this could be optimized by accessing the underlying array directly (e.g. method handle to BigInteger#getInt(index))
                 //      and writing directly to buff. This would avoid the intermediate array allocation and copy.
                 val arr = v.toByteArray()
-                if (arr.size > 33 || arr.size == 33 && arr[0].toInt() != 0) {
+                if (arr.size > 33 || (arr.size == 33 && arr[0].toInt() != 0)) {
                     throw AbiCodecException("Provided value has more than 256 bits: $v")
                 }
 

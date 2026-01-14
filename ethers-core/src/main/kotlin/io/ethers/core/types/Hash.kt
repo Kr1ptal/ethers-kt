@@ -132,7 +132,7 @@ class Hash(private val value: ByteArray) : RlpEncodable {
          * */
         private fun bigIntegerToBytes(value: BigInteger): ByteArray {
             val bytes = value.toByteArray()
-            if (bytes.size > 33 || bytes.size == 33 && bytes[0].toInt() != 0) {
+            if (bytes.size > 33 || (bytes.size == 33 && bytes[0].toInt() != 0)) {
                 throw IllegalArgumentException("Provided value has more than 256 bits: $value")
             }
 

@@ -158,9 +158,7 @@ class EnsMiddlewareTest : FunSpec({
         context("Testing errors") {
             val key = "email"
 
-            /**
-             * Testing [EnsMiddleware.Error.EnsNameInvalid]
-             */
+            // Testing [EnsMiddleware.Error.EnsNameInvalid]
             test("Invalid ENS names") {
                 listOf("", "\t", ".", "\n.").forEach {
                     val resolveAddr = ensMiddleware.resolveAddress(it).get()
@@ -173,9 +171,7 @@ class EnsMiddlewareTest : FunSpec({
                 }
             }
 
-            /**
-             * Testing [EnsMiddleware.Error.Normalisation]
-             */
+            // Testing [EnsMiddleware.Error.Normalisation]
             test("Failed normalisation") {
                 val resolveAddr = ensMiddleware.resolveAddress("xn--u-ccb.com").get()
                 resolveAddr.isFailure() shouldBe true
@@ -186,9 +182,7 @@ class EnsMiddlewareTest : FunSpec({
                 resolveText.unwrapError().shouldBeInstanceOf<EnsMiddleware.Error.Normalisation>()
             }
 
-            /**
-             * Testing [EnsMiddleware.Error.UnknownResolver]
-             */
+            // Testing [EnsMiddleware.Error.UnknownResolver]
             context("Resolver not found") {
                 withData(
                     listOf(
@@ -211,9 +205,7 @@ class EnsMiddlewareTest : FunSpec({
                 }
             }
 
-            /**
-             * Testing [EnsMiddleware.Error.UnsupportedSelector]
-             */
+            // Testing [EnsMiddleware.Error.UnsupportedSelector]
             context("Unsupported selector") {
                 withData(
                     listOf(
@@ -231,9 +223,7 @@ class EnsMiddlewareTest : FunSpec({
                 }
             }
 
-            /**
-             * Testing [EnsMiddleware.Error.IncorrectOwner]
-             */
+            // Testing [EnsMiddleware.Error.IncorrectOwner]
             context("Incorrect owner") {
                 context("Avatars - is not NFT owner") {
                     withData(
@@ -255,9 +245,7 @@ class EnsMiddlewareTest : FunSpec({
                 context("Reverse resolve - Incorrect owner")
             }
 
-            /**
-             * Testing unknown ENS name - zero address, empty record (resolveAddress, resolveText)
-             */
+            // Testing unknown ENS name - zero address, empty record (resolveAddress, resolveText)
             context("Resolve to NULL") {
                 withData(
                     listOf(
@@ -279,15 +267,11 @@ class EnsMiddlewareTest : FunSpec({
                 }
             }
 
-            /**
-             * Testing [EnsMiddleware.Error.UnsupportedScheme]
-             */
+            // Testing [EnsMiddleware.Error.UnsupportedScheme]
             // TODO: when mocking
             context("Avatars - UnsupportedScheme")
 
-            /**
-             * Testing [EnsMiddleware.Error.AvatarParsing]
-             */
+            // Testing [EnsMiddleware.Error.AvatarParsing]
             // TODO: when mocking
             context("Avatars - AvatarParsing")
         }
