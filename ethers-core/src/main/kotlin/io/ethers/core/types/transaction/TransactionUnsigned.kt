@@ -67,26 +67,51 @@ sealed interface TransactionUnsigned : Transaction, RlpEncodable {
 
                 TxType.AccessList -> {
                     rlp.readByte()
-                    rlp.decodeListOrNull { TxAccessList.rlpDecode(rlp) }
+                    decodeTypedTx(rlp) { TxAccessList.rlpDecode(rlp) }
                 }
 
                 TxType.DynamicFee -> {
                     rlp.readByte()
-                    rlp.decodeListOrNull { TxDynamicFee.rlpDecode(rlp) }
+                    decodeTypedTx(rlp) { TxDynamicFee.rlpDecode(rlp) }
                 }
 
                 TxType.Blob -> {
                     rlp.readByte()
-                    rlp.decodeListOrNull { TxBlob.rlpDecode(rlp) }
+                    decodeTypedTx(rlp) { TxBlob.rlpDecode(rlp) }
                 }
 
                 TxType.SetCode -> {
                     rlp.readByte()
-                    rlp.decodeListOrNull { TxSetCode.rlpDecode(rlp) }
+                    decodeTypedTx(rlp) { TxSetCode.rlpDecode(rlp) }
                 }
 
                 is TxType.Unsupported -> null
             }
+        }
+
+        /**
+         * Decode a typed transaction, skipping any trailing signature fields if present. Some RPC methods
+         * (e.g., eth_fillTransaction) return unsigned transactions with zeroed signature fields appended.
+         */
+        private inline fun <T : TransactionUnsigned> decodeTypedTx(
+            rlp: RlpDecoder,
+            decoder: () -> T?,
+        ): T? {
+            val listEndPosition = rlp.startListOrMinusOne()
+            if (listEndPosition == -1) return null
+
+            val tx = decoder() ?: return null
+
+            // Skip trailing signature fields if present (v/yParity, r, s)
+            if (rlp.position < listEndPosition) {
+                rlp.decodeLongOrElse { return null }
+                rlp.decodeBigIntegerOrNull() ?: return null
+                rlp.decodeBigIntegerOrNull() ?: return null
+            }
+
+            if (rlp.finishListOrMinusOne(listEndPosition) == -1) return null
+
+            return tx
         }
     }
 }

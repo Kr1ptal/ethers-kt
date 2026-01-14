@@ -5,6 +5,7 @@ import io.ethers.core.types.AccessList
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
+import io.ethers.core.types.Signature
 import io.ethers.core.types.transaction.TransactionUnsigned
 import io.ethers.core.types.transaction.TxAccessList
 import io.ethers.core.types.transaction.TxBlob
@@ -16,6 +17,9 @@ import io.ethers.rlp.RlpEncoder
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.types.shouldBeInstanceOf
+import java.math.BigInteger
 
 class TransactionUnsignedTest : FunSpec({
     val accessList = listOf(
@@ -263,6 +267,125 @@ class TransactionUnsignedTest : FunSpec({
 
             val decoder = RlpDecoder(encoder.toByteArray())
             TransactionUnsigned.rlpDecode(decoder) shouldBe tx
+        }
+    }
+
+    context("RLP decoding with trailing signature fields") {
+        val emptySignature = Signature(BigInteger.ZERO, BigInteger.ZERO, 0)
+
+        test("TxDynamicFee from eth_fillTransaction with zeroed signature fields") {
+            // Raw transaction from eth_fillTransaction response that includes zeroed signature fields (v=0, r=0, s=0)
+            // The trailing bytes c0808080 are: c0=empty accessList, 80=0 (v), 80=0 (r), 80=0 (s)
+            @Suppress("ktlint:standard:max-line-length")
+            val raw = Bytes("0x02f8ee827a69808084593c9cee83030d4094895a430cd5effbaaf65e845705e62d754194ba0380b8c4d10831f2f6679889a29be5167f00c2e831fd23c453e47b4c174d85a05f31b98c57a9b293000000000000000000000000c2fe006b8efcd0af4976828782011b349b93d638000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c0808080")
+
+            val decoded = TransactionUnsigned.rlpDecode(raw.toByteArray())
+            decoded shouldNotBe null
+            val tx = decoded.shouldBeInstanceOf<TxDynamicFee>()
+
+            tx.chainId shouldBe 31337L // 0x7a69
+            tx.nonce shouldBe 0L
+            tx.gas shouldBe 200000L // 0x30d40
+            tx.gasFeeCap shouldBe "1497144558".toBigInteger() // 0x593c9cee
+            tx.gasTipCap shouldBe 0.toBigInteger()
+            tx.to shouldBe Address("0x895a430cd5effbaaf65e845705e62d754194ba03")
+            tx.value shouldBe 0.toBigInteger()
+            tx.accessList shouldBe emptyList()
+        }
+
+        test("TxAccessList with trailing signature fields") {
+            // Encode a TxAccessList with signature, then decode as unsigned (should skip signature)
+            val original = TxAccessList(
+                to = Address("0xF0109fC8DF283027b6285cc889F5aA624EaC1F55"),
+                value = "1000000000".toBigInteger(),
+                nonce = 1,
+                gas = 2000000,
+                gasPrice = "21000000000".toBigInteger(),
+                data = Bytes("0x1214abcdef12445980"),
+                chainId = 1L,
+                accessList = emptyList(),
+            )
+
+            // Encode with zero signature appended
+            val encoder = RlpEncoder()
+            original.rlpEncodeEnveloped(encoder, emptySignature, false)
+
+            val decoded = TransactionUnsigned.rlpDecode(encoder.toByteArray())
+            decoded shouldNotBe null
+            decoded.shouldBeInstanceOf<TxAccessList>()
+            decoded shouldBe original
+        }
+
+        test("TxDynamicFee with trailing signature fields") {
+            val original = TxDynamicFee(
+                to = Address("0xF0109fC8DF283027b6285cc889F5aA624EaC1F55"),
+                value = "1000000000".toBigInteger(),
+                nonce = 12425132,
+                gas = 2000000,
+                gasFeeCap = "210000000000".toBigInteger(),
+                gasTipCap = "21000000000".toBigInteger(),
+                data = Bytes("0x1214abcdef12445980"),
+                chainId = 1L,
+                accessList = emptyList(),
+            )
+
+            // Encode with zero signature appended
+            val encoder = RlpEncoder()
+            original.rlpEncodeEnveloped(encoder, emptySignature, false)
+
+            val decoded = TransactionUnsigned.rlpDecode(encoder.toByteArray())
+            decoded shouldNotBe null
+            decoded.shouldBeInstanceOf<TxDynamicFee>()
+            decoded shouldBe original
+        }
+
+        test("TxBlob with trailing signature fields") {
+            val original = TxBlob(
+                to = Address("0xF0109fC8DF283027b6285cc889F5aA624EaC1F55"),
+                value = "1000000000".toBigInteger(),
+                nonce = 12425132,
+                gas = 2000000,
+                gasFeeCap = "210000000000".toBigInteger(),
+                gasTipCap = "21000000000".toBigInteger(),
+                data = Bytes("0x1214abcdef12445980"),
+                chainId = 1L,
+                accessList = emptyList(),
+                blobFeeCap = "21000000000".toBigInteger(),
+                blobVersionedHashes = listOf(Hash.ZERO),
+            )
+
+            // Encode with zero signature appended
+            val encoder = RlpEncoder()
+            original.rlpEncodeEnveloped(encoder, emptySignature, false)
+
+            val decoded = TransactionUnsigned.rlpDecode(encoder.toByteArray())
+            decoded shouldNotBe null
+            decoded.shouldBeInstanceOf<TxBlob>()
+            decoded shouldBe original
+        }
+
+        test("TxSetCode with trailing signature fields") {
+            val original = TxSetCode(
+                to = Address("0xF0109fC8DF283027b6285cc889F5aA624EaC1F55"),
+                value = "1000000000".toBigInteger(),
+                nonce = 12425132,
+                gas = 2000000,
+                gasFeeCap = "210000000000".toBigInteger(),
+                gasTipCap = "21000000000".toBigInteger(),
+                data = Bytes("0x1214abcdef12445980"),
+                chainId = 1L,
+                accessList = emptyList(),
+                authorizationList = listOf(AuthorizationFactory.create(chainId = 1L, nonce = 0L)),
+            )
+
+            // Encode with zero signature appended
+            val encoder = RlpEncoder()
+            original.rlpEncodeEnveloped(encoder, emptySignature, false)
+
+            val decoded = TransactionUnsigned.rlpDecode(encoder.toByteArray())
+            decoded shouldNotBe null
+            decoded.shouldBeInstanceOf<TxSetCode>()
+            decoded shouldBe original
         }
     }
 })
