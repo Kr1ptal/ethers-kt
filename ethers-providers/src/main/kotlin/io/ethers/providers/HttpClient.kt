@@ -51,10 +51,11 @@ class HttpClient(
             return CompletableFuture.completedFuture(true)
         }
 
+        val ret = CompletableFuture<Boolean>()
         val (body, requestIndexPerId) = batch.toRequestBody()
 
-        return transport.execute(body).thenApply { httpResult ->
-            when (httpResult) {
+        transport.execute(body) { httpResult ->
+            val success = when (httpResult) {
                 is HttpResult.Failure -> {
                     LOG.err(httpResult.error) { "Error sending batch request" }
 
@@ -78,7 +79,7 @@ class HttpClient(
                     val bytes = stream.readBytes()
 
                     // first, try to decode a JSON response
-                    try {
+                    val decoded = try {
                         ByteArrayInputStream(bytes).useJsonParser {
                             val parser = this
 
@@ -92,25 +93,29 @@ class HttpClient(
                                 batch.responses[index].complete(result)
                             }
                         }
-
-                        return@thenApply true
+                        true
                     } catch (_: Exception) {
+                        false
                     }
 
-                    // second, if decoding fails, return the response as a message and complete all requests
-                    // including the batch future
-                    val message = "HTTP ${httpResult.code}: ${httpResult.message}"
-                    val data = Jackson.MAPPER.valueToTree<JsonNode>(String(bytes))
-                    val error = RpcError(RpcError.CODE_CALL_FAILED, message, data)
-                    val failure = failure(error)
+                    if (decoded) {
+                        true
+                    } else {
+                        // second, if decoding fails, return the response as a message and complete all requests
+                        // including the batch future
+                        val message = "HTTP ${httpResult.code}: ${httpResult.message}"
+                        val data = Jackson.MAPPER.valueToTree<JsonNode>(String(bytes))
+                        val error = RpcError(RpcError.CODE_CALL_FAILED, message, data)
+                        val failure = failure(error)
 
-                    LOG.err { "Batch request failed: $error" }
+                        LOG.err { "Batch request failed: $error" }
 
-                    for (i in batch.responses.indices) {
-                        batch.responses[i].complete(failure)
+                        for (i in batch.responses.indices) {
+                            batch.responses[i].complete(failure)
+                        }
+
+                        false
                     }
-
-                    false
                 }
 
                 is HttpResult.Success -> {
@@ -150,7 +155,10 @@ class HttpClient(
                     }
                 }
             }
+            ret.complete(success)
         }
+
+        return ret
     }
 
     override fun <T> request(
@@ -158,10 +166,11 @@ class HttpClient(
         params: Array<*>,
         resultDecoder: Function<JsonParser, T>,
     ): CompletableFuture<Result<T, RpcError>> {
+        val ret = CompletableFuture<Result<T, RpcError>>()
         val body = createJsonRpcRequestBody(method, params)
 
-        return transport.execute(body).thenApply { httpResult ->
-            when (httpResult) {
+        transport.execute(body) { httpResult ->
+            val result: Result<T, RpcError> = when (httpResult) {
                 is HttpResult.Failure -> {
                     LOG.err(httpResult.error) { "Error sending request for method=$method, params=${params.contentToString()}" }
                     getResponseFromException(httpResult.error)
@@ -178,18 +187,21 @@ class HttpClient(
                     val bytes = stream.readBytes()
 
                     // first, try to decode a JSON response
-                    try {
-                        return@thenApply ByteArrayInputStream(bytes).decodeResult(resultDecoder)
+                    val decoded = try {
+                        ByteArrayInputStream(bytes).decodeResult(resultDecoder)
                     } catch (_: Exception) {
+                        null
                     }
 
-                    // second, if decoding fails, return the response as a message
-                    val message = "HTTP ${httpResult.code}: ${httpResult.message}"
-                    val data = Jackson.MAPPER.valueToTree<JsonNode>(String(bytes))
-                    val error = RpcError(RpcError.CODE_CALL_FAILED, message, data)
-                    LOG.err { "Call failed for method=$method, params=${params.contentToString()}: $error" }
+                    decoded ?: run {
+                        // second, if decoding fails, return the response as a message
+                        val message = "HTTP ${httpResult.code}: ${httpResult.message}"
+                        val data = Jackson.MAPPER.valueToTree<JsonNode>(String(bytes))
+                        val error = RpcError(RpcError.CODE_CALL_FAILED, message, data)
+                        LOG.err { "Call failed for method=$method, params=${params.contentToString()}: $error" }
 
-                    failure(error)
+                        failure(error)
+                    }
                 }
 
                 is HttpResult.Success -> {
@@ -208,7 +220,10 @@ class HttpClient(
                     }
                 }
             }
+            ret.complete(result)
         }
+
+        return ret
     }
 
     private fun <T> InputStream.decodeResult(decoder: Function<JsonParser, T>): Result<T, RpcError> {
@@ -271,7 +286,7 @@ class HttpClient(
     private fun BatchRpcRequest.toRequestBody(): Pair<ByteArray, HashMap<Long, Int>> {
         val requestIndexPerId = HashMap<Long, Int>(requests.size, 1.0F)
 
-        val output = DirectByteArrayOutputStream(requests.size * BYTE_BUFFER_DEFAULT_SIZE)
+        val output = ByteArrayOutputStream(requests.size * BYTE_BUFFER_DEFAULT_SIZE)
         output.use { out ->
             val gen = Jackson.MAPPER.createGenerator(out)
 
@@ -292,7 +307,7 @@ class HttpClient(
     }
 
     private fun createJsonRpcRequestBody(method: String, params: Array<*>): ByteArray {
-        val output = DirectByteArrayOutputStream(BYTE_BUFFER_DEFAULT_SIZE)
+        val output = ByteArrayOutputStream(BYTE_BUFFER_DEFAULT_SIZE)
 
         output.use { out ->
             val gen = Jackson.MAPPER.createGenerator(out)
@@ -301,16 +316,6 @@ class HttpClient(
 
         LOG.trc { "Request: ${String(output.toByteArray())}" }
         return output.toByteArray()
-    }
-
-    private class DirectByteArrayOutputStream(size: Int) : ByteArrayOutputStream(size) {
-        /**
-         * Return the internal buffer.
-         *
-         * **NOTE**: Contains trailing zeros since it's unlikely that the buffer will be exactly the right size.
-         * */
-        val internalBuffer: ByteArray
-            get() = buf
     }
 
     companion object {

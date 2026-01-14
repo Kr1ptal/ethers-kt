@@ -10,7 +10,6 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import java.io.IOException
-import java.util.concurrent.CompletableFuture
 
 /**
  * OkHttp-based implementation of [HttpTransport].
@@ -26,9 +25,7 @@ class OkHttpTransport(
         headers.forEach { (k, v) -> add(k, v) }
     }.build()
 
-    override fun execute(body: ByteArray): CompletableFuture<HttpResult> {
-        val ret = CompletableFuture<HttpResult>()
-
+    override fun execute(body: ByteArray, callback: (HttpResult) -> Unit) {
         val requestBody = body.toRequestBody(JSON_MEDIA_TYPE)
         val request = Request.Builder()
             .url(httpUrl)
@@ -38,20 +35,20 @@ class OkHttpTransport(
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                ret.complete(HttpResult.Failure(e))
+                callback(HttpResult.Failure(e))
             }
 
             override fun onResponse(call: Call, response: Response) {
-                val result = if (response.isSuccessful) {
-                    HttpResult.Success(response.body.byteStream())
-                } else {
-                    HttpResult.HttpError(response.code, response.message, response.body.byteStream())
+                response.use {
+                    val result = if (it.isSuccessful) {
+                        HttpResult.Success(it.body.byteStream())
+                    } else {
+                        HttpResult.HttpError(it.code, it.message, it.body.byteStream())
+                    }
+                    callback(result)
                 }
-                ret.complete(result)
             }
         })
-
-        return ret
     }
 
     companion object {

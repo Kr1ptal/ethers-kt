@@ -11,9 +11,18 @@ interface HttpTransport {
      * Execute an HTTP POST request with the given body.
      *
      * @param body The request body bytes
-     * @return A future that completes with the result
+     * @param callback Invoked with the result when the request completes
      */
-    fun execute(body: ByteArray): CompletableFuture<HttpResult>
+    fun execute(body: ByteArray, callback: (HttpResult) -> Unit)
+}
+
+/**
+ * Execute an HTTP POST request and return the result as a [CompletableFuture].
+ */
+fun HttpTransport.executeAsync(body: ByteArray): CompletableFuture<HttpResult> {
+    val future = CompletableFuture<HttpResult>()
+    execute(body) { result -> future.complete(result) }
+    return future
 }
 
 /**
