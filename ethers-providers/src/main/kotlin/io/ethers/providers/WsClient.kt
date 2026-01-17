@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.core.JsonToken
 import com.fasterxml.jackson.core.io.SegmentedStringWriter
 import com.fasterxml.jackson.core.util.BufferRecycler
+import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.databind.util.TokenBuffer
 import io.channels.core.Channel
 import io.channels.core.ChannelReceiver
@@ -52,12 +53,14 @@ class WsClient(
     url: String,
     client: OkHttpClient,
     headers: Map<String, String> = emptyMap(),
+    private val jsonMapper: JsonMapper = Jackson.MAPPER,
 ) : JsonRpcClient {
     @JvmOverloads
     constructor(url: String, config: RpcClientConfig = RpcClientConfig()) : this(
         url,
         config.client!!,
         config.requestHeaders,
+        config.jsonMapper,
     )
 
     private val LOG = getLogger()
@@ -266,7 +269,7 @@ class WsClient(
                                 LOG.dbg { "Resent stream re-subscription: $id" }
 
                                 val writer = SegmentedStringWriter(bufferRecycler)
-                                Jackson.MAPPER.createGenerator(writer).use { gen ->
+                                jsonMapper.createGenerator(writer).use { gen ->
                                     gen.writeJsonRpcRequest("eth_subscribe", id, sub.params)
                                 }
 
@@ -279,7 +282,7 @@ class WsClient(
                     while (requestQueue.poll().also { request = it } != null) {
                         val id = requestId++
                         val writer = SegmentedStringWriter(bufferRecycler)
-                        Jackson.MAPPER.createGenerator(writer).use { gen ->
+                        jsonMapper.createGenerator(writer).use { gen ->
                             gen.writeJsonRpcRequest(request!!.method, id, request.params)
                         }
 
@@ -294,7 +297,7 @@ class WsClient(
                         var batchId = -1L
                         val idToIndex = HashMap<Long, Int>(batchRequest!!.request.requests.size, 1.0F)
                         val writer = SegmentedStringWriter(bufferRecycler)
-                        Jackson.MAPPER.createGenerator(writer).use { gen ->
+                        jsonMapper.createGenerator(writer).use { gen ->
                             gen.writeStartArray()
 
                             for (i in batchRequest.request.requests.indices) {
@@ -324,7 +327,7 @@ class WsClient(
                     while (subscriptionQueue.poll().also { subscriptionRequest = it } != null) {
                         val id = requestId++
                         val writer = SegmentedStringWriter(bufferRecycler)
-                        Jackson.MAPPER.createGenerator(writer).use { gen ->
+                        jsonMapper.createGenerator(writer).use { gen ->
                             gen.writeJsonRpcRequest("eth_subscribe", id, subscriptionRequest!!.params)
                         }
 
@@ -406,7 +409,7 @@ class WsClient(
     }
 
     private fun handleMessage(text: String) {
-        Jackson.MAPPER.createAndInitParser(text).use { parser ->
+        jsonMapper.createAndInitParser(text).use { parser ->
             if (parser.currentToken == JsonToken.START_ARRAY) {
                 handleBatchResponse(text, parser)
                 return
@@ -445,7 +448,7 @@ class WsClient(
                         paramsBuffer.copyCurrentStructure(parser)
                     }
 
-                    "error" -> error = Jackson.MAPPER.readValue(parser, RpcError::class.java)
+                    "error" -> error = jsonMapper.readValue(parser, RpcError::class.java)
 
                     // if both id and error are present treat it as a valid error response
                     else -> {
@@ -457,7 +460,7 @@ class WsClient(
                         val invalid = RpcError(
                             RpcError.CODE_INVALID_RESPONSE,
                             "Invalid response",
-                            Jackson.MAPPER.valueToTree(text),
+                            jsonMapper.valueToTree(text),
                         )
 
                         if (id != -1L) {
@@ -493,7 +496,7 @@ class WsClient(
                     val invalid = RpcError(
                         RpcError.CODE_INVALID_RESPONSE,
                         "Invalid response",
-                        Jackson.MAPPER.valueToTree(text),
+                        jsonMapper.valueToTree(text),
                     )
 
                     if (id != -1L) {
@@ -538,7 +541,7 @@ class WsClient(
                             buffer.copyCurrentStructure(p)
                         }
                     }
-                    "error" -> error = Jackson.MAPPER.readValue(p, RpcError::class.java)
+                    "error" -> error = jsonMapper.readValue(p, RpcError::class.java)
                     else -> throw Exception("Invalid response: $text")
                 }
             }

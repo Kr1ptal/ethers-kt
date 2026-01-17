@@ -7,7 +7,9 @@ import com.fasterxml.jackson.databind.DeserializationContext
 import com.fasterxml.jackson.databind.JsonDeserializer
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
+import com.fasterxml.jackson.databind.json.JsonMapper
 import io.channels.core.ChannelReceiver
+import io.ethers.core.Jackson
 import io.ethers.core.Result
 import io.ethers.core.forEachObjectField
 import io.ethers.providers.types.BatchRpcRequest
@@ -235,6 +237,13 @@ class RpcClientConfig {
         @JvmSynthetic set
 
     /**
+     * Jackson [JsonMapper] to use for serializing/deserializing JSON-RPC requests and responses.
+     * If not set, the default [Jackson.MAPPER] will be used.
+     * */
+    var jsonMapper: JsonMapper = Jackson.MAPPER
+        @JvmSynthetic set
+
+    /**
      * Client to use for making JSON-RPC requests. If not set, a default client will be used.
      * */
     fun client(client: OkHttpClient) = apply { this.client = client }
@@ -243,6 +252,12 @@ class RpcClientConfig {
      * Headers to include with each RPC request. Can be used to set authorization headers, etc...
      * */
     fun requestHeaders(headers: Map<String, String>) = apply { this.requestHeaders = headers }
+
+    /**
+     * Jackson [JsonMapper] to use for serializing/deserializing JSON-RPC requests and responses.
+     * If not set, the default [Jackson.MAPPER] will be used.
+     * */
+    fun jsonMapper(mapper: JsonMapper) = apply { this.jsonMapper = mapper }
 
     companion object {
         private val DEFAULT_CLIENT by lazy {
