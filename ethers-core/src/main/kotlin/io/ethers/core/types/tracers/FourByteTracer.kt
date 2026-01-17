@@ -24,6 +24,8 @@ import kotlin.reflect.KClass
  *	}
  */
 data object FourByteTracer : Tracer<FourByteTracer.Result> {
+    private val EMPTY_CONFIG = emptyMap<String, Any?>()
+
     override val name: String
         get() = "4byteTracer"
 
@@ -43,6 +45,4 @@ data object FourByteTracer : Tracer<FourByteTracer.Result> {
             return Result(p.readMapOf({ it }) { intValue })
         }
     }
-
-    private val EMPTY_CONFIG = emptyMap<String, Any?>()
 }

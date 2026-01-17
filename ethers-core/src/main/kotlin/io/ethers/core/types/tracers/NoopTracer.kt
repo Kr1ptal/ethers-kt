@@ -12,6 +12,8 @@ import kotlin.reflect.KClass
  * It's mostly useful for testing purposes.
  */
 data object NoopTracer : Tracer<NoopTracer.Result> {
+    private val EMPTY_CONFIG = emptyMap<String, Any?>()
+
     override val name: String
         get() = "noopTracer"
 
@@ -33,6 +35,4 @@ data object NoopTracer : Tracer<NoopTracer.Result> {
             return Result
         }
     }
-
-    private val EMPTY_CONFIG = emptyMap<String, Any?>()
 }
