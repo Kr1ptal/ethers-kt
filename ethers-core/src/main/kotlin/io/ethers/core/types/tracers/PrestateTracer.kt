@@ -1,5 +1,6 @@
 package io.ethers.core.types.tracers
 
+import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.DeserializationContext
 import com.fasterxml.jackson.databind.JsonDeserializer
@@ -15,7 +16,6 @@ import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
 import io.ethers.core.types.StateOverride
 import java.math.BigInteger
-import java.beans.Transient
 import kotlin.reflect.KClass
 
 /**
@@ -33,11 +33,11 @@ import kotlin.reflect.KClass
  * @param diffMode if `true`, return the differences between the transaction's pre- and post-state
  */
 data class PrestateTracer(val diffMode: Boolean) : Tracer<PrestateTracer.Result> {
-    @get:Transient
+    @get:JsonIgnore
     override val name: String
         get() = "prestateTracer"
 
-    @get:Transient
+    @get:JsonIgnore
     override val resultType: KClass<Result>
         get() = Result::class
 

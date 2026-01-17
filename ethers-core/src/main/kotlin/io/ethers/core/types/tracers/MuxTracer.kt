@@ -1,6 +1,6 @@
 package io.ethers.core.types.tracers
 
-import java.beans.Transient
+import com.fasterxml.jackson.annotation.JsonIgnore
 import kotlin.reflect.KClass
 
 /**
@@ -11,7 +11,7 @@ import kotlin.reflect.KClass
  * access to the tracer list to deserialize each nested result using the appropriate result type.
  */
 data class MuxTracer(
-    @get:Transient
+    @get:JsonIgnore
     val tracers: List<Tracer<out Any>>,
 ) : Tracer<MuxTracer.Result> {
     constructor(vararg tracers: Tracer<out Any>) : this(tracers.toList())
@@ -27,11 +27,11 @@ data class MuxTracer(
         }
     }
 
-    @get:Transient
+    @get:JsonIgnore
     override val name: String
         get() = "muxTracer"
 
-    @get:Transient
+    @get:JsonIgnore
     override val resultType: KClass<Result>
         get() = Result::class
 
