@@ -2,10 +2,8 @@ package io.ethers.core.types.tracers
 
 import com.fasterxml.jackson.core.JsonGenerator
 import com.fasterxml.jackson.databind.JsonSerializer
-import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializerProvider
 import com.fasterxml.jackson.databind.annotation.JsonSerialize
-import com.fasterxml.jackson.databind.node.ObjectNode
 import io.ethers.core.FastHex
 import io.ethers.core.types.BlockOverride
 import io.ethers.core.types.StateOverride
@@ -85,14 +83,28 @@ private class TracerConfigSerializer : JsonSerializer<TracerConfig<*>>() {
                 serializers.defaultSerializeValue(tracer, gen)
             }
 
-            else -> {
-                // StructTracer - merge its fields at root level
-                val mapper = gen.codec as? ObjectMapper
-                    ?: throw IllegalStateException("No ObjectMapper configured on JsonGenerator")
-                val node = mapper.valueToTree<ObjectNode>(tracer)
-                node.fields().forEach { (fieldName, nodeValue) ->
-                    gen.writeFieldName(fieldName)
-                    gen.writeTree(nodeValue)
+            is StructTracer -> {
+                // StructTracer - serialize non-default fields directly at root level
+                if (tracer.enableMemory) {
+                    gen.writeBooleanField("enableMemory", true)
+                }
+                if (tracer.disableStack) {
+                    gen.writeBooleanField("disableStack", true)
+                }
+                if (tracer.disableStorage) {
+                    gen.writeBooleanField("disableStorage", true)
+                }
+                if (tracer.enableReturnData) {
+                    gen.writeBooleanField("enableReturnData", true)
+                }
+                if (tracer.debug) {
+                    gen.writeBooleanField("debug", true)
+                }
+                if (tracer.limit != 0) {
+                    gen.writeNumberField("limit", tracer.limit)
+                }
+                if (tracer.overrides.isNotEmpty()) {
+                    gen.writeObjectField("overrides", tracer.overrides)
                 }
             }
         }
