@@ -39,6 +39,8 @@ import io.ethers.core.types.TxpoolContent
 import io.ethers.core.types.TxpoolContentFromAddress
 import io.ethers.core.types.TxpoolInspectResult
 import io.ethers.core.types.TxpoolStatus
+import io.ethers.core.types.tracers.AnyTracer
+import io.ethers.core.types.tracers.MuxTracer
 import io.ethers.core.types.tracers.TracerConfig
 import io.ethers.core.types.tracers.TxTraceResult
 import io.ethers.core.types.transaction.TransactionUnsigned
@@ -541,16 +543,16 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         return RpcCall(client, "debug_printBlock", params, String::class.java)
     }
 
-    override fun <T> traceCall(
+    override fun <T : Any> traceCall(
         call: IntoCallRequest,
         blockId: BlockId,
         config: TracerConfig<T>,
     ): RpcRequest<T, RpcError> {
         val params = arrayOf(call.toCallRequest(), blockId.id, config)
-        return RpcCall(client, "debug_traceCall", params, { config.tracer.decodeResult(it) })
+        return RpcCall(client, "debug_traceCall", params) { deserializeTracerResult(config.tracer, it) }
     }
 
-    override fun <T> traceCallMany(
+    override fun <T : Any> traceCallMany(
         blockId: BlockId,
         calls: List<IntoCallRequest>,
         config: TracerConfig<T>,
@@ -560,16 +562,16 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         val ctx = CallManyContext(blockId, transactionIndex)
 
         return RpcCall(client, "debug_traceCallMany", arrayOf(arrayOf(bundle), ctx, config)) {
-            it.readListOf { it.readListOf { config.tracer.decodeResult(it) } }.firstOrNull() ?: emptyList()
+            it.readListOf { it.readListOf { deserializeTracerResult(config.tracer, it) } }.firstOrNull() ?: emptyList()
         }
     }
 
-    override fun <T> traceTransaction(txHash: Hash, config: TracerConfig<T>): RpcRequest<T, RpcError> {
+    override fun <T : Any> traceTransaction(txHash: Hash, config: TracerConfig<T>): RpcRequest<T, RpcError> {
         val params = arrayOf(txHash, config)
-        return RpcCall(client, "debug_traceTransaction", params, { config.tracer.decodeResult(it) })
+        return RpcCall(client, "debug_traceTransaction", params) { deserializeTracerResult(config.tracer, it) }
     }
 
-    override fun <T> traceBlock(
+    override fun <T : Any> traceBlock(
         blockId: BlockId,
         config: TracerConfig<T>,
     ): RpcRequest<List<TxTraceResult<T>>, RpcError> {
@@ -578,7 +580,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             is BlockId.Hash -> "debug_traceBlockByHash"
             is BlockId.Number, is BlockId.Name -> "debug_traceBlockByNumber"
         }
-        return RpcCall(client, method, params, {
+        return RpcCall(client, method, params) {
             it.readListOf {
                 var txHash: Hash? = null
                 var result: T? = null
@@ -587,13 +589,44 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
                 it.forEachObjectField { field ->
                     when (field) {
                         "txHash" -> txHash = it.readHash()
-                        "result" -> result = config.tracer.decodeResult(it)
+                        "result" -> result = deserializeTracerResult(config.tracer, it)
                         "error" -> error = it.valueAsString
                     }
                 }
                 TxTraceResult(txHash, result, error)
             }
-        })
+        }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun <T : Any> deserializeTracerResult(
+        tracer: AnyTracer<T>,
+        parser: com.fasterxml.jackson.core.JsonParser,
+    ): T {
+        return when (tracer) {
+            is MuxTracer -> deserializeMuxResult(parser, tracer) as T
+            else -> parser.readValueAs(tracer.resultType.java)
+        }
+    }
+
+    private fun deserializeMuxResult(
+        parser: com.fasterxml.jackson.core.JsonParser,
+        muxTracer: MuxTracer,
+    ): MuxTracer.Result {
+        val results = arrayOfNulls<Any>(muxTracer.tracers.size)
+
+        parser.forEachObjectField { name ->
+            for (i in muxTracer.tracers.indices) {
+                val tracer = muxTracer.tracers[i]
+                if (name == tracer.name) {
+                    results[i] = parser.readValueAs(tracer.resultType.java)
+                    return@forEachObjectField
+                }
+            }
+            throw Exception("Tracer not found: $name")
+        }
+
+        return MuxTracer.Result(muxTracer.tracers, results)
     }
 
     //-----------------------------------------------------------------------------------------------------------------

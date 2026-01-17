@@ -1,6 +1,6 @@
 package io.ethers.core.types.tracers
 
-import com.fasterxml.jackson.core.JsonGenerator
+import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.DeserializationContext
 import com.fasterxml.jackson.databind.JsonDeserializer
@@ -19,6 +19,7 @@ import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
 import io.ethers.core.types.Log
 import java.math.BigInteger
+import kotlin.reflect.KClass
 
 /**
  * Trace transaction call frames.
@@ -30,17 +31,13 @@ data class CallTracer(
     val onlyTopCall: Boolean,
     val withLog: Boolean,
 ) : Tracer<CallTracer.CallFrame> {
+    @get:JsonIgnore
     override val name: String
         get() = "callTracer"
 
-    override fun encodeConfig(gen: JsonGenerator) {
-        gen.writeBooleanField("onlyTopCall", onlyTopCall)
-        gen.writeBooleanField("withLog", withLog)
-    }
-
-    override fun decodeResult(parser: JsonParser): CallFrame {
-        return parser.readValueAs(CallFrame::class.java)
-    }
+    @get:JsonIgnore
+    override val resultType: KClass<CallFrame>
+        get() = CallFrame::class
 
     @JsonDeserialize(using = CallFrameDeserializer::class)
     data class CallFrame(

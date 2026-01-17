@@ -1,7 +1,9 @@
 package io.ethers.core.types.tracers
 
+import com.fasterxml.jackson.core.JsonParser
 import io.ethers.core.Jackson
 import io.ethers.core.Jackson.createAndInitParser
+import io.ethers.core.forEachObjectField
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
@@ -37,7 +39,23 @@ class MuxTracerTest : FunSpec({
         """
     }
 
-    context("decodeResult") {
+    context("decode result") {
+        // Helper function to deserialize MuxTracer result (same logic as Provider uses)
+        fun deserializeMuxResult(parser: JsonParser, tracer: MuxTracer): MuxTracer.Result {
+            val results = arrayOfNulls<Any>(tracer.tracers.size)
+            parser.forEachObjectField { name ->
+                for (i in tracer.tracers.indices) {
+                    val t = tracer.tracers[i]
+                    if (name == t.name) {
+                        results[i] = parser.readValueAs(t.resultType.java)
+                        return@forEachObjectField
+                    }
+                }
+                throw Exception("Tracer not found: $name")
+            }
+            return MuxTracer.Result(tracer.tracers, results)
+        }
+
         test("success") {
             @Language("JSON")
             val jsonString = """
@@ -83,7 +101,7 @@ class MuxTracerTest : FunSpec({
             """.trimIndent()
 
             val jsonParser = Jackson.MAPPER.createAndInitParser(jsonString)
-            val result = muxTracer.decodeResult(jsonParser)
+            val result = deserializeMuxResult(jsonParser, muxTracer)
 
             val callTracerExpectedResult = CallTracer.CallFrame(
                 type = "CALL",
@@ -109,13 +127,15 @@ class MuxTracerTest : FunSpec({
                 ),
                 value = BigInteger("11650662055314012"),
             )
-            val fourByteTracerExpectedResult = hashMapOf(
-                "0x022c0d9f-160" to 1,
-                "0x0902f1ac-0" to 1,
-                "0x3593564c-640" to 1,
-                "0x70a08231-32" to 5,
-                "0xa9059cbb-64" to 2,
-                "0xd0e30db0-0" to 1,
+            val fourByteTracerExpectedResult = FourByteTracer.Result(
+                mapOf(
+                    "0x022c0d9f-160" to 1,
+                    "0x0902f1ac-0" to 1,
+                    "0x3593564c-640" to 1,
+                    "0x70a08231-32" to 5,
+                    "0xa9059cbb-64" to 2,
+                    "0xd0e30db0-0" to 1,
+                ),
             )
 
             result shouldBe MuxTracer.Result(
@@ -123,7 +143,7 @@ class MuxTracerTest : FunSpec({
                 arrayOf(
                     callTracerExpectedResult,
                     fourByteTracerExpectedResult,
-                    Unit,
+                    NoopTracer.Result,
                 ),
             )
         }
@@ -132,7 +152,7 @@ class MuxTracerTest : FunSpec({
             shouldThrow<Exception> {
                 val jsonString = """{"unknown_tracer": {}}"""
                 val jsonParser = Jackson.MAPPER.createAndInitParser(jsonString)
-                muxTracer.decodeResult(jsonParser)
+                deserializeMuxResult(jsonParser, muxTracer)
             }
         }
     }
@@ -141,13 +161,15 @@ class MuxTracerTest : FunSpec({
         val result = MuxTracer.Result(
             listOf(fourByteTracer),
             arrayOf(
-                hashMapOf(
-                    "0x022c0d9f-160" to 1,
-                    "0x0902f1ac-0" to 1,
-                    "0x3593564c-640" to 1,
-                    "0x70a08231-32" to 5,
-                    "0xa9059cbb-64" to 2,
-                    "0xd0e30db0-0" to 1,
+                FourByteTracer.Result(
+                    mapOf(
+                        "0x022c0d9f-160" to 1,
+                        "0x0902f1ac-0" to 1,
+                        "0x3593564c-640" to 1,
+                        "0x70a08231-32" to 5,
+                        "0xa9059cbb-64" to 2,
+                        "0xd0e30db0-0" to 1,
+                    ),
                 ),
             ),
         )

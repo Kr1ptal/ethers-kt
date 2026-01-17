@@ -1,41 +1,58 @@
 package io.ethers.core.types.tracers
 
 import com.fasterxml.jackson.core.JsonGenerator
-import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.JsonSerializer
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializerProvider
 import com.fasterxml.jackson.databind.annotation.JsonSerialize
+import com.fasterxml.jackson.databind.node.ObjectNode
 import io.ethers.core.FastHex
 import io.ethers.core.types.BlockOverride
 import io.ethers.core.types.StateOverride
+import kotlin.reflect.KClass
 
 /**
- * New type for tracers, where each tracer has a distinct name by which it's identified on the node.
- * */
-interface Tracer<T> : AnyTracer<T> {
+ * Named tracer type, where each tracer has a distinct name by which it's identified on the node.
+ *
+ * To implement a custom tracer, create a data class implementing this interface and define:
+ * - [name]: The tracer name as recognized by the node
+ * - [resultType]: The KClass of the result type for deserialization
+ *
+ * The tracer's properties will be serialized as the tracer config using Jackson's default serialization.
+ * Use Jackson annotations (e.g., `@JsonInclude`, `@JsonProperty`) to customize serialization if needed.
+ *
+ * Example:
+ * ```kotlin
+ * data class MyTracer(
+ *     val someOption: Boolean = false,
+ *     val anotherOption: String = "default"
+ * ) : Tracer<MyTracer.Result> {
+ *     override val name = "myTracer"
+ *     override val resultType = Result::class
+ *
+ *     data class Result(val data: String, val count: Int)
+ * }
+ * ```
+ */
+interface Tracer<T : Any> : AnyTracer<T> {
     val name: String
 }
 
 /**
- * Base type for tracers which support encoding config and decoding result, without a distinct name. Only implemented
- * by [StructTracer], which is used by default if no tracer name is provided in `debug_traceCall` RPC call.
+ * Base type for tracers, without a distinct name. Only implemented by [StructTracer], which is used by default
+ * if no tracer name is provided in `debug_traceCall` RPC call.
  *
  * Use [Tracer] type when implementing custom tracers.
- * */
-sealed interface AnyTracer<T> {
+ */
+sealed interface AnyTracer<T : Any> {
     /**
-     * Encode configuration of this tracer.
+     * The result type class for deserialization.
      */
-    fun encodeConfig(gen: JsonGenerator)
-
-    /**
-     * Decode trace and return data object.
-     */
-    fun decodeResult(parser: JsonParser): T
+    val resultType: KClass<out T>
 }
 
 @JsonSerialize(using = TracerConfigSerializer::class)
-data class TracerConfig<T> @JvmOverloads constructor(
+data class TracerConfig<T : Any> @JvmOverloads constructor(
     val tracer: AnyTracer<T>,
     val timeoutMs: Long = -1L,
     val reexec: Long = -1L,
@@ -48,16 +65,38 @@ private class TracerConfigSerializer : JsonSerializer<TracerConfig<*>>() {
     override fun serialize(value: TracerConfig<*>, gen: JsonGenerator, serializers: SerializerProvider) {
         gen.writeStartObject()
 
-        if (value.tracer is Tracer<*>) {
-            gen.writeStringField("tracer", value.tracer.name)
+        when (val tracer = value.tracer) {
+            is MuxTracer -> {
+                // MuxTracer needs special handling - serialize each nested tracer's config
+                gen.writeStringField("tracer", tracer.name)
+                gen.writeFieldName("tracerConfig")
+                gen.writeStartObject()
+                for (t in tracer.tracers) {
+                    gen.writeFieldName(t.name)
+                    serializers.defaultSerializeValue(t, gen)
+                }
+                gen.writeEndObject()
+            }
 
-            gen.writeFieldName("tracerConfig")
-            gen.writeStartObject()
-            value.tracer.encodeConfig(gen)
-            gen.writeEndObject()
-        } else {
-            value.tracer.encodeConfig(gen)
+            is Tracer<*> -> {
+                // Named tracer - use Jackson's default serialization for config
+                gen.writeStringField("tracer", tracer.name)
+                gen.writeFieldName("tracerConfig")
+                serializers.defaultSerializeValue(tracer, gen)
+            }
+
+            else -> {
+                // StructTracer - merge its fields at root level
+                val mapper = gen.codec as? ObjectMapper
+                    ?: throw IllegalStateException("No ObjectMapper configured on JsonGenerator")
+                val node = mapper.valueToTree<ObjectNode>(tracer)
+                node.fields().forEach { (fieldName, nodeValue) ->
+                    gen.writeFieldName(fieldName)
+                    gen.writeTree(nodeValue)
+                }
+            }
         }
+
         if (value.timeoutMs >= 0) {
             gen.writeStringField("timeout", "${value.timeoutMs}ms")
         }

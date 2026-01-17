@@ -1,26 +1,46 @@
 package io.ethers.core.types.tracers
 
-import com.fasterxml.jackson.core.JsonGenerator
+import com.fasterxml.jackson.annotation.JsonIgnore
+import com.fasterxml.jackson.annotation.JsonValue
 import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.DeserializationContext
+import com.fasterxml.jackson.databind.JsonDeserializer
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import org.intellij.lang.annotations.Language
+import kotlin.reflect.KClass
 
 /**
  * Evaluate JS functions on the relevant EVM hooks.
+ *
+ * The result is returned as a raw JSON string, allowing callers to parse it as needed.
  */
 data class JSTracer(
     @param:Language("JavaScript")
     val code: String,
+    @get:JsonValue
     val config: Map<String, Any>,
-) : Tracer<JsonNode> {
+) : Tracer<JSTracer.Result> {
+    @get:JsonIgnore
     override val name: String
         get() = code
 
-    override fun encodeConfig(gen: JsonGenerator) {
-        config.forEach { (key, value) -> gen.writeObjectField(key, value) }
-    }
+    @get:JsonIgnore
+    override val resultType: KClass<Result>
+        get() = Result::class
 
-    override fun decodeResult(parser: JsonParser): JsonNode {
-        return parser.readValueAsTree()
+    /**
+     * Result of a JS tracer, containing the raw JSON output as a string.
+     *
+     * @property json The raw JSON string returned by the tracer.
+     */
+    @JsonDeserialize(using = ResultDeserializer::class)
+    data class Result(val json: String)
+
+    private class ResultDeserializer : JsonDeserializer<Result>() {
+        override fun deserialize(p: JsonParser, ctxt: DeserializationContext): Result {
+            // Read the tree and convert back to string to get raw JSON
+            val tree = p.readValueAsTree<com.fasterxml.jackson.databind.JsonNode>()
+            return Result(tree.toString())
+        }
     }
 }

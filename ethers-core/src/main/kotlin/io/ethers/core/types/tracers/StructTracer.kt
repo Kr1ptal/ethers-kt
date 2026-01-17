@@ -1,6 +1,6 @@
 package io.ethers.core.types.tracers
 
-import com.fasterxml.jackson.core.JsonGenerator
+import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.DeserializationContext
 import com.fasterxml.jackson.databind.JsonDeserializer
@@ -12,6 +12,7 @@ import io.ethers.core.readListOf
 import io.ethers.core.readMapOf
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
+import kotlin.reflect.KClass
 
 /**
  * Default tracer. Cannot be combined with other tracers (e.g. in [MuxTracer]).
@@ -23,7 +24,8 @@ import io.ethers.core.types.Hash
  * @param debug print output during capture end
  * @param limit maximum length of output, zero means unlimited
  * @param overrides chain overrides, can be used to execute a trace using future fork rules
- * */
+ */
+@JsonInclude(JsonInclude.Include.NON_DEFAULT)
 data class StructTracer(
     val enableMemory: Boolean = false,
     val disableStack: Boolean = false,
@@ -33,33 +35,8 @@ data class StructTracer(
     val limit: Int = 0,
     val overrides: Map<String, Any> = emptyMap(),
 ) : AnyTracer<StructTracer.ExecutionResult> {
-    override fun encodeConfig(gen: JsonGenerator) {
-        if (enableMemory) {
-            gen.writeBooleanField("enableMemory", true)
-        }
-        if (disableStack) {
-            gen.writeBooleanField("disableStack", true)
-        }
-        if (disableStorage) {
-            gen.writeBooleanField("disableStorage", true)
-        }
-        if (enableReturnData) {
-            gen.writeBooleanField("enableReturnData", true)
-        }
-        if (debug) {
-            gen.writeBooleanField("debug", true)
-        }
-        if (limit > 0) {
-            gen.writeNumberField("limit", limit)
-        }
-        if (overrides.isNotEmpty()) {
-            gen.writeObjectField("overrides", overrides)
-        }
-    }
-
-    override fun decodeResult(parser: JsonParser): ExecutionResult {
-        return parser.readValueAs(ExecutionResult::class.java)
-    }
+    override val resultType: KClass<ExecutionResult>
+        get() = ExecutionResult::class
 
     @JsonDeserialize(using = ExecutionResultDeserializer::class)
     data class ExecutionResult(

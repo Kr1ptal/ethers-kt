@@ -157,7 +157,7 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
      * Execute "debug_traceCall" at the given [blockHash] using the provided [TracerConfig], returning the result of
      * the tracer. Similar to [call] function, this is a read-only call, and it will not modify the blockchain state.
      * */
-    fun <T> traceCall(blockHash: Hash, config: TracerConfig<T>): RpcRequest<T, RpcError> {
+    fun <T : Any> traceCall(blockHash: Hash, config: TracerConfig<T>): RpcRequest<T, RpcError> {
         return traceCall(BlockId.Hash(blockHash), config)
     }
 
@@ -165,7 +165,7 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
      * Execute "debug_traceCall" at the given [blockNumber] using the provided [TracerConfig], returning the result of
      * the tracer. Similar to [call] function, this is a read-only call, and it will not modify the blockchain state.
      * */
-    fun <T> traceCall(blockNumber: Long, config: TracerConfig<T>): RpcRequest<T, RpcError> {
+    fun <T : Any> traceCall(blockNumber: Long, config: TracerConfig<T>): RpcRequest<T, RpcError> {
         return traceCall(BlockId.Number(blockNumber), config)
     }
 
@@ -173,7 +173,7 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
      * Execute "debug_traceCall" at the given [BlockId] using the provided [TracerConfig], returning the result of
      * the tracer. Similar to [call] function, this is a read-only call, and it will not modify the blockchain state.
      * */
-    fun <T> traceCall(blockId: BlockId, config: TracerConfig<T>): RpcRequest<T, RpcError> {
+    fun <T : Any> traceCall(blockId: BlockId, config: TracerConfig<T>): RpcRequest<T, RpcError> {
         return provider.traceCall(call, blockId, config)
     }
 

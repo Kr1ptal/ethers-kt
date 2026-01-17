@@ -1,23 +1,37 @@
 package io.ethers.core.types.tracers
 
-import com.fasterxml.jackson.core.JsonGenerator
+import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.core.JsonParser
+import com.fasterxml.jackson.databind.DeserializationContext
+import com.fasterxml.jackson.databind.JsonDeserializer
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize
+import kotlin.reflect.KClass
 
 /**
  * Perform no action.
  *
  * It's mostly useful for testing purposes.
  */
-data object NoopTracer : Tracer<Unit> {
+data object NoopTracer : Tracer<NoopTracer.Result> {
+    @get:JsonIgnore
     override val name: String
         get() = "noopTracer"
 
-    override fun encodeConfig(gen: JsonGenerator) {
-        // no config
-    }
+    @get:JsonIgnore
+    override val resultType: KClass<Result>
+        get() = Result::class
 
-    override fun decodeResult(parser: JsonParser) {
-        // skip returned '{}' object
-        parser.skipChildren()
+    /**
+     * Empty result marker for the noop tracer.
+     */
+    @JsonDeserialize(using = ResultDeserializer::class)
+    data object Result
+
+    private class ResultDeserializer : JsonDeserializer<Result>() {
+        override fun deserialize(p: JsonParser, ctxt: DeserializationContext): Result {
+            // skip returned '{}' object
+            p.skipChildren()
+            return Result
+        }
     }
 }
