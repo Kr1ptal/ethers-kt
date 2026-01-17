@@ -1,10 +1,10 @@
 package io.ethers.core.types.tracers
 
-import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.DeserializationContext
 import com.fasterxml.jackson.databind.JsonDeserializer
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
+import java.beans.Transient
 import kotlin.reflect.KClass
 
 /**
@@ -13,11 +13,11 @@ import kotlin.reflect.KClass
  * It's mostly useful for testing purposes.
  */
 data object NoopTracer : Tracer<NoopTracer.Result> {
-    @get:JsonIgnore
+    @get:Transient
     override val name: String
         get() = "noopTracer"
 
-    @get:JsonIgnore
+    @get:Transient
     override val resultType: KClass<Result>
         get() = Result::class
 

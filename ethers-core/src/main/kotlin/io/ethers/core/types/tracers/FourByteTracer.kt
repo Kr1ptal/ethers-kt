@@ -1,11 +1,11 @@
 package io.ethers.core.types.tracers
 
-import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.DeserializationContext
 import com.fasterxml.jackson.databind.JsonDeserializer
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import io.ethers.core.readMapOf
+import java.beans.Transient
 import kotlin.reflect.KClass
 
 /**
@@ -25,11 +25,11 @@ import kotlin.reflect.KClass
  *	}
  */
 data object FourByteTracer : Tracer<FourByteTracer.Result> {
-    @get:JsonIgnore
+    @get:Transient
     override val name: String
         get() = "4byteTracer"
 
-    @get:JsonIgnore
+    @get:Transient
     override val resultType: KClass<Result>
         get() = Result::class
 
