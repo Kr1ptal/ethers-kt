@@ -2,6 +2,7 @@ package io.ethers.providers
 
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.databind.util.TokenBuffer
 import io.channels.core.ChannelReceiver
 import io.ethers.core.Jackson
@@ -41,12 +42,14 @@ class HttpClient(
     url: String,
     private val client: OkHttpClient,
     headers: Map<String, String> = emptyMap(),
+    private val jsonMapper: JsonMapper = Jackson.MAPPER,
 ) : JsonRpcClient {
     @JvmOverloads
     constructor(url: String, config: RpcClientConfig = RpcClientConfig()) : this(
         url,
         config.client!!,
         config.requestHeaders,
+        config.jsonMapper,
     )
 
     private val LOG = getLogger()
@@ -117,7 +120,7 @@ class HttpClient(
                             // second, if decoding fails, return the response as a message and complete all requests
                             // including the batch future
                             val message = "HTTP ${it.code}: ${it.message}"
-                            val data = Jackson.MAPPER.valueToTree<JsonNode>(String(bytes))
+                            val data = jsonMapper.valueToTree<JsonNode>(String(bytes))
                             val error = RpcError(RpcError.CODE_CALL_FAILED, message, data)
                             val failure = failure(error)
 
@@ -205,7 +208,7 @@ class HttpClient(
 
                             // second, if decoding fails, return the response as a message
                             val message = "HTTP ${it.code}: ${it.message}"
-                            val data = Jackson.MAPPER.valueToTree<JsonNode>(String(bytes))
+                            val data = jsonMapper.valueToTree<JsonNode>(String(bytes))
                             val error = RpcError(RpcError.CODE_CALL_FAILED, message, data)
                             LOG.err { "Call failed for method=$method, params=${params.contentToString()}: $error" }
 
@@ -252,7 +255,7 @@ class HttpClient(
                 "error" -> {
                     // just call to pass the ID
                     getDecoder(id)
-                    result = failure(Jackson.MAPPER.readValue(this, RpcError::class.java))
+                    result = failure(jsonMapper.readValue(this, RpcError::class.java))
                 }
             }
         }
@@ -270,7 +273,7 @@ class HttpClient(
     }
 
     private inline fun <R> InputStream.useJsonParser(action: JsonParser.() -> R): R {
-        return Jackson.MAPPER.createAndInitParser(this).use(action)
+        return jsonMapper.createAndInitParser(this).use(action)
     }
 
     override fun <T : Any> subscribe(
@@ -289,7 +292,7 @@ class HttpClient(
 
         val output = DirectByteArrayOutputStream(requests.size * BYTE_BUFFER_DEFAULT_SIZE)
         output.use { out ->
-            val gen = Jackson.MAPPER.createGenerator(out)
+            val gen = jsonMapper.createGenerator(out)
 
             gen.use {
                 it.writeStartArray()
@@ -311,7 +314,7 @@ class HttpClient(
         val output = DirectByteArrayOutputStream(BYTE_BUFFER_DEFAULT_SIZE)
 
         output.use { out ->
-            val gen = Jackson.MAPPER.createGenerator(out)
+            val gen = jsonMapper.createGenerator(out)
             gen.use { it.writeJsonRpcRequest(method, requestId.getAndIncrement(), params) }
         }
 
