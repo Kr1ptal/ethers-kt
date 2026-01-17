@@ -1,6 +1,5 @@
 package io.ethers.core.types.tracers
 
-import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.DeserializationContext
 import com.fasterxml.jackson.databind.JsonDeserializer
@@ -13,13 +12,13 @@ import kotlin.reflect.KClass
  * It's mostly useful for testing purposes.
  */
 data object NoopTracer : Tracer<NoopTracer.Result> {
-    @get:JsonIgnore
     override val name: String
         get() = "noopTracer"
 
-    @get:JsonIgnore
     override val resultType: KClass<Result>
         get() = Result::class
+
+    override val config: Map<String, Any?> = EMPTY_CONFIG
 
     /**
      * Empty result marker for the noop tracer.
@@ -34,4 +33,6 @@ data object NoopTracer : Tracer<NoopTracer.Result> {
             return Result
         }
     }
+
+    private val EMPTY_CONFIG = emptyMap<String, Any?>()
 }

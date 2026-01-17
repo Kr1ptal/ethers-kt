@@ -1,6 +1,5 @@
 package io.ethers.core.types.tracers
 
-import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.DeserializationContext
 import com.fasterxml.jackson.databind.JsonDeserializer
@@ -25,13 +24,13 @@ import kotlin.reflect.KClass
  *	}
  */
 data object FourByteTracer : Tracer<FourByteTracer.Result> {
-    @get:JsonIgnore
     override val name: String
         get() = "4byteTracer"
 
-    @get:JsonIgnore
     override val resultType: KClass<Result>
         get() = Result::class
+
+    override val config: Map<String, Any?> = EMPTY_CONFIG
 
     /**
      * Result of the 4byte tracer, mapping 4-byte identifiers (with data size suffix) to call counts.
@@ -44,4 +43,6 @@ data object FourByteTracer : Tracer<FourByteTracer.Result> {
             return Result(p.readMapOf({ it }) { intValue })
         }
     }
+
+    private val EMPTY_CONFIG = emptyMap<String, Any?>()
 }

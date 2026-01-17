@@ -15,9 +15,7 @@ import kotlin.reflect.KClass
  * To implement a custom tracer, create a data class implementing this interface and define:
  * - [name]: The tracer name as recognized by the node
  * - [resultType]: The KClass of the result type for deserialization
- *
- * The tracer's properties will be serialized as the tracer config using Jackson's default serialization.
- * Use Jackson annotations (e.g., `@JsonInclude`, `@JsonProperty`) to customize serialization if needed.
+ * - [config]: The tracer configuration payload to serialize
  *
  * Example:
  * ```kotlin
@@ -27,6 +25,10 @@ import kotlin.reflect.KClass
  * ) : Tracer<MyTracer.Result> {
  *     override val name = "myTracer"
  *     override val resultType = Result::class
+ *     override val config = mapOf(
+ *         "someOption" to someOption,
+ *         "anotherOption" to anotherOption,
+ *     )
  *
  *     data class Result(val data: String, val count: Int)
  * }
@@ -47,6 +49,11 @@ sealed interface AnyTracer<T : Any> {
      * The result type class for deserialization.
      */
     val resultType: KClass<out T>
+
+    /**
+     * Tracer configuration payload to serialize as tracerConfig.
+     */
+    val config: Map<String, Any?>
 }
 
 @JsonSerialize(using = TracerConfigSerializer::class)
@@ -64,47 +71,18 @@ private class TracerConfigSerializer : JsonSerializer<TracerConfig<*>>() {
         gen.writeStartObject()
 
         when (val tracer = value.tracer) {
-            is MuxTracer -> {
-                // MuxTracer needs special handling - serialize each nested tracer's config
-                gen.writeStringField("tracer", tracer.name)
-                gen.writeFieldName("tracerConfig")
-                gen.writeStartObject()
-                for (t in tracer.tracers) {
-                    gen.writeFieldName(t.name)
-                    serializers.defaultSerializeValue(t, gen)
-                }
-                gen.writeEndObject()
-            }
-
             is Tracer<*> -> {
-                // Named tracer - use Jackson's default serialization for config
+                // Named tracer - serialize provided config payload
                 gen.writeStringField("tracer", tracer.name)
                 gen.writeFieldName("tracerConfig")
-                serializers.defaultSerializeValue(tracer, gen)
+                serializers.defaultSerializeValue(tracer.config, gen)
             }
 
-            is StructTracer -> {
-                // StructTracer - serialize non-default fields directly at root level
-                if (tracer.enableMemory) {
-                    gen.writeBooleanField("enableMemory", true)
-                }
-                if (tracer.disableStack) {
-                    gen.writeBooleanField("disableStack", true)
-                }
-                if (tracer.disableStorage) {
-                    gen.writeBooleanField("disableStorage", true)
-                }
-                if (tracer.enableReturnData) {
-                    gen.writeBooleanField("enableReturnData", true)
-                }
-                if (tracer.debug) {
-                    gen.writeBooleanField("debug", true)
-                }
-                if (tracer.limit != 0) {
-                    gen.writeNumberField("limit", tracer.limit)
-                }
-                if (tracer.overrides.isNotEmpty()) {
-                    gen.writeObjectField("overrides", tracer.overrides)
+            else -> {
+                // StructTracer - merge config payload fields at root level
+                for ((fieldName, fieldValue) in tracer.config) {
+                    gen.writeFieldName(fieldName)
+                    serializers.defaultSerializeValue(fieldValue, gen)
                 }
             }
         }

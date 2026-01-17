@@ -1,6 +1,5 @@
 package io.ethers.core.types.tracers
 
-import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.DeserializationContext
 import com.fasterxml.jackson.databind.JsonDeserializer
@@ -33,13 +32,18 @@ import kotlin.reflect.KClass
  * @param diffMode if `true`, return the differences between the transaction's pre- and post-state
  */
 data class PrestateTracer(val diffMode: Boolean) : Tracer<PrestateTracer.Result> {
-    @get:JsonIgnore
     override val name: String
         get() = "prestateTracer"
 
-    @get:JsonIgnore
     override val resultType: KClass<Result>
         get() = Result::class
+
+    override val config: Map<String, Any?> =
+        if (diffMode) {
+            CONFIG_DIFF
+        } else {
+            CONFIG_PRESTATE
+        }
 
     @JsonDeserialize(using = ResultDeserializer::class)
     data class Result(
@@ -183,5 +187,7 @@ data class PrestateTracer(val diffMode: Boolean) : Tracer<PrestateTracer.Result>
 
     companion object {
         private val ARB_OS_ADDRESS = Address("0xa4b05fffffffffffffffffffffffffffffffffff")
+        private val CONFIG_PRESTATE = mapOf("diffMode" to false)
+        private val CONFIG_DIFF = mapOf("diffMode" to true)
     }
 }

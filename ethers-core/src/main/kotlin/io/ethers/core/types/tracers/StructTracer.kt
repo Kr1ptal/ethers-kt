@@ -1,6 +1,5 @@
 package io.ethers.core.types.tracers
 
-import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.DeserializationContext
 import com.fasterxml.jackson.databind.JsonDeserializer
@@ -25,7 +24,6 @@ import kotlin.reflect.KClass
  * @param limit maximum length of output, zero means unlimited
  * @param overrides chain overrides, can be used to execute a trace using future fork rules
  */
-@JsonInclude(JsonInclude.Include.NON_DEFAULT)
 data class StructTracer(
     val enableMemory: Boolean = false,
     val disableStack: Boolean = false,
@@ -37,6 +35,16 @@ data class StructTracer(
 ) : AnyTracer<StructTracer.ExecutionResult> {
     override val resultType: KClass<ExecutionResult>
         get() = ExecutionResult::class
+
+    override val config: Map<String, Any?> = buildMap {
+        if (enableMemory) put("enableMemory", true)
+        if (disableStack) put("disableStack", true)
+        if (disableStorage) put("disableStorage", true)
+        if (enableReturnData) put("enableReturnData", true)
+        if (debug) put("debug", true)
+        if (limit != 0) put("limit", limit)
+        if (overrides.isNotEmpty()) put("overrides", overrides)
+    }
 
     @JsonDeserialize(using = ExecutionResultDeserializer::class)
     data class ExecutionResult(

@@ -1,6 +1,5 @@
 package io.ethers.core.types.tracers
 
-import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.DeserializationContext
 import com.fasterxml.jackson.databind.JsonDeserializer
@@ -31,13 +30,26 @@ data class CallTracer(
     val onlyTopCall: Boolean,
     val withLog: Boolean,
 ) : Tracer<CallTracer.CallFrame> {
-    @get:JsonIgnore
     override val name: String
         get() = "callTracer"
 
-    @get:JsonIgnore
     override val resultType: KClass<CallFrame>
         get() = CallFrame::class
+
+    override val config: Map<String, Any?> =
+        if (onlyTopCall) {
+            if (withLog) {
+                CONFIG_ONLY_TOP_WITH_LOG
+            } else {
+                CONFIG_ONLY_TOP_WITHOUT_LOG
+            }
+        } else {
+            if (withLog) {
+                CONFIG_WITH_LOG
+            } else {
+                CONFIG_WITHOUT_LOG
+            }
+        }
 
     @JsonDeserialize(using = CallFrameDeserializer::class)
     data class CallFrame(
@@ -232,5 +244,24 @@ data class CallTracer(
 
             return CallLog(address, topics, data)
         }
+    }
+
+    companion object {
+        private val CONFIG_ONLY_TOP_WITHOUT_LOG = mapOf(
+            "onlyTopCall" to true,
+            "withLog" to false,
+        )
+        private val CONFIG_ONLY_TOP_WITH_LOG = mapOf(
+            "onlyTopCall" to true,
+            "withLog" to true,
+        )
+        private val CONFIG_WITHOUT_LOG = mapOf(
+            "onlyTopCall" to false,
+            "withLog" to false,
+        )
+        private val CONFIG_WITH_LOG = mapOf(
+            "onlyTopCall" to false,
+            "withLog" to true,
+        )
     }
 }

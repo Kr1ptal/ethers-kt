@@ -1,7 +1,5 @@
 package io.ethers.core.types.tracers
 
-import com.fasterxml.jackson.annotation.JsonIgnore
-import com.fasterxml.jackson.annotation.JsonValue
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.DeserializationContext
 import com.fasterxml.jackson.databind.JsonDeserializer
@@ -17,14 +15,11 @@ import kotlin.reflect.KClass
 data class JSTracer(
     @param:Language("JavaScript")
     val code: String,
-    @get:JsonValue
-    val config: Map<String, Any>,
+    override val config: Map<String, Any?>,
 ) : Tracer<JSTracer.Result> {
-    @get:JsonIgnore
     override val name: String
         get() = code
 
-    @get:JsonIgnore
     override val resultType: KClass<Result>
         get() = Result::class
 
