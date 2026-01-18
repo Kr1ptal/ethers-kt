@@ -1,8 +1,11 @@
 package io.ethers.core.types.tracers
 
-import com.fasterxml.jackson.core.JsonGenerator
 import com.fasterxml.jackson.core.JsonParser
+import com.fasterxml.jackson.databind.DeserializationContext
+import com.fasterxml.jackson.databind.JsonDeserializer
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import io.ethers.core.readMapOf
+import kotlin.reflect.KClass
 
 /**
  * Search for 4byte-identifiers, and collect them for post-processing.
@@ -20,15 +23,26 @@ import io.ethers.core.readMapOf
  *	  0xc281d19e-0: 1
  *	}
  */
-data object FourByteTracer : Tracer<Map<String, Int>> {
+data object FourByteTracer : Tracer<FourByteTracer.Result> {
+    private val EMPTY_CONFIG = emptyMap<String, Any?>()
+
     override val name: String
         get() = "4byteTracer"
 
-    override fun encodeConfig(gen: JsonGenerator) {
-        // no config
-    }
+    override val resultType: KClass<Result>
+        get() = Result::class
 
-    override fun decodeResult(parser: JsonParser): Map<String, Int> {
-        return parser.readMapOf({ it }) { intValue }
+    override val config: Map<String, Any?> = EMPTY_CONFIG
+
+    /**
+     * Result of the 4byte tracer, mapping 4-byte identifiers (with data size suffix) to call counts.
+     */
+    @JsonDeserialize(using = ResultDeserializer::class)
+    data class Result(val entries: Map<String, Int>)
+
+    private class ResultDeserializer : JsonDeserializer<Result>() {
+        override fun deserialize(p: JsonParser, ctxt: DeserializationContext): Result {
+            return Result(p.readMapOf({ it }) { intValue })
+        }
     }
 }

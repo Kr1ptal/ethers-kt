@@ -1,7 +1,6 @@
 package io.ethers.core.types.tracers
 
 import io.ethers.core.Jackson
-import io.ethers.core.Jackson.createAndInitParser
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
 import io.kotest.assertions.json.shouldEqualJson
@@ -38,7 +37,7 @@ class StructTracerTest : FunSpec({
         """
     }
 
-    test("decodeResult(diffMode = false)") {
+    test("decode result") {
         @Language("JSON")
         val jsonString = """
             {
@@ -71,8 +70,7 @@ class StructTracerTest : FunSpec({
             }
         """.trimIndent()
 
-        val jsonParser = Jackson.MAPPER.createAndInitParser(jsonString)
-        val result = structTracer.decodeResult(jsonParser)
+        val result = Jackson.MAPPER.readValue(jsonString, structTracer.resultType.java)
 
         val expectedResult = StructTracer.ExecutionResult(
             159625L,

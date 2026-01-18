@@ -1,7 +1,6 @@
 package io.ethers.core.types.tracers
 
 import io.ethers.core.Jackson
-import io.ethers.core.Jackson.createAndInitParser
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
@@ -90,8 +89,7 @@ class CallTracerTest : FunSpec({
             }
         """.trimIndent()
 
-        val jsonParser = Jackson.MAPPER.createAndInitParser(jsonString)
-        val result = callTracer.decodeResult(jsonParser)
+        val result = Jackson.MAPPER.readValue(jsonString, callTracer.resultType.java)
 
         val expectedResult = CallTracer.CallFrame(
             type = "CALL",

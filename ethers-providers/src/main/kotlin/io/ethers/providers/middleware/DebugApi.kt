@@ -69,21 +69,21 @@ interface DebugApi {
     /**
      * Execute [call] on given [blockNumber] and trace its execution with given tracer [config].
      */
-    fun <T> traceCall(call: IntoCallRequest, blockNumber: Long, config: TracerConfig<T>): RpcRequest<T, RpcError> {
+    fun <T : Any> traceCall(call: IntoCallRequest, blockNumber: Long, config: TracerConfig<T>): RpcRequest<T, RpcError> {
         return traceCall(call, BlockId.Number(blockNumber), config)
     }
 
     /**
      * Execute [call] on given [blockHash] and trace its execution with given tracer [config].
      */
-    fun <T> traceCall(call: IntoCallRequest, blockHash: Hash, config: TracerConfig<T>): RpcRequest<T, RpcError> {
+    fun <T : Any> traceCall(call: IntoCallRequest, blockHash: Hash, config: TracerConfig<T>): RpcRequest<T, RpcError> {
         return traceCall(call, BlockId.Hash(blockHash), config)
     }
 
     /**
      * Execute [call] on given [blockId] and trace its execution with given tracer [config].
      */
-    fun <T> traceCall(call: IntoCallRequest, blockId: BlockId, config: TracerConfig<T>): RpcRequest<T, RpcError>
+    fun <T : Any> traceCall(call: IntoCallRequest, blockId: BlockId, config: TracerConfig<T>): RpcRequest<T, RpcError>
 
     /**
      * Execute arbitrary number of [calls] starting at an arbitrary [transactionIndex] in the block, and tracing their
@@ -95,7 +95,7 @@ interface DebugApi {
      * @param transactionIndex the index of where in the block to start executing the calls at, with -1 meaning
      * at the end of the block.
      * */
-    fun <T> traceCallMany(
+    fun <T : Any> traceCallMany(
         blockNumber: Long,
         calls: List<IntoCallRequest>,
         config: TracerConfig<T>,
@@ -114,7 +114,7 @@ interface DebugApi {
      * @param transactionIndex the index of where in the block to start executing the calls at, with -1 meaning
      * at the end of the block.
      * */
-    fun <T> traceCallMany(
+    fun <T : Any> traceCallMany(
         blockHash: Hash,
         calls: List<IntoCallRequest>,
         config: TracerConfig<T>,
@@ -133,7 +133,7 @@ interface DebugApi {
      * @param transactionIndex the index of where in the block to start executing the calls at, with -1 meaning
      * at the end of the block.
      * */
-    fun <T> traceCallMany(
+    fun <T : Any> traceCallMany(
         blockId: BlockId,
         calls: List<IntoCallRequest>,
         config: TracerConfig<T>,
@@ -143,20 +143,20 @@ interface DebugApi {
     /**
      * Trace [txHash] transaction execution with given tracer [config].
      */
-    fun <T> traceTransaction(txHash: Hash, config: TracerConfig<T>): RpcRequest<T, RpcError>
+    fun <T : Any> traceTransaction(txHash: Hash, config: TracerConfig<T>): RpcRequest<T, RpcError>
 
     /**
      * Trace all transactions within block with given tracer [config].
      * */
-    fun <T> traceBlock(blockHash: Hash, config: TracerConfig<T>) = traceBlock(BlockId.Hash(blockHash), config)
+    fun <T : Any> traceBlock(blockHash: Hash, config: TracerConfig<T>) = traceBlock(BlockId.Hash(blockHash), config)
 
     /**
      * Trace all transactions within block with given tracer [config].
      * */
-    fun <T> traceBlock(blockNumber: Long, config: TracerConfig<T>) = traceBlock(BlockId.Number(blockNumber), config)
+    fun <T : Any> traceBlock(blockNumber: Long, config: TracerConfig<T>) = traceBlock(BlockId.Number(blockNumber), config)
 
     /**
      * Trace all transactions within block with given tracer [config].
      * */
-    fun <T> traceBlock(blockId: BlockId, config: TracerConfig<T>): RpcRequest<List<TxTraceResult<T>>, RpcError>
+    fun <T : Any> traceBlock(blockId: BlockId, config: TracerConfig<T>): RpcRequest<List<TxTraceResult<T>>, RpcError>
 }
