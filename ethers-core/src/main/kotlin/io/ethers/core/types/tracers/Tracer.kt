@@ -1,7 +1,9 @@
 package io.ethers.core.types.tracers
 
 import com.fasterxml.jackson.core.JsonGenerator
+import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.JsonSerializer
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializerProvider
 import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import io.ethers.core.FastHex
@@ -54,6 +56,19 @@ sealed interface AnyTracer<T : Any> {
      * Tracer configuration payload to serialize as tracerConfig.
      */
     val config: Map<String, Any?>
+
+    /**
+     * Decode the tracer result from the JSON parser.
+     *
+     * Default implementation uses [resultType] for simple deserialization.
+     * Override for custom decoding logic (e.g., MuxTracer).
+     *
+     * Note: This currently uses Jackson directly. Will be abstracted to support
+     * multiple JSON libraries in the future.
+     */
+    fun decodeResult(mapper: ObjectMapper, parser: JsonParser): T {
+        return parser.readValueAs(resultType.java)
+    }
 }
 
 @JsonSerialize(using = TracerConfigSerializer::class)

@@ -40,7 +40,6 @@ import io.ethers.core.types.TxpoolContentFromAddress
 import io.ethers.core.types.TxpoolInspectResult
 import io.ethers.core.types.TxpoolStatus
 import io.ethers.core.types.tracers.AnyTracer
-import io.ethers.core.types.tracers.MuxTracer
 import io.ethers.core.types.tracers.TracerConfig
 import io.ethers.core.types.tracers.TxTraceResult
 import io.ethers.core.types.transaction.TransactionUnsigned
@@ -598,35 +597,11 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         }
     }
 
-    @Suppress("UNCHECKED_CAST")
     private fun <T : Any> deserializeTracerResult(
         tracer: AnyTracer<T>,
         parser: com.fasterxml.jackson.core.JsonParser,
     ): T {
-        return when (tracer) {
-            is MuxTracer -> deserializeMuxResult(parser, tracer) as T
-            else -> parser.readValueAs(tracer.resultType.java)
-        }
-    }
-
-    private fun deserializeMuxResult(
-        parser: com.fasterxml.jackson.core.JsonParser,
-        muxTracer: MuxTracer,
-    ): MuxTracer.Result {
-        val results = arrayOfNulls<Any>(muxTracer.tracers.size)
-
-        parser.forEachObjectField { name ->
-            for (i in muxTracer.tracers.indices) {
-                val tracer = muxTracer.tracers[i]
-                if (name == tracer.name) {
-                    results[i] = parser.readValueAs(tracer.resultType.java)
-                    return@forEachObjectField
-                }
-            }
-            throw Exception("Tracer not found: $name")
-        }
-
-        return MuxTracer.Result(muxTracer.tracers, results)
+        return tracer.decodeResult(Jackson.MAPPER, parser)
     }
 
     //-----------------------------------------------------------------------------------------------------------------

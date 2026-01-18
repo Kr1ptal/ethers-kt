@@ -1,13 +1,13 @@
 package io.ethers.core.types.tracers
 
+import com.fasterxml.jackson.core.JsonParser
+import com.fasterxml.jackson.databind.ObjectMapper
+import io.ethers.core.forEachObjectField
 import kotlin.reflect.KClass
 
 /**
  * Run multiple tracers in one go. Only one tracer with the same type can be nested in a single mux tracer. If you need
  * multiple tracers of the same type - but with different configurations -, consider nesting another mux tracer.
- *
- * Note: MuxTracer.Result deserialization requires special handling in the Provider because it needs
- * access to the tracer list to deserialize each nested result using the appropriate result type.
  */
 data class MuxTracer(
     val tracers: List<Tracer<out Any>>,
@@ -32,6 +32,23 @@ data class MuxTracer(
         get() = Result::class
 
     override val config: Map<String, Any?> = tracers.associate { it.name to it.config }
+
+    override fun decodeResult(mapper: ObjectMapper, parser: JsonParser): Result {
+        val results = arrayOfNulls<Any>(tracers.size)
+
+        parser.forEachObjectField { name ->
+            for (i in tracers.indices) {
+                val tracer = tracers[i]
+                if (name == tracer.name) {
+                    results[i] = tracer.decodeResult(mapper, parser)
+                    return@forEachObjectField
+                }
+            }
+            throw IllegalArgumentException("Unknown tracer in response: $name")
+        }
+
+        return Result(tracers, results)
+    }
 
     data class Result(
         val tracers: List<Tracer<out Any>>,

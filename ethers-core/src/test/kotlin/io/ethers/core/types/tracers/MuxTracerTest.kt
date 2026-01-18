@@ -1,9 +1,7 @@
 package io.ethers.core.types.tracers
 
-import com.fasterxml.jackson.core.JsonParser
 import io.ethers.core.Jackson
 import io.ethers.core.Jackson.createAndInitParser
-import io.ethers.core.forEachObjectField
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
@@ -40,22 +38,6 @@ class MuxTracerTest : FunSpec({
     }
 
     context("decode result") {
-        // Helper function to deserialize MuxTracer result (same logic as Provider uses)
-        fun deserializeMuxResult(parser: JsonParser, tracer: MuxTracer): MuxTracer.Result {
-            val results = arrayOfNulls<Any>(tracer.tracers.size)
-            parser.forEachObjectField { name ->
-                for (i in tracer.tracers.indices) {
-                    val t = tracer.tracers[i]
-                    if (name == t.name) {
-                        results[i] = parser.readValueAs(t.resultType.java)
-                        return@forEachObjectField
-                    }
-                }
-                throw Exception("Tracer not found: $name")
-            }
-            return MuxTracer.Result(tracer.tracers, results)
-        }
-
         test("success") {
             @Language("JSON")
             val jsonString = """
@@ -101,7 +83,7 @@ class MuxTracerTest : FunSpec({
             """.trimIndent()
 
             val jsonParser = Jackson.MAPPER.createAndInitParser(jsonString)
-            val result = deserializeMuxResult(jsonParser, muxTracer)
+            val result = muxTracer.decodeResult(Jackson.MAPPER, jsonParser)
 
             val callTracerExpectedResult = CallTracer.CallFrame(
                 type = "CALL",
@@ -149,10 +131,10 @@ class MuxTracerTest : FunSpec({
         }
 
         test("tracer not found") {
-            shouldThrow<Exception> {
+            shouldThrow<IllegalArgumentException> {
                 val jsonString = """{"unknown_tracer": {}}"""
                 val jsonParser = Jackson.MAPPER.createAndInitParser(jsonString)
-                deserializeMuxResult(jsonParser, muxTracer)
+                muxTracer.decodeResult(Jackson.MAPPER, jsonParser)
             }
         }
     }
