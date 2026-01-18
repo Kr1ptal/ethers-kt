@@ -37,18 +37,11 @@ data class CallTracer(
         get() = CallFrame::class
 
     override val config: Map<String, Any?> =
-        if (onlyTopCall) {
-            if (withLog) {
-                CONFIG_ONLY_TOP_WITH_LOG
-            } else {
-                CONFIG_ONLY_TOP_WITHOUT_LOG
-            }
-        } else {
-            if (withLog) {
-                CONFIG_WITH_LOG
-            } else {
-                CONFIG_WITHOUT_LOG
-            }
+        when {
+            onlyTopCall && withLog -> CONFIG_TOP_CALL_WITH_LOGS
+            onlyTopCall -> CONFIG_TOP_CALL_WITHOUT_LOGS
+            withLog -> CONFIG_ALL_CALLS_WITH_LOGS
+            else -> CONFIG_ALL_CALLS_NO_LOGS
         }
 
     @JsonDeserialize(using = CallFrameDeserializer::class)
@@ -247,21 +240,21 @@ data class CallTracer(
     }
 
     companion object {
-        private val CONFIG_ONLY_TOP_WITHOUT_LOG = mapOf(
-            "onlyTopCall" to true,
-            "withLog" to false,
-        )
-        private val CONFIG_ONLY_TOP_WITH_LOG = mapOf(
+        private val CONFIG_TOP_CALL_WITH_LOGS = mapOf(
             "onlyTopCall" to true,
             "withLog" to true,
         )
-        private val CONFIG_WITHOUT_LOG = mapOf(
-            "onlyTopCall" to false,
+        private val CONFIG_TOP_CALL_WITHOUT_LOGS = mapOf(
+            "onlyTopCall" to true,
             "withLog" to false,
         )
-        private val CONFIG_WITH_LOG = mapOf(
+        private val CONFIG_ALL_CALLS_WITH_LOGS = mapOf(
             "onlyTopCall" to false,
             "withLog" to true,
+        )
+        private val CONFIG_ALL_CALLS_NO_LOGS = mapOf(
+            "onlyTopCall" to false,
+            "withLog" to false,
         )
     }
 }

@@ -31,7 +31,9 @@ data class MuxTracer(
     override val resultType: KClass<Result>
         get() = Result::class
 
-    override val config: Map<String, Any?> = tracers.associate { it.name to it.config }
+    override val config: Map<String, Any?> = HashMap<String, Any?>(tracers.size, 1.0f).also {
+        tracers.forEach { tracer -> it[tracer.name] = tracer.config }
+    }
 
     override fun decodeResult(mapper: ObjectMapper, parser: JsonParser): Result {
         val results = arrayOfNulls<Any>(tracers.size)

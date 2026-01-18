@@ -38,12 +38,10 @@ data class PrestateTracer(val diffMode: Boolean) : Tracer<PrestateTracer.Result>
     override val resultType: KClass<Result>
         get() = Result::class
 
-    override val config: Map<String, Any?> =
-        if (diffMode) {
-            CONFIG_DIFF
-        } else {
-            CONFIG_PRESTATE
-        }
+    override val config: Map<String, Any?> = when {
+        diffMode -> CONFIG_DIFF
+        else -> CONFIG_PRESTATE
+    }
 
     @JsonDeserialize(using = ResultDeserializer::class)
     data class Result(
@@ -133,8 +131,8 @@ data class PrestateTracer(val diffMode: Boolean) : Tracer<PrestateTracer.Result>
 
     private class ResultDeserializer : JsonDeserializer<Result>() {
         override fun deserialize(p: JsonParser, ctxt: DeserializationContext): Result {
-            var prestate = emptyMap<Address, Account>()
-            var poststate = emptyMap<Address, Account>()
+            var prestate: Map<Address, Account>? = null
+            var poststate: Map<Address, Account>? = null
             var diffMode = false
 
             // Auto-detect mode based on JSON structure:
@@ -146,22 +144,28 @@ data class PrestateTracer(val diffMode: Boolean) : Tracer<PrestateTracer.Result>
                         diffMode = true
                         prestate = p.readAccountMap()
                     }
+
                     "post" -> {
                         diffMode = true
                         poststate = p.readAccountMap()
                     }
+
+                    // diffMode == false
+                    // In prestate mode, field is an address key
                     else -> {
-                        // In prestate mode, field is an address key
-                        if (!diffMode) {
-                            val address = Address(field)
-                            val account = p.readAccount()
-                            prestate = prestate + (address to account)
+                        if (prestate == null) {
+                            prestate = HashMap()
                         }
+
+                        val address = Address(field)
+                        val account = p.readAccount()
+
+                        (prestate as MutableMap<Address, Account>)[address] = account
                     }
                 }
             }
 
-            return Result(diffMode, prestate, poststate)
+            return Result(diffMode, prestate ?: emptyMap(), poststate ?: emptyMap())
         }
 
         private fun JsonParser.readAccountMap(): Map<Address, Account> {
