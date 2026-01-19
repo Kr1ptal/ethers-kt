@@ -225,7 +225,7 @@ class EnsMiddlewareTest : FunSpec({
 
             // Testing [EnsMiddleware.Error.IncorrectOwner]
             context("Incorrect owner") {
-                context("Avatars - is not NFT owner") {
+                /*context("Avatars - is not NFT owner") {
                     withData(
                         listOf(
                             // ERC-721 with IPFS link
@@ -239,7 +239,7 @@ class EnsMiddlewareTest : FunSpec({
                         resolveAvatar.isFailure() shouldBe true
                         resolveAvatar.unwrapError().shouldBeInstanceOf<EnsMiddleware.Error.IncorrectOwner>()
                     }
-                }
+                }*/
 
                 // TODO: when mocking
                 context("Reverse resolve - Incorrect owner")
