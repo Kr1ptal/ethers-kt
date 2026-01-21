@@ -54,6 +54,7 @@ class WsClient(
     private val client: OkHttpClient,
     headers: Map<String, String> = emptyMap(),
     private val jsonMapper: JsonMapper = Jackson.MAPPER,
+    private val unsubscribeOnReconnect: Boolean = false,
 ) : JsonRpcClient {
     @JvmOverloads
     constructor(url: String, config: RpcClientConfig = RpcClientConfig()) : this(
@@ -61,6 +62,7 @@ class WsClient(
         config.client!!,
         config.requestHeaders,
         config.jsonMapper,
+        config.unsubscribeOnReconnect,
     )
 
     private val LOG = getLogger()
@@ -263,17 +265,28 @@ class WsClient(
                             }
                         }
 
-                        // send resubscribe requests for all existing streams, without clearing the map - we need to preserve streams
+                        // handle existing streams: either close them or send resubscribe requests
                         if (requestIdToSubscription.isNotEmpty()) {
-                            for ((id, sub) in requestIdToSubscription) {
-                                LOG.dbg { "Resent stream re-subscription: $id" }
-
-                                val writer = SegmentedStringWriter(bufferRecycler)
-                                jsonMapper.createGenerator(writer).use { gen ->
-                                    gen.writeJsonRpcRequest("eth_subscribe", id, sub.params)
+                            if (unsubscribeOnReconnect) {
+                                // close all streams so consumers can handle resubscription explicitly
+                                for ((id, sub) in requestIdToSubscription) {
+                                    LOG.dbg { "Closing stream on reconnect: $id" }
+                                    sub.stream.close()
                                 }
+                                requestIdToSubscription.clear()
+                                serverIdToSubscription.clear()
+                            } else {
+                                // send resubscribe requests for all existing streams
+                                for ((id, sub) in requestIdToSubscription) {
+                                    LOG.dbg { "Resent stream re-subscription: $id" }
 
-                                websocket.send(writer.andClear)
+                                    val writer = SegmentedStringWriter(bufferRecycler)
+                                    jsonMapper.createGenerator(writer).use { gen ->
+                                        gen.writeJsonRpcRequest("eth_subscribe", id, sub.params)
+                                    }
+
+                                    websocket.send(writer.andClear)
+                                }
                             }
                         }
                     }

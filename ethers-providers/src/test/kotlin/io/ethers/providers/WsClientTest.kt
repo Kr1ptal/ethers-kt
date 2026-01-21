@@ -147,6 +147,123 @@ class WsClientTest : FunSpec({
             event3.get("timestamp")?.asText() shouldBe "0x3333"
         }
 
+        test("unsubscribeOnReconnect closes streams on reconnection") {
+            val subscriptionId = "0xreconnect123"
+            val newSubscriptionId = "0xreconnect456"
+
+            // Close default wsClient and prepare mock server for new connection
+            wsClient.close()
+            mockServer.allowReconnect()
+
+            // Pre-queue subscription response
+            mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"$subscriptionId"}""")
+
+            // Create client with unsubscribeOnReconnect = true
+            wsClient = WsClient(
+                mockServer.url,
+                OkHttpClient(),
+                emptyMap(),
+                Jackson.MAPPER,
+                unsubscribeOnReconnect = true,
+            )
+
+            // Give time for WebSocket connection to be established
+            Thread.sleep(200)
+
+            // Subscribe to new block headers
+            val params = arrayOf("newHeads")
+            val resultDecoder = Function<JsonParser, JsonNode> { Jackson.MAPPER.readTree(it) }
+
+            val subscriptionResult = wsClient.subscribe(params, resultDecoder).get()
+            subscriptionResult.isSuccess() shouldBe true
+
+            val stream = subscriptionResult.unwrap()
+            stream shouldNotBe null
+            stream.isClosed shouldBe false
+
+            Thread.sleep(100) // Give time for subscription to be established
+
+            // Allow reconnection and queue new subscription response
+            mockServer.allowReconnect()
+            mockServer.enqueueJson("""{"jsonrpc":"2.0","id":2,"result":"$newSubscriptionId"}""")
+
+            // Close the connection from server side to trigger reconnection
+            mockServer.closeConnection()
+
+            // Wait for reconnection and stream closure
+            Thread.sleep(500)
+
+            // Stream should be closed because unsubscribeOnReconnect = true
+            stream.isClosed shouldBe true
+        }
+
+        test("default behavior resubscribes on reconnection") {
+            val subscriptionId = "0xdefault123"
+            val newSubscriptionId = "0xdefault456"
+
+            // Close default wsClient and prepare mock server for new connection
+            wsClient.close()
+            mockServer.allowReconnect()
+
+            // Pre-queue subscription response
+            mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"$subscriptionId"}""")
+
+            // Create client with default settings (unsubscribeOnReconnect = false)
+            wsClient = WsClient(mockServer.url, OkHttpClient())
+
+            // Give time for WebSocket connection to be established
+            Thread.sleep(200)
+
+            // Subscribe to new block headers
+            val params = arrayOf("newHeads")
+            val resultDecoder = Function<JsonParser, JsonNode> { Jackson.MAPPER.readTree(it) }
+
+            val subscriptionResult = wsClient.subscribe(params, resultDecoder).get()
+            subscriptionResult.isSuccess() shouldBe true
+
+            val stream = subscriptionResult.unwrap()
+            stream shouldNotBe null
+            stream.isClosed shouldBe false
+
+            Thread.sleep(100) // Give time for subscription to be established
+
+            // Allow reconnection and queue new subscription response for auto-resubscription
+            mockServer.allowReconnect()
+            mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"$newSubscriptionId"}""")
+
+            // Close the connection from server side to trigger reconnection
+            mockServer.closeConnection()
+
+            // Wait for reconnection and auto-resubscription
+            Thread.sleep(500)
+
+            // Stream should NOT be closed because unsubscribeOnReconnect = false (default)
+            stream.isClosed shouldBe false
+
+            // Send a notification to verify the stream still receives messages
+            @Language("JSON")
+            val notification = """
+            {
+                "jsonrpc": "2.0",
+                "method": "eth_subscription",
+                "params": {
+                    "subscription": "$newSubscriptionId",
+                    "result": {
+                        "number": "0x9999",
+                        "hash": "0xnew"
+                    }
+                }
+            }
+            """.trimIndent()
+
+            mockServer.sendJson(notification)
+            Thread.sleep(100)
+
+            stream.isEmpty shouldBe false
+            val event = stream.take()!!
+            event.get("number")?.asText() shouldBe "0x9999"
+        }
+
         test("successful unsubscribe") {
             val subscriptionId = "0xdef456"
 
