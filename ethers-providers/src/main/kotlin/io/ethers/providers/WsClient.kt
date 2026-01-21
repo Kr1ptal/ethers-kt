@@ -51,7 +51,7 @@ import kotlin.time.TimeSource
  */
 class WsClient(
     url: String,
-    client: OkHttpClient,
+    private val client: OkHttpClient,
     headers: Map<String, String> = emptyMap(),
     private val jsonMapper: JsonMapper = Jackson.MAPPER,
 ) : JsonRpcClient {
@@ -720,6 +720,9 @@ class WsClient(
 
         // wake up the event loop thread so it can exit
         eventLock.withLock { newEventCondition.signalAll() }
+
+        client.dispatcher.executorService.shutdown()
+        client.connectionPool.evictAll()
     }
 
     override fun requestBatch(batch: BatchRpcRequest): CompletableFuture<Boolean> {

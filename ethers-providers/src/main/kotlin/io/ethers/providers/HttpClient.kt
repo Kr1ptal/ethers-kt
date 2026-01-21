@@ -284,7 +284,8 @@ class HttpClient(
     }
 
     override fun close() {
-        // no-op
+        client.dispatcher.executorService.shutdown()
+        client.connectionPool.evictAll()
     }
 
     private fun BatchRpcRequest.toRequestBody(): Pair<RequestBody, HashMap<Long, Int>> {
