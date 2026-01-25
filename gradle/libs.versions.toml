@@ -2,7 +2,7 @@
 kotlin = "2.3.0"
 jacoco-tool = "0.8.11"
 log4j2 = "2.25.3"
-jackson = "2.20.1"
+jackson = "2.21.0"
 eclipse-collections = "13.0.0"
 junit = "6.0.2"
 kotest = "5.9.1"
