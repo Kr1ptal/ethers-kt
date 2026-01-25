@@ -20,7 +20,7 @@ import io.ethers.providers.Provider
  * }
  * ```
  * */
-interface Middleware : EthApi, DebugApi, NetApi, TxpoolApi, Web3Api {
+interface Middleware : EthApi, DebugApi, NetApi, TxpoolApi, Web3Api, AutoCloseable {
     /**
      * Get the underlying [JsonRpcClient].
      * */

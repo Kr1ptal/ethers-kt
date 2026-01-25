@@ -639,6 +639,14 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         return RpcCall(client, "web3_clientVersion", EMPTY_ARRAY, String::class.java)
     }
 
+    //-----------------------------------------------------------------------------------------------------------------
+    //                                       AutoCloseable implementation
+    //-----------------------------------------------------------------------------------------------------------------
+
+    override fun close() {
+        client.close()
+    }
+
     /**
      * Error returned when creating a [Provider] using [fromUrl] fails.
      * */

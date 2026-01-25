@@ -20,14 +20,8 @@ import java.math.BigInteger
 @Suppress("MoveLambdaOutsideParentheses")
 class AnvilProvider private constructor(
     private val anvil: AnvilInstance,
-    provider: Provider,
+    override val provider: Provider,
 ) : Middleware by provider, AutoCloseable by anvil {
-    init {
-        if (provider.client is WsClient) {
-            anvil.onClose.thenRun { provider.client.close() }
-        }
-    }
-
     /**
      * Set the auto-impersonate flag. When enabled, any transaction’s sender will be automatically impersonated.
      * */
@@ -242,6 +236,11 @@ class AnvilProvider private constructor(
      * */
     fun applyBlockchainState(state: Bytes): RpcRequest<Boolean, RpcError> {
         return RpcCall(client, "anvil_loadState", arrayOf(state), { true })
+    }
+
+    override fun close() {
+        provider.close()
+        anvil.close()
     }
 
     companion object {
