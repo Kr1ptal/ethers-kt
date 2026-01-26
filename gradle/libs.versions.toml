@@ -97,7 +97,7 @@ kotlin-compileTesting = { module = "dev.zacsweers.kctfork:core", version = "0.12
 jmh-core = { module = "org.openjdk.jmh:jmh-core", version.ref = "jmh" }
 jmh-generator = { module = "org.openjdk.jmh:jmh-generator-annprocess", version.ref = "jmh" }
 
-kotlinx-serialization = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version = "1.9.0" }
+kotlinx-serialization = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version = "1.10.0" }
 
 web3j-core = { module = "org.web3j:core", version.ref = "web3j" }
 web3j-codegen = { module = "org.web3j:codegen", version.ref = "web3j" }
