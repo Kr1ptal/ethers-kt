@@ -17,6 +17,8 @@ interface MockServer {
 
 interface MockWSServer : MockServer {
     fun sendJson(json: String)
+    fun closeConnection(code: Int = 1000, reason: String = "Close")
+    fun allowReconnect()
 }
 
 /**
@@ -85,6 +87,14 @@ fun mockServerWebsocket(): MockWSServer {
 
         override fun sendJson(json: String) {
             ws.send(json)
+        }
+
+        override fun closeConnection(code: Int, reason: String) {
+            ws.close(code, reason)
+        }
+
+        override fun allowReconnect() {
+            server.enqueue(MockResponse().withWebSocketUpgrade(this))
         }
     }
 }
