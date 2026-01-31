@@ -54,7 +54,7 @@ class WsClient(
     private val client: OkHttpClient,
     headers: Map<String, String> = emptyMap(),
     private val jsonMapper: JsonMapper = Jackson.MAPPER,
-    private val unsubscribeOnReconnect: Boolean = false,
+    private val resubscribeOnReconnect: Boolean = true,
 ) : JsonRpcClient {
     @JvmOverloads
     constructor(url: String, config: RpcClientConfig = RpcClientConfig()) : this(
@@ -62,7 +62,7 @@ class WsClient(
         config.client!!,
         config.requestHeaders,
         config.jsonMapper,
-        config.unsubscribeOnReconnect,
+        config.resubscribeOnReconnect,
     )
 
     private val LOG = getLogger()
@@ -265,17 +265,9 @@ class WsClient(
                             }
                         }
 
-                        // handle existing streams: either close them or send resubscribe requests
+                        // handle existing streams: either resubscribe or close them
                         if (requestIdToSubscription.isNotEmpty()) {
-                            if (unsubscribeOnReconnect) {
-                                // close all streams so consumers can handle resubscription explicitly
-                                for ((id, sub) in requestIdToSubscription) {
-                                    LOG.dbg { "Closing stream on reconnect: $id" }
-                                    sub.stream.close()
-                                }
-                                requestIdToSubscription.clear()
-                                serverIdToSubscription.clear()
-                            } else {
+                            if (resubscribeOnReconnect) {
                                 // send resubscribe requests for all existing streams
                                 for ((id, sub) in requestIdToSubscription) {
                                     LOG.dbg { "Resent stream re-subscription: $id" }
@@ -287,6 +279,14 @@ class WsClient(
 
                                     websocket.send(writer.andClear)
                                 }
+                            } else {
+                                // close all streams so consumers can handle resubscription explicitly
+                                for ((id, sub) in requestIdToSubscription) {
+                                    LOG.dbg { "Closing stream on reconnect: $id" }
+                                    sub.stream.close()
+                                }
+                                requestIdToSubscription.clear()
+                                serverIdToSubscription.clear()
                             }
                         }
                     }

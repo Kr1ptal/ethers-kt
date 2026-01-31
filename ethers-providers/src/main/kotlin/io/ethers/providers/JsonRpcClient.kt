@@ -244,13 +244,13 @@ class RpcClientConfig {
         @JvmSynthetic set
 
     /**
-     * If true, closes existing subscription streams on WebSocket reconnection instead of automatically
-     * resubscribing them. Consumers can then handle resubscription explicitly when the stream closes.
-     * Default is false (auto-resubscription is enabled).
+     * If true, automatically resubscribes existing subscription streams on WebSocket reconnection.
+     * If false, closes the streams instead, allowing consumers to handle resubscription explicitly.
+     * Default is true (auto-resubscription is enabled).
      *
      * Only used by [WsClient].
      * */
-    var unsubscribeOnReconnect: Boolean = false
+    var resubscribeOnReconnect: Boolean = true
         @JvmSynthetic set
 
     /**
@@ -270,13 +270,13 @@ class RpcClientConfig {
     fun jsonMapper(mapper: JsonMapper) = apply { this.jsonMapper = mapper }
 
     /**
-     * If true, closes existing subscription streams on WebSocket reconnection instead of automatically
-     * resubscribing them. Consumers can then handle resubscription explicitly when the stream closes.
-     * Default is false (auto-resubscription is enabled).
+     * If true, automatically resubscribes existing subscription streams on WebSocket reconnection.
+     * If false, closes the streams instead, allowing consumers to handle resubscription explicitly.
+     * Default is true (auto-resubscription is enabled).
      *
      * Only used by [WsClient].
      * */
-    fun unsubscribeOnReconnect(unsubscribe: Boolean) = apply { this.unsubscribeOnReconnect = unsubscribe }
+    fun resubscribeOnReconnect(resubscribe: Boolean) = apply { this.resubscribeOnReconnect = resubscribe }
 
     companion object {
         private val DEFAULT_CLIENT by lazy {

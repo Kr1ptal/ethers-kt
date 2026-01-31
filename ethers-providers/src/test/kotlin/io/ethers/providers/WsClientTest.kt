@@ -147,9 +147,8 @@ class WsClientTest : FunSpec({
             event3.get("timestamp")?.asText() shouldBe "0x3333"
         }
 
-        test("unsubscribeOnReconnect closes streams on reconnection") {
+        test("resubscribeOnReconnect=false closes streams on reconnection") {
             val subscriptionId = "0xreconnect123"
-            val newSubscriptionId = "0xreconnect456"
 
             // Close default wsClient and prepare mock server for new connection
             wsClient.close()
@@ -158,13 +157,13 @@ class WsClientTest : FunSpec({
             // Pre-queue subscription response
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"$subscriptionId"}""")
 
-            // Create client with unsubscribeOnReconnect = true
+            // Create client with resubscribeOnReconnect = false
             wsClient = WsClient(
                 mockServer.url,
                 OkHttpClient(),
                 emptyMap(),
                 Jackson.MAPPER,
-                unsubscribeOnReconnect = true,
+                resubscribeOnReconnect = false,
             )
 
             // Give time for WebSocket connection to be established
@@ -183,9 +182,8 @@ class WsClientTest : FunSpec({
 
             Thread.sleep(100) // Give time for subscription to be established
 
-            // Allow reconnection and queue new subscription response
+            // Allow reconnection (no need to queue subscription response since streams will be closed)
             mockServer.allowReconnect()
-            mockServer.enqueueJson("""{"jsonrpc":"2.0","id":2,"result":"$newSubscriptionId"}""")
 
             // Close the connection from server side to trigger reconnection
             mockServer.closeConnection()
@@ -193,11 +191,11 @@ class WsClientTest : FunSpec({
             // Wait for reconnection and stream closure
             Thread.sleep(500)
 
-            // Stream should be closed because unsubscribeOnReconnect = true
+            // Stream should be closed because resubscribeOnReconnect = false
             stream.isClosed shouldBe true
         }
 
-        test("default behavior resubscribes on reconnection") {
+        test("resubscribeOnReconnect=true (default) resubscribes on reconnection") {
             val subscriptionId = "0xdefault123"
             val newSubscriptionId = "0xdefault456"
 
@@ -208,7 +206,7 @@ class WsClientTest : FunSpec({
             // Pre-queue subscription response
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"$subscriptionId"}""")
 
-            // Create client with default settings (unsubscribeOnReconnect = false)
+            // Create client with default settings (resubscribeOnReconnect = true)
             wsClient = WsClient(mockServer.url, OkHttpClient())
 
             // Give time for WebSocket connection to be established
@@ -237,7 +235,7 @@ class WsClientTest : FunSpec({
             // Wait for reconnection and auto-resubscription
             Thread.sleep(500)
 
-            // Stream should NOT be closed because unsubscribeOnReconnect = false (default)
+            // Stream should NOT be closed because resubscribeOnReconnect = true (default)
             stream.isClosed shouldBe false
 
             // Send a notification to verify the stream still receives messages
