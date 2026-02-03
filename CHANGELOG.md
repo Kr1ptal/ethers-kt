@@ -18,6 +18,35 @@ Sections:
 ### Security = Security patches.
 -->
 
+## [1.6.0] - 2026-02-03
+
+### Bug Fixes
+
+- `ethers-crypto` publishing variants
+- Static data generator gradle task dependency wiring
+- Handle unsigned transactions with trailing signature fields (#361)
+- Disable broken ENS test
+
+### Features
+
+- KMP-compatible cryptography (#349)
+- Support KMP resources via code generation (#351)
+- Add proper OkHttpClient shutdown
+- Make `Middleware` implement `AutoCloseable`
+- Add resubscribeOnReconnect option to WsClient (#368)
+
+### Refactor
+
+- Replace ByteBuffer with DitchOoM/buffer for KMP (#350)
+- [**breaking**] Migrate AbiType.classType to KClass<T> for KMP compatibility (#357)
+- [**breaking**] Make tracers JSON-agnostic (#364)
+
+### Misc
+
+- Update `CODEOWNERS`
+- Migrate to stable `jvm-default` kotlin compiler option
+- Use KMP-friendly `equals` implementations
+
 ## [1.5.1] - 2025-11-23
 
 ### Bug Fixes
