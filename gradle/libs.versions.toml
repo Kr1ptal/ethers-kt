@@ -67,7 +67,7 @@ whyoleg-cryptography-random = { module = "dev.whyoleg.cryptography:cryptography-
 whyoleg-cryptography-jdk = { module = "dev.whyoleg.cryptography:cryptography-provider-jdk", version.ref = "cryptography" }
 whyoleg-cryptography-asn1 = { module = "dev.whyoleg.cryptography:cryptography-serialization-asn1-modules", version.ref = "cryptography" }
 
-gcp-kms = { module = "com.google.cloud:google-cloud-kms", version = "2.85.0" }
+gcp-kms = { module = "com.google.cloud:google-cloud-kms", version = "2.86.0" }
 
 ditchoom-buffer = { module = "com.ditchoom:buffer", version.ref = "ditchoom-buffer" }
 
