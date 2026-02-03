@@ -39,7 +39,6 @@ import io.ethers.core.types.TxpoolContent
 import io.ethers.core.types.TxpoolContentFromAddress
 import io.ethers.core.types.TxpoolInspectResult
 import io.ethers.core.types.TxpoolStatus
-import io.ethers.core.types.tracers.AnyTracer
 import io.ethers.core.types.tracers.TracerConfig
 import io.ethers.core.types.tracers.TxTraceResult
 import io.ethers.core.types.transaction.TransactionUnsigned
@@ -548,7 +547,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         config: TracerConfig<T>,
     ): RpcRequest<T, RpcError> {
         val params = arrayOf(call.toCallRequest(), blockId.id, config)
-        return RpcCall(client, "debug_traceCall", params) { deserializeTracerResult(config.tracer, it) }
+        return RpcCall(client, "debug_traceCall", params) { config.tracer.decodeResult(Jackson.MAPPER, it) }
     }
 
     override fun <T : Any> traceCallMany(
@@ -561,13 +560,13 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         val ctx = CallManyContext(blockId, transactionIndex)
 
         return RpcCall(client, "debug_traceCallMany", arrayOf(arrayOf(bundle), ctx, config)) {
-            it.readListOf { it.readListOf { deserializeTracerResult(config.tracer, it) } }.firstOrNull() ?: emptyList()
+            it.readListOf { it.readListOf { config.tracer.decodeResult(Jackson.MAPPER, it) } }.firstOrNull() ?: emptyList()
         }
     }
 
     override fun <T : Any> traceTransaction(txHash: Hash, config: TracerConfig<T>): RpcRequest<T, RpcError> {
         val params = arrayOf(txHash, config)
-        return RpcCall(client, "debug_traceTransaction", params) { deserializeTracerResult(config.tracer, it) }
+        return RpcCall(client, "debug_traceTransaction", params) { config.tracer.decodeResult(Jackson.MAPPER, it) }
     }
 
     override fun <T : Any> traceBlock(
@@ -588,20 +587,13 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
                 it.forEachObjectField { field ->
                     when (field) {
                         "txHash" -> txHash = it.readHash()
-                        "result" -> result = deserializeTracerResult(config.tracer, it)
+                        "result" -> result = config.tracer.decodeResult(Jackson.MAPPER, it)
                         "error" -> error = it.valueAsString
                     }
                 }
                 TxTraceResult(txHash, result, error)
             }
         }
-    }
-
-    private fun <T : Any> deserializeTracerResult(
-        tracer: AnyTracer<T>,
-        parser: com.fasterxml.jackson.core.JsonParser,
-    ): T {
-        return tracer.decodeResult(Jackson.MAPPER, parser)
     }
 
     //-----------------------------------------------------------------------------------------------------------------
