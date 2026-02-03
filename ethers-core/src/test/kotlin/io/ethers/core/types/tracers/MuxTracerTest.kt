@@ -37,7 +37,7 @@ class MuxTracerTest : FunSpec({
         """
     }
 
-    context("decodeResult") {
+    context("decode result") {
         test("success") {
             @Language("JSON")
             val jsonString = """
@@ -83,7 +83,7 @@ class MuxTracerTest : FunSpec({
             """.trimIndent()
 
             val jsonParser = Jackson.MAPPER.createAndInitParser(jsonString)
-            val result = muxTracer.decodeResult(jsonParser)
+            val result = muxTracer.decodeResult(Jackson.MAPPER, jsonParser)
 
             val callTracerExpectedResult = CallTracer.CallFrame(
                 type = "CALL",
@@ -109,13 +109,15 @@ class MuxTracerTest : FunSpec({
                 ),
                 value = BigInteger("11650662055314012"),
             )
-            val fourByteTracerExpectedResult = hashMapOf(
-                "0x022c0d9f-160" to 1,
-                "0x0902f1ac-0" to 1,
-                "0x3593564c-640" to 1,
-                "0x70a08231-32" to 5,
-                "0xa9059cbb-64" to 2,
-                "0xd0e30db0-0" to 1,
+            val fourByteTracerExpectedResult = FourByteTracer.Result(
+                mapOf(
+                    "0x022c0d9f-160" to 1,
+                    "0x0902f1ac-0" to 1,
+                    "0x3593564c-640" to 1,
+                    "0x70a08231-32" to 5,
+                    "0xa9059cbb-64" to 2,
+                    "0xd0e30db0-0" to 1,
+                ),
             )
 
             result shouldBe MuxTracer.Result(
@@ -123,16 +125,16 @@ class MuxTracerTest : FunSpec({
                 arrayOf(
                     callTracerExpectedResult,
                     fourByteTracerExpectedResult,
-                    Unit,
+                    NoopTracer.Result,
                 ),
             )
         }
 
         test("tracer not found") {
-            shouldThrow<Exception> {
+            shouldThrow<IllegalArgumentException> {
                 val jsonString = """{"unknown_tracer": {}}"""
                 val jsonParser = Jackson.MAPPER.createAndInitParser(jsonString)
-                muxTracer.decodeResult(jsonParser)
+                muxTracer.decodeResult(Jackson.MAPPER, jsonParser)
             }
         }
     }
@@ -141,13 +143,15 @@ class MuxTracerTest : FunSpec({
         val result = MuxTracer.Result(
             listOf(fourByteTracer),
             arrayOf(
-                hashMapOf(
-                    "0x022c0d9f-160" to 1,
-                    "0x0902f1ac-0" to 1,
-                    "0x3593564c-640" to 1,
-                    "0x70a08231-32" to 5,
-                    "0xa9059cbb-64" to 2,
-                    "0xd0e30db0-0" to 1,
+                FourByteTracer.Result(
+                    mapOf(
+                        "0x022c0d9f-160" to 1,
+                        "0x0902f1ac-0" to 1,
+                        "0x3593564c-640" to 1,
+                        "0x70a08231-32" to 5,
+                        "0xa9059cbb-64" to 2,
+                        "0xd0e30db0-0" to 1,
+                    ),
                 ),
             ),
         )

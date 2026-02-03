@@ -1,7 +1,6 @@
 package io.ethers.core.types.tracers
 
 import io.ethers.core.Jackson
-import io.ethers.core.Jackson.createAndInitParser
 import io.kotest.assertions.json.shouldEqualJson
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -19,7 +18,7 @@ class FourByteTracerTest : FunSpec({
         """
     }
 
-    test("decodeResult") {
+    test("decode result") {
         @Language("JSON")
         val jsonString = """
             {
@@ -32,10 +31,9 @@ class FourByteTracerTest : FunSpec({
             }
         """.trimIndent()
 
-        val jsonParser = Jackson.MAPPER.createAndInitParser(jsonString)
-        val result = FourByteTracer.decodeResult(jsonParser)
+        val result = Jackson.MAPPER.readValue(jsonString, FourByteTracer.resultType.java)
 
-        result shouldBe hashMapOf(
+        result.entries shouldBe mapOf(
             "0x022c0d9f-160" to 1,
             "0x0902f1ac-0" to 1,
             "0x3593564c-640" to 1,

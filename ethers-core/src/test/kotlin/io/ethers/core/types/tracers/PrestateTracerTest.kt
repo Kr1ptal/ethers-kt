@@ -1,7 +1,6 @@
 package io.ethers.core.types.tracers
 
 import io.ethers.core.Jackson
-import io.ethers.core.Jackson.createAndInitParser
 import io.ethers.core.types.AccountOverride
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
@@ -25,7 +24,7 @@ class PrestateTracerTest : FunSpec({
         """
     }
 
-    test("decodeResult(diffMode = false)") {
+    test("decode result (prestate mode - auto-detected)") {
         @Language("JSON")
         val jsonString = """
             {
@@ -49,8 +48,7 @@ class PrestateTracerTest : FunSpec({
             }
         """.trimIndent()
 
-        val jsonParser = Jackson.MAPPER.createAndInitParser(jsonString)
-        val result = PrestateTracer(false).decodeResult(jsonParser)
+        val result = Jackson.MAPPER.readValue(jsonString, PrestateTracer.Result::class.java)
 
         val expectedResult = PrestateTracer.Result(
             false,
@@ -78,7 +76,7 @@ class PrestateTracerTest : FunSpec({
         result shouldBe expectedResult
     }
 
-    test("decodeResult(diffMode = true)") {
+    test("decode result (diff mode - auto-detected)") {
         @Language("JSON")
         val jsonString = """
             {
@@ -96,8 +94,7 @@ class PrestateTracerTest : FunSpec({
             }
         """.trimIndent()
 
-        val jsonParser = Jackson.MAPPER.createAndInitParser(jsonString)
-        val result = PrestateTracer(true).decodeResult(jsonParser)
+        val result = Jackson.MAPPER.readValue(jsonString, PrestateTracer.Result::class.java)
 
         val expectedResult = PrestateTracer.Result(
             true,

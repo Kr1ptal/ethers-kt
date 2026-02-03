@@ -1,6 +1,5 @@
 package io.ethers.core.types.tracers
 
-import com.fasterxml.jackson.core.JsonGenerator
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.DeserializationContext
 import com.fasterxml.jackson.databind.JsonDeserializer
@@ -19,6 +18,7 @@ import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
 import io.ethers.core.types.Log
 import java.math.BigInteger
+import kotlin.reflect.KClass
 
 /**
  * Trace transaction call frames.
@@ -33,14 +33,16 @@ data class CallTracer(
     override val name: String
         get() = "callTracer"
 
-    override fun encodeConfig(gen: JsonGenerator) {
-        gen.writeBooleanField("onlyTopCall", onlyTopCall)
-        gen.writeBooleanField("withLog", withLog)
-    }
+    override val resultType: KClass<CallFrame>
+        get() = CallFrame::class
 
-    override fun decodeResult(parser: JsonParser): CallFrame {
-        return parser.readValueAs(CallFrame::class.java)
-    }
+    override val config: Map<String, Any?> =
+        when {
+            onlyTopCall && withLog -> CONFIG_TOP_CALL_WITH_LOGS
+            onlyTopCall -> CONFIG_TOP_CALL_WITHOUT_LOGS
+            withLog -> CONFIG_ALL_CALLS_WITH_LOGS
+            else -> CONFIG_ALL_CALLS_NO_LOGS
+        }
 
     @JsonDeserialize(using = CallFrameDeserializer::class)
     data class CallFrame(
@@ -235,5 +237,24 @@ data class CallTracer(
 
             return CallLog(address, topics, data)
         }
+    }
+
+    companion object {
+        private val CONFIG_TOP_CALL_WITH_LOGS = mapOf(
+            "onlyTopCall" to true,
+            "withLog" to true,
+        )
+        private val CONFIG_TOP_CALL_WITHOUT_LOGS = mapOf(
+            "onlyTopCall" to true,
+            "withLog" to false,
+        )
+        private val CONFIG_ALL_CALLS_WITH_LOGS = mapOf(
+            "onlyTopCall" to false,
+            "withLog" to true,
+        )
+        private val CONFIG_ALL_CALLS_NO_LOGS = mapOf(
+            "onlyTopCall" to false,
+            "withLog" to false,
+        )
     }
 }
