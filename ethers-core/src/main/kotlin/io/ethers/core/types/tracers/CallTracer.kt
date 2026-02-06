@@ -10,6 +10,7 @@ import io.ethers.core.readAddress
 import io.ethers.core.readBytes
 import io.ethers.core.readHash
 import io.ethers.core.readHexBigInteger
+import io.ethers.core.readHexInt
 import io.ethers.core.readHexLong
 import io.ethers.core.readListOf
 import io.ethers.core.readOrNull
@@ -89,20 +90,24 @@ data class CallTracer(
         }
 
         /**
-         * Get all [CallLog]s from this and child calls. The logs might not be in the correct order because not
-         * enough information is received via tracer to infer the ordering. We make a best-guess effort by
-         * first adding logs from child calls, and then adding logs from parent call.
+         * Get all [CallLog]s from this and child calls.The logs might not be in the correct order because not
+         * all tracer implementations return log index, which is needed to infer the ordering. If indexes are not
+         * returned, we make a best-guess effort by first adding logs from child calls, followed by logs from
+         * parent calls.
          *
          * Compared to [getAllLogs], this function returns [CallLog]s instead of [Log]s.
          * */
         fun getAllCallLogs(): List<CallLog> {
-            return flattenLogs(ArrayList()) { log, _ -> log }
+            val ret = flattenLogs(ArrayList()) { log, _ -> log }
+            ret.sortBy { it.index }
+            return ret
         }
 
         /**
          * Get all [Log]s from this and child calls. The logs might not be in the correct order because not
-         * enough information is received via tracer to infer the ordering. We make a best-guess effort by
-         * first adding logs from child calls, and then adding logs from parent call.
+         * all tracer implementations return log index, which is needed to infer the ordering. If indexes are not
+         * returned, we make a best-guess effort by first adding logs from child calls, followed by logs from
+         * parent calls.
          *
          * The logs don't have any block or transaction information, but they do have a log index, which
          * corresponds to the index within the call.
@@ -110,10 +115,12 @@ data class CallTracer(
          * Compared to [getAllCallLogs], this function returns [Log]s instead of [CallLog]s.
          * */
         fun getAllLogs(): List<Log> {
-            return flattenLogs(ArrayList()) { log, index -> log.toLog(index) }
+            val ret = flattenLogs(ArrayList()) { log, index -> log.toLog(index) }
+            ret.sortBy { it.logIndex }
+            return ret
         }
 
-        private fun <T> flattenLogs(ret: MutableList<T>, mapper: (log: CallLog, index: Int) -> T): List<T> {
+        private fun <T> flattenLogs(ret: MutableList<T>, mapper: (log: CallLog, index: Int) -> T): MutableList<T> {
             // if the call failed, skip it and all its children logs
             if (isError) {
                 return ret
@@ -142,11 +149,14 @@ data class CallTracer(
         val address: Address,
         val topics: List<Hash>,
         val data: Bytes,
+        val position: Int = -1,
+        val index: Int = -1,
+        val otherFields: Map<String, JsonNode> = emptyMap(),
     ) {
         /**
          * Convert this [CallLog] into an instance of [Log].
          *
-         * The [Log] doesn't have any block or transaction information, but they can optionally set [logIndex], if
+         * The [Log] doesn't have any block or transaction information, but you can optionally set [logIndex], if
          * passed as parameter.
          * */
         @JvmOverloads
@@ -160,7 +170,7 @@ data class CallTracer(
                 -1L,
                 Hash.ZERO,
                 -1,
-                logIndex,
+                if (this.index == -1) logIndex else this.index,
                 false,
             )
         }
@@ -199,7 +209,7 @@ data class CallTracer(
                         if (otherFields == null) {
                             otherFields = HashMap()
                         }
-                        otherFields!![p.currentName()] = p.readValueAs(JsonNode::class.java)
+                        otherFields[p.currentName()] = p.readValueAs(JsonNode::class.java)
                     }
                 }
             }
@@ -227,15 +237,27 @@ data class CallTracer(
             lateinit var address: Address
             lateinit var topics: List<Hash>
             lateinit var data: Bytes
+            var position: Int = -1
+            var index: Int = -1
+            var otherFields: MutableMap<String, JsonNode>? = null
+
             p.forEachObjectField { name ->
                 when (name) {
                     "address" -> address = p.readAddress()
                     "topics" -> topics = p.readListOf { readHash() }
                     "data" -> data = p.readBytes()
+                    "position" -> position = p.readHexInt()
+                    "index" -> index = p.readHexInt()
+                    else -> {
+                        if (otherFields == null) {
+                            otherFields = HashMap()
+                        }
+                        otherFields[p.currentName()] = p.readValueAs(JsonNode::class.java)
+                    }
                 }
             }
 
-            return CallLog(address, topics, data)
+            return CallLog(address, topics, data, position, index, otherFields ?: emptyMap())
         }
     }
 
