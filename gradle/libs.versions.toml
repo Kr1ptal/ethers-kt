@@ -1,5 +1,6 @@
 [versions]
 kotlin = "2.3.0"
+atomicfu = "0.29.0"
 jacoco-tool = "0.8.11"
 log4j2 = "2.25.3"
 jackson = "2.21.0"
@@ -22,6 +23,7 @@ ditchoom-buffer = "2.2.0"
 kotlin-bom = { module = "org.jetbrains.kotlin:kotlin-bom", version.ref = "kotlin" }
 kotlin-gradle = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
 kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlin" }
+kotlinx-atomicfu = { module = "org.jetbrains.kotlinx:atomicfu", version.ref = "atomicfu" }
 
 ktlint-gradle = { module = "org.jlleitschuh.gradle:ktlint-gradle", version = "13.1.0" }
 ktlint-bom = { module = "com.pinterest.ktlint:ktlint-bom", version.ref = "ktlint-tool" }

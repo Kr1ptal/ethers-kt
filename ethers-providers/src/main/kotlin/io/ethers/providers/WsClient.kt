@@ -23,6 +23,9 @@ import io.ethers.logger.inf
 import io.ethers.logger.trc
 import io.ethers.logger.wrn
 import io.ethers.providers.types.BatchRpcRequest
+import kotlinx.atomicfu.atomic
+import kotlinx.atomicfu.locks.reentrantLock
+import kotlinx.atomicfu.locks.withLock
 import okhttp3.Headers
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -34,11 +37,8 @@ import org.jctools.queues.MpscUnboundedXaddArrayQueue
 import org.jctools.queues.SpscUnboundedArrayQueue
 import java.io.IOException
 import java.util.concurrent.CompletableFuture
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.locks.ReentrantLock
 import java.util.function.Function
-import kotlin.concurrent.withLock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.TimeSource
@@ -71,13 +71,11 @@ class WsClient(
     private val inFlightRequests = HashMap<Long, CompletableRequest<*>>()
     private val inFlightBatchRequests = HashMap<Long, Pair<CompletableBatchRequest, HashMap<Long, Int>>>()
     private val inFlightSubscriptionRequests = HashMap<Long, CompletableSubscriptionRequest<*>>()
-
-    // these are modified by multiple threads when unsubscribing
-    private val requestIdToSubscription = ConcurrentHashMap<Long, Subscription<*>>()
-    private val serverIdToSubscription = ConcurrentHashMap<String, Subscription<*>>()
+    private val requestIdToSubscription = HashMap<Long, Subscription<*>>()
+    private val serverIdToSubscription = HashMap<String, Subscription<*>>()
 
     // use lock instead of "synchronized" to avoid thread pinning if using virtual thread for processor
-    private val eventLock = ReentrantLock()
+    private val eventLock = reentrantLock()
     private val newEventCondition = eventLock.newCondition()
     private val connectionOpenedCondition = eventLock.newCondition()
     private val connectionClosedCondition = eventLock.newCondition()
@@ -87,12 +85,10 @@ class WsClient(
     private val requestQueue = MpscUnboundedXaddArrayQueue<CompletableRequest<*>>(512)
     private val batchRequestQueue = MpscUnboundedXaddArrayQueue<CompletableBatchRequest>(256)
     private val subscriptionQueue = MpscUnboundedXaddArrayQueue<CompletableSubscriptionRequest<*>>(128)
+    private val unsubscribeQueue = MpscUnboundedXaddArrayQueue<Long>(128)
 
-    @Volatile
-    private var reconnect = false
-
-    @Volatile
-    private var stopping = false
+    private val reconnect = atomic(false)
+    private val stopping = atomic(false)
 
     init {
         val requestHeaders = Headers.Builder().apply { headers.forEach { (key, value) -> add(key, value) } }.build()
@@ -132,7 +128,7 @@ class WsClient(
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 eventLock.withLock { connectionClosedCondition.signalAll() }
 
-                if (stopping) {
+                if (stopping.value) {
                     LOG.dbg(t) { "WebSocket failure ignored because we are stopping" }
                     return
                 }
@@ -142,7 +138,7 @@ class WsClient(
             }
 
             private fun requestReconnect() = eventLock.withLock {
-                reconnect = true
+                reconnect.value = true
 
                 // wake up the processor thread, in case it's waiting for new events
                 newEventCondition.signalAll()
@@ -152,14 +148,13 @@ class WsClient(
         val processorThread = AsyncExecutor.maybeVirtualThread {
             LOG.inf { "Starting WebSocket processor thread and connecting to websocket" }
 
-            var websocket: WebSocket
-            eventLock.withLock {
-                websocket = client.newWebSocket(wsRequest, wsListener)
-
+            var websocket = eventLock.withLock {
+                val ws = client.newWebSocket(wsRequest, wsListener)
                 connectionOpenedCondition.await(
                     client.connectTimeoutMillis.toLong(),
                     TimeUnit.MILLISECONDS,
                 )
+                ws
             }
 
             var requestId = 1L
@@ -167,11 +162,12 @@ class WsClient(
             var request: CompletableRequest<*>?
             var batchRequest: CompletableBatchRequest?
             var subscriptionRequest: CompletableSubscriptionRequest<*>?
+            var unsubscribeRequestId: Long?
 
             val bufferRecycler = BufferRecycler()
             var lastTimeoutCheck = TimeSource.Monotonic.markNow()
 
-            while (!stopping) {
+            while (!stopping.value) {
                 try {
                     // first, process all messages in the queue
                     while (messageQueue.poll().also { msg = it } != null) {
@@ -187,10 +183,10 @@ class WsClient(
                     }
 
                     // second, check if we need to reconnect, initiating re-subscription for existing subs
-                    if (reconnect) {
+                    if (reconnect.value) {
                         var reconnectSuccessful = false
 
-                        while (!reconnectSuccessful && !stopping) {
+                        while (!reconnectSuccessful && !stopping.value) {
                             LOG.dbg { "Trying to reconnect WebSocket" }
 
                             // close the old websocket, just in case. Do this while holding a lock, so we don't start
@@ -205,7 +201,7 @@ class WsClient(
                             // Clear the flag in each iteration since it might be set again while reconnecting.
                             // Has to be done after closing in case connection is still open, since it will trigger
                             // a new reconnection attempt
-                            reconnect = false
+                            reconnect.value = false
 
                             // and wait explicitly for the new connection to be opened, the delay acting as a back-off
                             reconnectSuccessful = eventLock.withLock {
@@ -225,7 +221,7 @@ class WsClient(
                             }
                         }
 
-                        if (stopping) {
+                        if (stopping.value) {
                             break
                         }
 
@@ -266,28 +262,27 @@ class WsClient(
                         }
 
                         // handle existing streams: either resubscribe or close them
-                        if (requestIdToSubscription.isNotEmpty()) {
-                            if (resubscribeOnReconnect) {
-                                // send resubscribe requests for all existing streams
-                                for ((id, sub) in requestIdToSubscription) {
-                                    LOG.dbg { "Resent stream re-subscription: $id" }
+                        if (resubscribeOnReconnect) {
+                            // send resubscribe requests for all existing streams
+                            for ((id, sub) in requestIdToSubscription) {
+                                LOG.dbg { "Resent stream re-subscription: $id" }
 
-                                    val writer = SegmentedStringWriter(bufferRecycler)
-                                    jsonMapper.createGenerator(writer).use { gen ->
-                                        gen.writeJsonRpcRequest("eth_subscribe", id, sub.params)
-                                    }
+                                val writer = SegmentedStringWriter(bufferRecycler)
+                                jsonMapper.createGenerator(writer).use { gen ->
+                                    gen.writeJsonRpcRequest("eth_subscribe", id, sub.params)
+                                }
 
-                                    websocket.send(writer.andClear)
-                                }
-                            } else {
-                                // close all streams so consumers can handle resubscription explicitly
-                                for ((id, sub) in requestIdToSubscription) {
-                                    LOG.dbg { "Closing stream on reconnect: $id" }
-                                    sub.stream.close()
-                                }
-                                requestIdToSubscription.clear()
-                                serverIdToSubscription.clear()
+                                websocket.send(writer.andClear)
                             }
+                        } else {
+                            // close all streams so consumers can handle resubscription explicitly
+                            for ((id, sub) in requestIdToSubscription) {
+                                LOG.dbg { "Closing stream on reconnect: $id" }
+                                sub.stream.close()
+                            }
+
+                            requestIdToSubscription.clear()
+                            serverIdToSubscription.clear()
                         }
                     }
 
@@ -351,6 +346,28 @@ class WsClient(
                         websocket.send(req)
                     }
 
+                    // fifth, process all unsubscribe requests in the queue
+                    while (unsubscribeQueue.poll().also { unsubscribeRequestId = it } != null) {
+                        val sub = requestIdToSubscription.remove(unsubscribeRequestId!!)
+                        if (sub == null) {
+                            continue
+                        }
+
+                        LOG.trc { "Unsubscribing from stream: ${sub.serverId}" }
+                        serverIdToSubscription.remove(sub.serverId)
+
+                        val id = requestId++
+                        val writer = SegmentedStringWriter(bufferRecycler)
+                        jsonMapper.createGenerator(writer).use { gen ->
+                            gen.writeJsonRpcRequest("eth_unsubscribe", id, arrayOf(sub.serverId))
+                        }
+
+                        val req = writer.andClear
+
+                        LOG.trc { "Processing unsubscribe request: $req" }
+                        websocket.send(req)
+                    }
+
                     // check and handle timed-out requests every 1000ms
                     if (lastTimeoutCheck.elapsedNow() > 1000.milliseconds) {
                         handleTimeouts(client.readTimeoutMillis.toLong().milliseconds)
@@ -361,21 +378,31 @@ class WsClient(
                         // do a quick check if any new events arrived while processing requests, while holding the lock
                         // to prevent race conditions, so we don't wait unnecessarily. We wait for max 1 second, so we
                         // still process timeouts in a timely manner, even if there are no new events.
-                        if (messageQueue.isEmpty && requestQueue.isEmpty && batchRequestQueue.isEmpty && subscriptionQueue.isEmpty) {
+                        if (messageQueue.isEmpty &&
+                            requestQueue.isEmpty &&
+                            batchRequestQueue.isEmpty &&
+                            subscriptionQueue.isEmpty &&
+                            unsubscribeQueue.isEmpty
+                        ) {
                             newEventCondition.await(1, TimeUnit.SECONDS)
                         }
                     }
                 } catch (e: Exception) {
                     LOG.err(e) { "Exception when processing events, reconnecting WebSocket" }
 
-                    reconnect = true
+                    reconnect.value = true
                 }
             }
 
             // close the websocket, expire all remaining requests, and unsubscribe from all subscriptions
             websocket.close(1000, "Close")
             handleTimeouts(Duration.ZERO)
-            requestIdToSubscription.values.forEach { it.stream.close() }
+            for ((_, subscription) in requestIdToSubscription) {
+                subscription.stream.close()
+            }
+
+            requestIdToSubscription.clear()
+            serverIdToSubscription.clear()
         }
 
         processorThread.name = "WsClient-Processor-${processorThread.id}"
@@ -651,13 +678,10 @@ class WsClient(
                 params = request.params,
                 resultDecoder = request.resultDecoder,
                 stream = QueueChannel.spscUnbounded {
-                    // requestId is constant even across re-subscriptions
-                    val sub = requestIdToSubscription.remove(id)
-                    if (sub != null) {
-                        LOG.trc { "Unsubscribing from stream: ${sub.serverId}" }
-
-                        serverIdToSubscription.remove(sub.serverId)
-                        request("eth_unsubscribe", arrayOf(sub.serverId), Boolean::class.java)
+                    // requestId is constant even across re-subscriptions. Just queue for processor thread.
+                    unsubscribeQueue.add(id)
+                    eventLock.withLock {
+                        newEventCondition.signalAll()
                     }
                 },
             )
@@ -681,11 +705,12 @@ class WsClient(
             // will cause re-subscription to be attempted again
             throw Exception("Error re-subscribing to stream: ${subscription.serverId}, error: $error")
         } else {
+            val newServerId = resultParser.text
             // remove old serverId
             serverIdToSubscription.remove(subscription.serverId)
 
             // update serverId with new value
-            subscription.serverId = resultParser.text
+            subscription.serverId = newServerId
             serverIdToSubscription[subscription.serverId] = subscription
         }
 
@@ -729,7 +754,7 @@ class WsClient(
     override fun close() {
         LOG.inf { "Requesting to close WebSocket" }
 
-        stopping = true
+        stopping.value = true
 
         // wake up the event loop thread so it can exit
         eventLock.withLock { newEventCondition.signalAll() }

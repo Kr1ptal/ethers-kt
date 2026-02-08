@@ -9,6 +9,7 @@ dependencies {
     api(project(":ethers-abi"))
 
     implementation(libs.kotlin.reflect)
+    implementation(libs.kotlinx.atomicfu)
     implementation(libs.kotlinpoet) {
         // don't need this dependency: https://square.github.io/kotlinpoet/#kotlin-reflect
         exclude(module = "kotlin-reflect")
