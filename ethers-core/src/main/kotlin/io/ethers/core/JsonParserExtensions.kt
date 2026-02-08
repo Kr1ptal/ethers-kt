@@ -8,7 +8,6 @@ import io.ethers.core.types.Bloom
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
 import java.math.BigInteger
-import java.util.Optional
 
 /**
  * Check if end of JSON object is reached.
@@ -76,6 +75,18 @@ inline fun <R> JsonParser.readOrNull(parseValue: JsonParser.() -> R): R? {
         return null
     }
     return parseValue(this)
+}
+
+/**
+ * Read current token as [clazz], returning null if current token is null.
+ */
+fun <R : Any> JsonParser.readValueOrNull(clazz: Class<R>): R? {
+    return if (currentToken() == JsonToken.VALUE_NULL) {
+        nextToken()
+        null
+    } else {
+        readValueAs(clazz)
+    }
 }
 
 /**
@@ -253,30 +264,6 @@ inline fun <K, V> JsonParser.readMapOf(keyParser: (String) -> K, valueParser: Js
     } while (!isNextTokenObjectEnd())
 
     return ret
-}
-
-/**
- * Read current token as [clazz], returning [Optional.empty] if current token is null.
- */
-fun <R : Any> JsonParser.readOptionalValue(clazz: Class<R>): Optional<R> {
-    return if (currentToken() == JsonToken.VALUE_NULL) {
-        nextToken()
-        Optional.empty()
-    } else {
-        Optional.of(readValueAs(clazz))
-    }
-}
-
-/**
- * Read current token as [clazz], returning [Optional.empty] if current token is null.
- */
-fun <R : Any> JsonParser.readOptionalValue(action: JsonParser.() -> R): Optional<R> {
-    return if (currentToken() == JsonToken.VALUE_NULL) {
-        nextToken()
-        Optional.empty()
-    } else {
-        Optional.of(action())
-    }
 }
 
 private val EMPTY_BYTES = ByteArray(0)

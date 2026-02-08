@@ -15,7 +15,8 @@ import io.ethers.core.readHexByteArray
 import io.ethers.core.readHexLong
 import io.ethers.core.readListOf
 import io.ethers.core.readListOfHashes
-import io.ethers.core.readOptionalValue
+import io.ethers.core.readOrNull
+import io.ethers.core.readValueOrNull
 import io.ethers.core.success
 import io.ethers.core.types.Address
 import io.ethers.core.types.Block
@@ -56,7 +57,6 @@ import io.ethers.providers.types.RpcSubscribe
 import io.ethers.providers.types.RpcSubscribeCall
 import io.ethers.providers.types.SuppliedRpcRequest
 import java.math.BigInteger
-import java.util.Optional
 
 @Suppress("MoveLambdaOutsideParentheses")
 class Provider(override val client: JsonRpcClient, override val chainId: Long) : Middleware {
@@ -81,20 +81,20 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         return RpcCall(client, "eth_getBalance", arrayOf(address, blockId.id)) { it.readHexBigInteger() }
     }
 
-    override fun getBlockHeader(blockId: BlockId): RpcRequest<Optional<BlockWithHashes>, RpcError> {
+    override fun getBlockHeader(blockId: BlockId): RpcRequest<BlockWithHashes?, RpcError> {
         val params = arrayOf(blockId.id)
         val method = when (blockId) {
             is BlockId.Hash -> "eth_getHeaderByHash"
             is BlockId.Number, is BlockId.Name -> "eth_getHeaderByNumber"
         }
-        return RpcCall(client, method, params, { it.readOptionalValue(BlockWithHashes::class.java) })
+        return RpcCall(client, method, params, { it.readValueOrNull(BlockWithHashes::class.java) })
     }
 
-    override fun getBlockWithHashes(blockId: BlockId): RpcRequest<Optional<BlockWithHashes>, RpcError> {
+    override fun getBlockWithHashes(blockId: BlockId): RpcRequest<BlockWithHashes?, RpcError> {
         return getBlock(blockId, false, BlockWithHashes::class.java)
     }
 
-    override fun getBlockWithTransactions(blockId: BlockId): RpcRequest<Optional<BlockWithTransactions>, RpcError> {
+    override fun getBlockWithTransactions(blockId: BlockId): RpcRequest<BlockWithTransactions?, RpcError> {
         return getBlock(blockId, true, BlockWithTransactions::class.java)
     }
 
@@ -102,22 +102,22 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         blockId: BlockId,
         fullTransactions: Boolean,
         responseType: Class<B>,
-    ): RpcRequest<Optional<B>, RpcError> {
+    ): RpcRequest<B?, RpcError> {
         val params = arrayOf<Any>(blockId.id, fullTransactions)
         val method = when (blockId) {
             is BlockId.Hash -> "eth_getBlockByHash"
             is BlockId.Number, is BlockId.Name -> "eth_getBlockByNumber"
         }
-        return RpcCall(client, method, params, { it.readOptionalValue(responseType) })
+        return RpcCall(client, method, params, { it.readValueOrNull(responseType) })
     }
 
-    override fun getUncleBlockHeader(blockId: BlockId, index: Long): RpcRequest<Optional<BlockWithHashes>, RpcError> {
+    override fun getUncleBlockHeader(blockId: BlockId, index: Long): RpcRequest<BlockWithHashes?, RpcError> {
         val params = arrayOf(blockId.id, FastHex.encodeWithPrefix(index))
         val method = when (blockId) {
             is BlockId.Hash -> "eth_getUncleByBlockHashAndIndex"
             is BlockId.Number, is BlockId.Name -> "eth_getUncleByBlockNumberAndIndex"
         }
-        return RpcCall(client, method, params, { it.readOptionalValue(BlockWithHashes::class.java) })
+        return RpcCall(client, method, params, { it.readValueOrNull(BlockWithHashes::class.java) })
     }
 
     override fun getUncleBlocksCount(blockId: BlockId): RpcRequest<Long, RpcError> {
@@ -257,30 +257,30 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         return RpcCall(client, "eth_getTransactionCount", arrayOf(address, blockId.id)) { it.readHexLong() }
     }
 
-    override fun getTransactionByHash(hash: Hash): RpcRequest<Optional<RPCTransaction>, RpcError> {
+    override fun getTransactionByHash(hash: Hash): RpcRequest<RPCTransaction?, RpcError> {
         return RpcCall(
             client,
             "eth_getTransactionByHash",
             arrayOf(hash),
-            { it.readOptionalValue(RPCTransaction::class.java) },
+            { it.readValueOrNull(RPCTransaction::class.java) },
         )
     }
 
-    override fun getTransactionReceipt(hash: Hash): RpcRequest<Optional<TransactionReceipt>, RpcError> {
+    override fun getTransactionReceipt(hash: Hash): RpcRequest<TransactionReceipt?, RpcError> {
         return RpcCall(
             client,
             "eth_getTransactionReceipt",
             arrayOf(hash),
-            { it.readOptionalValue(TransactionReceipt::class.java) },
+            { it.readValueOrNull(TransactionReceipt::class.java) },
         )
     }
 
-    override fun getBlockReceipts(blockId: BlockId): RpcRequest<Optional<List<TransactionReceipt>>, RpcError> {
+    override fun getBlockReceipts(blockId: BlockId): RpcRequest<List<TransactionReceipt>?, RpcError> {
         return RpcCall(
             client,
             "eth_getBlockReceipts",
             arrayOf(blockId.id),
-            { it.readOptionalValue { it.readListOf(TransactionReceipt::class.java) } },
+            { it.readOrNull { readListOf(TransactionReceipt::class.java) } },
         )
     }
 
@@ -520,18 +520,16 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         return RpcCall(client, "debug_getRawReceipts", params) { it.readListOf(Bytes::class.java) }
     }
 
-    override fun getRawTransaction(hash: Hash): RpcRequest<Optional<Bytes>, RpcError> {
+    override fun getRawTransaction(hash: Hash): RpcRequest<Bytes?, RpcError> {
         return RpcCall(
             client,
             "debug_getRawTransaction",
             arrayOf(hash),
             {
                 if (it.currentToken() == null) {
-                    return@RpcCall Optional.empty()
+                    return@RpcCall null
                 }
-
-                val rlp = it.readBytesEmptyAsNull() ?: return@RpcCall Optional.empty()
-                return@RpcCall Optional.of(rlp)
+                it.readBytesEmptyAsNull()
             },
         )
     }
