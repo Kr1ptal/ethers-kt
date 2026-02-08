@@ -9,7 +9,6 @@ import io.ethers.core.types.TransactionReceipt
 import io.ethers.providers.RpcError
 import io.ethers.providers.middleware.Middleware
 import java.time.Duration
-import kotlin.jvm.optionals.getOrNull
 
 class PendingTransaction(
     val hash: Hash,
@@ -32,7 +31,7 @@ class PendingTransaction(
                 continue
             }
 
-            included = response.unwrap().getOrNull()
+            included = response.unwrap()
             if (included != null) {
                 break
             }

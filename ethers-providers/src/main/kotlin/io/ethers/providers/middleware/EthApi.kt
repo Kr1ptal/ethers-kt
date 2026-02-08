@@ -26,7 +26,6 @@ import io.ethers.providers.types.PendingTransaction
 import io.ethers.providers.types.RpcRequest
 import io.ethers.providers.types.RpcSubscribe
 import java.math.BigInteger
-import java.util.Optional
 
 interface EthApi {
     /**
@@ -65,9 +64,9 @@ interface EthApi {
     fun getBlockHeader(number: Long) = getBlockHeader(BlockId.Number(number))
 
     /**
-     * Get block header by [blockId].
+     * Get block header by [blockId], returning null if the block does not exist.
      */
-    fun getBlockHeader(blockId: BlockId): RpcRequest<Optional<BlockWithHashes>, RpcError>
+    fun getBlockHeader(blockId: BlockId): RpcRequest<BlockWithHashes?, RpcError>
 
     /**
      * Get block by [hash] with transaction hashes.
@@ -80,9 +79,9 @@ interface EthApi {
     fun getBlockWithHashes(number: Long) = getBlockWithHashes(BlockId.Number(number))
 
     /**
-     * Get block by [blockId] with transaction hashes.
+     * Get block by [blockId] with transaction hashes, returning null if the block does not exist.
      */
-    fun getBlockWithHashes(blockId: BlockId): RpcRequest<Optional<BlockWithHashes>, RpcError>
+    fun getBlockWithHashes(blockId: BlockId): RpcRequest<BlockWithHashes?, RpcError>
 
     /**
      * Get block by [hash] with full transaction objects.
@@ -95,9 +94,9 @@ interface EthApi {
     fun getBlockWithTransactions(number: Long) = getBlockWithTransactions(BlockId.Number(number))
 
     /**
-     * Get block by [blockId] with full transaction objects.
+     * Get block by [blockId] with full transaction objects, returning null if the block does not exist.
      */
-    fun getBlockWithTransactions(blockId: BlockId): RpcRequest<Optional<BlockWithTransactions>, RpcError>
+    fun getBlockWithTransactions(blockId: BlockId): RpcRequest<BlockWithTransactions?, RpcError>
 
     /**
      * Get uncle block header by [hash] and [index].
@@ -110,9 +109,9 @@ interface EthApi {
     fun getUncleBlockHeader(number: Long, index: Long) = getUncleBlockHeader(BlockId.Number(number), index)
 
     /**
-     * Get uncle block header by [blockId] and [index].
+     * Get uncle block header by [blockId] and [index], returning null if it does not exist.
      */
-    fun getUncleBlockHeader(blockId: BlockId, index: Long): RpcRequest<Optional<BlockWithHashes>, RpcError>
+    fun getUncleBlockHeader(blockId: BlockId, index: Long): RpcRequest<BlockWithHashes?, RpcError>
 
     /**
      * Get uncle blocks count by [hash].
@@ -457,29 +456,29 @@ interface EthApi {
     fun getTransactionCount(address: Address, blockId: BlockId): RpcRequest<Long, RpcError>
 
     /**
-     * Get transaction by [hash], returning empty [Optional] if none exists.
+     * Get transaction by [hash], returning null if the transaction does not exist.
      */
-    fun getTransactionByHash(hash: Hash): RpcRequest<Optional<RPCTransaction>, RpcError>
+    fun getTransactionByHash(hash: Hash): RpcRequest<RPCTransaction?, RpcError>
 
     /**
-     * Get transaction receipt by [hash], returning empty [Optional] if none exists.
+     * Get transaction receipt by [hash], returning null if the transaction does not exist.
      */
-    fun getTransactionReceipt(hash: Hash): RpcRequest<Optional<TransactionReceipt>, RpcError>
+    fun getTransactionReceipt(hash: Hash): RpcRequest<TransactionReceipt?, RpcError>
 
     /**
-     * Get all transaction receipts by [blockHash], returning empty [Optional] if none exists.
+     * Get all transaction receipts by [blockHash], returning null if the block does not exist.
      */
     fun getBlockReceipts(blockHash: Hash) = getBlockReceipts(BlockId.Hash(blockHash))
 
     /**
-     * Get all transaction receipts by [blockNumber], returning empty [Optional] if none exists.
+     * Get all transaction receipts by [blockNumber], returning null if the block does not exist.
      */
     fun getBlockReceipts(blockNumber: Long) = getBlockReceipts(BlockId.Number(blockNumber))
 
     /**
-     * Get all transaction receipts by [blockId], returning empty [Optional] if none exists.
+     * Get all transaction receipts by [blockId], returning null if the block does not exist.
      */
-    fun getBlockReceipts(blockId: BlockId): RpcRequest<Optional<List<TransactionReceipt>>, RpcError>
+    fun getBlockReceipts(blockId: BlockId): RpcRequest<List<TransactionReceipt>?, RpcError>
 
     /**
      * RLP encode and submit [signedTransaction].

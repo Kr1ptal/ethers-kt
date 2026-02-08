@@ -8,7 +8,6 @@ import io.ethers.core.types.tracers.TracerConfig
 import io.ethers.core.types.tracers.TxTraceResult
 import io.ethers.providers.RpcError
 import io.ethers.providers.types.RpcRequest
-import java.util.Optional
 
 interface DebugApi {
     /**
@@ -57,9 +56,9 @@ interface DebugApi {
     fun getRawReceipts(blockId: BlockId): RpcRequest<List<Bytes>, RpcError>
 
     /**
-     * Get RLP encoded transactions by [hash].
+     * Get RLP encoded transactions by [hash], returning null if the transaction does not exist.
      */
-    fun getRawTransaction(hash: Hash): RpcRequest<Optional<Bytes>, RpcError>
+    fun getRawTransaction(hash: Hash): RpcRequest<Bytes?, RpcError>
 
     /**
      * Pretty print block by [number].
