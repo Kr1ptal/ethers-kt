@@ -1,7 +1,6 @@
 package io.ethers.rlp
 
 import java.math.BigInteger
-import java.util.Optional
 import java.util.function.Supplier
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
@@ -304,15 +303,15 @@ class RlpDecoder(private val array: ByteArray) {
     }
 
     /**
-     * Decode and return the [Optional] result of [decodable], or null if it cannot be decoded.
+     * Decode and return the optional result of [decodable], or return the result of [default] if it cannot be decoded.
      *
-     * @return the [Optional] result of [decodable], or null if it cannot be decoded.
+     * @return optional decoded result from [decodable], or result of [default] if the element is not a valid [T].
      * */
-    fun <T : Any> decodeOptionalOrNull(decodable: RlpDecodable<T>): Optional<T>? {
+    inline fun <T : Any> decodeOptionalOrElse(decodable: RlpDecodable<T>, default: () -> T?): T? {
         val ret = decodable.rlpDecode(this)
         return when {
-            error != null -> null
-            else -> Optional.ofNullable(ret)
+            error != null -> default()
+            else -> ret
         }
     }
 
