@@ -1,9 +1,88 @@
+import org.gradle.api.attributes.java.TargetJvmVersion
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
-    `project-conventions`
+    idea
+    eclipse
+    kotlin("jvm")
+    id("ktlint-conventions")
     `signing-conventions`
     `java-gradle-plugin`
     id("com.gradle.plugin-publish") version "2.0.0"
     alias(libs.plugins.shadow)
+}
+
+repositories {
+    mavenCentral()
+}
+
+// Override incorrect JVM version metadata in secp256k1-kmp
+// The library targets Java 8 bytecode but declares JVM 21 in Gradle Module Metadata
+dependencies {
+    components {
+        listOf(
+            "fr.acinq.secp256k1:secp256k1-kmp-jni-jvm",
+            "fr.acinq.secp256k1:secp256k1-kmp-jni-jvm-darwin",
+            "fr.acinq.secp256k1:secp256k1-kmp-jni-jvm-linux",
+            "fr.acinq.secp256k1:secp256k1-kmp-jni-jvm-mingw",
+        ).forEach { module ->
+            withModule(module) {
+                allVariants {
+                    attributes {
+                        attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, 8)
+                    }
+                }
+            }
+        }
+    }
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(Constants.testJavaVersion.majorVersion)
+        vendor = JvmVendorSpec.ADOPTIUM
+        implementation = JvmImplementation.VENDOR_SPECIFIC
+    }
+
+    targetCompatibility = Constants.compileJavaVersion
+    sourceCompatibility = Constants.compileJavaVersion
+}
+
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+    compilerOptions {
+        val isTestTask = name.contains("test") || name.contains("Test")
+
+        jvmTarget = JvmTarget.fromTarget(
+            (if (isTestTask) Constants.testJavaVersion else Constants.compileJavaVersion).majorVersion,
+        )
+
+        freeCompilerArgs.addAll(
+            "-progressive",
+            "-Xjvm-default=all",
+        )
+
+        if (isTestTask) {
+            freeCompilerArgs.add("-opt-in=kotlin.RequiresOptIn,kotlin.ExperimentalStdlibApi,io.kotest.common.ExperimentalKotest")
+        } else {
+            freeCompilerArgs.addAll(
+                "-opt-in=kotlin.RequiresOptIn",
+                "-Xno-param-assertions",
+                "-Xno-call-assertions",
+                "-Xno-receiver-assertions",
+            )
+        }
+    }
+}
+
+tasks.withType<JavaCompile>().configureEach {
+    val isTestTask = name.contains("test", ignoreCase = true)
+    val version = if (isTestTask) Constants.testJavaVersion else Constants.compileJavaVersion
+    sourceCompatibility = version.majorVersion
+    targetCompatibility = version.majorVersion
+}
+
+tasks.withType<Test>().configureEach {
+    useJUnitPlatform()
 }
 
 dependencies {

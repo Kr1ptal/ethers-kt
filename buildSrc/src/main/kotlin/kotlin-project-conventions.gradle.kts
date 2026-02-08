@@ -1,57 +1,92 @@
+import org.gradle.accessors.dm.LibrariesForLibs
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinJvmCompilerOptions
-
-plugins {
-    id("java-toolchain-conventions")
-    kotlin("jvm")
-}
+import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 
 repositories {
     mavenCentral()
 }
 
-project.pluginManager.withPlugin("java") {
-    // disable runtime nullable call and argument checks for improved performance - they're left in tests to catch early bugs
-    val kotlinCompilerConfig: KotlinJvmCompilerOptions.(Boolean) -> Unit = { isTestTask ->
-        val defaultArgs = listOf(
-            "-progressive",
-            "-jvm-default=no-compatibility",
-            // TODO re-add when this is fixed: https://youtrack.jetbrains.com/issue/KT-78923
-            //"-Xbackend-threads=0", // use all available processors
-        )
+pluginManager.withPlugin("org.jetbrains.kotlin.multiplatform") {
+    val libs = the<LibrariesForLibs>()
 
-        val specificArgs = if (isTestTask) {
-            listOf(
-                "-opt-in=kotlin.RequiresOptIn,kotlin.ExperimentalStdlibApi,io.kotest.common.ExperimentalKotest",
-            )
-        } else {
-            listOf(
-                "-opt-in=kotlin.RequiresOptIn",
-                "-Xno-param-assertions",
-                "-Xno-call-assertions",
-                "-Xno-receiver-assertions",
-            )
+    configure<KotlinMultiplatformExtension> {
+        jvm()
+
+        jvmToolchain {
+            languageVersion = JavaLanguageVersion.of(Constants.testJavaVersion.majorVersion)
+            vendor = JvmVendorSpec.ADOPTIUM
+            implementation = JvmImplementation.VENDOR_SPECIFIC
         }
 
-        val version = if (isTestTask) Constants.testJavaVersion else Constants.compileJavaVersion
-        jvmTarget = JvmTarget.fromTarget(version.majorVersion)
-        freeCompilerArgs.addAll(defaultArgs + specificArgs)
-    }
+        targets.configureEach {
+            compilations.all {
+                compileTaskProvider.configure {
+                    compilerOptions {
+                        val isTestTask = name.contains("test", ignoreCase = true)
 
-    // need to do two separate checks for both cases, not ignoring case. Otherwise, we'd get a false positive for "kaptGenera`teSt`ubsKotlin"
-    fun isTestTask(name: String) = name.contains("test") || name.contains("Test")
+                        val defaultArgs = listOf(
+                            "-progressive",
+                        )
 
-    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
-        compilerOptions {
-            kotlinCompilerConfig(isTestTask(name))
-        }
-    }
+                        val specificArgs = if (isTestTask) {
+                            listOf(
+                                "-opt-in=kotlin.RequiresOptIn,kotlin.ExperimentalStdlibApi,io.kotest.common.ExperimentalKotest",
+                            )
+                        } else {
+                            listOf(
+                                "-opt-in=kotlin.RequiresOptIn",
+                                "-Xno-param-assertions",
+                                "-Xno-call-assertions",
+                                "-Xno-receiver-assertions",
+                            )
+                        }
 
-    project.pluginManager.withPlugin("kapt") {
-        tasks.withType<org.jetbrains.kotlin.gradle.tasks.KaptGenerateStubs>().configureEach {
-            compilerOptions {
-                kotlinCompilerConfig(isTestTask(name))
+                        if (this is KotlinJvmCompilerOptions) {
+                            val version = if (isTestTask) Constants.testJavaVersion else Constants.compileJavaVersion
+                            jvmTarget = JvmTarget.fromTarget(version.majorVersion)
+
+                            freeCompilerArgs.addAll(
+                                listOf(
+                                    "-Xjvm-default=all",
+                                    // TODO re-add when this is fixed: https://youtrack.jetbrains.com/issue/KT-78923
+                                    //"-Xbackend-threads=0", // use all available processors
+                                ),
+                            )
+                        }
+
+                        freeCompilerArgs.addAll(defaultArgs + specificArgs)
+                    }
+                }
             }
         }
+    }
+
+    // Set Java compile tasks to match Kotlin jvmTarget
+    tasks.withType<JavaCompile>().configureEach {
+        val isTestTask = name.contains("test", ignoreCase = true)
+        val version = if (isTestTask) Constants.testJavaVersion else Constants.compileJavaVersion
+        sourceCompatibility = version.majorVersion
+        targetCompatibility = version.majorVersion
+    }
+
+    // Jacoco configuration
+    apply(plugin = "jacoco")
+
+    configure<JacocoPluginExtension> {
+        toolVersion = libs.versions.jacoco.tool.get()
+    }
+
+    tasks.withType<JacocoReport>().configureEach {
+        executionData.setFrom(fileTree(layout.buildDirectory).include("/jacoco/*.exec"))
+
+        reports {
+            html.required.set(true)
+            csv.required.set(true)
+        }
+    }
+
+    tasks.withType<Test>().configureEach {
+        useJUnitPlatform()
     }
 }

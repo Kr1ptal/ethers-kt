@@ -23,7 +23,7 @@ import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
-import org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension
+import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 import java.io.File
 
 /**
@@ -355,9 +355,9 @@ afterEvaluate {
 
         // Register task with Kotlin source sets - Gradle automatically infers dependencies
         // for all consuming tasks (compileKotlin, sourcesJar, ktlint, etc.)
-        pluginManager.withPlugin("org.jetbrains.kotlin.jvm") {
-            val kotlin = extensions.getByType<KotlinJvmProjectExtension>()
-            kotlin.sourceSets.getByName("main").kotlin.srcDir(task)
+        pluginManager.withPlugin("org.jetbrains.kotlin.multiplatform") {
+            val kotlin = extensions.getByType<KotlinMultiplatformExtension>()
+            kotlin.sourceSets.getByName("jvmMain").kotlin.srcDir(task)
         }
     }
 }

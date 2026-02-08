@@ -1,23 +1,21 @@
-import org.gradle.plugins.ide.idea.model.IdeaModel
+// Create JMH configurations eagerly so they're available as Kotlin DSL accessors.
+// In KMP, the standard Java plugin is not applied, so we create configurations manually.
+val jmhImplementation = configurations.create("jmhImplementation")
+val jmhRuntimeOnly = configurations.create("jmhRuntimeOnly")
+val jmhAnnotationProcessor = configurations.create("jmhAnnotationProcessor")
 
-project.pluginManager.withPlugin("java") {
-    val sourceSets = the<SourceSetContainer>()
+pluginManager.withPlugin("org.jetbrains.kotlin.multiplatform") {
+    afterEvaluate {
+        val kmpExt = the<org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension>()
+        val jvmMain = kmpExt.sourceSets.getByName("jvmMain")
 
-    sourceSets.register("jmh") {
-        compileClasspath += sourceSets["main"].output
-        runtimeClasspath += compileClasspath
-        resources.srcDir(file("src/jmh/resources"))
-
-        configurations["jmhImplementation"].extendsFrom(configurations["implementation"])
-        configurations["jmhRuntimeOnly"].extendsFrom(configurations["runtimeOnly"])
-        configurations["jmhAnnotationProcessor"].extendsFrom(configurations["annotationProcessor"])
+        jmhImplementation.extendsFrom(
+            configurations.getByName(jvmMain.implementationConfigurationName),
+        )
     }
+}
 
-    configure<IdeaModel> {
-        module {
-            testSources.from(sourceSets["jmh"].java.srcDirs)
-            testResources.from(sourceSets["jmh"].resources.srcDirs)
-            scopes["TEST"]!!["plus"]!!.add(configurations["jmhCompileClasspath"])
-        }
-    }
+// Also handle kapt for JMH (kapt creates kaptJmh only when a "jmh" source set exists)
+pluginManager.withPlugin("org.jetbrains.kotlin.kapt") {
+    configurations.maybeCreate("kaptJmh")
 }
