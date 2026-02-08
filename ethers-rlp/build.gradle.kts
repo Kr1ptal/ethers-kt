@@ -5,11 +5,23 @@ plugins {
     `maven-publish-conventions`
 }
 
+kotlin {
+    sourceSets {
+        jvmMain {
+            dependencies {
+                implementation(libs.ditchoom.buffer)
+            }
+        }
+
+        jvmTest {
+            dependencies {
+                implementation(libs.bundles.kotest)
+            }
+        }
+    }
+}
+
 dependencies {
-    implementation(libs.ditchoom.buffer)
-
-    testImplementation(libs.bundles.kotest)
-
     jmhImplementation(libs.jmh.core)
     jmhAnnotationProcessor(libs.jmh.generator)
     kaptJmh(libs.jmh.generator)

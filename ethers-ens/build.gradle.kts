@@ -8,14 +8,34 @@ repositories {
     mavenCentral()
 }
 
-dependencies {
-    api(project(":ethers-core"))
-    api(project(":ethers-abi"))
-    api(project(":ethers-providers"))
+kotlin {
+    sourceSets {
+        jvmMain {
+            dependencies {
+                api(project(":ethers-core"))
+                api(project(":ethers-abi"))
+                api(project(":ethers-providers"))
 
-    implementation(project(":logger"))
-    implementation(libs.ens.normalise)
+                implementation(project(":logger"))
+                implementation(libs.ens.normalise)
+            }
+        }
 
-    testImplementation(libs.bundles.junit)
-    testImplementation(libs.bundles.kotest)
+        jvmTest {
+            dependencies {
+                implementation(libs.bundles.junit)
+                implementation(libs.bundles.kotest)
+            }
+        }
+    }
+}
+
+// The abigen plugin registers generated sources with all *Main source sets, but in KMP
+// the same files can't belong to both commonMain and jvmMain. Remove from commonMain.
+afterEvaluate {
+    kotlin.sourceSets.getByName("commonMain").kotlin.setSrcDirs(
+        kotlin.sourceSets.getByName("commonMain").kotlin.srcDirs.filter {
+            !it.path.contains("generated/source/ethers")
+        },
+    )
 }

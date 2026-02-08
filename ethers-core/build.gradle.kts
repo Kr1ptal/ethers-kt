@@ -7,15 +7,26 @@ plugins {
     `maven-publish-conventions`
 }
 
+kotlin {
+    sourceSets {
+        jvmMain {
+            dependencies {
+                api(project(":ethers-rlp"))
+                api(project(":ethers-crypto"))
+                api(libs.bundles.jackson)
+            }
+        }
+
+        jvmTest {
+            dependencies {
+                implementation(libs.bundles.junit)
+                implementation(libs.bundles.kotest)
+            }
+        }
+    }
+}
+
 dependencies {
-    api(project(":ethers-rlp"))
-    api(project(":ethers-crypto"))
-
-    api(libs.bundles.jackson)
-
-    testImplementation(libs.bundles.junit)
-    testImplementation(libs.bundles.kotest)
-
     jmhImplementation(libs.jmh.core)
     jmhAnnotationProcessor(libs.jmh.generator)
     kaptJmh(libs.jmh.generator)

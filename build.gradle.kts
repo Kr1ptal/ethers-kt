@@ -35,7 +35,7 @@ dependencies {
 }*/
 
 tasks.check {
-    dependsOn(tasks.named<TestReport>("testAggregateTestReport"))
+    tasks.findByName("testAggregateTestReport")?.let { dependsOn(it) }
 }
 
 allprojects {

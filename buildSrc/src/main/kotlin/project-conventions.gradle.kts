@@ -3,8 +3,7 @@ import org.gradle.api.attributes.java.TargetJvmVersion
 plugins {
     idea
     eclipse
-    id("java-library")
-    id("java-test-conventions")
+    kotlin("multiplatform")
     id("kotlin-project-conventions")
     id("ktlint-conventions")
 }

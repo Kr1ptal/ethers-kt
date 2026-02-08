@@ -3,19 +3,29 @@ plugins {
     `maven-publish-conventions`
 }
 
-dependencies {
-    api(project(":ethers-core"))
-    api(project(":ethers-providers"))
-    api(project(":ethers-abi"))
+kotlin {
+    sourceSets {
+        jvmMain {
+            dependencies {
+                api(project(":ethers-core"))
+                api(project(":ethers-providers"))
+                api(project(":ethers-abi"))
 
-    implementation(libs.kotlin.reflect)
-    implementation(libs.kotlinpoet) {
-        // don't need this dependency: https://square.github.io/kotlinpoet/#kotlin-reflect
-        exclude(module = "kotlin-reflect")
+                implementation(libs.kotlin.reflect)
+                implementation(libs.kotlinpoet.get().toString()) {
+                    // don't need this dependency: https://square.github.io/kotlinpoet/#kotlin-reflect
+                    exclude(module = "kotlin-reflect")
+                }
+            }
+        }
+
+        jvmTest {
+            dependencies {
+                implementation(libs.bundles.kotest)
+                implementation(libs.kotlin.compileTesting)
+            }
+        }
     }
-
-    testImplementation(libs.bundles.kotest)
-    testImplementation(libs.kotlin.compileTesting)
 }
 
 tasks.withType<Test>().all {

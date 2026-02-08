@@ -42,23 +42,18 @@ val configurePom = Action<MavenPom> {
     }
 }
 
-project.pluginManager.withPlugin("java") {
-    val extJava = project.extensions.getByType(JavaPluginExtension::class.java)
-    extJava.withJavadocJar()
-    extJava.withSourcesJar()
-
+// KMP modules: the multiplatform plugin auto-creates publications per target
+project.pluginManager.withPlugin("org.jetbrains.kotlin.multiplatform") {
     publishing {
-        publications {
-            create<MavenPublication>("library") {
-                pom(configurePom)
-                from(components["java"])
-            }
+        publications.withType<MavenPublication>().configureEach {
+            pom(configurePom)
         }
 
         repositories(configureMavenCentralRepo)
     }
 }
 
+// java-platform modules (BOM)
 project.pluginManager.withPlugin("java-platform") {
     publishing {
         publications {

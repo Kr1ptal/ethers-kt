@@ -12,7 +12,7 @@ plugins {
 staticDataGenerator {
     generators {
         create("multicall3Deployments") {
-            inputFile.set(file("src/main/resources/multicall3-deployments.json"))
+            inputFile.set(file("src/jvmMain/resources/multicall3-deployments.json"))
             packageName.set("io.ethers.abi.call")
             propertyName.set("DEPLOYMENTS")
             data { file ->
@@ -22,14 +22,26 @@ staticDataGenerator {
     }
 }
 
+kotlin {
+    sourceSets {
+        jvmMain {
+            dependencies {
+                api(project(":ethers-core"))
+                api(project(":ethers-providers"))
+                api(project(":ethers-signers"))
+                implementation(libs.ditchoom.buffer)
+            }
+        }
+
+        jvmTest {
+            dependencies {
+                implementation(libs.bundles.kotest)
+            }
+        }
+    }
+}
+
 dependencies {
-    api(project(":ethers-core"))
-    api(project(":ethers-providers"))
-    api(project(":ethers-signers"))
-    implementation(libs.ditchoom.buffer)
-
-    testImplementation(libs.bundles.kotest)
-
     jmhImplementation(libs.jmh.core)
     jmhAnnotationProcessor(libs.jmh.generator)
     kaptJmh(libs.jmh.generator)
