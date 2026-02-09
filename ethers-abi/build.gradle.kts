@@ -27,6 +27,7 @@ dependencies {
     api(project(":ethers-providers"))
     api(project(":ethers-signers"))
     implementation(libs.ditchoom.buffer)
+    implementation(libs.kotlinx.atomicfu)
 
     testImplementation(libs.bundles.kotest)
 

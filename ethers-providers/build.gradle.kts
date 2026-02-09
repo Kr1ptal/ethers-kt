@@ -17,6 +17,7 @@ dependencies {
     implementation(project(":logger"))
     implementation(libs.jctools)
     implementation(libs.bundles.jackson)
+    implementation(libs.kotlinx.atomicfu)
 
     testImplementation(libs.bundles.junit)
     testImplementation(libs.bundles.kotest)

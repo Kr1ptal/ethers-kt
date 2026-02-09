@@ -5,15 +5,15 @@ package io.ethers.providers.types
 import io.ethers.core.Result
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
+import kotlinx.atomicfu.atomic
 import java.util.concurrent.CompletableFuture
-import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Single-shot batch request.
  * */
 class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) {
     // Enable batchSent modification for batch execution via JsonRpcClient.requestBatch
-    internal val batchSent = AtomicBoolean(false)
+    internal val batchSent = atomic(false)
 
     private val _requests = ArrayList<RpcCall<*>>(defaultSize)
     internal val requests: List<RpcCall<*>> get() = _requests
@@ -41,7 +41,7 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) {
             throw IllegalArgumentException("All requests must use the same client")
         }
 
-        val future = ConditionalCompletableFuture<Result<T, RpcError>>(batchSent)
+        val future = ConditionalCompletableFuture<Result<T, RpcError>> { batchSent.value }
 
         _requests.add(request)
         _responses.add(future as CompletableFuture<Result<*, RpcError>>)

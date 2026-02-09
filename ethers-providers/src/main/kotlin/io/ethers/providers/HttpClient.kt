@@ -16,6 +16,7 @@ import io.ethers.logger.err
 import io.ethers.logger.getLogger
 import io.ethers.logger.trc
 import io.ethers.providers.types.BatchRpcRequest
+import kotlinx.atomicfu.atomic
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.Headers
@@ -31,7 +32,6 @@ import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.util.concurrent.CompletableFuture
-import java.util.concurrent.atomic.AtomicLong
 import java.util.function.Function
 
 /**
@@ -54,7 +54,7 @@ class HttpClient(
 
     private val LOG = getLogger()
     private val httpUrl = url.toHttpUrl()
-    private val requestId = AtomicLong(1)
+    private val requestId = atomic(1L)
     private val headers = Headers.Builder().apply { headers.forEach { (k, v) -> add(k, v) } }.build()
 
     override fun requestBatch(batch: BatchRpcRequest): CompletableFuture<Boolean> {
