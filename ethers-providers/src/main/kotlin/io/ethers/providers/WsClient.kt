@@ -35,7 +35,6 @@ import okhttp3.WebSocketListener
 import okio.ByteString
 import org.jctools.queues.MpscUnboundedXaddArrayQueue
 import org.jctools.queues.SpscUnboundedArrayQueue
-import java.io.IOException
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 import java.util.function.Function
@@ -108,7 +107,7 @@ class WsClient(
 
             override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
                 // will trigger "onFailure" callback
-                throw IOException("Binary messages are not supported")
+                throw Exception("Binary messages are not supported")
             }
 
             override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
