@@ -21,11 +21,11 @@ object NameHash {
             val remainderHash = nameHash(labels, index + 1)
 
             val result = ByteArray(64)
-            System.arraycopy(remainderHash, 0, result, 0, remainderHash.size)
+            remainderHash.copyInto(result, 0, 0, remainderHash.size)
 
             // hash the current label and append it to result
             val labelHash = Hashing.keccak256(labels[index].toByteArray(StandardCharsets.UTF_8))
-            System.arraycopy(labelHash, 0, result, 32, labelHash.size)
+            labelHash.copyInto(result, 32, 0, labelHash.size)
 
             Hashing.keccak256(result)
         }

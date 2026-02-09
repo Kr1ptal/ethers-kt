@@ -157,9 +157,9 @@ class Address(private val value: ByteArray) : RlpEncodable {
         fun computeCreate2(sender: Address, salt: ByteArray, codeHash: ByteArray): Address {
             val data = ByteArray(85)
             data[0] = 0xff.toByte()
-            System.arraycopy(sender.value, 0, data, 1, 20)
-            System.arraycopy(salt, 0, data, 21, 32)
-            System.arraycopy(codeHash, 0, data, 53, 32)
+            sender.value.copyInto(data, 1, 0, 20)
+            salt.copyInto(data, 21, 0, 32)
+            codeHash.copyInto(data, 53, 0, 32)
             val hash = Hashing.keccak256(data)
             return Address(hash.copyOfRange(12, hash.size))
         }

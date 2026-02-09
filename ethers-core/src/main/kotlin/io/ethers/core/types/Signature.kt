@@ -110,21 +110,19 @@ class Signature(
         // BigInteger is a signed value, and the first byte is used a sign bit.
         // If the array is larger than 32 bytes, we need to remove the sign bit.
         val rBytes = r.toByteArray()
-        System.arraycopy(
-            rBytes,
-            if (rBytes.size > 32) 1 else 0,
+        rBytes.copyInto(
             ret,
             if (rBytes.size > 32) 0 else 32 - rBytes.size,
-            if (rBytes.size > 32) 32 else rBytes.size,
+            if (rBytes.size > 32) 1 else 0,
+            if (rBytes.size > 32) 33 else rBytes.size,
         )
 
         val sBytes = s.toByteArray()
-        System.arraycopy(
-            sBytes,
-            if (sBytes.size > 32) 1 else 0,
+        sBytes.copyInto(
             ret,
             if (sBytes.size > 32) 32 else 64 - sBytes.size,
-            if (sBytes.size > 32) 32 else sBytes.size,
+            if (sBytes.size > 32) 1 else 0,
+            if (sBytes.size > 32) 33 else sBytes.size,
         )
 
         // normalize EIP-155 v value, and turn into legacy format
