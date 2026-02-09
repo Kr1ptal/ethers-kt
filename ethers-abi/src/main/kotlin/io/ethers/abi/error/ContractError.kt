@@ -7,7 +7,6 @@ import io.ethers.core.Result
 import io.ethers.core.types.Bytes
 import io.ethers.providers.RpcError
 import java.math.BigInteger
-import java.util.Arrays
 
 /**
  * Error returned from a contract call.
@@ -112,7 +111,7 @@ data class PanicError(val kind: Kind) : ContractError() {
         @JvmStatic
         fun getOrNull(data: Bytes): PanicError? {
             if (data.size < 4) return null
-            if (!Arrays.equals(data.asByteArray(), 0, 4, FUNCTION.selector.asByteArray(), 0, 4)) return null
+            if (!data.startsWith(FUNCTION.selector)) return null
 
             val decoded = AbiCodec.decodeWithPrefix(FUNCTION.selector.size, FUNCTION.inputs, data.asByteArray())
             val errorCode = decoded[0] as BigInteger
@@ -145,7 +144,7 @@ data class RevertError(val reason: String) : ContractError() {
         @JvmStatic
         fun getOrNull(data: Bytes): RevertError? {
             if (data.size < 4) return null
-            if (!Arrays.equals(data.asByteArray(), 0, 4, FUNCTION.selector.asByteArray(), 0, 4)) return null
+            if (!data.startsWith(FUNCTION.selector)) return null
             val decoded = AbiCodec.decodeWithPrefix(FUNCTION.selector.size, FUNCTION.inputs, data.asByteArray())
             return RevertError(decoded[0] as String)
         }
@@ -185,7 +184,7 @@ interface CustomErrorFactory<T : CustomContractError> {
 
     fun decode(data: Bytes): T? {
         if (data.size < 4) return null
-        if (!Arrays.equals(data.asByteArray(), 0, 4, abi.selector.asByteArray(), 0, 4)) return null
+        if (!data.startsWith(abi.selector)) return null
 
         return decode(abi.decodeCall(data))
     }
