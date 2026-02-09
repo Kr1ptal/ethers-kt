@@ -6,7 +6,6 @@ import io.kotest.datatest.withData
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import java.math.BigInteger
-import java.util.function.Supplier
 
 class RlpDecoderTest : FunSpec({
     context("decode - BigInteger") {
@@ -127,19 +126,17 @@ class RlpDecoderTest : FunSpec({
             )
         }
 
-        test("decode via Supplier") {
+        test("decode via lambda") {
             val rlp = RlpDecoder("d483646f6783676f64836361748374616383746163".hexToByteArray())
-            val v = rlp.decodeListOrNull(
-                Supplier {
-                    listOf(
-                        rlp.decodeByteArray(),
-                        rlp.decodeByteArray(),
-                        rlp.decodeByteArray(),
-                        rlp.decodeByteArray(),
-                        rlp.decodeByteArray(),
-                    )
-                },
-            )
+            val v = rlp.decodeListOrNull {
+                listOf(
+                    decodeByteArray(),
+                    decodeByteArray(),
+                    decodeByteArray(),
+                    decodeByteArray(),
+                    decodeByteArray(),
+                )
+            }
 
             v shouldContainExactly listOf(
                 "dog".toByteArray(),

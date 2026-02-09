@@ -40,7 +40,6 @@ import io.ethers.core.types.Log
 import io.ethers.providers.middleware.Middleware
 import java.io.File
 import java.math.BigInteger
-import java.util.function.Function
 import javax.lang.model.SourceVersion
 import kotlin.reflect.KClass
 import kotlin.reflect.full.functions
@@ -311,7 +310,7 @@ class AbiContractBuilder(
                 """.trimIndent(),
             )
             addParameter("data", Bytes::class)
-            addStatement("return %T(provider, address, data, %T.identity())", callClass, Function::class)
+            addStatement("return %T(provider, address, data) { it }", callClass)
             returns(callClass.parameterizedBy(Bytes::class.asClassName()))
         }
 

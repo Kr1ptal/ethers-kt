@@ -1,7 +1,6 @@
 package io.ethers.rlp
 
 import java.math.BigInteger
-import java.util.function.Supplier
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
@@ -90,18 +89,6 @@ class RlpDecoder(private val array: ByteArray) {
         }
 
         return ret
-    }
-
-    /**
-     * Decode the list via [supplier], returning the result of [supplier]. This function handles the validation of
-     * list decoding for you and should be preferred over calling [startList] and [finishList] directly.
-     *
-     * If all the list elements are of the same type, prefer using [decodeAsListOrNull] instead.
-     *
-     * @return result of [supplier], or null if the list is empty or cannot be decoded.
-     * */
-    fun <T> decodeListOrNull(supplier: Supplier<T?>): T? {
-        return decodeListOrNull { supplier.get() }
     }
 
     /**

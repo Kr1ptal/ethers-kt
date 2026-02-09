@@ -18,7 +18,6 @@ import io.ethers.providers.AsyncExecutor
 import io.ethers.providers.RpcError
 import io.ethers.providers.middleware.Middleware
 import java.time.Duration
-import java.util.function.Function
 
 private val DEFAULT_POLLER_INTERVAL = Duration.ofSeconds(7)
 
@@ -33,13 +32,13 @@ class FilterPoller<T : Any> private constructor(
     constructor(
         id: String,
         provider: Middleware,
-        decoder: Function<JsonParser, List<T>>,
+        decoder: (JsonParser) -> List<T>,
     ) : this(id, provider, decoder, QueueChannel.spscUnbounded<T> { })
 
     private constructor(
         id: String,
         provider: Middleware,
-        decoder: Function<JsonParser, List<T>>,
+        decoder: (JsonParser) -> List<T>,
         channel: Channel<T>,
     ) : this(Poller(id, provider, decoder, channel), channel)
 
@@ -97,7 +96,7 @@ class FilterPoller<T : Any> private constructor(
     private class Poller<T : Any>(
         private val id: String,
         private val provider: Middleware,
-        private val decoder: Function<JsonParser, List<T>>,
+        private val decoder: (JsonParser) -> List<T>,
         private val channel: Channel<T>,
     ) {
         private val LOG = getLogger()

@@ -37,7 +37,6 @@ import org.jctools.queues.MpscUnboundedXaddArrayQueue
 import org.jctools.queues.SpscUnboundedArrayQueue
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
-import java.util.function.Function
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.TimeSource
@@ -571,7 +570,7 @@ class WsClient(
                     "result" -> {
                         if (batch != null && requestIndexPerId != null && responseId != -1L) {
                             val responseIndex = requestIndexPerId[responseId]!!
-                            result = batch.request.requests[responseIndex].resultDecoder.apply(p)
+                            result = batch.request.requests[responseIndex].resultDecoder(p)
                         } else {
                             buffer = TokenBuffer(p)
                             buffer.copyCurrentStructure(p)
@@ -590,7 +589,7 @@ class WsClient(
 
             // if we had to buffer, read the result from it now
             buffer?.use {
-                result = batch.request.requests[responseIndex].resultDecoder.apply(it.asParserOnFirstToken())
+                result = batch.request.requests[responseIndex].resultDecoder(it.asParserOnFirstToken())
             }
 
             val response = when {
@@ -647,7 +646,7 @@ class WsClient(
         resultParser: JsonParser,
         error: RpcError?,
     ) {
-        val result = if (error == null) request.resultDecoder.apply(resultParser) else null
+        val result = if (error == null) request.resultDecoder(resultParser) else null
 
         val response = when {
             result == null && error == null -> HttpClient.ERROR_INVALID_RESPONSE
@@ -775,7 +774,7 @@ class WsClient(
     override fun <T> request(
         method: String,
         params: Array<*>,
-        resultDecoder: Function<JsonParser, T>,
+        resultDecoder: (JsonParser) -> T,
     ): CompletableFuture<Result<T, RpcError>> {
         val request = CompletableRequest(
             method,
@@ -791,7 +790,7 @@ class WsClient(
 
     override fun <T : Any> subscribe(
         params: Array<*>,
-        resultDecoder: Function<JsonParser, T>,
+        resultDecoder: (JsonParser) -> T,
     ): CompletableFuture<Result<ChannelReceiver<T>, RpcError>> {
         val request = CompletableSubscriptionRequest(
             params,
@@ -822,7 +821,7 @@ class WsClient(
     private class CompletableRequest<T>(
         val method: String,
         val params: Array<*>,
-        val resultDecoder: Function<JsonParser, T>,
+        val resultDecoder: (JsonParser) -> T,
         val future: CompletableFuture<Result<T, RpcError>>,
     ) : ExpiringRequest() {
         override fun expireRequest() {
@@ -846,7 +845,7 @@ class WsClient(
 
     private class CompletableSubscriptionRequest<T : Any>(
         val params: Array<*>,
-        val resultDecoder: Function<JsonParser, T>,
+        val resultDecoder: (JsonParser) -> T,
         val future: CompletableFuture<Result<ChannelReceiver<T>, RpcError>>,
     ) : ExpiringRequest() {
         override fun expireRequest() {
@@ -857,11 +856,11 @@ class WsClient(
     private class Subscription<T : Any>(
         var serverId: String,
         val params: Array<*>,
-        val resultDecoder: Function<JsonParser, T>,
+        val resultDecoder: (JsonParser) -> T,
         val stream: Channel<T>,
     ) {
         fun handleNotification(event: JsonParser) {
-            stream.offer(resultDecoder.apply(event))
+            stream.offer(resultDecoder(event))
         }
     }
 }
