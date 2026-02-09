@@ -126,17 +126,19 @@ class RlpDecoderTest : FunSpec({
             )
         }
 
-        test("decode via lambda") {
+        test("decode via Supplier") {
             val rlp = RlpDecoder("d483646f6783676f64836361748374616383746163".hexToByteArray())
-            val v = rlp.decodeListOrNull {
-                listOf(
-                    decodeByteArray(),
-                    decodeByteArray(),
-                    decodeByteArray(),
-                    decodeByteArray(),
-                    decodeByteArray(),
-                )
-            }
+            val v = rlp.decodeListOrNull(
+                RlpDecoder.Supplier {
+                    listOf(
+                        rlp.decodeByteArray(),
+                        rlp.decodeByteArray(),
+                        rlp.decodeByteArray(),
+                        rlp.decodeByteArray(),
+                        rlp.decodeByteArray(),
+                    )
+                },
+            )
 
             v shouldContainExactly listOf(
                 "dog".toByteArray(),

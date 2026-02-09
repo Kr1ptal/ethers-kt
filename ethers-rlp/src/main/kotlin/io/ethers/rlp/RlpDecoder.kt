@@ -92,6 +92,18 @@ class RlpDecoder(private val array: ByteArray) {
     }
 
     /**
+     * Decode the list via [supplier], returning the result of [supplier]. This function handles the validation of
+     * list decoding for you and should be preferred over calling [startList] and [finishList] directly.
+     *
+     * If all the list elements are of the same type, prefer using [decodeAsListOrNull] instead.
+     *
+     * @return result of [supplier], or null if the list is empty or cannot be decoded.
+     * */
+    fun <T> decodeListOrNull(supplier: Supplier<T?>): T? {
+        return decodeListOrNull { supplier.get() }
+    }
+
+    /**
      * Decode the list via [consumer], returning the result of [consumer]. This function handles the validation of
      * list decoding for you and should be preferred over calling [startList] and [finishList] directly.
      *
@@ -460,6 +472,10 @@ class RlpDecoder(private val array: ByteArray) {
 
     private fun String.throwDecoderException(): Nothing {
         throw RlpDecoderException(this)
+    }
+
+    fun interface Supplier<T> {
+        fun get(): T
     }
 
     companion object {
