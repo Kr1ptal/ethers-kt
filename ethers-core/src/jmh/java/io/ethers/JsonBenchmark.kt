@@ -385,7 +385,7 @@ open class JsonBenchmark {
             if (newCount > buf.size) {
                 buf = buf.copyOf(max(buf.size shl 1, newCount))
             }
-            System.arraycopy(cbuf, off, buf, count, len)
+            cbuf.copyInto(buf, count, off, off + len)
             count = newCount
         }
 

@@ -455,7 +455,7 @@ class RlpDecoder(private val array: ByteArray) {
         if (size == 0) return EMPTY_BYTE_ARRAY
 
         val result = ByteArray(size)
-        System.arraycopy(array, position, result, 0, size)
+        array.copyInto(result, 0, position, position + size)
         position += size
         return result
     }

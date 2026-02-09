@@ -78,9 +78,10 @@ data class Authorization(
             encode(nonce)
         }
 
-        val magicAndRlp = ByteArray(MAGIC.size + rlpEncoder.toByteArray().size)
-        System.arraycopy(MAGIC, 0, magicAndRlp, 0, MAGIC.size)
-        System.arraycopy(rlpEncoder.toByteArray(), 0, magicAndRlp, MAGIC.size, rlpEncoder.toByteArray().size)
+        val rlpBytes = rlpEncoder.toByteArray()
+        val magicAndRlp = ByteArray(MAGIC.size + rlpBytes.size)
+        MAGIC.copyInto(magicAndRlp, 0, 0, MAGIC.size)
+        rlpBytes.copyInto(magicAndRlp, MAGIC.size, 0, rlpBytes.size)
 
         return Hashing.keccak256(magicAndRlp)
     }
