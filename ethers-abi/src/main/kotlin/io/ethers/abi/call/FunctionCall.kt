@@ -14,13 +14,12 @@ import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.PendingTransaction
 import io.ethers.providers.types.RpcRequest
 import java.math.BigInteger
-import java.util.function.Function
 
 class FunctionCall<T>(
     provider: Middleware,
     to: Address,
     data: Bytes?,
-    private val decoder: Function<Bytes, T>,
+    private val decoder: (Bytes) -> T,
 ) : ReadWriteContractCall<T, PendingTransaction, FunctionCall<T>>(provider), Multicall3.Aggregatable<T> {
     // NOTE: not intended for general use. Used only in Multicall3#aggregateCalls function where we need a call on which
     // we can set a value, but not allow consumers to change it.
@@ -29,7 +28,7 @@ class FunctionCall<T>(
         to: Address,
         value: BigInteger?,
         data: Bytes?,
-        decoder: Function<Bytes, T>,
+        decoder: (Bytes) -> T,
     ) : this(provider, to, data, decoder) {
         call.value = value
     }
@@ -54,7 +53,7 @@ class FunctionCall<T>(
 
     override fun decodeCallResult(result: Bytes): Result<T, ContractError> {
         return try {
-            success(decoder.apply(result))
+            success(decoder(result))
         } catch (e: Exception) {
             failure(DecodingError(result, "Unable to decode result", e))
         }
@@ -67,7 +66,7 @@ class ReadFunctionCall<T>(
     provider: Middleware,
     to: Address,
     data: Bytes?,
-    private val decoder: Function<Bytes, T>,
+    private val decoder: (Bytes) -> T,
 ) : ReadContractCall<T, ReadFunctionCall<T>>(provider), Multicall3.Aggregatable<T> {
 
     init {
@@ -90,7 +89,7 @@ class ReadFunctionCall<T>(
 
     override fun decodeCallResult(result: Bytes): Result<T, ContractError> {
         return try {
-            success(decoder.apply(result))
+            success(decoder(result))
         } catch (e: Exception) {
             failure(DecodingError(result, "Unable to decode result", e))
         }
@@ -101,7 +100,7 @@ class PayableFunctionCall<T>(
     provider: Middleware,
     to: Address,
     data: Bytes?,
-    private val decoder: Function<Bytes, T>,
+    private val decoder: (Bytes) -> T,
 ) : ReadWriteContractCall<T, PendingTransaction, PayableFunctionCall<T>>(provider), Multicall3.Aggregatable<T> {
 
     init {
@@ -124,7 +123,7 @@ class PayableFunctionCall<T>(
 
     override fun decodeCallResult(result: Bytes): Result<T, ContractError> {
         return try {
-            success(decoder.apply(result))
+            success(decoder(result))
         } catch (e: Exception) {
             failure(DecodingError(result, "Unable to decode result", e))
         }

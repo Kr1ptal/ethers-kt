@@ -766,7 +766,7 @@ object AbiCodec {
                     }
                 }
 
-                return type.factory.apply(arr)
+                return type.factory(arr)
             }
         }
     }

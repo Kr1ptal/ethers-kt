@@ -11,7 +11,6 @@ import io.kotest.matchers.string.shouldContain
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import org.intellij.lang.annotations.Language
-import java.util.function.Function
 
 /**
  * HttpClient tests demonstrating extraction of common JsonRpcClient tests into a factory pattern.
@@ -32,7 +31,7 @@ class HttpClientTest : FunSpec({
 })
 
 private fun httpSpecificTests() = funSpec {
-    val stringDecoder = Function<JsonParser, String> { parser -> parser.text }
+    val stringDecoder: (JsonParser) -> String = { parser -> parser.text }
 
     context("HTTP-specific error handling") {
         lateinit var server: MockServer

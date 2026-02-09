@@ -8,8 +8,6 @@ import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executor
-import java.util.function.Function
-import java.util.function.Supplier
 
 abstract class RpcRequest<T, E : Result.Error> {
     /**
@@ -98,7 +96,7 @@ class RpcCall<T>(
     val client: JsonRpcClient,
     val method: String,
     val params: Array<*>,
-    val resultDecoder: Function<JsonParser, T>,
+    val resultDecoder: (JsonParser) -> T,
 ) : RpcRequest<T, RpcError>() {
     constructor(
         client: JsonRpcClient,
@@ -121,14 +119,14 @@ class RpcCall<T>(
  */
 private class MappingRpcRequest<I, O, E : Result.Error, U : Result.Error>(
     private val request: RpcRequest<I, E>,
-    private val mapper: Function<Result<I, E>, Result<O, U>>,
+    private val mapper: (Result<I, E>) -> Result<O, U>,
 ) : RpcRequest<O, U>() {
     override fun sendAwait(): Result<O, U> = sendAsync().join()
 
-    override fun sendAsync(): CompletableFuture<Result<O, U>> = request.sendAsync().thenApplyAsync(mapper, asyncExecutor())
+    override fun sendAsync(): CompletableFuture<Result<O, U>> = request.sendAsync().thenApplyAsync({ mapper(it) }, asyncExecutor())
 
     override fun batch(batch: BatchRpcRequest): CompletableFuture<Result<O, U>> {
-        return request.batch(batch).thenApplyAsync(mapper, asyncExecutor())
+        return request.batch(batch).thenApplyAsync({ mapper(it) }, asyncExecutor())
     }
 
     override fun toString(): String {
@@ -140,14 +138,14 @@ private class MappingRpcRequest<I, O, E : Result.Error, U : Result.Error>(
  * An [RpcRequest] that provides a [Result] via a [Supplier]. This call is not batched.
  * */
 class SuppliedRpcRequest<T>(
-    private val supplier: Supplier<Result<T, RpcError>>,
+    private val supplier: () -> Result<T, RpcError>,
 ) : RpcRequest<T, RpcError>() {
-    override fun sendAwait(): Result<T, RpcError> = supplier.get()
+    override fun sendAwait(): Result<T, RpcError> = supplier()
 
-    override fun sendAsync(): CompletableFuture<Result<T, RpcError>> = CompletableFuture.supplyAsync(supplier, asyncExecutor())
+    override fun sendAsync(): CompletableFuture<Result<T, RpcError>> = CompletableFuture.supplyAsync({ supplier() }, asyncExecutor())
 
     override fun batch(batch: BatchRpcRequest): CompletableFuture<Result<T, RpcError>> {
-        return CompletableFuture.supplyAsync(supplier, asyncExecutor())
+        return CompletableFuture.supplyAsync({ supplier() }, asyncExecutor())
     }
 
     override fun toString(): String {

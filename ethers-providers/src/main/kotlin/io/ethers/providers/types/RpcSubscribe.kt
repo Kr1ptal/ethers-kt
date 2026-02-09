@@ -7,7 +7,6 @@ import io.ethers.core.Result.Consumer
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import java.util.concurrent.CompletableFuture
-import java.util.function.Function
 
 interface RpcSubscribe<T : Any, E : Result.Error> {
     /**
@@ -105,7 +104,7 @@ internal class RpcSubscribeConstant<T : Any, E : Result.Error>(
 class RpcSubscribeCall<T : Any>(
     private val client: JsonRpcClient,
     private val params: Array<*>,
-    private val resultDecoder: Function<JsonParser, T>,
+    private val resultDecoder: (JsonParser) -> T,
 ) : RpcSubscribe<T, RpcError> {
     constructor(
         client: JsonRpcClient,
@@ -128,11 +127,11 @@ class RpcSubscribeCall<T : Any>(
  */
 private class MappingRpcSubscribe<I : Any, O : Any, E : Result.Error, U : Result.Error>(
     private val request: RpcSubscribe<I, E>,
-    private val mapper: Function<Result<ChannelReceiver<I>, E>, Result<ChannelReceiver<O>, U>>,
+    private val mapper: (Result<ChannelReceiver<I>, E>) -> Result<ChannelReceiver<O>, U>,
 ) : RpcSubscribe<O, U> {
     override fun sendAwait(): Result<ChannelReceiver<O>, U> = sendAsync().join()
 
-    override fun sendAsync(): CompletableFuture<Result<ChannelReceiver<O>, U>> = request.sendAsync().thenApplyAsync(mapper)
+    override fun sendAsync(): CompletableFuture<Result<ChannelReceiver<O>, U>> = request.sendAsync().thenApplyAsync { mapper(it) }
 
     override fun toString(): String {
         return "MappingRpcSubscribe(request=$request)"

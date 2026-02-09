@@ -32,7 +32,6 @@ import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.util.concurrent.CompletableFuture
-import java.util.function.Function
 
 /**
  * [JsonRpcClient] implementation via HTTP transport. Supports both single and batch requests. Subscriptions are not
@@ -171,7 +170,7 @@ class HttpClient(
     override fun <T> request(
         method: String,
         params: Array<*>,
-        resultDecoder: Function<JsonParser, T>,
+        resultDecoder: (JsonParser) -> T,
     ): CompletableFuture<Result<T, RpcError>> {
         val ret = CompletableFuture<Result<T, RpcError>>()
 
@@ -230,11 +229,11 @@ class HttpClient(
         return ret
     }
 
-    private fun <T> InputStream.decodeResult(decoder: Function<JsonParser, T>): Result<T, RpcError> {
+    private fun <T> InputStream.decodeResult(decoder: (JsonParser) -> T): Result<T, RpcError> {
         return useJsonParser { decodeNextResult { decoder } }
     }
 
-    private inline fun <T> JsonParser.decodeNextResult(getDecoder: (id: Long) -> Function<JsonParser, T>): Result<T, RpcError> {
+    private inline fun <T> JsonParser.decodeNextResult(getDecoder: (id: Long) -> (JsonParser) -> T): Result<T, RpcError> {
         var result: Result<T, RpcError>? = null
         var buffer: TokenBuffer? = null
 
@@ -248,7 +247,7 @@ class HttpClient(
                         buffer = TokenBuffer(this)
                         buffer.copyCurrentStructure(this)
                     } else {
-                        result = success(getDecoder(id).apply(this))
+                        result = success(getDecoder(id)(this))
                     }
                 }
 
@@ -266,7 +265,7 @@ class HttpClient(
 
         buffer?.asParser()?.use {
             it.nextToken()
-            result = success(getDecoder(id).apply(it))
+            result = success(getDecoder(id)(it))
         }
 
         return result ?: ERROR_INVALID_RESPONSE
@@ -278,7 +277,7 @@ class HttpClient(
 
     override fun <T : Any> subscribe(
         params: Array<*>,
-        resultDecoder: Function<JsonParser, T>,
+        resultDecoder: (JsonParser) -> T,
     ): CompletableFuture<Result<ChannelReceiver<T>, RpcError>> {
         return CompletableFuture.completedFuture(ERROR_SUBSCRIPTION_UNSUPPORTED)
     }

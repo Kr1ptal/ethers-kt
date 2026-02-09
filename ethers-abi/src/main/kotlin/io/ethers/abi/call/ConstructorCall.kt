@@ -21,7 +21,6 @@ import io.ethers.providers.types.PendingTransaction
 import io.ethers.providers.types.RpcRequest
 import java.math.BigInteger
 import java.time.Duration
-import java.util.function.BiFunction
 
 private val PRESTATE_DIFF_TRACER = PrestateTracer(diffMode = true)
 private val TRACER_CONFIG_NO_OVERRIDES = TracerConfig(PRESTATE_DIFF_TRACER)
@@ -29,7 +28,7 @@ private val TRACER_CONFIG_NO_OVERRIDES = TracerConfig(PRESTATE_DIFF_TRACER)
 class ConstructorCall<T : AbiContract>(
     provider: Middleware,
     bytecode: Bytes,
-    private val constructor: BiFunction<Middleware, Address, T>,
+    private val constructor: (Middleware, Address) -> T,
 ) : ReadWriteContractCall<CallDeploy<T>, PendingContractDeploy<T>, ConstructorCall<T>>(provider) {
 
     init {
@@ -69,7 +68,7 @@ class ConstructorCall<T : AbiContract>(
 
                 return@andThen success(
                     CallDeploy(
-                        constructor.apply(provider, deployAddress),
+                        constructor(provider, deployAddress),
                         overrides,
                         deployedBytecode,
                     ),
@@ -85,7 +84,7 @@ class ConstructorCall<T : AbiContract>(
 class PayableConstructorCall<T : AbiContract>(
     provider: Middleware,
     bytecode: Bytes,
-    private val constructor: BiFunction<Middleware, Address, T>,
+    private val constructor: (Middleware, Address) -> T,
 ) : ReadWriteContractCall<CallDeploy<T>, PendingContractDeploy<T>, PayableConstructorCall<T>>(provider) {
 
     init {
@@ -125,7 +124,7 @@ class PayableConstructorCall<T : AbiContract>(
 
                 return@andThen success(
                     CallDeploy(
-                        constructor.apply(provider, deployAddress),
+                        constructor(provider, deployAddress),
                         overrides,
                         deployedBytecode,
                     ),
@@ -193,7 +192,7 @@ class CallDeploy<T : AbiContract>(
 class PendingContractDeploy<T : AbiContract>(
     private val provider: Middleware,
     private val result: PendingTransaction,
-    private val constructor: BiFunction<Middleware, Address, T>,
+    private val constructor: (Middleware, Address) -> T,
 ) : PendingInclusion<ContractDeploy<T>> {
     val hash: Hash
         get() = result.hash
@@ -206,7 +205,7 @@ class PendingContractDeploy<T : AbiContract>(
         return result.awaitInclusion(retries, interval, confirmations).andThen {
             when {
                 !it.isSuccessful || it.contractAddress == null -> success(ContractDeploy(null, it))
-                else -> success(ContractDeploy(constructor.apply(provider, it.contractAddress!!), it))
+                else -> success(ContractDeploy(constructor(provider, it.contractAddress!!), it))
             }
         }
     }

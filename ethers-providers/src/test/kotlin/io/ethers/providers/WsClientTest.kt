@@ -10,7 +10,6 @@ import io.kotest.matchers.shouldNotBe
 import okhttp3.OkHttpClient
 import org.intellij.lang.annotations.Language
 import java.util.concurrent.TimeUnit
-import java.util.function.Function
 
 /**
  * WsClient tests demonstrating the funSpec factory pattern for JsonRpcClient testing.
@@ -57,7 +56,7 @@ class WsClientTest : FunSpec({
 
             // Subscribe to new block headers
             val params = arrayOf("newHeads")
-            val resultDecoder = Function<JsonParser, com.fasterxml.jackson.databind.JsonNode> { parser ->
+            val resultDecoder: (JsonParser) -> JsonNode = { parser ->
                 Jackson.MAPPER.readTree(parser)
             }
 
@@ -171,7 +170,7 @@ class WsClientTest : FunSpec({
 
             // Subscribe to new block headers
             val params = arrayOf("newHeads")
-            val resultDecoder = Function<JsonParser, JsonNode> { Jackson.MAPPER.readTree(it) }
+            val resultDecoder: (JsonParser) -> JsonNode = { Jackson.MAPPER.readTree(it) }
 
             val subscriptionResult = wsClient.subscribe(params, resultDecoder).get()
             subscriptionResult.isSuccess() shouldBe true
@@ -214,7 +213,7 @@ class WsClientTest : FunSpec({
 
             // Subscribe to new block headers
             val params = arrayOf("newHeads")
-            val resultDecoder = Function<JsonParser, JsonNode> { Jackson.MAPPER.readTree(it) }
+            val resultDecoder: (JsonParser) -> JsonNode = { Jackson.MAPPER.readTree(it) }
 
             val subscriptionResult = wsClient.subscribe(params, resultDecoder).get()
             subscriptionResult.isSuccess() shouldBe true
@@ -274,7 +273,7 @@ class WsClientTest : FunSpec({
 
             // First create a subscription
             val params = arrayOf("newHeads")
-            val resultDecoder = Function<JsonParser, JsonNode> { Jackson.MAPPER.readTree(it) }
+            val resultDecoder: (JsonParser) -> JsonNode = { Jackson.MAPPER.readTree(it) }
 
             val subscriptionResult = wsClient.subscribe(params, resultDecoder).get()
             subscriptionResult.isSuccess() shouldBe true

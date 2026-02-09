@@ -9,7 +9,6 @@ import io.ethers.abi.eip712.EIP712Codec
 import io.ethers.crypto.Hashing
 import java.lang.reflect.Modifier
 import java.math.BigInteger
-import java.util.function.Function
 import kotlin.reflect.KClass
 
 /**
@@ -127,10 +126,10 @@ sealed interface AbiType<T : Any> {
 
     class Struct<T : ContractStruct>(
         classType: Class<T>,
-        factory: Function<List<Any>, T>,
+        factory: (List<Any>) -> T,
         val fields: List<Field>,
     ) : Tuple<T>(classType.kotlin, factory, fields.map { it.type }), AbiType<T> {
-        constructor(classType: Class<T>, factory: Function<List<Any>, T>, vararg fields: Field) : this(
+        constructor(classType: Class<T>, factory: (List<Any>) -> T, vararg fields: Field) : this(
             classType,
             factory,
             fields.toList(),
@@ -142,13 +141,13 @@ sealed interface AbiType<T : Any> {
             fields,
         )
 
-        constructor(classType: KClass<T>, factory: Function<List<Any>, T>, fields: List<Field>) : this(
+        constructor(classType: KClass<T>, factory: (List<Any>) -> T, fields: List<Field>) : this(
             classType.java,
             factory,
             fields,
         )
 
-        constructor(classType: KClass<T>, factory: Function<List<Any>, T>, vararg fields: Field) : this(
+        constructor(classType: KClass<T>, factory: (List<Any>) -> T, vararg fields: Field) : this(
             classType.java,
             factory,
             fields.toList(),
@@ -217,10 +216,10 @@ sealed interface AbiType<T : Any> {
 
     open class Tuple<T : Any>(
         override val classType: KClass<T>,
-        val factory: Function<List<Any>, *>,
+        val factory: (List<Any>) -> Any,
         val types: List<AbiType<*>>,
     ) : AbiType<T> {
-        constructor(classType: Class<T>, factory: Function<List<Any>, *>, types: List<AbiType<*>>) : this(
+        constructor(classType: Class<T>, factory: (List<Any>) -> Any, types: List<AbiType<*>>) : this(
             classType.kotlin,
             factory,
             types,
@@ -272,7 +271,7 @@ sealed interface AbiType<T : Any> {
 
         companion object {
             private val CLASS_TYPE_TUPLE = emptyList<Any>()::class
-            private val TUPLE_FACTORY = Function.identity<List<Any>>()
+            private val TUPLE_FACTORY: (List<Any>) -> Any = { it }
 
             /**
              * Create a raw [Tuple] type from [types], represented as a list of elements.

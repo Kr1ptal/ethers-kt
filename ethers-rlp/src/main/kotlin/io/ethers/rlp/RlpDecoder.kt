@@ -1,7 +1,6 @@
 package io.ethers.rlp
 
 import java.math.BigInteger
-import java.util.function.Supplier
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
@@ -473,6 +472,10 @@ class RlpDecoder(private val array: ByteArray) {
 
     private fun String.throwDecoderException(): Nothing {
         throw RlpDecoderException(this)
+    }
+
+    fun interface Supplier<T> {
+        fun get(): T
     }
 
     companion object {

@@ -8,7 +8,6 @@ import io.ethers.providers.types.RpcCall
 import io.kotest.core.spec.style.funSpec
 import io.kotest.matchers.shouldBe
 import org.intellij.lang.annotations.Language
-import java.util.function.Function
 
 enum class RpcClientVariant {
     HTTP,
@@ -29,7 +28,7 @@ enum class RpcClientVariant {
  * ```
  */
 object JsonRpcTestFactory {
-    private val stringDecoder = Function<JsonParser, String> { parser -> parser.text }
+    private val stringDecoder: (JsonParser) -> String = { parser -> parser.text }
 
     /**
      * Creates common JSON-RPC tests that can be used with any [JsonRpcClient] implementation.

@@ -17,7 +17,6 @@ import okhttp3.OkHttpClient
 import java.io.Closeable
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
-import java.util.function.Function
 
 interface JsonRpcClient : Closeable {
     /**
@@ -43,7 +42,7 @@ interface JsonRpcClient : Closeable {
     fun <T> request(
         method: String,
         params: Array<*>,
-        resultDecoder: Function<JsonParser, T>,
+        resultDecoder: (JsonParser) -> T,
     ): CompletableFuture<Result<T, RpcError>>
 
     /**
@@ -72,7 +71,7 @@ interface JsonRpcClient : Closeable {
      */
     fun <T : Any> subscribe(
         params: Array<*>,
-        resultDecoder: Function<JsonParser, T>,
+        resultDecoder: (JsonParser) -> T,
     ): CompletableFuture<Result<ChannelReceiver<T>, RpcError>>
 }
 
