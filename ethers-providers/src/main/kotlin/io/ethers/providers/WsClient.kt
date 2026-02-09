@@ -265,7 +265,7 @@ class WsClient(
                         if (resubscribeOnReconnect) {
                             // send resubscribe requests for all existing streams
                             for ((id, sub) in requestIdToSubscription) {
-                                LOG.dbg { "Resent stream re-subscription: $id" }
+                                LOG.dbg { "Resubscribing stream with ID: $id" }
 
                                 val writer = SegmentedStringWriter(bufferRecycler)
                                 jsonMapper.createGenerator(writer).use { gen ->
@@ -348,10 +348,7 @@ class WsClient(
 
                     // fifth, process all unsubscribe requests in the queue
                     while (unsubscribeQueue.poll().also { unsubscribeRequestId = it } != null) {
-                        val sub = requestIdToSubscription.remove(unsubscribeRequestId!!)
-                        if (sub == null) {
-                            continue
-                        }
+                        val sub = requestIdToSubscription.remove(unsubscribeRequestId!!) ?: continue
 
                         LOG.trc { "Unsubscribing from stream: ${sub.serverId}" }
                         serverIdToSubscription.remove(sub.serverId)
