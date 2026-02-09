@@ -16,7 +16,7 @@ hoplite = "2.9.0"
 kotlincrypto = "0.8.0"
 secp256k1 = "0.22.0"
 cryptography = "0.5.0"
-ditchoom-buffer = "2.2.0"
+ditchoom-buffer = "2.3.0"
 
 [libraries]
 kotlin-bom = { module = "org.jetbrains.kotlin:kotlin-bom", version.ref = "kotlin" }
