@@ -13,25 +13,11 @@
 
 package io.ethers.ens.normalize
 
-import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
 object EnsNormalize {
-    private val nf = NF(decoder(EnsNormalizeData.NF_BASE64))
-    private val ensip15 = ENSIP15(nf, decoder(EnsNormalizeData.SPEC_BASE64))
+    internal val NF = NF(EnsNormalizeData.NF_DECODER)
+    private val ENSIP_15 = ENSIP15(NF, EnsNormalizeData.SPEC_DECODER)
 
-    fun normalize(name: String): String = ensip15.normalize(name)
-
-    internal fun nfForTesting(): NF = nf
-
-    private fun decoder(base64: String): Decoder {
-        val bytes = Base64.decode(base64)
-        val ints = IntArray(bytes.size / 4) { i ->
-            (bytes[i * 4].toInt() and 0xFF) or
-                ((bytes[i * 4 + 1].toInt() and 0xFF) shl 8) or
-                ((bytes[i * 4 + 2].toInt() and 0xFF) shl 16) or
-                ((bytes[i * 4 + 3].toInt() and 0xFF) shl 24)
-        }
-        return Decoder(ints)
-    }
+    fun normalize(name: String): String = ENSIP_15.normalize(name)
 }

@@ -43,13 +43,13 @@ class EnsNormalizeTest : FunSpec({
     }
 
     test("NFC/NFD string round-trips") {
-        val nf = EnsNormalize.nfForTesting()
+        val nf = EnsNormalize.NF
         StringUtils.implode(nf.NFC(0x65, 0x300)) shouldBe "\u00E8"
         StringUtils.implode(nf.NFD(0xE8)) shouldBe "\u0065\u0300"
     }
 
     test("NF validation tests") {
-        val nf = EnsNormalize.nfForTesting()
+        val nf = EnsNormalize.NF
         val root = mapper.readTree(
             EnsNormalizeTest::class.java.getResourceAsStream("/io/ethers/ens/normalize/nf-tests.json"),
         )
