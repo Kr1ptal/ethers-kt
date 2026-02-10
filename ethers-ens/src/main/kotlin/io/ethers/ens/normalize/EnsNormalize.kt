@@ -22,6 +22,8 @@ object EnsNormalize {
 
     fun normalize(name: String): String = ensip15.normalize(name)
 
+    internal fun nfForTesting(): NF = nf
+
     private fun decoder(base64: String): Decoder {
         val bytes = Base64.decode(base64)
         val ints = IntArray(bytes.size / 4) { i ->
