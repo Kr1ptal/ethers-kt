@@ -4,7 +4,6 @@ import io.ethers.core.types.Bytes
 import io.ethers.crypto.Hashing
 import io.github.adraffy.ens.ENSNormalize
 import java.io.ByteArrayOutputStream
-import java.nio.charset.StandardCharsets
 
 private val EMPTY_BYTE_ARRAY = ByteArray(32) { 0 }
 
@@ -24,7 +23,7 @@ object NameHash {
             remainderHash.copyInto(result, 0, 0, remainderHash.size)
 
             // hash the current label and append it to result
-            val labelHash = Hashing.keccak256(labels[index].toByteArray(StandardCharsets.UTF_8))
+            val labelHash = Hashing.keccak256(labels[index].toByteArray(Charsets.UTF_8))
             labelHash.copyInto(result, 32, 0, labelHash.size)
 
             Hashing.keccak256(result)
@@ -41,7 +40,7 @@ object NameHash {
         for (part in parts) {
             val normalized = ENSNormalize.ENSIP15.normalize(part)
             stream.write(normalized.length)
-            stream.write(normalized.toByteArray(StandardCharsets.UTF_8))
+            stream.write(normalized.toByteArray(Charsets.UTF_8))
         }
         stream.write(0)
 
