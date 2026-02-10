@@ -14,7 +14,6 @@ dependencies {
     api(project(":ethers-providers"))
 
     implementation(project(":logger"))
-    implementation(libs.ens.normalise)
 
     testImplementation(libs.bundles.junit)
     testImplementation(libs.bundles.kotest)

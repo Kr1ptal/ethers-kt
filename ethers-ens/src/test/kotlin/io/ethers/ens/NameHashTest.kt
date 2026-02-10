@@ -2,7 +2,7 @@ package io.ethers.ens
 
 import io.ethers.core.FastHex
 import io.ethers.core.types.Bytes
-import io.github.adraffy.ens.InvalidLabelException
+import io.ethers.ens.normalize.InvalidLabelException
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData

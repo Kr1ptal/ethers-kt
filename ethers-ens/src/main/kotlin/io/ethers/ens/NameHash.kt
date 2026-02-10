@@ -2,14 +2,14 @@ package io.ethers.ens
 
 import io.ethers.core.types.Bytes
 import io.ethers.crypto.Hashing
-import io.github.adraffy.ens.ENSNormalize
+import io.ethers.ens.normalize.EnsNormalize
 import java.io.ByteArrayOutputStream
 
 private val EMPTY_BYTE_ARRAY = ByteArray(32) { 0 }
 
 object NameHash {
     fun nameHash(ensName: String): ByteArray {
-        return nameHash(ENSNormalize.ENSIP15.normalize(ensName).split("."), 0)
+        return nameHash(EnsNormalize.normalize(ensName).split("."), 0)
     }
 
     private fun nameHash(labels: List<String>, index: Int): ByteArray {
@@ -38,7 +38,7 @@ object NameHash {
         val parts = name.split(".")
         val stream = ByteArrayOutputStream()
         for (part in parts) {
-            val normalized = ENSNormalize.ENSIP15.normalize(part)
+            val normalized = EnsNormalize.normalize(part)
             stream.write(normalized.length)
             stream.write(normalized.toByteArray(Charsets.UTF_8))
         }
