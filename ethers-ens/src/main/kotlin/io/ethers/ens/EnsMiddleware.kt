@@ -420,12 +420,7 @@ class EnsMiddleware @JvmOverloads constructor(
 
         // Validate that the NFT is on the same chain as the provider
         if (nftToken.chainId != chainId) {
-            return failure(
-                Error.AvatarParsing(
-                    "Avatar NFT chain ID ${nftToken.chainId} does not match provider chain ID $chainId",
-                    null,
-                ),
-            )
+            return failure(Error.AvatarChainIdMismatch(nftToken.chainId, chainId, avatarUri))
         }
 
         // validate NFT ownership
@@ -712,6 +707,21 @@ class EnsMiddleware @JvmOverloads constructor(
         data class AvatarParsing(val message: String, val cause: Result.Error?) : Error() {
             override fun doThrow(): Nothing {
                 throw RuntimeException("$message, caused by: $cause")
+            }
+        }
+
+        /**
+         * Avatar NFT chain ID does not match the provider's chain ID.
+         */
+        data class AvatarChainIdMismatch(
+            val avatarChainId: Long,
+            val providerChainId: Long,
+            val avatarUri: String,
+        ) : Error() {
+            override fun doThrow(): Nothing {
+                throw RuntimeException(
+                    "Avatar NFT chain ID $avatarChainId does not match provider chain ID $providerChainId (URI: $avatarUri)",
+                )
             }
         }
 
