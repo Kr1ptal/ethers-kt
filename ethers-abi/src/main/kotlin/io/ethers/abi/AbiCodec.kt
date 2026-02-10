@@ -7,7 +7,6 @@ import io.ethers.core.FastHex
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import java.math.BigInteger
-import java.util.BitSet
 
 object AbiCodec {
     private val TWOS_COMPLEMENT_PADDING = (0..<32).map { ByteArray(it) { 0xff.toByte() } }.toTypedArray()
@@ -194,7 +193,7 @@ object AbiCodec {
             throw AbiCodecException("Cannot decode empty data: ${FastHex.encodeWithoutPrefix(data)}")
         }
 
-        val visitedOffsets = BitSet(data.size / WORD_SIZE_BYTES)
+        val visitedOffsets = FixedBitSet(data.size / WORD_SIZE_BYTES)
         @Suppress("UNCHECKED_CAST")
         return decodeToken(type, PlatformBuffer.wrap(data), data, 0, 1, visitedOffsets) as T
     }
@@ -575,7 +574,7 @@ object AbiCodec {
 
         // to account for 4byte selector
         val offset = buff.position()
-        val visitedOffsets = BitSet(buff.capacity / WORD_SIZE_BYTES)
+        val visitedOffsets = FixedBitSet(buff.capacity / WORD_SIZE_BYTES)
         for (i in types.indices) {
             ret.add(decodeToken(types[i], buff, rawData, offset, 1, visitedOffsets))
         }
@@ -588,7 +587,7 @@ object AbiCodec {
         rawData: ByteArray,
         currOffset: Int,
         depth: Int,
-        visitedOffsets: BitSet,
+        visitedOffsets: FixedBitSet,
     ): Any {
         if (depth > MAX_RECURSION_DEPTH) {
             throw AbiCodecException("Recursion depth $depth exceeds maximum: $MAX_RECURSION_DEPTH")
@@ -981,7 +980,25 @@ private fun PlatformBuffer.ensureRemaining(n: Int): PlatformBuffer {
     return this
 }
 
-private fun PlatformBuffer.ensureValidOffset(offset: Int, currentOffset: Int, visitedOffsets: BitSet): PlatformBuffer {
+private class FixedBitSet(size: Int) {
+    private val words = LongArray((size + 63) ushr 6)
+
+    fun get(index: Int): Boolean {
+        val wordIndex = index ushr 6
+        if (wordIndex >= words.size) return false
+        val bitIndex = index and 63
+        return (words[wordIndex] and (1L shl bitIndex)) != 0L
+    }
+
+    fun set(index: Int) {
+        val wordIndex = index ushr 6
+        if (wordIndex >= words.size) return
+        val bitIndex = index and 63
+        words[wordIndex] = words[wordIndex] or (1L shl bitIndex)
+    }
+}
+
+private fun PlatformBuffer.ensureValidOffset(offset: Int, currentOffset: Int, visitedOffsets: FixedBitSet): PlatformBuffer {
     // can only move forward
     if (offset < currentOffset) {
         throw AbiCodecException("Invalid backwards offset: $offset (currentOffset: $currentOffset)")
@@ -996,7 +1013,7 @@ private fun PlatformBuffer.ensureValidOffset(offset: Int, currentOffset: Int, vi
     visitedOffsets.set(offsetIndex)
 
     // subtract current offset in case we're decoding data with prefix, which needs to be ignored
-    val wordRemainder = (offset - currentOffset) % AbiCodec.WORD_SIZE_BYTES
+    val wordRemainder = (offset - currentOffset) % WORD_SIZE_BYTES
 
     if (wordRemainder != 0) {
         throw AbiCodecException("Offset is not 32 byte word-aligned: $offset")
