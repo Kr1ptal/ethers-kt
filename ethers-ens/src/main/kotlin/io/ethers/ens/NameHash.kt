@@ -3,31 +3,22 @@ package io.ethers.ens
 import io.ethers.core.types.Bytes
 import io.ethers.crypto.Hashing
 import io.ethers.ens.normalize.EnsNormalize
-import java.io.ByteArrayOutputStream
-
-private val EMPTY_BYTE_ARRAY = ByteArray(32) { 0 }
 
 object NameHash {
     fun nameHash(ensName: String): ByteArray {
-        return nameHash(EnsNormalize.normalize(ensName).split("."), 0)
-    }
+        val labels = EnsNormalize.normalize(ensName).split(".")
 
-    private fun nameHash(labels: List<String>, index: Int): ByteArray {
-        return if (index >= labels.size || labels[index] == "") {
-            EMPTY_BYTE_ARRAY
-        } else {
-            // get nameHash result without first label and expand it to 64 bytes
-            val remainderHash = nameHash(labels, index + 1)
+        val buf = ByteArray(64)
+        for (i in labels.lastIndex downTo 0) {
+            if (labels[i].isEmpty()) continue
 
-            val result = ByteArray(64)
-            remainderHash.copyInto(result, 0, 0, remainderHash.size)
+            val labelHash = Hashing.keccak256(labels[i].toByteArray(Charsets.UTF_8))
 
-            // hash the current label and append it to result
-            val labelHash = Hashing.keccak256(labels[index].toByteArray(Charsets.UTF_8))
-            labelHash.copyInto(result, 32, 0, labelHash.size)
-
-            Hashing.keccak256(result)
+            labelHash.copyInto(buf, 32)
+            Hashing.keccak256(buf).copyInto(buf, 0)
         }
+
+        return buf.copyOf(32)
     }
 
     /**
@@ -36,14 +27,21 @@ object NameHash {
      */
     fun dnsEncode(name: String): Bytes {
         val parts = name.split(".")
-        val stream = ByteArrayOutputStream()
-        for (part in parts) {
-            val normalized = EnsNormalize.normalize(part)
-            stream.write(normalized.length)
-            stream.write(normalized.toByteArray(Charsets.UTF_8))
+        val encoded = Array(parts.size) { i ->
+            val normalized = EnsNormalize.normalize(parts[i])
+            normalized.length to normalized.toByteArray(Charsets.UTF_8)
         }
-        stream.write(0)
 
-        return Bytes(stream.toByteArray())
+        // +1 at the end for the trailing zero byte requirement, which is handled implicitly during
+        // initialization of the result array
+        val result = ByteArray(encoded.sumOf { 1 + it.second.size } + 1)
+
+        var offset = 0
+        for ((length, bytes) in encoded) {
+            result[offset++] = length.toByte()
+            bytes.copyInto(result, offset)
+            offset += bytes.size
+        }
+        return Bytes(result)
     }
 }

@@ -12,25 +12,25 @@
 package io.ethers.ens.normalize
 
 internal class ENSIP15(val nf: NF, dec: Decoder) {
-    val maxNonSpacingMarks: Int
-    val shouldEscape: ReadOnlyIntSet
-    val ignored: ReadOnlyIntSet
-    val combiningMarks: ReadOnlyIntSet
-    val nonSpacingMarks: ReadOnlyIntSet
-    val nfcCheck: ReadOnlyIntSet
-    val possiblyValid: ReadOnlyIntSet
-    val fenced: Map<Int, String>
-    val mapped: Map<Int, ReadOnlyIntList>
-    val groups: List<Group>
-    val emojis: List<EmojiSequence>
-    val wholes: List<Whole>
+    private val maxNonSpacingMarks: Int
+    private val shouldEscape: ReadOnlyIntSet
+    private val ignored: ReadOnlyIntSet
+    private val combiningMarks: ReadOnlyIntSet
+    private val nonSpacingMarks: ReadOnlyIntSet
+    private val nfcCheck: ReadOnlyIntSet
+    private val possiblyValid: ReadOnlyIntSet
+    private val fenced: Map<Int, String>
+    private val mapped: Map<Int, ReadOnlyIntList>
+    private val groups: List<Group>
+    private val emojis: List<EmojiSequence>
+    private val wholes: List<Whole>
 
-    val confusables = HashMap<Int, Whole>()
+    private val confusables = HashMap<Int, Whole>()
     private val emojiRoot = EmojiNode()
-    val LATIN: Group
-    val GREEK: Group
-    val ASCII: Group
-    val EMOJI: Group
+    private val LATIN: Group
+    private val GREEK: Group
+    private val ASCII: Group
+    private val EMOJI: Group
 
     init {
         shouldEscape = ReadOnlyIntSet.fromOwnedUnsorted(dec.readUnique())
@@ -92,7 +92,14 @@ internal class ENSIP15(val nf: NF, dec: Decoder) {
         // precompute: special groups
         LATIN = groups.first { it.name == "Latin" }
         GREEK = groups.first { it.name == "Greek" }
-        ASCII = Group(-1, GroupKind.ASCII, "ASCII", false, ReadOnlyIntSet.fromOwnedUnsorted(possiblyValid.array.filter { it < 0x80 }.toIntArray()), ReadOnlyIntSet.EMPTY)
+        ASCII = Group(
+            -1,
+            GroupKind.ASCII,
+            "ASCII",
+            false,
+            ReadOnlyIntSet.fromOwnedUnsorted(possiblyValid.array.filter { it < 0x80 }.toIntArray()),
+            ReadOnlyIntSet.EMPTY,
+        )
         EMOJI = Group(-1, GroupKind.Emoji, "Emoji", false, ReadOnlyIntSet.EMPTY, ReadOnlyIntSet.EMPTY)
     }
 
@@ -134,7 +141,7 @@ internal class ENSIP15(val nf: NF, dec: Decoder) {
         }
     }
 
-    private fun transform(
+    private inline fun transform(
         name: String,
         tokenizer: (IntArray) -> List<OutputToken>,
         normalizer: (List<OutputToken>) -> IntArray,
@@ -181,7 +188,7 @@ internal class ENSIP15(val nf: NF, dec: Decoder) {
         return last
     }
 
-    private fun outputTokenize(
+    private inline fun outputTokenize(
         cps: IntArray,
         nfFn: (IntArray) -> IntArray,
         emojiStyler: (EmojiSequence) -> IntArray,
