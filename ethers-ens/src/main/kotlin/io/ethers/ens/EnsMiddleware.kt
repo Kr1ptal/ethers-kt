@@ -29,8 +29,6 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import java.math.BigInteger
-import java.net.URI
-import java.net.URL
 import java.util.concurrent.CompletableFuture
 
 class EnsMiddleware @JvmOverloads constructor(
@@ -105,7 +103,7 @@ class EnsMiddleware @JvmOverloads constructor(
      * Resolve avatar of [ensName], as per
      * [specification](https://docs.ens.domains/ens-improvement-proposals/ensip-12-avatar-text-records).
      */
-    fun resolveAvatar(ensName: String): CompletableFuture<Result<URI, Error>> = CompletableFuture.supplyAsync {
+    fun resolveAvatar(ensName: String): CompletableFuture<Result<String, Error>> = CompletableFuture.supplyAsync {
         val uriRes = getAvatarUri(ensName)
         if (uriRes.isFailure()) return@supplyAsync uriRes
 
@@ -120,7 +118,7 @@ class EnsMiddleware @JvmOverloads constructor(
      * Resolve avatar of [address], as per
      * [specification](https://docs.ens.domains/ens-improvement-proposals/ensip-12-avatar-text-records).
      */
-    fun resolveAvatar(address: Address): CompletableFuture<Result<URI, Error>> = CompletableFuture.supplyAsync {
+    fun resolveAvatar(address: Address): CompletableFuture<Result<String, Error>> = CompletableFuture.supplyAsync {
         val uriRes = getAvatarUri(address)
         if (uriRes.isFailure()) return@supplyAsync uriRes
 
@@ -395,32 +393,40 @@ class EnsMiddleware @JvmOverloads constructor(
      * - ipfs, converts IPFS into HTTPS url
      * - eip155, resolves NFT avatar
      */
-    private fun matchAvatarUri(avatarUri: URI, ensOwner: Address): Result<URI, Error> {
-        return when (val scheme = avatarUri.scheme) {
+    private fun matchAvatarUri(avatarUri: String, ensOwner: Address): Result<String, Error> {
+        return when (val scheme = extractScheme(avatarUri)) {
             "https", "data" -> success(avatarUri)
             "ipfs" -> success(joinWithIPFSGateway(avatarUri))
-            "eip155" -> {
-                return getAvatarNFT(avatarUri, ensOwner)
-                    .andThen(::resolveNftMetadata)
-                    .map {
-                        when (it.scheme) {
-                            "ipfs" -> joinWithIPFSGateway(it)
-                            else -> it
-                        }
+            "eip155" -> getAvatarNFT(avatarUri, ensOwner)
+                .andThen(::resolveNftMetadata)
+                .map {
+                    when (extractScheme(it)) {
+                        "ipfs" -> joinWithIPFSGateway(it)
+                        else -> it
                     }
-            }
+                }
 
-            else -> failure(Error.UnsupportedScheme(scheme))
+            else -> failure(Error.UnsupportedScheme(scheme ?: ""))
         }
     }
 
     /**
      * Retrieves [AvatarNFT] from [avatarUri] and returns it as [Result]. Performs NFT ownership validation.
      */
-    private fun getAvatarNFT(avatarUri: URI, ensOwner: Address): Result<AvatarNFT, Error> {
+    private fun getAvatarNFT(avatarUri: String, ensOwner: Address): Result<AvatarNFT, Error> {
         val parseResult = AvatarNFT.parse(avatarUri)
         if (parseResult.isFailure()) return parseResult
         val nftToken = parseResult.unwrap()
+
+        // Validate that the NFT is on the same chain as the provider
+        if (nftToken.chainId != chainId) {
+            return failure(
+                Error.AvatarParsing(
+                    "Avatar NFT chain ID ${nftToken.chainId} does not match provider chain ID $chainId",
+                    null,
+                ),
+            )
+        }
 
         // validate NFT ownership
         when (nftToken.nftType) {
@@ -477,7 +483,7 @@ class EnsMiddleware @JvmOverloads constructor(
      * Metadata URL [example](https://ipfs.io/ipfs/QmYTuHaoY1winNAxmf7JmCmSrkChuMAAnqgSuJBTiWZe9f):
      * ipfs://ipfs/QmYTuHaoY1winNAxmf7JmCmSrkChuMAAnqgSuJBTiWZe9f
      */
-    private fun resolveNftMetadata(token: AvatarNFT): Result<URI, Error> {
+    private fun resolveNftMetadata(token: AvatarNFT): Result<String, Error> {
         val metadataUriStr = when (token.nftType) {
             AvatarNFTType.ERC721 -> ERC721(provider, token.nftAddr)
                 .tokenURI(token.tokenId)
@@ -505,16 +511,14 @@ class EnsMiddleware @JvmOverloads constructor(
             )
         }
 
-        val metadataUri = runCatching {
-            val uri = URI(metadataUriStr)
-            if (uri.scheme == "ipfs") joinWithIPFSGateway(uri)
-            else uri
-        }.unwrapOrReturn {
-            return failure(Error.AvatarParsing("Error on parsing NFT metadata URL: $metadataUriStr", it))
+        val metadataUri = if (extractScheme(metadataUriStr) == "ipfs") {
+            joinWithIPFSGateway(metadataUriStr)
+        } else {
+            metadataUriStr
         }
 
         // Execute metadataUri request and extract "image" attribute
-        val request = Request.Builder().url(metadataUri.toURL()).build()
+        val request = Request.Builder().url(metadataUri).build()
         return runCatching {
             httpClient.newCall(request).execute().use {
                 if (!it.isSuccessful) {
@@ -531,7 +535,7 @@ class EnsMiddleware @JvmOverloads constructor(
                     MetadataDTO::class.java,
                 )
 
-                success(URI(metadataDTO.image))
+                success(metadataDTO.image)
             }
         }.unwrapOrReturn {
             return failure(
@@ -543,14 +547,12 @@ class EnsMiddleware @JvmOverloads constructor(
     /**
      * Get avatar URI text record from [ensName].
      */
-    private fun getAvatarUri(ensName: String): Result<URI, Error> {
+    private fun getAvatarUri(ensName: String): Result<String, Error> {
         return resolveText(ensName, "avatar").get().andThen { uriStr ->
             if (uriStr.isEmpty()) {
                 failure(Error.FailedToResolve("Failed to resolve avatar of ens name: $ensName"))
-            } else try {
-                success(URI(uriStr))
-            } catch (e: Exception) {
-                failure(Error.AvatarParsing("Error on parsing URI: $uriStr", ExceptionalError(e)))
+            } else {
+                success(uriStr)
             }
         }
     }
@@ -558,7 +560,7 @@ class EnsMiddleware @JvmOverloads constructor(
     /**
      * Get avatar URI text record from [address].
      */
-    private fun getAvatarUri(address: Address): Result<URI, Error> {
+    private fun getAvatarUri(address: Address): Result<String, Error> {
         // Build reverse address ENS
         val reverseAddr = reverseAddressEnsName(address)
 
@@ -595,11 +597,7 @@ class EnsMiddleware @JvmOverloads constructor(
                 }
         }
 
-        return try {
-            uriRes.map { URI(it) }
-        } catch (e: Exception) {
-            failure(Error.AvatarParsing("Error on parsing URI: ${uriRes.unwrap()}", ExceptionalError(e)))
-        }
+        return uriRes
     }
 
     /**
@@ -613,10 +611,12 @@ class EnsMiddleware @JvmOverloads constructor(
      * Convert IPFS native URL into HTTPS using [IPFS_GATEWAY], as per
      * [specification](https://docs-ipfs-tech.ipns.dweb.link/how-to/address-ipfs-on-web/#ipfs-addressing-in-brief).
      */
-    private fun joinWithIPFSGateway(uri: URI): URI {
-        val path = uri.toString().removePrefix("ipfs://").removePrefix("ipfs/")
-        return URL(URL(IPFS_GATEWAY), path).toURI()
+    private fun joinWithIPFSGateway(uri: String): String {
+        val path = uri.removePrefix("ipfs://").removePrefix("ipfs/")
+        return IPFS_GATEWAY + path
     }
+
+    private fun extractScheme(uri: String): String? = uri.substringBefore(":", "").ifEmpty { null }
 
     /**
      * Possible errors during ens name resolution
@@ -758,7 +758,7 @@ class EnsMiddleware @JvmOverloads constructor(
                 4L -> RINKEBY_REGISTRY_ADDR
                 5L -> GOERLI_REGISTRY_ADDR
                 11155111L -> SEPOLIA_REGISTRY_ADDR
-                else -> return null
+                else -> null
             }
         }
 
