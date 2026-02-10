@@ -171,7 +171,7 @@ class WsClient(
                     while (messageQueue.poll().also { msg = it } != null) {
 
                         // messages are terminated by a new line. Remove it when logging to get nicer output
-                        LOG.trc { "Processing message: ${msg?.removeSuffix(System.lineSeparator())}" }
+                        LOG.trc { "Processing message: ${msg?.removeSuffix("\n")}" }
 
                         try {
                             handleMessage(msg!!)
