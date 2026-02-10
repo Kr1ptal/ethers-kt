@@ -14,11 +14,10 @@ import io.ethers.core.Result
 import io.ethers.core.forEachObjectField
 import io.ethers.providers.types.BatchRpcRequest
 import okhttp3.OkHttpClient
-import java.io.Closeable
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 
-interface JsonRpcClient : Closeable {
+interface JsonRpcClient : AutoCloseable {
     /**
      * Asynchronously execute RPC request.
      *
