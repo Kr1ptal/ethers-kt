@@ -126,6 +126,126 @@ class EthUnitTest : FunSpec({
         }
     }
 
+    context("toWei overloads") {
+        test("Int") {
+            EthUnit.ETHER.toWei(1) shouldBeEqualComparingTo BigDecimal("1000000000000000000")
+        }
+        test("Long") {
+            EthUnit.ETHER.toWei(1L) shouldBeEqualComparingTo BigDecimal("1000000000000000000")
+        }
+        test("Double") {
+            EthUnit.ETHER.toWei(1.5) shouldBeEqualComparingTo BigDecimal("1500000000000000000")
+        }
+        test("BigInteger") {
+            EthUnit.ETHER.toWei(BigInteger.ONE) shouldBeEqualComparingTo BigDecimal("1000000000000000000")
+        }
+        test("BigDecimal") {
+            EthUnit.ETHER.toWei(BigDecimal("0.5")) shouldBeEqualComparingTo BigDecimal("500000000000000000")
+        }
+    }
+
+    context("toGwei overloads") {
+        test("Int") {
+            EthUnit.ETHER.toGwei(1) shouldBeEqualComparingTo BigDecimal("1000000000")
+        }
+        test("Long") {
+            EthUnit.ETHER.toGwei(1L) shouldBeEqualComparingTo BigDecimal("1000000000")
+        }
+        test("Double") {
+            EthUnit.ETHER.toGwei(1.5) shouldBeEqualComparingTo BigDecimal("1500000000")
+        }
+        test("BigInteger") {
+            EthUnit.ETHER.toGwei(BigInteger.ONE) shouldBeEqualComparingTo BigDecimal("1000000000")
+        }
+        test("BigDecimal") {
+            EthUnit.ETHER.toGwei(BigDecimal("0.5")) shouldBeEqualComparingTo BigDecimal("500000000")
+        }
+    }
+
+    context("toEther overloads") {
+        test("Int") {
+            EthUnit.GWEI.toEther(1_000_000_000) shouldBeEqualComparingTo BigDecimal("1")
+        }
+        test("Long") {
+            EthUnit.GWEI.toEther(1_000_000_000L) shouldBeEqualComparingTo BigDecimal("1")
+        }
+        test("Double") {
+            EthUnit.GWEI.toEther(1_500_000_000.0) shouldBeEqualComparingTo BigDecimal("1.5")
+        }
+        test("BigInteger") {
+            EthUnit.GWEI.toEther(BigInteger("1000000000")) shouldBeEqualComparingTo BigDecimal("1")
+        }
+        test("BigDecimal") {
+            EthUnit.GWEI.toEther(BigDecimal("1000000000")) shouldBeEqualComparingTo BigDecimal("1")
+        }
+    }
+
+    context("fromWei overloads") {
+        test("Int") {
+            EthUnit.GWEI.fromWei(1_000_000_000) shouldBeEqualComparingTo BigDecimal("1")
+        }
+        test("Long") {
+            EthUnit.GWEI.fromWei(1_000_000_000L) shouldBeEqualComparingTo BigDecimal("1")
+        }
+        test("Double") {
+            EthUnit.GWEI.fromWei(1_500_000_000.0) shouldBeEqualComparingTo BigDecimal("1.5")
+        }
+        test("BigInteger") {
+            EthUnit.GWEI.fromWei(BigInteger("1000000000")) shouldBeEqualComparingTo BigDecimal("1")
+        }
+        test("BigDecimal") {
+            EthUnit.GWEI.fromWei(BigDecimal("1000000000")) shouldBeEqualComparingTo BigDecimal("1")
+        }
+    }
+
+    context("fromGwei overloads") {
+        test("Int") {
+            EthUnit.ETHER.fromGwei(1_000_000_000) shouldBeEqualComparingTo BigDecimal("1")
+        }
+        test("Long") {
+            EthUnit.ETHER.fromGwei(1_000_000_000L) shouldBeEqualComparingTo BigDecimal("1")
+        }
+        test("Double") {
+            EthUnit.ETHER.fromGwei(1_500_000_000.0) shouldBeEqualComparingTo BigDecimal("1.5")
+        }
+        test("BigInteger") {
+            EthUnit.ETHER.fromGwei(BigInteger("1000000000")) shouldBeEqualComparingTo BigDecimal("1")
+        }
+        test("BigDecimal") {
+            EthUnit.ETHER.fromGwei(BigDecimal("1000000000")) shouldBeEqualComparingTo BigDecimal("1")
+        }
+    }
+
+    context("fromEther overloads") {
+        test("Int") {
+            EthUnit.GWEI.fromEther(1) shouldBeEqualComparingTo BigDecimal("1000000000")
+        }
+        test("Long") {
+            EthUnit.GWEI.fromEther(1L) shouldBeEqualComparingTo BigDecimal("1000000000")
+        }
+        test("Double") {
+            EthUnit.GWEI.fromEther(1.5) shouldBeEqualComparingTo BigDecimal("1500000000")
+        }
+        test("BigInteger") {
+            EthUnit.GWEI.fromEther(BigInteger.ONE) shouldBeEqualComparingTo BigDecimal("1000000000")
+        }
+        test("BigDecimal") {
+            EthUnit.GWEI.fromEther(BigDecimal("1.5")) shouldBeEqualComparingTo BigDecimal("1500000000")
+        }
+    }
+
+    context("convert overloads") {
+        test("Int") {
+            EthUnit.ETHER.convert(2, EthUnit.WEI) shouldBeEqualComparingTo BigDecimal("2000000000000000000")
+        }
+        test("Long") {
+            EthUnit.ETHER.convert(2L, EthUnit.WEI) shouldBeEqualComparingTo BigDecimal("2000000000000000000")
+        }
+        test("Double") {
+            EthUnit.ETHER.convert(0.5, EthUnit.GWEI) shouldBeEqualComparingTo BigDecimal("500000000")
+        }
+    }
+
     test("Bulk test") {
         for (fromDecimals in 0..30) {
             for (toDecimals in 0..30) {
