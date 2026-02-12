@@ -154,8 +154,13 @@ class CallTracerTest : FunSpec({
 
     context("CallFrame.isError") {
         fun frame(error: String? = null, revertReason: String? = null) = CallTracer.CallFrame(
-            type = "CALL", from = addr1, gas = 21_000L, gasUsed = 21_000L, input = Bytes("0x"),
-            error = error, revertReason = revertReason,
+            type = "CALL",
+            from = addr1,
+            gas = 21_000L,
+            gasUsed = 21_000L,
+            input = Bytes("0x"),
+            error = error,
+            revertReason = revertReason,
         )
 
         withData(
