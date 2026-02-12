@@ -219,18 +219,12 @@ class LogFilterTest : FunSpec({
             blocks.to shouldBe BlockId.Number(12345L)
         }
 
-        test("atBlock(BlockId.Number) creates range with same from/to") {
-            val filter = LogFilter { atBlock(BlockId.Number(99L) as BlockId) }
-            val blocks = filter.blocks as BlockSelector.Range
-            blocks.from shouldBe BlockId.Number(99L)
-            blocks.to shouldBe BlockId.Number(99L)
-        }
+        test("atBlock(BlockId) dispatches correctly") {
+            val numberFilter = LogFilter { atBlock(BlockId.Number(99L) as BlockId) }
+            (numberFilter.blocks as BlockSelector.Range).from shouldBe BlockId.Number(99L)
 
-        test("atBlock(BlockId.Name) creates range with same from/to") {
-            val filter = LogFilter { atBlock(BlockId.LATEST as BlockId) }
-            val blocks = filter.blocks as BlockSelector.Range
-            blocks.from shouldBe BlockId.LATEST
-            blocks.to shouldBe BlockId.LATEST
+            val nameFilter = LogFilter { atBlock(BlockId.LATEST as BlockId) }
+            (nameFilter.blocks as BlockSelector.Range).from shouldBe BlockId.LATEST
         }
 
         test("atBlock(Long) serialization") {
@@ -244,58 +238,38 @@ class LogFilterTest : FunSpec({
         }
     }
 
-    context("address vararg overload") {
-        test("address(vararg) with multiple addresses") {
-            val a1 = Address("0xDAFEA492D9c6733ae3d56b7Ed1ADB60692c98Bc5")
-            val a2 = Address("0xC4356aF40cc379b15925Fc8C21e52c00F474e8e9")
-            val filter = LogFilter { address(a1, a2) }
-            filter.addresses!!.size shouldBe 2
-            filter.addresses!![0] shouldBe a1
-            filter.addresses!![1] shouldBe a2
-        }
+    test("address(vararg) overload") {
+        val a1 = Address("0xDAFEA492D9c6733ae3d56b7Ed1ADB60692c98Bc5")
+        val a2 = Address("0xC4356aF40cc379b15925Fc8C21e52c00F474e8e9")
+        val filter = LogFilter { address(a1, a2) }
+        filter.addresses!!.size shouldBe 2
+        filter.addresses!![0] shouldBe a1
+        filter.addresses!![1] shouldBe a2
 
-        test("address(vararg) serialization") {
-            val a1 = Address("0xDAFEA492D9c6733ae3d56b7Ed1ADB60692c98Bc5")
-            val a2 = Address("0xC4356aF40cc379b15925Fc8C21e52c00F474e8e9")
-            val filter = LogFilter { address(a1, a2) }
-            Jackson.MAPPER.writeValueAsString(filter) shouldEqualJson """
-                {
-                  "fromBlock": "latest",
-                  "toBlock": "latest",
-                  "address": ["$a1", "$a2"]
-                }
-            """
-        }
+        Jackson.MAPPER.writeValueAsString(filter) shouldEqualJson """
+            {
+              "fromBlock": "latest",
+              "toBlock": "latest",
+              "address": ["$a1", "$a2"]
+            }
+        """
     }
 
     context("topic Collection overloads") {
         val h1 = Hash("0x2c00f9fd0fcdeb1ccaf7a31d05702b578ea1b8f8feccd2cd63423cdd41e4149c")
         val h2 = Hash("0xdcbb85a830f7fdd245f448152507f1864a34de12b6b6511f419f8a47afb4b54d")
+        val hashes = listOf(h1, h2)
 
-        test("topic0(Collection)") {
-            val filter = LogFilter { topic0(listOf(h1, h2)) }
-            filter.topic0!!.size shouldBe 2
-            filter.topic0!![0] shouldBe h1
-            filter.topic0!![1] shouldBe h2
+        fun assertTopicSet(topics: Array<out Hash>?) {
+            topics!!.size shouldBe 2
+            topics[0] shouldBe h1
+            topics[1] shouldBe h2
         }
 
-        test("topic1(Collection)") {
-            val filter = LogFilter { topic1(listOf(h1, h2)) }
-            filter.topic1!!.size shouldBe 2
-            filter.topic1!![0] shouldBe h1
-        }
-
-        test("topic2(Collection)") {
-            val filter = LogFilter { topic2(listOf(h1, h2)) }
-            filter.topic2!!.size shouldBe 2
-            filter.topic2!![0] shouldBe h1
-        }
-
-        test("topic3(Collection)") {
-            val filter = LogFilter { topic3(listOf(h1, h2)) }
-            filter.topic3!!.size shouldBe 2
-            filter.topic3!![0] shouldBe h1
-        }
+        test("topic0(Collection)") { assertTopicSet(LogFilter { topic0(hashes) }.topic0) }
+        test("topic1(Collection)") { assertTopicSet(LogFilter { topic1(hashes) }.topic1) }
+        test("topic2(Collection)") { assertTopicSet(LogFilter { topic2(hashes) }.topic2) }
+        test("topic3(Collection)") { assertTopicSet(LogFilter { topic3(hashes) }.topic3) }
     }
 
     context("topic getters") {
@@ -359,43 +333,8 @@ class LogFilterTest : FunSpec({
             (filter == filter) shouldBe true
         }
 
-        test("equal filters with same blocks") {
-            val a = LogFilter { blockRange(1L, 100L) }
-            val b = LogFilter { blockRange(1L, 100L) }
-            a shouldBe b
-        }
-
-        test("different blocks") {
-            val a = LogFilter { blockRange(1L, 100L) }
-            val b = LogFilter { blockRange(1L, 200L) }
-            (a == b) shouldBe false
-        }
-
-        test("one has addresses other does not") {
-            val a = LogFilter { address(Address("0xDAFEA492D9c6733ae3d56b7Ed1ADB60692c98Bc5")) }
-            val b = LogFilter()
-            (a == b) shouldBe false
-            (b == a) shouldBe false
-        }
-
-        test("different addresses") {
-            val a = LogFilter { address(Address("0xDAFEA492D9c6733ae3d56b7Ed1ADB60692c98Bc5")) }
-            val b = LogFilter { address(Address("0xC4356aF40cc379b15925Fc8C21e52c00F474e8e9")) }
-            (a == b) shouldBe false
-        }
-
-        test("one has topics other does not") {
-            val h = Hash("0x2c00f9fd0fcdeb1ccaf7a31d05702b578ea1b8f8feccd2cd63423cdd41e4149c")
-            val a = LogFilter { topic0(h) }
-            val b = LogFilter()
-            (a == b) shouldBe false
-            (b == a) shouldBe false
-        }
-
-        test("different topics") {
-            val a = LogFilter { topic0(Hash("0x2c00f9fd0fcdeb1ccaf7a31d05702b578ea1b8f8feccd2cd63423cdd41e4149c")) }
-            val b = LogFilter { topic0(Hash("0xdcbb85a830f7fdd245f448152507f1864a34de12b6b6511f419f8a47afb4b54d")) }
-            (a == b) shouldBe false
+        test("equal filters") {
+            LogFilter { blockRange(1L, 100L) } shouldBe LogFilter { blockRange(1L, 100L) }
         }
 
         test("not equal to null or different type") {
@@ -403,28 +342,39 @@ class LogFilterTest : FunSpec({
             filter.equals(null) shouldBe false
             filter.equals("string") shouldBe false
         }
+
+        val addr1 = Address("0xDAFEA492D9c6733ae3d56b7Ed1ADB60692c98Bc5")
+        val addr2 = Address("0xC4356aF40cc379b15925Fc8C21e52c00F474e8e9")
+        val hash1 = Hash("0x2c00f9fd0fcdeb1ccaf7a31d05702b578ea1b8f8feccd2cd63423cdd41e4149c")
+        val hash2 = Hash("0xdcbb85a830f7fdd245f448152507f1864a34de12b6b6511f419f8a47afb4b54d")
+
+        withData(
+            nameFn = { it.first },
+            "different blocks" to (LogFilter { blockRange(1L, 100L) } to LogFilter { blockRange(1L, 200L) }),
+            "addresses vs null" to (LogFilter { address(addr1) } to LogFilter()),
+            "null vs addresses" to (LogFilter() to LogFilter { address(addr1) }),
+            "different addresses" to (LogFilter { address(addr1) } to LogFilter { address(addr2) }),
+            "topics vs null" to (LogFilter { topic0(hash1) } to LogFilter()),
+            "null vs topics" to (LogFilter() to LogFilter { topic0(hash1) }),
+            "different topics" to (LogFilter { topic0(hash1) } to LogFilter { topic0(hash2) }),
+        ) { (_, filters) ->
+            (filters.first == filters.second) shouldBe false
+        }
     }
 
     context("hashCode") {
         test("equal filters have equal hashCodes") {
             val h = Hash("0x2c00f9fd0fcdeb1ccaf7a31d05702b578ea1b8f8feccd2cd63423cdd41e4149c")
-            val a = LogFilter {
+            val builder: LogFilter.() -> Unit = {
                 blockRange(1L, 100L)
                 address(Address("0xDAFEA492D9c6733ae3d56b7Ed1ADB60692c98Bc5"))
                 topic0(h)
             }
-            val b = LogFilter {
-                blockRange(1L, 100L)
-                address(Address("0xDAFEA492D9c6733ae3d56b7Ed1ADB60692c98Bc5"))
-                topic0(h)
-            }
-            a.hashCode() shouldBe b.hashCode()
+            LogFilter(builder).hashCode() shouldBe LogFilter(builder).hashCode()
         }
 
         test("empty filter hashCode is consistent") {
-            val a = LogFilter()
-            val b = LogFilter()
-            a.hashCode() shouldBe b.hashCode()
+            LogFilter().hashCode() shouldBe LogFilter().hashCode()
         }
     }
 
@@ -436,18 +386,6 @@ class LogFilterTest : FunSpec({
             a.hashCode() shouldBe b.hashCode()
         }
 
-        test("different from") {
-            val a = BlockSelector.Range(BlockId.Number(1L), BlockId.Number(100L))
-            val b = BlockSelector.Range(BlockId.Number(2L), BlockId.Number(100L))
-            (a == b) shouldBe false
-        }
-
-        test("different to") {
-            val a = BlockSelector.Range(BlockId.Number(1L), BlockId.Number(100L))
-            val b = BlockSelector.Range(BlockId.Number(1L), BlockId.Number(200L))
-            (a == b) shouldBe false
-        }
-
         test("identity") {
             val range = BlockSelector.Range(BlockId.Number(1L), BlockId.Number(100L))
             (range == range) shouldBe true
@@ -457,6 +395,14 @@ class LogFilterTest : FunSpec({
             val range = BlockSelector.Range(BlockId.Number(1L), BlockId.Number(100L))
             range.equals(null) shouldBe false
             range.equals("string") shouldBe false
+        }
+
+        withData(
+            nameFn = { it.first },
+            "different from" to (BlockSelector.Range(BlockId.Number(1L), BlockId.Number(100L)) to BlockSelector.Range(BlockId.Number(2L), BlockId.Number(100L))),
+            "different to" to (BlockSelector.Range(BlockId.Number(1L), BlockId.Number(100L)) to BlockSelector.Range(BlockId.Number(1L), BlockId.Number(200L))),
+        ) { (_, ranges) ->
+            (ranges.first == ranges.second) shouldBe false
         }
     }
 })

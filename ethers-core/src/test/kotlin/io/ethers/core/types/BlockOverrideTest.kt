@@ -4,6 +4,7 @@ import io.ethers.core.Jackson
 import io.kotest.assertions.json.shouldEqualJson
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.datatest.withData
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import java.math.BigInteger
@@ -99,46 +100,17 @@ class BlockOverrideTest : FunSpec({
             a.hashCode() shouldBe b.hashCode()
         }
 
-        test("different number makes not equal") {
-            val a = BlockOverride { number(100L) }
-            val b = BlockOverride { number(200L) }
-            a shouldNotBe b
-        }
-
-        test("different difficulty makes not equal") {
-            val a = BlockOverride { difficulty(BigInteger.ONE) }
-            val b = BlockOverride { difficulty(BigInteger.TEN) }
-            a shouldNotBe b
-        }
-
-        test("different time makes not equal") {
-            val a = BlockOverride { time(100L) }
-            val b = BlockOverride { time(200L) }
-            a shouldNotBe b
-        }
-
-        test("different gasLimit makes not equal") {
-            val a = BlockOverride { gasLimit(100L) }
-            val b = BlockOverride { gasLimit(200L) }
-            a shouldNotBe b
-        }
-
-        test("different coinbase makes not equal") {
-            val a = BlockOverride { coinbase(Address("0xDAFEA492D9c6733ae3d56b7Ed1ADB60692c98Bc5")) }
-            val b = BlockOverride { coinbase(Address("0xC4356aF40cc379b15925Fc8C21e52c00F474e8e9")) }
-            a shouldNotBe b
-        }
-
-        test("different random makes not equal") {
-            val a = BlockOverride { random(Hash("0x2c00f9fd0fcdeb1ccaf7a31d05702b578ea1b8f8feccd2cd63423cdd41e4149c")) }
-            val b = BlockOverride { random(Hash("0x21a92b9ac209df2b952dcbe85dad7355ce3d9389692e7ebc6372a7cc1bc23f9b")) }
-            a shouldNotBe b
-        }
-
-        test("different baseFee makes not equal") {
-            val a = BlockOverride { baseFee(BigInteger.ONE) }
-            val b = BlockOverride { baseFee(BigInteger.TEN) }
-            a shouldNotBe b
+        withData(
+            nameFn = { it.first },
+            "number" to (BlockOverride { number(100L) } to BlockOverride { number(200L) }),
+            "difficulty" to (BlockOverride { difficulty(BigInteger.ONE) } to BlockOverride { difficulty(BigInteger.TEN) }),
+            "time" to (BlockOverride { time(100L) } to BlockOverride { time(200L) }),
+            "gasLimit" to (BlockOverride { gasLimit(100L) } to BlockOverride { gasLimit(200L) }),
+            "coinbase" to (BlockOverride { coinbase(Address("0xDAFEA492D9c6733ae3d56b7Ed1ADB60692c98Bc5")) } to BlockOverride { coinbase(Address("0xC4356aF40cc379b15925Fc8C21e52c00F474e8e9")) }),
+            "random" to (BlockOverride { random(Hash("0x2c00f9fd0fcdeb1ccaf7a31d05702b578ea1b8f8feccd2cd63423cdd41e4149c")) } to BlockOverride { random(Hash("0x21a92b9ac209df2b952dcbe85dad7355ce3d9389692e7ebc6372a7cc1bc23f9b")) }),
+            "baseFee" to (BlockOverride { baseFee(BigInteger.ONE) } to BlockOverride { baseFee(BigInteger.TEN) }),
+        ) { (_, pair) ->
+            pair.first shouldNotBe pair.second
         }
 
         test("same instance is equal") {

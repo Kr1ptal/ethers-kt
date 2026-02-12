@@ -2,6 +2,7 @@ package io.ethers.core
 
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.datatest.withData
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotStartWith
 import io.kotest.property.Arb
@@ -174,6 +175,10 @@ class FastHexTest : FunSpec({
             "0x0",
             "abcdef01924354541243",
             "0xabcdef01924354541243",
+            "0X",
+            "0Xabcdef",
+            "0XABCDEF",
+            "ABCDEF0123456789",
         ).forEach { hex ->
             test(hex) { FastHex.isValidHex(hex) shouldBe true }
         }
@@ -278,25 +283,37 @@ class FastHexTest : FunSpec({
         }
     }
 
-    context("uppercase 0X prefix handling") {
-        test("CharSequence decode with 0X prefix") {
-            val decoded = FastHex.decode("0Xaabb")
-            decoded shouldBe byteArrayOf(0xAA.toByte(), 0xBB.toByte())
-        }
+    context("uppercase hex decoding") {
+        // Tests decode and decodeUnsafe across all input types (CharSequence, ByteArray, CharArray).
+        // Note: ByteArray decode only handles lowercase '0x' prefix, not '0X'.
+        withData(
+            nameFn = { it.first },
+            "0xABCDEF" to byteArrayOf(0xAB.toByte(), 0xCD.toByte(), 0xEF.toByte()),
+            "0xAaBbCcDdEeFf" to byteArrayOf(0xAA.toByte(), 0xBB.toByte(), 0xCC.toByte(), 0xDD.toByte(), 0xEE.toByte(), 0xFF.toByte()),
+            "0Xaabb" to byteArrayOf(0xAA.toByte(), 0xBB.toByte()),
+        ) { (hex, expected) ->
+            FastHex.decode(hex) shouldBe expected
+            FastHex.decode(hex.toCharArray()) shouldBe expected
+            FastHex.decodeUnsafe(hex) shouldBe expected
+            FastHex.decodeUnsafe(hex.toCharArray()) shouldBe expected
 
-        test("CharArray decode with 0X prefix") {
-            val decoded = FastHex.decode("0Xaabb".toCharArray())
-            decoded shouldBe byteArrayOf(0xAA.toByte(), 0xBB.toByte())
+            if (!hex.startsWith("0X")) {
+                FastHex.decode(hex.toByteArray()) shouldBe expected
+                FastHex.decodeUnsafe(hex.toByteArray()) shouldBe expected
+            }
         }
+    }
 
-        test("decodeUnsafe CharSequence with 0X prefix") {
-            val decoded = FastHex.decodeUnsafe("0Xaabb")
-            decoded shouldBe byteArrayOf(0xAA.toByte(), 0xBB.toByte())
-        }
-
-        test("decodeUnsafe CharArray with 0X prefix") {
-            val decoded = FastHex.decodeUnsafe("0Xaabb".toCharArray())
-            decoded shouldBe byteArrayOf(0xAA.toByte(), 0xBB.toByte())
+    context("single-nibble decode") {
+        withData(
+            nameFn = { it.first },
+            "f" to byteArrayOf(0x0f),
+            "A" to byteArrayOf(0x0A),
+            "0xf" to byteArrayOf(0x0f),
+        ) { (hex, expected) ->
+            FastHex.decode(hex) shouldBe expected
+            FastHex.decode(hex.toByteArray()) shouldBe expected
+            FastHex.decode(hex.toCharArray()) shouldBe expected
         }
     }
 
@@ -334,108 +351,15 @@ class FastHexTest : FunSpec({
         }
     }
 
-    context("uppercase hex character decoding (A-F)") {
-        test("decode uppercase hex CharSequence") {
-            val decoded = FastHex.decode("0xABCDEF")
-            decoded shouldBe byteArrayOf(0xAB.toByte(), 0xCD.toByte(), 0xEF.toByte())
-        }
-
-        test("decode uppercase hex ByteArray") {
-            val decoded = FastHex.decode("0xABCDEF".toByteArray())
-            decoded shouldBe byteArrayOf(0xAB.toByte(), 0xCD.toByte(), 0xEF.toByte())
-        }
-
-        test("decode uppercase hex CharArray") {
-            val decoded = FastHex.decode("0xABCDEF".toCharArray())
-            decoded shouldBe byteArrayOf(0xAB.toByte(), 0xCD.toByte(), 0xEF.toByte())
-        }
-
-        test("decode mixed case hex") {
-            val decoded = FastHex.decode("0xAaBbCcDdEeFf")
-            decoded shouldBe byteArrayOf(0xAA.toByte(), 0xBB.toByte(), 0xCC.toByte(), 0xDD.toByte(), 0xEE.toByte(), 0xFF.toByte())
-        }
-
-        test("decodeUnsafe uppercase hex CharSequence") {
-            val decoded = FastHex.decodeUnsafe("0xABCDEF")
-            decoded shouldBe byteArrayOf(0xAB.toByte(), 0xCD.toByte(), 0xEF.toByte())
-        }
-
-        test("decodeUnsafe uppercase hex ByteArray") {
-            val decoded = FastHex.decodeUnsafe("0xABCDEF".toByteArray())
-            decoded shouldBe byteArrayOf(0xAB.toByte(), 0xCD.toByte(), 0xEF.toByte())
-        }
-
-        test("decodeUnsafe uppercase hex CharArray") {
-            val decoded = FastHex.decodeUnsafe("0xABCDEF".toCharArray())
-            decoded shouldBe byteArrayOf(0xAB.toByte(), 0xCD.toByte(), 0xEF.toByte())
-        }
-    }
-
-    context("single-nibble decode") {
-        test("decode single char 'f' as CharSequence") {
-            FastHex.decode("f") shouldBe byteArrayOf(0x0f)
-        }
-
-        test("decode single char 'A' as CharSequence") {
-            FastHex.decode("A") shouldBe byteArrayOf(0x0A)
-        }
-
-        test("decode single char 'f' as ByteArray") {
-            FastHex.decode("f".toByteArray()) shouldBe byteArrayOf(0x0f)
-        }
-
-        test("decode single char 'f' as CharArray") {
-            FastHex.decode("f".toCharArray()) shouldBe byteArrayOf(0x0f)
-        }
-
-        test("decode '0x' + single char as CharSequence") {
-            FastHex.decode("0xf") shouldBe byteArrayOf(0x0f)
-        }
-
-        test("decode '0x' + single char as ByteArray") {
-            FastHex.decode("0xf".toByteArray()) shouldBe byteArrayOf(0x0f)
-        }
-
-        test("decode '0x' + single char as CharArray") {
-            FastHex.decode("0xf".toCharArray()) shouldBe byteArrayOf(0x0f)
-        }
-    }
-
-    context("isValidHex with uppercase prefix and chars") {
-        test("0X prefix with lowercase chars") {
-            FastHex.isValidHex("0Xabcdef") shouldBe true
-        }
-
-        test("0X prefix with uppercase chars") {
-            FastHex.isValidHex("0XABCDEF") shouldBe true
-        }
-
-        test("0X only") {
-            FastHex.isValidHex("0X") shouldBe true
-        }
-
-        test("uppercase chars without prefix") {
-            FastHex.isValidHex("ABCDEF0123456789") shouldBe true
-        }
-    }
-
     context("encode empty and zero-length subranges") {
-        test("encodeWithPrefix empty ByteArray") {
+        test("encodeWithPrefix") {
             FastHex.encodeWithPrefix(ByteArray(0)) shouldBe "0x"
+            FastHex.encodeWithPrefix(byteArrayOf(0x01, 0x02, 0x03), 1, 0) shouldBe "0x"
         }
 
-        test("encodeWithoutPrefix empty ByteArray") {
+        test("encodeWithoutPrefix") {
             FastHex.encodeWithoutPrefix(ByteArray(0)) shouldBe ""
-        }
-
-        test("encodeWithPrefix zero-length subrange") {
-            val buffer = byteArrayOf(0x01, 0x02, 0x03)
-            FastHex.encodeWithPrefix(buffer, 1, 0) shouldBe "0x"
-        }
-
-        test("encodeWithoutPrefix zero-length subrange") {
-            val buffer = byteArrayOf(0x01, 0x02, 0x03)
-            FastHex.encodeWithoutPrefix(buffer, 1, 0) shouldBe ""
+            FastHex.encodeWithoutPrefix(byteArrayOf(0x01, 0x02, 0x03), 1, 0) shouldBe ""
         }
 
         test("encodeAsBytes empty ByteArray") {

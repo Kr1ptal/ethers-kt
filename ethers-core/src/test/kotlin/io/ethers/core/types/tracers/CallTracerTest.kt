@@ -6,6 +6,7 @@ import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
 import io.kotest.assertions.json.shouldEqualJson
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.datatest.withData
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
@@ -140,61 +141,30 @@ class CallTracerTest : FunSpec({
     }
 
     context("config selection") {
-        test("onlyTopCall=true, withLog=true") {
-            val tracer = CallTracer(onlyTopCall = true, withLog = true)
-            tracer.config shouldBe mapOf("onlyTopCall" to true, "withLog" to true)
-        }
-
-        test("onlyTopCall=true, withLog=false") {
-            val tracer = CallTracer(onlyTopCall = true, withLog = false)
-            tracer.config shouldBe mapOf("onlyTopCall" to true, "withLog" to false)
-        }
-
-        test("onlyTopCall=false, withLog=true") {
-            val tracer = CallTracer(onlyTopCall = false, withLog = true)
-            tracer.config shouldBe mapOf("onlyTopCall" to false, "withLog" to true)
-        }
-
-        test("onlyTopCall=false, withLog=false") {
-            val tracer = CallTracer(onlyTopCall = false, withLog = false)
-            tracer.config shouldBe mapOf("onlyTopCall" to false, "withLog" to false)
+        withData(
+            nameFn = { (flags, _) -> "onlyTopCall=${flags.first}, withLog=${flags.second}" },
+            (true to true) to mapOf("onlyTopCall" to true, "withLog" to true),
+            (true to false) to mapOf("onlyTopCall" to true, "withLog" to false),
+            (false to true) to mapOf("onlyTopCall" to false, "withLog" to true),
+            (false to false) to mapOf("onlyTopCall" to false, "withLog" to false),
+        ) { (flags, expectedConfig) ->
+            CallTracer(onlyTopCall = flags.first, withLog = flags.second).config shouldBe expectedConfig
         }
     }
 
     context("CallFrame.isError") {
-        test("returns true when error is set") {
-            val frame = CallTracer.CallFrame(
-                type = "CALL",
-                from = addr1,
-                gas = 21_000L,
-                gasUsed = 21_000L,
-                input = Bytes("0x"),
-                error = "execution reverted",
-            )
-            frame.isError shouldBe true
-        }
+        fun frame(error: String? = null, revertReason: String? = null) = CallTracer.CallFrame(
+            type = "CALL", from = addr1, gas = 21_000L, gasUsed = 21_000L, input = Bytes("0x"),
+            error = error, revertReason = revertReason,
+        )
 
-        test("returns true when revertReason is set") {
-            val frame = CallTracer.CallFrame(
-                type = "CALL",
-                from = addr1,
-                gas = 21_000L,
-                gasUsed = 21_000L,
-                input = Bytes("0x"),
-                revertReason = "some reason",
-            )
-            frame.isError shouldBe true
-        }
-
-        test("returns false when neither error nor revertReason is set") {
-            val frame = CallTracer.CallFrame(
-                type = "CALL",
-                from = addr1,
-                gas = 21_000L,
-                gasUsed = 21_000L,
-                input = Bytes("0x"),
-            )
-            frame.isError shouldBe false
+        withData(
+            nameFn = { it.first },
+            "error set" to (frame(error = "execution reverted") to true),
+            "revertReason set" to (frame(revertReason = "some reason") to true),
+            "neither set" to (frame() to false),
+        ) { (_, data) ->
+            data.first.isError shouldBe data.second
         }
     }
 
