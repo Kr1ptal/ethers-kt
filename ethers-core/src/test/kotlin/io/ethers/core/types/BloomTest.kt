@@ -1,6 +1,10 @@
 package io.ethers.core.types
 
+import io.ethers.core.FastHex
 import io.ethers.core.Jackson
+import io.ethers.core.isFailure
+import io.ethers.core.isSuccess
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData
 import io.kotest.matchers.shouldBe
@@ -116,5 +120,84 @@ class BloomTest : FunSpec({
         val deserializedObject = Jackson.MAPPER.readValue(jsonString, Bloom::class.java)
 
         deserializedObject shouldBe ETH_BLOOM
+    }
+
+    context("Bloom.Companion.fromHex") {
+        test("valid hex returns Success") {
+            val hex = FastHex.encodeWithPrefix(ByteArray(256))
+            val result = Bloom.fromHex(hex)
+            result.isSuccess() shouldBe true
+            result.unwrap().asByteArray() shouldBe ByteArray(256)
+        }
+
+        test("invalid hex chars returns Failure") {
+            val result = Bloom.fromHex("zzinvalid")
+            result.isFailure() shouldBe true
+        }
+
+        test("valid hex with wrong size returns Failure") {
+            val result = Bloom.fromHex("0xaabb")
+            result.isFailure() shouldBe true
+        }
+    }
+
+    context("Bloom.Companion.fromHexUnsafe") {
+        test("valid hex creates Bloom") {
+            val hex = FastHex.encodeWithPrefix(ByteArray(256) { 0x01 })
+            val bloom = Bloom.fromHexUnsafe(hex)
+            bloom.asByteArray().all { it == 0x01.toByte() } shouldBe true
+        }
+    }
+
+    context("asByteArray and toByteArray") {
+        test("asByteArray returns same reference") {
+            val bytes = ByteArray(256) { 0x42 }
+            val bloom = Bloom(bytes)
+            (bloom.asByteArray() === bytes) shouldBe true
+        }
+
+        test("toByteArray returns copy") {
+            val bytes = ByteArray(256) { 0x42 }
+            val bloom = Bloom(bytes)
+            val copy = bloom.toByteArray()
+            copy shouldBe bytes
+            (copy !== bytes) shouldBe true
+        }
+    }
+
+    context("constructor validation") {
+        test("throws on wrong-size ByteArray") {
+            shouldThrow<IllegalArgumentException> { Bloom(ByteArray(10)) }
+        }
+
+        test("no-arg constructor creates 256-byte empty bloom") {
+            val bloom = Bloom()
+            bloom.asByteArray().size shouldBe 256
+            bloom.asByteArray().all { it == 0.toByte() } shouldBe true
+        }
+    }
+
+    context("equals and hashCode") {
+        test("equal Blooms") {
+            val a = Bloom(ByteArray(256) { 0x01 })
+            val b = Bloom(ByteArray(256) { 0x01 })
+            a shouldBe b
+            a.hashCode() shouldBe b.hashCode()
+        }
+
+        test("different Blooms") {
+            val a = Bloom(ByteArray(256) { 0x01 })
+            val b = Bloom(ByteArray(256) { 0x02 })
+            (a == b) shouldBe false
+        }
+
+        test("same instance") {
+            ETH_BLOOM shouldBe ETH_BLOOM
+        }
+
+        test("not equal to null or different type") {
+            ETH_BLOOM.equals(null) shouldBe false
+            ETH_BLOOM.equals("string") shouldBe false
+        }
     }
 })

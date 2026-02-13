@@ -126,6 +126,81 @@ class EthUnitTest : FunSpec({
         }
     }
 
+    context("toWei overloads") {
+        withData(
+            nameFn = { it.first },
+            "Int" to (EthUnit.ETHER.toWei(1) to BigDecimal("1000000000000000000")),
+            "Long" to (EthUnit.ETHER.toWei(1L) to BigDecimal("1000000000000000000")),
+            "Double" to (EthUnit.ETHER.toWei(1.5) to BigDecimal("1500000000000000000")),
+            "BigInteger" to (EthUnit.ETHER.toWei(BigInteger.ONE) to BigDecimal("1000000000000000000")),
+            "BigDecimal" to (EthUnit.ETHER.toWei(BigDecimal("0.5")) to BigDecimal("500000000000000000")),
+        ) { (_, r) -> r.first shouldBeEqualComparingTo r.second }
+    }
+
+    context("toGwei overloads") {
+        withData(
+            nameFn = { it.first },
+            "Int" to (EthUnit.ETHER.toGwei(1) to BigDecimal("1000000000")),
+            "Long" to (EthUnit.ETHER.toGwei(1L) to BigDecimal("1000000000")),
+            "Double" to (EthUnit.ETHER.toGwei(1.5) to BigDecimal("1500000000")),
+            "BigInteger" to (EthUnit.ETHER.toGwei(BigInteger.ONE) to BigDecimal("1000000000")),
+            "BigDecimal" to (EthUnit.ETHER.toGwei(BigDecimal("0.5")) to BigDecimal("500000000")),
+        ) { (_, r) -> r.first shouldBeEqualComparingTo r.second }
+    }
+
+    context("toEther overloads") {
+        withData(
+            nameFn = { it.first },
+            "Int" to (EthUnit.GWEI.toEther(1_000_000_000) to BigDecimal("1")),
+            "Long" to (EthUnit.GWEI.toEther(1_000_000_000L) to BigDecimal("1")),
+            "Double" to (EthUnit.GWEI.toEther(1_500_000_000.0) to BigDecimal("1.5")),
+            "BigInteger" to (EthUnit.GWEI.toEther(BigInteger("1000000000")) to BigDecimal("1")),
+            "BigDecimal" to (EthUnit.GWEI.toEther(BigDecimal("1000000000")) to BigDecimal("1")),
+        ) { (_, r) -> r.first shouldBeEqualComparingTo r.second }
+    }
+
+    context("fromWei overloads") {
+        withData(
+            nameFn = { it.first },
+            "Int" to (EthUnit.GWEI.fromWei(1_000_000_000) to BigDecimal("1")),
+            "Long" to (EthUnit.GWEI.fromWei(1_000_000_000L) to BigDecimal("1")),
+            "Double" to (EthUnit.GWEI.fromWei(1_500_000_000.0) to BigDecimal("1.5")),
+            "BigInteger" to (EthUnit.GWEI.fromWei(BigInteger("1000000000")) to BigDecimal("1")),
+            "BigDecimal" to (EthUnit.GWEI.fromWei(BigDecimal("1000000000")) to BigDecimal("1")),
+        ) { (_, r) -> r.first shouldBeEqualComparingTo r.second }
+    }
+
+    context("fromGwei overloads") {
+        withData(
+            nameFn = { it.first },
+            "Int" to (EthUnit.ETHER.fromGwei(1_000_000_000) to BigDecimal("1")),
+            "Long" to (EthUnit.ETHER.fromGwei(1_000_000_000L) to BigDecimal("1")),
+            "Double" to (EthUnit.ETHER.fromGwei(1_500_000_000.0) to BigDecimal("1.5")),
+            "BigInteger" to (EthUnit.ETHER.fromGwei(BigInteger("1000000000")) to BigDecimal("1")),
+            "BigDecimal" to (EthUnit.ETHER.fromGwei(BigDecimal("1000000000")) to BigDecimal("1")),
+        ) { (_, r) -> r.first shouldBeEqualComparingTo r.second }
+    }
+
+    context("fromEther overloads") {
+        withData(
+            nameFn = { it.first },
+            "Int" to (EthUnit.GWEI.fromEther(1) to BigDecimal("1000000000")),
+            "Long" to (EthUnit.GWEI.fromEther(1L) to BigDecimal("1000000000")),
+            "Double" to (EthUnit.GWEI.fromEther(1.5) to BigDecimal("1500000000")),
+            "BigInteger" to (EthUnit.GWEI.fromEther(BigInteger.ONE) to BigDecimal("1000000000")),
+            "BigDecimal" to (EthUnit.GWEI.fromEther(BigDecimal("1.5")) to BigDecimal("1500000000")),
+        ) { (_, r) -> r.first shouldBeEqualComparingTo r.second }
+    }
+
+    context("convert overloads") {
+        withData(
+            nameFn = { it.first },
+            "Int" to (EthUnit.ETHER.convert(2, EthUnit.WEI) to BigDecimal("2000000000000000000")),
+            "Long" to (EthUnit.ETHER.convert(2L, EthUnit.WEI) to BigDecimal("2000000000000000000")),
+            "Double" to (EthUnit.ETHER.convert(0.5, EthUnit.GWEI) to BigDecimal("500000000")),
+        ) { (_, r) -> r.first shouldBeEqualComparingTo r.second }
+    }
+
     test("Bulk test") {
         for (fromDecimals in 0..30) {
             for (toDecimals in 0..30) {
