@@ -205,6 +205,342 @@ class AbiEventTest : FunSpec({
             Transfer.decode(log) shouldBe null
         }
     }
+
+    context("isLogValid") {
+        context("non-anonymous event") {
+            test("valid log returns true") {
+                val log = Log(
+                    address = Address("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
+                    topics = listOf(
+                        Transfer.abi.topicId,
+                        Hash("0x000000000000000000000000855f02967ee16e9f18d388b07b4c75211e73e8c2"),
+                        Hash("0x000000000000000000000000ed12310d5a37326e6506209c4838146950166760"),
+                    ),
+                    data = Bytes("0x000000000000000000000000000000000000000000000000011dcf6b1af3d3b2"),
+                    blockHash = Hash.ZERO,
+                    blockNumber = 1,
+                    blockTimestamp = 1,
+                    transactionHash = Hash.ZERO,
+                    transactionIndex = 0,
+                    logIndex = 0,
+                    removed = false,
+                )
+
+                Transfer.isLogValid(log) shouldBe true
+            }
+
+            test("wrong topic count returns false") {
+                val log = Log(
+                    address = Address("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
+                    topics = listOf(Transfer.abi.topicId),
+                    data = Bytes("0x000000000000000000000000000000000000000000000000011dcf6b1af3d3b2"),
+                    blockHash = Hash.ZERO,
+                    blockNumber = 1,
+                    blockTimestamp = 1,
+                    transactionHash = Hash.ZERO,
+                    transactionIndex = 0,
+                    logIndex = 0,
+                    removed = false,
+                )
+
+                Transfer.isLogValid(log) shouldBe false
+            }
+
+            test("empty data when data expected returns false") {
+                val log = Log(
+                    address = Address("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
+                    topics = listOf(
+                        Transfer.abi.topicId,
+                        Hash("0x000000000000000000000000855f02967ee16e9f18d388b07b4c75211e73e8c2"),
+                        Hash("0x000000000000000000000000ed12310d5a37326e6506209c4838146950166760"),
+                    ),
+                    data = Bytes.EMPTY,
+                    blockHash = Hash.ZERO,
+                    blockNumber = 1,
+                    blockTimestamp = 1,
+                    transactionHash = Hash.ZERO,
+                    transactionIndex = 0,
+                    logIndex = 0,
+                    removed = false,
+                )
+
+                Transfer.isLogValid(log) shouldBe false
+            }
+
+            test("wrong topicId returns false") {
+                val log = Log(
+                    address = Address("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
+                    topics = listOf(
+                        Hash("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+                        Hash("0x000000000000000000000000855f02967ee16e9f18d388b07b4c75211e73e8c2"),
+                        Hash("0x000000000000000000000000ed12310d5a37326e6506209c4838146950166760"),
+                    ),
+                    data = Bytes("0x000000000000000000000000000000000000000000000000011dcf6b1af3d3b2"),
+                    blockHash = Hash.ZERO,
+                    blockNumber = 1,
+                    blockTimestamp = 1,
+                    transactionHash = Hash.ZERO,
+                    transactionIndex = 0,
+                    logIndex = 0,
+                    removed = false,
+                )
+
+                Transfer.isLogValid(log) shouldBe false
+            }
+        }
+
+        context("anonymous event") {
+            test("valid log returns true") {
+                val log = Log(
+                    address = Address("0x197e90f9fad81970ba7976f33cbd77088e5d7cf7"),
+                    topics = listOf(
+                        Hash("0x9f678cca00000000000000000000000000000000000000000000000000000000"),
+                        Hash("0x00000000000000000000000083f20f44975d03b1b09e64809b757c47f942beea"),
+                        Hash("0x0000000000000000000000000000000000000000000000000000000000000000"),
+                        Hash("0x0000000000000000000000000000000000000000000000000000000000000000"),
+                    ),
+                    data = Bytes("0x0000000000000000000000000000000000000000000000000000000000000020"),
+                    blockHash = Hash.ZERO,
+                    blockNumber = 1,
+                    blockTimestamp = 1,
+                    transactionHash = Hash.ZERO,
+                    transactionIndex = 0,
+                    logIndex = 0,
+                    removed = false,
+                )
+
+                LogNote.isLogValid(log) shouldBe true
+            }
+
+            test("wrong topic count returns false") {
+                val log = Log(
+                    address = Address("0x197e90f9fad81970ba7976f33cbd77088e5d7cf7"),
+                    topics = listOf(
+                        Hash("0x9f678cca00000000000000000000000000000000000000000000000000000000"),
+                        Hash("0x00000000000000000000000083f20f44975d03b1b09e64809b757c47f942beea"),
+                    ),
+                    data = Bytes("0x0000000000000000000000000000000000000000000000000000000000000020"),
+                    blockHash = Hash.ZERO,
+                    blockNumber = 1,
+                    blockTimestamp = 1,
+                    transactionHash = Hash.ZERO,
+                    transactionIndex = 0,
+                    logIndex = 0,
+                    removed = false,
+                )
+
+                LogNote.isLogValid(log) shouldBe false
+            }
+
+            test("empty data when data expected returns false") {
+                val log = Log(
+                    address = Address("0x197e90f9fad81970ba7976f33cbd77088e5d7cf7"),
+                    topics = listOf(
+                        Hash("0x9f678cca00000000000000000000000000000000000000000000000000000000"),
+                        Hash("0x00000000000000000000000083f20f44975d03b1b09e64809b757c47f942beea"),
+                        Hash("0x0000000000000000000000000000000000000000000000000000000000000000"),
+                        Hash("0x0000000000000000000000000000000000000000000000000000000000000000"),
+                    ),
+                    data = Bytes.EMPTY,
+                    blockHash = Hash.ZERO,
+                    blockNumber = 1,
+                    blockTimestamp = 1,
+                    transactionHash = Hash.ZERO,
+                    transactionIndex = 0,
+                    logIndex = 0,
+                    removed = false,
+                )
+
+                LogNote.isLogValid(log) shouldBe false
+            }
+        }
+    }
+
+    context("isEvent extension") {
+        val validTransferLog = Log(
+            address = Address("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
+            topics = listOf(
+                Transfer.abi.topicId,
+                Hash("0x000000000000000000000000855f02967ee16e9f18d388b07b4c75211e73e8c2"),
+                Hash("0x000000000000000000000000ed12310d5a37326e6506209c4838146950166760"),
+            ),
+            data = Bytes("0x000000000000000000000000000000000000000000000000011dcf6b1af3d3b2"),
+            blockHash = Hash.ZERO,
+            blockNumber = 1,
+            blockTimestamp = 1,
+            transactionHash = Hash.ZERO,
+            transactionIndex = 0,
+            logIndex = 0,
+            removed = false,
+        )
+
+        val invalidLog = Log(
+            address = Address("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
+            topics = listOf(Hash("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")),
+            data = Bytes("0x01"),
+            blockHash = Hash.ZERO,
+            blockNumber = 1,
+            blockTimestamp = 1,
+            transactionHash = Hash.ZERO,
+            transactionIndex = 0,
+            logIndex = 0,
+            removed = false,
+        )
+
+        test("isEvent with single factory") {
+            validTransferLog.isEvent(Transfer) shouldBe true
+            invalidLog.isEvent(Transfer) shouldBe false
+        }
+
+        test("isEvent with list of factories") {
+            validTransferLog.isEvent(listOf(Transfer as EventFactory<*>)) shouldBe true
+            invalidLog.isEvent(listOf(Transfer as EventFactory<*>)) shouldBe false
+        }
+
+        test("isEvent with iterable of factories") {
+            val factories: Iterable<EventFactory<*>> = setOf(Transfer as EventFactory<*>)
+            validTransferLog.isEvent(factories) shouldBe true
+            invalidLog.isEvent(factories) shouldBe false
+        }
+
+        test("isEvent with vararg factories") {
+            validTransferLog.isEvent(Transfer, LogNote) shouldBe true
+            invalidLog.isEvent(Transfer, LogNote) shouldBe false
+        }
+    }
+
+    context("toEventOrNull extension") {
+        val validTransferLog = Log(
+            address = Address("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
+            topics = listOf(
+                Transfer.abi.topicId,
+                Hash("0x000000000000000000000000855f02967ee16e9f18d388b07b4c75211e73e8c2"),
+                Hash("0x000000000000000000000000ed12310d5a37326e6506209c4838146950166760"),
+            ),
+            data = Bytes("0x000000000000000000000000000000000000000000000000011dcf6b1af3d3b2"),
+            blockHash = Hash.ZERO,
+            blockNumber = 1,
+            blockTimestamp = 1,
+            transactionHash = Hash.ZERO,
+            transactionIndex = 0,
+            logIndex = 0,
+            removed = false,
+        )
+
+        val invalidLog = Log(
+            address = Address("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
+            topics = listOf(Hash("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")),
+            data = Bytes("0x01"),
+            blockHash = Hash.ZERO,
+            blockNumber = 1,
+            blockTimestamp = 1,
+            transactionHash = Hash.ZERO,
+            transactionIndex = 0,
+            logIndex = 0,
+            removed = false,
+        )
+
+        test("toEventOrNull with list of factories matches first") {
+            val factories = listOf(Transfer, LogNote)
+            val event = validTransferLog.toEventOrNull(factories)
+            event shouldBe Transfer(
+                from = Address("0x855f02967ee16e9f18d388b07b4c75211e73e8c2"),
+                to = Address("0xed12310d5a37326e6506209c4838146950166760"),
+                amount = BigInteger("80448427283174322"),
+                log = validTransferLog,
+            )
+        }
+
+        test("toEventOrNull with list of factories returns null when none match") {
+            val factories = listOf(Transfer, LogNote)
+            invalidLog.toEventOrNull(factories) shouldBe null
+        }
+
+        test("toEventOrNull with iterable of factories") {
+            val factories: Iterable<EventFactory<out ContractEvent>> = setOf(Transfer, LogNote)
+            val event = validTransferLog.toEventOrNull(factories)
+            (event is Transfer) shouldBe true
+        }
+
+        test("toEventOrNull with iterable returns null when none match") {
+            val factories: Iterable<EventFactory<out ContractEvent>> = setOf(Transfer, LogNote)
+            invalidLog.toEventOrNull(factories) shouldBe null
+        }
+
+        test("toEventOrNull with vararg factories") {
+            val event = validTransferLog.toEventOrNull(Transfer, LogNote)
+            (event is Transfer) shouldBe true
+        }
+
+        test("toEventOrNull with vararg returns null when none match") {
+            invalidLog.toEventOrNull(Transfer, LogNote) shouldBe null
+        }
+    }
+
+    context("List/Array EventFactory decode extension") {
+        val validTransferLog = Log(
+            address = Address("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
+            topics = listOf(
+                Transfer.abi.topicId,
+                Hash("0x000000000000000000000000855f02967ee16e9f18d388b07b4c75211e73e8c2"),
+                Hash("0x000000000000000000000000ed12310d5a37326e6506209c4838146950166760"),
+            ),
+            data = Bytes("0x000000000000000000000000000000000000000000000000011dcf6b1af3d3b2"),
+            blockHash = Hash.ZERO,
+            blockNumber = 1,
+            blockTimestamp = 1,
+            transactionHash = Hash.ZERO,
+            transactionIndex = 0,
+            logIndex = 0,
+            removed = false,
+        )
+
+        val invalidLog = Log(
+            address = Address("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
+            topics = listOf(Hash("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")),
+            data = Bytes("0x01"),
+            blockHash = Hash.ZERO,
+            blockNumber = 1,
+            blockTimestamp = 1,
+            transactionHash = Hash.ZERO,
+            transactionIndex = 0,
+            logIndex = 0,
+            removed = false,
+        )
+
+        test("List<EventFactory>.decode matches") {
+            val factories = listOf(Transfer, LogNote)
+            val event = factories.decode(validTransferLog)
+            (event is Transfer) shouldBe true
+        }
+
+        test("List<EventFactory>.decode returns null when none match") {
+            val factories = listOf(Transfer, LogNote)
+            factories.decode(invalidLog) shouldBe null
+        }
+
+        test("Array<EventFactory>.decode matches") {
+            val factories = arrayOf<EventFactory<out ContractEvent>>(Transfer, LogNote)
+            val event = factories.decode(validTransferLog)
+            (event is Transfer) shouldBe true
+        }
+
+        test("Array<EventFactory>.decode returns null when none match") {
+            val factories = arrayOf<EventFactory<out ContractEvent>>(Transfer, LogNote)
+            factories.decode(invalidLog) shouldBe null
+        }
+
+        test("Iterable<EventFactory>.decode matches") {
+            val factories: Iterable<EventFactory<out ContractEvent>> = setOf(Transfer, LogNote)
+            val event = factories.decode(validTransferLog)
+            (event is Transfer) shouldBe true
+        }
+
+        test("Iterable<EventFactory>.decode returns null when none match") {
+            val factories: Iterable<EventFactory<out ContractEvent>> = setOf(Transfer, LogNote)
+            factories.decode(invalidLog) shouldBe null
+        }
+    }
 }) {
     private data class LogNote(
         val sig: Bytes,

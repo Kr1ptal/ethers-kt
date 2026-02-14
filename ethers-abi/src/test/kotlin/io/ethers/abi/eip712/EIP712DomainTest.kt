@@ -5,6 +5,7 @@ import io.ethers.core.Jackson
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
@@ -103,6 +104,45 @@ class EIP712DomainTest : FunSpec({
         // Should not throw and should return a 32-byte hash
         val hash = Hash(domain.separator)
         hash shouldBe Hash("0xb50c8913581289bd2e066aeef89fceb9615d490d673131fd1a7047436706834e")
+    }
+
+    context("JSON deserialization edge cases") {
+        val mapper = Jackson.MAPPER
+
+        test("unknown JSON field is silently ignored") {
+            val json = """{"name":"TestDApp","version":"1.0","extraField":"should be ignored"}"""
+            val domain = mapper.readValue(json, EIP712Domain::class.java)
+
+            domain.name shouldBe "TestDApp"
+            domain.version shouldBe "1.0"
+            domain.chainId shouldBe null
+            domain.verifyingContract shouldBe null
+            domain.salt shouldBe null
+        }
+
+        test("null JSON values produce null fields") {
+            val json = """{"name":null,"version":null}"""
+            val domain = mapper.readValue(json, EIP712Domain::class.java)
+
+            domain.name shouldBe null
+            domain.version shouldBe null
+            domain.chainId shouldBe null
+            domain.verifyingContract shouldBe null
+            domain.salt shouldBe null
+        }
+
+        test("empty JSON object produces domain with all nulls") {
+            val json = """{}"""
+            val domain = mapper.readValue(json, EIP712Domain::class.java)
+
+            domain shouldBe EIP712Domain()
+        }
+
+        test("non-object input throws") {
+            shouldThrow<IllegalArgumentException> {
+                mapper.readValue("\"just a string\"", EIP712Domain::class.java)
+            }
+        }
     }
 
     context("JSON serialization") {

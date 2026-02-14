@@ -760,4 +760,140 @@ class EIP712CodecTest : FunSpec({
             hash.size shouldBe 32
         }
     }
+
+    context("hashStruct with bool field string parsing") {
+        test("bool field with 'true' string value") {
+            val types = mapOf(
+                "BoolTest" to listOf(
+                    EIP712Field("flag", "bool"),
+                ),
+            )
+            val message = mapOf("flag" to "true")
+
+            val hash = EIP712Codec.hashStruct("BoolTest", types, message)
+            hash.size shouldBe 32
+        }
+
+        test("bool field with 'false' string value") {
+            val types = mapOf(
+                "BoolTest" to listOf(
+                    EIP712Field("flag", "bool"),
+                ),
+            )
+            val message = mapOf("flag" to "false")
+
+            val hash = EIP712Codec.hashStruct("BoolTest", types, message)
+            hash.size shouldBe 32
+        }
+
+        test("bool field with invalid string throws") {
+            val types = mapOf(
+                "BoolTest" to listOf(
+                    EIP712Field("flag", "bool"),
+                ),
+            )
+            val message = mapOf("flag" to "yes")
+
+            val exception = shouldThrow<IllegalArgumentException> {
+                EIP712Codec.hashStruct("BoolTest", types, message)
+            }
+            exception.message shouldContain "Invalid value for type"
+        }
+    }
+
+    context("hashStruct with signed int fields") {
+        test("int256 field") {
+            val types = mapOf(
+                "SignedTest" to listOf(
+                    EIP712Field("value", "int256"),
+                ),
+            )
+            val message = mapOf("value" to "-42")
+
+            val hash = EIP712Codec.hashStruct("SignedTest", types, message)
+            hash.size shouldBe 32
+        }
+
+        test("int128 field") {
+            val types = mapOf(
+                "SignedTest" to listOf(
+                    EIP712Field("value", "int128"),
+                ),
+            )
+            val message = mapOf("value" to "100")
+
+            val hash = EIP712Codec.hashStruct("SignedTest", types, message)
+            hash.size shouldBe 32
+        }
+    }
+
+    context("hashStruct with bytes fields") {
+        test("dynamic bytes field") {
+            val types = mapOf(
+                "BytesTest" to listOf(
+                    EIP712Field("data", "bytes"),
+                ),
+            )
+            val message = mapOf("data" to "0xdeadbeef")
+
+            val hash = EIP712Codec.hashStruct("BytesTest", types, message)
+            hash.size shouldBe 32
+        }
+
+        test("fixed bytes32 field") {
+            val types = mapOf(
+                "BytesTest" to listOf(
+                    EIP712Field("data", "bytes32"),
+                ),
+            )
+            val message = mapOf(
+                "data" to "0x0000000000000000000000000000000000000000000000000000000000000001",
+            )
+
+            val hash = EIP712Codec.hashStruct("BytesTest", types, message)
+            hash.size shouldBe 32
+        }
+    }
+
+    context("encodeType with map-based types") {
+        test("cycle detection in map-based path") {
+            val types = mapOf(
+                "A" to listOf(
+                    EIP712Field("value", "string"),
+                    EIP712Field("self", "A"),
+                ),
+            )
+
+            val exception = shouldThrow<IllegalStateException> {
+                EIP712Codec.encodeType("A", types)
+            }
+            exception.message shouldContain "Circular references"
+        }
+
+        test("missing primary type throws") {
+            val types = mapOf(
+                "Person" to listOf(
+                    EIP712Field("name", "string"),
+                ),
+            )
+
+            val exception = shouldThrow<IllegalArgumentException> {
+                EIP712Codec.encodeType("NonExistent", types)
+            }
+            exception.message shouldContain "NonExistent"
+        }
+
+        test("unknown array base type throws") {
+            val types = mapOf(
+                "Test" to listOf(
+                    EIP712Field("items", "UnknownType[]"),
+                ),
+            )
+
+            val exception = shouldThrow<IllegalArgumentException> {
+                EIP712Codec.encodeType("Test", types)
+            }
+            exception.message shouldContain "UnknownType"
+        }
+    }
 })
