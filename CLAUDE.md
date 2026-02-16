@@ -117,6 +117,10 @@ The project uses Kotest and JUnit for testing. Tests are organized by module:
 
 1. **Use regular imports, not fully qualified names**: Always use import statements at the top of the file rather than fully qualified class names inline. The only exception is when there's a naming conflict with another class that's already imported in the same file.
 
+## Web Search Guidelines
+1. **ALWAYS FETCH WEBSITES AS MARKDOWN**: Prepend all web requests with `https://markdown.new/<any-url-here>`, where `<any-url-here>` is the URL you want to fetch. This ensures that the content is returned in Markdown format, which is easier to parse and work with programmatically.
+   - **Website exclusion** (these cannot be converted): `githubusercontent.com`
+
 ## Performance Guidelines
 
 1. **Avoid unnecessary allocations and copies**: Return or reuse existing data structures directly instead of creating copies. If you already have the data in the right format, don't copy it.
