@@ -5,6 +5,7 @@ import io.channels.core.ChannelReceiver
 import io.ethers.core.Result
 import io.ethers.core.Result.Consumer
 import io.ethers.providers.JsonRpcClient
+import io.ethers.providers.ResultCallback
 import io.ethers.providers.RpcError
 import java.util.concurrent.CompletableFuture
 
@@ -114,7 +115,11 @@ class RpcSubscribeCall<T : Any>(
 
     override fun sendAwait(): Result<ChannelReceiver<T>, RpcError> = sendAsync().join()
     override fun sendAsync(): CompletableFuture<Result<ChannelReceiver<T>, RpcError>> {
-        return client.subscribe(params, resultDecoder)
+        val future = CompletableFuture<Result<ChannelReceiver<T>, RpcError>>()
+        client.subscribe(params, resultDecoder) { result ->
+            future.complete(result)
+        }
+        return future
     }
 
     override fun toString(): String {

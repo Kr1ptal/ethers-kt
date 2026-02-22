@@ -5,6 +5,7 @@ import io.ethers.core.Result
 import io.ethers.core.Result.Consumer
 import io.ethers.providers.AsyncExecutor
 import io.ethers.providers.JsonRpcClient
+import io.ethers.providers.ResultCallback
 import io.ethers.providers.RpcError
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executor
@@ -106,7 +107,13 @@ class RpcCall<T>(
     ) : this(client, method, params, { p -> p.readValueAs(resultType) })
 
     override fun sendAwait(): Result<T, RpcError> = sendAsync().join()
-    override fun sendAsync(): CompletableFuture<Result<T, RpcError>> = client.request(method, params, resultDecoder)
+    override fun sendAsync(): CompletableFuture<Result<T, RpcError>> {
+        val future = CompletableFuture<Result<T, RpcError>>()
+        client.request(method, params, resultDecoder) { result ->
+            future.complete(result)
+        }
+        return future
+    }
     override fun batch(batch: BatchRpcRequest): CompletableFuture<Result<T, RpcError>> = batch.addRpcCall(this)
 
     override fun toString(): String {

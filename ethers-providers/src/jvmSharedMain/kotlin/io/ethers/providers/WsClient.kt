@@ -598,10 +598,10 @@ class WsClient(
                 else -> failure(error!!)
             }
 
-            batch.request.responses[responseIndex].complete(response)
+            batch.request.callbacks[responseIndex].complete(response)
         }
 
-        batch?.future?.complete(true)
+        batch?.callback?.complete(true)
     }
 
     private fun getBatchFromRequestId(requestId: Long): Pair<CompletableBatchRequest, HashMap<Long, Int>>? {
@@ -656,7 +656,7 @@ class WsClient(
 
         LOG.trc { "Handled response for request $id: $response" }
 
-        request.future.complete(response)
+        request.callback.complete(response)
     }
 
     private fun <T : Any> handleSubscriptionResponse(
@@ -666,14 +666,13 @@ class WsClient(
         error: RpcError?,
     ) {
         if (error != null) {
-            request.future.complete(failure(error))
+            request.callback.complete(failure(error))
         } else {
             val subscription = Subscription(
                 serverId = resultParser.text,
                 params = request.params,
                 resultDecoder = request.resultDecoder,
                 stream = QueueChannel.spscUnbounded {
-                    // requestId is constant even across re-subscriptions. Just queue for processor thread.
                     unsubscribeQueue.add(id)
                     eventLock.withLock {
                         newEventCondition.signalAll()
@@ -684,7 +683,7 @@ class WsClient(
             requestIdToSubscription[id] = subscription
             serverIdToSubscription[subscription.serverId] = subscription
 
-            request.future.complete(success(subscription.stream))
+            request.callback.complete(success(subscription.stream))
         }
 
         LOG.trc { "Handled response for subscription request $id" }
@@ -758,49 +757,49 @@ class WsClient(
         client.connectionPool.evictAll()
     }
 
-    override fun requestBatch(batch: BatchRpcRequest): CompletableFuture<Boolean> {
+    override fun requestBatch(batch: BatchRpcRequest, callback: ResultCallback<Boolean>) {
         if (batch.isEmpty) {
             batch.markAsSent()
-            return CompletableFuture.completedFuture(true)
+            callback.complete(true)
+            return
         }
 
-        val request = CompletableBatchRequest(batch, CompletableFuture())
+        val request = CompletableBatchRequest(batch, ResultCallback { callback.complete(it) })
 
         batchRequestQueue.add(request)
         eventLock.withLock { newEventCondition.signalAll() }
-        return request.future
     }
 
     override fun <T> request(
         method: String,
         params: Array<*>,
         resultDecoder: (JsonParser) -> T,
-    ): CompletableFuture<Result<T, RpcError>> {
+        callback: ResultCallback<Result<T, RpcError>>,
+    ) {
         val request = CompletableRequest(
             method,
             params,
             resultDecoder,
-            CompletableFuture(),
+            callback,
         )
 
         requestQueue.add(request)
         eventLock.withLock { newEventCondition.signalAll() }
-        return request.future
     }
 
     override fun <T : Any> subscribe(
         params: Array<*>,
         resultDecoder: (JsonParser) -> T,
-    ): CompletableFuture<Result<ChannelReceiver<T>, RpcError>> {
+        callback: ResultCallback<Result<ChannelReceiver<T>, RpcError>>,
+    ) {
         val request = CompletableSubscriptionRequest(
             params,
             resultDecoder,
-            CompletableFuture(),
+            callback,
         )
 
         subscriptionQueue.add(request)
         eventLock.withLock { newEventCondition.signalAll() }
-        return request.future
     }
 
     private abstract class ExpiringRequest {
@@ -822,34 +821,33 @@ class WsClient(
         val method: String,
         val params: Array<*>,
         val resultDecoder: (JsonParser) -> T,
-        val future: CompletableFuture<Result<T, RpcError>>,
+        val callback: ResultCallback<Result<T, RpcError>>,
     ) : ExpiringRequest() {
         override fun expireRequest() {
-            future.complete(HttpClient.ERROR_CALL_TIMEOUT)
+            callback.complete(HttpClient.ERROR_CALL_TIMEOUT)
         }
     }
 
     private data class CompletableBatchRequest(
         val request: BatchRpcRequest,
-        val future: CompletableFuture<Boolean>,
+        val callback: ResultCallback<Boolean>,
     ) : ExpiringRequest() {
         override fun expireRequest() {
-            for (i in request.responses.indices) {
-                val response = request.responses[i]
-                response.complete(HttpClient.ERROR_CALL_TIMEOUT)
+            for (i in request.callbacks.indices) {
+                request.callbacks[i].complete(HttpClient.ERROR_CALL_TIMEOUT)
             }
 
-            future.complete(false)
+            callback.complete(false)
         }
     }
 
     private class CompletableSubscriptionRequest<T : Any>(
         val params: Array<*>,
         val resultDecoder: (JsonParser) -> T,
-        val future: CompletableFuture<Result<ChannelReceiver<T>, RpcError>>,
+        val callback: ResultCallback<Result<ChannelReceiver<T>, RpcError>>,
     ) : ExpiringRequest() {
         override fun expireRequest() {
-            future.complete(HttpClient.ERROR_CALL_TIMEOUT)
+            callback.complete(HttpClient.ERROR_CALL_TIMEOUT)
         }
     }
 
