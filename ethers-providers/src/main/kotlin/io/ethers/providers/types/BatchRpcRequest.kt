@@ -4,6 +4,7 @@ package io.ethers.providers.types
 
 import io.ethers.core.Result
 import io.ethers.providers.JsonRpcClient
+import io.ethers.providers.ResultCallback
 import io.ethers.providers.RpcError
 import kotlinx.atomicfu.atomic
 import java.util.concurrent.CompletableFuture
@@ -18,13 +19,16 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) {
     private val _requests = ArrayList<RpcCall<*>>(defaultSize)
     internal val requests: List<RpcCall<*>> get() = _requests
 
+    private val _callbacks = ArrayList<ResultCallback<Result<*, RpcError>>>(defaultSize)
+    internal val callbacks: List<ResultCallback<Result<*, RpcError>>> get() = _callbacks
+
     private val _responses = ArrayList<CompletableFuture<Result<*, RpcError>>>(defaultSize)
     internal val responses: List<CompletableFuture<Result<*, RpcError>>> get() = _responses
 
     private var client: JsonRpcClient? = null
 
     /**
-     * Returns true if this batch has no requests.
+     * Returns true if this this batch has no requests.
      * */
     val isEmpty: Boolean get() = requests.isEmpty()
 
@@ -42,8 +46,13 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) {
         }
 
         val future = ConditionalCompletableFuture<Result<T, RpcError>> { batchSent.value }
+        val callback = ResultCallback<Result<T, RpcError>> { result ->
+            @Suppress("UNCHECKED_CAST")
+            (future as CompletableFuture<Result<T, RpcError>>).complete(result)
+        }
 
         _requests.add(request)
+        _callbacks.add(callback as ResultCallback<Result<*, RpcError>>)
         _responses.add(future as CompletableFuture<Result<*, RpcError>>)
 
         return future
@@ -64,7 +73,11 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) {
             return CompletableFuture.completedFuture(false)
         }
 
-        return client!!.requestBatch(this)
+        val future = CompletableFuture<Boolean>()
+        client!!.requestBatch(this) { result ->
+            future.complete(result)
+        }
+        return future
     }
 
     internal fun markAsSent() {
