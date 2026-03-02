@@ -38,7 +38,7 @@ ethers-providers = { module = "io.kriptal.ethers:ethers-providers", version.ref 
 ethers-rlp = { module = "io.kriptal.ethers:ethers-signers", version.ref = "ethers" }
 ethers-signers = { module = "io.kriptal.ethers:ethers-signers", version.ref = "ethers" }
 
-jctools = { module = "org.jctools:jctools-core", version = "4.0.5" }
+jctools = { module = "org.jctools:jctools-core", version = "4.0.6" }
 channelskt-core = { module = "io.kriptal.channels:channels-core", version = "1.0.0" }
 
 log4j2-core = { module = "org.apache.logging.log4j:log4j-core", version.ref = "log4j2" }
