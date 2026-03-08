@@ -1,6 +1,7 @@
 package io.ethers.providers
 
 import com.fasterxml.jackson.core.JsonParser
+import io.ethers.core.Result
 import io.ethers.core.isFailure
 import io.ethers.core.isSuccess
 import io.ethers.providers.types.BatchRpcRequest
@@ -8,6 +9,7 @@ import io.ethers.providers.types.RpcCall
 import io.kotest.core.spec.style.funSpec
 import io.kotest.matchers.shouldBe
 import org.intellij.lang.annotations.Language
+import java.util.concurrent.CompletableFuture
 
 enum class RpcClientVariant {
     HTTP,
@@ -58,7 +60,9 @@ object JsonRpcTestFactory {
             test("successful request with result") {
                 server.enqueueJson(SUCCESSFUL_RESPONSE)
 
-                val result = client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
+                val resultFuture = CompletableFuture<Result<String, RpcError>>()
+                client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder) { resultFuture.complete(it) }
+                val result = resultFuture.get()
 
                 result.isSuccess() shouldBe true
                 result.unwrap() shouldBe "0x1234567"
@@ -67,7 +71,9 @@ object JsonRpcTestFactory {
             test("RPC error response") {
                 server.enqueueJson(RPC_ERROR_RESPONSE)
 
-                val result = client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
+                val resultFuture = CompletableFuture<Result<String, RpcError>>()
+                client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder) { resultFuture.complete(it) }
+                val result = resultFuture.get()
 
                 result.isFailure() shouldBe true
                 val error = result.unwrapError()
@@ -78,7 +84,9 @@ object JsonRpcTestFactory {
             test("invalid JSON response") {
                 server.enqueueJson("invalid json")
 
-                val result = client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
+                val resultFuture = CompletableFuture<Result<String, RpcError>>()
+                client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder) { resultFuture.complete(it) }
+                val result = resultFuture.get()
 
                 result.isFailure() shouldBe true
                 val error = result.unwrapError()
@@ -88,7 +96,9 @@ object JsonRpcTestFactory {
             test("missing response fields") {
                 server.enqueueJson(RESPONSE_MISSING_FIELDS)
 
-                val result = client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
+                val resultFuture = CompletableFuture<Result<String, RpcError>>()
+                client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder) { resultFuture.complete(it) }
+                val result = resultFuture.get()
 
                 result.isFailure() shouldBe true
                 val error = result.unwrapError()
@@ -98,7 +108,9 @@ object JsonRpcTestFactory {
             test("request with parameters") {
                 server.enqueueJson(SUCCESSFUL_RESPONSE)
 
-                val result = client.request("eth_getBalance", arrayOf("0x1234", "latest"), stringDecoder).get()
+                val resultFuture = CompletableFuture<Result<String, RpcError>>()
+                client.request("eth_getBalance", arrayOf("0x1234", "latest"), stringDecoder) { resultFuture.complete(it) }
+                val result = resultFuture.get()
 
                 result.isSuccess() shouldBe true
                 result.unwrap() shouldBe "0x1234567"
@@ -108,7 +120,9 @@ object JsonRpcTestFactory {
         context("Common JSON-RPC batch tests") {
             test("empty batch request") {
                 val batch = BatchRpcRequest(0)
-                val batchResult = client.requestBatch(batch).get()
+                val batchResultFuture = CompletableFuture<Boolean>()
+                client.requestBatch(batch) { batchResultFuture.complete(it) }
+                val batchResult = batchResultFuture.get()
                 batchResult shouldBe true // Should complete successfully even with no requests
             }
 
@@ -121,7 +135,9 @@ object JsonRpcTestFactory {
                 batch.addRpcCall(call1)
                 batch.addRpcCall(call2)
 
-                val batchResult = client.requestBatch(batch).get()
+                val batchResultFuture = CompletableFuture<Boolean>()
+                client.requestBatch(batch) { batchResultFuture.complete(it) }
+                val batchResult = batchResultFuture.get()
                 batchResult shouldBe true
 
                 val result1 = batch.responses[0].get()
@@ -144,7 +160,9 @@ object JsonRpcTestFactory {
                 batch.addRpcCall(call2)
                 batch.addRpcCall(call3)
 
-                val batchResult = client.requestBatch(batch).get()
+                val batchResultFuture = CompletableFuture<Boolean>()
+                client.requestBatch(batch) { batchResultFuture.complete(it) }
+                val batchResult = batchResultFuture.get()
                 batchResult shouldBe true
 
                 // Verify responses are correctly matched to requests despite out-of-order response
@@ -160,7 +178,9 @@ object JsonRpcTestFactory {
                 val call1 = RpcCall(client, "eth_blockNumber", emptyArray<Any>(), stringDecoder)
                 batch.addRpcCall(call1)
 
-                val batchResult = client.requestBatch(batch).get()
+                val batchResultFuture = CompletableFuture<Boolean>()
+                client.requestBatch(batch) { batchResultFuture.complete(it) }
+                val batchResult = batchResultFuture.get()
                 batchResult shouldBe false
 
                 batch.responses[0].get().isFailure() shouldBe true
@@ -173,7 +193,9 @@ object JsonRpcTestFactory {
                 val call1 = RpcCall(client, "eth_blockNumber", emptyArray<Any>(), stringDecoder)
                 batch.addRpcCall(call1)
 
-                val batchResult = client.requestBatch(batch).get()
+                val batchResultFuture = CompletableFuture<Boolean>()
+                client.requestBatch(batch) { batchResultFuture.complete(it) }
+                val batchResult = batchResultFuture.get()
                 batchResult shouldBe true
 
                 val result = batch.responses[0].get()
@@ -188,7 +210,9 @@ object JsonRpcTestFactory {
                 val call1 = RpcCall(client, "eth_blockNumber", emptyArray<Any>(), stringDecoder)
                 batch.addRpcCall(call1)
 
-                val batchResult = client.requestBatch(batch).get()
+                val batchResultFuture = CompletableFuture<Boolean>()
+                client.requestBatch(batch) { batchResultFuture.complete(it) }
+                val batchResult = batchResultFuture.get()
                 batchResult shouldBe false
 
                 batch.responses[0].get().isFailure() shouldBe true
