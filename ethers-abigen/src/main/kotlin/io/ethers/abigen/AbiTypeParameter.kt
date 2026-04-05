@@ -49,7 +49,6 @@ sealed interface AbiTypeParameter {
                 is AbiType.FixedBytes -> "$simpleName(${abiType.length})"
                 is AbiType.Int -> "$simpleName(${abiType.bitSize})"
                 is AbiType.UInt -> "$simpleName(${abiType.bitSize})"
-                else -> throw IllegalArgumentException("Unsupported AbiType: $abiType")
             }
         }
     }
@@ -181,12 +180,10 @@ sealed interface AbiTypeParameter {
             this.abiTypeInitializer = "$ABI_TYPE_SIMPLE_NAME." + when (abiType) {
                 is AbiType.Array<*> -> "$simpleName(${element.abiTypeInitializer})"
                 is AbiType.FixedArray<*> -> "$simpleName(${abiType.length}, ${element.abiTypeInitializer})"
-                else -> throw IllegalArgumentException("Unsupported AbiType: $abiType")
             }
             this.originalType = element.originalType + when (abiType) {
                 is AbiType.Array<*> -> "[]"
                 is AbiType.FixedArray<*> -> "[${abiType.length}]"
-                else -> throw IllegalArgumentException("Unsupported AbiType: $abiType")
             }
         }
     }

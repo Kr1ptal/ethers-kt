@@ -44,6 +44,14 @@ abstract class EthersAbigenExtension(private val project: Project) {
             .convention(emptyMap())
 
     /**
+     * Whether to generate `@JvmInline value class` scope types and `Middleware` extension properties for each
+     * contract. When enabled, contracts can be called via `provider.contractName.functionName(address, ...)`.
+     *
+     * Default value is `false`.
+     * */
+    val generateMiddlewareExtensions: Property<Boolean> = factory.property(Boolean::class.java).convention(false)
+
+    /**
      * Add additional [JsonAbiReader] to the registry, which will be used to read ABI files.
      * */
     fun abiReader(reader: JsonAbiReader) {

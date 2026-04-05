@@ -18,6 +18,7 @@ abstract class EthersAbigenPlugin : Plugin<Project> {
         val abigenTask = target.tasks.register("ethersAbigen", EthersAbigenTask::class.java) {
             it.sourceProviders.set(ext.sourceProviders)
             it.functionRenames.set(ext.functionRenames)
+            it.generateMiddlewareExtensions.set(ext.generateMiddlewareExtensions)
             it.outputDir.set(ext.outputDir)
 
             // Configure external properties only (internal properties are initialized in task)

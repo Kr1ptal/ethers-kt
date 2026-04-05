@@ -56,6 +56,7 @@ object AbigenCompiler {
                 ABIGEN_DIRECTORY,
                 abi,
                 emptyMap(),
+                generateMiddlewareExtensions = true,
             ).build(errorLoaderBuilder.canonicalName)
 
             errorLoaderBuilder.addContract(generatedName)

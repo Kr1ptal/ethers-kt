@@ -28,6 +28,7 @@ abstract class AbigenWork : WorkAction<AbigenWork.Parameters> {
             parameters.destination.get(),
             abi,
             parameters.functionRenames.get(),
+            parameters.generateMiddlewareExtensions.get(),
         ).build(parameters.errorLoaderName.get())
 
         parameters.canonicalNameFile.get().asFile.writeText(canonicalName)
@@ -38,6 +39,7 @@ abstract class AbigenWork : WorkAction<AbigenWork.Parameters> {
         val abi: Property<AbiSource>
         val destination: Property<File>
         val functionRenames: MapProperty<String, String>
+        val generateMiddlewareExtensions: Property<Boolean>
         val errorLoaderName: Property<String>
         val canonicalNameFile: RegularFileProperty
     }

@@ -49,6 +49,12 @@ abstract class EthersAbigenTask @Inject constructor(private val executor: Worker
     abstract val functionRenames: MapProperty<String, String>
 
     /**
+     * Whether to generate `Middleware` extension properties for each contract.
+     * */
+    @get:Input
+    abstract val generateMiddlewareExtensions: Property<Boolean>
+
+    /**
      * Directory where the generated Kotlin files will be placed. Path is relative to the project build directory.
      * */
     @get:Input
@@ -68,7 +74,7 @@ abstract class EthersAbigenTask @Inject constructor(private val executor: Worker
      * causes the new version of the plugin to invalidate previous output automatically.
      * */
     @get:Input
-    internal val outputVersion: Property<String> = objectFactory.property(String::class.java).convention("6")
+    internal val outputVersion: Property<String> = objectFactory.property(String::class.java).convention("8")
 
     /**
      * Project path for generating loader prefix. This property is used instead of direct project.path access
@@ -124,6 +130,7 @@ abstract class EthersAbigenTask @Inject constructor(private val executor: Worker
                     it.abi.set(source)
                     it.destination.set(destDir)
                     it.functionRenames.set(functionRenames)
+                    it.generateMiddlewareExtensions.set(generateMiddlewareExtensions)
                     it.errorLoaderName.set(errorLoaderBuilder.canonicalName)
                     it.canonicalNameFile.set(resultFile)
                 }

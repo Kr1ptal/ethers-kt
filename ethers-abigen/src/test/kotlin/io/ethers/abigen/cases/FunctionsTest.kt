@@ -11,10 +11,13 @@ import io.ethers.abigen.getAbiFunctionField
 import io.ethers.abigen.getDeclaredFunctions
 import io.ethers.abigen.nestedClass
 import io.ethers.abigen.parametrizedBy
+import io.ethers.core.types.Address
+import io.ethers.providers.middleware.Middleware
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.shouldBe
 import java.math.BigInteger
+import kotlin.reflect.full.companionObject
 
 class FunctionsTest : FunSpec({
     context("abigen validation: Functions") {
@@ -135,6 +138,150 @@ class FunctionsTest : FunSpec({
                 FunctionDescriptor(
                     "viewArgs",
                     listOf(
+                        ArgDescriptor("status", BigInteger::class),
+                        ArgDescriptor("msg", String::class),
+                    ),
+                    ReadFunctionCall::class.parametrizedBy(Unit::class),
+                ),
+            )
+        }
+
+        test("companion object functions") {
+            val providerArg = ArgDescriptor("provider", Middleware::class)
+            val addressArg = ArgDescriptor("address", Address::class)
+
+            clazz.companionObject!!.getDeclaredFunctions() shouldContainAll listOf(
+                FunctionDescriptor(
+                    "noArgs",
+                    listOf(providerArg, addressArg),
+                    FunctionCall::class.parametrizedBy(Unit::class),
+                ),
+                FunctionDescriptor(
+                    "noArgsReturns",
+                    listOf(providerArg, addressArg),
+                    FunctionCall::class.parametrizedBy(BigInteger::class),
+                ),
+                FunctionDescriptor(
+                    "noArgsMultiReturns",
+                    listOf(providerArg, addressArg),
+                    FunctionCall::class.parametrizedBy(clazz.nestedClass("NoArgsMultiReturnsResult")),
+                ),
+                FunctionDescriptor(
+                    "simpleArgs",
+                    listOf(
+                        providerArg,
+                        addressArg,
+                        ArgDescriptor("status", BigInteger::class),
+                        ArgDescriptor("msg", String::class),
+                    ),
+                    FunctionCall::class.parametrizedBy(Unit::class),
+                ),
+                FunctionDescriptor(
+                    "complexArgs",
+                    listOf(
+                        providerArg,
+                        addressArg,
+                        ArgDescriptor("status", BigInteger::class),
+                        ArgDescriptor(
+                            "details",
+                            List::class.parametrizedBy(List::class.parametrizedBy(clazz.nestedClass("Details"))),
+                        ),
+                    ),
+                    FunctionCall::class.parametrizedBy(BigInteger::class),
+                ),
+                FunctionDescriptor(
+                    "complexArgs2",
+                    listOf(
+                        providerArg,
+                        addressArg,
+                        ArgDescriptor("status", BigInteger::class),
+                        ArgDescriptor(
+                            "differentName",
+                            List::class.parametrizedBy(List::class.parametrizedBy(clazz.nestedClass("Details"))),
+                        ),
+                    ),
+                    FunctionCall::class.parametrizedBy(BigInteger::class),
+                ),
+                FunctionDescriptor(
+                    "overloaded",
+                    listOf(
+                        providerArg,
+                        addressArg,
+                        ArgDescriptor("status", BigInteger::class),
+                        ArgDescriptor("msg", String::class),
+                    ),
+                    FunctionCall::class.parametrizedBy(Unit::class),
+                ),
+                FunctionDescriptor(
+                    "overloaded",
+                    listOf(
+                        providerArg,
+                        addressArg,
+                        ArgDescriptor("status", BigInteger::class),
+                        ArgDescriptor("msg", String::class),
+                        ArgDescriptor("done", Boolean::class),
+                    ),
+                    FunctionCall::class.parametrizedBy(Unit::class),
+                ),
+                FunctionDescriptor(
+                    "get_dy",
+                    listOf(
+                        providerArg,
+                        addressArg,
+                        ArgDescriptor("i", BigInteger::class),
+                        ArgDescriptor("j", BigInteger::class),
+                        ArgDescriptor("dx", BigInteger::class),
+                    ),
+                    ReadFunctionCall::class.parametrizedBy(BigInteger::class),
+                ),
+                FunctionDescriptor(
+                    "get_dy_0x5e0d443f",
+                    listOf(
+                        providerArg,
+                        addressArg,
+                        ArgDescriptor("i", BigInteger::class),
+                        ArgDescriptor("j", BigInteger::class),
+                        ArgDescriptor("dx", BigInteger::class),
+                    ),
+                    ReadFunctionCall::class.parametrizedBy(BigInteger::class),
+                ),
+                // ---------------- RESERVED KEYWORDS ----------------
+                FunctionDescriptor(
+                    "_class",
+                    listOf(
+                        providerArg,
+                        addressArg,
+                        ArgDescriptor("status", BigInteger::class),
+                        ArgDescriptor("msg", String::class),
+                    ),
+                    FunctionCall::class.parametrizedBy(Unit::class),
+                ),
+                FunctionDescriptor(
+                    "_package",
+                    listOf(
+                        providerArg,
+                        addressArg,
+                        ArgDescriptor("status", BigInteger::class),
+                        ArgDescriptor("msg", String::class),
+                    ),
+                    FunctionCall::class.parametrizedBy(Unit::class),
+                ),
+                // ---------------------------------------------------
+                FunctionDescriptor(
+                    "payableArgs",
+                    listOf(
+                        providerArg,
+                        addressArg,
+                        ArgDescriptor("status", BigInteger::class),
+                        ArgDescriptor("msg", String::class),
+                    ),
+                    PayableFunctionCall::class.parametrizedBy(Unit::class),
+                ),
+                FunctionDescriptor(
+                    "viewArgs",
+                    listOf(
+                        providerArg,
+                        addressArg,
                         ArgDescriptor("status", BigInteger::class),
                         ArgDescriptor("msg", String::class),
                     ),
