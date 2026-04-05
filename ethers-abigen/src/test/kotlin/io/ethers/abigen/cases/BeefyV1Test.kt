@@ -16,6 +16,7 @@ import io.ethers.abigen.parametrizedBy
 import io.ethers.abigen.typedNestedClass
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
+import io.ethers.providers.middleware.Middleware
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.shouldBe
@@ -81,6 +82,22 @@ class BeefyV1Test : FunSpec({
             declared.classes.all {
                 it.companionObject != null && it.companionObject!!.isSubclassOf(StructFactory::class)
             } shouldBe true
+        }
+
+        test("companion object functions") {
+            clazz.companionObject!!.getDeclaredFunctions() shouldContainAll listOf(
+                FunctionDescriptor(
+                    "VerifyConsensus",
+                    listOf(
+                        ArgDescriptor("provider", Middleware::class),
+                        ArgDescriptor("address", Address::class),
+                        ArgDescriptor("host", Address::class),
+                        ArgDescriptor("trustedState", clazz.nestedClass("BeefyConsensusState")),
+                        ArgDescriptor("proof", clazz.nestedClass("BeefyConsensusProof")),
+                    ),
+                    FunctionCall::class.parametrizedBy(clazz.nestedClass("VerifyConsensusResult")),
+                ),
+            )
         }
 
         test("AbiFunction field") {

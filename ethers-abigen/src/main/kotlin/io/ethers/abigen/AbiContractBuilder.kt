@@ -57,12 +57,14 @@ class AbiContractBuilder(
     private val destination: File,
     private val artifact: JsonAbi,
     private val functionRenames: Map<String, String>,
+    private val generateMiddlewareExtensions: Boolean = false,
 ) {
     private val uniqueClassNames = HashSet<String>()
     private val uniqueFunctionNames = HashSet<UniqueFunction>()
     private val constants = HashMap<String, PropertySpec>()
     private val structs = HashMap<String, AbiTypeParameter.Struct>()
     private val resultClasses = HashMap<String, TypeSpec>()
+    private val scopeFunctions = ArrayList<FunSpec>()
 
     /**
      * Generates the contract class, writes it to the destination directory, and returns the canonical name of the
@@ -138,9 +140,24 @@ class AbiContractBuilder(
 
         val haveValidBytecode = !artifact.bytecode.isNullOrBlank() && artifact.bytecode != "0x"
 
-        artifact.receive?.let { contractBuilder.addFunction(createReceiveFunction()) }
-        artifact.fallback?.let { contractBuilder.addFunction(createFallbackFunction(it)) }
-        artifact.functions.forEach { contractBuilder.addFunction(createFunction(it)) }
+        artifact.receive?.let {
+            val triple = createReceiveFunction()
+            companion.addFunction(triple.staticFunction)
+            contractBuilder.addFunction(triple.instanceFunction)
+            triple.scopeFunction?.let(scopeFunctions::add)
+        }
+        artifact.fallback?.let {
+            val triple = createFallbackFunction(it)
+            companion.addFunction(triple.staticFunction)
+            contractBuilder.addFunction(triple.instanceFunction)
+            triple.scopeFunction?.let(scopeFunctions::add)
+        }
+        artifact.functions.forEach {
+            val triple = createFunction(it)
+            companion.addFunction(triple.staticFunction)
+            contractBuilder.addFunction(triple.instanceFunction)
+            triple.scopeFunction?.let(scopeFunctions::add)
+        }
 
         artifact.errors.forEach {
             val err = createCustomErrorClass(it, errorSuperclass!!)
@@ -268,56 +285,152 @@ class AbiContractBuilder(
         val className = ClassName(packageName, contractName.simpleName)
 
         fileBuilder.addType(contract)
+
+        if (generateMiddlewareExtensions && scopeFunctions.isNotEmpty()) {
+            val scopeClassName = ClassName(packageName, "${contractName.simpleName}Scope")
+
+            val scopeBuilder = TypeSpec.classBuilder(scopeClassName.simpleName)
+                .addAnnotation(JvmInline::class)
+                .addModifiers(KModifier.VALUE)
+                .primaryConstructor(
+                    FunSpec.constructorBuilder()
+                        .addParameter("provider", Middleware::class)
+                        .build(),
+                )
+                .addProperty(
+                    PropertySpec.builder("provider", Middleware::class.asClassName(), KModifier.PRIVATE)
+                        .initializer("provider")
+                        .build(),
+                )
+
+            scopeFunctions.forEach { scopeBuilder.addFunction(it) }
+            fileBuilder.addType(scopeBuilder.build())
+
+            val extensionName = contractName.simpleName.replaceFirstChar { it.lowercase() }
+            fileBuilder.addProperty(
+                PropertySpec.builder(extensionName, scopeClassName)
+                    .receiver(Middleware::class)
+                    .getter(
+                        FunSpec.getterBuilder()
+                            .addStatement("return %T(this)", scopeClassName)
+                            .build(),
+                    )
+                    .build(),
+            )
+        }
+
         fileBuilder.build().writeTo(destination)
 
         return className.canonicalName
     }
 
-    private fun createReceiveFunction(): FunSpec {
+    private fun createReceiveFunction(): FunctionTriple {
         val callClass = ReceiveFunctionCall::class.asClassName()
 
-        val function = FunSpec.builder("receive").apply {
-            addKdoc(
-                """
+        val kdoc = """
                 Receive function with signature:
                 ```solidity
                     receive() external payable;
                 ```
-                """.trimIndent(),
-            )
-            addParameter("value", BigInteger::class)
-            addStatement("return %T(provider, address, value)", callClass)
-            returns(callClass)
+        """.trimIndent()
+
+        // Static function
+        val providerParam = ParameterSpec.builder("provider", Middleware::class).build()
+        val addressParam = ParameterSpec.builder("address", Address::class).build()
+        val valueParam = ParameterSpec.builder("value", BigInteger::class).build()
+
+        val staticFunction = FunSpec.builder("receive")
+            .addAnnotation(JvmStatic::class)
+            .addKdoc(kdoc)
+            .addParameter(providerParam)
+            .addParameter(addressParam)
+            .addParameter(valueParam)
+            .addStatement("return %T(%N, %N, %N)", callClass, providerParam, addressParam, valueParam)
+            .returns(callClass)
+            .build()
+
+        // Instance function
+        val instanceFunction = FunSpec.builder("receive")
+            .addParameter("value", BigInteger::class)
+            .addStatement("return Companion.receive(this.provider, this.address, value)")
+            .returns(callClass)
+            .build()
+
+        // Scope function
+        val scopeFunction = if (generateMiddlewareExtensions) {
+            FunSpec.builder("receive")
+                .addParameter("address", Address::class)
+                .addParameter("value", BigInteger::class)
+                .addStatement(
+                    "return %T.receive(provider, address, value)",
+                    ClassName(packageName, contractName),
+                )
+                .returns(callClass)
+                .build()
+        } else {
+            null
         }
 
-        return function.build()
+        return FunctionTriple(staticFunction, instanceFunction, scopeFunction)
     }
 
-    private fun createFallbackFunction(fallback: JsonAbiFallback): FunSpec {
+    private fun createFallbackFunction(fallback: JsonAbiFallback): FunctionTriple {
         val callClass = if (fallback.isPayable) {
             PayableFunctionCall::class
         } else {
             FunctionCall::class
         }.asClassName()
 
-        val function = FunSpec.builder("fallback").apply {
-            addKdoc(
-                """
+        val returnType = callClass.parameterizedBy(Bytes::class.asClassName())
+
+        val kdoc = """
                 Fallback function with signature:
                 ```solidity
                     fallback() external ${if (fallback.isPayable) "payable" else ""};
                 ```
-                """.trimIndent(),
-            )
-            addParameter("data", Bytes::class)
-            addStatement("return %T(provider, address, data) { it }", callClass)
-            returns(callClass.parameterizedBy(Bytes::class.asClassName()))
+        """.trimIndent()
+
+        // Static function
+        val providerParam = ParameterSpec.builder("provider", Middleware::class).build()
+        val addressParam = ParameterSpec.builder("address", Address::class).build()
+        val dataParam = ParameterSpec.builder("data", Bytes::class).build()
+
+        val staticFunction = FunSpec.builder("fallback")
+            .addAnnotation(JvmStatic::class)
+            .addKdoc(kdoc)
+            .addParameter(providerParam)
+            .addParameter(addressParam)
+            .addParameter(dataParam)
+            .addStatement("return %T(%N, %N, %N) { it }", callClass, providerParam, addressParam, dataParam)
+            .returns(returnType)
+            .build()
+
+        // Instance function
+        val instanceFunction = FunSpec.builder("fallback")
+            .addParameter("data", Bytes::class)
+            .addStatement("return Companion.fallback(this.provider, this.address, data)")
+            .returns(returnType)
+            .build()
+
+        // Scope function
+        val scopeFunction = if (generateMiddlewareExtensions) {
+            FunSpec.builder("fallback")
+                .addParameter("address", Address::class)
+                .addParameter("data", Bytes::class)
+                .addStatement(
+                    "return %T.fallback(provider, address, data)",
+                    ClassName(packageName, contractName),
+                )
+                .returns(returnType)
+                .build()
+        } else {
+            null
         }
 
-        return function.build()
+        return FunctionTriple(staticFunction, instanceFunction, scopeFunction)
     }
 
-    private fun createFunction(function: JsonAbiFunction): FunSpec {
+    private fun createFunction(function: JsonAbiFunction): FunctionTriple {
         val inputs = function.inputs.toAbiTypeParameters()
         val outputs = function.outputs.toAbiTypeParameters()
 
@@ -335,8 +448,6 @@ class AbiContractBuilder(
             else -> FunctionCall::class
         }.asClassName()
 
-        val builder = FunSpec.builder(generatedFunctionName)
-
         // add function signature to kdoc. We always set the function as "external" because it's not possible to
         // automatically determine if the function is "public" or "external".
         var canonicalSignature = "${function.name}(${inputs.toCanonicalSignature()}) external"
@@ -347,53 +458,66 @@ class AbiContractBuilder(
             canonicalSignature += " returns (${outputs.toCanonicalSignature()})"
         }
 
-        builder.addKdoc(
-            """
+        val kdoc = """
                 Call contract function
-                
+
                 Selector: `$selector`
-                
+
                 Signature:
                 ```solidity
                     function $canonicalSignature;
                 ```
-            """.trimIndent(),
-        )
+        """.trimIndent()
+
+        // Build static function in companion object
+        val staticBuilder = FunSpec.builder(generatedFunctionName)
+            .addAnnotation(JvmStatic::class)
+            .addKdoc(kdoc)
+
+        // Add provider and address as first parameters
+        val providerParam = ParameterSpec.builder("provider", Middleware::class).build()
+        val addressParam = ParameterSpec.builder("address", Address::class).build()
+        staticBuilder.addParameter(providerParam)
+        staticBuilder.addParameter(addressParam)
 
         // add function args
-        inputs.forEach { builder.addParameter(it.toParameterSpec(builder)) }
+        inputs.forEach { staticBuilder.addParameter(it.toParameterSpec(staticBuilder, RESERVED_FUNCTION_ARG_NAMES)) }
 
-        // create contract call inputs from args
+        // create contract call inputs from args (skip provider and address params)
         val encodeArgs = if (inputs.isEmpty()) {
             CodeBlock.of("emptyList()")
         } else {
             val argsBuilder = StringBuilder().append("listOf<Any>(")
-            repeat(builder.parameters.size) { argsBuilder.append("%N,") }
+            val inputParams = staticBuilder.parameters.drop(2) // skip provider and address
+            repeat(inputParams.size) { argsBuilder.append("%N,") }
             argsBuilder.deleteCharAt(argsBuilder.length - 1).append(")")
 
-            CodeBlock.of(argsBuilder.toString(), *builder.parameters.toTypedArray())
+            CodeBlock.of(argsBuilder.toString(), *inputParams.toTypedArray())
         }
 
-        // use "this" for referencing class properties because there can also be a function parameter with the same name
-        val body = CodeBlock.builder().beginControlFlow(
-            "return %T(this.provider, this.address, %N.${AbiFunction::encodeCall.name}(%L)) {",
+        // build static function body
+        val staticBody = CodeBlock.builder().beginControlFlow(
+            "return %T(%N, %N, %N.${AbiFunction::encodeCall.name}(%L)) {",
             callClass,
+            providerParam,
+            addressParam,
             abiFunctionProperty,
             encodeArgs,
         )
 
-        if (outputs.isEmpty()) {
-            builder.returns(callClass.parameterizedBy(Unit::class.asClassName()))
+        val returnType = if (outputs.isEmpty()) {
+            callClass.parameterizedBy(Unit::class.asClassName())
         } else if (outputs.size == 1) {
             val retType = outputs.single().apiType
-            body.addStatement("val data = %N.${AbiFunction::decodeResponse.name}(it)", abiFunctionProperty)
-            body.addStatement("data[0] as %L", retType)
+            staticBody.addStatement("val data = %N.${AbiFunction::decodeResponse.name}(it)", abiFunctionProperty)
+            staticBody.addStatement("data[0] as %L", retType)
 
-            builder.returns(callClass.parameterizedBy(retType))
+            callClass.parameterizedBy(retType)
         } else {
             // if we have multiple outputs, we need to create a class to return them
             val resultClassName = ClassName(
                 "",
+                contractName,
                 getNextUniqueName(generatedFunctionName.replaceFirstChar { it.titlecase() } + "Result"),
             )
             resultClasses[resultClassName.simpleName] = CodeFactory.createClass(
@@ -407,19 +531,67 @@ class AbiContractBuilder(
             repeat(outputs.size) { initializer.append("data[${index++}] as %L,") }
             initializer.deleteCharAt(initializer.length - 1).append(")")
 
-            body.addStatement("val data = %N.${AbiFunction::decodeResponse.name}(it)", abiFunctionProperty)
-            body.addStatement(
+            staticBody.addStatement("val data = %N.${AbiFunction::decodeResponse.name}(it)", abiFunctionProperty)
+            staticBody.addStatement(
                 initializer.toString(),
                 resultClassName,
                 *outputs.map { it.apiType }.toTypedArray(),
             )
 
-            builder.returns(callClass.parameterizedBy(resultClassName))
+            callClass.parameterizedBy(resultClassName)
         }
 
-        body.endControlFlow()
+        staticBuilder.returns(returnType)
+        staticBody.endControlFlow()
+        val staticFunction = staticBuilder.addCode(staticBody.build()).build()
 
-        return builder.addCode(body.build()).build()
+        // Build instance function that delegates to static
+        val instanceBuilder = FunSpec.builder(generatedFunctionName)
+        inputs.forEach { instanceBuilder.addParameter(it.toParameterSpec(instanceBuilder)) }
+        instanceBuilder.returns(returnType)
+
+        // Create delegation call
+        val delegationArgs = if (inputs.isEmpty()) {
+            CodeBlock.of("this.provider, this.address")
+        } else {
+            val argsBuilder = StringBuilder().append("this.provider, this.address, ")
+            repeat(instanceBuilder.parameters.size) { argsBuilder.append("%N,") }
+            argsBuilder.deleteCharAt(argsBuilder.length - 1)
+
+            CodeBlock.of(argsBuilder.toString(), *instanceBuilder.parameters.toTypedArray())
+        }
+
+        instanceBuilder.addStatement("return Companion.$generatedFunctionName(%L)", delegationArgs)
+
+        // Build scope function that delegates to companion with pre-bound provider
+        val scopeFunction = if (generateMiddlewareExtensions) {
+            val scopeBuilder = FunSpec.builder(generatedFunctionName)
+                .addParameter("address", Address::class)
+            inputs.forEach { scopeBuilder.addParameter(it.toParameterSpec(scopeBuilder, RESERVED_FUNCTION_ARG_NAMES)) }
+            scopeBuilder.returns(returnType)
+
+            val scopeArgs = if (inputs.isEmpty()) {
+                CodeBlock.of("provider, address")
+            } else {
+                val argsBuilder = StringBuilder().append("provider, address, ")
+                val inputParams = scopeBuilder.parameters.drop(1) // skip address
+                repeat(inputParams.size) { argsBuilder.append("%N,") }
+                argsBuilder.deleteCharAt(argsBuilder.length - 1)
+
+                CodeBlock.of(argsBuilder.toString(), *inputParams.toTypedArray())
+            }
+
+            scopeBuilder.addStatement(
+                "return %T.$generatedFunctionName(%L)",
+                ClassName(packageName, contractName),
+                scopeArgs,
+            )
+            scopeBuilder.build()
+        } else {
+            null
+        }
+
+        return FunctionTriple(staticFunction, instanceBuilder.build(), scopeFunction)
     }
 
     private fun createCustomErrorClass(error: JsonAbiError, errorSuperclass: ClassName): TypeSpec {
@@ -875,7 +1047,7 @@ class AbiContractBuilder(
                     val struct = AbiTypeParameter.Struct(
                         it.name,
                         structName,
-                        ClassName("", normalizedName),
+                        ClassName("", contractName, normalizedName),
                         it.components.toAbiTypeParameters(),
                         false,
                     ).toUniqueStruct()
@@ -941,7 +1113,13 @@ class AbiContractBuilder(
         }
 
         val uniqueName = getNextUniqueName(name)
-        val ret = this.copy(className = ClassName(this.className.packageName, uniqueName))
+        val uniqueClassName = ClassName(
+            this.className.packageName,
+            // get only the non-struct-name qualifiers, if any
+            *this.className.simpleNames.dropLast(1).toTypedArray(),
+            uniqueName,
+        )
+        val ret = this.copy(className = uniqueClassName)
         structs[uniqueName] = ret
         return ret
     }
@@ -1014,8 +1192,18 @@ class AbiContractBuilder(
      * */
     private data class UniqueFunction(val name: String, val inputs: List<KClass<*>>)
 
+    /**
+     * Triple of static (companion), instance, and optional scope function specs.
+     * */
+    private data class FunctionTriple(
+        val staticFunction: FunSpec,
+        val instanceFunction: FunSpec,
+        val scopeFunction: FunSpec?,
+    )
+
     companion object {
         private val RESERVED_DEPLOY_FUNCTION_ARG_NAMES = setOf("provider")
+        private val RESERVED_FUNCTION_ARG_NAMES = setOf("provider", "address")
         private val RESERVED_EVENT_FIELD_NAMES = ContractEvent::class.memberProperties.map { it.name }.toSet()
         private val RESERVED_EVENT_FILTER_FUNCTION_NAMES = EventFilterBase::class.functions.map { it.name }.toSet()
         private val RESERVED_ERROR_FIELD_NAMES = ContractError::class.memberProperties.map { it.name }.toSet()
