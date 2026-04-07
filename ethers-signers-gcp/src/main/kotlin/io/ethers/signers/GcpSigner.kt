@@ -9,7 +9,7 @@ import com.google.cloud.kms.v1.KeyManagementServiceClient
 import com.google.protobuf.ByteString
 import dev.whyoleg.cryptography.bigint.toJavaBigInteger
 import dev.whyoleg.cryptography.serialization.asn1.Der
-import dev.whyoleg.cryptography.serialization.asn1.modules.EcdsaSignatureValue
+import dev.whyoleg.cryptography.serialization.asn1.modules.DssSignatureValue
 import dev.whyoleg.cryptography.serialization.asn1.modules.SubjectPublicKeyInfo
 import io.ethers.core.Result
 import io.ethers.core.failure
@@ -76,7 +76,7 @@ class GcpSigner(
             Digest.newBuilder().setSha256(ByteString.copyFrom(hash)).build(),
         )
 
-        val sig = Der.decodeFromByteArray(EcdsaSignatureValue.serializer(), response.signature.toByteArray())
+        val sig = Der.decodeFromByteArray(DssSignatureValue.serializer(), response.signature.toByteArray())
         val r = sig.r.toJavaBigInteger()
         val s = sig.s.toJavaBigInteger()
 
