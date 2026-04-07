@@ -1,12 +1,45 @@
 plugins {
-    `project-conventions`
+    idea
+    kotlin("jvm")
     `signing-conventions`
     `java-gradle-plugin`
+    `ktlint-conventions`
     id("com.gradle.plugin-publish") version "2.1.1"
     alias(libs.plugins.shadow)
 }
 
+repositories {
+    mavenCentral()
+}
+
+kotlin {
+    jvmToolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+        vendor = JvmVendorSpec.ADOPTIUM
+        implementation = JvmImplementation.VENDOR_SPECIFIC
+    }
+}
+
+// Override incorrect JVM version metadata in secp256k1-kmp (transitive via ethers-crypto)
+// The library targets Java 8 bytecode but declares JVM 21 in Gradle Module Metadata
 dependencies {
+    components {
+        listOf(
+            "fr.acinq.secp256k1:secp256k1-kmp-jni-jvm",
+            "fr.acinq.secp256k1:secp256k1-kmp-jni-jvm-darwin",
+            "fr.acinq.secp256k1:secp256k1-kmp-jni-jvm-linux",
+            "fr.acinq.secp256k1:secp256k1-kmp-jni-jvm-mingw",
+        ).forEach { module ->
+            withModule(module) {
+                allVariants {
+                    attributes {
+                        attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, 8)
+                    }
+                }
+            }
+        }
+    }
+
     api(project(":ethers-abigen"))
 
     implementation(libs.kotlin.gradle)
@@ -16,6 +49,7 @@ dependencies {
     implementation(libs.bundles.jackson)
 
     testImplementation(libs.bundles.kotest)
+    testRuntimeOnly(libs.kotest.runner.junit5)
 }
 
 // the plugin is published as a fat jar, to automatically include all dependencies and avoid having
@@ -26,6 +60,7 @@ tasks.shadowJar {
 }
 
 tasks.test {
+    useJUnitPlatform()
     javaLauncher.set(
         javaToolchains.launcherFor {
             languageVersion.set(JavaLanguageVersion.of(17))

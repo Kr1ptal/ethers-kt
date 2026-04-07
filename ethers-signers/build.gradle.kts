@@ -3,9 +3,19 @@ plugins {
     `maven-publish-conventions`
 }
 
-dependencies {
-    api(project(":ethers-core"))
-    api(project(":ethers-crypto"))
+kotlin {
+    sourceSets {
+        val jvmMain by getting {
+            dependencies {
+                api(project(":ethers-core"))
+                api(project(":ethers-crypto"))
+            }
+        }
 
-    testImplementation(libs.bundles.kotest)
+        val jvmTest by getting {
+            dependencies {
+                implementation(libs.bundles.kotest)
+            }
+        }
+    }
 }

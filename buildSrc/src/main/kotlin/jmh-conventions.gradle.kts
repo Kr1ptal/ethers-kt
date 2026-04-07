@@ -1,23 +1,19 @@
 import org.gradle.plugins.ide.idea.model.IdeaModel
+import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 
-project.pluginManager.withPlugin("java") {
-    val sourceSets = the<SourceSetContainer>()
+pluginManager.withPlugin("org.jetbrains.kotlin.multiplatform") {
+    val kmpExt = the<KotlinMultiplatformExtension>()
+    val jvmTarget = kmpExt.jvm()
 
-    sourceSets.register("jmh") {
-        compileClasspath += sourceSets["main"].output
-        runtimeClasspath += compileClasspath
-        resources.srcDir(file("src/jmh/resources"))
-
-        configurations["jmhImplementation"].extendsFrom(configurations["implementation"])
-        configurations["jmhRuntimeOnly"].extendsFrom(configurations["runtimeOnly"])
-        configurations["jmhAnnotationProcessor"].extendsFrom(configurations["annotationProcessor"])
+    // Register JMH compilation that depends on jvmMain output
+    val jmhCompilation = jvmTarget.compilations.create("jmh") {
+        associateWith(jvmTarget.compilations.getByName("main"))
     }
 
+    // Make JMH source set visible in IDEA as test sources
     configure<IdeaModel> {
         module {
-            testSources.from(sourceSets["jmh"].java.srcDirs)
-            testResources.from(sourceSets["jmh"].resources.srcDirs)
-            scopes["TEST"]!!["plus"]!!.add(configurations["jmhCompileClasspath"])
+            testSources.from(jmhCompilation.defaultSourceSet.kotlin.srcDirs)
         }
     }
 }

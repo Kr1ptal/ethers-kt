@@ -1,24 +1,34 @@
-@Suppress("DSL_SCOPE_VIOLATION")
 plugins {
     `project-conventions`
-    id(libs.plugins.kotlin.kapt.get().pluginId) // https://github.com/gradle/gradle/issues/20084#issuecomment-1060822638
     `jmh-conventions`
     kotlin("plugin.serialization") version libs.versions.kotlin.get()
     `maven-publish-conventions`
 }
 
-dependencies {
-    api(project(":ethers-rlp"))
-    api(project(":ethers-crypto"))
+kotlin {
+    sourceSets {
+        val jvmMain by getting {
+            dependencies {
+                api(project(":ethers-rlp"))
+                api(project(":ethers-crypto"))
 
-    api(libs.bundles.jackson)
+                api(libs.bundles.jackson)
+            }
+        }
 
-    testImplementation(libs.bundles.junit)
-    testImplementation(libs.bundles.kotest)
+        val jvmTest by getting {
+            dependencies {
+                implementation(libs.bundles.kotest)
+            }
+        }
 
-    jmhImplementation(libs.jmh.core)
-    jmhAnnotationProcessor(libs.jmh.generator)
-    kaptJmh(libs.jmh.generator)
+        val jvmJmh by getting {
+            dependencies {
+                implementation(libs.jmh.core)
+                implementation(libs.jmh.generator)
 
-    jmhImplementation(libs.kotlinx.serialization)
+                implementation(libs.kotlinx.serialization)
+            }
+        }
+    }
 }
