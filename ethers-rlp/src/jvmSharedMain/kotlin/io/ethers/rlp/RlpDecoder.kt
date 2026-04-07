@@ -241,7 +241,7 @@ class RlpDecoder(private val array: ByteArray) {
      * @return decoded [BigInteger], or `null` if the element could not be decoded.
      * */
     fun decodeBigIntegerOrNull(): BigInteger? {
-        return getNextElement(false, null, ::decodeBigIntegerOrNull)
+        return getNextElement(false, null, ::takeBigInteger)
     }
 
     /**
@@ -435,7 +435,7 @@ class RlpDecoder(private val array: ByteArray) {
         return array[position].toUByte().toInt()
     }
 
-    private fun decodeBigIntegerOrNull(size: Int): BigInteger {
+    private fun takeBigInteger(size: Int): BigInteger {
         if (size == 0) return BigInteger.ZERO
 
         return BigInteger(1, takeByteArray(size))
