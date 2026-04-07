@@ -22,6 +22,43 @@ The codebase is divided into several modules, each with a specific purpose:
 - **examples**: Sample code demonstrating the library's usage
 - **logger**: Logging utilities
 
+## Kotlin Multiplatform Structure
+
+The project uses Kotlin Multiplatform (KMP) with JVM and Android targets. An intermediate source set `jvmSharedMain` holds all shared code that both targets use.
+
+### Source Set Hierarchy
+
+```
+commonMain
+└── jvmSharedMain    (all shared JVM/Android code lives here)
+    ├── jvmMain      (JVM-only overrides, e.g. secp256k1 JVM JNI)
+    └── androidMain  (Android-only overrides, e.g. secp256k1 Android JNI)
+```
+
+### Source Directory Layout
+
+- `src/jvmSharedMain/kotlin` — shared code (this is where most code goes)
+- `src/jvmSharedTest/kotlin` — shared tests
+- `src/jvmMain/kotlin` — JVM-specific code (rarely used)
+- `src/androidMain/kotlin` — Android-specific code (rarely used)
+- `src/jmh/` — JMH benchmarks (JVM-only, in ethers-core, ethers-abi, ethers-rlp)
+
+### Convention Plugins (buildSrc)
+
+- `project-conventions` — applies KMP, KSP, Kotest, AGP, ktlint to all modules
+- `kotlin-project-conventions` — configures JVM/Android targets, compiler options, intermediate source sets
+- `maven-publish-conventions` — Maven Central publishing with Dokka javadoc
+- `jmh-conventions` — JMH benchmark support via custom JVM compilation
+- `static-data-generator` — generates Kotlin source from JSON/TXT data files
+- `ktlint-conventions` — code formatting
+- `signing-conventions` — GPG signing for publishing
+
+### Special Modules
+
+- **ethers-abigen-plugin** — standalone `kotlin("jvm")` module (not KMP) because `java-gradle-plugin` is incompatible with KMP. Has its own secp256k1 JVM version override and uses `useJUnitPlatform()` with `kotest-runner-junit5`.
+- **ethers-bom** — `java-platform` module, not KMP.
+- **ethers-crypto** — the only module with platform-specific dependencies (secp256k1 JNI for JVM vs Android).
+
 ## Common Commands
 
 ### Build and Check
@@ -33,18 +70,14 @@ The codebase is divided into several modules, each with a specific purpose:
 # Format code and run all checks
 ./gradlew ktlintFormat check
 
-# Run only tests
+# Run all tests (kotest for KMP modules + JUnit for abigen-plugin)
 ./gradlew test
 
+# Run only kotest tests (KMP modules)
+./gradlew kotest
+
 # Run tests for a specific module
-./gradlew :ethers-core:test
-
-# Run a single test class
-./gradlew :ethers-core:test --tests "io.ethers.core.FastHexTest"
-
-# Generate test coverage report
-./gradlew testCodeCoverageReport
-# Report will be available at ./build/reports/jacoco/testCodeCoverageReport/html/index.html
+./gradlew :ethers-core:kotest
 
 # Analyze dependency sizes for a specific module
 ./gradlew :ethers-core:depsize
@@ -55,12 +88,12 @@ The codebase is divided into several modules, each with a specific purpose:
 ```bash
 # Add the abigen-plugin to your project's build.gradle.kts
 plugins {
-    id("io.kriptal.ethers.abigen-plugin") version "1.5.0"
+    id("io.kriptal.ethers.abigen-plugin") version "1.6.0"
 }
 
 # Configure the plugin
 ethersAbigen {
-    directorySource("src/main/abi")  # Directory with JSON-ABI files
+    directorySource("src/jvmSharedMain/abi")  # Directory with JSON-ABI files
     outputDir = "generated/source/ethers/main/kotlin"  # Output directory
 }
 ```
@@ -108,8 +141,10 @@ Multiple options for transaction signing:
 
 ## Testing Approach
 
-The project uses Kotest and JUnit for testing. Tests are organized by module:
-- Unit tests are located in each module's `src/test` directory
+The project uses Kotest 6 with the Kotest Gradle plugin for test discovery (no JUnit runner needed for KMP modules). Tests are organized by module:
+- Unit tests are located in each module's `src/jvmSharedTest` directory
+- The Kotest Gradle plugin runs tests via the `kotest` task (the default `jvmTest` task is disabled)
+- The `ethers-abigen-plugin` module is the exception: it uses `useJUnitPlatform()` with `kotest-runner-junit5` since it's a standalone JVM module
 - Bug fixes must include a regression test that explicitly exercises the fixed behavior to prevent regressions
 - New features must have tests covering the happy path, obvious failures, and edge cases
 
