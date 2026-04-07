@@ -6,13 +6,13 @@ plugins {
 
 kotlin {
     sourceSets {
-        val jvmMain by getting {
+        val jvmSharedMain by getting {
             dependencies {
                 implementation(libs.ditchoom.buffer)
             }
         }
 
-        val jvmTest by getting {
+        val jvmSharedTest by getting {
             dependencies {
                 implementation(libs.bundles.kotest)
             }

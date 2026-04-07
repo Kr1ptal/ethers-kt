@@ -3,6 +3,7 @@ plugins {
 }
 
 repositories {
+    google()
     gradlePluginPortal()
 }
 
@@ -12,6 +13,7 @@ dependencies {
     implementation(files(libs.javaClass.superclass.protectionDomain.codeSource.location))
     implementation(libs.kotlin.gradle)
     implementation(libs.dokka.gradle)
+    implementation(libs.agp.library)
 
     implementation("com.google.devtools.ksp:com.google.devtools.ksp.gradle.plugin:${libs.versions.ksp.get()}")
     implementation("io.kotest:io.kotest.gradle.plugin:${libs.versions.kotest.get()}")

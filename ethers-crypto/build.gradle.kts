@@ -9,7 +9,7 @@ plugins {
 staticDataGenerator {
     generators {
         create("bip39EnglishWordlist") {
-            inputFile.set(file("src/jvmMain/resources/bip39/wordlist_english.txt"))
+            inputFile.set(file("src/jvmSharedMain/resources/bip39/wordlist_english.txt"))
             packageName.set("io.ethers.crypto.bip39")
             propertyName.set("WORDS")
             data { file ->
@@ -23,7 +23,7 @@ staticDataGenerator {
 
 kotlin {
     sourceSets {
-        val jvmMain by getting {
+        val jvmSharedMain by getting {
             dependencies {
                 implementation(libs.kotlincrypto.hash.sha3)
                 implementation(libs.whyoleg.cryptography.core)
@@ -31,14 +31,23 @@ kotlin {
                 implementation(libs.whyoleg.cryptography.jdk)
                 implementation(libs.secp256k1.kmp)
                 implementation(libs.ditchoom.buffer)
+            }
+        }
 
-                // JVM-specific native library for secp256k1.
-                // When an Android target is added, its dependencies will declare secp256k1-kmp-jni-android instead.
+        // Platform-specific native libraries for secp256k1
+        jvmMain {
+            dependencies {
                 runtimeOnly(libs.secp256k1.kmp.jni)
             }
         }
 
-        val jvmTest by getting {
+        androidMain {
+            dependencies {
+                runtimeOnly(libs.secp256k1.kmp.jni.android)
+            }
+        }
+
+        val jvmSharedTest by getting {
             dependencies {
                 implementation(libs.bundles.kotest)
                 implementation(libs.bundles.jackson)

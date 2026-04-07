@@ -5,14 +5,14 @@ plugins {
 
 kotlin {
     sourceSets {
-        val jvmMain by getting {
+        val jvmSharedMain by getting {
             dependencies {
                 api(libs.kotlin.logging.facade)
                 runtimeOnly(libs.bundles.log4j2)
             }
         }
 
-        val jvmTest by getting {
+        val jvmSharedTest by getting {
             dependencies {
                 implementation(libs.bundles.kotest)
             }

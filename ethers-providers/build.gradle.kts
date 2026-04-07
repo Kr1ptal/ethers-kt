@@ -5,7 +5,7 @@ plugins {
 
 kotlin {
     sourceSets {
-        val jvmMain by getting {
+        val jvmSharedMain by getting {
             dependencies {
                 api(libs.bundles.okhttp3)
                 api(libs.channelskt.core)
@@ -20,7 +20,7 @@ kotlin {
             }
         }
 
-        val jvmTest by getting {
+        val jvmSharedTest by getting {
             dependencies {
                 implementation(libs.bundles.kotest)
                 implementation(libs.okhttp3.mockwebserver)

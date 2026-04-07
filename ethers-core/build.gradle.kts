@@ -7,7 +7,7 @@ plugins {
 
 kotlin {
     sourceSets {
-        val jvmMain by getting {
+        val jvmSharedMain by getting {
             dependencies {
                 api(project(":ethers-rlp"))
                 api(project(":ethers-crypto"))
@@ -16,7 +16,7 @@ kotlin {
             }
         }
 
-        val jvmTest by getting {
+        val jvmSharedTest by getting {
             dependencies {
                 implementation(libs.bundles.kotest)
             }
