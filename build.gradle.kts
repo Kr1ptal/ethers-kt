@@ -88,17 +88,17 @@ jreleaser {
 
     val stagingDir = layout.buildDirectory.dir("staging-deploy")
 
-    // Dynamically configure artifactOverride for all non-JVM KMP targets
+    // Dynamically configure artifactOverride for all non-JVM KMP targets (android, metadata).
+    // These produce non-JAR artifacts (AAR, klib) that JReleaser's Maven Central checker doesn't understand.
     fun MavenDeployer.configureKmpOverrides() {
         rootProject.subprojects.forEach { subproject ->
             kotlin.targets.forEach { target ->
-                // Skip JVM target (produces JAR, not klib)
                 if (target.platformType.name != "jvm") {
                     val id = "${subproject.name}-${target.name.lowercase()}"
                     println("Configuring jreleaser artifactOverride for '$id'")
 
                     artifactOverride {
-                        groupId = "io.kriptal.channels"
+                        groupId = "io.kriptal.ethers"
                         artifactId = id
                         jar.set(false)
                         sourceJar.set(false)
