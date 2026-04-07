@@ -1,7 +1,8 @@
 package io.ethers.rlp
 
+import com.ditchoom.buffer.BufferFactory
+import com.ditchoom.buffer.Default
 import com.ditchoom.buffer.PlatformBuffer
-import com.ditchoom.buffer.wrap
 import java.math.BigInteger
 import kotlin.math.max
 
@@ -14,7 +15,7 @@ class RlpEncoder @JvmOverloads constructor(
     private var array: ByteArray,
     private val isExactSize: Boolean = false,
 ) {
-    private var buffer: PlatformBuffer = PlatformBuffer.wrap(array)
+    private var buffer: PlatformBuffer = BufferFactory.Default.wrap(array)
     private var startedListCount = 0
 
     @JvmOverloads
@@ -290,7 +291,7 @@ class RlpEncoder @JvmOverloads constructor(
         // Resize the array in place using copyOf
         array = array.copyOf(newCapacity)
 
-        buffer = PlatformBuffer.wrap(array)
+        buffer = BufferFactory.Default.wrap(array)
         buffer.position(originalPosition)
     }
 

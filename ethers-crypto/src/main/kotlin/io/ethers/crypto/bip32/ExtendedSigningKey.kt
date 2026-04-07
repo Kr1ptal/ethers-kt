@@ -1,7 +1,7 @@
 package io.ethers.crypto.bip32
 
-import com.ditchoom.buffer.PlatformBuffer
-import com.ditchoom.buffer.wrap
+import com.ditchoom.buffer.BufferFactory
+import com.ditchoom.buffer.Default
 import io.ethers.crypto.Hashing
 import io.ethers.crypto.Secp256k1
 
@@ -46,7 +46,7 @@ class ExtendedSigningKey(privateKey: ByteArray, val chainCode: ByteArray) {
      * */
     fun deriveChild(index: Int): ExtendedSigningKey {
         val arr = ByteArray(37)
-        val buff = PlatformBuffer.wrap(arr)
+        val buff = BufferFactory.Default.wrap(arr)
         if (HDPath.isHardened(index)) {
             buff.writeByte(0) // Skip 1 byte (padding)
             buff.writeBytes(signingKey.privateKey)
