@@ -1,7 +1,8 @@
 package io.ethers.abi
 
+import com.ditchoom.buffer.BufferFactory
+import com.ditchoom.buffer.Default
 import com.ditchoom.buffer.PlatformBuffer
-import com.ditchoom.buffer.wrap
 import io.ethers.abi.AbiCodec.WORD_SIZE_BYTES
 import io.ethers.core.FastHex
 import io.ethers.core.types.Address
@@ -82,7 +83,7 @@ object AbiCodec {
 
         withHeadTailLengths(types, data) { head, tail ->
             val arr = ByteArray(prefix.size + head + tail)
-            val ret = PlatformBuffer.wrap(arr)
+            val ret = BufferFactory.Default.wrap(arr)
             ret.writeBytes(prefix.asByteArray())
             encodeTokensHeadTail(ret, types, data, head)
             return arr
@@ -106,7 +107,7 @@ object AbiCodec {
 
         withHeadTailLengths(types, data) { head, tail ->
             val arr = ByteArray(head + tail)
-            val ret = PlatformBuffer.wrap(arr)
+            val ret = BufferFactory.Default.wrap(arr)
             encodeTokensHeadTail(ret, types, data, head)
             return arr
         }
@@ -123,7 +124,7 @@ object AbiCodec {
         val tail = getTokenTailLength(type, data)
 
         val arr = ByteArray(head + tail)
-        val ret = PlatformBuffer.wrap(arr)
+        val ret = BufferFactory.Default.wrap(arr)
         encodeTokenHead(ret, type, data, head)
         encodeTokenTail(ret, type, data)
 
@@ -156,7 +157,7 @@ object AbiCodec {
             return emptyList<Any>() as List<T>
         }
 
-        val buff = PlatformBuffer.wrap(data)
+        val buff = BufferFactory.Default.wrap(data)
         buff.position(prefixSize)
         @Suppress("UNCHECKED_CAST")
         return decodeTokens(types, buff, data) as List<T>
@@ -178,7 +179,7 @@ object AbiCodec {
         }
 
         @Suppress("UNCHECKED_CAST")
-        return decodeTokens(types, PlatformBuffer.wrap(data), data) as List<T>
+        return decodeTokens(types, BufferFactory.Default.wrap(data), data) as List<T>
     }
 
     /**
@@ -195,7 +196,7 @@ object AbiCodec {
 
         val visitedOffsets = FixedBitSet(data.size / WORD_SIZE_BYTES)
         @Suppress("UNCHECKED_CAST")
-        return decodeToken(type, PlatformBuffer.wrap(data), data, 0, 1, visitedOffsets) as T
+        return decodeToken(type, BufferFactory.Default.wrap(data), data, 0, 1, visitedOffsets) as T
     }
 
     private fun encodeTokensHeadTail(buff: PlatformBuffer, types: List<AbiType<*>>, data: List<Any>, headLength: Int) {
@@ -791,7 +792,7 @@ object AbiCodec {
         }
 
         val arr = ByteArray(encodedSize)
-        val ret = PlatformBuffer.wrap(arr)
+        val ret = BufferFactory.Default.wrap(arr)
         for (i in types.indices) {
             encodePacked(ret, types[i], data[i], false)
         }
