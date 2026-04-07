@@ -11,7 +11,7 @@ import com.google.cloud.kms.v1.PublicKey
 import com.google.protobuf.ByteString
 import dev.whyoleg.cryptography.bigint.toKotlinBigInt
 import dev.whyoleg.cryptography.serialization.asn1.Der
-import dev.whyoleg.cryptography.serialization.asn1.modules.EcdsaSignatureValue
+import dev.whyoleg.cryptography.serialization.asn1.modules.DssSignatureValue
 import io.ethers.core.isFailure
 import io.ethers.core.isSuccess
 import io.ethers.core.types.Address
@@ -43,8 +43,8 @@ class GcpSignerTest : FunSpec({
 
             // Create DER-encoded signature
             val derSignature = Der.encodeToByteArray(
-                EcdsaSignatureValue.serializer(),
-                EcdsaSignatureValue(
+                DssSignatureValue.serializer(),
+                DssSignatureValue(
                     r = expectedSig.r.toKotlinBigInt(),
                     s = expectedSig.s.toKotlinBigInt(),
                 ),
@@ -86,8 +86,8 @@ class GcpSignerTest : FunSpec({
             val sValue = BigInteger("1a1e4e7c2f8f7b3dd9af0c5e0e8e5c8d0b3a7f6e5d4c3b2a1908070605040302", 16)
 
             val derSignature = Der.encodeToByteArray(
-                EcdsaSignatureValue.serializer(),
-                EcdsaSignatureValue(
+                DssSignatureValue.serializer(),
+                DssSignatureValue(
                     r = rValue.toKotlinBigInt(),
                     s = sValue.toKotlinBigInt(),
                 ),
