@@ -1,7 +1,7 @@
 package io.ethers.abi.eip712
 
-import com.ditchoom.buffer.PlatformBuffer
-import com.ditchoom.buffer.wrap
+import com.ditchoom.buffer.BufferFactory
+import com.ditchoom.buffer.Default
 import io.ethers.abi.AbiCodec
 import io.ethers.abi.AbiType
 import io.ethers.abi.ContractStruct
@@ -252,7 +252,7 @@ object EIP712Codec {
     fun hashStruct(abi: AbiType.Struct<*>, tuple: List<Any>): ByteArray {
         // typeHash + encoded data words
         val arr = ByteArray(AbiCodec.WORD_SIZE_BYTES * (1 + abi.fields.size))
-        val buff = PlatformBuffer.wrap(arr)
+        val buff = BufferFactory.Default.wrap(arr)
 
         // typeHash
         val encodedType = encodeType(abi)
@@ -302,7 +302,7 @@ object EIP712Codec {
 
         // Allocate buffer for typeHash + encoded data words
         val arr = ByteArray(AbiCodec.WORD_SIZE_BYTES * (1 + fields.size))
-        val buff = PlatformBuffer.wrap(arr)
+        val buff = BufferFactory.Default.wrap(arr)
 
         // Add typeHash
         buff.writeBytes(typeHash)
@@ -356,7 +356,7 @@ object EIP712Codec {
 
             // For arrays, hash the concatenated encoded elements
             val arr = ByteArray(array.size * AbiCodec.WORD_SIZE_BYTES)
-            val buff = PlatformBuffer.wrap(arr)
+            val buff = BufferFactory.Default.wrap(arr)
             for (element in array) {
                 buff.writeBytes(encodeDataWord(element!!, innerType, types))
             }
@@ -415,7 +415,7 @@ object EIP712Codec {
             is AbiType.Array<*> -> {
                 val array = value as List<*>
                 val arr = ByteArray(array.size * AbiCodec.WORD_SIZE_BYTES)
-                val buff = PlatformBuffer.wrap(arr)
+                val buff = BufferFactory.Default.wrap(arr)
                 for (i in 0 until array.size) {
                     buff.writeBytes(encodeDataWord(array[i] as Any, type.type))
                 }
@@ -425,7 +425,7 @@ object EIP712Codec {
             is AbiType.FixedArray<*> -> {
                 val array = value as List<*>
                 val arr = ByteArray(array.size * AbiCodec.WORD_SIZE_BYTES)
-                val buff = PlatformBuffer.wrap(arr)
+                val buff = BufferFactory.Default.wrap(arr)
                 for (i in 0 until array.size) {
                     buff.writeBytes(encodeDataWord(array[i] as Any, type.type))
                 }
