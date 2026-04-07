@@ -1,41 +1,14 @@
+import org.jreleaser.gradle.plugin.dsl.deploy.maven.MavenDeployer
 import org.jreleaser.model.Active
 
 plugins {
     `project-conventions`
-    `jacoco-report-aggregation`
-    id("test-report-aggregation")
     alias(libs.plugins.jreleaser)
 }
 
-dependencies {
-    // contains only submodules that are released
-    val releasedSubmodules = listOf(
-        ":ethers-abi",
-        ":ethers-abigen",
-        ":ethers-abigen-plugin",
-        ":ethers-core",
-        ":ethers-crypto",
-        ":ethers-ens",
-        ":ethers-providers",
-        ":ethers-rlp",
-        ":ethers-signers-gcp",
-        ":ethers-signers",
-        ":logger",
-    )
-
-    releasedSubmodules.forEach {
-        jacocoAggregation(project(it))
-        testReportAggregation(project(it))
-    }
-}
-
-// TODO, see: https://github.com/Kr1ptal/ethers-kt/issues/66
-/*tasks.withType<Test> {
-    finalizedBy(tasks.named<JacocoReport>("testCodeCoverageReport"))
-}*/
-
-tasks.check {
-    dependsOn(tasks.named<TestReport>("testAggregateTestReport"))
+tasks.register("test") {
+    dependsOn(subprojects.mapNotNull { it.tasks.findByName("kotest") })
+    dependsOn(subprojects.mapNotNull { it.tasks.findByName("test") })
 }
 
 allprojects {
@@ -44,10 +17,8 @@ allprojects {
 }
 
 subprojects {
-    // Analyze sizes of added dependencies.
     tasks.register("depsize", Task::class.java) {
         doLast {
-            // skip depsize task if no runtime classpath is defined
             val configuration = runCatching { project.configurations["runtimeClasspath"] }
                 .getOrNull() ?: return@doLast
 
@@ -105,7 +76,6 @@ jreleaser {
         }
     }
 
-    // Set project info for deployment
     project {
         description.set("Async, high-performance Kotlin library for interacting with EVM-based blockchains. Targeting JVM and Android platforms.")
         links {
@@ -117,6 +87,28 @@ jreleaser {
     }
 
     val stagingDir = layout.buildDirectory.dir("staging-deploy")
+
+    // Dynamically configure artifactOverride for all non-JVM KMP targets
+    fun MavenDeployer.configureKmpOverrides() {
+        rootProject.subprojects.forEach { subproject ->
+            kotlin.targets.forEach { target ->
+                // Skip JVM target (produces JAR, not klib)
+                if (target.platformType.name != "jvm") {
+                    val id = "${subproject.name}-${target.name.lowercase()}"
+                    println("Configuring jreleaser artifactOverride for '$id'")
+
+                    artifactOverride {
+                        groupId = "io.kriptal.channels"
+                        artifactId = id
+                        jar.set(false)
+                        sourceJar.set(false)
+                        javadocJar.set(false)
+                        verifyPom.set(false)
+                    }
+                }
+            }
+        }
+    }
 
     deploy {
         maven {
@@ -130,6 +122,8 @@ jreleaser {
 
                     username.set(System.getenv("MAVEN_CENTRAL_USERNAME"))
                     password.set(System.getenv("MAVEN_CENTRAL_PASSWORD"))
+
+                    configureKmpOverrides()
                 }
             }
 
@@ -148,6 +142,8 @@ jreleaser {
 
                     username.set(System.getenv("MAVEN_CENTRAL_USERNAME"))
                     password.set(System.getenv("MAVEN_CENTRAL_PASSWORD"))
+
+                    configureKmpOverrides()
                 }
             }
         }

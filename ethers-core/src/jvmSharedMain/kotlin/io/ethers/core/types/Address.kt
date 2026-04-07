@@ -30,7 +30,7 @@ import kotlin.random.Random
 class Address(private val value: ByteArray) : RlpEncodable {
     constructor(value: CharSequence) : this(FastHex.decode(value))
 
-    // cache of hex string for faster serialization if serializing the same  instance multiple times
+    // cache of hex string for faster serialization if serializing the same instance multiple times
     private var stringCache: String? = null
 
     init {

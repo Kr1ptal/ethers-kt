@@ -1,16 +1,28 @@
 plugins {
     `project-conventions`
-    id(libs.plugins.kotlin.kapt.get().pluginId) // https://github.com/gradle/gradle/issues/20084#issuecomment-1060822638
     `jmh-conventions`
     `maven-publish-conventions`
 }
 
-dependencies {
-    implementation(libs.ditchoom.buffer)
+kotlin {
+    sourceSets {
+        val jvmSharedMain by getting {
+            dependencies {
+                implementation(libs.ditchoom.buffer)
+            }
+        }
 
-    testImplementation(libs.bundles.kotest)
+        val jvmSharedTest by getting {
+            dependencies {
+                implementation(libs.bundles.kotest)
+            }
+        }
 
-    jmhImplementation(libs.jmh.core)
-    jmhAnnotationProcessor(libs.jmh.generator)
-    kaptJmh(libs.jmh.generator)
+        val jvmJmh by getting {
+            dependencies {
+                implementation(libs.jmh.core)
+                implementation(libs.jmh.generator)
+            }
+        }
+    }
 }

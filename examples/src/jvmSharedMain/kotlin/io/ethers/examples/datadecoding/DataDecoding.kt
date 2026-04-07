@@ -13,6 +13,7 @@ import kotlinx.cli.default
  */
 class DataDecoding(txInput: String) {
     private val calldata = Bytes(txInput)
+
     fun run() {
         // # Decode function input data when ABI is known
         val autoDec = UniswapV2Router02.FUNCTION_SWAP_EXACT_TOKENS_FOR_TOKENS.decodeCall(calldata)

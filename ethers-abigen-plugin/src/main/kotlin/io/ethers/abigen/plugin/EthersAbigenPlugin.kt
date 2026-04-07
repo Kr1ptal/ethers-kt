@@ -40,13 +40,11 @@ abstract class EthersAbigenPlugin : Plugin<Project> {
                 .onSuccess {
                     logger.info("Running in environment: ${it.javaClass.simpleName}")
 
-                    it.sourceSets
-                        .matching { sourceSet -> sourceSet.name.endsWith("Main") }
-                        .all { sourceSet ->
-                            logger.info("Adding generated abi wrappers as source to '${sourceSet.name}' SourceSet")
+                    // Add only to commonMain — it's automatically visible to all platform source sets (jvmMain, etc.)
+                    val sourceSet = it.sourceSets.getByName("commonMain")
+                    logger.info("Adding generated abi wrappers as source to '${sourceSet.name}' SourceSet")
 
-                            sourceSet.kotlin.srcDir(abigenTask)
-                        }
+                    sourceSet.kotlin.srcDir(abigenTask)
                     return@afterEvaluate
                 }
 

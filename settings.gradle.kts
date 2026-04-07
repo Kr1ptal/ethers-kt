@@ -16,6 +16,7 @@ include("ethers-ens")
 
 pluginManagement {
     repositories {
+        google()
         gradlePluginPortal()
         mavenLocal()
     }
