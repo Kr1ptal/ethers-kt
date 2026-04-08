@@ -7,6 +7,18 @@ repositories {
     gradlePluginPortal()
 }
 
+configurations.all {
+    // Force BouncyCastle to 1.83 to avoid conflict between AGP (brings 1.79) and JReleaser (needs 1.83).
+    // buildSrc classpath is shared with the build script classpath, so an older version here
+    // would break JReleaser's PGP signing at deploy time.
+    resolutionStrategy {
+        force("org.bouncycastle:bcpg-jdk18on:1.83")
+        force("org.bouncycastle:bcprov-jdk18on:1.83")
+        force("org.bouncycastle:bcutil-jdk18on:1.83")
+        force("org.bouncycastle:bcpkix-jdk18on:1.83")
+    }
+}
+
 dependencies {
     // hacky way to make "libs" available in convention plugins
     // see: https://github.com/gradle/gradle/issues/15383#issuecomment-779893192
