@@ -183,8 +183,8 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
             when {
                 err.data == null && isRevertMessage -> return ExecutionRevertedError
 
-                err.data != null && err.data!!.isTextual -> {
-                    val data = err.data!!.textValue()
+                err.data != null && err.data!!.isString -> {
+                    val data = err.data!!.json.removeSurrounding("\"")
 
                     // if data is not a valid hex string, it's an already decoded revert error
                     if (!FastHex.isValidHex(data)) {

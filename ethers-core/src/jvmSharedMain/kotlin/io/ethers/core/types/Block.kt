@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import io.ethers.core.forEachObjectField
 import io.ethers.core.handleUnknownField
+import io.ethers.core.json.JsonElement
 import io.ethers.core.readAddress
 import io.ethers.core.readBloom
 import io.ethers.core.readBytes
@@ -47,7 +48,7 @@ data class BlockWithHashes(
     override val blobGasUsed: Long,
     override val excessBlobGas: Long,
     override val parentBeaconBlockRoot: Hash?,
-    override val otherFields: Map<String, JsonNode> = emptyMap(),
+    override val otherFields: Map<String, JsonElement> = emptyMap(),
 ) : Block<Hash> {
     // overridden so the number, hash, parentHash fields are at the top of the output
     override fun toString(): String {
@@ -83,7 +84,7 @@ data class BlockWithTransactions(
     override val blobGasUsed: Long,
     override val excessBlobGas: Long,
     override val parentBeaconBlockRoot: Hash?,
-    override val otherFields: Map<String, JsonNode> = emptyMap(),
+    override val otherFields: Map<String, JsonElement> = emptyMap(),
 ) : Block<RPCTransaction> {
     // overridden so the number, hash, parentHash fields are at the top of the output
     override fun toString(): String {
@@ -118,7 +119,7 @@ interface Block<T> {
     val blobGasUsed: Long
     val excessBlobGas: Long
     val parentBeaconBlockRoot: Hash?
-    val otherFields: Map<String, JsonNode>
+    val otherFields: Map<String, JsonElement>
 }
 
 /**
@@ -164,7 +165,7 @@ private class BlockWithHashesDeserializer : GenericBlockDeserializer<Hash, Block
         blobGasUsed: Long,
         excessBlobGas: Long,
         parentBeaconBlockRoot: Hash?,
-        otherFields: Map<String, JsonNode>,
+        otherFields: Map<String, JsonElement>,
     ): BlockWithHashes {
         return BlockWithHashes(
             baseFeePerGas,
@@ -230,7 +231,7 @@ private class BlockWithTransactionDeserialize : GenericBlockDeserializer<RPCTran
         blobGasUsed: Long,
         excessBlobGas: Long,
         parentBeaconBlockRoot: Hash?,
-        otherFields: Map<String, JsonNode>,
+        otherFields: Map<String, JsonElement>,
     ): BlockWithTransactions {
         return BlockWithTransactions(
             baseFeePerGas,
@@ -296,7 +297,7 @@ private abstract class GenericBlockDeserializer<TX, T : Block<TX>> : JsonDeseria
         var blobGasUsed: Long = -1L
         var excessBlobGas: Long = -1L
         var parentBeaconBlockRoot: Hash? = null
-        var otherFields: MutableMap<String, JsonNode>? = null
+        var otherFields: MutableMap<String, JsonElement>? = null
 
         p.forEachObjectField { field ->
             when (field) {
@@ -333,7 +334,7 @@ private abstract class GenericBlockDeserializer<TX, T : Block<TX>> : JsonDeseria
                     if (otherFields == null) {
                         otherFields = HashMap()
                     }
-                    otherFields!![field] = p.readValueAsTree()
+                    otherFields!![field] = JsonElement(p.readValueAsTree<JsonNode>().toString())
                 }
             }
         }
@@ -398,7 +399,7 @@ private abstract class GenericBlockDeserializer<TX, T : Block<TX>> : JsonDeseria
         blobGasUsed: Long,
         excessBlobGas: Long,
         parentBeaconBlockRoot: Hash?,
-        otherFields: Map<String, JsonNode>,
+        otherFields: Map<String, JsonElement>,
     ): T
 }
 

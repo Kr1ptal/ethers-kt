@@ -1,6 +1,7 @@
 package io.ethers.core.types
 
 import io.ethers.core.Jackson
+import io.ethers.core.json.JsonElement
 import io.ethers.core.types.transaction.TxBlob
 import io.ethers.core.types.transaction.TxType
 import io.kotest.core.spec.style.FunSpec
@@ -86,7 +87,7 @@ class RPCTransactionTest : FunSpec({
             ),
             blobFeeCap = BigInteger("10456766730"),
             otherFields = mapOf(
-                "test_tx" to Jackson.MAPPER.readTree("""{"k1_tx":"v1_tx","k2_tx":"v2_tx"}"""),
+                "test_tx" to JsonElement("""{"k1_tx":"v1_tx","k2_tx":"v2_tx"}"""),
             ),
         )
 

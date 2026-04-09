@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.JsonDeserializer
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import io.ethers.core.forEachObjectField
+import io.ethers.core.json.JsonElement
 import io.ethers.core.readAddress
 import io.ethers.core.readBloom
 import io.ethers.core.readBytes
@@ -39,7 +40,7 @@ data class TransactionReceipt(
     val effectiveGasPrice: BigInteger,
     val status: Long,
     val root: Bytes?,
-    val otherFields: Map<String, JsonNode> = emptyMap(),
+    val otherFields: Map<String, JsonElement> = emptyMap(),
 ) {
     val isSuccessful: Boolean
         get() = status == 1L
@@ -73,7 +74,7 @@ private class TxReceiptDeserializer : JsonDeserializer<TransactionReceipt>() {
         lateinit var effectiveGasPrice: BigInteger
         var status: Long = -1L
         var root: Bytes? = null
-        var otherFields: MutableMap<String, JsonNode>? = null
+        var otherFields: MutableMap<String, JsonElement>? = null
 
         p.forEachObjectField { field ->
             when (field) {
@@ -96,7 +97,7 @@ private class TxReceiptDeserializer : JsonDeserializer<TransactionReceipt>() {
                     if (otherFields == null) {
                         otherFields = HashMap()
                     }
-                    otherFields!![p.currentName()] = p.readValueAsTree()
+                    otherFields!![p.currentName()] = JsonElement(p.readValueAsTree<JsonNode>().toString())
                 }
             }
         }

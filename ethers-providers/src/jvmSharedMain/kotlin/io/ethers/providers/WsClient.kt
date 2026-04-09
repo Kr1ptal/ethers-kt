@@ -15,6 +15,7 @@ import io.ethers.core.Result
 import io.ethers.core.failure
 import io.ethers.core.forEachObjectField
 import io.ethers.core.isNextTokenArrayEnd
+import io.ethers.core.json.JsonElement
 import io.ethers.core.success
 import io.ethers.logger.dbg
 import io.ethers.logger.err
@@ -495,7 +496,7 @@ class WsClient(
                         val invalid = RpcError(
                             RpcError.CODE_INVALID_RESPONSE,
                             "Invalid response",
-                            jsonMapper.valueToTree(text),
+                            JsonElement(jsonMapper.writeValueAsString(text)),
                         )
 
                         if (id != -1L) {
@@ -531,7 +532,7 @@ class WsClient(
                     val invalid = RpcError(
                         RpcError.CODE_INVALID_RESPONSE,
                         "Invalid response",
-                        jsonMapper.valueToTree(text),
+                        JsonElement(jsonMapper.writeValueAsString(text)),
                     )
 
                     if (id != -1L) {
