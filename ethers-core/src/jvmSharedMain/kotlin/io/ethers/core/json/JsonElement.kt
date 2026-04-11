@@ -3,7 +3,7 @@ package io.ethers.core.json
 /**
  * Library-agnostic representation of a raw JSON value, stored as a [String].
  */
-data class JsonElement(val json: String) {
+data class JsonElement(private val json: String) {
     /**
      * Whether this element is a JSON object (e.g. `{"key": "value"}`).
      */
