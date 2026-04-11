@@ -1,6 +1,7 @@
 package io.ethers.core.types
 
 import io.ethers.core.Jackson
+import io.ethers.core.json.JsonElement
 import io.ethers.core.types.transaction.TxType
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -83,7 +84,7 @@ class TransactionReceiptTest : FunSpec({
             type = TxType.DynamicFee,
             root = Bytes("0x5f5755290000000000000000000000000000000000000000000000000000000000000080"),
             otherFields = mapOf(
-                "test_tx" to Jackson.MAPPER.readTree("""{"k1_tx":"v1_tx","k2_tx":"v2_tx"}"""),
+                "test_tx" to JsonElement("""{"k1_tx":"v1_tx","k2_tx":"v2_tx"}"""),
             ),
         )
 

@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.JsonDeserializer
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import io.ethers.core.forEachObjectField
+import io.ethers.core.json.JsonElement
 import io.ethers.core.readAddress
 import io.ethers.core.readBytes
 import io.ethers.core.readHash
@@ -59,7 +60,7 @@ data class CallTracer(
         val calls: List<CallFrame>? = null,
         val logs: List<CallLog>? = null,
         val value: BigInteger? = null,
-        val otherFields: Map<String, JsonNode> = emptyMap(),
+        val otherFields: Map<String, JsonElement> = emptyMap(),
     ) {
         /**
          * Return `true` if this call failed, false otherwise.
@@ -151,7 +152,7 @@ data class CallTracer(
         val data: Bytes,
         val position: Int = -1,
         val index: Int = -1,
-        val otherFields: Map<String, JsonNode> = emptyMap(),
+        val otherFields: Map<String, JsonElement> = emptyMap(),
     ) {
         /**
          * Convert this [CallLog] into an instance of [Log].
@@ -190,7 +191,7 @@ data class CallTracer(
             var calls: List<CallFrame>? = null
             var logs: List<CallLog>? = null
             var value: BigInteger? = null
-            var otherFields: MutableMap<String, JsonNode>? = null
+            var otherFields: MutableMap<String, JsonElement>? = null
             p.forEachObjectField { name ->
                 when (name) {
                     "type" -> type = p.text
@@ -209,7 +210,7 @@ data class CallTracer(
                         if (otherFields == null) {
                             otherFields = HashMap()
                         }
-                        otherFields[p.currentName()] = p.readValueAs(JsonNode::class.java)
+                        otherFields[p.currentName()] = JsonElement(p.readValueAsTree<JsonNode>().toString())
                     }
                 }
             }
@@ -239,7 +240,7 @@ data class CallTracer(
             lateinit var data: Bytes
             var position: Int = -1
             var index: Int = -1
-            var otherFields: MutableMap<String, JsonNode>? = null
+            var otherFields: MutableMap<String, JsonElement>? = null
 
             p.forEachObjectField { name ->
                 when (name) {
@@ -252,7 +253,7 @@ data class CallTracer(
                         if (otherFields == null) {
                             otherFields = HashMap()
                         }
-                        otherFields[p.currentName()] = p.readValueAs(JsonNode::class.java)
+                        otherFields[p.currentName()] = JsonElement(p.readValueAsTree<JsonNode>().toString())
                     }
                 }
             }

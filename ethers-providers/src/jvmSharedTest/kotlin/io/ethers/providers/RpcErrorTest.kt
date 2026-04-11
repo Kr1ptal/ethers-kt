@@ -1,6 +1,7 @@
 package io.ethers.providers
 
 import io.ethers.core.Jackson
+import io.ethers.core.json.JsonElement
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.property.Exhaustive
@@ -28,7 +29,7 @@ class RpcErrorTest : FunSpec({
                 RpcError(
                     RpcError.CODE_METHOD_NOT_FOUND,
                     "Method not found",
-                    Jackson.MAPPER.readTree("""{"method":"‘eth_getHeaderByNumber’ does not exist/is not available"}"""),
+                    JsonElement("""{"method":"‘eth_getHeaderByNumber’ does not exist/is not available"}"""),
                 ),
             ),
             TestCase(
@@ -36,7 +37,7 @@ class RpcErrorTest : FunSpec({
                 RpcError(
                     RpcError.CODE_EXECUTION_ERROR,
                     "Execution reverted",
-                    Jackson.MAPPER.valueToTree("0x12124214345676524127654123476541263765"),
+                    JsonElement("\"0x12124214345676524127654123476541263765\""),
                 ),
             ),
         ).checkAll { (json, expected) ->

@@ -1,12 +1,12 @@
 package io.ethers.providers
 
-import com.fasterxml.jackson.databind.JsonNode
 import io.ethers.core.FastHex
 import io.ethers.core.Jackson
 import io.ethers.core.Result
 import io.ethers.core.failure
 import io.ethers.core.forEachObjectField
 import io.ethers.core.isFailure
+import io.ethers.core.json.JsonElement
 import io.ethers.core.readBytes
 import io.ethers.core.readBytesEmptyAsNull
 import io.ethers.core.readHash
@@ -437,7 +437,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             return success(unsigned)
         }
 
-        val data = Jackson.MAPPER.valueToTree<JsonNode>(call)
+        val data = JsonElement(Jackson.MAPPER.writeValueAsString(call))
         return failure(RpcError(RpcError.CODE_CALL_FAILED, "Failed to manually fill transaction", data))
     }
 

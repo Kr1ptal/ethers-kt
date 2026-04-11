@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import io.ethers.core.forEachObjectField
 import io.ethers.core.ifNotNull
+import io.ethers.core.json.JsonElement
 import io.ethers.core.readAddress
 import io.ethers.core.readBytesEmptyAsNull
 import io.ethers.core.readHash
@@ -46,7 +47,7 @@ data class RPCTransaction(
     val yParity: Long,
     override val blobVersionedHashes: List<Hash>?,
     override val blobFeeCap: BigInteger?,
-    val otherFields: Map<String, JsonNode> = emptyMap(),
+    val otherFields: Map<String, JsonElement> = emptyMap(),
 ) : TransactionRecovered {
     /**
      * Return true if the transaction has a signature, false otherwise.
@@ -84,7 +85,7 @@ private class RPCTransactionDeserializer : JsonDeserializer<RPCTransaction>() {
         var yParity = -1L
         var blobVersionedHashes: List<Hash>? = null
         var blobFeeCap: BigInteger? = null
-        var otherFields: MutableMap<String, JsonNode>? = null
+        var otherFields: MutableMap<String, JsonElement>? = null
 
         p.forEachObjectField { field ->
             when (field) {
@@ -115,7 +116,7 @@ private class RPCTransactionDeserializer : JsonDeserializer<RPCTransaction>() {
                     if (otherFields == null) {
                         otherFields = HashMap()
                     }
-                    otherFields[p.currentName()] = p.readValueAs(JsonNode::class.java)
+                    otherFields[p.currentName()] = JsonElement(p.readValueAsTree<JsonNode>().toString())
                 }
             }
         }

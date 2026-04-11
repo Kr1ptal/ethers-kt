@@ -12,6 +12,7 @@ import io.channels.core.ChannelReceiver
 import io.ethers.core.Jackson
 import io.ethers.core.Result
 import io.ethers.core.forEachObjectField
+import io.ethers.core.json.JsonElement
 import io.ethers.providers.types.BatchRpcRequest
 import okhttp3.OkHttpClient
 import java.util.concurrent.CompletableFuture
@@ -97,7 +98,7 @@ internal fun JsonGenerator.writeJsonRpcRequest(method: String, id: Long, params:
 data class RpcError @JvmOverloads constructor(
     val code: Int,
     val message: String,
-    val data: JsonNode? = null,
+    val data: JsonElement? = null,
     val cause: Exception? = null,
 ) : Result.Error {
     override fun doThrow(): Nothing {
@@ -297,18 +298,19 @@ private class RpcErrorDeserializer : JsonDeserializer<RpcError>() {
 
         var code = -1
         lateinit var message: String
-        var data: JsonNode? = null
+        var data: JsonElement? = null
         p.forEachObjectField { field ->
             when (field) {
                 "code" -> code = p.intValue
                 "message" -> message = p.text
-                "data" -> data = p.readValueAs(JsonNode::class.java)
+                "data" -> {
+                    val node = p.readValueAsTree<JsonNode>()
+                    if (!node.isNull) {
+                        data = JsonElement(node.toString())
+                    }
+                }
                 else -> p.skipChildren()
             }
-        }
-
-        if (data == null || data.isNull) {
-            return RpcError(code, message, null)
         }
 
         return RpcError(code, message, data)
