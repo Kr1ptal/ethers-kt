@@ -26,7 +26,8 @@ import java.math.BigInteger
  */
 object FastHex {
     private const val CHARS_PER_BYTE = 2
-    private const val BITS_PER_CHAR = java.lang.Byte.SIZE / CHARS_PER_BYTE
+    private const val BYTE_SIZE_BITS = 8
+    private const val BITS_PER_CHAR = BYTE_SIZE_BITS / CHARS_PER_BYTE
     private const val BYTE_0 = '0'.code.toByte()
     private const val BYTE_X = 'x'.code.toByte()
     private val EMPTY_BYTES = ByteArray(0)
@@ -43,7 +44,7 @@ object FastHex {
         for (i in ENCODE_TABLE.indices) {
             val upper = chars[i and 0xF0 ushr BITS_PER_CHAR]
             val lower = chars[i and 0x0F]
-            ENCODE_TABLE[i] = (upper.code shl java.lang.Byte.SIZE or lower.code)
+            ENCODE_TABLE[i] = (upper.code shl BYTE_SIZE_BITS or lower.code)
         }
         for (i in DECODE_TABLE_UPPER.indices) {
             DECODE_TABLE_UPPER[i] = getNibble(i.toChar(), upper = true, unsafe = false)
@@ -135,7 +136,7 @@ object FastHex {
             val byte = getNextByte(bits)
             if (bytes != null || byte > 0) {
                 val nibbles = ENCODE_TABLE[byte]
-                val upper = (nibbles ushr java.lang.Byte.SIZE).toByte()
+                val upper = (nibbles ushr BYTE_SIZE_BITS).toByte()
                 val lower = (nibbles and 0xff).toByte()
 
                 if (bytes == null) {
@@ -180,7 +181,7 @@ object FastHex {
             val hexPair = ENCODE_TABLE[buffer[currOffset].toInt() and 0xFF]
 
             // upper
-            bytes[i] = (hexPair ushr java.lang.Byte.SIZE).toByte()
+            bytes[i] = (hexPair ushr BYTE_SIZE_BITS).toByte()
 
             // lower
             bytes[i + 1] = hexPair.toByte()
