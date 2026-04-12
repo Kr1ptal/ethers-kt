@@ -4,12 +4,14 @@ import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.JsonNode
 import io.ethers.core.Jackson
 import io.ethers.core.isSuccess
+import io.kotest.assertions.nondeterministic.eventually
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import okhttp3.OkHttpClient
 import org.intellij.lang.annotations.Language
 import java.util.concurrent.TimeUnit
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * WsClient tests demonstrating the funSpec factory pattern for JsonRpcClient testing.
@@ -51,9 +53,6 @@ class WsClientTest : FunSpec({
             // Pre-queue the subscription response
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"$subscriptionId"}""")
 
-            // Give time for WebSocket connection to be established
-            Thread.sleep(200)
-
             // Subscribe to new block headers
             val params = arrayOf("newHeads")
             val resultDecoder: (JsonParser) -> JsonNode = { parser ->
@@ -65,8 +64,6 @@ class WsClientTest : FunSpec({
 
             val stream = subscriptionResult.unwrap()
             stream shouldNotBe null
-
-            Thread.sleep(100) // Give time for subscription to be established
 
             // Send multiple notifications
             @Language("JSON")
@@ -120,12 +117,13 @@ class WsClientTest : FunSpec({
             mockServer.sendJson(notification1)
             mockServer.sendJson(notification2)
             mockServer.sendJson(notification3)
-            Thread.sleep(50)
 
             // Verify all notifications are received in order
 
             // First notification
-            stream.isEmpty shouldBe false
+            eventually(1.seconds) {
+                stream.isEmpty shouldBe false
+            }
             val event1 = stream.take()!!
             event1.get("number")?.asText() shouldBe "0x1234"
             event1.get("hash")?.asText() shouldBe "0xabcd"
@@ -165,9 +163,6 @@ class WsClientTest : FunSpec({
                 resubscribeOnReconnect = false,
             )
 
-            // Give time for WebSocket connection to be established
-            Thread.sleep(200)
-
             // Subscribe to new block headers
             val params = arrayOf("newHeads")
             val resultDecoder: (JsonParser) -> JsonNode = { Jackson.MAPPER.readTree(it) }
@@ -179,19 +174,16 @@ class WsClientTest : FunSpec({
             stream shouldNotBe null
             stream.isClosed shouldBe false
 
-            Thread.sleep(100) // Give time for subscription to be established
-
             // Allow reconnection (no need to queue subscription response since streams will be closed)
             mockServer.allowReconnect()
 
             // Close the connection from server side to trigger reconnection
             mockServer.closeConnection()
 
-            // Wait for reconnection and stream closure
-            Thread.sleep(500)
-
             // Stream should be closed because resubscribeOnReconnect = false
-            stream.isClosed shouldBe true
+            eventually(1.seconds) {
+                stream.isClosed shouldBe true
+            }
         }
 
         test("resubscribeOnReconnect=true (default) resubscribes on reconnection") {
@@ -208,9 +200,6 @@ class WsClientTest : FunSpec({
             // Create client with default settings (resubscribeOnReconnect = true)
             wsClient = WsClient(mockServer.url, OkHttpClient())
 
-            // Give time for WebSocket connection to be established
-            Thread.sleep(200)
-
             // Subscribe to new block headers
             val params = arrayOf("newHeads")
             val resultDecoder: (JsonParser) -> JsonNode = { Jackson.MAPPER.readTree(it) }
@@ -222,8 +211,6 @@ class WsClientTest : FunSpec({
             stream shouldNotBe null
             stream.isClosed shouldBe false
 
-            Thread.sleep(100) // Give time for subscription to be established
-
             // Allow reconnection and queue new subscription response for auto-resubscription
             mockServer.allowReconnect()
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"$newSubscriptionId"}""")
@@ -231,13 +218,7 @@ class WsClientTest : FunSpec({
             // Close the connection from server side to trigger reconnection
             mockServer.closeConnection()
 
-            // Wait for reconnection and auto-resubscription
-            Thread.sleep(500)
-
-            // Stream should NOT be closed because resubscribeOnReconnect = true (default)
-            stream.isClosed shouldBe false
-
-            // Send a notification to verify the stream still receives messages
+            // Verify stream is still open and receives messages after reconnection
             @Language("JSON")
             val notification = """
             {
@@ -253,10 +234,11 @@ class WsClientTest : FunSpec({
             }
             """.trimIndent()
 
-            mockServer.sendJson(notification)
-            Thread.sleep(100)
-
-            stream.isEmpty shouldBe false
+            eventually(1.seconds) {
+                mockServer.sendJson(notification)
+                stream.isClosed shouldBe false
+                stream.isEmpty shouldBe false
+            }
             val event = stream.take()!!
             event.get("number")?.asText() shouldBe "0x9999"
         }
@@ -267,9 +249,6 @@ class WsClientTest : FunSpec({
             // Pre-queue responses for subscribe (ID 1) and unsubscribe (ID 2)
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"$subscriptionId"}""")
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":2,"result":true}""")
-
-            // Give time for WebSocket connection to be established
-            Thread.sleep(200)
 
             // First create a subscription
             val params = arrayOf("newHeads")
@@ -296,10 +275,11 @@ class WsClientTest : FunSpec({
             """.trimIndent()
 
             mockServer.sendJson(notification1)
-            Thread.sleep(100)
 
             val stream = subscriptionResult.unwrap()
-            stream.isEmpty shouldBe false
+            eventually(1.seconds) {
+                stream.isEmpty shouldBe false
+            }
 
             val event1 = stream.take()!!
             event1.get("number")?.asText() shouldBe "0x1234"
