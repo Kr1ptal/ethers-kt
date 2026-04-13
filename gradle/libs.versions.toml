@@ -17,7 +17,7 @@ kotlincrypto = "0.8.0"
 secp256k1 = "0.23.0"
 cryptography = "0.6.0"
 ditchoom-buffer = "4.2.1"
-dokka = "2.1.0"
+dokka = "2.2.0"
 agp = "9.1.0"
 
 [libraries]
