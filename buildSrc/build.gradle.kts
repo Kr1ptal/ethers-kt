@@ -12,10 +12,10 @@ configurations.all {
     // buildSrc classpath is shared with the build script classpath, so an older version here
     // would break JReleaser's PGP signing at deploy time.
     resolutionStrategy {
-        force("org.bouncycastle:bcpg-jdk18on:1.83")
-        force("org.bouncycastle:bcprov-jdk18on:1.83")
-        force("org.bouncycastle:bcutil-jdk18on:1.83")
-        force("org.bouncycastle:bcpkix-jdk18on:1.83")
+        force("org.bouncycastle:bcpg-jdk18on:1.84")
+        force("org.bouncycastle:bcprov-jdk18on:1.84")
+        force("org.bouncycastle:bcutil-jdk18on:1.84")
+        force("org.bouncycastle:bcpkix-jdk18on:1.84")
     }
 }
 
