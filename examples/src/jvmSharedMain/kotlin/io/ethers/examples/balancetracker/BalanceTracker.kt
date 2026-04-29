@@ -6,10 +6,10 @@ import io.ethers.examples.gen.ERC20
 import io.ethers.providers.Provider
 import io.ethers.providers.types.sendAwait
 import io.ethers.providers.types.unwrap
+import io.github.artificialpb.bignum.BigInteger
 import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
 import kotlinx.cli.default
-import java.math.BigInteger
 
 /**
  * Monitoring of ETH balance and balance of list of ERC20 tokens for a given address, using manual request batching.

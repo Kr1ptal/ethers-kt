@@ -9,7 +9,7 @@ import io.ethers.core.types.Signature
 import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncoder
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 data class TxLegacy(
     override val to: Address?,

@@ -5,6 +5,7 @@ import io.ethers.core.Jackson.createAndInitParser
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
+import io.github.artificialpb.bignum.BigInteger
 import io.kotest.assertions.json.shouldEqualJson
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
@@ -13,7 +14,6 @@ import io.kotest.inspectors.forAll
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 import org.intellij.lang.annotations.Language
-import java.math.BigInteger
 
 class MuxTracerTest : FunSpec({
     val callTracer = CallTracer(onlyTopCall = true, withLog = true)

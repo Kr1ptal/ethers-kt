@@ -1,6 +1,6 @@
 package io.ethers.rlp
 
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract

@@ -1,10 +1,10 @@
 package io.ethers.core.types
 
+import io.github.artificialpb.bignum.BigInteger
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import java.math.BigInteger
 
 class StateOverrideTest : FunSpec({
     val addr1 = Address("0xDAFEA492D9c6733ae3d56b7Ed1ADB60692c98Bc5")

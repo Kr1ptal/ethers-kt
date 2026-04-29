@@ -15,7 +15,7 @@ import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Log
 import io.ethers.providers.middleware.Middleware
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 public class EnsRegistry(
     provider: Middleware,
@@ -201,7 +201,7 @@ public class EnsRegistry(
      */
     public fun ttl(node: Bytes): ReadFunctionCall<BigInteger> = ReadFunctionCall(this.provider, this.address, FUNCTION_TTL.encodeCall(listOf<Any>(node))) {
         val data = FUNCTION_TTL.decodeResponse(it)
-        data[0] as java.math.BigInteger
+        data[0] as io.github.artificialpb.bignum.BigInteger
     }
 
     public sealed class Event : ContractEvent
@@ -408,7 +408,7 @@ public class EnsRegistry(
             override fun decode(log: Log): NewTTL? = super.decode(log)
 
             @JvmStatic
-            override fun decode(log: Log, `data`: List<Any>): NewTTL = NewTTL(data[0] as io.ethers.core.types.Bytes, data[1] as java.math.BigInteger, log)
+            override fun decode(log: Log, `data`: List<Any>): NewTTL = NewTTL(data[0] as io.ethers.core.types.Bytes, data[1] as io.github.artificialpb.bignum.BigInteger, log)
         }
     }
 

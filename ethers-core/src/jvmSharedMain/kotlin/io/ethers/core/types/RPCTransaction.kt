@@ -20,7 +20,7 @@ import io.ethers.core.readOrNull
 import io.ethers.core.types.transaction.ChainId
 import io.ethers.core.types.transaction.TransactionRecovered
 import io.ethers.core.types.transaction.TxType
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 @JsonDeserialize(using = RPCTransactionDeserializer::class)
 data class RPCTransaction(

@@ -12,6 +12,7 @@ kotlin {
                 api(project(":ethers-rlp"))
                 api(project(":ethers-crypto"))
 
+                api(libs.bignumkt)
                 api(libs.bundles.jackson)
             }
         }

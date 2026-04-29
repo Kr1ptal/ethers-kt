@@ -21,7 +21,7 @@ import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncodable
 import io.ethers.rlp.RlpEncoder
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 /**
  * EIP-7702 Authorization structure for SetCode transactions.

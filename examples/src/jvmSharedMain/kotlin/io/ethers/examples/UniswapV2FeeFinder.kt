@@ -5,11 +5,11 @@ import io.ethers.core.types.BlockId
 import io.ethers.examples.UniswapV2FeeFinder.Companion.getFeePercent
 import io.ethers.examples.gen.UniswapV2Pair
 import io.ethers.providers.Provider
+import io.github.artificialpb.bignum.BigInteger
 import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
 import kotlinx.cli.default
 import kotlinx.cli.required
-import java.math.BigInteger
 
 /**
  * Calculate Uniswap V2 pool fees. The fees are hardcoded, but we can calculate it by:

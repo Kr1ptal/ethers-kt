@@ -14,8 +14,8 @@ import com.fasterxml.jackson.databind.deser.std.StdDeserializer
 import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.databind.module.SimpleModule
 import com.fasterxml.jackson.databind.ser.std.StdSerializer
+import io.github.artificialpb.bignum.BigInteger
 import java.io.InputStream
-import java.math.BigInteger
 
 /**
  * Static [JsonMapper] with default settings. Instance should be reused. Customized reading/writing can be achieved

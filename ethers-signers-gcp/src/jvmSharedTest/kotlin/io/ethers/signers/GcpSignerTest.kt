@@ -16,13 +16,13 @@ import io.ethers.core.isFailure
 import io.ethers.core.isSuccess
 import io.ethers.core.types.Address
 import io.ethers.crypto.Secp256k1
+import io.github.artificialpb.bignum.BigInteger
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
-import java.math.BigInteger
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 

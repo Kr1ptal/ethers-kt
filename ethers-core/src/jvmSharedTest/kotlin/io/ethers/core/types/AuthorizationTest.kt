@@ -5,10 +5,10 @@ import io.ethers.core.Jackson
 import io.ethers.core.types.Authorization.Companion.MAGIC
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncoder
+import io.github.artificialpb.bignum.BigInteger
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
-import java.math.BigInteger
 
 class AuthorizationTest : FunSpec({
 

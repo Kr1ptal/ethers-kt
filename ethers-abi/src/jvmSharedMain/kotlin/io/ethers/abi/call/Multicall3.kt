@@ -17,9 +17,9 @@ import io.ethers.core.types.Bytes
 import io.ethers.core.types.CallRequest
 import io.ethers.core.types.IntoCallRequest
 import io.ethers.providers.middleware.Middleware
+import io.github.artificialpb.bignum.BigInteger
 import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlinx.atomicfu.locks.synchronized
-import java.math.BigInteger
 
 private typealias EthersResult<T, E> = Result<T, E>
 

@@ -27,6 +27,7 @@ kotlin {
                 api(project(":ethers-core"))
                 api(project(":ethers-providers"))
                 api(project(":ethers-signers"))
+                api(libs.bignumkt)
                 implementation(libs.ditchoom.buffer)
                 implementation(libs.kotlinx.atomicfu)
             }

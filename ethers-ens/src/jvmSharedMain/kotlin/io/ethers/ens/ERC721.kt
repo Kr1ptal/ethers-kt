@@ -16,7 +16,7 @@ import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Log
 import io.ethers.providers.middleware.Middleware
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 public class ERC721(
     provider: Middleware,
@@ -47,7 +47,7 @@ public class ERC721(
      */
     public fun balanceOf(_owner: Address): ReadFunctionCall<BigInteger> = ReadFunctionCall(this.provider, this.address, FUNCTION_BALANCE_OF.encodeCall(listOf<Any>(_owner))) {
         val data = FUNCTION_BALANCE_OF.decodeResponse(it)
-        data[0] as java.math.BigInteger
+        data[0] as io.github.artificialpb.bignum.BigInteger
     }
 
     /**
@@ -220,7 +220,7 @@ public class ERC721(
      */
     public fun tokenByIndex(_index: BigInteger): ReadFunctionCall<BigInteger> = ReadFunctionCall(this.provider, this.address, FUNCTION_TOKEN_BY_INDEX.encodeCall(listOf<Any>(_index))) {
         val data = FUNCTION_TOKEN_BY_INDEX.decodeResponse(it)
-        data[0] as java.math.BigInteger
+        data[0] as io.github.artificialpb.bignum.BigInteger
     }
 
     /**
@@ -235,7 +235,7 @@ public class ERC721(
      */
     public fun tokenOfOwnerByIndex(_owner: Address, _index: BigInteger): ReadFunctionCall<BigInteger> = ReadFunctionCall(this.provider, this.address, FUNCTION_TOKEN_OF_OWNER_BY_INDEX.encodeCall(listOf(_owner, _index))) {
         val data = FUNCTION_TOKEN_OF_OWNER_BY_INDEX.decodeResponse(it)
-        data[0] as java.math.BigInteger
+        data[0] as io.github.artificialpb.bignum.BigInteger
     }
 
     /**
@@ -265,7 +265,7 @@ public class ERC721(
      */
     public fun totalSupply(): ReadFunctionCall<BigInteger> = ReadFunctionCall(this.provider, this.address, FUNCTION_TOTAL_SUPPLY.encodeCall(emptyList())) {
         val data = FUNCTION_TOTAL_SUPPLY.decodeResponse(it)
-        data[0] as java.math.BigInteger
+        data[0] as io.github.artificialpb.bignum.BigInteger
     }
 
     /**
@@ -336,7 +336,7 @@ public class ERC721(
             override fun decode(log: Log): Approval? = super.decode(log)
 
             @JvmStatic
-            override fun decode(log: Log, `data`: List<Any>): Approval = Approval(data[0] as io.ethers.core.types.Address, data[1] as io.ethers.core.types.Address, data[2] as java.math.BigInteger, log)
+            override fun decode(log: Log, `data`: List<Any>): Approval = Approval(data[0] as io.ethers.core.types.Address, data[1] as io.ethers.core.types.Address, data[2] as io.github.artificialpb.bignum.BigInteger, log)
         }
     }
 
@@ -442,7 +442,7 @@ public class ERC721(
             override fun decode(log: Log): Transfer? = super.decode(log)
 
             @JvmStatic
-            override fun decode(log: Log, `data`: List<Any>): Transfer = Transfer(data[0] as io.ethers.core.types.Address, data[1] as io.ethers.core.types.Address, data[2] as java.math.BigInteger, log)
+            override fun decode(log: Log, `data`: List<Any>): Transfer = Transfer(data[0] as io.ethers.core.types.Address, data[1] as io.ethers.core.types.Address, data[2] as io.github.artificialpb.bignum.BigInteger, log)
         }
     }
 

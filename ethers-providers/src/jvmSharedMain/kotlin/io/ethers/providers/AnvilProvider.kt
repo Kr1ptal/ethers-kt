@@ -11,7 +11,7 @@ import io.ethers.providers.bindings.AnvilInstance
 import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.RpcCall
 import io.ethers.providers.types.RpcRequest
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 /**
  * Provider implementation for interacting with an [Anvil](https://book.getfoundry.sh/reference/anvil/) node.

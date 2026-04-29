@@ -6,9 +6,9 @@ import io.ethers.abi.Person
 import io.ethers.core.Jackson
 import io.ethers.core.types.Address
 import io.ethers.core.types.Hash
+import io.github.artificialpb.bignum.BigInteger
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
-import java.math.BigInteger
 
 class EIP712TypedDataTest : FunSpec({
     context("EIP712TypedData.from") {

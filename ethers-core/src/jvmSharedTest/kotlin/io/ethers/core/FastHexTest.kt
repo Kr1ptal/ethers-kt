@@ -1,5 +1,6 @@
 package io.ethers.core
 
+import io.github.artificialpb.bignum.BigInteger
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData
@@ -12,7 +13,6 @@ import io.kotest.property.arbitrary.byteArray
 import io.kotest.property.arbitrary.int
 import io.kotest.property.arbitrary.long
 import io.kotest.property.checkAll
-import java.math.BigInteger
 
 class FastHexTest : FunSpec({
     test("encode/decode as string without prefix") {

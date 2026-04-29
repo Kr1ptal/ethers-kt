@@ -17,7 +17,7 @@
 package io.ethers.core
 
 import io.ethers.core.FastHex.decode
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 /**
  * Hexadecimal codec with safe-by-default and unsafe encoding/decoding support.

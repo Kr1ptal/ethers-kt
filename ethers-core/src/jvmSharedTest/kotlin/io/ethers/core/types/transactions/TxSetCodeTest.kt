@@ -4,10 +4,10 @@ import fixtures.TxSetCodeFactory
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.transaction.TxType
+import io.github.artificialpb.bignum.BigInteger
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
-import java.math.BigInteger
 
 class TxSetCodeTest : FunSpec({
     context("initialization") {

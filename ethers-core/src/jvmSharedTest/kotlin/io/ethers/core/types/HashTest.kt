@@ -2,6 +2,7 @@ package io.ethers.core.types
 
 import io.ethers.core.FastHex
 import io.ethers.core.Jackson
+import io.github.artificialpb.bignum.BigInteger
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData
@@ -10,7 +11,6 @@ import io.kotest.property.Arb
 import io.kotest.property.arbitrary.bigInt
 import io.kotest.property.arbitrary.int
 import io.kotest.property.checkAll
-import java.math.BigInteger
 
 class HashTest : FunSpec({
 
