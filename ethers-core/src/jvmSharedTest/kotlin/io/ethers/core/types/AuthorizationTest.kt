@@ -8,7 +8,7 @@ import io.ethers.rlp.RlpEncoder
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 class AuthorizationTest : FunSpec({
 

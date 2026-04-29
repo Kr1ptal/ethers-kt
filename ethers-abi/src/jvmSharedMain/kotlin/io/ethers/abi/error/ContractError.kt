@@ -6,7 +6,7 @@ import io.ethers.abi.AbiType
 import io.ethers.core.Result
 import io.ethers.core.types.Bytes
 import io.ethers.providers.RpcError
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 /**
  * Error returned from a contract call.

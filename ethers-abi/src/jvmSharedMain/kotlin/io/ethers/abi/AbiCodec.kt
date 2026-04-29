@@ -7,7 +7,7 @@ import io.ethers.abi.AbiCodec.WORD_SIZE_BYTES
 import io.ethers.core.FastHex
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 object AbiCodec {
     private val TWOS_COMPLEMENT_PADDING = (0..<32).map { ByteArray(it) { 0xff.toByte() } }.toTypedArray()

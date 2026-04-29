@@ -5,7 +5,7 @@ import io.kotest.assertions.json.shouldEqualJson
 import io.kotest.assertions.throwables.shouldThrowUnit
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 class AccountOverrideTest : FunSpec({
     test("serialization - state") {

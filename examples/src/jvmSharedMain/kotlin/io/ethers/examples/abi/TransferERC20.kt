@@ -8,7 +8,7 @@ import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
 import kotlinx.cli.default
 import kotlinx.cli.required
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 import java.time.Duration
 
 /**

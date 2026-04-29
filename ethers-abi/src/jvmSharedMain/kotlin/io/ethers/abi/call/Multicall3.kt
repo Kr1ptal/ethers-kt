@@ -19,7 +19,7 @@ import io.ethers.core.types.IntoCallRequest
 import io.ethers.providers.middleware.Middleware
 import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlinx.atomicfu.locks.synchronized
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 private typealias EthersResult<T, E> = Result<T, E>
 

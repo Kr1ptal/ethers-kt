@@ -9,7 +9,7 @@ import io.ethers.providers.Provider
 import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
 import kotlinx.cli.default
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 /**
  * Multicall example demonstrates how to aggregate multiple contract calls into Multicall3.

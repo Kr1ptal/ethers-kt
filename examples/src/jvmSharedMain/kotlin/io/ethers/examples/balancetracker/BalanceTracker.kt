@@ -9,7 +9,7 @@ import io.ethers.providers.types.unwrap
 import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
 import kotlinx.cli.default
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 /**
  * Monitoring of ETH balance and balance of list of ERC20 tokens for a given address, using manual request batching.

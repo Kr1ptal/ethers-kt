@@ -12,7 +12,7 @@ import io.kotest.property.arbitrary.byteArray
 import io.kotest.property.arbitrary.int
 import io.kotest.property.arbitrary.long
 import io.kotest.property.checkAll
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 class FastHexTest : FunSpec({
     test("encode/decode as string without prefix") {

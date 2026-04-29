@@ -12,7 +12,7 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import org.intellij.lang.annotations.Language
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 class CallTracerTest : FunSpec({
     val callTracer = CallTracer(onlyTopCall = true, withLog = true)

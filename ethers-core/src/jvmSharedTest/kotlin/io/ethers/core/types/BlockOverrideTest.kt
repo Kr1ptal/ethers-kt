@@ -7,7 +7,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 class BlockOverrideTest : FunSpec({
     test("BlockOverride serialization - all fields") {

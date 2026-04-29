@@ -12,7 +12,7 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 class CallRequestTest : FunSpec({
     test("CallRequest serialization") {

@@ -6,8 +6,8 @@ import io.kotest.matchers.comparables.shouldBeEqualComparingTo
 import io.kotest.property.Arb
 import io.kotest.property.arbitrary.bigInt
 import io.kotest.property.checkAll
-import java.math.BigDecimal
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigDecimal
+import io.github.artificialpb.bignum.BigInteger
 
 class EthUnitTest : FunSpec({
     data class ConversionTestData(

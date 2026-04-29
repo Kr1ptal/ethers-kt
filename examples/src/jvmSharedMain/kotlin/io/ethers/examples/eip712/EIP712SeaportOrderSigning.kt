@@ -14,7 +14,7 @@ import io.ethers.signers.Signer
 import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
 import kotlinx.cli.default
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 import kotlin.system.exitProcess
 
 /**

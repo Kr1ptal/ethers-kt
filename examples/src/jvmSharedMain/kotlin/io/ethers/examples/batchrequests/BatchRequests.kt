@@ -11,7 +11,7 @@ import io.ethers.providers.types.unwrap
 import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
 import kotlinx.cli.default
-import java.math.BigDecimal
+import io.github.artificialpb.bignum.BigDecimal
 
 /**
  * Request batching of pool reserves on different DEXes for WETH / USDC pair and calculating WETH price,

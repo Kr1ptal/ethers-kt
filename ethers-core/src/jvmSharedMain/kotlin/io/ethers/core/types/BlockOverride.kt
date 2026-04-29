@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.JsonSerializer
 import com.fasterxml.jackson.databind.SerializerProvider
 import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import io.ethers.core.FastHex
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 /**
  * Block override, which can be used to override certain fields of a block, such as the block number, timestamp,

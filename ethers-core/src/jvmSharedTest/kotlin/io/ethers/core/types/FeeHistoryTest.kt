@@ -4,7 +4,7 @@ import io.ethers.core.Jackson
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import org.intellij.lang.annotations.Language
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 class FeeHistoryTest : FunSpec({
     test("FeeHistory deserialization - new format") {

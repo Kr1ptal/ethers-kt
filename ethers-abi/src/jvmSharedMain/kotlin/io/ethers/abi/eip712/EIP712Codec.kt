@@ -8,7 +8,7 @@ import io.ethers.abi.ContractStruct
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.crypto.Hashing
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 object EIP712Codec {
     /**

@@ -8,7 +8,7 @@ import io.ethers.core.types.Address
 import io.ethers.core.types.Hash
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 class EIP712TypedDataTest : FunSpec({
     context("EIP712TypedData.from") {

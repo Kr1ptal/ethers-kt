@@ -7,7 +7,7 @@ import io.ethers.core.failure
 import io.ethers.core.success
 import io.ethers.core.types.Address
 import io.ethers.core.unwrapOrReturn
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 internal data class MetadataDTO(

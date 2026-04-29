@@ -12,7 +12,7 @@ import io.kotest.property.Exhaustive
 import io.kotest.property.arbitrary.bigInt
 import io.kotest.property.checkAll
 import io.kotest.property.exhaustive.of
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 class AbiCodecTest : FunSpec({
     context("encoding") {

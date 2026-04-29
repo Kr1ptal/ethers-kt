@@ -16,7 +16,7 @@ import io.ethers.providers.middleware.Middleware
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.shouldBe
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 import kotlin.reflect.full.companionObject
 
 class FunctionsTest : FunSpec({

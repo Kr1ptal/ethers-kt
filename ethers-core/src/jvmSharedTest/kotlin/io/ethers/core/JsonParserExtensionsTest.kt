@@ -9,7 +9,7 @@ import io.ethers.core.types.Hash
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 class JsonParserExtensionsTest : FunSpec({
     val factory = JsonFactory()

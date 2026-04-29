@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.JsonSerializer
 import com.fasterxml.jackson.databind.SerializerProvider
 import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import io.ethers.core.FastHex
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 /**
  * An account override, used to override the nonce, balance, code, and storage of an account.

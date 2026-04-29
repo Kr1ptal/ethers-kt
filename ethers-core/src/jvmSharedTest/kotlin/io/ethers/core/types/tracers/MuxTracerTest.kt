@@ -13,7 +13,7 @@ import io.kotest.inspectors.forAll
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 import org.intellij.lang.annotations.Language
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 class MuxTracerTest : FunSpec({
     val callTracer = CallTracer(onlyTopCall = true, withLog = true)

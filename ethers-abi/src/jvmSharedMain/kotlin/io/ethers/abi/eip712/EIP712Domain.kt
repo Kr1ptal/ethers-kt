@@ -18,7 +18,7 @@ import io.ethers.core.readBytes
 import io.ethers.core.readOrNull
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 @JsonSerialize(using = EIP712DomainSerializer::class)
 @JsonDeserialize(using = EIP712DomainDeserializer::class)

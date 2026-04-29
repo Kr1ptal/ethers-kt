@@ -28,7 +28,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 import java.util.concurrent.CompletableFuture
 
 class EnsMiddleware @JvmOverloads constructor(

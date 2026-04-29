@@ -11,7 +11,7 @@ import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.FilterPoller
 import io.ethers.providers.types.RpcRequest
 import io.ethers.providers.types.RpcSubscribe
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 /**
  * Filter for non-anonymous events.

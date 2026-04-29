@@ -19,7 +19,7 @@ import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
 import io.ethers.core.types.Log
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 import kotlin.reflect.KClass
 
 /**

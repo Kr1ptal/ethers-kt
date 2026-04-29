@@ -23,7 +23,7 @@ import io.ethers.providers.types.PendingInclusion
 import io.ethers.providers.types.PendingTransaction
 import io.ethers.providers.types.RpcRequest
 import io.ethers.signers.Signer
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 /**
  * Contract call that can be used to both read and write data to the blockchain.

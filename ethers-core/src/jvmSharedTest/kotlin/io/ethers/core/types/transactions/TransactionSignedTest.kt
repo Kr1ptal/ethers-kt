@@ -33,7 +33,7 @@ import io.kotest.property.checkAll
 import io.kotest.property.exhaustive.map
 import io.kotest.property.exhaustive.of
 import java.io.File
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 import kotlin.random.Random
 
 class TransactionSignedTest : FunSpec({

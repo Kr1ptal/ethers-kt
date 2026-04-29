@@ -16,7 +16,7 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.intellij.lang.annotations.Language
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 import java.time.Duration
 
 class PendingTransactionTest : FunSpec({

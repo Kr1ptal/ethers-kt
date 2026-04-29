@@ -8,7 +8,7 @@ import io.kotest.matchers.shouldNotBe
 import io.kotest.property.Arb
 import io.kotest.property.arbitrary.bigInt
 import io.kotest.property.checkAll
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 class Secp256k1Test : FunSpec({
     context("publicKeyToAddress") {

@@ -2,7 +2,7 @@ package io.ethers.core.utils
 
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 class GasUtilsTest : FunSpec({
     context("getEffectiveGasTip") {

@@ -1,7 +1,7 @@
 package io.ethers.core.utils
 
 import io.ethers.core.utils.GasUtils.getEffectiveGasTip
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 object GasUtils {
     /**

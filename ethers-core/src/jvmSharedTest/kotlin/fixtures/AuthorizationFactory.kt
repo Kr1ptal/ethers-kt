@@ -2,7 +2,7 @@ package fixtures
 
 import io.ethers.core.types.Address
 import io.ethers.core.types.Authorization
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 object AuthorizationFactory {
     fun create(

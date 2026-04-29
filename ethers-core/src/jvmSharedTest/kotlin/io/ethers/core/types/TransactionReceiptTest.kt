@@ -6,7 +6,7 @@ import io.ethers.core.types.transaction.TxType
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import org.intellij.lang.annotations.Language
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 class TransactionReceiptTest : FunSpec({
     test("deserialization") {

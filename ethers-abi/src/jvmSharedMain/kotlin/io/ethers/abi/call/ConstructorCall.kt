@@ -19,7 +19,7 @@ import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.PendingInclusion
 import io.ethers.providers.types.PendingTransaction
 import io.ethers.providers.types.RpcRequest
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 import java.time.Duration
 
 private val PRESTATE_DIFF_TRACER = PrestateTracer(diffMode = true)

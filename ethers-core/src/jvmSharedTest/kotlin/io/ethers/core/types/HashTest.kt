@@ -10,7 +10,7 @@ import io.kotest.property.Arb
 import io.kotest.property.arbitrary.bigInt
 import io.kotest.property.arbitrary.int
 import io.kotest.property.checkAll
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 class HashTest : FunSpec({
 
