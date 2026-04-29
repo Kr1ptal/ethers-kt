@@ -31,7 +31,6 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
-import java.util.concurrent.CompletableFuture
 
 /**
  * [JsonRpcClient] implementation via HTTP transport. Supports both single and batch requests. Subscriptions are not
@@ -56,14 +55,13 @@ class HttpClient(
     private val requestId = atomic(1L)
     private val headers = Headers.Builder().apply { headers.forEach { (k, v) -> add(k, v) } }.build()
 
-    override fun requestBatch(batch: BatchRpcRequest): CompletableFuture<Boolean> {
+    override fun requestBatch(batch: BatchRpcRequest, callback: ResultCallback<Boolean>) {
         batch.markAsSent()
 
         if (batch.isEmpty) {
-            return CompletableFuture.completedFuture(true)
+            callback.complete(true)
+            return
         }
-
-        val ret = CompletableFuture<Boolean>()
 
         val (body, requestIndexPerId) = batch.toRequestBody()
         val call = client.newCall(Request.Builder().url(httpUrl).headers(headers).post(body).build())
@@ -72,13 +70,12 @@ class HttpClient(
             override fun onFailure(call: Call, e: IOException) {
                 LOG.err(e) { "Error sending batch request" }
 
-                // complete all requests and the batch future
                 val response = getResponseFromException(e)
-                for (i in batch.responses.indices) {
-                    batch.responses[i].complete(response)
+                for (i in batch.callbacks.indices) {
+                    batch.callbacks[i].complete(response)
                 }
 
-                ret.complete(false)
+                callback.complete(false)
             }
 
             override fun onResponse(call: Call, response: Response) {
@@ -86,7 +83,6 @@ class HttpClient(
                     try {
                         var stream = it.body.byteStream()
                         LOG.trc {
-                            // reading from the response body consumes it, so we need to create a new stream
                             val arr = stream.readBytes()
                             stream = ByteArrayInputStream(arr)
                             "Batch response: ${String(arr)}".removeSuffix("\n")
@@ -95,7 +91,6 @@ class HttpClient(
                         if (!it.isSuccessful) {
                             val bytes = stream.readBytes()
 
-                            // first, try to decode a JSON response
                             try {
                                 ByteArrayInputStream(bytes).useJsonParser {
                                     val parser = this
@@ -107,17 +102,15 @@ class HttpClient(
                                             batch.requests[index].resultDecoder
                                         }
 
-                                        batch.responses[index].complete(result)
+                                        batch.callbacks[index].complete(result)
                                     }
                                 }
 
-                                ret.complete(true)
+                                callback.complete(true)
                                 return
                             } catch (_: Exception) {
                             }
 
-                            // second, if decoding fails, return the response as a message and complete all requests
-                            // including the batch future
                             val message = "HTTP ${it.code}: ${it.message}"
                             val data = JsonElement(jsonMapper.writeValueAsString(String(bytes)))
                             val error = RpcError(RpcError.CODE_CALL_FAILED, message, data)
@@ -125,11 +118,11 @@ class HttpClient(
 
                             LOG.err { "Batch request failed: $error" }
 
-                            for (i in batch.responses.indices) {
-                                batch.responses[i].complete(failure)
+                            for (i in batch.callbacks.indices) {
+                                batch.callbacks[i].complete(failure)
                             }
 
-                            ret.complete(false)
+                            callback.complete(false)
                             return
                         }
 
@@ -143,37 +136,33 @@ class HttpClient(
                                     batch.requests[index].resultDecoder
                                 }
 
-                                batch.responses[index].complete(result)
+                                batch.callbacks[index].complete(result)
                             }
                         }
 
-                        ret.complete(true)
+                        callback.complete(true)
                     } catch (e: Exception) {
                         LOG.err(e) { "Error processing batch response" }
                         val rpcResponse = getResponseFromException(e)
 
-                        // complete all requests and the batch future
-                        for (i in batch.responses.indices) {
-                            batch.responses[i].complete(rpcResponse)
+                        for (i in batch.callbacks.indices) {
+                            batch.callbacks[i].complete(rpcResponse)
                         }
 
-                        ret.complete(false)
+                        callback.complete(false)
                         return
                     }
                 }
             }
         })
-
-        return ret
     }
 
     override fun <T> request(
         method: String,
         params: Array<*>,
         resultDecoder: (JsonParser) -> T,
-    ): CompletableFuture<Result<T, RpcError>> {
-        val ret = CompletableFuture<Result<T, RpcError>>()
-
+        callback: ResultCallback<Result<T, RpcError>>,
+    ) {
         val body = createJsonRpcRequestBody(method, params)
         val call = client.newCall(Request.Builder().url(httpUrl).headers(headers).post(body).build())
 
@@ -181,7 +170,7 @@ class HttpClient(
             override fun onFailure(call: Call, e: IOException) {
                 LOG.err(e) { "Error sending request for method=$method, params=${params.contentToString()}" }
 
-                ret.complete(getResponseFromException(e))
+                callback.complete(getResponseFromException(e))
             }
 
             override fun onResponse(call: Call, response: Response) {
@@ -189,7 +178,6 @@ class HttpClient(
                     try {
                         var stream = it.body.byteStream()
                         LOG.trc {
-                            // reading from the response body consumes it, so we need to create a new stream
                             val arr = stream.readBytes()
                             stream = ByteArrayInputStream(arr)
                             "Response: ${String(arr)}".removeSuffix("\n")
@@ -198,35 +186,31 @@ class HttpClient(
                         if (!it.isSuccessful) {
                             val bytes = stream.readBytes()
 
-                            // first, try to decode a JSON response
                             try {
-                                ret.complete(ByteArrayInputStream(bytes).decodeResult(resultDecoder))
+                                callback.complete(ByteArrayInputStream(bytes).decodeResult(resultDecoder))
                                 return
                             } catch (_: Exception) {
                             }
 
-                            // second, if decoding fails, return the response as a message
                             val message = "HTTP ${it.code}: ${it.message}"
                             val data = JsonElement(jsonMapper.writeValueAsString(String(bytes)))
                             val error = RpcError(RpcError.CODE_CALL_FAILED, message, data)
                             LOG.err { "Call failed for method=$method, params=${params.contentToString()}: $error" }
 
-                            ret.complete(failure(error))
+                            callback.complete(failure(error))
                             return
                         }
 
-                        ret.complete(stream.decodeResult(resultDecoder))
+                        callback.complete(stream.decodeResult(resultDecoder))
                     } catch (e: Exception) {
                         LOG.err(e) { "Error processing response for method=$method, params=${params.contentToString()}" }
 
-                        ret.complete(getResponseFromException(e))
+                        callback.complete(getResponseFromException(e))
                         return
                     }
                 }
             }
         })
-
-        return ret
     }
 
     private fun <T> InputStream.decodeResult(decoder: (JsonParser) -> T): Result<T, RpcError> {
@@ -278,8 +262,9 @@ class HttpClient(
     override fun <T : Any> subscribe(
         params: Array<*>,
         resultDecoder: (JsonParser) -> T,
-    ): CompletableFuture<Result<ChannelReceiver<T>, RpcError>> {
-        return CompletableFuture.completedFuture(ERROR_SUBSCRIPTION_UNSUPPORTED)
+        callback: ResultCallback<Result<ChannelReceiver<T>, RpcError>>,
+    ) {
+        callback.complete(ERROR_SUBSCRIPTION_UNSUPPORTED)
     }
 
     override fun close() {
