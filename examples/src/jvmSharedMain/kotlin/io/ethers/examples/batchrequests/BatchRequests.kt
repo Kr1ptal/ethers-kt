@@ -8,10 +8,10 @@ import io.ethers.providers.types.BatchRpcRequest
 import io.ethers.providers.types.await
 import io.ethers.providers.types.batchRequest
 import io.ethers.providers.types.unwrap
+import io.github.artificialpb.bignum.BigDecimal
 import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
 import kotlinx.cli.default
-import io.github.artificialpb.bignum.BigDecimal
 
 /**
  * Request batching of pool reserves on different DEXes for WETH / USDC pair and calculating WETH price,

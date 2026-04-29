@@ -5,12 +5,12 @@ import io.ethers.core.types.AccountOverride
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
+import io.github.artificialpb.bignum.BigInteger
 import io.kotest.assertions.json.shouldEqualJson
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.maps.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import org.intellij.lang.annotations.Language
-import io.github.artificialpb.bignum.BigInteger
 
 class PrestateTracerTest : FunSpec({
     test("encode tracer") {

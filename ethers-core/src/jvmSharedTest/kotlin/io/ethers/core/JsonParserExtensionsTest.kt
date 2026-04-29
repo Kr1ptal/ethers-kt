@@ -6,10 +6,10 @@ import com.fasterxml.jackson.core.JsonToken
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
+import io.github.artificialpb.bignum.BigInteger
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
-import io.github.artificialpb.bignum.BigInteger
 
 class JsonParserExtensionsTest : FunSpec({
     val factory = JsonFactory()

@@ -17,10 +17,10 @@ import io.ethers.abigen.typedNestedClass
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.providers.middleware.Middleware
+import io.github.artificialpb.bignum.BigInteger
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.shouldBe
-import io.github.artificialpb.bignum.BigInteger
 import kotlin.reflect.full.companionObject
 import kotlin.reflect.full.isSubclassOf
 

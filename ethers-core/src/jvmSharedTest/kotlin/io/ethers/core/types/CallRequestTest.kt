@@ -5,6 +5,7 @@ import io.ethers.core.types.transaction.TxAccessList
 import io.ethers.core.types.transaction.TxBlob
 import io.ethers.core.types.transaction.TxDynamicFee
 import io.ethers.core.types.transaction.TxLegacy
+import io.github.artificialpb.bignum.BigInteger
 import io.kotest.assertions.json.shouldEqualJson
 import io.kotest.assertions.throwables.shouldThrowUnit
 import io.kotest.core.spec.style.FunSpec
@@ -12,7 +13,6 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
-import io.github.artificialpb.bignum.BigInteger
 
 class CallRequestTest : FunSpec({
     test("CallRequest serialization") {

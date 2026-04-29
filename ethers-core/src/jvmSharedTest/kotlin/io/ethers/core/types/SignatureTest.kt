@@ -2,12 +2,12 @@ package io.ethers.core.types
 
 import io.ethers.core.isFailure
 import io.ethers.core.isSuccess
+import io.github.artificialpb.bignum.BigInteger
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
-import io.github.artificialpb.bignum.BigInteger
 
 class SignatureTest : FunSpec({
     context("invalid recoveryId") {

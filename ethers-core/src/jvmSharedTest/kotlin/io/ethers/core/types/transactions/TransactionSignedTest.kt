@@ -17,6 +17,7 @@ import io.ethers.core.types.transaction.TxLegacy
 import io.ethers.core.types.transaction.TxType
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncoder
+import io.github.artificialpb.bignum.BigInteger
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.WithDataTestName
 import io.kotest.datatest.withData
@@ -33,7 +34,6 @@ import io.kotest.property.checkAll
 import io.kotest.property.exhaustive.map
 import io.kotest.property.exhaustive.of
 import java.io.File
-import io.github.artificialpb.bignum.BigInteger
 import kotlin.random.Random
 
 class TransactionSignedTest : FunSpec({

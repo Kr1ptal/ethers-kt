@@ -14,12 +14,12 @@ import io.ethers.core.types.transaction.TxLegacy
 import io.ethers.core.types.transaction.TxSetCode
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncoder
+import io.github.artificialpb.bignum.BigInteger
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
-import io.github.artificialpb.bignum.BigInteger
 
 class TransactionUnsignedTest : FunSpec({
     val accessList = listOf(

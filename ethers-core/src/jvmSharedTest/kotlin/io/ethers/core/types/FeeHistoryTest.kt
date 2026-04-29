@@ -1,10 +1,10 @@
 package io.ethers.core.types
 
 import io.ethers.core.Jackson
+import io.github.artificialpb.bignum.BigInteger
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import org.intellij.lang.annotations.Language
-import io.github.artificialpb.bignum.BigInteger
 
 class FeeHistoryTest : FunSpec({
     test("FeeHistory deserialization - new format") {

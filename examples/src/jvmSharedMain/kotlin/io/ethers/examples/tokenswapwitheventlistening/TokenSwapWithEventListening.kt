@@ -7,11 +7,11 @@ import io.ethers.examples.gen.UniswapV2Pair
 import io.ethers.examples.gen.UniswapV2Router02
 import io.ethers.providers.Provider
 import io.ethers.signers.PrivateKeySigner
+import io.github.artificialpb.bignum.BigInteger
 import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
 import kotlinx.cli.default
 import kotlinx.cli.required
-import io.github.artificialpb.bignum.BigInteger
 
 /**
  * Uniswap V2 ETH to ERC20 swap with listening to UniswapV2Pair Sync event

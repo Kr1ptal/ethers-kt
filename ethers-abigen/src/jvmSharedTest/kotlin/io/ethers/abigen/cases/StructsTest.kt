@@ -11,10 +11,10 @@ import io.ethers.abigen.nestedClass
 import io.ethers.abigen.parametrizedBy
 import io.ethers.abigen.typedNestedClass
 import io.ethers.core.types.Bytes
+import io.github.artificialpb.bignum.BigInteger
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
-import io.github.artificialpb.bignum.BigInteger
 import kotlin.reflect.full.companionObjectInstance
 import kotlin.reflect.full.primaryConstructor
 

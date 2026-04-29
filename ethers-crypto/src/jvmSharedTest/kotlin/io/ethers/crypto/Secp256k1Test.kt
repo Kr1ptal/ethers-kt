@@ -1,5 +1,6 @@
 package io.ethers.crypto
 
+import io.github.artificialpb.bignum.BigInteger
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.inspectors.forAll
@@ -8,7 +9,6 @@ import io.kotest.matchers.shouldNotBe
 import io.kotest.property.Arb
 import io.kotest.property.arbitrary.bigInt
 import io.kotest.property.checkAll
-import io.github.artificialpb.bignum.BigInteger
 
 class Secp256k1Test : FunSpec({
     context("publicKeyToAddress") {

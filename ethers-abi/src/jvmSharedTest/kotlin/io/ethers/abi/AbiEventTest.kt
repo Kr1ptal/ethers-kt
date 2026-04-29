@@ -5,12 +5,12 @@ import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
 import io.ethers.core.types.Log
 import io.ethers.providers.middleware.Middleware
+import io.github.artificialpb.bignum.BigInteger
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.property.Exhaustive
 import io.kotest.property.checkAll
 import io.kotest.property.exhaustive.of
-import io.github.artificialpb.bignum.BigInteger
 
 class AbiEventTest : FunSpec({
     context("topic abi type") {

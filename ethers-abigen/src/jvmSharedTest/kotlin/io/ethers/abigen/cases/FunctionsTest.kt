@@ -13,10 +13,10 @@ import io.ethers.abigen.nestedClass
 import io.ethers.abigen.parametrizedBy
 import io.ethers.core.types.Address
 import io.ethers.providers.middleware.Middleware
+import io.github.artificialpb.bignum.BigInteger
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.shouldBe
-import io.github.artificialpb.bignum.BigInteger
 import kotlin.reflect.full.companionObject
 
 class FunctionsTest : FunSpec({

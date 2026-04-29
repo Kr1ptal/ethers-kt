@@ -4,10 +4,10 @@ import io.ethers.core.Jackson
 import io.ethers.core.json.JsonElement
 import io.ethers.core.types.transaction.TxBlob
 import io.ethers.core.types.transaction.TxType
+import io.github.artificialpb.bignum.BigInteger
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import org.intellij.lang.annotations.Language
-import io.github.artificialpb.bignum.BigInteger
 
 class RPCTransactionTest : FunSpec({
     test("deserialization") {

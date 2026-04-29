@@ -23,12 +23,12 @@ import io.ethers.logger.err
 import io.ethers.logger.getLogger
 import io.ethers.logger.wrn
 import io.ethers.providers.middleware.Middleware
+import io.github.artificialpb.bignum.BigInteger
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
-import io.github.artificialpb.bignum.BigInteger
 import java.util.concurrent.CompletableFuture
 
 class EnsMiddleware @JvmOverloads constructor(

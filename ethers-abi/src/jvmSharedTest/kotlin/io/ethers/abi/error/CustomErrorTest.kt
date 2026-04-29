@@ -5,10 +5,10 @@ import io.ethers.abi.AbiType
 import io.ethers.abi.ContractStruct
 import io.ethers.abi.StructFactory
 import io.ethers.core.types.Bytes
+import io.github.artificialpb.bignum.BigInteger
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.inspectors.forAll
 import io.kotest.matchers.shouldBe
-import io.github.artificialpb.bignum.BigInteger
 
 class CustomErrorTest : FunSpec({
     CustomErrorRegistry.prependResolver(MockCustomErrorResolver())

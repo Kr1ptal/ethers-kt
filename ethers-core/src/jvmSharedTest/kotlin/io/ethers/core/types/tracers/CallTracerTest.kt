@@ -5,6 +5,7 @@ import io.ethers.core.json.JsonElement
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
+import io.github.artificialpb.bignum.BigInteger
 import io.kotest.assertions.json.shouldEqualJson
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData
@@ -12,7 +13,6 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import org.intellij.lang.annotations.Language
-import io.github.artificialpb.bignum.BigInteger
 
 class CallTracerTest : FunSpec({
     val callTracer = CallTracer(onlyTopCall = true, withLog = true)
