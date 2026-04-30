@@ -13,6 +13,9 @@ import com.squareup.kotlinpoet.asClassName
 import io.ethers.abi.AbiType
 import io.ethers.abi.ContractStruct
 import io.ethers.abi.StructFactory
+import io.ethers.core.types.Address
+import io.ethers.core.types.Bytes
+import io.github.artificialpb.bignum.BigInteger
 
 private val ABI_TYPE_SIMPLE_NAME = AbiType::class.java.simpleName
 
@@ -30,7 +33,18 @@ sealed interface AbiTypeParameter {
         override val abiType: AbiType<*>,
         override val indexed: Boolean,
     ) : AbiTypeParameter {
-        override val apiType: TypeName = abiType.classType.asClassName()
+        override val apiType: TypeName = when (abiType) {
+            AbiType.Address -> Address::class.asClassName()
+            AbiType.Bool -> Boolean::class.asClassName()
+            AbiType.Bytes -> Bytes::class.asClassName()
+            AbiType.String -> String::class.asClassName()
+            is AbiType.FixedBytes -> Bytes::class.asClassName()
+            is AbiType.Int -> BigInteger::class.asClassName()
+            is AbiType.UInt -> BigInteger::class.asClassName()
+            is AbiType.FixedArray<*>, is AbiType.Array<*>, is AbiType.Tuple<*> -> {
+                throw IllegalArgumentException("AbiType.${abiType::class.simpleName} is not a value type")
+            }
+        }
         override val originalType: String = abiType.abiType
         override val abiTypeInitializer: String
 
@@ -130,9 +144,9 @@ sealed interface AbiTypeParameter {
                         .addModifiers(KModifier.OVERRIDE)
                         .addAnnotation(JvmStatic::class)
                         .initializer(
-                            "%T(%T::class, ::fromTuple, %L)",
+                            "%T(%S, ::fromTuple, %L)",
                             AbiType.Struct::class,
-                            className,
+                            className.simpleName,
                             getFieldAbiInitializers(),
                         )
                         .build(),

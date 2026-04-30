@@ -45,7 +45,7 @@ class EventsTest : FunSpec({
                 listOf(
                     AbiType.UInt(16),
                     AbiType.Struct(
-                        clazz.typedNestedClass("Details"),
+                        "Details",
                         { throw kotlin.UnsupportedOperationException() },
                         AbiType.Struct.Field("success", AbiType.Bool),
                         AbiType.Struct.Field("data", AbiType.Bytes),
@@ -100,7 +100,7 @@ class EventsTest : FunSpec({
                         AbiEvent.Token(AbiType.UInt(256), true),
                         AbiEvent.Token(
                             AbiType.Struct(
-                                clazz.typedNestedClass("Details"),
+                                "Details",
                                 { throw kotlin.UnsupportedOperationException() },
                                 AbiType.Struct.Field("success", AbiType.Bool),
                                 AbiType.Struct.Field("data", AbiType.Bytes),
@@ -117,7 +117,7 @@ class EventsTest : FunSpec({
                         AbiEvent.Token(AbiType.UInt(16), false),
                         AbiEvent.Token(
                             AbiType.Struct(
-                                clazz.typedNestedClass("Details"),
+                                "Details",
                                 { throw kotlin.UnsupportedOperationException() },
                                 AbiType.Struct.Field("success", AbiType.Bool),
                                 AbiType.Struct.Field("data", AbiType.Bytes),

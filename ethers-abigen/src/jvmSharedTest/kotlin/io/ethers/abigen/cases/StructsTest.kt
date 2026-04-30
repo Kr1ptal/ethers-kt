@@ -31,31 +31,31 @@ class StructsTest : FunSpec({
         test("all factories have correct abi signature") {
             val factories = classes.map { it.companionObjectInstance as StructFactory<*> }
             val simple = AbiType.Struct(
-                clazz.typedNestedClass("Simple"),
+                "Simple",
                 { throw kotlin.UnsupportedOperationException() },
                 AbiType.Struct.Field("success", AbiType.Bool),
                 AbiType.Struct.Field("data", AbiType.Bytes),
             )
             val complex = AbiType.Struct(
-                clazz.typedNestedClass("Complex"),
+                "Complex",
                 { throw kotlin.UnsupportedOperationException() },
                 AbiType.Struct.Field("status", AbiType.Array(AbiType.Array(AbiType.Array(AbiType.UInt(256))))),
                 AbiType.Struct.Field("msg", AbiType.FixedArray(3, AbiType.String)),
             )
             val nested = AbiType.Struct(
-                clazz.typedNestedClass("Nested"),
+                "Nested",
                 { throw kotlin.UnsupportedOperationException() },
                 AbiType.Struct.Field("desc", AbiType.String),
                 AbiType.Struct.Field("simple", simple),
                 AbiType.Struct.Field("complex", complex),
             )
             val classStruct = AbiType.Struct(
-                clazz.typedNestedClass("classStruct"),
+                "classStruct",
                 { throw kotlin.UnsupportedOperationException() },
                 AbiType.Struct.Field("desc", AbiType.String),
             )
             val packageStruct = AbiType.Struct(
-                clazz.typedNestedClass("packageStruct"),
+                "packageStruct",
                 { throw kotlin.UnsupportedOperationException() },
                 AbiType.Struct.Field("desc", AbiType.String),
             )
