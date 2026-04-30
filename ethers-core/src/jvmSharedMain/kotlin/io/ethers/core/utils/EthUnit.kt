@@ -5,7 +5,7 @@ import io.ethers.core.utils.EthUnit.Companion.GWEI
 import io.ethers.core.utils.EthUnit.Companion.WEI
 import io.github.artificialpb.bignum.BigDecimal
 import io.github.artificialpb.bignum.BigInteger
-import java.math.RoundingMode
+import io.github.artificialpb.bignum.RoundingMode
 
 /**
  * Represents a unit of measurement within the EVM ecosystem.
