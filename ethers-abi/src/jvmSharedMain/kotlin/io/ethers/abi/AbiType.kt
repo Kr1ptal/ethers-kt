@@ -8,6 +8,7 @@ import io.ethers.abi.AbiType.Tuple
 import io.ethers.abi.eip712.EIP712Codec
 import io.ethers.crypto.Hashing
 import io.github.artificialpb.bignum.BigInteger
+import kotlin.reflect.KClass
 
 /**
  * Abi type definitions.
@@ -21,17 +22,24 @@ sealed interface AbiType<T : Any> {
     val abiType: kotlin.String
 
     /**
+     * Kotlin class type of this abi type.
+     * */
+    val classType: KClass<T>
+
+    /**
      * Whether this type is dynamic or has a fixed size when encoded.
      * */
     val isDynamic: Boolean
 
     data object Address : AbiType<io.ethers.core.types.Address> {
         override val abiType: kotlin.String = "address"
+        override val classType = io.ethers.core.types.Address::class
         override val isDynamic: Boolean = false
     }
 
     data class FixedBytes(val length: kotlin.Int) : AbiType<io.ethers.core.types.Bytes> {
         override val abiType: kotlin.String = "bytes$length"
+        override val classType = io.ethers.core.types.Bytes::class
         override val isDynamic: Boolean = false
 
         init {
@@ -43,11 +51,13 @@ sealed interface AbiType<T : Any> {
 
     data object Bytes : AbiType<io.ethers.core.types.Bytes> {
         override val abiType: kotlin.String = "bytes"
+        override val classType = io.ethers.core.types.Bytes::class
         override val isDynamic: Boolean = true
     }
 
     data class Int(val bitSize: kotlin.Int) : AbiType<BigInteger> {
         override val abiType: kotlin.String = "int$bitSize"
+        override val classType = BigInteger::class
         override val isDynamic: Boolean = false
 
         init {
@@ -59,6 +69,7 @@ sealed interface AbiType<T : Any> {
 
     data class UInt(val bitSize: kotlin.Int) : AbiType<BigInteger> {
         override val abiType: kotlin.String = "uint$bitSize"
+        override val classType = BigInteger::class
         override val isDynamic: Boolean = false
 
         init {
@@ -70,16 +81,21 @@ sealed interface AbiType<T : Any> {
 
     data object Bool : AbiType<Boolean> {
         override val abiType: kotlin.String = "bool"
+        override val classType = Boolean::class
         override val isDynamic: Boolean = false
     }
 
     data object String : AbiType<kotlin.String> {
         override val abiType: kotlin.String = "string"
+        override val classType = kotlin.String::class
         override val isDynamic: Boolean = true
     }
 
     data class FixedArray<T : Any>(val length: kotlin.Int, val type: AbiType<T>) : AbiType<List<T>> {
         override val abiType: kotlin.String = "${type.abiType}[$length]"
+
+        @Suppress("UNCHECKED_CAST")
+        override val classType = List::class as KClass<List<T>>
         override val isDynamic: Boolean = type.isDynamic
 
         companion object {
@@ -93,6 +109,9 @@ sealed interface AbiType<T : Any> {
 
     data class Array<T : Any>(val type: AbiType<T>) : AbiType<List<T>> {
         override val abiType: kotlin.String = "${type.abiType}[]"
+
+        @Suppress("UNCHECKED_CAST")
+        override val classType = List::class as KClass<List<T>>
         override val isDynamic: Boolean = true
 
         companion object {
@@ -105,23 +124,52 @@ sealed interface AbiType<T : Any> {
     }
 
     class Struct<T : ContractStruct>(
+        override val classType: KClass<T>,
         val name: kotlin.String,
         factory: (List<Any>) -> T,
         val fields: List<Field>,
-    ) : Tuple<T>(factory, fields.map { it.type }), AbiType<T> {
-        constructor(name: kotlin.String, factory: (List<Any>) -> T, vararg fields: Field) : this(
+    ) : Tuple<T>(classType, factory, fields.map { it.type }), AbiType<T> {
+        constructor(classType: KClass<T>, factory: (List<Any>) -> T, fields: List<Field>) : this(
+            classType,
+            classType.simpleName ?: throw IllegalArgumentException("Struct class must have a simple name"),
+            factory,
+            fields,
+        )
+
+        constructor(classType: KClass<T>, factory: (List<Any>) -> T, vararg fields: Field) : this(
+            classType,
+            factory,
+            fields.toList(),
+        )
+
+        constructor(classType: KClass<T>, name: kotlin.String, factory: (List<Any>) -> T, vararg fields: Field) : this(
+            classType,
             name,
             factory,
             fields.toList(),
         )
 
-        constructor(name: kotlin.String, factory: StructFactory<T>, fields: List<Field>) : this(
+        constructor(classType: KClass<T>, factory: StructFactory<T>, fields: List<Field>) : this(
+            classType,
+            factory::fromTuple,
+            fields,
+        )
+
+        constructor(classType: KClass<T>, name: kotlin.String, factory: StructFactory<T>, fields: List<Field>) : this(
+            classType,
             name,
             factory::fromTuple,
             fields,
         )
 
-        constructor(name: kotlin.String, factory: StructFactory<T>, vararg fields: Field) : this(
+        constructor(classType: KClass<T>, factory: StructFactory<T>, vararg fields: Field) : this(
+            classType,
+            factory,
+            fields.toList(),
+        )
+
+        constructor(classType: KClass<T>, name: kotlin.String, factory: StructFactory<T>, vararg fields: Field) : this(
+            classType,
             name,
             factory,
             fields.toList(),
@@ -145,6 +193,7 @@ sealed interface AbiType<T : Any> {
             if (this === other) return true
             if (other !is Struct<*>) return false
 
+            if (classType != other.classType) return false
             if (name != other.name) return false
             if (fields != other.fields) return false
 
@@ -152,13 +201,14 @@ sealed interface AbiType<T : Any> {
         }
 
         override fun hashCode(): kotlin.Int {
-            var result = name.hashCode()
+            var result = classType.hashCode()
+            result = 31 * result + name.hashCode()
             result = 31 * result + fields.hashCode()
             return result
         }
 
         override fun toString(): kotlin.String {
-            return "Struct(name=$name, fields=$fields)"
+            return "Struct(classType=$classType, name=$name, fields=$fields)"
         }
 
         data class Field(val name: kotlin.String, val type: AbiType<*>) {
@@ -167,6 +217,7 @@ sealed interface AbiType<T : Any> {
     }
 
     open class Tuple<T : Any>(
+        override val classType: KClass<T>,
         val factory: (List<Any>) -> T,
         val types: List<AbiType<*>>,
     ) : AbiType<T> {
@@ -195,20 +246,25 @@ sealed interface AbiType<T : Any> {
 
             other as Tuple<*>
 
+            if (classType != other.classType) return false
             if (types != other.types) return false
 
             return true
         }
 
         override fun hashCode(): kotlin.Int {
-            return types.hashCode()
+            var result = classType.hashCode()
+            result = 31 * result + types.hashCode()
+            return result
         }
 
         override fun toString(): kotlin.String {
-            return "Tuple(types=$types)"
+            return "Tuple(classType=$classType, types=$types)"
         }
 
         companion object {
+            @Suppress("UNCHECKED_CAST")
+            private val CLASS_TYPE_TUPLE = List::class as KClass<List<Any>>
             private val TUPLE_FACTORY: (List<Any>) -> List<Any> = { it }
 
             /**
@@ -224,7 +280,7 @@ sealed interface AbiType<T : Any> {
             @JvmStatic
             @JvmName("ofTypes")
             operator fun invoke(types: List<AbiType<*>>): Tuple<out List<Any>> {
-                return Tuple(TUPLE_FACTORY, types)
+                return Tuple(CLASS_TYPE_TUPLE, TUPLE_FACTORY, types)
             }
         }
     }

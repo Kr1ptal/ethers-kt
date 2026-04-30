@@ -113,7 +113,7 @@ class CustomErrorTest : FunSpec({
         companion object : StructFactory<ErrorMsg> {
             @JvmStatic
             override val abi: AbiType.Struct<ErrorMsg> = AbiType.Struct(
-                "ErrorMsg",
+                ErrorMsg::class,
                 ::fromTuple,
                 AbiType.Struct.Field("msg", AbiType.String),
                 AbiType.Struct.Field("value", AbiType.UInt(256)),
