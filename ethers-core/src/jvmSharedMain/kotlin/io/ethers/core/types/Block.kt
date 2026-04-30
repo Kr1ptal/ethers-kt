@@ -18,7 +18,7 @@ import io.ethers.core.readHexLong
 import io.ethers.core.readListOf
 import io.ethers.core.readListOfHashes
 import io.ethers.core.readOrNull
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 @JsonDeserialize(using = BlockWithHashesDeserializer::class)
 data class BlockWithHashes(

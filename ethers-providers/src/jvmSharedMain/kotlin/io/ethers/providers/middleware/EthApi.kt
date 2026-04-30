@@ -25,7 +25,7 @@ import io.ethers.providers.types.FilterPoller
 import io.ethers.providers.types.PendingTransaction
 import io.ethers.providers.types.RpcRequest
 import io.ethers.providers.types.RpcSubscribe
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 interface EthApi {
     /**

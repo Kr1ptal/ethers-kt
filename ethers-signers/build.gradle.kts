@@ -9,6 +9,7 @@ kotlin {
             dependencies {
                 api(project(":ethers-core"))
                 api(project(":ethers-crypto"))
+                api(libs.bignumkt)
             }
         }
 

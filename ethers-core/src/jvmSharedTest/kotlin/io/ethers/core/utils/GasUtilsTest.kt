@@ -1,8 +1,8 @@
 package io.ethers.core.utils
 
+import io.github.artificialpb.bignum.BigInteger
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
-import java.math.BigInteger
 
 class GasUtilsTest : FunSpec({
     context("getEffectiveGasTip") {

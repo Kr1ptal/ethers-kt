@@ -8,6 +8,7 @@ kotlin {
     sourceSets {
         val jvmSharedMain by getting {
             dependencies {
+                api(libs.bignumkt)
                 implementation(libs.ditchoom.buffer)
             }
         }

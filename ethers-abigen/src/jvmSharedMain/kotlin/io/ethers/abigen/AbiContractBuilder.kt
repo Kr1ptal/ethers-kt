@@ -38,8 +38,8 @@ import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
 import io.ethers.core.types.Log
 import io.ethers.providers.middleware.Middleware
+import io.github.artificialpb.bignum.BigInteger
 import java.io.File
-import java.math.BigInteger
 import javax.lang.model.SourceVersion
 import kotlin.reflect.KClass
 import kotlin.reflect.full.functions

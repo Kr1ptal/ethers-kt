@@ -11,7 +11,7 @@ import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncodable
 import io.ethers.rlp.RlpEncoder
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 /**
  * An [EIP-4844](https://eips.ethereum.org/EIPS/eip-4844) blob-carrying transaction with additional

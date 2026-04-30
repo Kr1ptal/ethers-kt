@@ -7,8 +7,8 @@ import io.ethers.abi.AbiType.FixedArray
 import io.ethers.abi.AbiType.Tuple
 import io.ethers.abi.eip712.EIP712Codec
 import io.ethers.crypto.Hashing
+import io.github.artificialpb.bignum.BigInteger
 import java.lang.reflect.Modifier
-import java.math.BigInteger
 import kotlin.reflect.KClass
 
 /**

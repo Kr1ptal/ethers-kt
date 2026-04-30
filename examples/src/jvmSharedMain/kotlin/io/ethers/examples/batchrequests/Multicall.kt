@@ -6,10 +6,10 @@ import io.ethers.core.types.Address
 import io.ethers.core.types.BlockId
 import io.ethers.examples.gen.ERC20
 import io.ethers.providers.Provider
+import io.github.artificialpb.bignum.BigInteger
 import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
 import kotlinx.cli.default
-import java.math.BigInteger
 
 /**
  * Multicall example demonstrates how to aggregate multiple contract calls into Multicall3.

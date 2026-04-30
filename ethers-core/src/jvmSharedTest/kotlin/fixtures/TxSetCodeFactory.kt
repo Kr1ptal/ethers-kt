@@ -5,7 +5,7 @@ import io.ethers.core.types.Address
 import io.ethers.core.types.Authorization
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.transaction.TxSetCode
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 object TxSetCodeFactory {
     fun create(

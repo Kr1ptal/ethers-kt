@@ -1,13 +1,13 @@
 package io.ethers.core.utils
 
+import io.github.artificialpb.bignum.BigDecimal
+import io.github.artificialpb.bignum.BigInteger
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData
 import io.kotest.matchers.comparables.shouldBeEqualComparingTo
 import io.kotest.property.Arb
 import io.kotest.property.arbitrary.bigInt
 import io.kotest.property.checkAll
-import java.math.BigDecimal
-import java.math.BigInteger
 
 class EthUnitTest : FunSpec({
     data class ConversionTestData(

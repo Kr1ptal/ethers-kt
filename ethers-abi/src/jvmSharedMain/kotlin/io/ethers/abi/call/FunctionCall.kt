@@ -13,7 +13,7 @@ import io.ethers.core.types.StateOverride
 import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.PendingTransaction
 import io.ethers.providers.types.RpcRequest
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 class FunctionCall<T>(
     provider: Middleware,

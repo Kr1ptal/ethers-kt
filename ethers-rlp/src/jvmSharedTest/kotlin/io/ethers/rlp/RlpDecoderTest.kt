@@ -1,11 +1,11 @@
 package io.ethers.rlp
 
+import io.github.artificialpb.bignum.BigInteger
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
-import java.math.BigInteger
 
 class RlpDecoderTest : FunSpec({
     context("decode - BigInteger") {

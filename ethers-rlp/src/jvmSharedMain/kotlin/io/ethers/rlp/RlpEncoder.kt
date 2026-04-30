@@ -3,7 +3,7 @@ package io.ethers.rlp
 import com.ditchoom.buffer.BufferFactory
 import com.ditchoom.buffer.Default
 import com.ditchoom.buffer.PlatformBuffer
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 import kotlin.math.max
 
 /**

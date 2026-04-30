@@ -8,6 +8,7 @@ kotlin {
         val jvmSharedMain by getting {
             dependencies {
                 implementation(libs.kotlinx.cli)
+                implementation(libs.bignumkt)
                 runtimeOnly(libs.bundles.log4j2)
 
                 implementation(project.dependencies.platform(libs.ethers.bom))

@@ -18,7 +18,7 @@ import io.ethers.core.readHexLong
 import io.ethers.core.readListOf
 import io.ethers.core.readOrNull
 import io.ethers.core.types.transaction.TxType
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 /**
  * Result of transaction execution.

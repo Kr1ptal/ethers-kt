@@ -12,6 +12,7 @@ kotlin {
 
                 api(project(":ethers-core"))
                 api(project(":ethers-signers"))
+                api(libs.bignumkt)
 
                 implementation(project(":logger"))
                 implementation(libs.jctools)

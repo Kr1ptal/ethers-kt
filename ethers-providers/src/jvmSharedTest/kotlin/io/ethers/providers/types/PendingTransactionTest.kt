@@ -10,13 +10,13 @@ import io.ethers.core.types.Log
 import io.ethers.core.types.TransactionReceipt
 import io.ethers.core.types.transaction.TxType
 import io.ethers.providers.Provider
+import io.github.artificialpb.bignum.BigInteger
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.intellij.lang.annotations.Language
-import java.math.BigInteger
 import java.time.Duration
 
 class PendingTransactionTest : FunSpec({

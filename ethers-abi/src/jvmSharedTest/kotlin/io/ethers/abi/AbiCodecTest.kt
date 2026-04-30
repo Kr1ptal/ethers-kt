@@ -2,6 +2,7 @@ package io.ethers.abi
 
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
+import io.github.artificialpb.bignum.BigInteger
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.inspectors.forAll
@@ -12,7 +13,6 @@ import io.kotest.property.Exhaustive
 import io.kotest.property.arbitrary.bigInt
 import io.kotest.property.checkAll
 import io.kotest.property.exhaustive.of
-import java.math.BigInteger
 
 class AbiCodecTest : FunSpec({
     context("encoding") {

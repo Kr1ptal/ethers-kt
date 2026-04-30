@@ -9,7 +9,7 @@ import io.ethers.core.readAnyLong
 import io.ethers.core.readHexBigInteger
 import io.ethers.core.readListOf
 import io.ethers.core.readOrNull
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 /**
  * This class represents a FeeHistory.

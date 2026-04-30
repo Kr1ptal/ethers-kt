@@ -11,7 +11,7 @@ import io.ethers.core.types.transaction.TxAccessList
 import io.ethers.core.types.transaction.TxBlob
 import io.ethers.core.types.transaction.TxDynamicFee
 import io.ethers.core.types.transaction.TxLegacy
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 @JsonSerialize(using = CallRequestSerializer::class)
 class CallRequest() : IntoCallRequest {

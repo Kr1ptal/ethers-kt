@@ -15,7 +15,7 @@ import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Log
 import io.ethers.providers.middleware.Middleware
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 public class ERC1155(
     provider: Middleware,
@@ -33,7 +33,7 @@ public class ERC1155(
      */
     public fun balanceOf(_owner: Address, _id: BigInteger): ReadFunctionCall<BigInteger> = ReadFunctionCall(this.provider, this.address, FUNCTION_BALANCE_OF.encodeCall(listOf(_owner, _id))) {
         val data = FUNCTION_BALANCE_OF.decodeResponse(it)
-        data[0] as java.math.BigInteger
+        data[0] as io.github.artificialpb.bignum.BigInteger
     }
 
     /**
@@ -52,7 +52,7 @@ public class ERC1155(
         FUNCTION_BALANCE_OF_BATCH.encodeCall(listOf<Any>(_owners, _ids)),
     ) {
         val data = FUNCTION_BALANCE_OF_BATCH.decodeResponse(it)
-        data[0] as List<java.math.BigInteger>
+        data[0] as List<io.github.artificialpb.bignum.BigInteger>
     }
 
     /**
@@ -358,8 +358,8 @@ public class ERC1155(
                 data[0] as io.ethers.core.types.Address,
                 data[1] as io.ethers.core.types.Address,
                 data[2] as io.ethers.core.types.Address,
-                data[3] as List<java.math.BigInteger>,
-                data[4] as List<java.math.BigInteger>,
+                data[3] as List<io.github.artificialpb.bignum.BigInteger>,
+                data[4] as List<io.github.artificialpb.bignum.BigInteger>,
                 log,
             )
         }
@@ -434,8 +434,8 @@ public class ERC1155(
                 data[0] as io.ethers.core.types.Address,
                 data[1] as io.ethers.core.types.Address,
                 data[2] as io.ethers.core.types.Address,
-                data[3] as java.math.BigInteger,
-                data[4] as java.math.BigInteger,
+                data[3] as io.github.artificialpb.bignum.BigInteger,
+                data[4] as io.github.artificialpb.bignum.BigInteger,
                 log,
             )
         }
@@ -491,7 +491,7 @@ public class ERC1155(
             override fun decode(log: Log): URI? = super.decode(log)
 
             @JvmStatic
-            override fun decode(log: Log, `data`: List<Any>): URI = URI(data[0] as kotlin.String, data[1] as java.math.BigInteger, log)
+            override fun decode(log: Log, `data`: List<Any>): URI = URI(data[0] as kotlin.String, data[1] as io.github.artificialpb.bignum.BigInteger, log)
         }
     }
 

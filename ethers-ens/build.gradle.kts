@@ -22,6 +22,7 @@ kotlin {
                 api(project(":ethers-core"))
                 api(project(":ethers-abi"))
                 api(project(":ethers-providers"))
+                api(libs.bignumkt)
 
                 implementation(project(":logger"))
             }

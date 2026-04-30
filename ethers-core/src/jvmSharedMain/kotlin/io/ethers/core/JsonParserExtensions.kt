@@ -7,7 +7,7 @@ import io.ethers.core.types.Address
 import io.ethers.core.types.Bloom
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 /**
  * Check if end of JSON object is reached.

@@ -1,6 +1,6 @@
 package io.ethers.crypto
 
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 import fr.acinq.secp256k1.Secp256k1 as AcinqSecp256k1
 
 /**

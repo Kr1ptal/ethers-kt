@@ -9,7 +9,7 @@ import io.ethers.core.types.Hash
 import io.ethers.core.types.IntoCallRequest
 import io.ethers.core.types.Signature
 import io.ethers.core.utils.GasUtils
-import java.math.BigInteger
+import io.github.artificialpb.bignum.BigInteger
 
 /**
  * A [Transaction] with recovered sender address ([from]) and [hash].

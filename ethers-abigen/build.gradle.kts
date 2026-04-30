@@ -10,6 +10,7 @@ kotlin {
                 api(project(":ethers-core"))
                 api(project(":ethers-providers"))
                 api(project(":ethers-abi"))
+                api(libs.bignumkt)
 
                 implementation(libs.kotlin.reflect)
                 implementation(libs.kotlinx.atomicfu)

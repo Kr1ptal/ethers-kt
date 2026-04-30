@@ -11,10 +11,10 @@ import io.ethers.examples.gen.Seaport_1_6
 import io.ethers.providers.Provider
 import io.ethers.signers.PrivateKeySigner
 import io.ethers.signers.Signer
+import io.github.artificialpb.bignum.BigInteger
 import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
 import kotlinx.cli.default
-import java.math.BigInteger
 import kotlin.system.exitProcess
 
 /**
