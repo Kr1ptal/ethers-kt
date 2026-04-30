@@ -19,7 +19,7 @@ cryptography = "0.6.0"
 ditchoom-buffer = "4.2.2"
 dokka = "2.2.0"
 agp = "9.1.0"
-bignumkt = "0.1.0-SNAPSHOT"
+bignumkt = "1.0.0"
 
 [libraries]
 kotlin-bom = { module = "org.jetbrains.kotlin:kotlin-bom", version.ref = "kotlin" }
