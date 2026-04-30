@@ -42,7 +42,7 @@ class ErrorsTest : FunSpec({
                     AbiType.UInt(256),
                     AbiType.Array(
                         AbiType.Struct(
-                            detailsClass,
+                            clazz.typedNestedClass("Details"),
                             { throw kotlin.UnsupportedOperationException() },
                             AbiType.Struct.Field("success", AbiType.Bool),
                             AbiType.Struct.Field("data", AbiType.Bytes),

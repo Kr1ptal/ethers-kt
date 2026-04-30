@@ -9,6 +9,7 @@ import com.squareup.kotlinpoet.KModifier
 import com.squareup.kotlinpoet.ParameterSpec
 import com.squareup.kotlinpoet.ParameterizedTypeName.Companion.parameterizedBy
 import com.squareup.kotlinpoet.PropertySpec
+import com.squareup.kotlinpoet.TypeName
 import com.squareup.kotlinpoet.TypeSpec
 import com.squareup.kotlinpoet.WildcardTypeName
 import com.squareup.kotlinpoet.asClassName
@@ -41,7 +42,6 @@ import io.ethers.providers.middleware.Middleware
 import io.github.artificialpb.bignum.BigInteger
 import java.io.File
 import javax.lang.model.SourceVersion
-import kotlin.reflect.KClass
 import kotlin.reflect.full.functions
 import kotlin.reflect.full.memberProperties
 
@@ -437,7 +437,7 @@ class AbiContractBuilder(
         val selector = Bytes(AbiType.computeSignatureHash(function.name, inputs.map { it.abiType }).copyOfRange(0, 4))
         val generatedFunctionName = getNextUniqueFunctionName(
             functionRenames[function.name] ?: function.name,
-            inputs.map { it.abiType.classType },
+            inputs.map { it.apiType },
             selector,
         )
 
@@ -1156,7 +1156,7 @@ class AbiContractBuilder(
      * [uniqueFunctionNames] contains a name. Each new unique name + inputs combination is added to this set. If
      * there is a collision, the function name is suffixed with the selector.
      * */
-    private fun getNextUniqueFunctionName(baseName: String, inputs: List<KClass<*>>, selector: Bytes): String {
+    private fun getNextUniqueFunctionName(baseName: String, inputs: List<TypeName>, selector: Bytes): String {
         @Suppress("NAME_SHADOWING")
         var baseName = baseName
         if (isReservedJavaName(baseName)) {
@@ -1190,7 +1190,7 @@ class AbiContractBuilder(
     /**
      * Function uniqueness key, containing the function name and the list of input java types.
      * */
-    private data class UniqueFunction(val name: String, val inputs: List<KClass<*>>)
+    private data class UniqueFunction(val name: String, val inputs: List<TypeName>)
 
     /**
      * Triple of static (companion), instance, and optional scope function specs.
