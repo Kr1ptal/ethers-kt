@@ -1,15 +1,9 @@
 package io.ethers.providers
 
-import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.databind.json.JsonMapper
-import com.fasterxml.jackson.databind.util.TokenBuffer
 import io.channels.core.ChannelReceiver
-import io.ethers.core.Jackson
-import io.ethers.core.Jackson.createAndInitParser
+import io.ethers.core.Kotlinx
 import io.ethers.core.Result
 import io.ethers.core.failure
-import io.ethers.core.forEachArrayElement
-import io.ethers.core.forEachObjectField
 import io.ethers.core.json.JsonElement
 import io.ethers.core.success
 import io.ethers.logger.err
@@ -17,6 +11,12 @@ import io.ethers.logger.getLogger
 import io.ethers.logger.trc
 import io.ethers.providers.types.BatchRpcRequest
 import kotlinx.atomicfu.atomic
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.long
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.Headers
@@ -27,11 +27,9 @@ import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
 import java.io.IOException
-import java.io.InputStream
 import java.util.concurrent.CompletableFuture
+import kotlinx.serialization.json.JsonElement as KJsonElement
 
 /**
  * [JsonRpcClient] implementation via HTTP transport. Supports both single and batch requests. Subscriptions are not
@@ -41,14 +39,12 @@ class HttpClient(
     url: String,
     private val client: OkHttpClient,
     headers: Map<String, String> = emptyMap(),
-    private val jsonMapper: JsonMapper = Jackson.MAPPER,
 ) : JsonRpcClient {
     @JvmOverloads
     constructor(url: String, config: RpcClientConfig = RpcClientConfig()) : this(
         url,
         config.client!!,
         config.requestHeaders,
-        config.jsonMapper,
     )
 
     private val LOG = getLogger()
@@ -72,7 +68,6 @@ class HttpClient(
             override fun onFailure(call: Call, e: IOException) {
                 LOG.err(e) { "Error sending batch request" }
 
-                // complete all requests and the batch future
                 val response = getResponseFromException(e)
                 for (i in batch.responses.indices) {
                     batch.responses[i].complete(response)
@@ -84,42 +79,30 @@ class HttpClient(
             override fun onResponse(call: Call, response: Response) {
                 response.use {
                     try {
-                        var stream = it.body.byteStream()
-                        LOG.trc {
-                            // reading from the response body consumes it, so we need to create a new stream
-                            val arr = stream.readBytes()
-                            stream = ByteArrayInputStream(arr)
-                            "Batch response: ${String(arr)}".removeSuffix("\n")
-                        }
+                        var text = it.body.string()
+                        LOG.trc { "Batch response: ${text.removeSuffix("\n")}" }
 
                         if (!it.isSuccessful) {
-                            val bytes = stream.readBytes()
-
                             // first, try to decode a JSON response
                             try {
-                                ByteArrayInputStream(bytes).useJsonParser {
-                                    val parser = this
-
-                                    parser.forEachArrayElement {
-                                        var index = -1
-                                        val result = parser.decodeNextResult { id ->
-                                            index = requestIndexPerId[id] ?: throw Exception("Invalid response ID: $id")
-                                            batch.requests[index].resultDecoder
-                                        }
-
-                                        batch.responses[index].complete(result)
+                                val parsed = Kotlinx.DEFAULT.parseToJsonElement(text)
+                                for (element in parsed.jsonArray) {
+                                    val obj = element.jsonObject
+                                    var index = -1
+                                    val result = obj.decodeNextResult { id ->
+                                        index = requestIndexPerId[id] ?: throw Exception("Invalid response ID: $id")
+                                        batch.requests[index].resultDecoder
                                     }
+                                    batch.responses[index].complete(result)
                                 }
-
                                 ret.complete(true)
                                 return
                             } catch (_: Exception) {
                             }
 
                             // second, if decoding fails, return the response as a message and complete all requests
-                            // including the batch future
                             val message = "HTTP ${it.code}: ${it.message}"
-                            val data = JsonElement(jsonMapper.writeValueAsString(String(bytes)))
+                            val data = JsonElement(JsonPrimitive(text).toString())
                             val error = RpcError(RpcError.CODE_CALL_FAILED, message, data)
                             val failure = failure(error)
 
@@ -133,18 +116,15 @@ class HttpClient(
                             return
                         }
 
-                        stream.useJsonParser {
-                            val parser = this
-
-                            parser.forEachArrayElement {
-                                var index = -1
-                                val result = parser.decodeNextResult { id ->
-                                    index = requestIndexPerId[id] ?: throw Exception("Invalid response ID: $id")
-                                    batch.requests[index].resultDecoder
-                                }
-
-                                batch.responses[index].complete(result)
+                        val parsed = Kotlinx.DEFAULT.parseToJsonElement(text)
+                        for (element in parsed.jsonArray) {
+                            val obj = element.jsonObject
+                            var index = -1
+                            val result = obj.decodeNextResult { id ->
+                                index = requestIndexPerId[id] ?: throw Exception("Invalid response ID: $id")
+                                batch.requests[index].resultDecoder
                             }
+                            batch.responses[index].complete(result)
                         }
 
                         ret.complete(true)
@@ -152,7 +132,6 @@ class HttpClient(
                         LOG.err(e) { "Error processing batch response" }
                         val rpcResponse = getResponseFromException(e)
 
-                        // complete all requests and the batch future
                         for (i in batch.responses.indices) {
                             batch.responses[i].complete(rpcResponse)
                         }
@@ -170,7 +149,7 @@ class HttpClient(
     override fun <T> request(
         method: String,
         params: Array<*>,
-        resultDecoder: (JsonParser) -> T,
+        resultDecoder: (KJsonElement) -> T,
     ): CompletableFuture<Result<T, RpcError>> {
         val ret = CompletableFuture<Result<T, RpcError>>()
 
@@ -187,27 +166,21 @@ class HttpClient(
             override fun onResponse(call: Call, response: Response) {
                 response.use {
                     try {
-                        var stream = it.body.byteStream()
-                        LOG.trc {
-                            // reading from the response body consumes it, so we need to create a new stream
-                            val arr = stream.readBytes()
-                            stream = ByteArrayInputStream(arr)
-                            "Response: ${String(arr)}".removeSuffix("\n")
-                        }
+                        val text = it.body.string()
+                        LOG.trc { "Response: ${text.removeSuffix("\n")}" }
 
                         if (!it.isSuccessful) {
-                            val bytes = stream.readBytes()
-
                             // first, try to decode a JSON response
                             try {
-                                ret.complete(ByteArrayInputStream(bytes).decodeResult(resultDecoder))
+                                val obj = Kotlinx.DEFAULT.parseToJsonElement(text).jsonObject
+                                ret.complete(obj.decodeNextResult { resultDecoder })
                                 return
                             } catch (_: Exception) {
                             }
 
                             // second, if decoding fails, return the response as a message
                             val message = "HTTP ${it.code}: ${it.message}"
-                            val data = JsonElement(jsonMapper.writeValueAsString(String(bytes)))
+                            val data = JsonElement(JsonPrimitive(text).toString())
                             val error = RpcError(RpcError.CODE_CALL_FAILED, message, data)
                             LOG.err { "Call failed for method=$method, params=${params.contentToString()}: $error" }
 
@@ -215,7 +188,8 @@ class HttpClient(
                             return
                         }
 
-                        ret.complete(stream.decodeResult(resultDecoder))
+                        val obj = Kotlinx.DEFAULT.parseToJsonElement(text).jsonObject
+                        ret.complete(obj.decodeNextResult { resultDecoder })
                     } catch (e: Exception) {
                         LOG.err(e) { "Error processing response for method=$method, params=${params.contentToString()}" }
 
@@ -229,55 +203,27 @@ class HttpClient(
         return ret
     }
 
-    private fun <T> InputStream.decodeResult(decoder: (JsonParser) -> T): Result<T, RpcError> {
-        return useJsonParser { decodeNextResult { decoder } }
-    }
+    private fun <T> JsonObject.decodeNextResult(getDecoder: (id: Long) -> (KJsonElement) -> T): Result<T, RpcError> {
+        val id = this["id"]?.jsonPrimitive?.long ?: return ERROR_NO_ID_RESPONSE
+        val resultEl = this["result"]
+        val errorEl = this["error"]
 
-    private inline fun <T> JsonParser.decodeNextResult(getDecoder: (id: Long) -> (JsonParser) -> T): Result<T, RpcError> {
-        var result: Result<T, RpcError>? = null
-        var buffer: TokenBuffer? = null
-
-        var id = -1L
-        this.forEachObjectField { field ->
-            when (field) {
-                "id" -> id = this.longValue
-                "jsonrpc" -> this.skipChildren()
-                "result" -> {
-                    if (id == -1L) {
-                        buffer = TokenBuffer(this)
-                        buffer.copyCurrentStructure(this)
-                    } else {
-                        result = success(getDecoder(id)(this))
-                    }
-                }
-
-                "error" -> {
-                    // just call to pass the ID
-                    getDecoder(id)
-                    result = failure(jsonMapper.readValue(this, RpcError::class.java))
-                }
+        return when {
+            resultEl != null -> success(getDecoder(id)(resultEl))
+            errorEl != null -> {
+                getDecoder(id)
+                failure(RpcError.fromJsonObject(errorEl.jsonObject))
+            }
+            else -> {
+                getDecoder(id)
+                ERROR_INVALID_RESPONSE
             }
         }
-
-        if (id == -1L) {
-            return ERROR_NO_ID_RESPONSE
-        }
-
-        buffer?.asParser()?.use {
-            it.nextToken()
-            result = success(getDecoder(id)(it))
-        }
-
-        return result ?: ERROR_INVALID_RESPONSE
-    }
-
-    private inline fun <R> InputStream.useJsonParser(action: JsonParser.() -> R): R {
-        return jsonMapper.createAndInitParser(this).use(action)
     }
 
     override fun <T : Any> subscribe(
         params: Array<*>,
-        resultDecoder: (JsonParser) -> T,
+        resultDecoder: (KJsonElement) -> T,
     ): CompletableFuture<Result<ChannelReceiver<T>, RpcError>> {
         return CompletableFuture.completedFuture(ERROR_SUBSCRIPTION_UNSUPPORTED)
     }
@@ -290,51 +236,29 @@ class HttpClient(
     private fun BatchRpcRequest.toRequestBody(): Pair<RequestBody, HashMap<Long, Int>> {
         val requestIndexPerId = HashMap<Long, Int>(requests.size, 1.0F)
 
-        val output = DirectByteArrayOutputStream(requests.size * BYTE_BUFFER_DEFAULT_SIZE)
-        output.use { out ->
-            val gen = jsonMapper.createGenerator(out)
-
-            gen.use {
-                it.writeStartArray()
-                for (i in requests.indices) {
-                    val call = requests[i]
-                    val id = requestId.getAndIncrement()
-                    it.writeJsonRpcRequest(call.method, id, call.params)
-                    requestIndexPerId[id] = i
-                }
-                it.writeEndArray()
-            }
+        val sb = StringBuilder(requests.size * BYTE_BUFFER_DEFAULT_SIZE)
+        sb.append('[')
+        for (i in requests.indices) {
+            if (i > 0) sb.append(',')
+            val call = requests[i]
+            val id = requestId.getAndIncrement()
+            sb.append(buildJsonRpcRequest(call.method, id, call.params))
+            requestIndexPerId[id] = i
         }
+        sb.append(']')
 
-        LOG.trc { "Request: ${String(output.toByteArray())}" }
-        return output.internalBuffer.toRequestBody(JSON_MEDIA_TYPE, byteCount = output.size()) to requestIndexPerId
+        val json = sb.toString()
+        LOG.trc { "Request: $json" }
+        return json.toByteArray().toRequestBody(JSON_MEDIA_TYPE) to requestIndexPerId
     }
 
     private fun createJsonRpcRequestBody(method: String, params: Array<*>): RequestBody {
-        val output = DirectByteArrayOutputStream(BYTE_BUFFER_DEFAULT_SIZE)
-
-        output.use { out ->
-            val gen = jsonMapper.createGenerator(out)
-            gen.use { it.writeJsonRpcRequest(method, requestId.getAndIncrement(), params) }
-        }
-
-        LOG.trc { "Request: ${String(output.toByteArray())}" }
-        return output.internalBuffer.toRequestBody(JSON_MEDIA_TYPE, byteCount = output.size())
-    }
-
-    private class DirectByteArrayOutputStream(size: Int) : ByteArrayOutputStream(size) {
-        /**
-         * Return the internal buffer.
-         *
-         * **NOTE**: Contains trailing zeros since it's unlikely that the buffer will be exactly the right size.
-         * */
-        val internalBuffer: ByteArray
-            get() = buf
+        val json = buildJsonRpcRequest(method, requestId.getAndIncrement(), params)
+        LOG.trc { "Request: $json" }
+        return json.toByteArray().toRequestBody(JSON_MEDIA_TYPE)
     }
 
     companion object {
-        // one of the smallest possible requests, `eth_chainID`, takes 59 bytes. Most requests use more,
-        // around 100 bytes, so we use a buffer of 128 bytes to try and avoid reallocations in most cases
         private const val BYTE_BUFFER_DEFAULT_SIZE = 128
         private val JSON_MEDIA_TYPE = "application/json".toMediaType()
 

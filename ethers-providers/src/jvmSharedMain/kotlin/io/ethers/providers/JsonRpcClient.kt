@@ -1,22 +1,26 @@
 package io.ethers.providers
 
-import com.fasterxml.jackson.core.JsonGenerator
-import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.core.JsonToken
-import com.fasterxml.jackson.databind.DeserializationContext
-import com.fasterxml.jackson.databind.JsonDeserializer
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize
-import com.fasterxml.jackson.databind.json.JsonMapper
 import io.channels.core.ChannelReceiver
-import io.ethers.core.Jackson
+import io.ethers.core.FastHex
+import io.ethers.core.Kotlinx
 import io.ethers.core.Result
-import io.ethers.core.forEachObjectField
 import io.ethers.core.json.JsonElement
 import io.ethers.providers.types.BatchRpcRequest
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.serializer
 import okhttp3.OkHttpClient
+import java.math.BigInteger
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
+import kotlinx.serialization.json.JsonElement as KJsonElement
 
 interface JsonRpcClient : AutoCloseable {
     /**
@@ -26,11 +30,12 @@ interface JsonRpcClient : AutoCloseable {
      * @param params RPC function parameters
      * @param resultType class into which JSON result is converted
      */
+    @Suppress("UNCHECKED_CAST")
     fun <T> request(
         method: String,
         params: Array<*>,
         resultType: Class<T>,
-    ) = request(method, params) { p -> p.readValueAs(resultType) }
+    ) = request(method, params) { p -> Kotlinx.DEFAULT.decodeFromJsonElement(serializer(resultType), p) as T }
 
     /**
      * Asynchronously execute RPC request.
@@ -42,7 +47,7 @@ interface JsonRpcClient : AutoCloseable {
     fun <T> request(
         method: String,
         params: Array<*>,
-        resultDecoder: (JsonParser) -> T,
+        resultDecoder: (KJsonElement) -> T,
     ): CompletableFuture<Result<T, RpcError>>
 
     /**
@@ -56,11 +61,12 @@ interface JsonRpcClient : AutoCloseable {
      * @param params the subscription parameters
      * @param resultType class into which JSON result is converted
      */
+    @Suppress("UNCHECKED_CAST")
     fun <T : Any> subscribe(
         params: Array<*>,
         resultType: Class<T>,
     ): CompletableFuture<Result<ChannelReceiver<T>, RpcError>> {
-        return subscribe(params) { p -> p.readValueAs(resultType) }
+        return subscribe(params) { p -> Kotlinx.DEFAULT.decodeFromJsonElement(serializer(resultType), p) as T }
     }
 
     /**
@@ -71,30 +77,48 @@ interface JsonRpcClient : AutoCloseable {
      */
     fun <T : Any> subscribe(
         params: Array<*>,
-        resultDecoder: (JsonParser) -> T,
+        resultDecoder: (KJsonElement) -> T,
     ): CompletableFuture<Result<ChannelReceiver<T>, RpcError>>
 }
 
 /**
- * Write JSON-RPC request directly to receiver [JsonGenerator].
+ * Build a JSON-RPC request string.
  */
-internal fun JsonGenerator.writeJsonRpcRequest(method: String, id: Long, params: Array<*>) {
-    writeStartObject()
-    writeNumberField("id", id)
-    writeStringField("jsonrpc", "2.0")
-    writeStringField("method", method)
-    writeArrayFieldStart("params")
-    for (p in params) {
-        writeObject(p)
+internal fun buildJsonRpcRequest(method: String, id: Long, params: Array<*>): String {
+    return buildJsonObject {
+        put("id", id)
+        put("jsonrpc", "2.0")
+        put("method", method)
+        putJsonArray("params") {
+            params.forEach { add(it.toParamJsonElement()) }
+        }
+    }.toString()
+}
+
+/**
+ * Convert any value to a [KJsonElement] suitable for use as a JSON-RPC parameter.
+ */
+@Suppress("UNCHECKED_CAST")
+internal fun Any?.toParamJsonElement(): KJsonElement = when (this) {
+    null -> JsonNull
+    is String -> JsonPrimitive(this)
+    is Boolean -> JsonPrimitive(this)
+    is Long -> JsonPrimitive(this)
+    is Int -> JsonPrimitive(this)
+    is BigInteger -> JsonPrimitive(this)
+    is ByteArray -> JsonPrimitive(FastHex.encodeWithPrefix(this))
+    is KJsonElement -> this
+    is Array<*> -> JsonArray(this.map { it.toParamJsonElement() })
+    is List<*> -> JsonArray(this.map { it.toParamJsonElement() })
+    else -> {
+        val ser = serializer(this::class.java)
+        Kotlinx.DEFAULT.encodeToJsonElement(ser, this)
     }
-    writeEndArray()
-    writeEndObject()
 }
 
 /**
  * Internal JSON-RPC error, returned when the RPC call fails.
  */
-@JsonDeserialize(using = RpcErrorDeserializer::class)
 data class RpcError @JvmOverloads constructor(
     val code: Int,
     val message: String,
@@ -215,6 +239,14 @@ data class RpcError @JvmOverloads constructor(
         const val CODE_NO_RESPONSE = 5001
         const val CODE_CALL_TIMEOUT = 5002
         const val CODE_CALL_FAILED = 5003
+
+        internal fun fromJsonObject(obj: JsonObject): RpcError {
+            val code = obj["code"]?.jsonPrimitive?.content?.toIntOrNull() ?: -1
+            val message = obj["message"]?.jsonPrimitive?.content ?: ""
+            val dataEl = obj["data"]
+            val data = if (dataEl == null || dataEl is JsonNull) null else JsonElement(dataEl.toString())
+            return RpcError(code, message, data)
+        }
     }
 }
 
@@ -233,13 +265,6 @@ class RpcClientConfig {
      * Headers to include with each RPC request. Can be used to set authorization headers, etc...
      * */
     var requestHeaders: Map<String, String> = emptyMap()
-        @JvmSynthetic set
-
-    /**
-     * Jackson [JsonMapper] to use for serializing/deserializing JSON-RPC requests and responses.
-     * If not set, the default [Jackson.MAPPER] will be used.
-     * */
-    var jsonMapper: JsonMapper = Jackson.MAPPER
         @JvmSynthetic set
 
     /**
@@ -263,12 +288,6 @@ class RpcClientConfig {
     fun requestHeaders(headers: Map<String, String>) = apply { this.requestHeaders = headers }
 
     /**
-     * Jackson [JsonMapper] to use for serializing/deserializing JSON-RPC requests and responses.
-     * If not set, the default [Jackson.MAPPER] will be used.
-     * */
-    fun jsonMapper(mapper: JsonMapper) = apply { this.jsonMapper = mapper }
-
-    /**
      * If true, automatically resubscribes existing subscription streams on WebSocket reconnection.
      * If false, closes the streams instead, allowing consumers to handle resubscription explicitly.
      * Default is true (auto-resubscription is enabled).
@@ -287,32 +306,5 @@ class RpcClientConfig {
         inline operator fun invoke(builder: RpcClientConfig.() -> Unit): RpcClientConfig {
             return RpcClientConfig().apply(builder)
         }
-    }
-}
-
-private class RpcErrorDeserializer : JsonDeserializer<RpcError>() {
-    override fun deserialize(p: JsonParser, ctxt: DeserializationContext): RpcError {
-        if (p.currentToken != JsonToken.START_OBJECT) {
-            throw IllegalArgumentException("Expected start object")
-        }
-
-        var code = -1
-        lateinit var message: String
-        var data: JsonElement? = null
-        p.forEachObjectField { field ->
-            when (field) {
-                "code" -> code = p.intValue
-                "message" -> message = p.text
-                "data" -> {
-                    val node = p.readValueAsTree<JsonNode>()
-                    if (!node.isNull) {
-                        data = JsonElement(node.toString())
-                    }
-                }
-                else -> p.skipChildren()
-            }
-        }
-
-        return RpcError(code, message, data)
     }
 }

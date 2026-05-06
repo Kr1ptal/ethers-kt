@@ -1,6 +1,6 @@
 package io.ethers.providers.types
 
-import io.ethers.core.Jackson
+import io.ethers.core.Kotlinx
 import io.ethers.core.types.Address
 import io.ethers.core.types.BlockId
 import io.ethers.core.types.BlockOverride
@@ -53,7 +53,7 @@ class CallManyTypesTest : FunSpec({
             }
         """.trimIndent()
 
-        Jackson.MAPPER.writeValueAsString(bundle) shouldEqualJson expected
+        Kotlinx.DEFAULT.encodeToString(CallManyBundleSerializer, bundle) shouldEqualJson expected
     }
 
     test("CallManyContext serialization") {
@@ -70,6 +70,6 @@ class CallManyTypesTest : FunSpec({
             }
         """.trimIndent()
 
-        Jackson.MAPPER.writeValueAsString(ctx) shouldEqualJson expected
+        Kotlinx.DEFAULT.encodeToString(CallManyContextSerializer, ctx) shouldEqualJson expected
     }
 })

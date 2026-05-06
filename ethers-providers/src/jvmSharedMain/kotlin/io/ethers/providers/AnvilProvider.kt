@@ -2,8 +2,8 @@ package io.ethers.providers
 
 import io.ethers.core.FastHex
 import io.ethers.core.Result
-import io.ethers.core.readBytes
-import io.ethers.core.readHexBigInteger
+import io.ethers.core.asBytes
+import io.ethers.core.asHexBigInteger
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
@@ -11,6 +11,9 @@ import io.ethers.providers.bindings.AnvilInstance
 import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.RpcCall
 import io.ethers.providers.types.RpcRequest
+import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.long
 import java.math.BigInteger
 
 /**
@@ -110,7 +113,7 @@ class AnvilProvider private constructor(
      * Return whether automatic block mining is enabled. Can be enabled or disabled using [setAutoMine].
      * */
     fun isAutoMine(): RpcRequest<Boolean, RpcError> {
-        return RpcCall(client, "anvil_getAutomine", emptyArray<Any>(), { it.valueAsBoolean })
+        return RpcCall(client, "anvil_getAutomine", emptyArray<Any>(), { it.jsonPrimitive.boolean })
     }
 
     /**
@@ -146,7 +149,7 @@ class AnvilProvider private constructor(
      * Jump forward in time by the given amount of time, in [seconds]. Returns the total time adjustment, in seconds.
      * */
     fun elapseBlockTime(seconds: Long): RpcRequest<Long, RpcError> {
-        return RpcCall(client, "evm_increaseTime", arrayOf(FastHex.encodeWithPrefix(seconds)), { it.valueAsLong })
+        return RpcCall(client, "evm_increaseTime", arrayOf(FastHex.encodeWithPrefix(seconds)), { it.jsonPrimitive.long })
     }
 
     /**
@@ -157,7 +160,7 @@ class AnvilProvider private constructor(
             client,
             "evm_setBlockGasLimit",
             arrayOf(FastHex.encodeWithPrefix(gasLimit)),
-            { it.valueAsBoolean },
+            { it.jsonPrimitive.boolean },
         )
     }
 
@@ -166,7 +169,7 @@ class AnvilProvider private constructor(
      * this state later using [revertSnapshot].
      * */
     fun getSnapshot(): RpcRequest<BigInteger, RpcError> {
-        return RpcCall(client, "evm_snapshot", emptyArray<Any>(), { it.readHexBigInteger() })
+        return RpcCall(client, "evm_snapshot", emptyArray<Any>(), { it.jsonPrimitive.asHexBigInteger() })
     }
 
     /**
@@ -174,7 +177,7 @@ class AnvilProvider private constructor(
      * [getSnapshot].
      * */
     fun revertSnapshot(snapshotId: BigInteger): RpcRequest<Boolean, RpcError> {
-        return RpcCall(client, "evm_revert", arrayOf(snapshotId), { it.valueAsBoolean })
+        return RpcCall(client, "evm_revert", arrayOf(snapshotId), { it.jsonPrimitive.boolean })
     }
 
     /**
@@ -227,7 +230,7 @@ class AnvilProvider private constructor(
      * Return the bytes of the complete blockchain state. Can be reimported using [applyBlockchainState].
      * */
     fun dumpBlockchainState(): RpcRequest<Bytes, RpcError> {
-        return RpcCall(client, "anvil_dumpState", emptyArray<Any>(), { it.readBytes() })
+        return RpcCall(client, "anvil_dumpState", emptyArray<Any>(), { it.jsonPrimitive.asBytes() })
     }
 
     /**

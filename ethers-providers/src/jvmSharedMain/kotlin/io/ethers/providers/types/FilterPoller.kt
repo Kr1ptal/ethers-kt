@@ -1,6 +1,5 @@
 package io.ethers.providers.types
 
-import com.fasterxml.jackson.core.JsonParser
 import io.channels.core.Channel
 import io.channels.core.ChannelConsumer
 import io.channels.core.ChannelFunction
@@ -17,6 +16,7 @@ import io.ethers.logger.inf
 import io.ethers.providers.AsyncExecutor
 import io.ethers.providers.RpcError
 import io.ethers.providers.middleware.Middleware
+import kotlinx.serialization.json.JsonElement
 import java.time.Duration
 
 private val DEFAULT_POLLER_INTERVAL = Duration.ofSeconds(7)
@@ -32,13 +32,13 @@ class FilterPoller<T : Any> private constructor(
     constructor(
         id: String,
         provider: Middleware,
-        decoder: (JsonParser) -> List<T>,
+        decoder: (JsonElement) -> List<T>,
     ) : this(id, provider, decoder, QueueChannel.spscUnbounded<T> { })
 
     private constructor(
         id: String,
         provider: Middleware,
-        decoder: (JsonParser) -> List<T>,
+        decoder: (JsonElement) -> List<T>,
         channel: Channel<T>,
     ) : this(Poller(id, provider, decoder, channel), channel)
 
@@ -96,7 +96,7 @@ class FilterPoller<T : Any> private constructor(
     private class Poller<T : Any>(
         private val id: String,
         private val provider: Middleware,
-        private val decoder: (JsonParser) -> List<T>,
+        private val decoder: (JsonElement) -> List<T>,
         private val channel: Channel<T>,
     ) {
         private val LOG = getLogger()

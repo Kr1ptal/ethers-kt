@@ -15,7 +15,6 @@ kotlin {
 
                 implementation(project(":logger"))
                 implementation(libs.jctools)
-                implementation(libs.bundles.jackson)
                 implementation(libs.kotlinx.atomicfu)
             }
         }

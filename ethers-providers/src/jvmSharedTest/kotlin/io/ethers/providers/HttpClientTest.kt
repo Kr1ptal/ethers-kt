@@ -1,16 +1,19 @@
 package io.ethers.providers
 
-import com.fasterxml.jackson.core.JsonParser
-import io.ethers.core.Jackson
+import io.ethers.core.Kotlinx
 import io.ethers.core.isFailure
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.core.spec.style.funSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.long
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import org.intellij.lang.annotations.Language
+import kotlinx.serialization.json.JsonElement as KJsonElement
 
 /**
  * HttpClient tests demonstrating extraction of common JsonRpcClient tests into a factory pattern.
@@ -31,7 +34,7 @@ class HttpClientTest : FunSpec({
 })
 
 private fun httpSpecificTests() = funSpec {
-    val stringDecoder: (JsonParser) -> String = { parser -> parser.text }
+    val stringDecoder: (KJsonElement) -> String = { element -> element.jsonPrimitive.content }
 
     context("HTTP-specific error handling") {
         lateinit var server: MockServer
@@ -110,10 +113,10 @@ private fun httpSpecificTests() = funSpec {
             val request1 = server.takeRequest()
             val request2 = server.takeRequest()
 
-            val body1 = Jackson.MAPPER.readTree(request1.body.readUtf8())
-            val body2 = Jackson.MAPPER.readTree(request2.body.readUtf8())
+            val body1 = Kotlinx.DEFAULT.parseToJsonElement(request1.body.readUtf8()).jsonObject
+            val body2 = Kotlinx.DEFAULT.parseToJsonElement(request2.body.readUtf8()).jsonObject
 
-            body1.get("id").asLong() shouldNotBe body2.get("id").asLong()
+            body1["id"]!!.jsonPrimitive.long shouldNotBe body2["id"]!!.jsonPrimitive.long
         }
     }
 

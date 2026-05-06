@@ -1,13 +1,14 @@
 package io.ethers.providers
 
-import com.fasterxml.jackson.core.JsonParser
 import io.ethers.core.isFailure
 import io.ethers.core.isSuccess
 import io.ethers.providers.types.BatchRpcRequest
 import io.ethers.providers.types.RpcCall
 import io.kotest.core.spec.style.funSpec
 import io.kotest.matchers.shouldBe
+import kotlinx.serialization.json.jsonPrimitive
 import org.intellij.lang.annotations.Language
+import kotlinx.serialization.json.JsonElement as KJsonElement
 
 enum class RpcClientVariant {
     HTTP,
@@ -28,7 +29,7 @@ enum class RpcClientVariant {
  * ```
  */
 object JsonRpcTestFactory {
-    private val stringDecoder: (JsonParser) -> String = { parser -> parser.text }
+    private val stringDecoder: (KJsonElement) -> String = { element -> element.jsonPrimitive.content }
 
     /**
      * Creates common JSON-RPC tests that can be used with any [JsonRpcClient] implementation.
