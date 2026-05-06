@@ -1,10 +1,10 @@
 package io.ethers.abigen.reader
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties
-import com.fasterxml.jackson.annotation.JsonProperty
 import io.ethers.abigen.JsonAbi
 import io.ethers.abigen.JsonAbiItem
-import io.ethers.core.Jackson
+import io.ethers.core.Kotlinx
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 import java.io.InputStream
 
 /**
@@ -22,19 +22,19 @@ import java.io.InputStream
  * }
  * */
 object FoundryAbiReader : JsonAbiReader {
-    @JsonIgnoreProperties(ignoreUnknown = true)
+    @Serializable
     private data class Artifact(
-        @param:JsonProperty("abi") val abi: List<JsonAbiItem>,
-        @param:JsonProperty("bytecode") val bytecode: Bytecode?,
+        val abi: List<JsonAbiItem>,
+        val bytecode: Bytecode? = null,
     ) {
-        @JsonIgnoreProperties(ignoreUnknown = true)
+        @Serializable
         data class Bytecode(
-            @param:JsonProperty("object") val `object`: String,
+            @SerialName("object") val bytecodeHex: String,
         )
     }
 
     override fun read(abi: InputStream): JsonAbi {
-        val artifact = Jackson.MAPPER.readValue(abi, Artifact::class.java)
-        return JsonAbi(artifact.abi, artifact.bytecode?.`object`)
+        val artifact = Kotlinx.DEFAULT.decodeFromString(Artifact.serializer(), abi.bufferedReader().readText())
+        return JsonAbi(artifact.abi, artifact.bytecode?.bytecodeHex)
     }
 }
