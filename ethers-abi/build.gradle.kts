@@ -5,6 +5,7 @@ plugins {
     `jmh-conventions`
     `maven-publish-conventions`
     `static-data-generator`
+    kotlin("plugin.serialization") version libs.versions.kotlin.get()
 }
 
 staticDataGenerator {

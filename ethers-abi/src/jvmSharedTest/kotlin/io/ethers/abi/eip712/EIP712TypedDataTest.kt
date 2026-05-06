@@ -3,11 +3,15 @@ package io.ethers.abi.eip712
 import io.ethers.abi.Inbox
 import io.ethers.abi.Mail
 import io.ethers.abi.Person
-import io.ethers.core.Jackson
+import io.ethers.core.Kotlinx
 import io.ethers.core.types.Address
 import io.ethers.core.types.Hash
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.math.BigInteger
 
 class EIP712TypedDataTest : FunSpec({
@@ -100,15 +104,13 @@ class EIP712TypedDataTest : FunSpec({
     }
 
     context("JSON serialization") {
-        val mapper = Jackson.MAPPER
-
         test("roundtrip serialization of simple typed data") {
             val person = Person("Alice", Address.ZERO)
             val domain = EIP712Domain(name = "TestDApp", version = "1.0")
             val typedData = EIP712TypedData.from(person, domain)
 
-            val json = mapper.writeValueAsString(typedData)
-            val deserialized = mapper.readValue(json, EIP712TypedData::class.java)
+            val json = Kotlinx.DEFAULT.encodeToString(typedData)
+            val deserialized = Kotlinx.DEFAULT.decodeFromString<EIP712TypedData>(json)
 
             deserialized shouldBe typedData
         }
@@ -125,8 +127,8 @@ class EIP712TypedDataTest : FunSpec({
             )
             val typedData = EIP712TypedData.from(mail, domain)
 
-            val json = mapper.writeValueAsString(typedData)
-            val deserialized = mapper.readValue(json, EIP712TypedData::class.java)
+            val json = Kotlinx.DEFAULT.encodeToString(typedData)
+            val deserialized = Kotlinx.DEFAULT.decodeFromString<EIP712TypedData>(json)
 
             deserialized shouldBe typedData
         }
@@ -139,8 +141,8 @@ class EIP712TypedDataTest : FunSpec({
             val domain = EIP712Domain(name = "InboxDApp", chainId = BigInteger.TEN)
             val typedData = EIP712TypedData.from(inbox, domain)
 
-            val json = mapper.writeValueAsString(typedData)
-            val deserialized = mapper.readValue(json, EIP712TypedData::class.java)
+            val json = Kotlinx.DEFAULT.encodeToString(typedData)
+            val deserialized = Kotlinx.DEFAULT.decodeFromString<EIP712TypedData>(json)
 
             deserialized shouldBe typedData
         }
@@ -148,8 +150,8 @@ class EIP712TypedDataTest : FunSpec({
         test("roundtrip serialization of EIP712Field") {
             val field = EIP712Field("testName", "uint256")
 
-            val json = mapper.writeValueAsString(field)
-            val deserialized = mapper.readValue(json, EIP712Field::class.java)
+            val json = Kotlinx.DEFAULT.encodeToString(field)
+            val deserialized = Kotlinx.DEFAULT.decodeFromString<EIP712Field>(json)
 
             deserialized shouldBe field
         }
@@ -159,18 +161,18 @@ class EIP712TypedDataTest : FunSpec({
             val domain = EIP712Domain(name = "Test", version = "1")
             val typedData = EIP712TypedData.from(person, domain)
 
-            val json = mapper.writeValueAsString(typedData)
-            val jsonNode = mapper.readTree(json)
+            val json = Kotlinx.DEFAULT.encodeToString(typedData)
+            val jsonObj = Kotlinx.DEFAULT.parseToJsonElement(json).jsonObject
 
-            jsonNode.has("primaryType") shouldBe true
-            jsonNode.has("types") shouldBe true
-            jsonNode.has("message") shouldBe true
-            jsonNode.has("domain") shouldBe true
+            ("primaryType" in jsonObj) shouldBe true
+            ("types" in jsonObj) shouldBe true
+            ("message" in jsonObj) shouldBe true
+            ("domain" in jsonObj) shouldBe true
 
-            jsonNode["primaryType"].asText() shouldBe "Person"
-            jsonNode["types"]["Person"].isArray shouldBe true
-            jsonNode["types"]["Person"].size() shouldBe 2
-            jsonNode["types"]["EIP712Domain"].isArray shouldBe true
+            jsonObj["primaryType"]!!.jsonPrimitive.content shouldBe "Person"
+            (jsonObj["types"]!!.jsonObject["Person"] is JsonArray) shouldBe true
+            jsonObj["types"]!!.jsonObject["Person"]!!.jsonArray.size shouldBe 2
+            (jsonObj["types"]!!.jsonObject["EIP712Domain"] is JsonArray) shouldBe true
         }
 
         test("handles null values in domain correctly") {
@@ -178,8 +180,8 @@ class EIP712TypedDataTest : FunSpec({
             val person = Person("Alice", Address.ZERO)
             val typedData = EIP712TypedData.from(person, domain)
 
-            val json = mapper.writeValueAsString(typedData)
-            val deserialized = mapper.readValue(json, EIP712TypedData::class.java)
+            val json = Kotlinx.DEFAULT.encodeToString(typedData)
+            val deserialized = Kotlinx.DEFAULT.decodeFromString<EIP712TypedData>(json)
 
             deserialized.domain shouldBe domain
         }
@@ -193,22 +195,22 @@ class EIP712TypedDataTest : FunSpec({
             )
             val typedData = EIP712TypedData.from(domain, domain)
 
-            val json = mapper.writeValueAsString(typedData)
-            val jsonNode = mapper.readTree(json)
+            val json = Kotlinx.DEFAULT.encodeToString(typedData)
+            val jsonObj = Kotlinx.DEFAULT.parseToJsonElement(json).jsonObject
 
             // Verify chainId is decimal string, not hex
-            val chainIdInMessage = jsonNode["message"]["chainId"].asText()
+            val chainIdInMessage = jsonObj["message"]!!.jsonObject["chainId"]!!.jsonPrimitive.content
             chainIdInMessage shouldBe "12345678901234567890"
 
-            // Verify chainId in domain is hex string as per EIP712Domain serialization
-            val chainIdInDomain = jsonNode["domain"]["chainId"].asText()
+            // Verify chainId in domain is decimal string as per EIP712Domain serialization
+            val chainIdInDomain = jsonObj["domain"]!!.jsonObject["chainId"]!!.jsonPrimitive.content
             chainIdInDomain shouldBe "12345678901234567890"
         }
 
         test("decodes numeric values as strings") {
             val json = """{"types":{"BulkOrder":[{"name":"tree","type":"OrderComponents[2]"}],"OrderComponents":[{"name":"offerer","type":"address"},{"name":"zone","type":"address"},{"name":"offer","type":"OfferItem[]"},{"name":"consideration","type":"ConsiderationItem[]"},{"name":"orderType","type":"uint8"},{"name":"startTime","type":"uint256"},{"name":"endTime","type":"uint256"},{"name":"zoneHash","type":"bytes32"},{"name":"salt","type":"uint256"},{"name":"conduitKey","type":"bytes32"},{"name":"counter","type":"uint256"}],"OfferItem":[{"name":"itemType","type":"uint8"},{"name":"token","type":"address"},{"name":"identifierOrCriteria","type":"uint256"},{"name":"startAmount","type":"uint256"},{"name":"endAmount","type":"uint256"}],"ConsiderationItem":[{"name":"itemType","type":"uint8"},{"name":"token","type":"address"},{"name":"identifierOrCriteria","type":"uint256"},{"name":"startAmount","type":"uint256"},{"name":"endAmount","type":"uint256"},{"name":"recipient","type":"address"}]},"primaryType":"BulkOrder","domain":{"name":"Seaport","version":"1.6","chainId":2741,"verifyingContract":"0x0000000000000068f116a894984e2db1123eb395"},"message":{"tree":[{"offerer":"0x562c422aeef8ba1331b0018665af51b1cb71e343","zone":"0x000056f7000000ece9003ca63978907a00ffd100","offer":[{"itemType":3,"token":"0x458422e93bf89a109afc4fac00aacf2f18fcf541","identifierOrCriteria":"504","startAmount":"1","endAmount":"1"}],"consideration":[{"itemType":0,"token":"0x0000000000000000000000000000000000000000","identifierOrCriteria":"0","startAmount":"263200000000000","endAmount":"263200000000000","recipient":"0x562c422aeef8ba1331b0018665af51b1cb71e343"},{"itemType":0,"token":"0x0000000000000000000000000000000000000000","identifierOrCriteria":"0","startAmount":"2800000000000","endAmount":"2800000000000","recipient":"0x0000a26b00c1f0df003000390027140000faa719"},{"itemType":0,"token":"0x0000000000000000000000000000000000000000","identifierOrCriteria":"0","startAmount":"14000000000000","endAmount":"14000000000000","recipient":"0xfb1302f5d6c5f107a0715b8ce7303d1e3c647807"}],"orderType":2,"startTime":"1758662541","endTime":"1761254541","zoneHash":"0x0000000000000000000000000000000000000000000000000000000000000000","salt":"27855337018906766782546881864045825683096516384821792734235564196342280731178","conduitKey":"0x61159fefdfada89302ed55f8b9e89e2d67d8258712b3a3f89aa88525877f1d5e","counter":"0"},{"offerer":"0x562c422aeef8ba1331b0018665af51b1cb71e343","zone":"0x000056f7000000ece9003ca63978907a00ffd100","offer":[{"itemType":3,"token":"0x458422e93bf89a109afc4fac00aacf2f18fcf541","identifierOrCriteria":"514","startAmount":"1","endAmount":"1"}],"consideration":[{"itemType":0,"token":"0x0000000000000000000000000000000000000000","identifierOrCriteria":"0","startAmount":"902400000000000","endAmount":"902400000000000","recipient":"0x562c422aeef8ba1331b0018665af51b1cb71e343"},{"itemType":0,"token":"0x0000000000000000000000000000000000000000","identifierOrCriteria":"0","startAmount":"9600000000000","endAmount":"9600000000000","recipient":"0x0000a26b00c1f0df003000390027140000faa719"},{"itemType":0,"token":"0x0000000000000000000000000000000000000000","identifierOrCriteria":"0","startAmount":"48000000000000","endAmount":"48000000000000","recipient":"0xfb1302f5d6c5f107a0715b8ce7303d1e3c647807"}],"orderType":2,"startTime":"1758662541","endTime":"1761254541","zoneHash":"0x0000000000000000000000000000000000000000000000000000000000000000","salt":"27855337018906766782546881864045825683096516384821792734240704567173025251123","conduitKey":"0x61159fefdfada89302ed55f8b9e89e2d67d8258712b3a3f89aa88525877f1d5e","counter":"0"}]}}"""
 
-            val typedData = mapper.readValue(json, EIP712TypedData::class.java)
+            val typedData = Kotlinx.DEFAULT.decodeFromString<EIP712TypedData>(json)
             typedData.signatureHash().toHexString() shouldBe "c1b3d13fc013b42be0ad82fcea86778d5e023e314454de1bd8050f3d55d898f6"
         }
     }
@@ -272,8 +274,8 @@ class EIP712TypedDataTest : FunSpec({
             val encodedType = EIP712Codec.encodeType(typeData.primaryType, typeData.types)
             encodedType shouldBe "OrderComponents(address offerer,address zone,OfferItem[] offer,uint256 startTime,uint256 endTime,bytes32 zoneHash,uint256 salt,bytes32 conduitKey,uint256 counter)OfferItem(address token)"
 
-            val json = Jackson.MAPPER.writeValueAsString(typeData)
-            Jackson.MAPPER.readValue(json, EIP712TypedData::class.java) shouldBe typeData
+            val json = Kotlinx.DEFAULT.encodeToString(typeData)
+            Kotlinx.DEFAULT.decodeFromString<EIP712TypedData>(json) shouldBe typeData
         }
 
         test("Seaport 1.6 OrderComponents encodes and hashes correctly") {
@@ -355,8 +357,8 @@ class EIP712TypedDataTest : FunSpec({
             val encodedType = EIP712Codec.encodeType(typeData.primaryType, typeData.types)
             encodedType shouldBe "OrderComponents(address offerer,address zone,OfferItem[] offer,ConsiderationItem[] consideration,uint8 orderType,uint256 startTime,uint256 endTime,bytes32 zoneHash,uint256 salt,bytes32 conduitKey,uint256 counter)ConsiderationItem(uint8 itemType,address token,uint256 identifierOrCriteria,uint256 startAmount,uint256 endAmount,address recipient)OfferItem(uint8 itemType,address token,uint256 identifierOrCriteria,uint256 startAmount,uint256 endAmount)"
 
-            val json = Jackson.MAPPER.writeValueAsString(typeData)
-            Jackson.MAPPER.readValue(json, EIP712TypedData::class.java) shouldBe typeData
+            val json = Kotlinx.DEFAULT.encodeToString(typeData)
+            Kotlinx.DEFAULT.decodeFromString<EIP712TypedData>(json) shouldBe typeData
         }
     }
 })
