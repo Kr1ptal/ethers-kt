@@ -1,10 +1,16 @@
 package io.ethers.core.types.tracers
 
-import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.databind.DeserializationContext
-import com.fasterxml.jackson.databind.JsonDeserializer
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize
-import io.ethers.core.readMapOf
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.buildClassSerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.int
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlin.reflect.KClass
 
 /**
@@ -34,15 +40,25 @@ data object FourByteTracer : Tracer<FourByteTracer.Result> {
 
     override val config: Map<String, Any?> = EMPTY_CONFIG
 
+    override fun decodeResult(json: Json, element: JsonElement): Result {
+        return json.decodeFromJsonElement(ResultSerializer, element)
+    }
+
     /**
      * Result of the 4byte tracer, mapping 4-byte identifiers (with data size suffix) to call counts.
      */
-    @JsonDeserialize(using = ResultDeserializer::class)
+    @Serializable(with = ResultSerializer::class)
     data class Result(val entries: Map<String, Int>)
 
-    private class ResultDeserializer : JsonDeserializer<Result>() {
-        override fun deserialize(p: JsonParser, ctxt: DeserializationContext): Result {
-            return Result(p.readMapOf({ it }) { intValue })
+    object ResultSerializer : KSerializer<Result> {
+        override val descriptor = buildClassSerialDescriptor("FourByteTracer.Result")
+
+        override fun serialize(encoder: Encoder, value: Result) = throw UnsupportedOperationException()
+
+        override fun deserialize(decoder: Decoder): Result {
+            val obj = (decoder as JsonDecoder).decodeJsonElement().jsonObject
+            val entries = obj.entries.associate { (k, v) -> k to v.jsonPrimitive.int }
+            return Result(entries)
         }
     }
 }

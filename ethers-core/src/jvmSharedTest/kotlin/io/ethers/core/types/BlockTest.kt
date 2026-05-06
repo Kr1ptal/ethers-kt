@@ -1,6 +1,6 @@
 package io.ethers.core.types
 
-import io.ethers.core.Jackson
+import io.ethers.core.Kotlinx
 import io.ethers.core.json.JsonElement
 import io.ethers.core.types.transaction.TxType
 import io.kotest.core.spec.style.FunSpec
@@ -72,7 +72,7 @@ class BlockTest : FunSpec({
               }
             }
         """.trimIndent()
-        val result = Jackson.MAPPER.readValue(jsonString, BlockWithHashes::class.java)
+        val result = Kotlinx.DEFAULT.decodeFromString<BlockWithHashes>(jsonString)
 
         val expectedResult = BlockWithHashes(
             baseFeePerGas = BigInteger("774040271"),
@@ -211,7 +211,7 @@ class BlockTest : FunSpec({
               }
             }
         """.trimIndent()
-        val result = Jackson.MAPPER.readValue(jsonString, BlockWithTransactions::class.java)
+        val result = Kotlinx.DEFAULT.decodeFromString<BlockWithTransactions>(jsonString)
 
         val expectedResult = BlockWithTransactions(
             baseFeePerGas = BigInteger("774040271"),

@@ -1,6 +1,6 @@
 package io.ethers.core.types.tracers
 
-import io.ethers.core.Jackson
+import io.ethers.core.Kotlinx
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
 import io.kotest.assertions.json.shouldEqualJson
@@ -24,7 +24,7 @@ class StructTracerTest : FunSpec({
     )
 
     test("encode tracer") {
-        Jackson.MAPPER.writeValueAsString(TracerConfig(structTracer)) shouldEqualJson """
+        Kotlinx.DEFAULT.encodeToString(TracerConfig(structTracer)) shouldEqualJson """
             {
               "enableMemory": ${structTracer.enableMemory},
               "disableStack": ${structTracer.disableStack},
@@ -32,7 +32,7 @@ class StructTracerTest : FunSpec({
               "enableReturnData": ${structTracer.enableReturnData},
               "debug": ${structTracer.debug},
               "limit": ${structTracer.limit},
-              "overrides": ${Jackson.MAPPER.writeValueAsString(structTracer.overrides)}
+              "overrides": {"override_1":"value_1","override_2":"value_2","override_3":"value_3"}
             }
         """
     }
@@ -70,7 +70,7 @@ class StructTracerTest : FunSpec({
             }
         """.trimIndent()
 
-        val result = Jackson.MAPPER.readValue(jsonString, structTracer.resultType.java)
+        val result = structTracer.decodeResult(Kotlinx.DEFAULT, Kotlinx.DEFAULT.parseToJsonElement(jsonString))
 
         val expectedResult = StructTracer.ExecutionResult(
             159625L,

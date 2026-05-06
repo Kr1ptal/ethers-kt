@@ -1,9 +1,5 @@
 package io.ethers.core.types
 
-import com.fasterxml.jackson.core.JsonGenerator
-import com.fasterxml.jackson.databind.JsonSerializer
-import com.fasterxml.jackson.databind.SerializerProvider
-import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import io.ethers.core.FastHex
 import io.ethers.core.types.transaction.ChainId
 import io.ethers.core.types.transaction.TransactionUnsigned
@@ -11,9 +7,19 @@ import io.ethers.core.types.transaction.TxAccessList
 import io.ethers.core.types.transaction.TxBlob
 import io.ethers.core.types.transaction.TxDynamicFee
 import io.ethers.core.types.transaction.TxLegacy
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.buildClassSerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonEncoder
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import java.math.BigInteger
 
-@JsonSerialize(using = CallRequestSerializer::class)
+@Serializable(with = CallRequestSerializer::class)
 class CallRequest() : IntoCallRequest {
     constructor(other: CallRequest) : this() {
         this.from = other.from
@@ -239,59 +245,71 @@ class CallRequest() : IntoCallRequest {
     }
 }
 
-private class CallRequestSerializer : JsonSerializer<CallRequest>() {
-    override fun serialize(value: CallRequest, gen: JsonGenerator, serializers: SerializerProvider) {
-        gen.writeStartObject()
-        if (value.from != null) {
-            gen.writeStringField("from", value.from.toString())
-        }
-        if (value.to != null) {
-            gen.writeStringField("to", value.to.toString())
-        }
-        if (value.gas != -1L) {
-            gen.writeStringField("gas", FastHex.encodeWithPrefix(value.gas))
-        }
-        if (value.gasPrice != null) {
-            gen.writeStringField("gasPrice", FastHex.encodeWithPrefix(value.gasPrice!!))
-        }
-        if (value.gasFeeCap != null) {
-            gen.writeStringField("maxFeePerGas", FastHex.encodeWithPrefix(value.gasFeeCap!!))
-        }
-        if (value.gasTipCap != null) {
-            gen.writeStringField("maxPriorityFeePerGas", FastHex.encodeWithPrefix(value.gasTipCap!!))
-        }
-        if (value.value != null) {
-            gen.writeStringField("value", FastHex.encodeWithPrefix(value.value!!))
-        }
-        if (value.nonce != -1L) {
-            gen.writeStringField("nonce", FastHex.encodeWithPrefix(value.nonce))
-        }
-        if (value.data != null) {
-            gen.writeStringField("data", value.data.toString())
-        }
-        if (value.accessList.isNotEmpty()) {
-            gen.writeArrayFieldStart("accessList")
-            for (i in value.accessList.indices) {
-                // delegate to AccessList.Item serializer
-                gen.writeObject(value.accessList[i])
-            }
-            gen.writeEndArray()
-        }
-        if (value.chainId != -1L) {
-            gen.writeStringField("chainId", FastHex.encodeWithPrefix(value.chainId))
-        }
-        val blobFeeCap = value.blobFeeCap
-        if (blobFeeCap != null) {
-            gen.writeStringField("maxFeePerBlobGas", FastHex.encodeWithPrefix(blobFeeCap))
-        }
-        val blobVersionedHashes = value.blobVersionedHashes
-        if (blobVersionedHashes != null) {
-            gen.writeArrayFieldStart("blobVersionedHashes")
-            for (i in blobVersionedHashes.indices) {
-                gen.writeString(blobVersionedHashes[i].toString())
-            }
-            gen.writeEndArray()
-        }
-        gen.writeEndObject()
+object CallRequestSerializer : KSerializer<CallRequest> {
+    override val descriptor = buildClassSerialDescriptor("CallRequest")
+
+    override fun serialize(encoder: Encoder, value: CallRequest) {
+        val jsonEncoder = encoder as JsonEncoder
+        jsonEncoder.encodeJsonElement(
+            buildJsonObject {
+                if (value.from != null) {
+                    put("from", value.from.toString())
+                }
+                if (value.to != null) {
+                    put("to", value.to.toString())
+                }
+                if (value.gas != -1L) {
+                    put("gas", FastHex.encodeWithPrefix(value.gas))
+                }
+                if (value.gasPrice != null) {
+                    put("gasPrice", FastHex.encodeWithPrefix(value.gasPrice!!))
+                }
+                if (value.gasFeeCap != null) {
+                    put("maxFeePerGas", FastHex.encodeWithPrefix(value.gasFeeCap!!))
+                }
+                if (value.gasTipCap != null) {
+                    put("maxPriorityFeePerGas", FastHex.encodeWithPrefix(value.gasTipCap!!))
+                }
+                if (value.value != null) {
+                    put("value", FastHex.encodeWithPrefix(value.value!!))
+                }
+                if (value.nonce != -1L) {
+                    put("nonce", FastHex.encodeWithPrefix(value.nonce))
+                }
+                if (value.data != null) {
+                    put("data", value.data.toString())
+                }
+                if (value.accessList.isNotEmpty()) {
+                    put(
+                        "accessList",
+                        buildJsonArray {
+                            for (i in value.accessList.indices) {
+                                add(jsonEncoder.json.encodeToJsonElement(AccessListItemSerializer, value.accessList[i]))
+                            }
+                        },
+                    )
+                }
+                if (value.chainId != -1L) {
+                    put("chainId", FastHex.encodeWithPrefix(value.chainId))
+                }
+                val blobFeeCap = value.blobFeeCap
+                if (blobFeeCap != null) {
+                    put("maxFeePerBlobGas", FastHex.encodeWithPrefix(blobFeeCap))
+                }
+                val blobVersionedHashes = value.blobVersionedHashes
+                if (blobVersionedHashes != null) {
+                    put(
+                        "blobVersionedHashes",
+                        buildJsonArray {
+                            for (i in blobVersionedHashes.indices) {
+                                add(JsonPrimitive(blobVersionedHashes[i].toString()))
+                            }
+                        },
+                    )
+                }
+            },
+        )
     }
+
+    override fun deserialize(decoder: Decoder): CallRequest = throw UnsupportedOperationException()
 }

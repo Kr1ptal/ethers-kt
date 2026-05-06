@@ -1,7 +1,7 @@
 package io.ethers.core.types
 
 import io.ethers.core.FastHex
-import io.ethers.core.Jackson
+import io.ethers.core.Kotlinx
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData
@@ -41,8 +41,8 @@ class HashTest : FunSpec({
 
     test("serialization / deserialization") {
         val hash = Hash("0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925")
-        val json = Jackson.MAPPER.writeValueAsString(hash)
-        val deserialized = Jackson.MAPPER.readValue(json, Hash::class.java)
+        val json = Kotlinx.DEFAULT.encodeToString(hash)
+        val deserialized = Kotlinx.DEFAULT.decodeFromString<Hash>(json)
 
         deserialized shouldBe hash
     }

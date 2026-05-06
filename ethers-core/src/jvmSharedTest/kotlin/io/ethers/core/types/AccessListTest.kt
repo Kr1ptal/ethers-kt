@@ -1,6 +1,6 @@
 package io.ethers.core.types
 
-import io.ethers.core.Jackson
+import io.ethers.core.Kotlinx
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import org.intellij.lang.annotations.Language
@@ -16,8 +16,8 @@ class AccessListTest : FunSpec({
             ),
         )
 
-        val jsonString = Jackson.MAPPER.writeValueAsString(item)
-        val deserializedObject = Jackson.MAPPER.readValue(jsonString, AccessList.Item::class.java)
+        val jsonString = Kotlinx.DEFAULT.encodeToString(item)
+        val deserializedObject = Kotlinx.DEFAULT.decodeFromString<AccessList.Item>(jsonString)
 
         deserializedObject shouldBe item
     }
@@ -51,7 +51,7 @@ class AccessListTest : FunSpec({
               "gasUsed": "0xc291"
             }
         """.trimIndent()
-        val result = Jackson.MAPPER.readValue(jsonString, CreateAccessList::class.java)
+        val result = Kotlinx.DEFAULT.decodeFromString<CreateAccessList>(jsonString)
 
         val expectedResult = CreateAccessList(
             accessList = listOf(

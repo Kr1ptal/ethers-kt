@@ -1,19 +1,25 @@
 package io.ethers.core.types.tracers
 
-import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.databind.DeserializationContext
-import com.fasterxml.jackson.databind.JsonDeserializer
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize
-import io.ethers.core.forEachObjectField
-import io.ethers.core.readBytes
-import io.ethers.core.readHash
-import io.ethers.core.readHexBigInteger
-import io.ethers.core.readMapOf
+import io.ethers.core.asBytes
+import io.ethers.core.asHash
+import io.ethers.core.asHexBigInteger
 import io.ethers.core.types.AccountOverride
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
 import io.ethers.core.types.StateOverride
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.buildClassSerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.long
 import java.math.BigInteger
 import kotlin.reflect.KClass
 
@@ -43,7 +49,11 @@ data class PrestateTracer(val diffMode: Boolean) : Tracer<PrestateTracer.Result>
         else -> CONFIG_PRESTATE
     }
 
-    @JsonDeserialize(using = ResultDeserializer::class)
+    override fun decodeResult(json: Json, element: JsonElement): Result {
+        return json.decodeFromJsonElement(ResultSerializer, element)
+    }
+
+    @Serializable(with = ResultSerializer::class)
     data class Result(
         val diffMode: Boolean,
         val prestate: Map<Address, Account>,
@@ -129,62 +139,49 @@ data class PrestateTracer(val diffMode: Boolean) : Tracer<PrestateTracer.Result>
         val storage: Map<Hash, Hash>? = null,
     )
 
-    private class ResultDeserializer : JsonDeserializer<Result>() {
-        override fun deserialize(p: JsonParser, ctxt: DeserializationContext): Result {
-            var prestate: Map<Address, Account>? = null
-            var poststate: Map<Address, Account>? = null
-            var diffMode = false
+    object ResultSerializer : KSerializer<Result> {
+        override val descriptor = buildClassSerialDescriptor("PrestateTracer.Result")
 
-            // Auto-detect mode based on JSON structure:
-            // - If "pre" or "post" fields are present → diff mode
-            // - Otherwise → prestate mode (object is account map directly)
-            p.forEachObjectField { field ->
-                when (field) {
-                    "pre" -> {
-                        diffMode = true
-                        prestate = p.readAccountMap()
-                    }
+        override fun serialize(encoder: Encoder, value: Result) = throw UnsupportedOperationException()
 
-                    "post" -> {
-                        diffMode = true
-                        poststate = p.readAccountMap()
-                    }
+        override fun deserialize(decoder: Decoder): Result {
+            val obj = (decoder as JsonDecoder).decodeJsonElement().jsonObject
 
-                    // diffMode == false
-                    // In prestate mode, field is an address key
-                    else -> {
-                        if (prestate == null) {
-                            prestate = HashMap()
-                        }
+            val hasDiffKeys = obj.containsKey("pre") || obj.containsKey("post")
 
-                        val address = Address(field)
-                        val account = p.readAccount()
-
-                        (prestate as MutableMap<Address, Account>)[address] = account
-                    }
-                }
+            return if (hasDiffKeys) {
+                val prestate = obj["pre"]?.jsonObject?.let { readAccountMap(it) } ?: emptyMap()
+                val poststate = obj["post"]?.jsonObject?.let { readAccountMap(it) } ?: emptyMap()
+                Result(true, prestate, poststate)
+            } else {
+                val prestate = readAccountMap(obj)
+                Result(false, prestate, emptyMap())
             }
-
-            return Result(diffMode, prestate ?: emptyMap(), poststate ?: emptyMap())
         }
 
-        private fun JsonParser.readAccountMap(): Map<Address, Account> {
-            return readMapOf({ Address(it) }) { readAccount() }
+        private fun readAccountMap(obj: JsonObject): Map<Address, Account> {
+            return obj.entries.associate { (addrStr, element) ->
+                Address(addrStr) to readAccount(element.jsonObject)
+            }
         }
 
-        private fun JsonParser.readAccount(): Account {
-            var nonce: Long = -1L
+        private fun readAccount(obj: JsonObject): Account {
+            var nonce = -1L
             var balance: BigInteger? = null
             var code: Bytes? = null
             var storage: Map<Hash, Hash>? = null
-            forEachObjectField {
-                when (it) {
-                    "nonce" -> nonce = longValue
-                    "balance" -> balance = readHexBigInteger()
-                    "code" -> code = readBytes()
-                    "storage" -> storage = readMapOf({ key -> Hash(key) }) { readHash() }
+
+            for ((key, element) in obj.entries) {
+                when (key) {
+                    "nonce" -> nonce = element.jsonPrimitive.long
+                    "balance" -> balance = element.jsonPrimitive.asHexBigInteger()
+                    "code" -> code = element.jsonPrimitive.asBytes()
+                    "storage" -> storage = element.jsonObject.entries.associate { (k, v) ->
+                        Hash(k) to v.jsonPrimitive.asHash()
+                    }
                 }
             }
+
             return Account(nonce, balance, code, storage)
         }
     }

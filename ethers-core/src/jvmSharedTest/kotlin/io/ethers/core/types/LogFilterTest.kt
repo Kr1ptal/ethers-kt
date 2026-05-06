@@ -1,6 +1,6 @@
 package io.ethers.core.types
 
-import io.ethers.core.Jackson
+import io.ethers.core.Kotlinx
 import io.kotest.assertions.json.shouldEqualJson
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData
@@ -26,7 +26,7 @@ class LogFilterTest : FunSpec({
             )
         }
 
-        Jackson.MAPPER.writeValueAsString(logFilter) shouldEqualJson """
+        Kotlinx.DEFAULT.encodeToString(logFilter) shouldEqualJson """
             {
               "fromBlock": "${logFilter.blocks.from.id}",
               "toBlock": "${logFilter.blocks.to.id}",
@@ -53,7 +53,7 @@ class LogFilterTest : FunSpec({
             LogFilter { blockRange(BlockId.Number(100L), BlockId.LATEST) },
             LogFilter { blockRange(BlockId.EARLIEST, BlockId.Number(100L)) },
         ) { logFilter ->
-            Jackson.MAPPER.writeValueAsString(logFilter) shouldEqualJson """
+            Kotlinx.DEFAULT.encodeToString(logFilter) shouldEqualJson """
                 {
                   "fromBlock": "${logFilter.blocks.from.id}",
                   "toBlock": "${logFilter.blocks.to.id}"
@@ -67,7 +67,7 @@ class LogFilterTest : FunSpec({
             LogFilter { atBlock(Hash("0x2c00f9fd0fcdeb1ccaf7a31d05702b578ea1b8f8feccd2cd63423cdd41e4149c")) },
             LogFilter { atBlock(BlockId.Hash(Hash("0x2c00f9fd0fcdeb1ccaf7a31d05702b578ea1b8f8feccd2cd63423cdd41e4149c"))) },
         ) { logFilter ->
-            Jackson.MAPPER.writeValueAsString(logFilter) shouldEqualJson """
+            Kotlinx.DEFAULT.encodeToString(logFilter) shouldEqualJson """
                 {
                   "blockHash": "${(logFilter.blocks as BlockSelector.Hash).hash}"
                 }
@@ -87,11 +87,11 @@ class LogFilterTest : FunSpec({
                 )
             },
         ) { logFilter ->
-            Jackson.MAPPER.writeValueAsString(logFilter) shouldEqualJson """
+            Kotlinx.DEFAULT.encodeToString(logFilter) shouldEqualJson """
                 {
                   "fromBlock": "latest",
                   "toBlock": "latest",
-                  "address": ${Jackson.MAPPER.writeValueAsString(logFilter.addresses)}
+                  "address": ${logFilter.addresses!!.joinToString(",", "[", "]") { "\"$it\"" }}
                 }
             """
         }
@@ -107,11 +107,11 @@ class LogFilterTest : FunSpec({
             ) { logFilter ->
                 val indexOfTopic = logFilter.topics!!.indexOfFirst { it != null }
                 val expectedResult = logFilter.topics!!.slice(0..indexOfTopic)
-                Jackson.MAPPER.writeValueAsString(logFilter) shouldEqualJson """
+                Kotlinx.DEFAULT.encodeToString(logFilter) shouldEqualJson """
                     {
                       "fromBlock": "latest",
                       "toBlock": "latest",
-                      "topics": ${Jackson.MAPPER.writeValueAsString(expectedResult.map { it?.get(0) })}
+                      "topics": ${expectedResult.map { it?.get(0) }.joinToString(",", "[", "]") { if (it == null) "null" else "\"$it\"" }}
                     }
                 """
             }
@@ -146,11 +146,11 @@ class LogFilterTest : FunSpec({
             ) { logFilter ->
                 val indexOfTopic = logFilter.topics!!.indexOfFirst { it != null }
                 val expectedResult = logFilter.topics!!.slice(0..indexOfTopic)
-                Jackson.MAPPER.writeValueAsString(logFilter) shouldEqualJson """
+                Kotlinx.DEFAULT.encodeToString(logFilter) shouldEqualJson """
                     {
                       "fromBlock": "latest",  
                       "toBlock": "latest",  
-                      "topics": ${Jackson.MAPPER.writeValueAsString(expectedResult)}
+                      "topics": ${expectedResult.joinToString(",", "[", "]") { topics -> if (topics == null) "null" else topics.joinToString(",", "[", "]") { "\"$it\"" } }}
                     }
                 """
             }
@@ -229,7 +229,7 @@ class LogFilterTest : FunSpec({
 
         test("atBlock(Long) serialization") {
             val filter = LogFilter { atBlock(12345L) }
-            Jackson.MAPPER.writeValueAsString(filter) shouldEqualJson """
+            Kotlinx.DEFAULT.encodeToString(filter) shouldEqualJson """
                 {
                   "fromBlock": "0x3039",
                   "toBlock": "0x3039"
@@ -246,7 +246,7 @@ class LogFilterTest : FunSpec({
         filter.addresses!![0] shouldBe a1
         filter.addresses!![1] shouldBe a2
 
-        Jackson.MAPPER.writeValueAsString(filter) shouldEqualJson """
+        Kotlinx.DEFAULT.encodeToString(filter) shouldEqualJson """
             {
               "fromBlock": "latest",
               "toBlock": "latest",
@@ -293,7 +293,7 @@ class LogFilterTest : FunSpec({
         test("serialization with no topics omits topics field") {
             val addr = Address("0xDAFEA492D9c6733ae3d56b7Ed1ADB60692c98Bc5")
             val filter = LogFilter { address(addr) }
-            Jackson.MAPPER.writeValueAsString(filter) shouldEqualJson """
+            Kotlinx.DEFAULT.encodeToString(filter) shouldEqualJson """
                 {
                   "fromBlock": "latest",
                   "toBlock": "latest",
@@ -306,7 +306,7 @@ class LogFilterTest : FunSpec({
             val filter = LogFilter {
                 blockRange(1L, 100L)
             }
-            Jackson.MAPPER.writeValueAsString(filter) shouldEqualJson """
+            Kotlinx.DEFAULT.encodeToString(filter) shouldEqualJson """
                 {
                   "fromBlock": "0x1",
                   "toBlock": "0x64"
@@ -317,7 +317,7 @@ class LogFilterTest : FunSpec({
         test("serialization with topic gap includes null placeholder") {
             val h = Hash("0x2c00f9fd0fcdeb1ccaf7a31d05702b578ea1b8f8feccd2cd63423cdd41e4149c")
             val filter = LogFilter { topic2(h) }
-            Jackson.MAPPER.writeValueAsString(filter) shouldEqualJson """
+            Kotlinx.DEFAULT.encodeToString(filter) shouldEqualJson """
                 {
                   "fromBlock": "latest",
                   "toBlock": "latest",

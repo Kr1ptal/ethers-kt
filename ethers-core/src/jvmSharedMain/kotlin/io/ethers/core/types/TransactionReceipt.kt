@@ -1,29 +1,30 @@
 package io.ethers.core.types
 
-import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.core.JsonToken
-import com.fasterxml.jackson.databind.DeserializationContext
-import com.fasterxml.jackson.databind.JsonDeserializer
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize
-import io.ethers.core.forEachObjectField
+import io.ethers.core.asAddress
+import io.ethers.core.asBloom
+import io.ethers.core.asBytes
+import io.ethers.core.asHash
+import io.ethers.core.asHexBigInteger
+import io.ethers.core.asHexInt
+import io.ethers.core.asHexLong
 import io.ethers.core.json.JsonElement
-import io.ethers.core.readAddress
-import io.ethers.core.readBloom
-import io.ethers.core.readBytes
-import io.ethers.core.readHash
-import io.ethers.core.readHexBigInteger
-import io.ethers.core.readHexInt
-import io.ethers.core.readHexLong
-import io.ethers.core.readListOf
-import io.ethers.core.readOrNull
 import io.ethers.core.types.transaction.TxType
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.buildClassSerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.math.BigInteger
 
 /**
  * Result of transaction execution.
  */
-@JsonDeserialize(using = TxReceiptDeserializer::class)
+@Serializable(with = TxReceiptSerializer::class)
 data class TransactionReceipt(
     val blockHash: Hash,
     val blockNumber: Long,
@@ -53,51 +54,52 @@ data class TransactionReceipt(
     }
 }
 
-private class TxReceiptDeserializer : JsonDeserializer<TransactionReceipt>() {
-    override fun deserialize(p: JsonParser, ctxt: DeserializationContext): TransactionReceipt {
-        if (p.currentToken != JsonToken.START_OBJECT) {
-            throw IllegalStateException("Expected start object, got: ${p.currentToken}")
-        }
+object TxReceiptSerializer : KSerializer<TransactionReceipt> {
+    override val descriptor = buildClassSerialDescriptor("TransactionReceipt")
+
+    override fun serialize(encoder: Encoder, value: TransactionReceipt) = throw UnsupportedOperationException()
+
+    override fun deserialize(decoder: Decoder): TransactionReceipt {
+        val jsonDecoder = decoder as JsonDecoder
+        val obj = jsonDecoder.decodeJsonElement().jsonObject
 
         lateinit var blockHash: Hash
-        var blockNumber: Long = -1L
+        var blockNumber = -1L
         lateinit var transactionHash: Hash
-        var transactionIndex: Int = -1
+        var transactionIndex = -1
         lateinit var from: Address
         var to: Address? = null
-        var gasUsed: Long = -1L
-        var cumulativeGasUsed: Long = -1L
+        var gasUsed = -1L
+        var cumulativeGasUsed = -1L
         var contractAddress: Address? = null
         var logs = emptyList<Log>()
         lateinit var logsBloom: Bloom
-        var type: Int = -1
+        var type = -1
         lateinit var effectiveGasPrice: BigInteger
-        var status: Long = -1L
+        var status = -1L
         var root: Bytes? = null
         var otherFields: MutableMap<String, JsonElement>? = null
 
-        p.forEachObjectField { field ->
-            when (field) {
-                "blockHash" -> blockHash = p.readHash()
-                "blockNumber" -> blockNumber = p.readHexLong()
-                "transactionHash" -> transactionHash = p.readHash()
-                "transactionIndex" -> transactionIndex = p.readHexInt()
-                "from" -> from = p.readAddress()
-                "to" -> to = p.readOrNull { readAddress() }
-                "gasUsed" -> gasUsed = p.readHexLong()
-                "cumulativeGasUsed" -> cumulativeGasUsed = p.readHexLong()
-                "contractAddress" -> contractAddress = p.readOrNull { readAddress() }
-                "logs" -> logs = p.readListOf(Log::class.java)
-                "logsBloom" -> logsBloom = p.readBloom()
-                "type" -> type = p.readHexInt()
-                "effectiveGasPrice" -> effectiveGasPrice = p.readHexBigInteger()
-                "status" -> status = p.readHexLong()
-                "root" -> root = p.readBytes()
+        for ((key, element) in obj.entries) {
+            when (key) {
+                "blockHash" -> blockHash = element.jsonPrimitive.asHash()
+                "blockNumber" -> blockNumber = element.jsonPrimitive.asHexLong()
+                "transactionHash" -> transactionHash = element.jsonPrimitive.asHash()
+                "transactionIndex" -> transactionIndex = element.jsonPrimitive.asHexInt()
+                "from" -> from = element.jsonPrimitive.asAddress()
+                "to" -> to = if (element is JsonNull) null else element.jsonPrimitive.asAddress()
+                "gasUsed" -> gasUsed = element.jsonPrimitive.asHexLong()
+                "cumulativeGasUsed" -> cumulativeGasUsed = element.jsonPrimitive.asHexLong()
+                "contractAddress" -> contractAddress = if (element is JsonNull) null else element.jsonPrimitive.asAddress()
+                "logs" -> logs = element.jsonArray.map { jsonDecoder.json.decodeFromJsonElement(LogSerializer, it) }
+                "logsBloom" -> logsBloom = element.jsonPrimitive.asBloom()
+                "type" -> type = element.jsonPrimitive.asHexInt()
+                "effectiveGasPrice" -> effectiveGasPrice = element.jsonPrimitive.asHexBigInteger()
+                "status" -> status = element.jsonPrimitive.asHexLong()
+                "root" -> root = element.jsonPrimitive.asBytes()
                 else -> {
-                    if (otherFields == null) {
-                        otherFields = HashMap()
-                    }
-                    otherFields!![p.currentName()] = JsonElement(p.readValueAsTree<JsonNode>().toString())
+                    if (otherFields == null) otherFields = HashMap()
+                    otherFields[key] = JsonElement(element.toString())
                 }
             }
         }

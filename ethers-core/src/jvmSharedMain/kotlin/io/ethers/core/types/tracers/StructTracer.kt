@@ -1,16 +1,24 @@
 package io.ethers.core.types.tracers
 
-import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.databind.DeserializationContext
-import com.fasterxml.jackson.databind.JsonDeserializer
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize
-import io.ethers.core.forEachObjectField
-import io.ethers.core.readBytes
-import io.ethers.core.readHash
-import io.ethers.core.readListOf
-import io.ethers.core.readMapOf
+import io.ethers.core.asBytes
+import io.ethers.core.asHash
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.buildClassSerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.int
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.long
 import kotlin.reflect.KClass
 
 /**
@@ -46,7 +54,11 @@ data class StructTracer(
         if (overrides.isNotEmpty()) put("overrides", overrides)
     }
 
-    @JsonDeserialize(using = ExecutionResultDeserializer::class)
+    override fun decodeResult(json: Json, element: JsonElement): ExecutionResult {
+        return json.decodeFromJsonElement(ExecutionResultSerializer, element)
+    }
+
+    @Serializable(with = ExecutionResultSerializer::class)
     data class ExecutionResult(
         val gas: Long,
         val failed: Boolean,
@@ -54,7 +66,7 @@ data class StructTracer(
         val structLogs: List<StructLog>,
     )
 
-    @JsonDeserialize(using = StructLogDeserializer::class)
+    @Serializable(with = StructLogSerializer::class)
     data class StructLog(
         val pc: Int,
         val op: String,
@@ -68,18 +80,28 @@ data class StructTracer(
         val refundCounter: Long,
     )
 
-    private class ExecutionResultDeserializer : JsonDeserializer<ExecutionResult>() {
-        override fun deserialize(p: JsonParser, ctxt: DeserializationContext): ExecutionResult {
+    object ExecutionResultSerializer : KSerializer<ExecutionResult> {
+        override val descriptor = buildClassSerialDescriptor("StructTracer.ExecutionResult")
+
+        override fun serialize(encoder: Encoder, value: ExecutionResult) = throw UnsupportedOperationException()
+
+        override fun deserialize(decoder: Decoder): ExecutionResult {
+            val jsonDecoder = decoder as JsonDecoder
+            val obj = jsonDecoder.decodeJsonElement().jsonObject
+
             var gas = -1L
             var failed = false
             lateinit var returnValue: Bytes
             var structLogs: List<StructLog>? = null
-            p.forEachObjectField {
-                when (it) {
-                    "gas" -> gas = p.longValue
-                    "failed" -> failed = p.booleanValue
-                    "returnValue" -> returnValue = p.readBytes()
-                    "structLogs" -> structLogs = p.readListOf { readValueAs(StructLog::class.java) }
+
+            for ((key, element) in obj.entries) {
+                when (key) {
+                    "gas" -> gas = element.jsonPrimitive.long
+                    "failed" -> failed = element.jsonPrimitive.boolean
+                    "returnValue" -> returnValue = element.jsonPrimitive.asBytes()
+                    "structLogs" -> structLogs = element.jsonArray.map {
+                        jsonDecoder.json.decodeFromJsonElement(StructLogSerializer, it)
+                    }
                 }
             }
 
@@ -87,8 +109,14 @@ data class StructTracer(
         }
     }
 
-    private class StructLogDeserializer : JsonDeserializer<StructLog>() {
-        override fun deserialize(p: JsonParser, ctxt: DeserializationContext): StructLog {
+    object StructLogSerializer : KSerializer<StructLog> {
+        override val descriptor = buildClassSerialDescriptor("StructTracer.StructLog")
+
+        override fun serialize(encoder: Encoder, value: StructLog) = throw UnsupportedOperationException()
+
+        override fun deserialize(decoder: Decoder): StructLog {
+            val obj = (decoder as JsonDecoder).decodeJsonElement().jsonObject
+
             var pc = -1
             lateinit var op: String
             var gas = -1L
@@ -99,18 +127,22 @@ data class StructTracer(
             var memory: List<Bytes>? = null
             var storage: Map<Hash, Hash>? = null
             var refundCounter = 0L
-            p.forEachObjectField {
-                when (it) {
-                    "pc" -> pc = p.intValue
-                    "op" -> op = p.text
-                    "gas" -> gas = p.longValue
-                    "gasCost" -> gasCost = p.longValue
-                    "depth" -> depth = p.intValue
-                    "error" -> error = p.text
-                    "stack" -> stack = p.readListOf { readBytes() }
-                    "memory" -> memory = p.readListOf { readBytes() }
-                    "storage" -> storage = p.readMapOf({ key -> Hash(key) }) { readHash() }
-                    "refundCounter" -> refundCounter = p.longValue
+
+            for ((key, element) in obj.entries) {
+                when (key) {
+                    "pc" -> pc = element.jsonPrimitive.int
+                    "op" -> op = element.jsonPrimitive.content
+                    "gas" -> gas = element.jsonPrimitive.long
+                    "gasCost" -> gasCost = element.jsonPrimitive.long
+                    "depth" -> depth = element.jsonPrimitive.int
+                    "error" -> error = if (element is JsonNull) null else element.jsonPrimitive.content
+                    "stack" -> stack = if (element is JsonNull) null
+                    else element.jsonArray.map { it.jsonPrimitive.asBytes() }
+                    "memory" -> memory = if (element is JsonNull) null
+                    else element.jsonArray.map { it.jsonPrimitive.asBytes() }
+                    "storage" -> storage = if (element is JsonNull) null
+                    else element.jsonObject.entries.associate { (k, v) -> Hash(k) to v.jsonPrimitive.asHash() }
+                    "refundCounter" -> refundCounter = element.jsonPrimitive.long
                 }
             }
 

@@ -1,20 +1,18 @@
 package io.ethers.core.types
 
-import com.fasterxml.jackson.core.JsonGenerator
-import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.databind.DeserializationContext
-import com.fasterxml.jackson.databind.JsonDeserializer
-import com.fasterxml.jackson.databind.JsonSerializer
-import com.fasterxml.jackson.databind.SerializerProvider
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize
-import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import io.ethers.core.FastHex
 import io.ethers.core.HexDecodingError
 import io.ethers.core.Result
 import io.ethers.core.failure
-import io.ethers.core.readBloom
 import io.ethers.core.success
 import io.ethers.crypto.Hashing
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
 import kotlin.experimental.and
 import kotlin.experimental.or
 
@@ -27,8 +25,7 @@ private const val BLOOM_SIZE = 256
  * False positive matches are possible, but false negatives are not – in other words, a query returns either
  * "possibly in set" or "definitely not in set".
  */
-@JsonDeserialize(using = BloomDeserializer::class)
-@JsonSerialize(using = BloomSerializer::class)
+@Serializable(with = BloomSerializer::class)
 class Bloom(private val value: ByteArray) {
     constructor() : this(ByteArray(BLOOM_SIZE))
     constructor(value: CharSequence) : this(FastHex.decode(value))
@@ -149,14 +146,14 @@ class Bloom(private val value: ByteArray) {
     }
 }
 
-private class BloomDeserializer : JsonDeserializer<Bloom>() {
-    override fun deserialize(p: JsonParser, ctxt: DeserializationContext): Bloom {
-        return p.readBloom()
-    }
-}
+object BloomSerializer : KSerializer<Bloom> {
+    override val descriptor: SerialDescriptor = PrimitiveSerialDescriptor("Bloom", PrimitiveKind.STRING)
 
-private class BloomSerializer : JsonSerializer<Bloom>() {
-    override fun serialize(value: Bloom, gen: JsonGenerator, serializers: SerializerProvider) {
-        gen.writeString(value.toString())
+    override fun serialize(encoder: Encoder, value: Bloom) {
+        encoder.encodeString(value.toString())
+    }
+
+    override fun deserialize(decoder: Decoder): Bloom {
+        return Bloom(FastHex.decode(decoder.decodeString()))
     }
 }

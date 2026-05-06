@@ -1,18 +1,9 @@
 package io.ethers.core.types
 
-import com.fasterxml.jackson.core.JsonGenerator
-import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.databind.DeserializationContext
-import com.fasterxml.jackson.databind.JsonDeserializer
-import com.fasterxml.jackson.databind.JsonSerializer
-import com.fasterxml.jackson.databind.SerializerProvider
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize
-import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import io.ethers.core.FastHex
 import io.ethers.core.HexDecodingError
 import io.ethers.core.Result
 import io.ethers.core.failure
-import io.ethers.core.readAddress
 import io.ethers.core.success
 import io.ethers.core.types.transaction.ChainId
 import io.ethers.crypto.Hashing
@@ -20,13 +11,19 @@ import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncodable
 import io.ethers.rlp.RlpEncoder
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
 import kotlin.random.Random
 
 /**
  * 20-byte address.
  * */
-@JsonDeserialize(using = AddressDeserializer::class)
-@JsonSerialize(using = AddressSerializer::class)
+@Serializable(with = AddressSerializer::class)
 class Address(private val value: ByteArray) : RlpEncodable {
     constructor(value: CharSequence) : this(FastHex.decode(value))
 
@@ -199,14 +196,17 @@ class Address(private val value: ByteArray) : RlpEncodable {
     }
 }
 
-private class AddressDeserializer : JsonDeserializer<Address>() {
-    override fun deserialize(p: JsonParser, ctxt: DeserializationContext): Address {
-        return p.readAddress()
-    }
-}
+object AddressSerializer : KSerializer<Address> {
+    override val descriptor: SerialDescriptor = PrimitiveSerialDescriptor("Address", PrimitiveKind.STRING)
 
-private class AddressSerializer : JsonSerializer<Address>() {
-    override fun serialize(value: Address, gen: JsonGenerator, serializers: SerializerProvider) {
-        gen.writeString(value.toString())
+    override fun serialize(encoder: Encoder, value: Address) {
+        encoder.encodeString(value.toString())
+    }
+
+    override fun deserialize(decoder: Decoder): Address {
+        val text = decoder.decodeString()
+        if (text.isEmpty() || text == "0x" || text == "0X") return Address.ZERO
+        val arr = FastHex.decode(text)
+        return if (arr.isEmpty()) Address.ZERO else Address(arr)
     }
 }

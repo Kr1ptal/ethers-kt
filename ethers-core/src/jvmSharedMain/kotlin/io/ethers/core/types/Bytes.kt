@@ -1,29 +1,26 @@
 package io.ethers.core.types
 
-import com.fasterxml.jackson.core.JsonGenerator
-import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.databind.DeserializationContext
-import com.fasterxml.jackson.databind.JsonDeserializer
-import com.fasterxml.jackson.databind.JsonSerializer
-import com.fasterxml.jackson.databind.SerializerProvider
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize
-import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import io.ethers.core.FastHex
 import io.ethers.core.HexDecodingError
 import io.ethers.core.Result
 import io.ethers.core.failure
-import io.ethers.core.readBytes
 import io.ethers.core.success
 import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncodable
 import io.ethers.rlp.RlpEncoder
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
 
 /**
  * Variable size byte array.
  * */
-@JsonDeserialize(using = BytesDeserializer::class)
-@JsonSerialize(using = BytesSerializer::class)
+@Serializable(with = BytesSerializer::class)
 class Bytes(private val value: ByteArray) : RlpEncodable {
     constructor(value: CharSequence) : this(FastHex.decode(value))
 
@@ -242,14 +239,16 @@ class Bytes(private val value: ByteArray) : RlpEncodable {
     }
 }
 
-private class BytesDeserializer : JsonDeserializer<Bytes>() {
-    override fun deserialize(p: JsonParser, ctxt: DeserializationContext): Bytes {
-        return p.readBytes()
-    }
-}
+object BytesSerializer : KSerializer<Bytes> {
+    override val descriptor: SerialDescriptor = PrimitiveSerialDescriptor("Bytes", PrimitiveKind.STRING)
 
-private class BytesSerializer : JsonSerializer<Bytes>() {
-    override fun serialize(value: Bytes, gen: JsonGenerator, serializers: SerializerProvider) {
-        gen.writeString(value.toString())
+    override fun serialize(encoder: Encoder, value: Bytes) {
+        encoder.encodeString(value.toString())
+    }
+
+    override fun deserialize(decoder: Decoder): Bytes {
+        val text = decoder.decodeString()
+        if (text.isEmpty() || text == "0x" || text == "0X") return Bytes.EMPTY
+        return Bytes(FastHex.decode(text))
     }
 }
