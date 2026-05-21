@@ -203,6 +203,8 @@ internal object EIP712TypedDataSerializer : KSerializer<EIP712TypedData> {
 
     private fun anyToJsonElement(value: Any): JsonElement = when (value) {
         is String -> JsonPrimitive(value)
+        is Number -> JsonPrimitive(value.toString())
+        is Boolean -> JsonPrimitive(value.toString())
         is List<*> -> JsonArray(value.map { anyToJsonElement(it!!) })
         is Map<*, *> -> JsonObject(value.entries.associate { (k, v) -> k as String to anyToJsonElement(v!!) })
         else -> throw IllegalArgumentException("Unsupported type in EIP712 message: ${value::class}")

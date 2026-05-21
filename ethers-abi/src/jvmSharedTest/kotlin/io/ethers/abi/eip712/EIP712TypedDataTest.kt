@@ -6,6 +6,7 @@ import io.ethers.abi.Person
 import io.ethers.core.Kotlinx
 import io.ethers.core.types.Address
 import io.ethers.core.types.Hash
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import kotlinx.serialization.json.JsonArray
@@ -205,6 +206,53 @@ class EIP712TypedDataTest : FunSpec({
             // Verify chainId in domain is decimal string as per EIP712Domain serialization
             val chainIdInDomain = jsonObj["domain"]!!.jsonObject["chainId"]!!.jsonPrimitive.content
             chainIdInDomain shouldBe "12345678901234567890"
+        }
+
+        // Regression test for https://github.com/Kr1ptal/ethers-kt/pull/444#discussion_r3213909791
+        // Before the fix, the serializer only accepted String/List/Map values and threw
+        // IllegalArgumentException for numbers/booleans, even though the public message type
+        // is Map<String, Any> and the deserializer happily stringified them.
+        test("serializes message values of type Number and Boolean (stringified)") {
+            val domain = EIP712Domain(name = "PrimitiveValues", version = "1.0")
+            val message = mapOf<String, Any>(
+                "amount" to BigInteger.ONE,
+                "blockNumber" to 42L,
+                "active" to true,
+                "ratio" to 0.5,
+                "size" to 7,
+            )
+            val typedData = EIP712TypedData("PrimitiveValues", emptyMap(), message, domain)
+
+            val json = Kotlinx.DEFAULT.encodeToString(typedData)
+            val messageObj = Kotlinx.DEFAULT.parseToJsonElement(json).jsonObject["message"]!!.jsonObject
+
+            messageObj["amount"]!!.jsonPrimitive.content shouldBe "1"
+            messageObj["blockNumber"]!!.jsonPrimitive.content shouldBe "42"
+            messageObj["active"]!!.jsonPrimitive.content shouldBe "true"
+            messageObj["ratio"]!!.jsonPrimitive.content shouldBe "0.5"
+            messageObj["size"]!!.jsonPrimitive.content shouldBe "7"
+
+            // Round-trip: deserializer stringifies primitives, so the decoded message
+            // contains String values (asymmetric by design — documented behavior).
+            val decoded = Kotlinx.DEFAULT.decodeFromString<EIP712TypedData>(json)
+            decoded.message shouldBe mapOf(
+                "amount" to "1",
+                "blockNumber" to "42",
+                "active" to "true",
+                "ratio" to "0.5",
+                "size" to "7",
+            )
+        }
+
+        test("serializing message with truly unsupported type still throws") {
+            val domain = EIP712Domain(name = "UnsupportedValues")
+            // Address is not an accepted message-value type — callers must pass its hex string form.
+            val message = mapOf<String, Any>("wallet" to Address.ZERO)
+            val typedData = EIP712TypedData("UnsupportedValues", emptyMap(), message, domain)
+
+            shouldThrow<IllegalArgumentException> {
+                Kotlinx.DEFAULT.encodeToString(typedData)
+            }
         }
 
         test("decodes numeric values as strings") {
