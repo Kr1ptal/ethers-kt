@@ -110,10 +110,10 @@ object RPCTransactionSerializer : KSerializer<RPCTransaction> {
                 }
                 "type" -> type = element.jsonPrimitive.asHexLong()
                 "accessList" -> accessList = element.jsonArray.map {
-                    jsonDecoder.json.decodeFromJsonElement(AccessListItemSerializer, it)
+                    jsonDecoder.json.decodeFromJsonElement(AccessList.Item.serializer(), it)
                 }
                 "authorizationList" -> authorizationList = element.jsonArray.map {
-                    jsonDecoder.json.decodeFromJsonElement(AuthorizationSerializer, it)
+                    jsonDecoder.json.decodeFromJsonElement(Authorization.serializer(), it)
                 }
                 "chainId" -> if (element !is JsonNull) chainId = element.jsonPrimitive.asHexLong()
                 "v" -> v = element.jsonPrimitive.asHexLong()

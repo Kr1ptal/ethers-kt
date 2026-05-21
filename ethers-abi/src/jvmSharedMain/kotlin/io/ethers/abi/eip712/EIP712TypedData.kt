@@ -117,7 +117,7 @@ data class EIP712TypedData(
  * @property name The field name as it appears in the struct
  * @property type The EIP712 type string (e.g., "address", "uint256", "Person", "bytes32[]")
  */
-@Serializable(with = EIP712FieldSerializer::class)
+@Serializable
 data class EIP712Field(
     val name: String,
     val type: String,
@@ -219,31 +219,5 @@ internal object EIP712TypedDataSerializer : KSerializer<EIP712TypedData> {
         is JsonArray -> element.map { jsonElementToAny(it) }
         is JsonObject -> element.entries.associate { (k, v) -> k to jsonElementToAny(v) }
         is JsonNull -> throw IllegalArgumentException("Null values in EIP712TypedData are not supported")
-    }
-}
-
-internal object EIP712FieldSerializer : KSerializer<EIP712Field> {
-    override val descriptor = buildClassSerialDescriptor("EIP712Field")
-
-    override fun serialize(encoder: Encoder, value: EIP712Field) {
-        val jsonEncoder = encoder as JsonEncoder
-        jsonEncoder.encodeJsonElement(
-            buildJsonObject {
-                put("name", JsonPrimitive(value.name))
-                put("type", JsonPrimitive(value.type))
-            },
-        )
-    }
-
-    override fun deserialize(decoder: Decoder): EIP712Field {
-        val jsonDecoder = decoder as JsonDecoder
-        val obj = jsonDecoder.decodeJsonElement().jsonObject
-
-        val name = obj["name"]?.jsonPrimitive?.content
-            ?: throw IllegalArgumentException("Missing name field")
-        val type = obj["type"]?.jsonPrimitive?.content
-            ?: throw IllegalArgumentException("Missing type field")
-
-        return EIP712Field(name = name, type = type)
     }
 }

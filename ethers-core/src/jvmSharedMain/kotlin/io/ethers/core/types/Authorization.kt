@@ -1,41 +1,29 @@
 package io.ethers.core.types
 
 import io.ethers.core.FastHex
-import io.ethers.core.asAddress
-import io.ethers.core.asHexBigInteger
-import io.ethers.core.asHexLong
-import io.ethers.core.getOrNull
+import io.ethers.core.HexBigIntegerSerializer
+import io.ethers.core.HexLongSerializer
 import io.ethers.crypto.Hashing
 import io.ethers.crypto.Secp256k1
 import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncodable
 import io.ethers.rlp.RlpEncoder
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.descriptors.buildClassSerialDescriptor
-import kotlinx.serialization.encoding.Decoder
-import kotlinx.serialization.encoding.Encoder
-import kotlinx.serialization.json.JsonDecoder
-import kotlinx.serialization.json.JsonEncoder
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.put
 import java.math.BigInteger
 
 /**
  * EIP-7702 Authorization structure for SetCode transactions.
  * Each authorization allows a specific address to execute code on behalf of the authority.
  */
-@Serializable(with = AuthorizationSerializer::class)
+@Serializable
 data class Authorization(
-    val chainId: Long,
+    @Serializable(with = HexLongSerializer::class) val chainId: Long,
     val address: Address,
-    val nonce: Long,
-    val yParity: Long,
-    val r: BigInteger,
-    val s: BigInteger,
+    @Serializable(with = HexLongSerializer::class) val nonce: Long,
+    @Serializable(with = HexLongSerializer::class) val yParity: Long,
+    @Serializable(with = HexBigIntegerSerializer::class) val r: BigInteger,
+    @Serializable(with = HexBigIntegerSerializer::class) val s: BigInteger,
 ) : RlpEncodable {
     init {
         require(chainId == 0L || chainId > 0L) { "chainId must be 0 or positive" }
@@ -133,37 +121,5 @@ data class Authorization(
                 Authorization(chainId, address, nonce, yParity, r, s)
             }
         }
-    }
-}
-
-object AuthorizationSerializer : KSerializer<Authorization> {
-    override val descriptor = buildClassSerialDescriptor("Authorization")
-
-    override fun serialize(encoder: Encoder, value: Authorization) {
-        val jsonEncoder = encoder as JsonEncoder
-        jsonEncoder.encodeJsonElement(
-            buildJsonObject {
-                put("chainId", FastHex.encodeWithPrefix(value.chainId))
-                put("address", value.address.toString())
-                put("nonce", FastHex.encodeWithPrefix(value.nonce))
-                put("yParity", FastHex.encodeWithPrefix(value.yParity))
-                put("r", FastHex.encodeWithPrefix(value.r))
-                put("s", FastHex.encodeWithPrefix(value.s))
-            },
-        )
-    }
-
-    override fun deserialize(decoder: Decoder): Authorization {
-        val jsonDecoder = decoder as JsonDecoder
-        val obj = jsonDecoder.decodeJsonElement().jsonObject
-
-        val chainId = obj["chainId"]!!.jsonPrimitive.asHexLong()
-        val address = obj["address"]!!.jsonPrimitive.asAddress()
-        val nonce = obj["nonce"]!!.jsonPrimitive.asHexLong()
-        val yParity = obj["yParity"]!!.jsonPrimitive.asHexLong()
-        val r = obj["r"]!!.jsonPrimitive.asHexBigInteger()
-        val s = obj["s"]!!.jsonPrimitive.asHexBigInteger()
-
-        return Authorization(chainId, address, nonce, yParity, r, s)
     }
 }

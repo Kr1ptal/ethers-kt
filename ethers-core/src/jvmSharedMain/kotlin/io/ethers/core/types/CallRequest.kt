@@ -284,7 +284,7 @@ object CallRequestSerializer : KSerializer<CallRequest> {
                         "accessList",
                         buildJsonArray {
                             for (i in value.accessList.indices) {
-                                add(jsonEncoder.json.encodeToJsonElement(AccessListItemSerializer, value.accessList[i]))
+                                add(jsonEncoder.json.encodeToJsonElement(AccessList.Item.serializer(), value.accessList[i]))
                             }
                         },
                     )

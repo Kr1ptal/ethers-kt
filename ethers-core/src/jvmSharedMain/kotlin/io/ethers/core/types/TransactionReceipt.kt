@@ -91,7 +91,7 @@ object TxReceiptSerializer : KSerializer<TransactionReceipt> {
                 "gasUsed" -> gasUsed = element.jsonPrimitive.asHexLong()
                 "cumulativeGasUsed" -> cumulativeGasUsed = element.jsonPrimitive.asHexLong()
                 "contractAddress" -> contractAddress = if (element is JsonNull) null else element.jsonPrimitive.asAddress()
-                "logs" -> logs = element.jsonArray.map { jsonDecoder.json.decodeFromJsonElement(LogSerializer, it) }
+                "logs" -> logs = element.jsonArray.map { jsonDecoder.json.decodeFromJsonElement(Log.serializer(), it) }
                 "logsBloom" -> logsBloom = element.jsonPrimitive.asBloom()
                 "type" -> type = element.jsonPrimitive.asHexInt()
                 "effectiveGasPrice" -> effectiveGasPrice = element.jsonPrimitive.asHexBigInteger()

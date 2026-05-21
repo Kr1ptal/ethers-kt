@@ -1,6 +1,6 @@
 package io.ethers.core.types
 
-import io.ethers.core.asHexLong
+import io.ethers.core.HexLongSerializer
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.descriptors.buildClassSerialDescriptor
@@ -25,10 +25,10 @@ data class TxpoolContent(
 /**
  * Status of the transaction pool, including number of pending and queued transactions.
  */
-@Serializable(with = TxpoolStatusSerializer::class)
+@Serializable
 data class TxpoolStatus(
-    val pending: Long,
-    val queued: Long,
+    @Serializable(with = HexLongSerializer::class) val pending: Long,
+    @Serializable(with = HexLongSerializer::class) val queued: Long,
 )
 
 /**
@@ -96,28 +96,6 @@ object TxpoolContentSerializer : KSerializer<TxpoolContent> {
         }
 
         return TxpoolContent(pending, queued)
-    }
-}
-
-object TxpoolStatusSerializer : KSerializer<TxpoolStatus> {
-    override val descriptor = buildClassSerialDescriptor("TxpoolStatus")
-
-    override fun serialize(encoder: Encoder, value: TxpoolStatus) = throw UnsupportedOperationException()
-
-    override fun deserialize(decoder: Decoder): TxpoolStatus {
-        val obj = (decoder as JsonDecoder).decodeJsonElement().jsonObject
-
-        var pending: Long? = null
-        var queued: Long? = null
-
-        for ((key, element) in obj.entries) {
-            when (key) {
-                "pending" -> pending = element.jsonPrimitive.asHexLong()
-                "queued" -> queued = element.jsonPrimitive.asHexLong()
-            }
-        }
-
-        return TxpoolStatus(pending!!, queued!!)
     }
 }
 

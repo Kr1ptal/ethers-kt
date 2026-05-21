@@ -26,7 +26,7 @@ import kotlinx.serialization.json.put
 // @JvmStatic, so it's accessible from java.
 object AccessList {
 
-    @Serializable(with = AccessListItemSerializer::class)
+    @Serializable
     data class Item(val address: Address, val storageKeys: List<Hash>) : RlpEncodable {
         override fun rlpEncode(rlp: RlpEncoder) {
             val listBodySize = RlpEncoder.sizeOf(address) + RlpEncoder.sizeOfList(storageKeys)
@@ -62,37 +62,6 @@ data class CreateAccessList(
     val error: String?,
 )
 
-object AccessListItemSerializer : KSerializer<AccessList.Item> {
-    override val descriptor = buildClassSerialDescriptor("AccessList.Item")
-
-    override fun serialize(encoder: Encoder, value: AccessList.Item) {
-        val jsonEncoder = encoder as JsonEncoder
-        jsonEncoder.encodeJsonElement(
-            buildJsonObject {
-                put("address", value.address.toString())
-                put(
-                    "storageKeys",
-                    buildJsonArray {
-                        for (i in value.storageKeys.indices) {
-                            add(kotlinx.serialization.json.JsonPrimitive(value.storageKeys[i].toString()))
-                        }
-                    },
-                )
-            },
-        )
-    }
-
-    override fun deserialize(decoder: Decoder): AccessList.Item {
-        val jsonDecoder = decoder as JsonDecoder
-        val obj = jsonDecoder.decodeJsonElement().jsonObject
-
-        val address = obj["address"]!!.jsonPrimitive.asAddress()
-        val storageKeys = obj["storageKeys"]?.jsonArray?.map { it.jsonPrimitive.asHash() } ?: emptyList()
-
-        return AccessList.Item(address, storageKeys)
-    }
-}
-
 object CreateAccessListSerializer : KSerializer<CreateAccessList> {
     override val descriptor = buildClassSerialDescriptor("CreateAccessList")
 
@@ -103,7 +72,7 @@ object CreateAccessListSerializer : KSerializer<CreateAccessList> {
         val obj = jsonDecoder.decodeJsonElement().jsonObject
 
         val accessList = obj["accessList"]?.jsonArray?.map { element ->
-            jsonDecoder.json.decodeFromJsonElement(AccessListItemSerializer, element)
+            jsonDecoder.json.decodeFromJsonElement(AccessList.Item.serializer(), element)
         } ?: emptyList()
         val gasUsed = obj["gasUsed"]!!.jsonPrimitive.asHexLong()
         val error: String? = obj["error"]?.jsonPrimitive?.content?.takeIf { it.isNotEmpty() }

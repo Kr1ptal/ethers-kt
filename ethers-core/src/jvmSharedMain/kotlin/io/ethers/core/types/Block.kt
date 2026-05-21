@@ -1,5 +1,6 @@
 package io.ethers.core.types
 
+import io.ethers.core.HexLongSerializer
 import io.ethers.core.asAddress
 import io.ethers.core.asBloom
 import io.ethers.core.asBytes
@@ -125,12 +126,12 @@ interface Block<T> {
 /**
  * ETH staking withdrawal.
  */
-@Serializable(with = WithdrawalSerializer::class)
+@Serializable
 data class Withdrawal(
-    val index: Long,
-    val validatorIndex: Long,
+    @Serializable(with = HexLongSerializer::class) val index: Long,
+    @Serializable(with = HexLongSerializer::class) val validatorIndex: Long,
     val address: Address,
-    val amount: Long,
+    @Serializable(with = HexLongSerializer::class) val amount: Long,
 )
 
 private data class BlockCommonData(
@@ -214,7 +215,7 @@ private fun deserializeBlockCommon(obj: JsonObject, jsonDecoder: JsonDecoder): B
             "uncles" -> uncles = if (element is JsonNull) emptyList()
             else element.jsonArray.map { it.jsonPrimitive.asHash() }
             "withdrawals" -> withdrawals = if (element is JsonNull) null
-            else element.jsonArray.map { jsonDecoder.json.decodeFromJsonElement(WithdrawalSerializer, it) }
+            else element.jsonArray.map { jsonDecoder.json.decodeFromJsonElement(Withdrawal.serializer(), it) }
             "withdrawalsRoot" -> withdrawalsRoot = if (element is JsonNull) null else element.jsonPrimitive.asHash()
             "blobGasUsed" -> blobGasUsed = element.jsonPrimitive.asHexLong()
             "excessBlobGas" -> excessBlobGas = element.jsonPrimitive.asHexLong()
@@ -283,23 +284,5 @@ object BlockWithTransactionsSerializer : KSerializer<BlockWithTransactions> {
             common.withdrawals, common.withdrawalsRoot, common.blobGasUsed,
             common.excessBlobGas, common.parentBeaconBlockRoot, common.otherFields,
         )
-    }
-}
-
-object WithdrawalSerializer : KSerializer<Withdrawal> {
-    override val descriptor = buildClassSerialDescriptor("Withdrawal")
-
-    override fun serialize(encoder: Encoder, value: Withdrawal) = throw UnsupportedOperationException()
-
-    override fun deserialize(decoder: Decoder): Withdrawal {
-        return deserializeFromObject((decoder as JsonDecoder).decodeJsonElement().jsonObject)
-    }
-
-    internal fun deserializeFromObject(obj: JsonObject): Withdrawal {
-        val index = obj["index"]!!.jsonPrimitive.asHexLong()
-        val validatorIndex = obj["validatorIndex"]!!.jsonPrimitive.asHexLong()
-        val address = obj["address"]!!.jsonPrimitive.asAddress()
-        val amount = obj["amount"]!!.jsonPrimitive.asHexLong()
-        return Withdrawal(index, validatorIndex, address, amount)
     }
 }
