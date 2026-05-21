@@ -6,6 +6,8 @@ import okhttp3.WebSocketListener
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.TimeUnit
 
 interface MockServer {
     val url: String
@@ -19,6 +21,12 @@ interface MockWSServer : MockServer {
     fun sendJson(json: String)
     fun closeConnection(code: Int = 1000, reason: String = "Close")
     fun allowReconnect()
+
+    /**
+     * Take the next text message received from the client, or null if none arrived
+     * within [timeoutMs]. Each message is returned at most once.
+     */
+    fun takeReceivedText(timeoutMs: Long = 1000): String?
 }
 
 /**
@@ -56,6 +64,7 @@ fun mockServerWebsocket(): MockWSServer {
 
     return object : WebSocketListener(), MockWSServer {
         private val msgQueue = ArrayDeque<String>()
+        private val receivedMessages = LinkedBlockingQueue<String>()
         private lateinit var ws: WebSocket
 
         init {
@@ -70,7 +79,12 @@ fun mockServerWebsocket(): MockWSServer {
         }
 
         override fun onMessage(webSocket: WebSocket, text: String) {
+            receivedMessages.add(text)
             webSocket.send(msgQueue.removeFirst())
+        }
+
+        override fun takeReceivedText(timeoutMs: Long): String? {
+            return receivedMessages.poll(timeoutMs, TimeUnit.MILLISECONDS)
         }
 
         override fun enqueueJson(json: String) {

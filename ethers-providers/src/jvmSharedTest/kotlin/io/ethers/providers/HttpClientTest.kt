@@ -2,17 +2,22 @@ package io.ethers.providers
 
 import io.ethers.core.Kotlinx
 import io.ethers.core.isFailure
+import io.ethers.core.isSuccess
+import io.ethers.core.types.Address
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.core.spec.style.funSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import org.intellij.lang.annotations.Language
+import java.math.BigInteger
 import kotlinx.serialization.json.JsonElement as KJsonElement
 
 /**
@@ -101,6 +106,84 @@ private fun httpSpecificTests() = funSpec {
 
             val request = server.takeRequest()
             request.getHeader("Content-Type") shouldBe "application/json"
+        }
+
+        test("complex Map / BigInteger / ByteArray params are emitted as proper JSON") {
+            server.enqueue(createMockResponse(SUCCESSFUL_RESPONSE))
+
+            val callMap = mapOf(
+                "from" to Address("0x1111111111111111111111111111111111111111"),
+                "to" to Address("0x2222222222222222222222222222222222222222"),
+                "value" to BigInteger.ONE,
+                "data" to byteArrayOf(0xde.toByte(), 0xad.toByte(), 0xbe.toByte(), 0xef.toByte()),
+                "gas" to 21000L,
+            )
+            client.request("eth_call", arrayOf(callMap, "latest"), stringDecoder).get()
+
+            val body = Kotlinx.DEFAULT.parseToJsonElement(
+                server.takeRequest().body.readUtf8(),
+            ).jsonObject
+
+            body["method"]!!.jsonPrimitive.content shouldBe "eth_call"
+
+            val params = body["params"]!!.jsonArray
+            params.size shouldBe 2
+
+            val callObj = params[0].jsonObject
+            callObj["from"]!!.jsonPrimitive.content shouldBe "0x1111111111111111111111111111111111111111"
+            callObj["to"]!!.jsonPrimitive.content shouldBe "0x2222222222222222222222222222222222222222"
+            callObj["value"]!!.jsonPrimitive.content shouldBe "1"
+            callObj["data"]!!.jsonPrimitive.content shouldBe "0xdeadbeef"
+            callObj["gas"]!!.jsonPrimitive.long shouldBe 21000L
+
+            params[1].jsonPrimitive.content shouldBe "latest"
+        }
+
+        test("non-@Serializable param fails fast with a clear error") {
+            class CustomBag(val x: Int)
+
+            val ex = shouldThrow<IllegalArgumentException> {
+                client.request("eth_call", arrayOf(CustomBag(1)), stringDecoder)
+            }
+            ex.message!! shouldContain "CustomBag"
+        }
+
+        test("request(Class<T>) with ByteArray decodes a 0x-prefixed hex string") {
+            server.enqueue(
+                createMockResponse(
+                    """{"jsonrpc":"2.0","id":1,"result":"0xdeadbeef"}""",
+                ),
+            )
+
+            val result = client.request("eth_getCode", emptyArray<Any>(), ByteArray::class.java).get()
+
+            result.isSuccess() shouldBe true
+            result.unwrap() shouldBe byteArrayOf(0xde.toByte(), 0xad.toByte(), 0xbe.toByte(), 0xef.toByte())
+        }
+
+        test("request(Class<T>) with ByteArray handles empty payloads (\"0x\" / \"\")") {
+            server.enqueue(createMockResponse("""{"jsonrpc":"2.0","id":1,"result":"0x"}"""))
+            val emptyHex = client.request("eth_getCode", emptyArray<Any>(), ByteArray::class.java).get()
+            emptyHex.isSuccess() shouldBe true
+            emptyHex.unwrap() shouldBe ByteArray(0)
+
+            server.enqueue(createMockResponse("""{"jsonrpc":"2.0","id":2,"result":""}"""))
+            val emptyString = client.request("eth_getCode", emptyArray<Any>(), ByteArray::class.java).get()
+            emptyString.isSuccess() shouldBe true
+            emptyString.unwrap() shouldBe ByteArray(0)
+        }
+
+        test("request(Class<T>) with @Serializable type still uses its KSerializer") {
+            server.enqueue(
+                createMockResponse(
+                    """{"jsonrpc":"2.0","id":1,"result":"0x1111111111111111111111111111111111111111"}""",
+                ),
+            )
+
+            val result = client.request("eth_coinbase", emptyArray<Any>(), Address::class.java).get()
+
+            result.isSuccess() shouldBe true
+            result.unwrap() shouldBe Address("0x1111111111111111111111111111111111111111")
         }
 
         test("unique request IDs are generated") {

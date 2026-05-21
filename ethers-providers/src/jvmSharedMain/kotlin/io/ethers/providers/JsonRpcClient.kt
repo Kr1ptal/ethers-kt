@@ -6,7 +6,6 @@ import io.ethers.core.Kotlinx
 import io.ethers.core.Result
 import io.ethers.core.json.JsonElement
 import io.ethers.providers.types.BatchRpcRequest
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -16,7 +15,9 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.serializer
+import kotlinx.serialization.serializerOrNull
 import okhttp3.OkHttpClient
+import java.math.BigDecimal
 import java.math.BigInteger
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
@@ -30,12 +31,11 @@ interface JsonRpcClient : AutoCloseable {
      * @param params RPC function parameters
      * @param resultType class into which JSON result is converted
      */
-    @Suppress("UNCHECKED_CAST")
     fun <T> request(
         method: String,
         params: Array<*>,
         resultType: Class<T>,
-    ) = request(method, params) { p -> Kotlinx.DEFAULT.decodeFromJsonElement(serializer(resultType), p) as T }
+    ) = request(method, params, decoderForClass(resultType))
 
     /**
      * Asynchronously execute RPC request.
@@ -61,12 +61,11 @@ interface JsonRpcClient : AutoCloseable {
      * @param params the subscription parameters
      * @param resultType class into which JSON result is converted
      */
-    @Suppress("UNCHECKED_CAST")
     fun <T : Any> subscribe(
         params: Array<*>,
         resultType: Class<T>,
     ): CompletableFuture<Result<ChannelReceiver<T>, RpcError>> {
-        return subscribe(params) { p -> Kotlinx.DEFAULT.decodeFromJsonElement(serializer(resultType), p) as T }
+        return subscribe(params, decoderForClass(resultType))
     }
 
     /**
@@ -79,6 +78,32 @@ interface JsonRpcClient : AutoCloseable {
         params: Array<*>,
         resultDecoder: (KJsonElement) -> T,
     ): CompletableFuture<Result<ChannelReceiver<T>, RpcError>>
+}
+
+/**
+ * Build a result decoder for the legacy `Class<T>`-based [JsonRpcClient.request] and
+ * [JsonRpcClient.subscribe] entry points.
+ *
+ * Special-cases [ByteArray]: Ethereum JSON-RPC returns byte payloads (`eth_getCode`,
+ * `eth_call`, …) as 0x-prefixed hex strings. Jackson used to register a custom deserializer
+ * for that, but kotlinx' default `ByteArray` serializer expects a JSON array of numbers
+ * and would throw a [kotlinx.serialization.json.internal.JsonDecodingException] at runtime.
+ */
+@Suppress("UNCHECKED_CAST")
+internal fun <T> decoderForClass(resultType: Class<T>): (KJsonElement) -> T {
+    if (resultType == ByteArray::class.java) {
+        return { element ->
+            val text = element.jsonPrimitive.content
+            val bytes = if (text.isEmpty() || text == "0x" || text == "0X") {
+                ByteArray(0)
+            } else {
+                FastHex.decode(text)
+            }
+            bytes as T
+        }
+    }
+    val serializer = serializer(resultType)
+    return { element -> Kotlinx.DEFAULT.decodeFromJsonElement(serializer, element) as T }
 }
 
 /**
@@ -97,21 +122,46 @@ internal fun buildJsonRpcRequest(method: String, id: Long, params: Array<*>): St
 
 /**
  * Convert any value to a [KJsonElement] suitable for use as a JSON-RPC parameter.
+ *
+ * Recursively handles common Kotlin/JVM types so callers can pass arbitrary nested
+ * structures (e.g. `mapOf("from" to addr, "data" to bytes)`). Custom types are looked up
+ * via the kotlinx `@Serializable` contract and fail fast if no serializer is registered,
+ * rather than silently producing an unusable payload.
  */
 @Suppress("UNCHECKED_CAST")
 internal fun Any?.toParamJsonElement(): KJsonElement = when (this) {
     null -> JsonNull
+    is KJsonElement -> this
     is String -> JsonPrimitive(this)
     is Boolean -> JsonPrimitive(this)
-    is Long -> JsonPrimitive(this)
+    is Byte -> JsonPrimitive(this)
+    is Short -> JsonPrimitive(this)
     is Int -> JsonPrimitive(this)
+    is Long -> JsonPrimitive(this)
+    is Float -> JsonPrimitive(this)
+    is Double -> JsonPrimitive(this)
     is BigInteger -> JsonPrimitive(this)
+    is BigDecimal -> JsonPrimitive(this)
+    // ByteArray must be checked before Array<*> — `byte[]` is a primitive array on the JVM
+    // and would otherwise fall into the reflective branch with no useful serializer.
     is ByteArray -> JsonPrimitive(FastHex.encodeWithPrefix(this))
-    is KJsonElement -> this
     is Array<*> -> JsonArray(this.map { it.toParamJsonElement() })
-    is List<*> -> JsonArray(this.map { it.toParamJsonElement() })
+    // Iterable covers List, Set and any other Kotlin collection a caller might pass.
+    is Iterable<*> -> JsonArray(this.map { it.toParamJsonElement() })
+    // Explicit Map handling is required: `serializer(LinkedHashMap::class.java)` loses the
+    // generic key/value serializers and can't encode nested @Serializable values such as
+    // Address or Bytes. Keys are stringified, matching Jackson's behavior.
+    is Map<*, *> -> JsonObject(this.entries.associate { (k, v) -> k.toString() to v.toParamJsonElement() })
     else -> {
-        val ser = serializer(this::class.java)
+        // Fallback for @Serializable types (Address, Hash, Bytes, CallRequest, …).
+        // Use `serializerOrNull` so unknown types fail with a clear error instead of throwing
+        // a confusing SerializationException from deep inside kotlinx reflection.
+        val ser = serializerOrNull(this::class.java)
+            ?: throw IllegalArgumentException(
+                "Cannot serialize JSON-RPC parameter of type ${this::class.java.name}: " +
+                    "no kotlinx @Serializable serializer is registered. " +
+                    "Convert it manually or pass a JsonElement.",
+            )
         Kotlinx.DEFAULT.encodeToJsonElement(ser, this)
     }
 }
