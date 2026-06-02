@@ -2,7 +2,9 @@ package io.ethers.providers
 
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.JsonNode
+import io.channels.core.ChannelReceiver
 import io.ethers.core.Jackson
+import io.ethers.core.Result
 import io.ethers.core.isSuccess
 import io.kotest.assertions.nondeterministic.eventually
 import io.kotest.core.spec.style.FunSpec
@@ -10,6 +12,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import okhttp3.OkHttpClient
 import org.intellij.lang.annotations.Language
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration.Companion.seconds
 
@@ -59,7 +62,9 @@ class WsClientTest : FunSpec({
                 Jackson.MAPPER.readTree(parser)
             }
 
-            val subscriptionResult = wsClient.subscribe(params, resultDecoder).get()
+            val subscriptionResultFuture = CompletableFuture<Result<ChannelReceiver<JsonNode>, RpcError>>()
+            wsClient.subscribe(params, resultDecoder) { subscriptionResultFuture.complete(it) }
+            val subscriptionResult = subscriptionResultFuture.get()
             subscriptionResult.isSuccess() shouldBe true
 
             val stream = subscriptionResult.unwrap()
@@ -167,7 +172,9 @@ class WsClientTest : FunSpec({
             val params = arrayOf("newHeads")
             val resultDecoder: (JsonParser) -> JsonNode = { Jackson.MAPPER.readTree(it) }
 
-            val subscriptionResult = wsClient.subscribe(params, resultDecoder).get()
+            val subscriptionResultFuture = CompletableFuture<Result<ChannelReceiver<JsonNode>, RpcError>>()
+            wsClient.subscribe(params, resultDecoder) { subscriptionResultFuture.complete(it) }
+            val subscriptionResult = subscriptionResultFuture.get()
             subscriptionResult.isSuccess() shouldBe true
 
             val stream = subscriptionResult.unwrap()
@@ -204,7 +211,9 @@ class WsClientTest : FunSpec({
             val params = arrayOf("newHeads")
             val resultDecoder: (JsonParser) -> JsonNode = { Jackson.MAPPER.readTree(it) }
 
-            val subscriptionResult = wsClient.subscribe(params, resultDecoder).get()
+            val subscriptionResultFuture2 = CompletableFuture<Result<ChannelReceiver<JsonNode>, RpcError>>()
+            wsClient.subscribe(params, resultDecoder) { subscriptionResultFuture2.complete(it) }
+            val subscriptionResult = subscriptionResultFuture2.get()
             subscriptionResult.isSuccess() shouldBe true
 
             val stream = subscriptionResult.unwrap()
@@ -254,7 +263,9 @@ class WsClientTest : FunSpec({
             val params = arrayOf("newHeads")
             val resultDecoder: (JsonParser) -> JsonNode = { Jackson.MAPPER.readTree(it) }
 
-            val subscriptionResult = wsClient.subscribe(params, resultDecoder).get()
+            val subscriptionResultFuture3 = CompletableFuture<Result<ChannelReceiver<JsonNode>, RpcError>>()
+            wsClient.subscribe(params, resultDecoder) { subscriptionResultFuture3.complete(it) }
+            val subscriptionResult = subscriptionResultFuture3.get()
             subscriptionResult.isSuccess() shouldBe true
 
             // Send multiple notifications

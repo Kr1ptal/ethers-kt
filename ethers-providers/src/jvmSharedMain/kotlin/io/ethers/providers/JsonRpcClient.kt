@@ -15,8 +15,11 @@ import io.ethers.core.forEachObjectField
 import io.ethers.core.json.JsonElement
 import io.ethers.providers.types.BatchRpcRequest
 import okhttp3.OkHttpClient
-import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
+
+fun interface ResultCallback<T> {
+    fun complete(result: T)
+}
 
 interface JsonRpcClient : AutoCloseable {
     /**
@@ -25,12 +28,16 @@ interface JsonRpcClient : AutoCloseable {
      * @param method RPC function name
      * @param params RPC function parameters
      * @param resultType class into which JSON result is converted
+     * @param callback callback to receive the result
      */
     fun <T> request(
         method: String,
         params: Array<*>,
         resultType: Class<T>,
-    ) = request(method, params) { p -> p.readValueAs(resultType) }
+        callback: ResultCallback<Result<T, RpcError>>,
+    ) {
+        request(method, params, { p -> p.readValueAs(resultType) }, callback)
+    }
 
     /**
      * Asynchronously execute RPC request.
@@ -38,29 +45,33 @@ interface JsonRpcClient : AutoCloseable {
      * @param method RPC function name
      * @param params RPC function parameters
      * @param resultDecoder function to convert JSON result into object return [T].
+     * @param callback callback to receive the result
      */
     fun <T> request(
         method: String,
         params: Array<*>,
         resultDecoder: (JsonParser) -> T,
-    ): CompletableFuture<Result<T, RpcError>>
+        callback: ResultCallback<Result<T, RpcError>>,
+    )
 
     /**
      * Asynchronously execute [batch] of RPC requests.
      */
-    fun requestBatch(batch: BatchRpcRequest): CompletableFuture<Boolean>
+    fun requestBatch(batch: BatchRpcRequest, callback: ResultCallback<Boolean>)
 
     /**
      * Subscribe to a stream via `eth_subscribe`, if the client supports it.
      *
      * @param params the subscription parameters
      * @param resultType class into which JSON result is converted
+     * @param callback callback to receive the result
      */
     fun <T : Any> subscribe(
         params: Array<*>,
         resultType: Class<T>,
-    ): CompletableFuture<Result<ChannelReceiver<T>, RpcError>> {
-        return subscribe(params) { p -> p.readValueAs(resultType) }
+        callback: ResultCallback<Result<ChannelReceiver<T>, RpcError>>,
+    ) {
+        subscribe(params, { p -> p.readValueAs(resultType) }, callback)
     }
 
     /**
@@ -68,11 +79,13 @@ interface JsonRpcClient : AutoCloseable {
      *
      * @param params the subscription parameters
      * @param resultDecoder function to convert JSON result into return object [T]
+     * @param callback callback to receive the result
      */
     fun <T : Any> subscribe(
         params: Array<*>,
         resultDecoder: (JsonParser) -> T,
-    ): CompletableFuture<Result<ChannelReceiver<T>, RpcError>>
+        callback: ResultCallback<Result<ChannelReceiver<T>, RpcError>>,
+    )
 }
 
 /**

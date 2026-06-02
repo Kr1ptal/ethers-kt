@@ -1,7 +1,9 @@
 package io.ethers.providers
 
 import com.fasterxml.jackson.core.JsonParser
+import io.channels.core.ChannelReceiver
 import io.ethers.core.Jackson
+import io.ethers.core.Result
 import io.ethers.core.isFailure
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.core.spec.style.funSpec
@@ -11,6 +13,7 @@ import io.kotest.matchers.string.shouldContain
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import org.intellij.lang.annotations.Language
+import java.util.concurrent.CompletableFuture
 
 /**
  * HttpClient tests demonstrating extraction of common JsonRpcClient tests into a factory pattern.
@@ -49,7 +52,9 @@ private fun httpSpecificTests() = funSpec {
         test("HTTP error with JSON response") {
             server.enqueue(createMockResponse(RPC_ERROR_RESPONSE, 500))
 
-            val result = client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
+            val resultFuture = CompletableFuture<Result<String, RpcError>>()
+            client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder) { resultFuture.complete(it) }
+            val result = resultFuture.get()
 
             result.isFailure() shouldBe true
             val error = result.unwrapError()
@@ -60,7 +65,9 @@ private fun httpSpecificTests() = funSpec {
         test("HTTP error with non-JSON response") {
             server.enqueue(MockResponse().setResponseCode(500).setBody("Internal Server Error"))
 
-            val result = client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
+            val resultFuture = CompletableFuture<Result<String, RpcError>>()
+            client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder) { resultFuture.complete(it) }
+            val result = resultFuture.get()
 
             result.isFailure() shouldBe true
             val error = result.unwrapError()
@@ -71,7 +78,9 @@ private fun httpSpecificTests() = funSpec {
         test("empty response body") {
             server.enqueue(MockResponse().setResponseCode(200).setBody(""))
 
-            val result = client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
+            val resultFuture = CompletableFuture<Result<String, RpcError>>()
+            client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder) { resultFuture.complete(it) }
+            val result = resultFuture.get()
 
             result.isFailure() shouldBe true
             val error = result.unwrapError()
@@ -84,7 +93,9 @@ private fun httpSpecificTests() = funSpec {
             val headersMap = mapOf("Authorization" to "Bearer token123", "Custom-Header" to "value")
             val clientWithHeaders = HttpClient(server.url, OkHttpClient(), headersMap)
 
-            clientWithHeaders.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
+            val reqFuture = CompletableFuture<Result<String, RpcError>>()
+            clientWithHeaders.request("eth_blockNumber", emptyArray<Any>(), stringDecoder) { reqFuture.complete(it) }
+            reqFuture.get()
 
             val request = server.takeRequest()
             request.getHeader("Authorization") shouldBe "Bearer token123"
@@ -94,7 +105,9 @@ private fun httpSpecificTests() = funSpec {
         test("content-Type header is set correctly") {
             server.enqueue(createMockResponse(SUCCESSFUL_RESPONSE))
 
-            client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
+            val reqFuture = CompletableFuture<Result<String, RpcError>>()
+            client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder) { reqFuture.complete(it) }
+            reqFuture.get()
 
             val request = server.takeRequest()
             request.getHeader("Content-Type") shouldBe "application/json"
@@ -104,8 +117,12 @@ private fun httpSpecificTests() = funSpec {
             server.enqueue(createMockResponse(SUCCESSFUL_RESPONSE))
             server.enqueue(createMockResponse(SUCCESSFUL_RESPONSE))
 
-            client.request("method1", emptyArray<Any>(), stringDecoder).get()
-            client.request("method2", emptyArray<Any>(), stringDecoder).get()
+            val resultFuture1 = CompletableFuture<Result<String, RpcError>>()
+            client.request("method1", emptyArray<Any>(), stringDecoder) { resultFuture1.complete(it) }
+            resultFuture1.get()
+            val resultFuture2 = CompletableFuture<Result<String, RpcError>>()
+            client.request("method2", emptyArray<Any>(), stringDecoder) { resultFuture2.complete(it) }
+            resultFuture2.get()
 
             val request1 = server.takeRequest()
             val request2 = server.takeRequest()
@@ -120,7 +137,9 @@ private fun httpSpecificTests() = funSpec {
     context("Subscription tests") {
         test("subscription is not supported") {
             val httpClient = HttpClient("http://localhost:8545", OkHttpClient())
-            val result = httpClient.subscribe(arrayOf("newHeads"), stringDecoder).get()
+            val resultFuture = CompletableFuture<Result<ChannelReceiver<String>, RpcError>>()
+            httpClient.subscribe(arrayOf("newHeads"), stringDecoder) { resultFuture.complete(it) }
+            val result = resultFuture.get()
 
             result.isFailure() shouldBe true
             val error = result.unwrapError()
