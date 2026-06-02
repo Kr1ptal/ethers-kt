@@ -91,7 +91,7 @@ kotest-engine = { module = "io.kotest:kotest-framework-engine", version.ref = "k
 kotest-assertions-json = { module = "io.kotest:kotest-assertions-json", version.ref = "kotest" }
 kotest-runner-junit5 = { module = "io.kotest:kotest-runner-junit5", version.ref = "kotest" }
 
-mockk = { module = "io.mockk:mockk-jvm", version = "1.14.9" }
+mockk = { module = "io.mockk:mockk-jvm", version = "1.14.11" }
 kotlin-compileTesting = { module = "dev.zacsweers.kctfork:core", version = "0.12.1" }
 
 ##################### JMH #####################
