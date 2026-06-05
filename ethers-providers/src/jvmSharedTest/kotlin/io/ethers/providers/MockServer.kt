@@ -5,15 +5,24 @@ import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
-import okhttp3.mockwebserver.RecordedRequest
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
+
+/** Captured HTTP request from a mock server. */
+data class RecordedRequest(
+    val headersMap: Map<String, String>,
+    val bodyBytes: ByteArray,
+) {
+    fun getHeader(name: String): String? = headersMap.entries.firstOrNull { it.key.equals(name, ignoreCase = true) }?.value
+
+    val bodyText: String get() = bodyBytes.decodeToString()
+}
 
 interface MockServer {
     val url: String
 
     fun enqueueJson(json: String)
-    fun enqueue(response: MockResponse)
+    fun enqueue(statusCode: Int, body: String)
     fun takeRequest(): RecordedRequest
 }
 
@@ -30,7 +39,7 @@ interface MockWSServer : MockServer {
 }
 
 /**
- * Create [MockServer] that supports enqueuing mock requests.
+ * Create [MockServer] that supports enqueuing mock HTTP requests.
  * */
 fun mockServerHttp(): MockServer {
     val server = MockWebServer()
@@ -40,23 +49,23 @@ fun mockServerHttp(): MockServer {
         override val url: String
             get() = server.url("/").toString()
 
-        override fun enqueueJson(json: String) {
-            server.enqueue(MockResponse().setResponseCode(200).setBody(json))
-        }
+        override fun enqueueJson(json: String) = enqueue(200, json)
 
-        override fun enqueue(response: MockResponse) {
-            server.enqueue(response)
+        override fun enqueue(statusCode: Int, body: String) {
+            server.enqueue(MockResponse().setResponseCode(statusCode).setBody(body))
         }
 
         override fun takeRequest(): RecordedRequest {
-            return server.takeRequest()
+            val req = server.takeRequest()
+            val headers = req.headers.toMultimap().mapValues { (_, v) -> v.firstOrNull().orEmpty() }
+            return RecordedRequest(headers, req.body.readByteArray())
         }
     }
 }
 
 /**
- * Create a [MockWSServer] that automatically upgrade the connection to Websockets and supports sending WS text
- * messages.
+ * Create a [MockWSServer] that automatically upgrades the connection to WebSocket and supports
+ * sending / receiving WS text messages.
  * */
 fun mockServerWebsocket(): MockWSServer {
     val server = MockWebServer()
@@ -80,23 +89,24 @@ fun mockServerWebsocket(): MockWSServer {
 
         override fun onMessage(webSocket: WebSocket, text: String) {
             receivedMessages.add(text)
-            webSocket.send(msgQueue.removeFirst())
+            val response = msgQueue.removeFirstOrNull()
+            if (response != null) webSocket.send(response)
         }
 
-        override fun takeReceivedText(timeoutMs: Long): String? {
-            return receivedMessages.poll(timeoutMs, TimeUnit.MILLISECONDS)
-        }
+        override fun takeReceivedText(timeoutMs: Long): String? = receivedMessages.poll(timeoutMs, TimeUnit.MILLISECONDS)
 
         override fun enqueueJson(json: String) {
             msgQueue.add(json)
         }
 
-        override fun enqueue(response: MockResponse) {
-            server.enqueue(response)
+        override fun enqueue(statusCode: Int, body: String) {
+            server.enqueue(MockResponse().setResponseCode(statusCode).setBody(body))
         }
 
         override fun takeRequest(): RecordedRequest {
-            return server.takeRequest()
+            val req = server.takeRequest()
+            val headers = req.headers.toMultimap().mapValues { (_, v) -> v.firstOrNull().orEmpty() }
+            return RecordedRequest(headers, req.body.readByteArray())
         }
 
         override fun sendJson(json: String) {
