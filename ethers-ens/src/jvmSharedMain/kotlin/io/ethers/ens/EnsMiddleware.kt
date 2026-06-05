@@ -21,20 +21,25 @@ import io.ethers.logger.err
 import io.ethers.logger.getLogger
 import io.ethers.logger.wrn
 import io.ethers.providers.middleware.Middleware
-import io.github.artificialpb.bignum.BigInteger
+import io.ktor.client.engine.cio.CIO
+import io.ktor.client.request.get
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.Response
+import java.math.BigInteger
 import java.util.concurrent.CompletableFuture
+import io.ktor.client.HttpClient as KtorHttpClient
 
 class EnsMiddleware @JvmOverloads constructor(
     provider: Middleware,
     private val registryAddress: Address,
     private val ccipLookupLimit: Int = 4,
-    private val httpClient: OkHttpClient = OkHttpClient(),
+    private val httpClient: KtorHttpClient = KtorHttpClient(CIO),
 ) : Middleware by provider {
     private val LOG = getLogger()
     private val registryContract = EnsRegistry(provider, registryAddress)
@@ -43,7 +48,7 @@ class EnsMiddleware @JvmOverloads constructor(
     constructor(
         provider: Middleware,
         ccipLookupLimit: Int = 4,
-        client: OkHttpClient = OkHttpClient(),
+        client: KtorHttpClient = KtorHttpClient(CIO),
     ) : this(
         provider,
         getRegistryAddressOrThrow(provider.chainId),
@@ -312,11 +317,25 @@ class EnsMiddleware @JvmOverloads constructor(
         if (urls.isEmpty()) return failure(Error.CcipCallFailed("No urls to resolve ens name!", null))
 
         for (url in urls) {
-            // If url is missing mandatory {sender} parameter, try next url
-            val request = buildCcipRequest(url, sender, calldata) ?: continue
+            if (!url.contains("{sender}")) continue
+
+            var href = url.replace("{sender}", sender.toString())
 
             return try {
-                httpClient.newCall(request).execute().use { handleCcipResponse(it, url) } ?: continue
+                val response = if (url.contains("{data}")) {
+                    href = href.replace("{data}", calldata.toString())
+                    runBlocking { httpClient.get(href) }
+                } else {
+                    val requestDTO = EnsGatewayRequestDTO(calldata, sender.toString())
+                    val body = Kotlinx.DEFAULT.encodeToString(EnsGatewayRequestDTO.serializer(), requestDTO)
+                    runBlocking {
+                        httpClient.post(href) {
+                            contentType(ContentType.Application.Json)
+                            setBody(body)
+                        }
+                    }
+                }
+                handleCcipResponse(response, href) ?: continue
             } catch (e: Exception) {
                 LOG.err(e) { e.message ?: "" }
                 failure(Error.CcipCallFailed("Unknown error", ExceptionalError(e)))
@@ -333,51 +352,23 @@ class EnsMiddleware @JvmOverloads constructor(
      * - has status code 5xx, return null and try another url, if present.
      */
     private fun handleCcipResponse(
-        response: Response,
+        response: HttpResponse,
         url: String,
     ): Result<Bytes, Error>? {
-        if (response.isSuccessful) {
-            val gatewayRequestDTO = Kotlinx.DEFAULT.decodeFromString(EnsGatewayResponseDTO.serializer(), response.body.string())
-
+        val code = response.status.value
+        if (code in 200..299) {
+            val text = runBlocking { response.bodyAsText() }
+            val gatewayRequestDTO = Kotlinx.DEFAULT.decodeFromString(EnsGatewayResponseDTO.serializer(), text)
             return success(gatewayRequestDTO.data)
         }
 
-        return if (response.code in 400..499) {
-            // 4xx - return an error and stop
-            val msg = "Received status code: ${response.code} during CCIP call (url: $url, error: ${response.message})"
+        return if (code in 400..499) {
+            val msg = "Received status code: $code during CCIP call (url: $url, error: ${response.status.description})"
             LOG.err { msg }
             failure(Error.CcipCallFailed(msg, null))
         } else {
-            // 5xx - server issue, try different url
-            LOG.wrn { "500 error during CCIP call: url: $url, error: ${response.message}" }
+            LOG.wrn { "500 error during CCIP call: url: $url, error: ${response.status.description}" }
             null
-        }
-    }
-
-    /**
-     * Builds CCIP-read [okhttp3.Request] from [url], [sender] and [calldata], where [sender] and [calldata]
-     * are RPC request parameters.
-     *
-     * If RPC url contains {data}, the request is GET, otherwise POST.
-     *
-     * If [url] is missing {sender} parameter, return null.
-     */
-    private fun buildCcipRequest(url: String, sender: Address, calldata: Bytes): Request? {
-        if (!url.contains("{sender}")) return null // skip this url
-
-        // URL expansion
-        var href = url.replace("{sender}", sender.toString())
-
-        return if (url.contains("{data}")) {
-            href = href.replace("{data}", calldata.toString())
-            Request.Builder().url(href).get().build()
-        } else {
-            val requestDTO = EnsGatewayRequestDTO(calldata, sender.toString())
-
-            Request.Builder().url(href)
-                .post(Kotlinx.DEFAULT.encodeToString(EnsGatewayRequestDTO.serializer(), requestDTO).toRequestBody(JSON_MEDIA_TYPE))
-                .addHeader("Content-Type", "application/json")
-                .build()
         }
     }
 
@@ -509,22 +500,19 @@ class EnsMiddleware @JvmOverloads constructor(
         }
 
         // Execute metadataUri request and extract "image" attribute
-        val request = Request.Builder().url(metadataUri).build()
         return runCatching {
-            httpClient.newCall(request).execute().use {
-                if (!it.isSuccessful) {
-                    return failure(
-                        Error.AvatarParsing(
-                            "Error on executing NFT metadata URL: $metadataUri for token: ${token.tokenId} of NFT: ${token.nftAddr} (${it.message})",
-                            null,
-                        ),
-                    )
-                }
-
-                val metadataDTO = Kotlinx.DEFAULT.decodeFromString(MetadataDTO.serializer(), it.body.string())
-
-                success(metadataDTO.image)
+            val response = runBlocking { httpClient.get(metadataUri) }
+            if (!response.status.value.let { it in 200..299 }) {
+                return failure(
+                    Error.AvatarParsing(
+                        "Error on executing NFT metadata URL: $metadataUri for token: ${token.tokenId} of NFT: ${token.nftAddr} (${response.status.description})",
+                        null,
+                    ),
+                )
             }
+            val text = runBlocking { response.bodyAsText() }
+            val metadataDTO = Kotlinx.DEFAULT.decodeFromString(MetadataDTO.serializer(), text)
+            success(metadataDTO.image)
         }.unwrapOrReturn {
             return failure(
                 Error.AvatarParsing("Error while execution metadata request for url: $metadataUri", it),
@@ -744,7 +732,6 @@ class EnsMiddleware @JvmOverloads constructor(
     companion object {
         private val ENSIP_10_INTERFACE_ID = Bytes("0x9061b923")
         private val CALLBACK_FUNCTION_PARAM_TYPES = listOf(AbiType.Bytes, AbiType.Bytes)
-        private val JSON_MEDIA_TYPE = "application/json".toMediaType()
         private const val ENS_DOMAIN_REVERSE_REGISTER = "addr.reverse"
         private const val IPFS_GATEWAY = "https://ipfs.io/ipfs/"
 
