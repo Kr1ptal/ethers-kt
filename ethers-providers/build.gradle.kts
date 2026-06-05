@@ -7,7 +7,7 @@ kotlin {
     sourceSets {
         val jvmSharedMain by getting {
             dependencies {
-                api(libs.bundles.okhttp3)
+                api(libs.bundles.ktor.client)
                 api(libs.channelskt.core)
 
                 api(project(":ethers-core"))
