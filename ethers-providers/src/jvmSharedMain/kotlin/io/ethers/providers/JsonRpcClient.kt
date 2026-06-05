@@ -7,6 +7,8 @@ import io.ethers.core.Result
 import io.ethers.core.json.JsonElement
 import io.ethers.core.toJsonElement
 import io.ethers.providers.types.BatchRpcRequest
+import io.ktor.client.engine.cio.CIO
+import io.ktor.client.plugins.websocket.WebSockets
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -14,9 +16,8 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.serializer
-import okhttp3.OkHttpClient
 import java.util.concurrent.CompletableFuture
-import java.util.concurrent.TimeUnit
+import io.ktor.client.HttpClient as KtorHttpClient
 import kotlinx.serialization.json.JsonElement as KJsonElement
 
 interface JsonRpcClient : AutoCloseable {
@@ -267,7 +268,7 @@ class RpcClientConfig {
     /**
      * Client to use for making JSON-RPC requests. If not set, a default client will be used.
      * */
-    var client: OkHttpClient? = null
+    var client: KtorHttpClient? = null
         @JvmSynthetic set
         get() = field ?: DEFAULT_CLIENT
 
@@ -288,9 +289,21 @@ class RpcClientConfig {
         @JvmSynthetic set
 
     /**
+     * WebSocket connection timeout in milliseconds. Only used by [WsClient].
+     * */
+    var connectTimeoutMs: Long = 10_000L
+        @JvmSynthetic set
+
+    /**
+     * Request read timeout in milliseconds, used to expire in-flight requests. Only used by [WsClient].
+     * */
+    var readTimeoutMs: Long = 30_000L
+        @JvmSynthetic set
+
+    /**
      * Client to use for making JSON-RPC requests. If not set, a default client will be used.
      * */
-    fun client(client: OkHttpClient) = apply { this.client = client }
+    fun client(client: KtorHttpClient) = apply { this.client = client }
 
     /**
      * Headers to include with each RPC request. Can be used to set authorization headers, etc...
@@ -306,11 +319,17 @@ class RpcClientConfig {
      * */
     fun resubscribeOnReconnect(resubscribe: Boolean) = apply { this.resubscribeOnReconnect = resubscribe }
 
+    /** WebSocket connection timeout in milliseconds. Only used by [WsClient]. */
+    fun connectTimeoutMs(ms: Long) = apply { this.connectTimeoutMs = ms }
+
+    /** Request read timeout in milliseconds. Only used by [WsClient]. */
+    fun readTimeoutMs(ms: Long) = apply { this.readTimeoutMs = ms }
+
     companion object {
         private val DEFAULT_CLIENT by lazy {
-            OkHttpClient.Builder()
-                .pingInterval(10, TimeUnit.SECONDS)
-                .build()
+            KtorHttpClient(CIO) {
+                install(WebSockets) { pingIntervalMillis = 10_000L }
+            }
         }
 
         inline operator fun invoke(builder: RpcClientConfig.() -> Unit): RpcClientConfig {
