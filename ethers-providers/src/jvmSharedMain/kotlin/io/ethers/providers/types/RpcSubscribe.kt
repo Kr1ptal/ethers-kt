@@ -1,11 +1,11 @@
 package io.ethers.providers.types
 
-import com.fasterxml.jackson.core.JsonParser
 import io.channels.core.ChannelReceiver
 import io.ethers.core.Result
 import io.ethers.core.Result.Consumer
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
+import kotlinx.serialization.json.JsonElement
 import java.util.concurrent.CompletableFuture
 
 interface RpcSubscribe<T : Any, E : Result.Error> {
@@ -104,13 +104,14 @@ internal class RpcSubscribeConstant<T : Any, E : Result.Error>(
 class RpcSubscribeCall<T : Any>(
     private val client: JsonRpcClient,
     private val params: Array<*>,
-    private val resultDecoder: (JsonParser) -> T,
+    private val resultDecoder: (JsonElement) -> T,
 ) : RpcSubscribe<T, RpcError> {
+    @Suppress("UNCHECKED_CAST")
     constructor(
         client: JsonRpcClient,
         params: Array<*>,
         resultType: Class<T>,
-    ) : this(client, params, { p -> p.readValueAs(resultType) })
+    ) : this(client, params, { p -> io.ethers.core.Kotlinx.DEFAULT.decodeFromJsonElement(kotlinx.serialization.serializer(resultType), p) as T })
 
     override fun sendAwait(): Result<ChannelReceiver<T>, RpcError> = sendAsync().join()
     override fun sendAsync(): CompletableFuture<Result<ChannelReceiver<T>, RpcError>> {

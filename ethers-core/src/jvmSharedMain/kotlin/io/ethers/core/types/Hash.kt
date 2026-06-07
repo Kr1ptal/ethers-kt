@@ -1,30 +1,27 @@
 package io.ethers.core.types
 
-import com.fasterxml.jackson.core.JsonGenerator
-import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.databind.DeserializationContext
-import com.fasterxml.jackson.databind.JsonDeserializer
-import com.fasterxml.jackson.databind.JsonSerializer
-import com.fasterxml.jackson.databind.SerializerProvider
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize
-import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import io.ethers.core.FastHex
 import io.ethers.core.HexDecodingError
 import io.ethers.core.Result
 import io.ethers.core.failure
-import io.ethers.core.readHash
 import io.ethers.core.success
 import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncodable
 import io.ethers.rlp.RlpEncoder
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
 import java.math.BigInteger
 
 /**
  * 32-byte hash.
  * */
-@JsonDeserialize(using = HashDeserializer::class)
-@JsonSerialize(using = HashSerializer::class)
+@Serializable(with = HashSerializer::class)
 class Hash(private val value: ByteArray) : RlpEncodable {
     constructor(value: CharSequence) : this(FastHex.decode(value))
     constructor(value: Address) : this(value.asByteArray().copyInto(ByteArray(32), 12))
@@ -149,14 +146,14 @@ class Hash(private val value: ByteArray) : RlpEncodable {
     }
 }
 
-private class HashDeserializer : JsonDeserializer<Hash>() {
-    override fun deserialize(p: JsonParser, ctxt: DeserializationContext): Hash {
-        return p.readHash()
-    }
-}
+object HashSerializer : KSerializer<Hash> {
+    override val descriptor: SerialDescriptor = PrimitiveSerialDescriptor("Hash", PrimitiveKind.STRING)
 
-private class HashSerializer : JsonSerializer<Hash>() {
-    override fun serialize(value: Hash, gen: JsonGenerator, serializers: SerializerProvider) {
-        gen.writeString(value.toString())
+    override fun serialize(encoder: Encoder, value: Hash) {
+        encoder.encodeString(value.toString())
+    }
+
+    override fun deserialize(decoder: Decoder): Hash {
+        return Hash(FastHex.decode(decoder.decodeString()))
     }
 }

@@ -1,6 +1,6 @@
 package io.ethers.core.types
 
-import io.ethers.core.Jackson
+import io.ethers.core.Kotlinx
 import io.kotest.assertions.json.shouldEqualJson
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
@@ -21,7 +21,7 @@ class BlockOverrideTest : FunSpec({
             baseFee(BigInteger("6439232586"))
         }
 
-        Jackson.MAPPER.writeValueAsString(blockOverride) shouldEqualJson """
+        Kotlinx.DEFAULT.encodeToString(blockOverride) shouldEqualJson """
             {
               "number": "0x${blockOverride.number.toString(16)}",
               "difficulty": "0x${blockOverride.difficulty!!.toString(16)}",
@@ -35,12 +35,12 @@ class BlockOverrideTest : FunSpec({
     }
 
     test("serialization - empty BlockOverride produces empty object") {
-        Jackson.MAPPER.writeValueAsString(BlockOverride()) shouldEqualJson "{}"
+        Kotlinx.DEFAULT.encodeToString(BlockOverride()) shouldEqualJson "{}"
     }
 
     test("serialization - only number set") {
         val blockOverride = BlockOverride { number(100L) }
-        Jackson.MAPPER.writeValueAsString(blockOverride) shouldEqualJson """
+        Kotlinx.DEFAULT.encodeToString(blockOverride) shouldEqualJson """
             { "number": "0x64" }
         """
     }
@@ -50,7 +50,7 @@ class BlockOverrideTest : FunSpec({
             coinbase(Address("0xDAFEA492D9c6733ae3d56b7Ed1ADB60692c98Bc5"))
             baseFee(BigInteger("1000"))
         }
-        Jackson.MAPPER.writeValueAsString(blockOverride) shouldEqualJson """
+        Kotlinx.DEFAULT.encodeToString(blockOverride) shouldEqualJson """
             {
               "coinbase": "0xdafea492d9c6733ae3d56b7ed1adb60692c98bc5",
               "baseFee": "0x3e8"

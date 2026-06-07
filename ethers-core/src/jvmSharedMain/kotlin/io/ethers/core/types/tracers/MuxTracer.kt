@@ -1,8 +1,13 @@
 package io.ethers.core.types.tracers
 
-import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.databind.ObjectMapper
-import io.ethers.core.forEachObjectField
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.buildClassSerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.jsonObject
 import kotlin.reflect.KClass
 
 /**
@@ -35,23 +40,26 @@ data class MuxTracer(
         tracers.forEach { tracer -> it[tracer.name] = tracer.config }
     }
 
-    override fun decodeResult(mapper: ObjectMapper, parser: JsonParser): Result {
+    override fun decodeResult(json: Json, element: JsonElement): Result {
         val results = arrayOfNulls<Any>(tracers.size)
 
-        parser.forEachObjectField { name ->
+        for ((name, value) in element.jsonObject.entries) {
+            var found = false
             for (i in tracers.indices) {
                 val tracer = tracers[i]
                 if (name == tracer.name) {
-                    results[i] = tracer.decodeResult(mapper, parser)
-                    return@forEachObjectField
+                    results[i] = tracer.decodeResult(json, value)
+                    found = true
+                    break
                 }
             }
-            throw IllegalArgumentException("Unknown tracer in response: $name")
+            if (!found) throw IllegalArgumentException("Unknown tracer in mux result: $name")
         }
 
         return Result(tracers, results)
     }
 
+    @Serializable(with = MuxTracerResultSerializer::class)
     data class Result(
         val tracers: List<Tracer<out Any>>,
         val results: Array<*>,
@@ -96,4 +104,10 @@ data class MuxTracer(
             return result
         }
     }
+}
+
+object MuxTracerResultSerializer : KSerializer<MuxTracer.Result> {
+    override val descriptor = buildClassSerialDescriptor("MuxTracerResult")
+    override fun serialize(encoder: Encoder, value: MuxTracer.Result) = throw UnsupportedOperationException()
+    override fun deserialize(decoder: Decoder): MuxTracer.Result = throw UnsupportedOperationException()
 }

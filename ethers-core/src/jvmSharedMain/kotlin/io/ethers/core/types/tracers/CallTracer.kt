@@ -1,26 +1,30 @@
 package io.ethers.core.types.tracers
 
-import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.databind.DeserializationContext
-import com.fasterxml.jackson.databind.JsonDeserializer
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize
-import io.ethers.core.forEachObjectField
+import io.ethers.core.asAddress
+import io.ethers.core.asBytes
+import io.ethers.core.asHash
+import io.ethers.core.asHexBigInteger
+import io.ethers.core.asHexInt
+import io.ethers.core.asHexLong
 import io.ethers.core.json.JsonElement
-import io.ethers.core.readAddress
-import io.ethers.core.readBytes
-import io.ethers.core.readHash
-import io.ethers.core.readHexBigInteger
-import io.ethers.core.readHexInt
-import io.ethers.core.readHexLong
-import io.ethers.core.readListOf
-import io.ethers.core.readOrNull
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
 import io.ethers.core.types.Log
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.buildClassSerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.math.BigInteger
 import kotlin.reflect.KClass
+import kotlinx.serialization.json.JsonElement as KJsonElement
 
 /**
  * Trace transaction call frames.
@@ -46,7 +50,11 @@ data class CallTracer(
             else -> CONFIG_ALL_CALLS_NO_LOGS
         }
 
-    @JsonDeserialize(using = CallFrameDeserializer::class)
+    override fun decodeResult(json: Json, element: KJsonElement): CallFrame {
+        return json.decodeFromJsonElement(CallFrameSerializer, element)
+    }
+
+    @Serializable(with = CallFrameSerializer::class)
     data class CallFrame(
         val type: String,
         val from: Address,
@@ -145,7 +153,7 @@ data class CallTracer(
         }
     }
 
-    @JsonDeserialize(using = CallLogDeserializer::class)
+    @Serializable(with = CallLogSerializer::class)
     data class CallLog(
         val address: Address,
         val topics: List<Hash>,
@@ -177,91 +185,6 @@ data class CallTracer(
         }
     }
 
-    private class CallFrameDeserializer : JsonDeserializer<CallFrame>() {
-        override fun deserialize(p: JsonParser, ctxt: DeserializationContext): CallFrame {
-            lateinit var type: String
-            lateinit var from: Address
-            var gas: Long = -1L
-            var gasUsed: Long = -1L
-            var to: Address? = null
-            lateinit var input: Bytes
-            var output: Bytes? = null
-            var error: String? = null
-            var revertReason: String? = null
-            var calls: List<CallFrame>? = null
-            var logs: List<CallLog>? = null
-            var value: BigInteger? = null
-            var otherFields: MutableMap<String, JsonElement>? = null
-            p.forEachObjectField { name ->
-                when (name) {
-                    "type" -> type = p.text
-                    "from" -> from = p.readAddress()
-                    "gas" -> gas = p.readHexLong()
-                    "gasUsed" -> gasUsed = p.readHexLong()
-                    "to" -> to = p.readOrNull { readAddress() }
-                    "input" -> input = p.readBytes()
-                    "output" -> output = p.readOrNull { readBytes() }
-                    "error" -> error = p.readValueAs(String::class.java)
-                    "revertReason" -> revertReason = p.readValueAs(String::class.java)
-                    "calls" -> calls = p.readListOf { readValueAs(CallFrame::class.java) }
-                    "logs" -> logs = p.readListOf { readValueAs(CallLog::class.java) }
-                    "value" -> value = p.readHexBigInteger()
-                    else -> {
-                        if (otherFields == null) {
-                            otherFields = HashMap()
-                        }
-                        otherFields[p.currentName()] = JsonElement(p.readValueAsTree<JsonNode>().toString())
-                    }
-                }
-            }
-
-            return CallFrame(
-                type,
-                from,
-                gas,
-                gasUsed,
-                input,
-                to,
-                output,
-                error,
-                revertReason,
-                calls,
-                logs,
-                value,
-                otherFields ?: emptyMap(),
-            )
-        }
-    }
-
-    private class CallLogDeserializer : JsonDeserializer<CallLog>() {
-        override fun deserialize(p: JsonParser, ctxt: DeserializationContext): CallLog {
-            lateinit var address: Address
-            lateinit var topics: List<Hash>
-            lateinit var data: Bytes
-            var position: Int = -1
-            var index: Int = -1
-            var otherFields: MutableMap<String, JsonElement>? = null
-
-            p.forEachObjectField { name ->
-                when (name) {
-                    "address" -> address = p.readAddress()
-                    "topics" -> topics = p.readListOf { readHash() }
-                    "data" -> data = p.readBytes()
-                    "position" -> position = p.readHexInt()
-                    "index" -> index = p.readHexInt()
-                    else -> {
-                        if (otherFields == null) {
-                            otherFields = HashMap()
-                        }
-                        otherFields[p.currentName()] = JsonElement(p.readValueAsTree<JsonNode>().toString())
-                    }
-                }
-            }
-
-            return CallLog(address, topics, data, position, index, otherFields ?: emptyMap())
-        }
-    }
-
     companion object {
         private val CONFIG_TOP_CALL_WITH_LOGS = mapOf(
             "onlyTopCall" to true,
@@ -279,5 +202,92 @@ data class CallTracer(
             "onlyTopCall" to false,
             "withLog" to false,
         )
+    }
+}
+
+object CallFrameSerializer : KSerializer<CallTracer.CallFrame> {
+    override val descriptor = buildClassSerialDescriptor("CallFrame")
+
+    override fun serialize(encoder: Encoder, value: CallTracer.CallFrame) = throw UnsupportedOperationException()
+
+    override fun deserialize(decoder: Decoder): CallTracer.CallFrame {
+        val jsonDecoder = decoder as JsonDecoder
+        val obj = jsonDecoder.decodeJsonElement().jsonObject
+
+        lateinit var type: String
+        lateinit var from: Address
+        var gas = -1L
+        var gasUsed = -1L
+        var to: Address? = null
+        lateinit var input: Bytes
+        var output: Bytes? = null
+        var error: String? = null
+        var revertReason: String? = null
+        var calls: List<CallTracer.CallFrame>? = null
+        var logs: List<CallTracer.CallLog>? = null
+        var value: BigInteger? = null
+        var otherFields: MutableMap<String, JsonElement>? = null
+
+        for ((key, element) in obj.entries) {
+            when (key) {
+                "type" -> type = element.jsonPrimitive.content
+                "from" -> from = element.jsonPrimitive.asAddress()
+                "gas" -> gas = element.jsonPrimitive.asHexLong()
+                "gasUsed" -> gasUsed = element.jsonPrimitive.asHexLong()
+                "to" -> to = if (element is JsonNull) null else element.jsonPrimitive.asAddress()
+                "input" -> input = element.jsonPrimitive.asBytes()
+                "output" -> output = if (element is JsonNull) null else element.jsonPrimitive.asBytes()
+                "error" -> error = element.jsonPrimitive.content
+                "revertReason" -> revertReason = element.jsonPrimitive.content
+                "calls" -> calls = if (element is JsonNull) null
+                else element.jsonArray.map { jsonDecoder.json.decodeFromJsonElement(CallFrameSerializer, it) }
+                "logs" -> logs = if (element is JsonNull) null
+                else element.jsonArray.map { jsonDecoder.json.decodeFromJsonElement(CallLogSerializer, it) }
+                "value" -> value = element.jsonPrimitive.asHexBigInteger()
+                else -> {
+                    if (otherFields == null) otherFields = HashMap()
+                    otherFields[key] = JsonElement(element.toString())
+                }
+            }
+        }
+
+        return CallTracer.CallFrame(
+            type, from, gas, gasUsed, input, to, output, error, revertReason,
+            calls, logs, value, otherFields ?: emptyMap(),
+        )
+    }
+}
+
+object CallLogSerializer : KSerializer<CallTracer.CallLog> {
+    override val descriptor = buildClassSerialDescriptor("CallLog")
+
+    override fun serialize(encoder: Encoder, value: CallTracer.CallLog) = throw UnsupportedOperationException()
+
+    override fun deserialize(decoder: Decoder): CallTracer.CallLog {
+        val obj = (decoder as JsonDecoder).decodeJsonElement().jsonObject
+
+        lateinit var address: Address
+        var topics: List<Hash> = emptyList()
+        lateinit var data: Bytes
+        var position = -1
+        var index = -1
+        var otherFields: MutableMap<String, JsonElement>? = null
+
+        for ((key, element) in obj.entries) {
+            when (key) {
+                "address" -> address = element.jsonPrimitive.asAddress()
+                "topics" -> topics = if (element is JsonNull) emptyList()
+                else element.jsonArray.map { it.jsonPrimitive.asHash() }
+                "data" -> data = element.jsonPrimitive.asBytes()
+                "position" -> position = element.jsonPrimitive.asHexInt()
+                "index" -> index = element.jsonPrimitive.asHexInt()
+                else -> {
+                    if (otherFields == null) otherFields = HashMap()
+                    otherFields[key] = JsonElement(element.toString())
+                }
+            }
+        }
+
+        return CallTracer.CallLog(address, topics, data, position, index, otherFields ?: emptyMap())
     }
 }

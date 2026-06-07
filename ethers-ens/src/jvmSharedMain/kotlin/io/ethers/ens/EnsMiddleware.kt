@@ -1,13 +1,11 @@
 package io.ethers.ens
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties
-import com.fasterxml.jackson.annotation.JsonProperty
 import io.ethers.abi.AbiCodec
 import io.ethers.abi.AbiFunction
 import io.ethers.abi.AbiType
 import io.ethers.core.ExceptionalError
 import io.ethers.core.FastHex
-import io.ethers.core.Jackson
+import io.ethers.core.Kotlinx
 import io.ethers.core.Result
 import io.ethers.core.asTypeOrNull
 import io.ethers.core.failure
@@ -23,6 +21,7 @@ import io.ethers.logger.err
 import io.ethers.logger.getLogger
 import io.ethers.logger.wrn
 import io.ethers.providers.middleware.Middleware
+import kotlinx.serialization.Serializable
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -338,10 +337,7 @@ class EnsMiddleware @JvmOverloads constructor(
         url: String,
     ): Result<Bytes, Error>? {
         if (response.isSuccessful) {
-            val gatewayRequestDTO = Jackson.MAPPER.readValue(
-                response.body.byteStream(),
-                EnsGatewayResponseDTO::class.java,
-            )
+            val gatewayRequestDTO = Kotlinx.DEFAULT.decodeFromString(EnsGatewayResponseDTO.serializer(), response.body.string())
 
             return success(gatewayRequestDTO.data)
         }
@@ -379,7 +375,7 @@ class EnsMiddleware @JvmOverloads constructor(
             val requestDTO = EnsGatewayRequestDTO(calldata, sender.toString())
 
             Request.Builder().url(href)
-                .post(Jackson.MAPPER.writeValueAsString(requestDTO).toRequestBody(JSON_MEDIA_TYPE))
+                .post(Kotlinx.DEFAULT.encodeToString(EnsGatewayRequestDTO.serializer(), requestDTO).toRequestBody(JSON_MEDIA_TYPE))
                 .addHeader("Content-Type", "application/json")
                 .build()
         }
@@ -525,10 +521,7 @@ class EnsMiddleware @JvmOverloads constructor(
                     )
                 }
 
-                val metadataDTO = Jackson.MAPPER.readValue(
-                    it.body.byteStream(),
-                    MetadataDTO::class.java,
-                )
+                val metadataDTO = Kotlinx.DEFAULT.decodeFromString(MetadataDTO.serializer(), it.body.string())
 
                 success(metadataDTO.image)
             }
@@ -786,11 +779,11 @@ class EnsMiddleware @JvmOverloads constructor(
     }
 }
 
-@JsonIgnoreProperties(ignoreUnknown = true)
+@Serializable
 private data class EnsGatewayRequestDTO(
-    @param:JsonProperty("data") val data: Bytes,
-    @param:JsonProperty("sender") val sender: String,
+    val data: Bytes,
+    val sender: String,
 )
 
-@JsonIgnoreProperties(ignoreUnknown = true)
-private data class EnsGatewayResponseDTO(@param:JsonProperty("data") val data: Bytes)
+@Serializable
+private data class EnsGatewayResponseDTO(val data: Bytes)

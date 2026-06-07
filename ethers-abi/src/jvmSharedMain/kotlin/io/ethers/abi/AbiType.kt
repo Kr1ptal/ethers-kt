@@ -172,7 +172,7 @@ sealed interface AbiType<T : Any> {
         /**
          * Get the name of the struct.
          * */
-        val name: kotlin.String = classType.simpleName!!
+        val name: kotlin.String = classType.simpleName
 
         /**
          * Get the root EIP-712 definition of this struct.

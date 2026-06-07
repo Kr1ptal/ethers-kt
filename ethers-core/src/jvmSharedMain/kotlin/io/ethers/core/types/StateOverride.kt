@@ -1,5 +1,13 @@
 package io.ethers.core.types
 
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.buildClassSerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonEncoder
+import kotlinx.serialization.json.buildJsonObject
+
 /**
  * Represents a [Map] of [AccountOverride] per account [Address]. This class is a wrapper around a map, with additional
  * methods to merge and apply changes from another instance, and safe functionality to create new instances to prevent
@@ -10,6 +18,7 @@ package io.ethers.core.types
  * - [StateOverride.wrap], to wrap an existing map without copying the data,
  * - [StateOverride.copy], to create a new instance from an existing map, creating a new copy of all [AccountOverride]s,
  * */
+@Serializable(with = StateOverrideSerializer::class)
 class StateOverride private constructor(
     private val overrides: MutableMap<Address, AccountOverride>,
 ) : MutableMap<Address, AccountOverride> by overrides {
@@ -198,4 +207,21 @@ fun StateOverride?.mergeChanges(other: StateOverride?): StateOverride? {
         this != null && other == null -> StateOverride.copy(this)
         else -> this!!.mergeChanges(other!!)
     }
+}
+
+object StateOverrideSerializer : KSerializer<StateOverride> {
+    override val descriptor = buildClassSerialDescriptor("StateOverride")
+
+    override fun serialize(encoder: Encoder, value: StateOverride) {
+        val jsonEncoder = encoder as JsonEncoder
+        jsonEncoder.encodeJsonElement(
+            buildJsonObject {
+                for ((address, override) in value) {
+                    put(address.toString(), jsonEncoder.json.encodeToJsonElement(AccountOverrideSerializer, override))
+                }
+            },
+        )
+    }
+
+    override fun deserialize(decoder: Decoder): StateOverride = throw UnsupportedOperationException()
 }

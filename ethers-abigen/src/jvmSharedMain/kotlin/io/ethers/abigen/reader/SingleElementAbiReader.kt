@@ -2,7 +2,7 @@ package io.ethers.abigen.reader
 
 import io.ethers.abigen.JsonAbi
 import io.ethers.abigen.JsonAbiItem
-import io.ethers.core.Jackson
+import io.ethers.core.Kotlinx
 import java.io.InputStream
 
 /**
@@ -15,10 +15,8 @@ import java.io.InputStream
  *
  * */
 object SingleElementAbiReader : JsonAbiReader {
-    private val reader = Jackson.MAPPER.readerFor(JsonAbiItem::class.java)
-
     override fun read(abi: InputStream): JsonAbi {
-        val abiItem = reader.readValue<JsonAbiItem>(abi)
+        val abiItem = Kotlinx.DEFAULT.decodeFromString(JsonAbiItem.serializer(), abi.bufferedReader().readText())
         return JsonAbi(listOf(abiItem), null)
     }
 }

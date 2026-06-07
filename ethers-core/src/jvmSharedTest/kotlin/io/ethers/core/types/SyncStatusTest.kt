@@ -1,6 +1,6 @@
 package io.ethers.core.types
 
-import io.ethers.core.Jackson
+import io.ethers.core.Kotlinx
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import org.intellij.lang.annotations.Language
@@ -9,7 +9,7 @@ class SyncStatusTest : FunSpec({
     test("SyncStatus deserialization - finished") {
         @Language("JSON")
         val jsonString = "false"
-        val result = Jackson.MAPPER.readValue(jsonString, SyncStatus::class.java)
+        val result = Kotlinx.DEFAULT.decodeFromString<SyncStatus>(jsonString)
 
         result.isFinished shouldBe true
         result shouldBe SyncStatus.Finished
@@ -37,7 +37,7 @@ class SyncStatusTest : FunSpec({
                 "syncedStorageBytes": "0x23634dbedf"
             }
         """.trimIndent()
-        val result = Jackson.MAPPER.readValue(jsonString, SyncStatus::class.java)
+        val result = Kotlinx.DEFAULT.decodeFromString<SyncStatus>(jsonString)
 
         result.isInProgress shouldBe true
         result shouldBe SyncStatus.InProgress(

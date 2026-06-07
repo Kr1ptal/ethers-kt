@@ -1,20 +1,22 @@
 package io.ethers.core.types
 
-import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.core.JsonToken
-import com.fasterxml.jackson.databind.DeserializationContext
-import com.fasterxml.jackson.databind.JsonDeserializer
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize
-import io.ethers.core.forEachObjectField
-import io.ethers.core.handleUnknownField
-import io.ethers.core.readHexLong
-import io.ethers.core.readMapOf
+import io.ethers.core.HexLongSerializer
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.buildClassSerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * Content of the transaction pool, including both pending and queued transactions, grouped by sender address
  * and nonce values.
  */
-@JsonDeserialize(using = TxpoolContentDeserializer::class)
+@Serializable(with = TxpoolContentSerializer::class)
 data class TxpoolContent(
     val pending: Map<Address, Map<Long, RPCTransaction>>,
     val queued: Map<Address, Map<Long, RPCTransaction>>,
@@ -23,17 +25,17 @@ data class TxpoolContent(
 /**
  * Status of the transaction pool, including number of pending and queued transactions.
  */
-@JsonDeserialize(using = TxpoolStatusDeserializer::class)
+@Serializable
 data class TxpoolStatus(
-    val pending: Long,
-    val queued: Long,
+    @Serializable(with = HexLongSerializer::class) val pending: Long,
+    @Serializable(with = HexLongSerializer::class) val queued: Long,
 )
 
 /**
  * Content of the transaction pool for a given address, including both pending and queued transactions,
  * grouped by nonce values.
  */
-@JsonDeserialize(using = TxpoolContentFromAddressDeserializer::class)
+@Serializable(with = TxpoolContentFromAddressSerializer::class)
 data class TxpoolContentFromAddress(
     val pending: Map<Long, RPCTransaction>,
     val queued: Map<Long, RPCTransaction>,
@@ -46,38 +48,50 @@ data class TxpoolContentFromAddress(
  *   - normal TX:            "addressTo: value + gasLimit + gasPrice"
  *   - contract creation:    "contract creation: value + gasLimit + gasPrice"
  */
-@JsonDeserialize(using = TxpoolInspectResultDeserializer::class)
+@Serializable(with = TxpoolInspectResultSerializer::class)
 data class TxpoolInspectResult(
     val pending: Map<Address, Map<Long, String>>,
     val queued: Map<Address, Map<Long, String>>,
 )
 
-private class TxpoolContentDeserializer : JsonDeserializer<TxpoolContent>() {
-    override fun deserialize(p: JsonParser, context: DeserializationContext): TxpoolContent {
-        if (p.currentToken != JsonToken.START_OBJECT) {
-            throw IllegalStateException("Expected start object, got: ${p.currentToken}")
+private fun readRpcTxMap(json: Json, obj: JsonObject): Map<Address, Map<Long, RPCTransaction>> {
+    return obj.entries.associate { (addrStr, inner) ->
+        val address = Address(addrStr)
+        val innerMap = inner.jsonObject.entries.associate { (nonceStr, txElement) ->
+            val nonce = nonceStr.toLong()
+            val tx = json.decodeFromJsonElement(RPCTransactionSerializer, txElement)
+            nonce to tx
         }
+        address to innerMap
+    }
+}
+
+private fun readInspectMap(obj: JsonObject): Map<Address, Map<Long, String>> {
+    return obj.entries.associate { (addrStr, inner) ->
+        val address = Address(addrStr)
+        val innerMap = inner.jsonObject.entries.associate { (nonceStr, strElement) ->
+            nonceStr.toLong() to strElement.jsonPrimitive.content
+        }
+        address to innerMap
+    }
+}
+
+object TxpoolContentSerializer : KSerializer<TxpoolContent> {
+    override val descriptor = buildClassSerialDescriptor("TxpoolContent")
+
+    override fun serialize(encoder: Encoder, value: TxpoolContent) = throw UnsupportedOperationException()
+
+    override fun deserialize(decoder: Decoder): TxpoolContent {
+        val jsonDecoder = decoder as JsonDecoder
+        val obj = jsonDecoder.decodeJsonElement().jsonObject
 
         var pending: Map<Address, Map<Long, RPCTransaction>> = emptyMap()
         var queued: Map<Address, Map<Long, RPCTransaction>> = emptyMap()
 
-        p.forEachObjectField { field ->
-            when (field) {
-                "pending" -> {
-                    pending = p.readMapOf(
-                        { Address(it) },
-                        { p.readMapOf({ it.toLong() }, RPCTransaction::class.java) },
-                    )
-                }
-
-                "queued" -> {
-                    queued = p.readMapOf(
-                        { Address(it) },
-                        { p.readMapOf({ it.toLong() }, RPCTransaction::class.java) },
-                    )
-                }
-
-                else -> p.handleUnknownField()
+        for ((key, element) in obj.entries) {
+            when (key) {
+                "pending" -> pending = readRpcTxMap(jsonDecoder.json, element.jsonObject)
+                "queued" -> queued = readRpcTxMap(jsonDecoder.json, element.jsonObject)
             }
         }
 
@@ -85,41 +99,26 @@ private class TxpoolContentDeserializer : JsonDeserializer<TxpoolContent>() {
     }
 }
 
-private class TxpoolStatusDeserializer : JsonDeserializer<TxpoolStatus>() {
-    override fun deserialize(p: JsonParser, context: DeserializationContext): TxpoolStatus {
-        if (p.currentToken != JsonToken.START_OBJECT) {
-            throw IllegalStateException("Expected start object, got: ${p.currentToken}")
-        }
+object TxpoolContentFromAddressSerializer : KSerializer<TxpoolContentFromAddress> {
+    override val descriptor = buildClassSerialDescriptor("TxpoolContentFromAddress")
 
-        var pending: Long? = null
-        var queued: Long? = null
+    override fun serialize(encoder: Encoder, value: TxpoolContentFromAddress) = throw UnsupportedOperationException()
 
-        p.forEachObjectField { field ->
-            when (field) {
-                "pending" -> pending = p.readHexLong()
-                "queued" -> queued = p.readHexLong()
-                else -> p.handleUnknownField()
-            }
-        }
-
-        return TxpoolStatus(pending!!, queued!!)
-    }
-}
-
-private class TxpoolContentFromAddressDeserializer : JsonDeserializer<TxpoolContentFromAddress>() {
-    override fun deserialize(p: JsonParser, context: DeserializationContext): TxpoolContentFromAddress {
-        if (p.currentToken != JsonToken.START_OBJECT) {
-            throw IllegalStateException("Expected start object, got: ${p.currentToken}")
-        }
+    override fun deserialize(decoder: Decoder): TxpoolContentFromAddress {
+        val jsonDecoder = decoder as JsonDecoder
+        val obj = jsonDecoder.decodeJsonElement().jsonObject
 
         var pending: Map<Long, RPCTransaction> = emptyMap()
         var queued: Map<Long, RPCTransaction> = emptyMap()
 
-        p.forEachObjectField { field ->
-            when (field) {
-                "pending" -> pending = p.readMapOf({ it.toLong() }, RPCTransaction::class.java)
-                "queued" -> queued = p.readMapOf({ it.toLong() }, RPCTransaction::class.java)
-                else -> p.handleUnknownField()
+        for ((key, element) in obj.entries) {
+            when (key) {
+                "pending" -> pending = element.jsonObject.entries.associate { (nonceStr, txElement) ->
+                    nonceStr.toLong() to jsonDecoder.json.decodeFromJsonElement(RPCTransactionSerializer, txElement)
+                }
+                "queued" -> queued = element.jsonObject.entries.associate { (nonceStr, txElement) ->
+                    nonceStr.toLong() to jsonDecoder.json.decodeFromJsonElement(RPCTransactionSerializer, txElement)
+                }
             }
         }
 
@@ -127,31 +126,21 @@ private class TxpoolContentFromAddressDeserializer : JsonDeserializer<TxpoolCont
     }
 }
 
-private class TxpoolInspectResultDeserializer : JsonDeserializer<TxpoolInspectResult>() {
-    override fun deserialize(p: JsonParser, context: DeserializationContext): TxpoolInspectResult {
-        if (p.currentToken != JsonToken.START_OBJECT) {
-            throw IllegalStateException("Expected start object, got: ${p.currentToken}")
-        }
+object TxpoolInspectResultSerializer : KSerializer<TxpoolInspectResult> {
+    override val descriptor = buildClassSerialDescriptor("TxpoolInspectResult")
+
+    override fun serialize(encoder: Encoder, value: TxpoolInspectResult) = throw UnsupportedOperationException()
+
+    override fun deserialize(decoder: Decoder): TxpoolInspectResult {
+        val obj = (decoder as JsonDecoder).decodeJsonElement().jsonObject
 
         var pending: Map<Address, Map<Long, String>> = emptyMap()
         var queued: Map<Address, Map<Long, String>> = emptyMap()
-        p.forEachObjectField { field ->
-            when (field) {
-                "pending" -> {
-                    pending = p.readMapOf(
-                        { Address(it) },
-                        { p.readMapOf({ it.toLong() }, String::class.java) },
-                    )
-                }
 
-                "queued" -> {
-                    queued = p.readMapOf(
-                        { Address(it) },
-                        { p.readMapOf({ it.toLong() }, String::class.java) },
-                    )
-                }
-
-                else -> p.handleUnknownField()
+        for ((key, element) in obj.entries) {
+            when (key) {
+                "pending" -> pending = readInspectMap(element.jsonObject)
+                "queued" -> queued = readInspectMap(element.jsonObject)
             }
         }
 

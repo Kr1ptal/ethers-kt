@@ -1,10 +1,13 @@
 package io.ethers.core.types.tracers
 
-import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.databind.DeserializationContext
-import com.fasterxml.jackson.databind.JsonDeserializer
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.buildClassSerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonElement
 import org.intellij.lang.annotations.Language
 import kotlin.reflect.KClass
 
@@ -24,19 +27,26 @@ data class JSTracer(
     override val resultType: KClass<Result>
         get() = Result::class
 
+    override fun decodeResult(json: Json, element: JsonElement): Result {
+        return json.decodeFromJsonElement(ResultSerializer, element)
+    }
+
     /**
      * Result of a JS tracer, containing the raw JSON output as a string.
      *
      * @property json The raw JSON string returned by the tracer.
      */
-    @JsonDeserialize(using = ResultDeserializer::class)
+    @Serializable(with = ResultSerializer::class)
     data class Result(val json: String)
 
-    private class ResultDeserializer : JsonDeserializer<Result>() {
-        override fun deserialize(p: JsonParser, ctxt: DeserializationContext): Result {
-            // Read the tree and convert back to string to get raw JSON
-            val tree = p.readValueAsTree<JsonNode>()
-            return Result(tree.toString())
+    object ResultSerializer : KSerializer<Result> {
+        override val descriptor = buildClassSerialDescriptor("JSTracer.Result")
+
+        override fun serialize(encoder: Encoder, value: Result) = throw UnsupportedOperationException()
+
+        override fun deserialize(decoder: Decoder): Result {
+            val element = (decoder as JsonDecoder).decodeJsonElement()
+            return Result(element.toString())
         }
     }
 }

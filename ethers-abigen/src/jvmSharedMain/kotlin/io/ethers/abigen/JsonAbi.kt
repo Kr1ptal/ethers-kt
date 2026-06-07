@@ -1,13 +1,10 @@
 package io.ethers.abigen
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties
-import com.fasterxml.jackson.annotation.JsonProperty
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 
-@JsonIgnoreProperties(ignoreUnknown = true)
 data class JsonAbi(
-    @param:JsonProperty("abi")
     private val abi: List<JsonAbiItem>,
-    @param:JsonProperty("bytecode")
     val bytecode: String? = null,
 ) {
     val functions: List<JsonAbiFunction>
@@ -71,17 +68,16 @@ data class JsonAbi(
     }
 }
 
-@JsonIgnoreProperties(ignoreUnknown = true)
+@Serializable
 data class JsonAbiItem(
-    @param:JsonProperty("type") val type: Type,
-    @param:JsonProperty("name") val name: String?,
-    @param:JsonProperty("inputs") val inputs: List<Component>? = null,
-    @param:JsonProperty("outputs") val outputs: List<Component>? = null,
-    @param:JsonProperty("anonymous") val anonymous: Boolean? = null,
-
-    @param:JsonProperty("stateMutability") private val stateMutability: Mutability = Mutability.NONPAYABLE,
-    @param:JsonProperty("constant") private val constant: Boolean = false, // legacy field since v0.5.0 - true if function is view or pure
-    @param:JsonProperty("payable") private val payable: Boolean = false, // legacy field since v0.5.0 - true if function is payable
+    val type: Type,
+    val name: String? = null,
+    val inputs: List<Component>? = null,
+    val outputs: List<Component>? = null,
+    val anonymous: Boolean? = null,
+    val stateMutability: Mutability = Mutability.NONPAYABLE,
+    val constant: Boolean = false, // legacy field since v0.5.0 - true if function is view or pure
+    val payable: Boolean = false, // legacy field since v0.5.0 - true if function is payable
 ) {
     val isPayable: Boolean
         get() = stateMutability == Mutability.PAYABLE || payable
@@ -89,29 +85,41 @@ data class JsonAbiItem(
     val isReadOnly: Boolean
         get() = stateMutability == Mutability.PURE || stateMutability == Mutability.VIEW || constant
 
+    @Serializable
     enum class Type {
+        @SerialName("function")
         FUNCTION,
+        @SerialName("constructor")
         CONSTRUCTOR,
+        @SerialName("receive")
         RECEIVE,
+        @SerialName("fallback")
         FALLBACK,
+        @SerialName("event")
         EVENT,
+        @SerialName("error")
         ERROR,
     }
 
+    @Serializable
     enum class Mutability {
+        @SerialName("pure")
         PURE,
+        @SerialName("view")
         VIEW,
+        @SerialName("nonpayable")
         NONPAYABLE,
+        @SerialName("payable")
         PAYABLE,
     }
 
-    @JsonIgnoreProperties(ignoreUnknown = true)
+    @Serializable
     data class Component(
-        @param:JsonProperty("type") val type: String,
-        @param:JsonProperty("internalType") val internalType: String?,
-        @param:JsonProperty("name") val name: String = "",
-        @param:JsonProperty("indexed") val indexed: Boolean = false,
-        @param:JsonProperty("components") val components: List<Component> = emptyList(),
+        val type: String,
+        val internalType: String? = null,
+        val name: String = "",
+        val indexed: Boolean = false,
+        val components: List<Component> = emptyList(),
     )
 }
 

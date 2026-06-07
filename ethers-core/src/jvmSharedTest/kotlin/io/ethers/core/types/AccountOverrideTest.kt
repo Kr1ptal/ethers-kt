@@ -1,6 +1,6 @@
 package io.ethers.core.types
 
-import io.ethers.core.Jackson
+import io.ethers.core.Kotlinx
 import io.kotest.assertions.json.shouldEqualJson
 import io.kotest.assertions.throwables.shouldThrowUnit
 import io.kotest.core.spec.style.FunSpec
@@ -21,7 +21,7 @@ class AccountOverrideTest : FunSpec({
             )
         }
 
-        Jackson.MAPPER.writeValueAsString(accountOverride) shouldEqualJson """
+        Kotlinx.DEFAULT.encodeToString(accountOverride) shouldEqualJson """
             {
               "nonce": "0x${accountOverride.nonce.toString(16)}",
               "code": "${accountOverride.code!!}",
@@ -47,7 +47,7 @@ class AccountOverrideTest : FunSpec({
             )
         }
 
-        Jackson.MAPPER.writeValueAsString(accountOverride) shouldEqualJson """
+        Kotlinx.DEFAULT.encodeToString(accountOverride) shouldEqualJson """
             {
               "nonce": "0x${accountOverride.nonce.toString(16)}",
               "code": "${accountOverride.code!!}",

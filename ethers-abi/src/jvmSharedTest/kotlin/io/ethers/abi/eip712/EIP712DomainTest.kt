@@ -1,7 +1,7 @@
 package io.ethers.abi.eip712
 
 import io.ethers.abi.AbiType
-import io.ethers.core.Jackson
+import io.ethers.core.Kotlinx
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
@@ -9,6 +9,8 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.math.BigInteger
 
 class EIP712DomainTest : FunSpec({
@@ -107,11 +109,9 @@ class EIP712DomainTest : FunSpec({
     }
 
     context("JSON deserialization edge cases") {
-        val mapper = Jackson.MAPPER
-
         test("unknown JSON field is silently ignored") {
             val json = """{"name":"TestDApp","version":"1.0","extraField":"should be ignored"}"""
-            val domain = mapper.readValue(json, EIP712Domain::class.java)
+            val domain = Kotlinx.DEFAULT.decodeFromString<EIP712Domain>(json)
 
             domain.name shouldBe "TestDApp"
             domain.version shouldBe "1.0"
@@ -122,7 +122,7 @@ class EIP712DomainTest : FunSpec({
 
         test("null JSON values produce null fields") {
             val json = """{"name":null,"version":null}"""
-            val domain = mapper.readValue(json, EIP712Domain::class.java)
+            val domain = Kotlinx.DEFAULT.decodeFromString<EIP712Domain>(json)
 
             domain.name shouldBe null
             domain.version shouldBe null
@@ -133,21 +133,19 @@ class EIP712DomainTest : FunSpec({
 
         test("empty JSON object produces domain with all nulls") {
             val json = """{}"""
-            val domain = mapper.readValue(json, EIP712Domain::class.java)
+            val domain = Kotlinx.DEFAULT.decodeFromString<EIP712Domain>(json)
 
             domain shouldBe EIP712Domain()
         }
 
         test("non-object input throws") {
             shouldThrow<IllegalArgumentException> {
-                mapper.readValue("\"just a string\"", EIP712Domain::class.java)
+                Kotlinx.DEFAULT.decodeFromString<EIP712Domain>("\"just a string\"")
             }
         }
     }
 
     context("JSON serialization") {
-        val mapper = Jackson.MAPPER
-
         test("roundtrip serialization of EIP712Domain") {
             val domain = EIP712Domain(
                 name = "TestDApp",
@@ -157,8 +155,8 @@ class EIP712DomainTest : FunSpec({
                 salt = null,
             )
 
-            val json = mapper.writeValueAsString(domain)
-            val deserialized = mapper.readValue(json, EIP712Domain::class.java)
+            val json = Kotlinx.DEFAULT.encodeToString(domain)
+            val deserialized = Kotlinx.DEFAULT.decodeFromString<EIP712Domain>(json)
 
             deserialized shouldBe domain
         }
@@ -166,8 +164,8 @@ class EIP712DomainTest : FunSpec({
         test("serializes null fields correctly") {
             val domain = EIP712Domain(name = "TestOnly")
 
-            val json = mapper.writeValueAsString(domain)
-            val deserialized = mapper.readValue(json, EIP712Domain::class.java)
+            val json = Kotlinx.DEFAULT.encodeToString(domain)
+            val deserialized = Kotlinx.DEFAULT.decodeFromString<EIP712Domain>(json)
 
             deserialized.name shouldBe "TestOnly"
             deserialized.version shouldBe null
@@ -185,25 +183,25 @@ class EIP712DomainTest : FunSpec({
                 salt = Bytes("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"),
             )
 
-            val json = mapper.writeValueAsString(domain)
-            val jsonNode = mapper.readTree(json)
+            val json = Kotlinx.DEFAULT.encodeToString(domain)
+            val jsonObj = Kotlinx.DEFAULT.parseToJsonElement(json).jsonObject
 
             // Verify JSON structure
-            jsonNode.has("name") shouldBe true
-            jsonNode.has("version") shouldBe true
-            jsonNode.has("chainId") shouldBe true
-            jsonNode.has("verifyingContract") shouldBe true
-            jsonNode.has("salt") shouldBe true
+            ("name" in jsonObj) shouldBe true
+            ("version" in jsonObj) shouldBe true
+            ("chainId" in jsonObj) shouldBe true
+            ("verifyingContract" in jsonObj) shouldBe true
+            ("salt" in jsonObj) shouldBe true
 
             // Verify values are properly formatted
-            jsonNode["name"].asText() shouldBe "FullDApp"
-            jsonNode["version"].asText() shouldBe "2.1.0"
-            jsonNode["chainId"].asText() shouldBe "1337"
-            jsonNode["verifyingContract"].asText() shouldBe "0x4444444444444444444444444444444444444444"
-            jsonNode["salt"].asText() shouldBe "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+            jsonObj["name"]!!.jsonPrimitive.content shouldBe "FullDApp"
+            jsonObj["version"]!!.jsonPrimitive.content shouldBe "2.1.0"
+            jsonObj["chainId"]!!.jsonPrimitive.content shouldBe "1337"
+            jsonObj["verifyingContract"]!!.jsonPrimitive.content shouldBe "0x4444444444444444444444444444444444444444"
+            jsonObj["salt"]!!.jsonPrimitive.content shouldBe "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
             // Verify roundtrip
-            val deserialized = mapper.readValue(json, EIP712Domain::class.java)
+            val deserialized = Kotlinx.DEFAULT.decodeFromString<EIP712Domain>(json)
             deserialized shouldBe domain
         }
     }

@@ -1,17 +1,21 @@
 package io.ethers.core.types
 
-import com.fasterxml.jackson.core.JsonGenerator
-import com.fasterxml.jackson.databind.JsonSerializer
-import com.fasterxml.jackson.databind.SerializerProvider
-import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import io.ethers.core.FastHex
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.buildClassSerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonEncoder
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import java.math.BigInteger
 
 /**
  * Block override, which can be used to override certain fields of a block, such as the block number, timestamp,
  * gas limit, etc...
  * */
-@JsonSerialize(using = BlockOverrideSerializer::class)
+@Serializable(with = BlockOverrideSerializer::class)
 class BlockOverride() {
     constructor(other: BlockOverride) : this() {
         this.time = other.time
@@ -162,32 +166,39 @@ class BlockOverride() {
     }
 }
 
-private class BlockOverrideSerializer : JsonSerializer<BlockOverride>() {
-    override fun serialize(value: BlockOverride, gen: JsonGenerator, serializers: SerializerProvider) {
-        gen.writeStartObject()
-        if (value.number != -1L) {
-            gen.writeStringField("number", FastHex.encodeWithPrefix(value.number))
-        }
-        if (value.difficulty != null) {
-            gen.writeStringField("difficulty", FastHex.encodeWithPrefix(value.difficulty!!))
-        }
-        if (value.time != -1L) {
-            gen.writeStringField("time", FastHex.encodeWithPrefix(value.time))
-        }
-        if (value.gasLimit != -1L) {
-            gen.writeStringField("gasLimit", FastHex.encodeWithPrefix(value.gasLimit))
-        }
-        if (value.coinbase != null) {
-            gen.writeStringField("coinbase", value.coinbase!!.toString())
-        }
-        if (value.random != null) {
-            gen.writeStringField("random", value.random!!.toString())
-        }
-        if (value.baseFee != null) {
-            gen.writeStringField("baseFee", FastHex.encodeWithPrefix(value.baseFee!!))
-        }
-        gen.writeEndObject()
+object BlockOverrideSerializer : KSerializer<BlockOverride> {
+    override val descriptor = buildClassSerialDescriptor("BlockOverride")
+
+    override fun serialize(encoder: Encoder, value: BlockOverride) {
+        val jsonEncoder = encoder as JsonEncoder
+        jsonEncoder.encodeJsonElement(
+            buildJsonObject {
+                if (value.number != -1L) {
+                    put("number", FastHex.encodeWithPrefix(value.number))
+                }
+                if (value.difficulty != null) {
+                    put("difficulty", FastHex.encodeWithPrefix(value.difficulty!!))
+                }
+                if (value.time != -1L) {
+                    put("time", FastHex.encodeWithPrefix(value.time))
+                }
+                if (value.gasLimit != -1L) {
+                    put("gasLimit", FastHex.encodeWithPrefix(value.gasLimit))
+                }
+                if (value.coinbase != null) {
+                    put("coinbase", value.coinbase!!.toString())
+                }
+                if (value.random != null) {
+                    put("random", value.random!!.toString())
+                }
+                if (value.baseFee != null) {
+                    put("baseFee", FastHex.encodeWithPrefix(value.baseFee!!))
+                }
+            },
+        )
     }
+
+    override fun deserialize(decoder: Decoder): BlockOverride = throw UnsupportedOperationException()
 }
 
 /**

@@ -1,41 +1,29 @@
 package io.ethers.core.types
 
-import com.fasterxml.jackson.core.JsonGenerator
-import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.core.JsonToken
-import com.fasterxml.jackson.databind.DeserializationContext
-import com.fasterxml.jackson.databind.JsonDeserializer
-import com.fasterxml.jackson.databind.JsonSerializer
-import com.fasterxml.jackson.databind.SerializerProvider
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize
-import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import io.ethers.core.FastHex
-import io.ethers.core.forEachObjectField
-import io.ethers.core.handleUnknownField
-import io.ethers.core.readAddress
-import io.ethers.core.readHexBigInteger
-import io.ethers.core.readHexLong
+import io.ethers.core.HexBigIntegerSerializer
+import io.ethers.core.HexLongSerializer
 import io.ethers.crypto.Hashing
 import io.ethers.crypto.Secp256k1
 import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncodable
 import io.ethers.rlp.RlpEncoder
+import kotlinx.serialization.Serializable
 import java.math.BigInteger
 
 /**
  * EIP-7702 Authorization structure for SetCode transactions.
  * Each authorization allows a specific address to execute code on behalf of the authority.
  */
-@JsonSerialize(using = AuthorizationSerializer::class)
-@JsonDeserialize(using = AuthorizationDeserializer::class)
+@Serializable
 data class Authorization(
-    val chainId: Long,
+    @Serializable(with = HexLongSerializer::class) val chainId: Long,
     val address: Address,
-    val nonce: Long,
-    val yParity: Long,
-    val r: BigInteger,
-    val s: BigInteger,
+    @Serializable(with = HexLongSerializer::class) val nonce: Long,
+    @Serializable(with = HexLongSerializer::class) val yParity: Long,
+    @Serializable(with = HexBigIntegerSerializer::class) val r: BigInteger,
+    @Serializable(with = HexBigIntegerSerializer::class) val s: BigInteger,
 ) : RlpEncodable {
     init {
         require(chainId == 0L || chainId > 0L) { "chainId must be 0 or positive" }
@@ -133,47 +121,5 @@ data class Authorization(
                 Authorization(chainId, address, nonce, yParity, r, s)
             }
         }
-    }
-}
-
-private class AuthorizationSerializer : JsonSerializer<Authorization>() {
-    override fun serialize(value: Authorization, gen: JsonGenerator, serializers: SerializerProvider) {
-        gen.writeStartObject()
-        gen.writeStringField("chainId", FastHex.encodeWithPrefix(value.chainId))
-        gen.writeStringField("address", value.address.toString())
-        gen.writeStringField("nonce", FastHex.encodeWithPrefix(value.nonce))
-        gen.writeStringField("yParity", FastHex.encodeWithPrefix(value.yParity))
-        gen.writeStringField("r", FastHex.encodeWithPrefix(value.r))
-        gen.writeStringField("s", FastHex.encodeWithPrefix(value.s))
-        gen.writeEndObject()
-    }
-}
-
-private class AuthorizationDeserializer : JsonDeserializer<Authorization>() {
-    override fun deserialize(p: JsonParser, ctxt: DeserializationContext): Authorization {
-        if (p.currentToken != JsonToken.START_OBJECT) {
-            throw IllegalArgumentException("Expected start object")
-        }
-
-        var chainId = 0L
-        lateinit var address: Address
-        var nonce = 0L
-        var yParity = 0L
-        lateinit var r: BigInteger
-        lateinit var s: BigInteger
-
-        p.forEachObjectField { field ->
-            when (field) {
-                "chainId" -> chainId = p.readHexLong()
-                "address" -> address = p.readAddress()
-                "nonce" -> nonce = p.readHexLong()
-                "yParity" -> yParity = p.readHexLong()
-                "r" -> r = p.readHexBigInteger()
-                "s" -> s = p.readHexBigInteger()
-                else -> p.handleUnknownField()
-            }
-        }
-
-        return Authorization(chainId, address, nonce, yParity, r, s)
     }
 }

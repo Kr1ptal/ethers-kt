@@ -12,7 +12,7 @@ kotlin {
                 api(project(":ethers-rlp"))
                 api(project(":ethers-crypto"))
 
-                api(libs.bundles.jackson)
+                api(libs.kotlinx.serialization)
             }
         }
 
@@ -26,8 +26,6 @@ kotlin {
             dependencies {
                 implementation(libs.jmh.core)
                 implementation(libs.jmh.generator)
-
-                implementation(libs.kotlinx.serialization)
             }
         }
     }

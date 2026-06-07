@@ -1,7 +1,7 @@
 package io.ethers.core.types
 
 import fixtures.AuthorizationFactory
-import io.ethers.core.Jackson
+import io.ethers.core.Kotlinx
 import io.ethers.core.types.Authorization.Companion.MAGIC
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncoder
@@ -102,8 +102,8 @@ class AuthorizationTest : FunSpec({
                 s = BigInteger("fedcba0987654321", 16),
             )
 
-            val json = Jackson.MAPPER.writeValueAsString(original)
-            val decoded = Jackson.MAPPER.readValue(json, Authorization::class.java)
+            val json = Kotlinx.DEFAULT.encodeToString(original)
+            val decoded = Kotlinx.DEFAULT.decodeFromString<Authorization>(json)
 
             decoded shouldBe original
         }
@@ -118,7 +118,7 @@ class AuthorizationTest : FunSpec({
                 s = BigInteger("fedcba0987654321", 16),
             )
 
-            val json = Jackson.MAPPER.writeValueAsString(auth)
+            val json = Kotlinx.DEFAULT.encodeToString(auth)
 
             // Verify JSON contains expected fields
             json shouldBe """{"chainId":"0x1","address":"0x1234567890123456789012345678901234567890","nonce":"0x5","yParity":"0x1","r":"0x1234567890abcdef","s":"0xfedcba0987654321"}"""
