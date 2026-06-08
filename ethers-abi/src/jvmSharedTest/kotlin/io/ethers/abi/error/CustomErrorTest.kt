@@ -4,11 +4,13 @@ import io.ethers.abi.AbiFunction
 import io.ethers.abi.AbiType
 import io.ethers.abi.ContractStruct
 import io.ethers.abi.StructFactory
+import io.ethers.core.isFailure
 import io.ethers.core.types.Bytes
 import io.github.artificialpb.bignum.BigInteger
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.inspectors.forAll
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 
 class CustomErrorTest : FunSpec({
     CustomErrorRegistry.prependResolver(MockCustomErrorResolver())
@@ -53,6 +55,28 @@ class CustomErrorTest : FunSpec({
         ).forAll {
             CustomErrorRegistry.getOrNull(it) shouldBe null
         }
+    }
+
+    test("decoding malformed matching custom error returns null or failure") {
+        val data = ErrorWithStruct.abi.selector
+
+        ErrorWithStruct.decode(data) shouldBe null
+        ErrorWithStruct.decodeOrNull(data) shouldBe null
+
+        val decoded = ErrorWithStruct.tryDecode(data)
+        decoded.isFailure() shouldBe true
+        decoded.unwrapError().shouldBeInstanceOf<ContractErrorDecodingError.MalformedError>()
+    }
+
+    test("decoding malformed matching revert error returns null or failure") {
+        val data = RevertError.FUNCTION.selector
+
+        RevertError.getOrNull(data) shouldBe null
+        ContractError.getOrNull(data) shouldBe null
+
+        val decoded = ContractError.tryGet(data)
+        decoded.isFailure() shouldBe true
+        decoded.unwrapError().shouldBeInstanceOf<ContractErrorDecodingError.MalformedError>()
     }
 }) {
     private class MockCustomErrorResolver : CustomErrorResolver {

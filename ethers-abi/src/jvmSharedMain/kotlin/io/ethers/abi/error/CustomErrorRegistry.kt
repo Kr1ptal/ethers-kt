@@ -2,6 +2,9 @@ package io.ethers.abi.error
 
 import io.ethers.abi.error.CustomErrorRegistry.appendResolver
 import io.ethers.abi.error.CustomErrorRegistry.prependResolver
+import io.ethers.core.Result
+import io.ethers.core.failure
+import io.ethers.core.success
 import io.ethers.core.types.Bytes
 
 /**
@@ -47,13 +50,38 @@ object CustomErrorRegistry {
         if (error.size < 4) return null
 
         for (i in resolvers.indices) {
-            val customError = resolvers[i].resolve(error)
-            if (customError != null) {
-                return customError
+            val customError = try {
+                resolvers[i].resolve(error)
+            } catch (_: Exception) {
+                return null
             }
+            if (customError != null) return customError
         }
 
         return null
+    }
+
+    /**
+     * Try to return decoded [CustomContractError] from the first [CustomErrorResolver] that can decode it.
+     *
+     * @return the decoded [CustomContractError], or a [ContractErrorDecodingError] if decoding fails.
+     * */
+    @JvmStatic
+    fun tryGet(error: Bytes): Result<CustomContractError, ContractErrorDecodingError> {
+        if (error.size < 4) return failure(ContractErrorDecodingError.NoMatchingError(error, emptyList()))
+
+        for (i in resolvers.indices) {
+            when (val customError = resolvers[i].tryResolve(error)) {
+                is Result.Success -> return success(customError.value)
+                is Result.Failure -> {
+                    if (customError.error !is ContractErrorDecodingError.NoMatchingError) {
+                        return failure(customError.error)
+                    }
+                }
+            }
+        }
+
+        return failure(ContractErrorDecodingError.NoMatchingError(error, emptyList()))
     }
 }
 
@@ -62,6 +90,15 @@ object CustomErrorRegistry {
  * */
 interface CustomErrorResolver {
     fun resolve(error: Bytes): CustomContractError?
+
+    fun tryResolve(error: Bytes): Result<CustomContractError, ContractErrorDecodingError> {
+        return try {
+            resolve(error)?.let(::success)
+                ?: failure(ContractErrorDecodingError.NoMatchingError(error, emptyList()))
+        } catch (e: Exception) {
+            failure(ContractErrorDecodingError.MalformedError(error, null, e))
+        }
+    }
 }
 
 /**
@@ -89,9 +126,29 @@ object CustomErrorFactoryResolver : CustomErrorResolver {
         // the values are only appended to the end of the list, so we can safely iterate by index. Worst case,
         // we miss newly added errors in the current iteration.
         for (i in factories.indices) {
-            return factories[i].decode(error) ?: continue
+            val factory = factories[i]
+            if (error.size < 4) return null
+            if (!error.startsWith(factory.abi.selector)) continue
+            return factory.decodeOrNull(error)
         }
 
         return null
+    }
+
+    override fun tryResolve(error: Bytes): Result<CustomContractError, ContractErrorDecodingError> {
+        // the values are only appended to the end of the list, so we can safely iterate by index. Worst case,
+        // we miss newly added errors in the current iteration.
+        for (i in factories.indices) {
+            when (val decoded = factories[i].tryDecode(error)) {
+                is Result.Success -> return success(decoded.value)
+                is Result.Failure -> {
+                    if (decoded.error !is ContractErrorDecodingError.NoMatchingError) {
+                        return failure(decoded.error)
+                    }
+                }
+            }
+        }
+
+        return failure(ContractErrorDecodingError.NoMatchingError(error, factories.map { it.abi }))
     }
 }
