@@ -5,20 +5,16 @@ import io.ethers.core.FastHex
 import io.ethers.core.Kotlinx
 import io.ethers.core.Result
 import io.ethers.core.json.JsonElement
+import io.ethers.core.toJsonElement
 import io.ethers.providers.types.BatchRpcRequest
-import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.serializer
-import kotlinx.serialization.serializerOrNull
-import io.github.artificialpb.bignum.BigInteger
 import okhttp3.OkHttpClient
-import java.math.BigDecimal
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 import kotlinx.serialization.json.JsonElement as KJsonElement
@@ -128,43 +124,7 @@ internal fun buildJsonRpcRequest(method: String, id: Long, params: Array<*>): St
  * via the kotlinx `@Serializable` contract and fail fast if no serializer is registered,
  * rather than silently producing an unusable payload.
  */
-@Suppress("UNCHECKED_CAST")
-internal fun Any?.toParamJsonElement(): KJsonElement = when (this) {
-    null -> JsonNull
-    is KJsonElement -> this
-    is String -> JsonPrimitive(this)
-    is Boolean -> JsonPrimitive(this)
-    is Byte -> JsonPrimitive(this)
-    is Short -> JsonPrimitive(this)
-    is Int -> JsonPrimitive(this)
-    is Long -> JsonPrimitive(this)
-    is Float -> JsonPrimitive(this)
-    is Double -> JsonPrimitive(this)
-    is BigInteger -> JsonPrimitive(this.toString())
-    is BigDecimal -> JsonPrimitive(this)
-    // ByteArray must be checked before Array<*> — `byte[]` is a primitive array on the JVM
-    // and would otherwise fall into the reflective branch with no useful serializer.
-    is ByteArray -> JsonPrimitive(FastHex.encodeWithPrefix(this))
-    is Array<*> -> JsonArray(this.map { it.toParamJsonElement() })
-    // Iterable covers List, Set and any other Kotlin collection a caller might pass.
-    is Iterable<*> -> JsonArray(this.map { it.toParamJsonElement() })
-    // Explicit Map handling is required: `serializer(LinkedHashMap::class.java)` loses the
-    // generic key/value serializers and can't encode nested @Serializable values such as
-    // Address or Bytes. Keys are stringified, matching Jackson's behavior.
-    is Map<*, *> -> JsonObject(this.entries.associate { (k, v) -> k.toString() to v.toParamJsonElement() })
-    else -> {
-        // Fallback for @Serializable types (Address, Hash, Bytes, CallRequest, …).
-        // Use `serializerOrNull` so unknown types fail with a clear error instead of throwing
-        // a confusing SerializationException from deep inside kotlinx reflection.
-        val ser = serializerOrNull(this::class.java)
-            ?: throw IllegalArgumentException(
-                "Cannot serialize JSON-RPC parameter of type ${this::class.java.name}: " +
-                    "no kotlinx @Serializable serializer is registered. " +
-                    "Convert it manually or pass a JsonElement.",
-            )
-        Kotlinx.DEFAULT.encodeToJsonElement(ser, this)
-    }
-}
+internal fun Any?.toParamJsonElement(): KJsonElement = toJsonElement()
 
 /**
  * Internal JSON-RPC error, returned when the RPC call fails.

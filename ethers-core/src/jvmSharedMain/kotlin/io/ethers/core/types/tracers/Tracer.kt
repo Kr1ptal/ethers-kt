@@ -1,6 +1,7 @@
 package io.ethers.core.types.tracers
 
 import io.ethers.core.FastHex
+import io.ethers.core.toJsonElement
 import io.ethers.core.types.BlockOverride
 import io.ethers.core.types.BlockOverrideSerializer
 import io.ethers.core.types.StateOverride
@@ -13,10 +14,9 @@ import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonEncoder
-import kotlinx.serialization.json.JsonNull
-import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlinx.serialization.serializer
 import kotlin.reflect.KClass
 
 /**
@@ -71,7 +71,10 @@ sealed interface AnyTracer<T : Any> {
      * Default implementation uses [resultType] for simple deserialization via kotlinx.serialization.
      * Override for custom decoding logic (e.g., MuxTracer).
      */
-    fun decodeResult(json: Json, element: JsonElement): T = throw UnsupportedOperationException("Override decodeResult in ${this::class.simpleName}")
+    @Suppress("UNCHECKED_CAST")
+    fun decodeResult(json: Json, element: JsonElement): T {
+        return json.decodeFromJsonElement(serializer(resultType.java), element) as T
+    }
 }
 
 @Serializable(with = TracerConfigSerializer::class)
@@ -94,12 +97,12 @@ object TracerConfigSerializer : KSerializer<TracerConfig<*>> {
                 when (val tracer = value.tracer) {
                     is Tracer<*> -> {
                         put("tracer", tracer.name)
-                        put("tracerConfig", mapToJsonElement(tracer.config))
+                        put("tracerConfig", tracer.config.toJsonElement())
                     }
 
                     else -> {
                         for ((fieldName, fieldValue) in tracer.config) {
-                            put(fieldName, anyToJsonElement(fieldValue))
+                            put(fieldName, fieldValue.toJsonElement())
                         }
                     }
                 }
@@ -124,29 +127,4 @@ object TracerConfigSerializer : KSerializer<TracerConfig<*>> {
     }
 
     override fun deserialize(decoder: Decoder): TracerConfig<*> = throw UnsupportedOperationException()
-}
-
-internal fun mapToJsonElement(map: Map<String, Any?>): kotlinx.serialization.json.JsonObject {
-    return buildJsonObject {
-        for ((k, v) in map) {
-            put(k, anyToJsonElement(v))
-        }
-    }
-}
-
-private fun anyToJsonElement(value: Any?): JsonElement {
-    return when (value) {
-        null -> JsonNull
-        is Boolean -> JsonPrimitive(value)
-        is String -> JsonPrimitive(value)
-        is Int -> JsonPrimitive(value)
-        is Long -> JsonPrimitive(value)
-        is Double -> JsonPrimitive(value)
-        is Float -> JsonPrimitive(value)
-        is Map<*, *> -> {
-            @Suppress("UNCHECKED_CAST")
-            mapToJsonElement(value as Map<String, Any?>)
-        }
-        else -> JsonPrimitive(value.toString())
-    }
 }

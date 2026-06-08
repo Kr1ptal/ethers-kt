@@ -1,8 +1,8 @@
 package io.ethers.core.types
 
 import io.ethers.core.FastHex
-import io.github.artificialpb.bignum.BigInteger
 import io.ethers.core.Kotlinx
+import io.github.artificialpb.bignum.BigInteger
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData

@@ -1,12 +1,12 @@
 package io.ethers.core
 
+import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.descriptors.PrimitiveKind
 import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
-import io.github.artificialpb.bignum.BigInteger
 
 /**
  * Field-level [KSerializer] that encodes a [Long] as a 0x-prefixed hex string and decodes
