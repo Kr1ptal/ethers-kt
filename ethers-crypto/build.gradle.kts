@@ -18,6 +18,16 @@ staticDataGenerator {
                 ObjectMapper().valueToTree(words)
             }
         }
+
+        create("bip39EnglishTestVectors") {
+            inputFile.set(file("src/jvmSharedTest/resources/bip39/wordlist_english_test_vector.json"))
+            packageName.set("io.ethers.crypto.bip39")
+            propertyName.set("VECTORS")
+            sourceSetName.set("commonTest")
+            data { file ->
+                ObjectMapper().readTree(file)
+            }
+        }
     }
 }
 
@@ -51,7 +61,6 @@ kotlin {
         val jvmSharedTest by getting {
             dependencies {
                 implementation(libs.bundles.kotest)
-                implementation(libs.bundles.jackson)
             }
         }
     }

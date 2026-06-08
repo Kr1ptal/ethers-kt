@@ -1,7 +1,5 @@
 package io.ethers.crypto.bip39
 
-import com.fasterxml.jackson.annotation.JsonProperty
-import com.fasterxml.jackson.databind.json.JsonMapper
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.inspectors.forAll
@@ -46,14 +44,8 @@ class MnemonicCodeTest : FunSpec({
     }
 
     context("test vectors") {
-        val mapper = JsonMapper.builder().build()
-
         test("english") {
-            val vectors = mapper.readerForListOf(TestVector::class.java).readValue<List<TestVector>>(
-                javaClass.getResource("/bip39/wordlist_english_test_vector.json").openStream(),
-            )
-
-            vectors.forAll { vector ->
+            Bip39EnglishTestVectorsData.VECTORS.forAll { vector ->
                 val mnemonic = MnemonicCode.fromEntropy(vector.entropy.hexToByteArray())
 
                 mnemonic.words shouldContainExactly vector.mnemonic.split(MnemonicWordListEnglish.separator)
@@ -62,12 +54,4 @@ class MnemonicCodeTest : FunSpec({
             }
         }
     }
-}) {
-    private data class TestVector(
-        @param:JsonProperty("entropy") val entropy: String,
-        @param:JsonProperty("mnemonic") val mnemonic: String,
-        @param:JsonProperty("passphrase") val passphrase: String,
-        @param:JsonProperty("seed") val seed: String,
-        @param:JsonProperty("bip32_xprv") val bip32Xprv: String,
-    )
-}
+})
