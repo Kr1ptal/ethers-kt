@@ -40,6 +40,7 @@ abstract class StaticDataConfig(val configName: String) : Named {
     abstract val inputFile: RegularFileProperty
     abstract val packageName: Property<String>
     abstract val propertyName: Property<String>
+    abstract val sourceSetName: Property<String>
 
     internal var dataProvider: ((File) -> JsonNode)? = null
 
@@ -336,20 +337,20 @@ abstract class GenerateStaticDataTask : DefaultTask() {
 // Register the extension
 val extension = extensions.create<StaticDataGeneratorExtension>("staticDataGenerator")
 
-// Configure the output directory
-val generatedSourceDir = layout.buildDirectory.dir("generated/source/staticData/main/kotlin")
-
 // Create tasks and wire source sets after evaluation
 afterEvaluate {
     extension.generators.forEach { config ->
         val taskName = "generate${config.name.replaceFirstChar { it.uppercase() }}StaticData"
+        val sourceSetName = config.sourceSetName.getOrElse("commonMain")
 
         val task = tasks.register<GenerateStaticDataTask>(taskName) {
             inputFile.set(config.inputFile)
             packageName.set(config.packageName)
             objectName.set(config.deriveObjectName())
             propertyName.set(config.propertyName)
-            outputDir.set(generatedSourceDir)
+            outputDir.set(
+                layout.buildDirectory.dir("generated/source/staticData/$sourceSetName/${config.name}/kotlin"),
+            )
             dataProvider = config.dataProvider
         }
 
@@ -357,7 +358,7 @@ afterEvaluate {
         // for all consuming tasks (compileKotlin, sourcesJar, ktlint, etc.)
         pluginManager.withPlugin("org.jetbrains.kotlin.multiplatform") {
             val kotlin = extensions.getByType<KotlinMultiplatformExtension>()
-            kotlin.sourceSets.getByName("commonMain").kotlin.srcDir(task)
+            kotlin.sourceSets.getByName(sourceSetName).kotlin.srcDir(task)
         }
     }
 }
