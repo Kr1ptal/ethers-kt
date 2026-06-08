@@ -4,13 +4,13 @@ import io.ethers.core.types.Address
 import io.ethers.core.types.Bloom
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
+import io.github.artificialpb.bignum.BigInteger
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonPrimitive
-import io.github.artificialpb.bignum.BigInteger
 
 class JsonElementExtensionsTest : FunSpec({
     context("asHexByteArray") {

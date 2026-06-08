@@ -4,6 +4,7 @@ import io.ethers.core.types.Address
 import io.ethers.core.types.Bloom
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
+import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -13,7 +14,6 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.double
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
-import io.github.artificialpb.bignum.BigInteger
 
 private val EMPTY_BYTES = ByteArray(0)
 

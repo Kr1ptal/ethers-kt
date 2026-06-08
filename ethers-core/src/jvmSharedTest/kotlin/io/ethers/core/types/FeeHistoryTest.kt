@@ -1,7 +1,7 @@
 package io.ethers.core.types
 
-import io.github.artificialpb.bignum.BigInteger
 import io.ethers.core.Kotlinx
+import io.github.artificialpb.bignum.BigInteger
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import org.intellij.lang.annotations.Language

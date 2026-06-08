@@ -8,6 +8,26 @@ import io.ethers.core.types.StateOverride
 import io.ethers.core.types.StateOverrideSerializer
 import io.kotest.assertions.json.shouldEqualJson
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.shouldBe
+import kotlinx.serialization.Serializable
+import kotlin.reflect.KClass
+
+private object CustomDefaultDecodeTracer : Tracer<CustomDefaultDecodeResult> {
+    override val name: String = "customDefaultDecodeTracer"
+    override val resultType: KClass<CustomDefaultDecodeResult> = CustomDefaultDecodeResult::class
+    override val config: Map<String, Any?> = mapOf(
+        "enabled" to true,
+        "steps" to listOf(1, 2, 3),
+        "nested" to mapOf("labels" to arrayOf("alpha", "beta")),
+        "payload" to byteArrayOf(0xde.toByte(), 0xad.toByte()),
+    )
+}
+
+@Serializable
+private data class CustomDefaultDecodeResult(
+    val data: String,
+    val count: Int,
+)
 
 class TracerTest : FunSpec({
     context("config serialization") {
@@ -82,6 +102,33 @@ class TracerTest : FunSpec({
                   "blockOverrides": ${Kotlinx.DEFAULT.encodeToString(config.blockOverrides!!)}
                 }
             """
+        }
+
+        test("custom tracer config serializes nested JSON-like values") {
+            Kotlinx.DEFAULT.encodeToString(TracerConfig(CustomDefaultDecodeTracer)) shouldEqualJson """
+                {
+                  "tracer": "customDefaultDecodeTracer",
+                  "tracerConfig": {
+                    "enabled": true,
+                    "steps": [1, 2, 3],
+                    "nested": {
+                      "labels": ["alpha", "beta"]
+                    },
+                    "payload": "0xdead"
+                  }
+                }
+            """
+        }
+    }
+
+    context("result deserialization") {
+        test("custom tracer can rely on default resultType decoder") {
+            val result = CustomDefaultDecodeTracer.decodeResult(
+                Kotlinx.DEFAULT,
+                Kotlinx.DEFAULT.parseToJsonElement("""{"data":"ok","count":2}"""),
+            )
+
+            result shouldBe CustomDefaultDecodeResult("ok", 2)
         }
     }
 })

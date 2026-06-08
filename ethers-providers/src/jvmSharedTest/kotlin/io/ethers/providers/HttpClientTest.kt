@@ -4,6 +4,7 @@ import io.ethers.core.Kotlinx
 import io.ethers.core.isFailure
 import io.ethers.core.isSuccess
 import io.ethers.core.types.Address
+import io.github.artificialpb.bignum.BigInteger
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.core.spec.style.funSpec
@@ -17,7 +18,6 @@ import kotlinx.serialization.json.long
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import org.intellij.lang.annotations.Language
-import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.json.JsonElement as KJsonElement
 
 /**
