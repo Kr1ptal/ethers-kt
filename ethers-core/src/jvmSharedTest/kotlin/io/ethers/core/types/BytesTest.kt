@@ -1,7 +1,7 @@
 package io.ethers.core.types
 
-import io.ethers.core.Jackson
 import io.github.artificialpb.bignum.BigInteger
+import io.ethers.core.Kotlinx
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData
@@ -168,8 +168,8 @@ class BytesTest : FunSpec({
 
     test("serialization / deserialization") {
         val bytes = Bytes("0x1234567890abcdef")
-        val json = Jackson.MAPPER.writeValueAsString(bytes)
-        val deserialized = Jackson.MAPPER.readValue(json, Bytes::class.java)
+        val json = Kotlinx.DEFAULT.encodeToString(bytes)
+        val deserialized = Kotlinx.DEFAULT.decodeFromString<Bytes>(json)
 
         deserialized shouldBe bytes
     }

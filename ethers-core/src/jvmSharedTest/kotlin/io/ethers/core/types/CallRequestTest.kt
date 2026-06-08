@@ -1,6 +1,6 @@
 package io.ethers.core.types
 
-import io.ethers.core.Jackson
+import io.ethers.core.Kotlinx
 import io.ethers.core.types.transaction.TxAccessList
 import io.ethers.core.types.transaction.TxBlob
 import io.ethers.core.types.transaction.TxDynamicFee
@@ -42,7 +42,7 @@ class CallRequestTest : FunSpec({
             chainId(1)
         }
 
-        Jackson.MAPPER.writeValueAsString(callRequest) shouldEqualJson """
+        Kotlinx.DEFAULT.encodeToString(callRequest) shouldEqualJson """
             {
               "from": "${callRequest.from!!}",
               "to": "${callRequest.to!!}",
@@ -81,7 +81,7 @@ class CallRequestTest : FunSpec({
             chainId(1)
         }
 
-        Jackson.MAPPER.writeValueAsString(callRequest) shouldEqualJson """
+        Kotlinx.DEFAULT.encodeToString(callRequest) shouldEqualJson """
             {
               "gas": "0x5208",
               "maxFeePerGas": "0xa",

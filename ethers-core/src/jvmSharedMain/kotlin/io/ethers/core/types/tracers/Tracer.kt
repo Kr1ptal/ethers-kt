@@ -1,14 +1,22 @@
 package io.ethers.core.types.tracers
 
-import com.fasterxml.jackson.core.JsonGenerator
-import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.databind.JsonSerializer
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.databind.SerializerProvider
-import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import io.ethers.core.FastHex
 import io.ethers.core.types.BlockOverride
+import io.ethers.core.types.BlockOverrideSerializer
 import io.ethers.core.types.StateOverride
+import io.ethers.core.types.StateOverrideSerializer
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.buildClassSerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonEncoder
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlin.reflect.KClass
 
 /**
@@ -58,20 +66,15 @@ sealed interface AnyTracer<T : Any> {
     val config: Map<String, Any?>
 
     /**
-     * Decode the tracer result from the JSON parser.
+     * Decode the tracer result from the JSON element.
      *
-     * Default implementation uses [resultType] for simple deserialization.
+     * Default implementation uses [resultType] for simple deserialization via kotlinx.serialization.
      * Override for custom decoding logic (e.g., MuxTracer).
-     *
-     * Note: This currently uses Jackson directly. Will be abstracted to support
-     * multiple JSON libraries in the future.
      */
-    fun decodeResult(mapper: ObjectMapper, parser: JsonParser): T {
-        return parser.readValueAs(resultType.java)
-    }
+    fun decodeResult(json: Json, element: JsonElement): T = throw UnsupportedOperationException("Override decodeResult in ${this::class.simpleName}")
 }
 
-@JsonSerialize(using = TracerConfigSerializer::class)
+@Serializable(with = TracerConfigSerializer::class)
 data class TracerConfig<T : Any> @JvmOverloads constructor(
     val tracer: AnyTracer<T>,
     val timeoutMs: Long = -1L,
@@ -81,43 +84,69 @@ data class TracerConfig<T : Any> @JvmOverloads constructor(
     val txIndex: Int = -1,
 )
 
-private class TracerConfigSerializer : JsonSerializer<TracerConfig<*>>() {
-    override fun serialize(value: TracerConfig<*>, gen: JsonGenerator, serializers: SerializerProvider) {
-        gen.writeStartObject()
+object TracerConfigSerializer : KSerializer<TracerConfig<*>> {
+    override val descriptor = buildClassSerialDescriptor("TracerConfig")
 
-        when (val tracer = value.tracer) {
-            is Tracer<*> -> {
-                // Named tracer - serialize provided config payload
-                gen.writeStringField("tracer", tracer.name)
-                gen.writeFieldName("tracerConfig")
-                serializers.defaultSerializeValue(tracer.config, gen)
-            }
+    override fun serialize(encoder: Encoder, value: TracerConfig<*>) {
+        val jsonEncoder = encoder as JsonEncoder
+        jsonEncoder.encodeJsonElement(
+            buildJsonObject {
+                when (val tracer = value.tracer) {
+                    is Tracer<*> -> {
+                        put("tracer", tracer.name)
+                        put("tracerConfig", mapToJsonElement(tracer.config))
+                    }
 
-            else -> {
-                // StructTracer - merge config payload fields at root level
-                for ((fieldName, fieldValue) in tracer.config) {
-                    gen.writeFieldName(fieldName)
-                    serializers.defaultSerializeValue(fieldValue, gen)
+                    else -> {
+                        for ((fieldName, fieldValue) in tracer.config) {
+                            put(fieldName, anyToJsonElement(fieldValue))
+                        }
+                    }
                 }
-            }
-        }
 
-        if (value.timeoutMs >= 0) {
-            gen.writeStringField("timeout", "${value.timeoutMs}ms")
-        }
-        if (value.reexec >= 0) {
-            gen.writeNumberField("reexec", value.reexec)
-        }
-        if (!value.stateOverrides.isNullOrEmpty()) {
-            gen.writeObjectField("stateOverrides", value.stateOverrides)
-        }
-        if (value.blockOverrides != null) {
-            gen.writeObjectField("blockOverrides", value.blockOverrides)
-        }
-        if (value.txIndex >= 0) {
-            gen.writeStringField("txIndex", FastHex.encodeWithPrefix(value.txIndex))
-        }
+                if (value.timeoutMs >= 0) {
+                    put("timeout", "${value.timeoutMs}ms")
+                }
+                if (value.reexec >= 0) {
+                    put("reexec", value.reexec)
+                }
+                if (!value.stateOverrides.isNullOrEmpty()) {
+                    put("stateOverrides", jsonEncoder.json.encodeToJsonElement(StateOverrideSerializer, value.stateOverrides))
+                }
+                if (value.blockOverrides != null) {
+                    put("blockOverrides", jsonEncoder.json.encodeToJsonElement(BlockOverrideSerializer, value.blockOverrides))
+                }
+                if (value.txIndex >= 0) {
+                    put("txIndex", FastHex.encodeWithPrefix(value.txIndex))
+                }
+            },
+        )
+    }
 
-        gen.writeEndObject()
+    override fun deserialize(decoder: Decoder): TracerConfig<*> = throw UnsupportedOperationException()
+}
+
+internal fun mapToJsonElement(map: Map<String, Any?>): kotlinx.serialization.json.JsonObject {
+    return buildJsonObject {
+        for ((k, v) in map) {
+            put(k, anyToJsonElement(v))
+        }
+    }
+}
+
+private fun anyToJsonElement(value: Any?): JsonElement {
+    return when (value) {
+        null -> JsonNull
+        is Boolean -> JsonPrimitive(value)
+        is String -> JsonPrimitive(value)
+        is Int -> JsonPrimitive(value)
+        is Long -> JsonPrimitive(value)
+        is Double -> JsonPrimitive(value)
+        is Float -> JsonPrimitive(value)
+        is Map<*, *> -> {
+            @Suppress("UNCHECKED_CAST")
+            mapToJsonElement(value as Map<String, Any?>)
+        }
+        else -> JsonPrimitive(value.toString())
     }
 }

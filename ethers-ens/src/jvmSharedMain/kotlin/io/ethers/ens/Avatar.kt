@@ -1,17 +1,15 @@
 package io.ethers.ens
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties
-import com.fasterxml.jackson.annotation.JsonProperty
 import io.ethers.core.Result
 import io.ethers.core.failure
 import io.ethers.core.success
 import io.ethers.core.types.Address
 import io.ethers.core.unwrapOrReturn
 import io.github.artificialpb.bignum.BigInteger
+import kotlinx.serialization.Serializable
 
-@JsonIgnoreProperties(ignoreUnknown = true)
+@Serializable
 internal data class MetadataDTO(
-    @param:JsonProperty("image")
     val image: String,
 )
 

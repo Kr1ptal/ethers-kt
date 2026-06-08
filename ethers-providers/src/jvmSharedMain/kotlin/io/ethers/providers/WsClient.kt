@@ -1,20 +1,11 @@
 package io.ethers.providers
 
-import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.core.JsonToken
-import com.fasterxml.jackson.core.io.SegmentedStringWriter
-import com.fasterxml.jackson.core.util.BufferRecycler
-import com.fasterxml.jackson.databind.json.JsonMapper
-import com.fasterxml.jackson.databind.util.TokenBuffer
 import io.channels.core.Channel
 import io.channels.core.ChannelReceiver
 import io.channels.core.QueueChannel
-import io.ethers.core.Jackson
-import io.ethers.core.Jackson.createAndInitParser
+import io.ethers.core.Kotlinx
 import io.ethers.core.Result
 import io.ethers.core.failure
-import io.ethers.core.forEachObjectField
-import io.ethers.core.isNextTokenArrayEnd
 import io.ethers.core.json.JsonElement
 import io.ethers.core.success
 import io.ethers.logger.dbg
@@ -27,6 +18,12 @@ import io.ethers.providers.types.BatchRpcRequest
 import kotlinx.atomicfu.atomic
 import kotlinx.atomicfu.locks.reentrantLock
 import kotlinx.atomicfu.locks.withLock
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.long
+import kotlinx.serialization.json.longOrNull
 import okhttp3.Headers
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -41,6 +38,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.TimeSource
+import kotlinx.serialization.json.JsonElement as KJsonElement
 
 /**
  * [JsonRpcClient] implementation via WS transport. Supports single, batch, and subscription requests.
@@ -52,7 +50,6 @@ class WsClient(
     url: String,
     private val client: OkHttpClient,
     headers: Map<String, String> = emptyMap(),
-    private val jsonMapper: JsonMapper = Jackson.MAPPER,
     private val resubscribeOnReconnect: Boolean = true,
 ) : JsonRpcClient {
     @JvmOverloads
@@ -60,7 +57,6 @@ class WsClient(
         url,
         config.client!!,
         config.requestHeaders,
-        config.jsonMapper,
         config.resubscribeOnReconnect,
     )
 
@@ -163,7 +159,6 @@ class WsClient(
             var subscriptionRequest: CompletableSubscriptionRequest<*>?
             var unsubscribeRequestId: Long?
 
-            val bufferRecycler = BufferRecycler()
             var lastTimeoutCheck = TimeSource.Monotonic.markNow()
 
             while (!stopping.value) {
@@ -265,13 +260,7 @@ class WsClient(
                             // send resubscribe requests for all existing streams
                             for ((id, sub) in requestIdToSubscription) {
                                 LOG.dbg { "Resubscribing stream with ID: $id" }
-
-                                val writer = SegmentedStringWriter(bufferRecycler)
-                                jsonMapper.createGenerator(writer).use { gen ->
-                                    gen.writeJsonRpcRequest("eth_subscribe", id, sub.params)
-                                }
-
-                                websocket.send(writer.andClear)
+                                websocket.send(buildJsonRpcRequest("eth_subscribe", id, sub.params))
                             }
                         } else {
                             // close all streams so consumers can handle resubscription explicitly
@@ -288,41 +277,30 @@ class WsClient(
                     // third, process all single and batch requests in the queue
                     while (requestQueue.poll().also { request = it } != null) {
                         val id = requestId++
-                        val writer = SegmentedStringWriter(bufferRecycler)
-                        jsonMapper.createGenerator(writer).use { gen ->
-                            gen.writeJsonRpcRequest(request!!.method, id, request.params)
-                        }
-
-                        val req = writer.andClear
+                        val req = buildJsonRpcRequest(request!!.method, id, request.params)
 
                         LOG.trc { "Processing request: $req" }
-                        inFlightRequests[id] = request!!
+                        inFlightRequests[id] = request
                         websocket.send(req)
                     }
 
                     while (batchRequestQueue.poll().also { batchRequest = it } != null) {
                         var batchId = -1L
                         val idToIndex = HashMap<Long, Int>(batchRequest!!.request.requests.size, 1.0F)
-                        val writer = SegmentedStringWriter(bufferRecycler)
-                        jsonMapper.createGenerator(writer).use { gen ->
-                            gen.writeStartArray()
 
-                            for (i in batchRequest.request.requests.indices) {
-                                val req = batchRequest.request.requests[i]
-
-                                // use id of the first request to identify the batch
-                                val id = requestId++
-                                if (batchId == -1L) {
-                                    batchId = id
-                                }
-                                idToIndex[id] = i
-                                gen.writeJsonRpcRequest(req.method, id, req.params)
-                            }
-
-                            gen.writeEndArray()
+                        val sb = StringBuilder()
+                        sb.append('[')
+                        for (i in batchRequest.request.requests.indices) {
+                            if (i > 0) sb.append(',')
+                            val reqItem = batchRequest.request.requests[i]
+                            val id = requestId++
+                            if (batchId == -1L) batchId = id
+                            idToIndex[id] = i
+                            sb.append(buildJsonRpcRequest(reqItem.method, id, reqItem.params))
                         }
+                        sb.append(']')
 
-                        val req = writer.andClear
+                        val req = sb.toString()
 
                         LOG.trc { "Processing batch request: $req" }
                         inFlightBatchRequests[batchId] = Pair(batchRequest, idToIndex)
@@ -333,15 +311,10 @@ class WsClient(
                     // fourth, process all subscription requests in the queue
                     while (subscriptionQueue.poll().also { subscriptionRequest = it } != null) {
                         val id = requestId++
-                        val writer = SegmentedStringWriter(bufferRecycler)
-                        jsonMapper.createGenerator(writer).use { gen ->
-                            gen.writeJsonRpcRequest("eth_subscribe", id, subscriptionRequest!!.params)
-                        }
-
-                        val req = writer.andClear
+                        val req = buildJsonRpcRequest("eth_subscribe", id, subscriptionRequest!!.params)
 
                         LOG.trc { "Processing subscription request: $req" }
-                        inFlightSubscriptionRequests[id] = subscriptionRequest!!
+                        inFlightSubscriptionRequests[id] = subscriptionRequest
                         websocket.send(req)
                     }
 
@@ -353,12 +326,7 @@ class WsClient(
                         serverIdToSubscription.remove(sub.serverId)
 
                         val id = requestId++
-                        val writer = SegmentedStringWriter(bufferRecycler)
-                        jsonMapper.createGenerator(writer).use { gen ->
-                            gen.writeJsonRpcRequest("eth_unsubscribe", id, arrayOf(sub.serverId))
-                        }
-
-                        val req = writer.andClear
+                        val req = buildJsonRpcRequest("eth_unsubscribe", id, arrayOf(sub.serverId))
 
                         LOG.trc { "Processing unsubscribe request: $req" }
                         websocket.send(req)
@@ -445,142 +413,64 @@ class WsClient(
     }
 
     private fun handleMessage(text: String) {
-        jsonMapper.createAndInitParser(text).use { parser ->
-            if (parser.currentToken == JsonToken.START_ARRAY) {
-                handleBatchResponse(text, parser)
-                return
-            }
+        val element = Kotlinx.DEFAULT.parseToJsonElement(text)
 
-            var id: Long = -1
-            var method: String? = null
-            var resultBuffer: TokenBuffer? = null
-            var paramsBuffer: TokenBuffer? = null
-            var error: RpcError? = null
+        if (element is JsonArray) {
+            handleBatchResponse(text, element)
+            return
+        }
 
-            parser.forEachObjectField { field ->
-                when (field) {
-                    "jsonrpc" -> {}
-                    "id" -> id = parser.longValue
-                    "method" -> method = parser.text
-                    "result" -> {
-                        // avoid buffering if possible
-                        if (id != -1L) {
-                            handleResponse(id, parser, error)
-                            return@use
-                        }
+        val obj = element.jsonObject
+        val id = obj["id"]?.jsonPrimitive?.longOrNull ?: -1L
+        val method = obj["method"]?.jsonPrimitive?.content
+        val resultEl = obj["result"]
+        val paramsEl = obj["params"]
+        val errorEl = obj["error"]
+        val error = if (errorEl != null && errorEl !is JsonNull) RpcError.fromJsonObject(errorEl.jsonObject) else null
 
-                        resultBuffer = TokenBuffer(parser)
-                        resultBuffer.copyCurrentStructure(parser)
-                    }
+        // DO NOT CHANGE ORDER OF THESE OPERATIONS
+        when {
+            method != null && paramsEl != null -> handleNotification(paramsEl.jsonObject)
 
-                    "params" -> {
-                        // avoid buffering if possible
-                        if (method != null) {
-                            handleNotification(parser)
-                            return@use
-                        }
+            id != -1L && error != null -> handleResponse(id, null, error)
 
-                        paramsBuffer = TokenBuffer(parser)
-                        paramsBuffer.copyCurrentStructure(parser)
-                    }
+            id != -1L && resultEl != null -> handleResponse(id, resultEl, null)
 
-                    "error" -> error = jsonMapper.readValue(parser, RpcError::class.java)
+            else -> {
+                val invalid = RpcError(
+                    RpcError.CODE_INVALID_RESPONSE,
+                    "Invalid response",
+                    JsonElement(text),
+                )
 
-                    // if both id and error are present treat it as a valid error response
-                    else -> {
-                        if (id != -1L && error != null) {
-                            handleResponse(id, parser, error)
-                            return@use
-                        }
-
-                        val invalid = RpcError(
-                            RpcError.CODE_INVALID_RESPONSE,
-                            "Invalid response",
-                            JsonElement(jsonMapper.writeValueAsString(text)),
-                        )
-
-                        if (id != -1L) {
-                            handleResponse(id, parser, invalid)
-                            return@use
-                        }
-
-                        throw Exception("Invalid response: $text")
-                    }
-                }
-            }
-
-            // DO NOT CHANGE ORDER OF THESE OPERATIONS
-            // order of operations matters here. All response messages have "id" field, but only notifications have "method"
-            when {
-                method != null && paramsBuffer != null -> paramsBuffer.use { buff ->
-                    buff.asParser().use {
-                        it.nextToken()
-                        handleNotification(it)
-                    }
-                }
-
-                id != -1L && error != null -> handleResponse(id, parser, error)
-
-                id != -1L && resultBuffer != null -> resultBuffer.use { buff ->
-                    buff.asParser().use {
-                        it.nextToken()
-                        handleResponse(id, it, null)
-                    }
-                }
-
-                else -> {
-                    val invalid = RpcError(
-                        RpcError.CODE_INVALID_RESPONSE,
-                        "Invalid response",
-                        JsonElement(jsonMapper.writeValueAsString(text)),
-                    )
-
-                    if (id != -1L) {
-                        handleResponse(id, parser, invalid)
-                    } else {
-                        throw Exception("Invalid response: $text")
-                    }
+                if (id != -1L) {
+                    handleResponse(id, null, invalid)
+                } else {
+                    throw Exception("Invalid response: $text")
                 }
             }
         }
     }
 
-    private fun handleBatchResponse(text: String, p: JsonParser) {
+    private fun handleBatchResponse(text: String, array: JsonArray) {
         var batch: CompletableBatchRequest? = null
         var requestIndexPerId: HashMap<Long, Int>? = null
 
-        while (!p.isNextTokenArrayEnd()) {
-            var responseId = -1L
-            var result: Any? = null
-            var error: RpcError? = null
-            var buffer: TokenBuffer? = null
+        for (element in array) {
+            val obj = element.jsonObject
+            val responseId = obj["id"]?.jsonPrimitive?.longOrNull ?: -1L
 
-            p.forEachObjectField { field ->
-                when (field) {
-                    "id" -> {
-                        responseId = p.longValue
-                        if (batch == null) {
-                            val data = getBatchFromRequestId(responseId)
-                            if (data != null) {
-                                batch = data.first
-                                requestIndexPerId = data.second
-                            }
-                        }
-                    }
-                    "jsonrpc" -> {}
-                    "result" -> {
-                        if (batch != null && requestIndexPerId != null && responseId != -1L) {
-                            val responseIndex = requestIndexPerId[responseId]!!
-                            result = batch.request.requests[responseIndex].resultDecoder(p)
-                        } else {
-                            buffer = TokenBuffer(p)
-                            buffer.copyCurrentStructure(p)
-                        }
-                    }
-                    "error" -> error = jsonMapper.readValue(p, RpcError::class.java)
-                    else -> throw Exception("Invalid response: $text")
+            if (batch == null && responseId != -1L) {
+                val data = getBatchFromRequestId(responseId)
+                if (data != null) {
+                    batch = data.first
+                    requestIndexPerId = data.second
                 }
             }
+
+            val errorEl = obj["error"]
+            val resultEl = obj["result"]
+            val error = if (errorEl != null && errorEl !is JsonNull) RpcError.fromJsonObject(errorEl.jsonObject) else null
 
             if (batch == null || requestIndexPerId == null || responseId == -1L) {
                 throw Exception("Invalid response, no matching batch found for ID $responseId: $text")
@@ -588,14 +478,9 @@ class WsClient(
 
             val responseIndex = requestIndexPerId[responseId]!!
 
-            // if we had to buffer, read the result from it now
-            buffer?.use {
-                result = batch.request.requests[responseIndex].resultDecoder(it.asParserOnFirstToken())
-            }
-
             val response = when {
-                result == null && error == null -> HttpClient.ERROR_INVALID_RESPONSE
-                result != null -> success(result)
+                resultEl == null && error == null -> HttpClient.ERROR_INVALID_RESPONSE
+                resultEl != null -> success(batch.request.requests[responseIndex].resultDecoder(resultEl))
                 else -> failure(error!!)
             }
 
@@ -622,32 +507,32 @@ class WsClient(
         return null
     }
 
-    private fun handleResponse(id: Long, resultParser: JsonParser, error: RpcError?) {
+    private fun handleResponse(id: Long, resultElement: KJsonElement?, error: RpcError?) {
         val request = inFlightRequests.remove(id)
         if (request != null) {
-            handleRequestResponse(id, request, resultParser, error)
+            handleRequestResponse(id, request, resultElement, error)
             return
         }
 
         val subscriptionRequest = inFlightSubscriptionRequests.remove(id)
         if (subscriptionRequest != null) {
-            handleSubscriptionResponse(id, subscriptionRequest, resultParser, error)
+            handleSubscriptionResponse(id, subscriptionRequest, resultElement, error)
             return
         }
 
         val resubscribed = requestIdToSubscription[id]
         if (resubscribed != null) {
-            handleResubscriptionResponse(id, resubscribed, resultParser, error)
+            handleResubscriptionResponse(id, resubscribed, resultElement, error)
         }
     }
 
     private fun <T> handleRequestResponse(
         id: Long,
         request: CompletableRequest<T>,
-        resultParser: JsonParser,
+        resultElement: KJsonElement?,
         error: RpcError?,
     ) {
-        val result = if (error == null) request.resultDecoder(resultParser) else null
+        val result = if (error == null && resultElement != null) request.resultDecoder(resultElement) else null
 
         val response = when {
             result == null && error == null -> HttpClient.ERROR_INVALID_RESPONSE
@@ -663,14 +548,14 @@ class WsClient(
     private fun <T : Any> handleSubscriptionResponse(
         id: Long,
         request: CompletableSubscriptionRequest<T>,
-        resultParser: JsonParser,
+        resultElement: KJsonElement?,
         error: RpcError?,
     ) {
         if (error != null) {
             request.future.complete(failure(error))
         } else {
             val subscription = Subscription(
-                serverId = resultParser.text,
+                serverId = resultElement!!.jsonPrimitive.content,
                 params = request.params,
                 resultDecoder = request.resultDecoder,
                 stream = QueueChannel.spscUnbounded {
@@ -694,14 +579,14 @@ class WsClient(
     private fun <T : Any> handleResubscriptionResponse(
         id: Long,
         subscription: Subscription<T>,
-        resultParser: JsonParser,
+        resultElement: KJsonElement?,
         error: RpcError?,
     ) {
         if (error != null) {
             // will cause re-subscription to be attempted again
             throw Exception("Error re-subscribing to stream: ${subscription.serverId}, error: $error")
         } else {
-            val newServerId = resultParser.text
+            val newServerId = resultElement!!.jsonPrimitive.content
             // remove old serverId
             serverIdToSubscription.remove(subscription.serverId)
 
@@ -713,35 +598,11 @@ class WsClient(
         LOG.trc { "Handled response for re-subscription request $id" }
     }
 
-    private fun handleNotification(paramsParser: JsonParser) {
-        var subscriptionId: String? = null
-        var resultBuff: TokenBuffer? = null
-        paramsParser.forEachObjectField { field ->
-            when (field) {
-                "subscription" -> subscriptionId = paramsParser.text
-                "result" -> {
-                    // avoid buffering if possible
-                    if (subscriptionId != null) {
-                        val subscription = serverIdToSubscription[subscriptionId] ?: return
-                        subscription.handleNotification(paramsParser)
-                        return
-                    }
-
-                    resultBuff = TokenBuffer(paramsParser)
-                    resultBuff.copyCurrentStructure(paramsParser)
-                }
-
-                else -> throw Exception("Invalid notification: $paramsParser")
-            }
-        }
-
+    private fun handleNotification(paramsObj: kotlinx.serialization.json.JsonObject) {
+        val subscriptionId = paramsObj["subscription"]?.jsonPrimitive?.content ?: return
+        val resultEl = paramsObj["result"] ?: return
         val subscription = serverIdToSubscription[subscriptionId] ?: return
-        resultBuff!!.use { buff ->
-            buff.asParser().use {
-                it.nextToken()
-                subscription.handleNotification(it)
-            }
-        }
+        subscription.handleNotification(resultEl)
     }
 
     /**
@@ -775,7 +636,7 @@ class WsClient(
     override fun <T> request(
         method: String,
         params: Array<*>,
-        resultDecoder: (JsonParser) -> T,
+        resultDecoder: (KJsonElement) -> T,
     ): CompletableFuture<Result<T, RpcError>> {
         val request = CompletableRequest(
             method,
@@ -791,7 +652,7 @@ class WsClient(
 
     override fun <T : Any> subscribe(
         params: Array<*>,
-        resultDecoder: (JsonParser) -> T,
+        resultDecoder: (KJsonElement) -> T,
     ): CompletableFuture<Result<ChannelReceiver<T>, RpcError>> {
         val request = CompletableSubscriptionRequest(
             params,
@@ -822,7 +683,7 @@ class WsClient(
     private class CompletableRequest<T>(
         val method: String,
         val params: Array<*>,
-        val resultDecoder: (JsonParser) -> T,
+        val resultDecoder: (KJsonElement) -> T,
         val future: CompletableFuture<Result<T, RpcError>>,
     ) : ExpiringRequest() {
         override fun expireRequest() {
@@ -846,7 +707,7 @@ class WsClient(
 
     private class CompletableSubscriptionRequest<T : Any>(
         val params: Array<*>,
-        val resultDecoder: (JsonParser) -> T,
+        val resultDecoder: (KJsonElement) -> T,
         val future: CompletableFuture<Result<ChannelReceiver<T>, RpcError>>,
     ) : ExpiringRequest() {
         override fun expireRequest() {
@@ -857,10 +718,10 @@ class WsClient(
     private class Subscription<T : Any>(
         var serverId: String,
         val params: Array<*>,
-        val resultDecoder: (JsonParser) -> T,
+        val resultDecoder: (KJsonElement) -> T,
         val stream: Channel<T>,
     ) {
-        fun handleNotification(event: JsonParser) {
+        fun handleNotification(event: KJsonElement) {
             stream.offer(resultDecoder(event))
         }
     }

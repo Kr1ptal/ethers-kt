@@ -1,32 +1,32 @@
 package io.ethers.core.types
 
-import com.fasterxml.jackson.core.JsonGenerator
-import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.core.JsonToken
-import com.fasterxml.jackson.databind.DeserializationContext
-import com.fasterxml.jackson.databind.JsonDeserializer
-import com.fasterxml.jackson.databind.JsonSerializer
-import com.fasterxml.jackson.databind.SerializerProvider
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize
-import com.fasterxml.jackson.databind.annotation.JsonSerialize
-import io.ethers.core.forEachObjectField
-import io.ethers.core.handleUnknownField
-import io.ethers.core.readAddress
-import io.ethers.core.readHexLong
-import io.ethers.core.readListOf
-import io.ethers.core.readListOfHashes
+import io.ethers.core.asAddress
+import io.ethers.core.asHash
+import io.ethers.core.asHexLong
 import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncodable
 import io.ethers.rlp.RlpEncoder
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.buildClassSerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonEncoder
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 
 // Ideally, this would be an inline class, but java interop is a pain. If you need to add any functions to operate on
 // AccessList, add an extension function to List<AccessList.Item> instead, inside this object, and annotate it with
 // @JvmStatic, so it's accessible from java.
 object AccessList {
 
-    @JsonSerialize(using = AccessListItemSerializer::class)
-    @JsonDeserialize(using = AccessListItemDeserializer::class)
+    @Serializable
     data class Item(val address: Address, val storageKeys: List<Hash>) : RlpEncodable {
         override fun rlpEncode(rlp: RlpEncoder) {
             val listBodySize = RlpEncoder.sizeOf(address) + RlpEncoder.sizeOfList(storageKeys)
@@ -55,66 +55,27 @@ object AccessList {
     }
 }
 
-@JsonDeserialize(using = CreateAccessListDeserializer::class)
+@Serializable(with = CreateAccessListSerializer::class)
 data class CreateAccessList(
     val accessList: List<AccessList.Item>,
     val gasUsed: Long,
     val error: String?,
 )
 
-private class AccessListItemSerializer : JsonSerializer<AccessList.Item>() {
-    override fun serialize(value: AccessList.Item, gen: JsonGenerator, serializers: SerializerProvider) {
-        gen.writeStartObject()
-        gen.writeStringField("address", value.address.toString())
+object CreateAccessListSerializer : KSerializer<CreateAccessList> {
+    override val descriptor = buildClassSerialDescriptor("CreateAccessList")
 
-        gen.writeArrayFieldStart("storageKeys")
-        for (i in value.storageKeys.indices) {
-            gen.writeString(value.storageKeys[i].toString())
-        }
-        gen.writeEndArray()
+    override fun serialize(encoder: Encoder, value: CreateAccessList) = throw UnsupportedOperationException()
 
-        gen.writeEndObject()
-    }
-}
+    override fun deserialize(decoder: Decoder): CreateAccessList {
+        val jsonDecoder = decoder as JsonDecoder
+        val obj = jsonDecoder.decodeJsonElement().jsonObject
 
-private class AccessListItemDeserializer : JsonDeserializer<AccessList.Item>() {
-    override fun deserialize(p: JsonParser, ctxt: DeserializationContext): AccessList.Item {
-        if (p.currentToken != JsonToken.START_OBJECT) {
-            throw IllegalArgumentException("Expected start object")
-        }
-
-        lateinit var address: Address
-        var storageKeys: List<Hash>? = null
-
-        p.forEachObjectField { field ->
-            when (field) {
-                "address" -> address = p.readAddress()
-                "storageKeys" -> storageKeys = p.readListOfHashes()
-                else -> p.handleUnknownField()
-            }
-        }
-
-        return AccessList.Item(
-            address,
-            storageKeys ?: emptyList(),
-        )
-    }
-}
-
-class CreateAccessListDeserializer : JsonDeserializer<CreateAccessList>() {
-    override fun deserialize(p: JsonParser, ctxt: DeserializationContext): CreateAccessList {
-        var accessList: List<AccessList.Item> = emptyList()
-        var gasUsed = 0L
-        var error: String? = null
-
-        p.forEachObjectField { field ->
-            when (field) {
-                "accessList" -> accessList = p.readListOf(AccessList.Item::class.java)
-                "gasUsed" -> gasUsed = p.readHexLong()
-                "error" -> error = p.text
-                else -> p.handleUnknownField()
-            }
-        }
+        val accessList = obj["accessList"]?.jsonArray?.map { element ->
+            jsonDecoder.json.decodeFromJsonElement(AccessList.Item.serializer(), element)
+        } ?: emptyList()
+        val gasUsed = obj["gasUsed"]!!.jsonPrimitive.asHexLong()
+        val error: String? = obj["error"]?.jsonPrimitive?.content?.takeIf { it.isNotEmpty() }
 
         return CreateAccessList(accessList, gasUsed, error)
     }

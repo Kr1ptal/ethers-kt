@@ -1,6 +1,6 @@
 package io.ethers.core.types
 
-import io.ethers.core.Jackson
+import io.ethers.core.Kotlinx
 import io.ethers.crypto.Hashing
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.WithDataTestName
@@ -82,8 +82,8 @@ class AddressTest : FunSpec({
 
     test("serialization / deserialization") {
         val address = Address("0x2f62f2b4c5fcd7570a709dec05d68ea19c82a9ec")
-        val jsonString = Jackson.MAPPER.writeValueAsString(address)
-        val deserializedObject = Jackson.MAPPER.readValue(jsonString, Address::class.java)
+        val jsonString = Kotlinx.DEFAULT.encodeToString(address)
+        val deserializedObject = Kotlinx.DEFAULT.decodeFromString<Address>(jsonString)
 
         deserializedObject shouldBe address
     }

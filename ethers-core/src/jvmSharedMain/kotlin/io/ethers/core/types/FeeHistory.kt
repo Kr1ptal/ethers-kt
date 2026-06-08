@@ -1,15 +1,19 @@
 package io.ethers.core.types
 
-import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.databind.DeserializationContext
-import com.fasterxml.jackson.databind.JsonDeserializer
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize
-import io.ethers.core.forEachObjectField
-import io.ethers.core.readAnyLong
-import io.ethers.core.readHexBigInteger
-import io.ethers.core.readListOf
-import io.ethers.core.readOrNull
+import io.ethers.core.asAnyLong
+import io.ethers.core.asDouble
+import io.ethers.core.asHexBigInteger
 import io.github.artificialpb.bignum.BigInteger
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.buildClassSerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * This class represents a FeeHistory.
@@ -24,7 +28,7 @@ import io.github.artificialpb.bignum.BigInteger
  * @property blobGasUsedRatio The blob gas used ratio for each block in the fee history. For pre-EIP-4844 blocks, the
  * base fee is ZERO. This can be null.
  */
-@JsonDeserialize(using = FeeHistoryDeserializer::class)
+@Serializable(with = FeeHistorySerializer::class)
 data class FeeHistory(
     val oldestBlock: Long,
     val baseFeePerGas: List<BigInteger>,
@@ -46,8 +50,14 @@ data class FeeHistory(
         get() = baseFeePerBlobGas?.lastOrNull() ?: BigInteger.ZERO
 }
 
-class FeeHistoryDeserializer : JsonDeserializer<FeeHistory>() {
-    override fun deserialize(p: JsonParser, ctxt: DeserializationContext): FeeHistory {
+object FeeHistorySerializer : KSerializer<FeeHistory> {
+    override val descriptor = buildClassSerialDescriptor("FeeHistory")
+
+    override fun serialize(encoder: Encoder, value: FeeHistory) = throw UnsupportedOperationException()
+
+    override fun deserialize(decoder: Decoder): FeeHistory {
+        val obj = (decoder as JsonDecoder).decodeJsonElement().jsonObject
+
         var oldestBlock = 0L
         var baseFeePerGas: List<BigInteger> = emptyList()
         var gasUsedRatio: List<Double> = emptyList()
@@ -55,15 +65,19 @@ class FeeHistoryDeserializer : JsonDeserializer<FeeHistory>() {
         var baseFeePerBlobGas: List<BigInteger>? = null
         var blobGasUsedRatio: List<Double>? = null
 
-        p.forEachObjectField { field ->
-            when (field) {
-                "oldestBlock" -> oldestBlock = p.readAnyLong()
-                "baseFeePerGas" -> baseFeePerGas = p.readListOf { readHexBigInteger() }
-                "gasUsedRatio" -> gasUsedRatio = p.readListOf { p.doubleValue }
-                "reward" -> rewards = p.readOrNull { p.readListOf { p.readListOf { readHexBigInteger() } } }
-                "baseFeePerBlobGas" -> baseFeePerBlobGas = p.readOrNull { p.readListOf { readHexBigInteger() } }
-                "blobGasUsedRatio" -> blobGasUsedRatio = p.readOrNull { p.readListOf { p.doubleValue } }
-                else -> p.skipChildren()
+        for ((key, element) in obj.entries) {
+            when (key) {
+                "oldestBlock" -> oldestBlock = element.jsonPrimitive.asAnyLong()
+                "baseFeePerGas" -> baseFeePerGas = element.jsonArray.map { it.jsonPrimitive.asHexBigInteger() }
+                "gasUsedRatio" -> gasUsedRatio = element.jsonArray.map { it.jsonPrimitive.asDouble }
+                "reward" -> rewards = if (element is JsonNull) null
+                else element.jsonArray.map { inner ->
+                    inner.jsonArray.map { it.jsonPrimitive.asHexBigInteger() }
+                }
+                "baseFeePerBlobGas" -> baseFeePerBlobGas = if (element is JsonNull) null
+                else element.jsonArray.map { it.jsonPrimitive.asHexBigInteger() }
+                "blobGasUsedRatio" -> blobGasUsedRatio = if (element is JsonNull) null
+                else element.jsonArray.map { it.jsonPrimitive.asDouble }
             }
         }
 

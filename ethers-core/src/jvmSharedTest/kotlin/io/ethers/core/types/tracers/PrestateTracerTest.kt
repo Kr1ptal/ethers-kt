@@ -1,6 +1,6 @@
 package io.ethers.core.types.tracers
 
-import io.ethers.core.Jackson
+import io.ethers.core.Kotlinx
 import io.ethers.core.types.AccountOverride
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
@@ -14,7 +14,7 @@ import org.intellij.lang.annotations.Language
 
 class PrestateTracerTest : FunSpec({
     test("encode tracer") {
-        Jackson.MAPPER.writeValueAsString(TracerConfig(PrestateTracer(true))) shouldEqualJson """
+        Kotlinx.DEFAULT.encodeToString(TracerConfig(PrestateTracer(true))) shouldEqualJson """
             {
               "tracer": "prestateTracer",
               "tracerConfig": {
@@ -48,7 +48,7 @@ class PrestateTracerTest : FunSpec({
             }
         """.trimIndent()
 
-        val result = Jackson.MAPPER.readValue(jsonString, PrestateTracer.Result::class.java)
+        val result = Kotlinx.DEFAULT.decodeFromString<PrestateTracer.Result>(jsonString)
 
         val expectedResult = PrestateTracer.Result(
             false,
@@ -94,7 +94,7 @@ class PrestateTracerTest : FunSpec({
             }
         """.trimIndent()
 
-        val result = Jackson.MAPPER.readValue(jsonString, PrestateTracer.Result::class.java)
+        val result = Kotlinx.DEFAULT.decodeFromString<PrestateTracer.Result>(jsonString)
 
         val expectedResult = PrestateTracer.Result(
             true,

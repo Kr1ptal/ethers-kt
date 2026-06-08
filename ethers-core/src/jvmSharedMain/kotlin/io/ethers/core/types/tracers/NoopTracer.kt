@@ -1,9 +1,8 @@
 package io.ethers.core.types.tracers
 
-import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.databind.DeserializationContext
-import com.fasterxml.jackson.databind.JsonDeserializer
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import kotlin.reflect.KClass
 
 /**
@@ -22,17 +21,13 @@ data object NoopTracer : Tracer<NoopTracer.Result> {
 
     override val config: Map<String, Any?> = EMPTY_CONFIG
 
+    override fun decodeResult(json: Json, element: JsonElement): Result {
+        return json.decodeFromJsonElement(Result.serializer(), element)
+    }
+
     /**
      * Empty result marker for the noop tracer.
      */
-    @JsonDeserialize(using = ResultDeserializer::class)
+    @Serializable
     data object Result
-
-    private class ResultDeserializer : JsonDeserializer<Result>() {
-        override fun deserialize(p: JsonParser, ctxt: DeserializationContext): Result {
-            // skip returned '{}' object
-            p.skipChildren()
-            return Result
-        }
-    }
 }

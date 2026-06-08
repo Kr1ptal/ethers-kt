@@ -1,7 +1,7 @@
 package io.ethers.core.types
 
-import io.ethers.core.Jackson
 import io.github.artificialpb.bignum.BigInteger
+import io.ethers.core.Kotlinx
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import org.intellij.lang.annotations.Language
@@ -35,7 +35,7 @@ class FeeHistoryTest : FunSpec({
               }
             }
         """.trimIndent()
-        val result = Jackson.MAPPER.readValue(jsonString, FeeHistory::class.java)
+        val result = Kotlinx.DEFAULT.decodeFromString<FeeHistory>(jsonString)
 
         val expectedResult = FeeHistory(
             oldestBlock = 18369215,
@@ -99,7 +99,7 @@ class FeeHistoryTest : FunSpec({
               ]
             }
         """.trimIndent()
-        val result = Jackson.MAPPER.readValue(jsonString, FeeHistory::class.java)
+        val result = Kotlinx.DEFAULT.decodeFromString<FeeHistory>(jsonString)
 
         val expectedResult = FeeHistory(
             oldestBlock = 18369215,

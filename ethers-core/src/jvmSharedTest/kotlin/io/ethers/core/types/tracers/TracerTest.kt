@@ -1,10 +1,11 @@
 package io.ethers.core.types.tracers
 
-import io.ethers.core.Jackson
+import io.ethers.core.Kotlinx
 import io.ethers.core.types.AccountOverride
 import io.ethers.core.types.Address
 import io.ethers.core.types.BlockOverride
 import io.ethers.core.types.StateOverride
+import io.ethers.core.types.StateOverrideSerializer
 import io.kotest.assertions.json.shouldEqualJson
 import io.kotest.core.spec.style.FunSpec
 
@@ -39,7 +40,7 @@ class TracerTest : FunSpec({
                 },
             )
 
-            Jackson.MAPPER.writeValueAsString(config) shouldEqualJson """
+            Kotlinx.DEFAULT.encodeToString(config) shouldEqualJson """
                 {
                   "enableMemory": ${structTracer.enableMemory},
                   "disableStack": ${structTracer.disableStack},
@@ -47,11 +48,11 @@ class TracerTest : FunSpec({
                   "enableReturnData": ${structTracer.enableReturnData},
                   "debug": ${structTracer.debug},
                   "limit": ${structTracer.limit},
-                  "overrides": ${Jackson.MAPPER.writeValueAsString(structTracer.overrides)},
+                  "overrides": {"override_1":"value_1","override_2":"value_2","override_3":"value_3"},
                   "timeout": "${config.timeoutMs}ms",
                   "reexec": ${config.reexec},
-                  "stateOverrides": ${Jackson.MAPPER.writeValueAsString(config.stateOverrides)},
-                  "blockOverrides": ${Jackson.MAPPER.writeValueAsString(config.blockOverrides)}
+                  "stateOverrides": ${Kotlinx.DEFAULT.encodeToString(StateOverrideSerializer, config.stateOverrides!!)},
+                  "blockOverrides": ${Kotlinx.DEFAULT.encodeToString(config.blockOverrides!!)}
                 }
             """
         }
@@ -71,14 +72,14 @@ class TracerTest : FunSpec({
                 },
             )
 
-            Jackson.MAPPER.writeValueAsString(config) shouldEqualJson """
+            Kotlinx.DEFAULT.encodeToString(config) shouldEqualJson """
                 {
                   "tracer": "${(config.tracer as Tracer<*>).name}",
                   "tracerConfig": {},
                   "timeout": "${config.timeoutMs}ms",
                   "reexec": ${config.reexec},
-                  "stateOverrides": ${Jackson.MAPPER.writeValueAsString(config.stateOverrides)},
-                  "blockOverrides": ${Jackson.MAPPER.writeValueAsString(config.blockOverrides)}
+                  "stateOverrides": ${Kotlinx.DEFAULT.encodeToString(StateOverrideSerializer, config.stateOverrides!!)},
+                  "blockOverrides": ${Kotlinx.DEFAULT.encodeToString(config.blockOverrides!!)}
                 }
             """
         }

@@ -1,17 +1,23 @@
 package io.ethers.providers
 
-import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.databind.JsonNode
-import io.ethers.core.Jackson
+import io.ethers.core.Kotlinx
 import io.ethers.core.isSuccess
+import io.ethers.core.types.Address
 import io.kotest.assertions.nondeterministic.eventually
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.long
 import okhttp3.OkHttpClient
 import org.intellij.lang.annotations.Language
+import io.github.artificialpb.bignum.BigInteger
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.serialization.json.JsonElement as KJsonElement
 
 /**
  * WsClient tests demonstrating the funSpec factory pattern for JsonRpcClient testing.
@@ -34,6 +40,76 @@ class WsClientTest : FunSpec({
     )
     include(commonJsonRpcTests)
 
+    context("WebSocket request payload") {
+        lateinit var mockServer: MockWSServer
+        lateinit var wsClient: WsClient
+        val stringDecoder: (KJsonElement) -> String = { element -> element.jsonPrimitive.content }
+
+        beforeEach {
+            mockServer = mockServerWebsocket()
+            wsClient = WsClient(mockServer.url, OkHttpClient())
+        }
+
+        afterEach {
+            wsClient.close()
+        }
+
+        test("complex Map / BigInteger / ByteArray params are emitted as proper JSON") {
+            mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0x1234567"}""")
+
+            val callMap = mapOf(
+                "from" to Address("0x1111111111111111111111111111111111111111"),
+                "to" to Address("0x2222222222222222222222222222222222222222"),
+                "value" to BigInteger.ONE,
+                "data" to byteArrayOf(0xde.toByte(), 0xad.toByte(), 0xbe.toByte(), 0xef.toByte()),
+                "gas" to 21000L,
+            )
+            wsClient.request("eth_call", arrayOf(callMap, "latest"), stringDecoder).get()
+
+            val sentText = mockServer.takeReceivedText()!!
+            val body = Kotlinx.DEFAULT.parseToJsonElement(sentText).jsonObject
+
+            body["method"]!!.jsonPrimitive.content shouldBe "eth_call"
+
+            val params = body["params"]!!.jsonArray
+            params.size shouldBe 2
+
+            val callObj = params[0].jsonObject
+            callObj["from"]!!.jsonPrimitive.content shouldBe "0x1111111111111111111111111111111111111111"
+            callObj["to"]!!.jsonPrimitive.content shouldBe "0x2222222222222222222222222222222222222222"
+            callObj["value"]!!.jsonPrimitive.content shouldBe "1"
+            callObj["data"]!!.jsonPrimitive.content shouldBe "0xdeadbeef"
+            callObj["gas"]!!.jsonPrimitive.long shouldBe 21000L
+
+            params[1].jsonPrimitive.content shouldBe "latest"
+        }
+
+        test("request(Class<T>) with ByteArray decodes a 0x-prefixed hex string") {
+            mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0xdeadbeef"}""")
+
+            val result = wsClient.request("eth_getCode", emptyArray<Any>(), ByteArray::class.java).get()
+
+            result.isSuccess() shouldBe true
+            result.unwrap() shouldBe byteArrayOf(0xde.toByte(), 0xad.toByte(), 0xbe.toByte(), 0xef.toByte())
+        }
+
+        test("subscribe(Class<T>) with ByteArray decodes hex-string notification results") {
+            mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0xsub123"}""")
+
+            val subscriptionResult = wsClient.subscribe(arrayOf("newPendingTransactions"), ByteArray::class.java).get()
+            subscriptionResult.isSuccess() shouldBe true
+            val stream = subscriptionResult.unwrap()
+
+            mockServer.sendJson(
+                """{"jsonrpc":"2.0","method":"eth_subscription","params":{"subscription":"0xsub123","result":"0xdeadbeef"}}""",
+            )
+
+            eventually(1.seconds) { stream.isEmpty shouldBe false }
+            val payload = stream.take()!!
+            payload shouldBe byteArrayOf(0xde.toByte(), 0xad.toByte(), 0xbe.toByte(), 0xef.toByte())
+        }
+    }
+
     context("WebSocket subscription tests") {
         lateinit var mockServer: MockWSServer
         lateinit var wsClient: WsClient
@@ -55,9 +131,7 @@ class WsClientTest : FunSpec({
 
             // Subscribe to new block headers
             val params = arrayOf("newHeads")
-            val resultDecoder: (JsonParser) -> JsonNode = { parser ->
-                Jackson.MAPPER.readTree(parser)
-            }
+            val resultDecoder: (KJsonElement) -> JsonObject = { it.jsonObject }
 
             val subscriptionResult = wsClient.subscribe(params, resultDecoder).get()
             subscriptionResult.isSuccess() shouldBe true
@@ -125,23 +199,23 @@ class WsClientTest : FunSpec({
                 stream.isEmpty shouldBe false
             }
             val event1 = stream.take()!!
-            event1.get("number")?.asText() shouldBe "0x1234"
-            event1.get("hash")?.asText() shouldBe "0xabcd"
-            event1.get("timestamp")?.asText() shouldBe "0x1111"
+            event1["number"]?.jsonPrimitive?.content shouldBe "0x1234"
+            event1["hash"]?.jsonPrimitive?.content shouldBe "0xabcd"
+            event1["timestamp"]?.jsonPrimitive?.content shouldBe "0x1111"
 
             // Second notification
             stream.isEmpty shouldBe false
             val event2 = stream.take()!!
-            event2.get("number")?.asText() shouldBe "0x1235"
-            event2.get("hash")?.asText() shouldBe "0xefgh"
-            event2.get("timestamp")?.asText() shouldBe "0x2222"
+            event2["number"]?.jsonPrimitive?.content shouldBe "0x1235"
+            event2["hash"]?.jsonPrimitive?.content shouldBe "0xefgh"
+            event2["timestamp"]?.jsonPrimitive?.content shouldBe "0x2222"
 
             // Third notification
             stream.isEmpty shouldBe false
             val event3 = stream.take()!!
-            event3.get("number")?.asText() shouldBe "0x1236"
-            event3.get("hash")?.asText() shouldBe "0xijkl"
-            event3.get("timestamp")?.asText() shouldBe "0x3333"
+            event3["number"]?.jsonPrimitive?.content shouldBe "0x1236"
+            event3["hash"]?.jsonPrimitive?.content shouldBe "0xijkl"
+            event3["timestamp"]?.jsonPrimitive?.content shouldBe "0x3333"
         }
 
         test("resubscribeOnReconnect=false closes streams on reconnection") {
@@ -159,13 +233,12 @@ class WsClientTest : FunSpec({
                 mockServer.url,
                 OkHttpClient(),
                 emptyMap(),
-                Jackson.MAPPER,
                 resubscribeOnReconnect = false,
             )
 
             // Subscribe to new block headers
             val params = arrayOf("newHeads")
-            val resultDecoder: (JsonParser) -> JsonNode = { Jackson.MAPPER.readTree(it) }
+            val resultDecoder: (KJsonElement) -> JsonObject = { it.jsonObject }
 
             val subscriptionResult = wsClient.subscribe(params, resultDecoder).get()
             subscriptionResult.isSuccess() shouldBe true
@@ -202,7 +275,7 @@ class WsClientTest : FunSpec({
 
             // Subscribe to new block headers
             val params = arrayOf("newHeads")
-            val resultDecoder: (JsonParser) -> JsonNode = { Jackson.MAPPER.readTree(it) }
+            val resultDecoder: (KJsonElement) -> JsonObject = { it.jsonObject }
 
             val subscriptionResult = wsClient.subscribe(params, resultDecoder).get()
             subscriptionResult.isSuccess() shouldBe true
@@ -240,7 +313,7 @@ class WsClientTest : FunSpec({
                 stream.isEmpty shouldBe false
             }
             val event = stream.take()!!
-            event.get("number")?.asText() shouldBe "0x9999"
+            event["number"]?.jsonPrimitive?.content shouldBe "0x9999"
         }
 
         test("successful unsubscribe") {
@@ -252,7 +325,7 @@ class WsClientTest : FunSpec({
 
             // First create a subscription
             val params = arrayOf("newHeads")
-            val resultDecoder: (JsonParser) -> JsonNode = { Jackson.MAPPER.readTree(it) }
+            val resultDecoder: (KJsonElement) -> JsonObject = { it.jsonObject }
 
             val subscriptionResult = wsClient.subscribe(params, resultDecoder).get()
             subscriptionResult.isSuccess() shouldBe true
@@ -282,9 +355,9 @@ class WsClientTest : FunSpec({
             }
 
             val event1 = stream.take()!!
-            event1.get("number")?.asText() shouldBe "0x1234"
-            event1.get("hash")?.asText() shouldBe "0xabcd"
-            event1.get("timestamp")?.asText() shouldBe "0x1111"
+            event1["number"]?.jsonPrimitive?.content shouldBe "0x1234"
+            event1["hash"]?.jsonPrimitive?.content shouldBe "0xabcd"
+            event1["timestamp"]?.jsonPrimitive?.content shouldBe "0x1111"
 
             stream.close()
 

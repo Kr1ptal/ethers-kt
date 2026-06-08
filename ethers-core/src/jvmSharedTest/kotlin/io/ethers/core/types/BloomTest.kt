@@ -1,7 +1,7 @@
 package io.ethers.core.types
 
 import io.ethers.core.FastHex
-import io.ethers.core.Jackson
+import io.ethers.core.Kotlinx
 import io.ethers.core.isFailure
 import io.ethers.core.isSuccess
 import io.kotest.assertions.throwables.shouldThrow
@@ -116,8 +116,8 @@ class BloomTest : FunSpec({
     }
 
     test("serialization / deserialization") {
-        val jsonString = Jackson.MAPPER.writeValueAsString(ETH_BLOOM)
-        val deserializedObject = Jackson.MAPPER.readValue(jsonString, Bloom::class.java)
+        val jsonString = Kotlinx.DEFAULT.encodeToString(ETH_BLOOM)
+        val deserializedObject = Kotlinx.DEFAULT.decodeFromString<Bloom>(jsonString)
 
         deserializedObject shouldBe ETH_BLOOM
     }

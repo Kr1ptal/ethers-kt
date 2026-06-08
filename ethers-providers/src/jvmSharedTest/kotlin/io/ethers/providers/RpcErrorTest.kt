@@ -1,12 +1,13 @@
 package io.ethers.providers
 
-import io.ethers.core.Jackson
+import io.ethers.core.Kotlinx
 import io.ethers.core.json.JsonElement
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.property.Exhaustive
 import io.kotest.property.checkAll
 import io.kotest.property.exhaustive.of
+import kotlinx.serialization.json.jsonObject
 
 class RpcErrorTest : FunSpec({
     test("deserialization") {
@@ -41,7 +42,7 @@ class RpcErrorTest : FunSpec({
                 ),
             ),
         ).checkAll { (json, expected) ->
-            val result = Jackson.MAPPER.readValue(json, RpcError::class.java)
+            val result = RpcError.fromJsonObject(Kotlinx.DEFAULT.parseToJsonElement(json).jsonObject)
             result shouldBe expected
         }
     }

@@ -1,6 +1,6 @@
 package io.ethers.core.types.tracers
 
-import io.ethers.core.Jackson
+import io.ethers.core.Kotlinx
 import io.ethers.core.json.JsonElement
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
@@ -23,7 +23,7 @@ class CallTracerTest : FunSpec({
     val topic2 = Hash("0x21a92b9ac209df2b952dcbe85dad7355ce3d9389692e7ebc6372a7cc1bc23f9b")
 
     test("encode tracer") {
-        Jackson.MAPPER.writeValueAsString(TracerConfig(callTracer)) shouldEqualJson """
+        Kotlinx.DEFAULT.encodeToString(TracerConfig(callTracer)) shouldEqualJson """
             {
               "tracer": "callTracer",
               "tracerConfig": {
@@ -98,7 +98,7 @@ class CallTracerTest : FunSpec({
             }
         """.trimIndent()
 
-        val result = Jackson.MAPPER.readValue(jsonString, callTracer.resultType.java)
+        val result = callTracer.decodeResult(Kotlinx.DEFAULT, Kotlinx.DEFAULT.parseToJsonElement(jsonString))
 
         val expectedResult = CallTracer.CallFrame(
             type = "CALL",

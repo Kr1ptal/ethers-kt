@@ -1,6 +1,6 @@
 package io.ethers.core.types
 
-import io.ethers.core.Jackson
+import io.ethers.core.Kotlinx
 import io.ethers.core.json.JsonElement
 import io.ethers.core.types.transaction.TxType
 import io.github.artificialpb.bignum.BigInteger
@@ -49,7 +49,7 @@ class TransactionReceiptTest : FunSpec({
               }
             }
         """.trimIndent()
-        val result = Jackson.MAPPER.readValue(jsonString, TransactionReceipt::class.java)
+        val result = Kotlinx.DEFAULT.decodeFromString<TransactionReceipt>(jsonString)
 
         val expectedResult = TransactionReceipt(
             blockHash = Hash("0x1d1bf1f362575491216d32c4bfe0fd7f4cb74281803d72f8b17260e365247329"),

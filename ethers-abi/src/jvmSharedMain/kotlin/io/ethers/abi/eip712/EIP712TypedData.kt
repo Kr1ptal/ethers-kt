@@ -1,21 +1,26 @@
 package io.ethers.abi.eip712
 
-import com.fasterxml.jackson.core.JsonGenerator
-import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.core.JsonToken
-import com.fasterxml.jackson.databind.DeserializationContext
-import com.fasterxml.jackson.databind.JsonDeserializer
-import com.fasterxml.jackson.databind.JsonSerializer
-import com.fasterxml.jackson.databind.SerializerProvider
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize
-import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import io.ethers.abi.ContractStruct
-import io.ethers.core.forEachObjectField
-import io.ethers.core.readListOf
-import io.ethers.core.readMapOf
 import io.ethers.core.types.Signature
 import io.ethers.crypto.Hashing
 import io.ethers.signers.Signer
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.buildClassSerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonEncoder
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * Represents EIP712 typed structured data for signing.
@@ -35,8 +40,7 @@ import io.ethers.signers.Signer
  * @property domain The EIP712 domain separator containing chain and contract info
  * @see <a href="https://eips.ethereum.org/EIPS/eip-712">EIP-712 Specification</a>
  */
-@JsonSerialize(using = EIP712TypedDataSerializer::class)
-@JsonDeserialize(using = EIP712TypedDataDeserializer::class)
+@Serializable(with = EIP712TypedDataSerializer::class)
 data class EIP712TypedData(
     val primaryType: String,
     val types: Map<String, List<EIP712Field>>,
@@ -113,8 +117,7 @@ data class EIP712TypedData(
  * @property name The field name as it appears in the struct
  * @property type The EIP712 type string (e.g., "address", "uint256", "Person", "bytes32[]")
  */
-@JsonSerialize(using = EIP712FieldSerializer::class)
-@JsonDeserialize(using = EIP712FieldDeserializer::class)
+@Serializable
 data class EIP712Field(
     val name: String,
     val type: String,
@@ -127,105 +130,94 @@ fun Signer.signTypedData(typedData: EIP712TypedData): Signature {
     return signHash(typedData.signatureHash())
 }
 
-private class EIP712TypedDataSerializer : JsonSerializer<EIP712TypedData>() {
-    override fun serialize(value: EIP712TypedData, gen: JsonGenerator, serializers: SerializerProvider) {
-        gen.writeStartObject()
-        gen.writeStringField("primaryType", value.primaryType)
-        gen.writeObjectFieldStart("types")
-        value.types.forEach { (typeName, fields) ->
-            gen.writeArrayFieldStart(typeName)
-            fields.forEach { field ->
-                gen.writeStartObject()
-                gen.writeStringField("name", field.name)
-                gen.writeStringField("type", field.type)
-                gen.writeEndObject()
-            }
-            gen.writeEndArray()
-        }
-        gen.writeEndObject()
-        gen.writeObjectField("message", value.message)
-        gen.writeObjectField("domain", value.domain)
-        gen.writeEndObject()
+internal object EIP712TypedDataSerializer : KSerializer<EIP712TypedData> {
+    override val descriptor = buildClassSerialDescriptor("EIP712TypedData")
+
+    override fun serialize(encoder: Encoder, value: EIP712TypedData) {
+        val jsonEncoder = encoder as JsonEncoder
+        jsonEncoder.encodeJsonElement(
+            buildJsonObject {
+                put("primaryType", JsonPrimitive(value.primaryType))
+                put(
+                    "types",
+                    buildJsonObject {
+                        value.types.forEach { (typeName, fields) ->
+                            put(
+                                typeName,
+                                buildJsonArray {
+                                    fields.forEach { field ->
+                                        add(
+                                            buildJsonObject {
+                                                put("name", JsonPrimitive(field.name))
+                                                put("type", JsonPrimitive(field.type))
+                                            },
+                                        )
+                                    }
+                                },
+                            )
+                        }
+                    },
+                )
+                put("message", anyMapToJsonObject(value.message))
+                put("domain", jsonEncoder.json.encodeToJsonElement(EIP712DomainSerializer, value.domain))
+            },
+        )
     }
-}
 
-private class EIP712TypedDataDeserializer : JsonDeserializer<EIP712TypedData>() {
-    override fun deserialize(p: JsonParser, ctxt: DeserializationContext): EIP712TypedData {
-        if (p.currentToken != JsonToken.START_OBJECT) {
-            throw IllegalArgumentException("Expected start object")
-        }
+    override fun deserialize(decoder: Decoder): EIP712TypedData {
+        val jsonDecoder = decoder as JsonDecoder
+        val obj = jsonDecoder.decodeJsonElement().jsonObject
 
-        lateinit var primaryType: String
-        var types: Map<String, List<EIP712Field>>? = null
-        var message: Map<String, Any>? = null
-        var domain: EIP712Domain? = null
+        val primaryType = obj["primaryType"]?.jsonPrimitive?.content
+            ?: throw IllegalArgumentException("Missing primaryType field")
 
-        p.forEachObjectField { field ->
-            when (field) {
-                "primaryType" -> primaryType = p.text
-                "types" -> types = p.readMapOf({ it }, { readListOf(EIP712Field::class.java) })
-                "message" -> message = p.readMapOf({ it }, { deserializeAsStringifiedAny() })
-                "domain" -> domain = p.readValueAs(EIP712Domain::class.java)
-                else -> p.skipChildren()
+        val typesObj = obj["types"]?.jsonObject
+            ?: throw IllegalArgumentException("Missing types field")
+        val types = typesObj.entries.associate { (typeName, fieldsElement) ->
+            typeName to fieldsElement.jsonArray.map { fieldElement ->
+                val fieldObj = fieldElement.jsonObject
+                EIP712Field(
+                    name = fieldObj["name"]?.jsonPrimitive?.content
+                        ?: throw IllegalArgumentException("Missing name field"),
+                    type = fieldObj["type"]?.jsonPrimitive?.content
+                        ?: throw IllegalArgumentException("Missing type field"),
+                )
             }
         }
+
+        val messageObj = obj["message"]?.jsonObject
+            ?: throw IllegalArgumentException("Missing message field")
+        val message = messageObj.entries.associate { (k, v) -> k to jsonElementToAny(v) }
+
+        val domainElement = obj["domain"]
+            ?: throw IllegalArgumentException("Missing domain field")
+        val domain = jsonDecoder.json.decodeFromJsonElement(EIP712DomainSerializer, domainElement)
 
         return EIP712TypedData(
             primaryType = primaryType,
-            types = types ?: throw IllegalArgumentException("Missing types field"),
-            message = message ?: throw IllegalArgumentException("Missing message field"),
-            domain = domain ?: throw IllegalArgumentException("Missing domain field"),
+            types = types,
+            message = message,
+            domain = domain,
         )
     }
 
-    private fun JsonParser.deserializeAsStringifiedAny(): Any {
-        return when (currentToken) {
-            JsonToken.VALUE_STRING -> text
-            JsonToken.VALUE_NUMBER_INT,
-            JsonToken.VALUE_NUMBER_FLOAT,
-            -> text
-
-            JsonToken.VALUE_TRUE,
-            JsonToken.VALUE_FALSE,
-            -> text
-
-            JsonToken.VALUE_NULL -> throw IllegalArgumentException("Null values in EIP712TypedData are not supported")
-            JsonToken.START_ARRAY -> readListOf { deserializeAsStringifiedAny() }
-            JsonToken.START_OBJECT -> readMapOf({ it }, { deserializeAsStringifiedAny() })
-            else -> throw IllegalArgumentException("Unexpected token: $currentToken")
-        }
+    private fun anyToJsonElement(value: Any): JsonElement = when (value) {
+        is String -> JsonPrimitive(value)
+        is Number -> JsonPrimitive(value.toString())
+        is Boolean -> JsonPrimitive(value.toString())
+        is List<*> -> JsonArray(value.map { anyToJsonElement(it!!) })
+        is Map<*, *> -> JsonObject(value.entries.associate { (k, v) -> k as String to anyToJsonElement(v!!) })
+        else -> throw IllegalArgumentException("Unsupported type in EIP712 message: ${value::class}")
     }
-}
 
-private class EIP712FieldSerializer : JsonSerializer<EIP712Field>() {
-    override fun serialize(value: EIP712Field, gen: JsonGenerator, serializers: SerializerProvider) {
-        gen.writeStartObject()
-        gen.writeStringField("name", value.name)
-        gen.writeStringField("type", value.type)
-        gen.writeEndObject()
+    private fun anyMapToJsonObject(map: Map<String, Any>): JsonObject {
+        return JsonObject(map.entries.associate { (k, v) -> k to anyToJsonElement(v) })
     }
-}
 
-private class EIP712FieldDeserializer : JsonDeserializer<EIP712Field>() {
-    override fun deserialize(p: JsonParser, ctxt: DeserializationContext): EIP712Field {
-        if (p.currentToken != JsonToken.START_OBJECT) {
-            throw IllegalArgumentException("Expected start object")
-        }
-
-        var name: String? = null
-        var type: String? = null
-
-        p.forEachObjectField { field ->
-            when (field) {
-                "name" -> name = p.text
-                "type" -> type = p.text
-                else -> p.skipChildren()
-            }
-        }
-
-        return EIP712Field(
-            name = name ?: throw IllegalArgumentException("Missing name field"),
-            type = type ?: throw IllegalArgumentException("Missing type field"),
-        )
+    private fun jsonElementToAny(element: JsonElement): Any = when (element) {
+        is JsonPrimitive -> element.content
+        is JsonArray -> element.map { jsonElementToAny(it) }
+        is JsonObject -> element.entries.associate { (k, v) -> k to jsonElementToAny(v) }
+        is JsonNull -> throw IllegalArgumentException("Null values in EIP712TypedData are not supported")
     }
 }

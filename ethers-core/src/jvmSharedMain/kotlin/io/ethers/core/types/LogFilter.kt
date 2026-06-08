@@ -1,16 +1,23 @@
 package io.ethers.core.types
 
-import com.fasterxml.jackson.core.JsonGenerator
-import com.fasterxml.jackson.databind.JsonSerializer
-import com.fasterxml.jackson.databind.SerializerProvider
-import com.fasterxml.jackson.databind.annotation.JsonSerialize
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.buildClassSerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonEncoder
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 private typealias TopicHashes = Array<out Hash>
 
 /**
  * Filter configuration for logs emitted by smart contracts.
  * */
-@JsonSerialize(using = LogFilterSerializer::class)
+@Serializable(with = LogFilterSerializer::class)
 class LogFilter() {
     /**
      * Create a copy of provided [filter].
@@ -350,54 +357,63 @@ sealed interface BlockSelector {
     }
 }
 
-private class LogFilterSerializer : JsonSerializer<LogFilter>() {
-    override fun serialize(value: LogFilter, gen: JsonGenerator, serializers: SerializerProvider) {
-        gen.writeStartObject()
+object LogFilterSerializer : KSerializer<LogFilter> {
+    override val descriptor = buildClassSerialDescriptor("LogFilter")
 
-        when (val blocks = value.blocks) {
-            is BlockSelector.Hash -> gen.writeStringField("blockHash", blocks.from.id)
-            is BlockSelector.Range -> {
-                gen.writeStringField("fromBlock", blocks.from.id)
-                gen.writeStringField("toBlock", blocks.to.id)
-            }
-        }
-
-        val address = value.addresses
-        if (address != null) {
-            gen.writeArrayFieldStart("address")
-            for (i in address.indices) {
-                gen.writeString(address[i].toString())
-            }
-            gen.writeEndArray()
-        }
-
-        val topics = value.topics
-        if (topics != null) {
-            val lastValidIndex = getIndexOfLastNonNullTopic(topics)
-            if (lastValidIndex != -1) {
-                gen.writeArrayFieldStart("topics")
-
-                for (i in 0..lastValidIndex) {
-                    val hashes = topics[i]
-                    when {
-                        hashes == null -> gen.writeNull()
-                        hashes.size == 1 -> gen.writeString(hashes[0].toString())
-                        else -> {
-                            gen.writeStartArray()
-                            for (j in hashes.indices) {
-                                gen.writeString(hashes[j].toString())
-                            }
-                            gen.writeEndArray()
-                        }
+    override fun serialize(encoder: Encoder, value: LogFilter) {
+        val jsonEncoder = encoder as JsonEncoder
+        jsonEncoder.encodeJsonElement(
+            buildJsonObject {
+                when (val blocks = value.blocks) {
+                    is BlockSelector.Hash -> put("blockHash", blocks.from.id)
+                    is BlockSelector.Range -> {
+                        put("fromBlock", blocks.from.id)
+                        put("toBlock", blocks.to.id)
                     }
                 }
 
-                gen.writeEndArray()
-            }
-        }
+                val address = value.addresses
+                if (address != null) {
+                    put(
+                        "address",
+                        buildJsonArray {
+                            for (i in address.indices) {
+                                add(JsonPrimitive(address[i].toString()))
+                            }
+                        },
+                    )
+                }
 
-        gen.writeEndObject()
+                val topics = value.topics
+                if (topics != null) {
+                    val lastValidIndex = getIndexOfLastNonNullTopic(topics)
+                    if (lastValidIndex != -1) {
+                        put(
+                            "topics",
+                            buildJsonArray {
+                                for (i in 0..lastValidIndex) {
+                                    val hashes = topics[i]
+                                    when {
+                                        hashes == null -> add(JsonNull)
+                                        hashes.size == 1 -> add(JsonPrimitive(hashes[0].toString()))
+                                        else -> add(
+                                            buildJsonArray {
+                                                for (j in hashes.indices) {
+                                                    add(JsonPrimitive(hashes[j].toString()))
+                                                }
+                                            },
+                                        )
+                                    }
+                                }
+                            },
+                        )
+                    }
+                }
+            },
+        )
     }
+
+    override fun deserialize(decoder: Decoder): LogFilter = throw UnsupportedOperationException()
 }
 
 private fun getIndexOfLastNonNullTopic(topics: Array<TopicHashes?>): Int {

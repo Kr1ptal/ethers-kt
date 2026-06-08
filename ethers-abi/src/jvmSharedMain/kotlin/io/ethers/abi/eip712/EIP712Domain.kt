@@ -1,27 +1,25 @@
 package io.ethers.abi.eip712
 
-import com.fasterxml.jackson.core.JsonGenerator
-import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.core.JsonToken
-import com.fasterxml.jackson.databind.DeserializationContext
-import com.fasterxml.jackson.databind.JsonDeserializer
-import com.fasterxml.jackson.databind.JsonSerializer
-import com.fasterxml.jackson.databind.SerializerProvider
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize
-import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import io.ethers.abi.AbiType
 import io.ethers.abi.ContractStruct
 import io.ethers.core.FastHex
-import io.ethers.core.forEachObjectField
-import io.ethers.core.readAddress
-import io.ethers.core.readBytes
-import io.ethers.core.readOrNull
+import io.ethers.core.getOrNull
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.github.artificialpb.bignum.BigInteger
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.buildClassSerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonEncoder
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
-@JsonSerialize(using = EIP712DomainSerializer::class)
-@JsonDeserialize(using = EIP712DomainDeserializer::class)
+@Serializable(with = EIP712DomainSerializer::class)
 data class EIP712Domain(
     val name: String? = null,
     val version: String? = null,
@@ -63,40 +61,31 @@ data class EIP712Domain(
     )
 }
 
-private class EIP712DomainSerializer : JsonSerializer<EIP712Domain>() {
-    override fun serialize(value: EIP712Domain, gen: JsonGenerator, serializers: SerializerProvider) {
-        gen.writeStartObject()
-        value.name?.let { gen.writeStringField("name", it) }
-        value.version?.let { gen.writeStringField("version", it) }
-        value.chainId?.let { gen.writeStringField("chainId", it.toString()) }
-        value.verifyingContract?.let { gen.writeStringField("verifyingContract", it.toString()) }
-        value.salt?.let { gen.writeStringField("salt", FastHex.encodeWithPrefix(it.asByteArray())) }
-        gen.writeEndObject()
+internal object EIP712DomainSerializer : KSerializer<EIP712Domain> {
+    override val descriptor = buildClassSerialDescriptor("EIP712Domain")
+
+    override fun serialize(encoder: Encoder, value: EIP712Domain) {
+        val jsonEncoder = encoder as JsonEncoder
+        jsonEncoder.encodeJsonElement(
+            buildJsonObject {
+                value.name?.let { put("name", JsonPrimitive(it)) }
+                value.version?.let { put("version", JsonPrimitive(it)) }
+                value.chainId?.let { put("chainId", JsonPrimitive(it.toString())) }
+                value.verifyingContract?.let { put("verifyingContract", JsonPrimitive(it.toString())) }
+                value.salt?.let { put("salt", JsonPrimitive(FastHex.encodeWithPrefix(it.asByteArray()))) }
+            },
+        )
     }
-}
 
-private class EIP712DomainDeserializer : JsonDeserializer<EIP712Domain>() {
-    override fun deserialize(p: JsonParser, ctxt: DeserializationContext): EIP712Domain {
-        if (p.currentToken != JsonToken.START_OBJECT) {
-            throw IllegalArgumentException("Expected start object")
-        }
+    override fun deserialize(decoder: Decoder): EIP712Domain {
+        val jsonDecoder = decoder as JsonDecoder
+        val obj = jsonDecoder.decodeJsonElement().jsonObject
 
-        var name: String? = null
-        var version: String? = null
-        var chainId: BigInteger? = null
-        var verifyingContract: Address? = null
-        var salt: Bytes? = null
-
-        p.forEachObjectField { field ->
-            when (field) {
-                "name" -> name = p.readOrNull { text }
-                "version" -> version = p.readOrNull { text }
-                "chainId" -> chainId = p.readOrNull { BigInteger(p.text) }
-                "verifyingContract" -> verifyingContract = p.readOrNull { readAddress() }
-                "salt" -> salt = p.readOrNull { readBytes() }
-                else -> p.skipChildren()
-            }
-        }
+        val name: String? = obj.getOrNull("name") { jsonPrimitive.content }
+        val version: String? = obj.getOrNull("version") { jsonPrimitive.content }
+        val chainId: BigInteger? = obj.getOrNull("chainId") { BigInteger(jsonPrimitive.content) }
+        val verifyingContract: Address? = obj.getOrNull("verifyingContract") { Address(jsonPrimitive.content) }
+        val salt: Bytes? = obj.getOrNull("salt") { Bytes(jsonPrimitive.content) }
 
         return EIP712Domain(
             name = name,

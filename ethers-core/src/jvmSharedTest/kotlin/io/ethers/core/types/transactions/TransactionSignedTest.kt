@@ -1,9 +1,8 @@
 package io.ethers.core.types.transactions
 
-import com.fasterxml.jackson.annotation.JsonProperty
 import fixtures.AuthorizationFactory
 import fixtures.TxSetCodeFactory
-import io.ethers.core.Jackson
+import io.ethers.core.Kotlinx
 import io.ethers.core.types.AccessList
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
@@ -29,7 +28,6 @@ import io.kotest.property.Arb
 import io.kotest.property.Exhaustive
 import io.kotest.property.arbitrary.int
 import io.kotest.property.arbitrary.map
-import io.kotest.property.arbitrary.next
 import io.kotest.property.checkAll
 import io.kotest.property.exhaustive.map
 import io.kotest.property.exhaustive.of
@@ -258,13 +256,12 @@ class TransactionSignedTest : FunSpec({
     }
 
     context("RLP roundtrip encode/decode test") {
-        val reader = Jackson.MAPPER.readerFor(RoundtripCase::class.java)
         val rlpBatches = TransactionSignedTest::class.java.getResource("/testdata/txsigned")!!
             .file
             .let(::File)
             .walkTopDown()
             .filter { it.isFile && it.name.endsWith(".json") }
-            .map { it.name to reader.readValues<RoundtripCase>(it).readAll() }
+            .map { it.name to Kotlinx.DEFAULT.decodeFromString<List<RoundtripCase>>(it.readText()) }
 
         rlpBatches.forEach { (dumpName, cases) ->
             context(dumpName) {
@@ -294,10 +291,11 @@ class TransactionSignedTest : FunSpec({
         }
     }
 }) {
+    @kotlinx.serialization.Serializable
     data class RoundtripCase(
-        @param:JsonProperty("hash") val hash: Hash,
-        @param:JsonProperty("from") val from: Address,
-        @param:JsonProperty("rlp") val rlp: Bytes,
+        val hash: Hash,
+        val from: Address,
+        val rlp: Bytes,
     ) : WithDataTestName {
         override fun dataTestName() = hash.toString()
     }

@@ -1,6 +1,6 @@
 package io.ethers.core.types
 
-import io.ethers.core.Jackson
+import io.ethers.core.Kotlinx
 import io.ethers.core.json.JsonElement
 import io.ethers.core.types.transaction.TxBlob
 import io.ethers.core.types.transaction.TxType
@@ -49,7 +49,7 @@ class RPCTransactionTest : FunSpec({
               }
             }
         """.trimIndent()
-        val result = Jackson.MAPPER.readValue(jsonString, RPCTransaction::class.java)
+        val result = Kotlinx.DEFAULT.decodeFromString<RPCTransaction>(jsonString)
 
         val expectedResult = RPCTransaction(
             blockHash = Hash("0xf58bc0d9ad6de2ca7169880cf7d6ffe970c85e48880c00745f21f7a0a5330560"),

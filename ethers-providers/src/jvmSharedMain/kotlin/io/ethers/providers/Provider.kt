@@ -1,22 +1,17 @@
 package io.ethers.providers
 
 import io.ethers.core.FastHex
-import io.ethers.core.Jackson
+import io.ethers.core.Kotlinx
 import io.ethers.core.Result
+import io.ethers.core.asBytes
+import io.ethers.core.asBytesOrNull
+import io.ethers.core.asHash
+import io.ethers.core.asHexBigInteger
+import io.ethers.core.asHexByteArray
+import io.ethers.core.asHexLong
 import io.ethers.core.failure
-import io.ethers.core.forEachObjectField
 import io.ethers.core.isFailure
 import io.ethers.core.json.JsonElement
-import io.ethers.core.readBytes
-import io.ethers.core.readBytesEmptyAsNull
-import io.ethers.core.readHash
-import io.ethers.core.readHexBigInteger
-import io.ethers.core.readHexByteArray
-import io.ethers.core.readHexLong
-import io.ethers.core.readListOf
-import io.ethers.core.readListOfHashes
-import io.ethers.core.readOrNull
-import io.ethers.core.readValueOrNull
 import io.ethers.core.success
 import io.ethers.core.types.Address
 import io.ethers.core.types.Block
@@ -26,6 +21,7 @@ import io.ethers.core.types.BlockWithHashes
 import io.ethers.core.types.BlockWithTransactions
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.CallRequest
+import io.ethers.core.types.CallRequestSerializer
 import io.ethers.core.types.CreateAccessList
 import io.ethers.core.types.FeeHistory
 import io.ethers.core.types.Hash
@@ -57,6 +53,13 @@ import io.ethers.providers.types.RpcSubscribe
 import io.ethers.providers.types.RpcSubscribeCall
 import io.ethers.providers.types.SuppliedRpcRequest
 import io.github.artificialpb.bignum.BigInteger
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.serializer
+import kotlinx.serialization.json.JsonElement as KJsonElement
 
 @Suppress("MoveLambdaOutsideParentheses")
 class Provider(override val client: JsonRpcClient, override val chainId: Long) : Middleware {
@@ -74,15 +77,15 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
     //                                  EthApi implementation
     //-----------------------------------------------------------------------------------------------------------------
     override fun getChainId(): RpcRequest<Long, RpcError> {
-        return RpcCall(client, "eth_chainId", EMPTY_ARRAY) { it.readHexLong() }
+        return RpcCall(client, "eth_chainId", EMPTY_ARRAY) { it.jsonPrimitive.asHexLong() }
     }
 
     override fun getBlockNumber(): RpcRequest<Long, RpcError> {
-        return RpcCall(client, "eth_blockNumber", EMPTY_ARRAY) { it.readHexLong() }
+        return RpcCall(client, "eth_blockNumber", EMPTY_ARRAY) { it.jsonPrimitive.asHexLong() }
     }
 
     override fun getBalance(address: Address, blockId: BlockId): RpcRequest<BigInteger, RpcError> {
-        return RpcCall(client, "eth_getBalance", arrayOf(address, blockId.id)) { it.readHexBigInteger() }
+        return RpcCall(client, "eth_getBalance", arrayOf(address, blockId.id)) { it.jsonPrimitive.asHexBigInteger() }
     }
 
     override fun getBlockHeader(blockId: BlockId): RpcRequest<BlockWithHashes?, RpcError> {
@@ -91,7 +94,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             is BlockId.Hash -> "eth_getHeaderByHash"
             is BlockId.Number, is BlockId.Name -> "eth_getHeaderByNumber"
         }
-        return RpcCall(client, method, params, { it.readValueOrNull(BlockWithHashes::class.java) })
+        return RpcCall(client, method, params, { it.decodeAsOrNull<BlockWithHashes>() })
     }
 
     override fun getBlockWithHashes(blockId: BlockId): RpcRequest<BlockWithHashes?, RpcError> {
@@ -112,7 +115,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             is BlockId.Hash -> "eth_getBlockByHash"
             is BlockId.Number, is BlockId.Name -> "eth_getBlockByNumber"
         }
-        return RpcCall(client, method, params, { it.readValueOrNull(responseType) })
+        return RpcCall(client, method, params, { it.decodeAsOrNull(responseType) })
     }
 
     override fun getUncleBlockHeader(blockId: BlockId, index: Long): RpcRequest<BlockWithHashes?, RpcError> {
@@ -121,7 +124,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             is BlockId.Hash -> "eth_getUncleByBlockHashAndIndex"
             is BlockId.Number, is BlockId.Name -> "eth_getUncleByBlockNumberAndIndex"
         }
-        return RpcCall(client, method, params, { it.readValueOrNull(BlockWithHashes::class.java) })
+        return RpcCall(client, method, params, { it.decodeAsOrNull<BlockWithHashes>() })
     }
 
     override fun getUncleBlocksCount(blockId: BlockId): RpcRequest<Long, RpcError> {
@@ -130,7 +133,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             is BlockId.Hash -> "eth_getUncleCountByBlockHash"
             is BlockId.Number, is BlockId.Name -> "eth_getUncleCountByBlockNumber"
         }
-        return RpcCall(client, method, params) { it.readHexLong() }
+        return RpcCall(client, method, params) { it.jsonPrimitive.asHexLong() }
     }
 
     override fun getCode(address: Address, blockId: BlockId): RpcRequest<Bytes, RpcError> {
@@ -169,15 +172,14 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         val bundle = CallManyBundle(calls, blockOverride)
         val ctx = CallManyContext(blockId, transactionIndex)
 
-        return RpcCall(client, "eth_callMany", arrayOf(bundle, ctx, stateOverride)) {
-            it.readListOf {
+        return RpcCall(client, "eth_callMany", arrayOf(bundle, ctx, stateOverride)) { element ->
+            element.jsonArray.map { item ->
                 var result: Result<Bytes, CallFailedError>? = null
 
-                it.forEachObjectField { field ->
+                item.jsonObject.forEach { (field, value) ->
                     when (field) {
-                        "output", "result", "value" -> result = success(it.readBytes())
-                        "error" -> result = failure(CallFailedError(it.valueAsString))
-                        else -> it.skipChildren()
+                        "output", "result", "value" -> result = success(value.jsonPrimitive.asBytes())
+                        "error" -> result = failure(CallFailedError(value.jsonPrimitive.content))
                     }
                 }
 
@@ -188,7 +190,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
 
     override fun estimateGas(call: IntoCallRequest, blockId: BlockId): RpcRequest<Long, RpcError> {
         val params = arrayOf(call.toCallRequest(), blockId.id)
-        return RpcCall(client, "eth_estimateGas", params) { it.readHexLong() }
+        return RpcCall(client, "eth_estimateGas", params) { it.jsonPrimitive.asHexLong() }
     }
 
     override fun createAccessList(call: IntoCallRequest, blockId: BlockId): RpcRequest<CreateAccessList, RpcError> {
@@ -197,15 +199,15 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
     }
 
     override fun getGasPrice(): RpcRequest<BigInteger, RpcError> {
-        return RpcCall(client, "eth_gasPrice", EMPTY_ARRAY) { it.readHexBigInteger() }
+        return RpcCall(client, "eth_gasPrice", EMPTY_ARRAY) { it.jsonPrimitive.asHexBigInteger() }
     }
 
     override fun getBlobBaseFee(): RpcRequest<BigInteger, RpcError> {
-        return RpcCall(client, "eth_blobBaseFee", EMPTY_ARRAY) { it.readHexBigInteger() }
+        return RpcCall(client, "eth_blobBaseFee", EMPTY_ARRAY) { it.jsonPrimitive.asHexBigInteger() }
     }
 
     override fun getMaxPriorityFeePerGas(): RpcRequest<BigInteger, RpcError> {
-        return RpcCall(client, "eth_maxPriorityFeePerGas", EMPTY_ARRAY) { it.readHexBigInteger() }
+        return RpcCall(client, "eth_maxPriorityFeePerGas", EMPTY_ARRAY) { it.jsonPrimitive.asHexBigInteger() }
     }
 
     override fun getFeeHistory(
@@ -227,7 +229,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
     }
 
     override fun isNodeSyncing(): RpcRequest<SyncStatus, RpcError> {
-        return RpcCall(client, "eth_syncing", EMPTY_ARRAY) { it.readValueAs(SyncStatus::class.java) }
+        return RpcCall(client, "eth_syncing", EMPTY_ARRAY) { it.decodeAs<SyncStatus>() }
     }
 
     override fun getBlockTransactionCount(blockId: BlockId): RpcRequest<Long, RpcError> {
@@ -236,7 +238,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             is BlockId.Hash -> "eth_getBlockTransactionCountByHash"
             is BlockId.Number, is BlockId.Name -> "eth_getBlockTransactionCountByNumber"
         }
-        return RpcCall(client, method, params) { it.readHexLong() }
+        return RpcCall(client, method, params) { it.jsonPrimitive.asHexLong() }
     }
 
     override fun getTransactionByBlockAndIndex(blockId: BlockId, index: Long): RpcRequest<RPCTransaction, RpcError> {
@@ -258,7 +260,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
     }
 
     override fun getTransactionCount(address: Address, blockId: BlockId): RpcRequest<Long, RpcError> {
-        return RpcCall(client, "eth_getTransactionCount", arrayOf(address, blockId.id)) { it.readHexLong() }
+        return RpcCall(client, "eth_getTransactionCount", arrayOf(address, blockId.id)) { it.jsonPrimitive.asHexLong() }
     }
 
     override fun getTransactionByHash(hash: Hash): RpcRequest<RPCTransaction?, RpcError> {
@@ -266,7 +268,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             client,
             "eth_getTransactionByHash",
             arrayOf(hash),
-            { it.readValueOrNull(RPCTransaction::class.java) },
+            { it.decodeAsOrNull<RPCTransaction>() },
         )
     }
 
@@ -275,7 +277,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             client,
             "eth_getTransactionReceipt",
             arrayOf(hash),
-            { it.readValueOrNull(TransactionReceipt::class.java) },
+            { it.decodeAsOrNull<TransactionReceipt>() },
         )
     }
 
@@ -284,7 +286,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             client,
             "eth_getBlockReceipts",
             arrayOf(blockId.id),
-            { it.readOrNull { readListOf(TransactionReceipt::class.java) } },
+            { if (it is JsonNull) null else it.decodeListAs<TransactionReceipt>() },
         )
     }
 
@@ -293,7 +295,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             client,
             "eth_sendRawTransaction",
             arrayOf(signedTransaction),
-            { PendingTransaction(it.readHash(), this) },
+            { PendingTransaction(it.jsonPrimitive.asHash(), this) },
         )
     }
 
@@ -307,16 +309,10 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             client,
             "eth_fillTransaction",
             arrayOf(callRequest),
-            {
-                var ret: TransactionUnsigned? = null
-                it.forEachObjectField { field ->
-                    when (field) {
-                        "raw" -> ret = TransactionUnsigned.rlpDecode(it.readHexByteArray())
-                        else -> {}
-                    }
-                }
-
-                return@RpcCall ret ?: throw IllegalStateException("Invalid response")
+            { element ->
+                val raw = element.jsonObject["raw"]
+                val ret = if (raw != null) TransactionUnsigned.rlpDecode(raw.jsonPrimitive.asHexByteArray()) else null
+                ret ?: throw IllegalStateException("Invalid response")
             },
         ).orElse { err ->
             when {
@@ -437,7 +433,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             return success(unsigned)
         }
 
-        val data = JsonElement(Jackson.MAPPER.writeValueAsString(call))
+        val data = JsonElement(Kotlinx.DEFAULT.encodeToString(CallRequestSerializer, call))
         return failure(RpcError(RpcError.CODE_CALL_FAILED, "Failed to manually fill transaction", data))
     }
 
@@ -446,7 +442,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             client,
             "eth_getLogs",
             arrayOf(filter),
-            { it.readListOf(Log::class.java) },
+            { it.decodeListAs<Log>() },
         )
     }
 
@@ -455,7 +451,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             client,
             "eth_newFilter",
             arrayOf(filter),
-            { p -> FilterPoller(p.text, this, { it.readListOf(Log::class.java) }) },
+            { element -> FilterPoller(element.jsonPrimitive.content, this, { el -> el.decodeListAs<Log>() }) },
         )
     }
 
@@ -464,7 +460,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             client,
             "eth_newBlockFilter",
             EMPTY_ARRAY,
-            { p -> FilterPoller(p.text, this, { it.readListOfHashes() }) },
+            { element -> FilterPoller(element.jsonPrimitive.content, this, { el -> el.jsonArray.map { it.jsonPrimitive.asHash() } }) },
         )
     }
 
@@ -473,7 +469,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             client,
             "eth_newPendingTransactionFilter",
             EMPTY_ARRAY,
-            { p -> FilterPoller(p.text, this, { it.readListOfHashes() }) },
+            { element -> FilterPoller(element.jsonPrimitive.content, this, { el -> el.jsonArray.map { it.jsonPrimitive.asHash() } }) },
         )
     }
 
@@ -482,28 +478,28 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             client,
             "eth_newPendingTransactionFilter",
             arrayOf(true),
-            { p -> FilterPoller(p.text, this, { it.readListOf(RPCTransaction::class.java) }) },
+            { element -> FilterPoller(element.jsonPrimitive.content, this, { el -> el.decodeListAs<RPCTransaction>() }) },
         )
     }
 
     override fun subscribeNewPendingTransactionHashes(): RpcSubscribe<Hash, RpcError> {
-        return RpcSubscribeCall(client, arrayOf("newPendingTransactions"), { it.readHash() })
+        return RpcSubscribeCall(client, arrayOf("newPendingTransactions"), { it.jsonPrimitive.asHash() })
     }
 
     override fun subscribeNewPendingTransactions(): RpcSubscribe<RPCTransaction, RpcError> {
         return RpcSubscribeCall(
             client,
             arrayOf<Any>("newPendingTransactions", true),
-            { it.readValueAs(RPCTransaction::class.java) },
+            { it.decodeAs<RPCTransaction>() },
         )
     }
 
     override fun subscribeNewHeads(): RpcSubscribe<BlockWithHashes, RpcError> {
-        return RpcSubscribeCall(client, arrayOf("newHeads"), { it.readValueAs(BlockWithHashes::class.java) })
+        return RpcSubscribeCall(client, arrayOf("newHeads"), { it.decodeAs<BlockWithHashes>() })
     }
 
     override fun subscribeLogs(filter: LogFilter): RpcSubscribe<Log, RpcError> {
-        return RpcSubscribeCall(client, arrayOf("logs", filter), { it.readValueAs(Log::class.java) })
+        return RpcSubscribeCall(client, arrayOf("logs", filter), { it.decodeAs<Log>() })
     }
 
     //-----------------------------------------------------------------------------------------------------------------
@@ -521,7 +517,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
 
     override fun getRawReceipts(blockId: BlockId): RpcRequest<List<Bytes>, RpcError> {
         val params = arrayOf(blockId.id)
-        return RpcCall(client, "debug_getRawReceipts", params) { it.readListOf(Bytes::class.java) }
+        return RpcCall(client, "debug_getRawReceipts", params) { it.decodeListAs<Bytes>() }
     }
 
     override fun getRawTransaction(hash: Hash): RpcRequest<Bytes?, RpcError> {
@@ -529,11 +525,9 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             client,
             "debug_getRawTransaction",
             arrayOf(hash),
-            {
-                if (it.currentToken() == null) {
-                    return@RpcCall null
-                }
-                it.readBytesEmptyAsNull()
+            { element ->
+                if (element is JsonNull) null
+                else element.jsonPrimitive.asBytesOrNull()
             },
         )
     }
@@ -549,7 +543,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         config: TracerConfig<T>,
     ): RpcRequest<T, RpcError> {
         val params = arrayOf(call.toCallRequest(), blockId.id, config)
-        return RpcCall(client, "debug_traceCall", params) { config.tracer.decodeResult(Jackson.MAPPER, it) }
+        return RpcCall(client, "debug_traceCall", params) { config.tracer.decodeResult(Kotlinx.DEFAULT, it) }
     }
 
     override fun <T : Any> traceCallMany(
@@ -561,14 +555,15 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         val bundle = CallManyBundle(calls, config.blockOverrides)
         val ctx = CallManyContext(blockId, transactionIndex)
 
-        return RpcCall(client, "debug_traceCallMany", arrayOf(arrayOf(bundle), ctx, config)) {
-            it.readListOf { it.readListOf { config.tracer.decodeResult(Jackson.MAPPER, it) } }.firstOrNull() ?: emptyList()
+        return RpcCall(client, "debug_traceCallMany", arrayOf(arrayOf(bundle), ctx, config)) { element ->
+            element.jsonArray.firstOrNull()?.jsonArray?.map { config.tracer.decodeResult(Kotlinx.DEFAULT, it) }
+                ?: emptyList()
         }
     }
 
     override fun <T : Any> traceTransaction(txHash: Hash, config: TracerConfig<T>): RpcRequest<T, RpcError> {
         val params = arrayOf(txHash, config)
-        return RpcCall(client, "debug_traceTransaction", params) { config.tracer.decodeResult(Jackson.MAPPER, it) }
+        return RpcCall(client, "debug_traceTransaction", params) { config.tracer.decodeResult(Kotlinx.DEFAULT, it) }
     }
 
     override fun <T : Any> traceBlock(
@@ -580,17 +575,17 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             is BlockId.Hash -> "debug_traceBlockByHash"
             is BlockId.Number, is BlockId.Name -> "debug_traceBlockByNumber"
         }
-        return RpcCall(client, method, params) {
-            it.readListOf {
+        return RpcCall(client, method, params) { element ->
+            element.jsonArray.map { item ->
                 var txHash: Hash? = null
                 var result: T? = null
                 var error: String? = null
 
-                it.forEachObjectField { field ->
+                item.jsonObject.forEach { (field, value) ->
                     when (field) {
-                        "txHash" -> txHash = it.readHash()
-                        "result" -> result = config.tracer.decodeResult(Jackson.MAPPER, it)
-                        "error" -> error = it.valueAsString
+                        "txHash" -> txHash = value.jsonPrimitive.asHash()
+                        "result" -> result = config.tracer.decodeResult(Kotlinx.DEFAULT, value)
+                        "error" -> error = value.jsonPrimitive.content
                     }
                 }
                 TxTraceResult(txHash, result, error)
@@ -602,11 +597,11 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
     //                                  NetApi implementation
     //-----------------------------------------------------------------------------------------------------------------
     override fun isListening(): RpcRequest<Boolean, RpcError> {
-        return RpcCall(client, "net_listening", EMPTY_ARRAY) { it.readValueAs(Boolean::class.java) }
+        return RpcCall(client, "net_listening", EMPTY_ARRAY) { it.jsonPrimitive.boolean }
     }
 
     override fun getPeerCount(): RpcRequest<Long, RpcError> {
-        return RpcCall(client, "net_peerCount", EMPTY_ARRAY) { it.readHexLong() }
+        return RpcCall(client, "net_peerCount", EMPTY_ARRAY) { it.jsonPrimitive.asHexLong() }
     }
 
     override fun getVersion(): RpcRequest<String, RpcError> {
@@ -700,7 +695,22 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         }
 
         private fun getChainId(client: JsonRpcClient): RpcRequest<Long, RpcError> {
-            return RpcCall(client, "eth_chainId", EMPTY_ARRAY, { it.readHexLong() })
+            return RpcCall(client, "eth_chainId", EMPTY_ARRAY, { it.jsonPrimitive.asHexLong() })
         }
     }
 }
+
+// Private inline extension functions for common decoding patterns
+private inline fun <reified T> KJsonElement.decodeAs(): T = io.ethers.core.Kotlinx.DEFAULT.decodeFromJsonElement(serializer(), this)
+
+@Suppress("UNCHECKED_CAST")
+private fun <T> KJsonElement.decodeAs(resultType: Class<T>): T = io.ethers.core.Kotlinx.DEFAULT.decodeFromJsonElement(
+    serializer(resultType) as kotlinx.serialization.KSerializer<T>,
+    this,
+)
+
+private inline fun <reified T> KJsonElement.decodeAsOrNull(): T? = if (this is JsonNull) null else decodeAs<T>()
+
+private fun <T> KJsonElement.decodeAsOrNull(resultType: Class<T>): T? = if (this is JsonNull) null else decodeAs(resultType)
+
+private inline fun <reified T> KJsonElement.decodeListAs(): List<T> = jsonArray.map { it.decodeAs<T>() }

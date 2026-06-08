@@ -1,16 +1,21 @@
 package io.ethers.core.types
 
-import com.fasterxml.jackson.core.JsonGenerator
-import com.fasterxml.jackson.databind.JsonSerializer
-import com.fasterxml.jackson.databind.SerializerProvider
-import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import io.ethers.core.FastHex
 import io.github.artificialpb.bignum.BigInteger
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.buildClassSerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonEncoder
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 /**
  * An account override, used to override the nonce, balance, code, and storage of an account.
  * */
-@JsonSerialize(using = AccountOverrideSerializer::class)
+@Serializable(with = AccountOverrideSerializer::class)
 class AccountOverride() {
     constructor(other: AccountOverride) : this() {
         this.applyChanges(other)
@@ -163,25 +168,42 @@ class AccountOverride() {
     }
 }
 
-private class AccountOverrideSerializer : JsonSerializer<AccountOverride>() {
-    override fun serialize(value: AccountOverride, gen: JsonGenerator, serializers: SerializerProvider) {
-        gen.writeStartObject()
-        if (value.nonce != -1L) {
-            gen.writeStringField("nonce", FastHex.encodeWithPrefix(value.nonce))
-        }
-        if (value.code != null) {
-            gen.writeStringField("code", value.code!!.toString())
-        }
-        if (value.balance != null) {
-            gen.writeStringField("balance", FastHex.encodeWithPrefix(value.balance!!))
-        }
-        // empty map clears the state
-        if (value.state != null) {
-            gen.writeObjectField("state", value.state)
-        }
-        if (!value.stateDiff.isNullOrEmpty()) {
-            gen.writeObjectField("stateDiff", value.stateDiff)
-        }
-        gen.writeEndObject()
+object AccountOverrideSerializer : KSerializer<AccountOverride> {
+    override val descriptor = buildClassSerialDescriptor("AccountOverride")
+
+    override fun serialize(encoder: Encoder, value: AccountOverride) {
+        val jsonEncoder = encoder as JsonEncoder
+        jsonEncoder.encodeJsonElement(
+            buildJsonObject {
+                if (value.nonce != -1L) {
+                    put("nonce", FastHex.encodeWithPrefix(value.nonce))
+                }
+                if (value.code != null) {
+                    put("code", value.code!!.toString())
+                }
+                if (value.balance != null) {
+                    put("balance", FastHex.encodeWithPrefix(value.balance!!))
+                }
+                // empty map clears the state
+                if (value.state != null) {
+                    put(
+                        "state",
+                        buildJsonObject {
+                            value.state!!.forEach { (k, v) -> put(k.toString(), v.toString()) }
+                        },
+                    )
+                }
+                if (!value.stateDiff.isNullOrEmpty()) {
+                    put(
+                        "stateDiff",
+                        buildJsonObject {
+                            value.stateDiff!!.forEach { (k, v) -> put(k.toString(), v.toString()) }
+                        },
+                    )
+                }
+            },
+        )
     }
+
+    override fun deserialize(decoder: Decoder): AccountOverride = throw UnsupportedOperationException()
 }

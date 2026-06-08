@@ -13,7 +13,7 @@ kotlin {
                 api(project(":ethers-crypto"))
 
                 api(libs.bignumkt)
-                api(libs.bundles.jackson)
+                api(libs.kotlinx.serialization)
             }
         }
 
@@ -27,8 +27,6 @@ kotlin {
             dependencies {
                 implementation(libs.jmh.core)
                 implementation(libs.jmh.generator)
-
-                implementation(libs.kotlinx.serialization)
             }
         }
     }

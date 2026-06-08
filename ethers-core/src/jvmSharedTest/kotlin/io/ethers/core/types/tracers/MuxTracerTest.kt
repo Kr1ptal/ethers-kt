@@ -1,7 +1,6 @@
 package io.ethers.core.types.tracers
 
-import io.ethers.core.Jackson
-import io.ethers.core.Jackson.createAndInitParser
+import io.ethers.core.Kotlinx
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
@@ -22,7 +21,7 @@ class MuxTracerTest : FunSpec({
     val muxTracer = MuxTracer(listOf(callTracer, fourByteTracer, noopTracer))
 
     test("encode tracer") {
-        Jackson.MAPPER.writeValueAsString(TracerConfig(muxTracer)) shouldEqualJson """
+        Kotlinx.DEFAULT.encodeToString(TracerConfig(muxTracer)) shouldEqualJson """
             {
               "tracer": "muxTracer",
               "tracerConfig": {
@@ -82,8 +81,7 @@ class MuxTracerTest : FunSpec({
                 }
             """.trimIndent()
 
-            val jsonParser = Jackson.MAPPER.createAndInitParser(jsonString)
-            val result = muxTracer.decodeResult(Jackson.MAPPER, jsonParser)
+            val result = muxTracer.decodeResult(Kotlinx.DEFAULT, Kotlinx.DEFAULT.parseToJsonElement(jsonString))
 
             val callTracerExpectedResult = CallTracer.CallFrame(
                 type = "CALL",
@@ -133,8 +131,7 @@ class MuxTracerTest : FunSpec({
         test("tracer not found") {
             shouldThrow<IllegalArgumentException> {
                 val jsonString = """{"unknown_tracer": {}}"""
-                val jsonParser = Jackson.MAPPER.createAndInitParser(jsonString)
-                muxTracer.decodeResult(Jackson.MAPPER, jsonParser)
+                muxTracer.decodeResult(Kotlinx.DEFAULT, Kotlinx.DEFAULT.parseToJsonElement(jsonString))
             }
         }
     }

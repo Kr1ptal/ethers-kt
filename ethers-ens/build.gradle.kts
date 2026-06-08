@@ -2,6 +2,7 @@ plugins {
     `project-conventions`
     `maven-publish-conventions`
     id("io.kriptal.ethers.abigen-plugin") version libs.versions.ethers.get()
+    kotlin("plugin.serialization") version libs.versions.kotlin.get()
 }
 
 // TODO remove after publishing abigen-plugin with KMP fix (adds generated sources only to commonMain)

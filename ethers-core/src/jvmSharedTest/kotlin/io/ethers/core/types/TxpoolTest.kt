@@ -1,6 +1,6 @@
 package io.ethers.core.types
 
-import io.ethers.core.Jackson
+import io.ethers.core.Kotlinx
 import io.ethers.core.types.transaction.TxType
 import io.github.artificialpb.bignum.BigInteger
 import io.kotest.core.spec.style.FunSpec
@@ -58,7 +58,7 @@ class TxpoolTest : FunSpec({
               }
             }
         """.trimIndent()
-        val result = Jackson.MAPPER.readValue(jsonString, TxpoolContent::class.java)
+        val result = Kotlinx.DEFAULT.decodeFromString<TxpoolContent>(jsonString)
 
         val expectedResult = TxpoolContent(
             pending = mapOf(
@@ -127,7 +127,7 @@ class TxpoolTest : FunSpec({
     test("TxpoolStatus deserialization") {
         @Language("JSON")
         val jsonString = """{"pending":"0x37c3","queued":"0x2d4"}"""
-        val result = Jackson.MAPPER.readValue(jsonString, TxpoolStatus::class.java)
+        val result = Kotlinx.DEFAULT.decodeFromString<TxpoolStatus>(jsonString)
 
         val expectedResult = TxpoolStatus(
             pending = 14275L,
@@ -183,7 +183,7 @@ class TxpoolTest : FunSpec({
               }
             }
         """.trimIndent()
-        val result = Jackson.MAPPER.readValue(jsonString, TxpoolContentFromAddress::class.java)
+        val result = Kotlinx.DEFAULT.decodeFromString<TxpoolContentFromAddress>(jsonString)
 
         val expectedResult = TxpoolContentFromAddress(
             pending = mapOf(
@@ -273,7 +273,7 @@ class TxpoolTest : FunSpec({
               }
             }
         """.trimIndent()
-        val result = Jackson.MAPPER.readValue(jsonString, TxpoolInspectResult::class.java)
+        val result = Kotlinx.DEFAULT.decodeFromString<TxpoolInspectResult>(jsonString)
 
         val expectedResult = TxpoolInspectResult(
             pending = mapOf(

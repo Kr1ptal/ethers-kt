@@ -1,6 +1,6 @@
 package io.ethers.core.types
 
-import io.ethers.core.Jackson
+import io.ethers.core.Kotlinx
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import org.intellij.lang.annotations.Language
@@ -25,7 +25,7 @@ class LogTest : FunSpec({
               "removed": true
             }
         """.trimIndent()
-        val result = Jackson.MAPPER.readValue(jsonString, Log::class.java)
+        val result = Kotlinx.DEFAULT.decodeFromString<Log>(jsonString)
 
         val expectedResult = Log(
             address = Address("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),

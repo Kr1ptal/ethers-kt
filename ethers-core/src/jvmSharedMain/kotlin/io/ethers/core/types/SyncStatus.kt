@@ -1,13 +1,16 @@
 package io.ethers.core.types
 
-import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.databind.DeserializationContext
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize
-import com.fasterxml.jackson.databind.deser.std.StdDeserializer
-import io.ethers.core.forEachObjectField
-import io.ethers.core.readHexLong
+import io.ethers.core.asHexLong
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.buildClassSerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
-@JsonDeserialize(using = SyncStatusDeserializer::class)
+@Serializable(with = SyncStatusSerializer::class)
 sealed interface SyncStatus {
     /**
      * Returns `true` if the sync is finished.
@@ -37,23 +40,31 @@ sealed interface SyncStatus {
     }
 }
 
-private class SyncStatusDeserializer : StdDeserializer<SyncStatus>(SyncStatus::class.java) {
-    override fun deserialize(p: JsonParser, ctxt: DeserializationContext): SyncStatus {
-        if (p.currentToken.isBoolean) {
+object SyncStatusSerializer : KSerializer<SyncStatus> {
+    override val descriptor = buildClassSerialDescriptor("SyncStatus")
+
+    override fun serialize(encoder: Encoder, value: SyncStatus) = throw UnsupportedOperationException()
+
+    override fun deserialize(decoder: Decoder): SyncStatus {
+        val element = (decoder as JsonDecoder).decodeJsonElement()
+        if (element !is JsonObject) {
             return SyncStatus.Finished
         }
-        var startingBlock: Long = -1L
-        var currentBlock: Long = -1L
-        var highestBlock: Long = -1L
-        p.forEachObjectField { name ->
-            when (name) {
-                "startingBlock" -> startingBlock = p.readHexLong()
-                "currentBlock" -> currentBlock = p.readHexLong()
-                "highestBlock" -> highestBlock = p.readHexLong()
+
+        var startingBlock = -1L
+        var currentBlock = -1L
+        var highestBlock = -1L
+
+        for ((key, value) in element.entries) {
+            when (key) {
+                "startingBlock" -> startingBlock = value.jsonPrimitive.asHexLong()
+                "currentBlock" -> currentBlock = value.jsonPrimitive.asHexLong()
+                "highestBlock" -> highestBlock = value.jsonPrimitive.asHexLong()
             }
         }
+
         if (startingBlock == -1L || currentBlock == -1L || highestBlock == -1L) {
-            throw IllegalArgumentException("Invalid SyncStatus: $p")
+            throw IllegalArgumentException("Invalid SyncStatus: $element")
         }
 
         return SyncStatus.InProgress(startingBlock, currentBlock, highestBlock)
