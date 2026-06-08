@@ -2,7 +2,7 @@
 kotlin = "2.3.21"
 atomicfu = "0.33.0"
 log4j2 = "2.26.0"
-jackson = "2.21.3"
+jackson = "2.22.0"
 eclipse-collections = "13.0.0"
 ksp = "2.3.8"
 kotest = "6.0.7"
