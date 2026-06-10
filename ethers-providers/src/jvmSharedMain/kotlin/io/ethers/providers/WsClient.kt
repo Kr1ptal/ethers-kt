@@ -18,7 +18,6 @@ import io.ethers.providers.types.BatchRpcRequest
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 import io.ktor.client.plugins.websocket.webSocket
 import io.ktor.websocket.Frame
-import io.ktor.websocket.close
 import io.ktor.websocket.readText
 import kotlinx.atomicfu.atomic
 import kotlinx.atomicfu.locks.reentrantLock
@@ -34,7 +33,6 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.long
 import kotlinx.serialization.json.longOrNull
 import org.jctools.queues.MpscUnboundedXaddArrayQueue
 import org.jctools.queues.SpscUnboundedArrayQueue
@@ -73,6 +71,9 @@ class WsClient(
     private val LOG = getLogger()
 
     // these are modified by a single thread
+    private val pendingSendRequests = ArrayDeque<CompletableRequest<*>>()
+    private val pendingSendBatchRequests = ArrayDeque<CompletableBatchRequest>()
+    private val pendingSendSubscriptionRequests = ArrayDeque<CompletableSubscriptionRequest<*>>()
     private val inFlightRequests = HashMap<Long, CompletableRequest<*>>()
     private val inFlightBatchRequests = HashMap<Long, Pair<CompletableBatchRequest, HashMap<Long, Int>>>()
     private val inFlightSubscriptionRequests = HashMap<Long, CompletableSubscriptionRequest<*>>()
@@ -274,23 +275,35 @@ class WsClient(
 
                     // third, process all single and batch requests in the queue
                     while (requestQueue.poll().also { request = it } != null) {
+                        pendingSendRequests.addLast(request!!)
+                    }
+                    while (pendingSendRequests.isNotEmpty()) {
+                        val pending = pendingSendRequests.first()
                         val id = requestId++
-                        val req = buildJsonRpcRequest(request!!.method, id, request.params)
-
+                        val req = buildJsonRpcRequest(pending.method, id, pending.params)
                         LOG.trc { "Processing request: $req" }
-                        inFlightRequests[id] = request
-                        wsSend(req)
+                        if (wsSend(req)) {
+                            pendingSendRequests.removeFirst()
+                            inFlightRequests[id] = pending
+                        } else {
+                            requestReconnect()
+                            break
+                        }
                     }
 
                     while (batchRequestQueue.poll().also { batchRequest = it } != null) {
+                        pendingSendBatchRequests.addLast(batchRequest!!)
+                    }
+                    while (pendingSendBatchRequests.isNotEmpty()) {
+                        val pending = pendingSendBatchRequests.first()
                         var batchId = -1L
-                        val idToIndex = HashMap<Long, Int>(batchRequest!!.request.requests.size, 1.0F)
+                        val idToIndex = HashMap<Long, Int>(pending.request.requests.size, 1.0F)
 
                         val sb = StringBuilder()
                         sb.append('[')
-                        for (i in batchRequest.request.requests.indices) {
+                        for (i in pending.request.requests.indices) {
                             if (i > 0) sb.append(',')
-                            val reqItem = batchRequest.request.requests[i]
+                            val reqItem = pending.request.requests[i]
                             val id = requestId++
                             if (batchId == -1L) batchId = id
                             idToIndex[id] = i
@@ -299,21 +312,34 @@ class WsClient(
                         sb.append(']')
 
                         val req = sb.toString()
-
                         LOG.trc { "Processing batch request: $req" }
-                        inFlightBatchRequests[batchId] = Pair(batchRequest, idToIndex)
-                        wsSend(req)
-                        batchRequest.request.markAsSent()
+
+                        if (wsSend(req)) {
+                            pendingSendBatchRequests.removeFirst()
+                            inFlightBatchRequests[batchId] = Pair(pending, idToIndex)
+                            pending.request.markAsSent()
+                        } else {
+                            requestReconnect()
+                            break
+                        }
                     }
 
                     // fourth, process all subscription requests in the queue
                     while (subscriptionQueue.poll().also { subscriptionRequest = it } != null) {
+                        pendingSendSubscriptionRequests.addLast(subscriptionRequest!!)
+                    }
+                    while (pendingSendSubscriptionRequests.isNotEmpty()) {
+                        val pending = pendingSendSubscriptionRequests.first()
                         val id = requestId++
-                        val req = buildJsonRpcRequest("eth_subscribe", id, subscriptionRequest!!.params)
-
+                        val req = buildJsonRpcRequest("eth_subscribe", id, pending.params)
                         LOG.trc { "Processing subscription request: $req" }
-                        inFlightSubscriptionRequests[id] = subscriptionRequest
-                        wsSend(req)
+                        if (wsSend(req)) {
+                            pendingSendSubscriptionRequests.removeFirst()
+                            inFlightSubscriptionRequests[id] = pending
+                        } else {
+                            requestReconnect()
+                            break
+                        }
                     }
 
                     // fifth, process all unsubscribe requests in the queue
@@ -371,6 +397,13 @@ class WsClient(
         removeTimedOutRequests(inFlightRequests, timeout)
         removeTimedOutRequests(inFlightSubscriptionRequests, timeout)
         removeTimedOutBatchRequests(timeout)
+        removeTimedOutPending(pendingSendRequests, timeout)
+        removeTimedOutPending(pendingSendBatchRequests, timeout)
+        removeTimedOutPending(pendingSendSubscriptionRequests, timeout)
+    }
+
+    private fun <T : ExpiringRequest> removeTimedOutPending(pending: ArrayDeque<T>, timeout: Duration) {
+        pending.removeAll { it.expireIfTimedOut(timeout) }
     }
 
     private fun removeTimedOutBatchRequests(timeout: Duration) {
