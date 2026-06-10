@@ -21,6 +21,7 @@ import io.ethers.logger.err
 import io.ethers.logger.getLogger
 import io.ethers.logger.wrn
 import io.ethers.providers.middleware.Middleware
+import io.github.artificialpb.bignum.BigInteger
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.request.get
 import io.ktor.client.request.post
@@ -31,7 +32,6 @@ import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
-import java.math.BigInteger
 import java.util.concurrent.CompletableFuture
 import io.ktor.client.HttpClient as KtorHttpClient
 
@@ -154,7 +154,8 @@ class EnsMiddleware @JvmOverloads constructor(
         // Unwrap resolver from RpcResponse and call its addr() function.
         // If RpcResponse is an error, map it to error FailedToResolve.
         val resolver = resolverResponse.unwrap()
-        val supportsWildcard = resolver.supportsInterface(ENSIP_10_INTERFACE_ID).call(BlockId.LATEST).sendAwait()
+        val supportsWildcard =
+            resolver.supportsInterface(ENSIP_10_INTERFACE_ID).call(BlockId.LATEST).sendAwait()
 
         // add nodehash as first parameter, because it is present in all resolutions
         parameters.add(0, Bytes(nameHash))
@@ -168,12 +169,16 @@ class EnsMiddleware @JvmOverloads constructor(
                 .sendAwait()
 
             // try to decode OffchainLookup error
-            val resolveLookupRevert = resolveResult.unwrapErrorOrNull()?.asTypeOrNull<ExtendedResolver.OffchainLookup>()
+            val resolveLookupRevert =
+                resolveResult.unwrapErrorOrNull()?.asTypeOrNull<ExtendedResolver.OffchainLookup>()
 
             return if (resolveLookupRevert == null) {
                 // result is resolved ens name
                 resolveResult.mapError {
-                    Error.FailedToResolve("Failed to resolve ens name: $ensName with resolver ${resolver.address}.", it)
+                    Error.FailedToResolve(
+                        "Failed to resolve ens name: $ensName with resolver ${resolver.address}.",
+                        it,
+                    )
                 }
             } else {
                 // result is OffchainLookup error
@@ -192,7 +197,12 @@ class EnsMiddleware @JvmOverloads constructor(
                 resolver.supportsInterface(abiFunction.selector).call(BlockId.LATEST).sendAwait()
 
             if (!supportsFunction.unwrapElse(false)) {
-                return failure(Error.UnsupportedSelector(resolver.address, abiFunction.selector.toString()))
+                return failure(
+                    Error.UnsupportedSelector(
+                        resolver.address,
+                        abiFunction.selector.toString(),
+                    ),
+                )
             }
 
             // create callback for corresponding function selector
@@ -214,9 +224,16 @@ class EnsMiddleware @JvmOverloads constructor(
                     // Return different errors on empty address and failure to resolve
                     // TODO - handle differently
                     val isAddrCall = abiFunction.selector == ExtendedResolver.FUNCTION_ADDR.selector
-                    if (isAddrCall && AbiCodec.decode(AbiType.Address, it.asByteArray()) == Address.ZERO) {
+                    if (isAddrCall && AbiCodec.decode(
+                            AbiType.Address,
+                            it.asByteArray(),
+                        ) == Address.ZERO
+                    ) {
                         return@andThen failure(
-                            Error.UnknownEnsName(resolver.address, FastHex.encodeWithPrefix(nameHash)),
+                            Error.UnknownEnsName(
+                                resolver.address,
+                                FastHex.encodeWithPrefix(nameHash),
+                            ),
                         )
                     }
 
@@ -245,7 +262,12 @@ class EnsMiddleware @JvmOverloads constructor(
 
         val address = registryContract.resolver(Bytes(nameHash))
             .call(BlockId.LATEST)
-            .mapError<Error> { Error.ResolvingResolver(registryAddress, FastHex.encodeWithPrefix(nameHash)) }
+            .mapError<Error> {
+                Error.ResolvingResolver(
+                    registryAddress,
+                    FastHex.encodeWithPrefix(nameHash),
+                )
+            }
             .andThen { if (it == Address.ZERO) failure(Error.UnknownResolver) else success(it) }
             .sendAwait()
 
@@ -313,8 +335,17 @@ class EnsMiddleware @JvmOverloads constructor(
      * @param sender sender parameter of [ExtendedResolver.OffchainLookup] - replacing {sender} RPC call parameter
      * @param calldata calldata parameter of [ExtendedResolver.OffchainLookup] - replacing {data} RPC call parameter
      */
-    private fun httpCall(urls: List<String>, sender: Address, calldata: Bytes): Result<Bytes, Error> {
-        if (urls.isEmpty()) return failure(Error.CcipCallFailed("No urls to resolve ens name!", null))
+    private fun httpCall(
+        urls: List<String>,
+        sender: Address,
+        calldata: Bytes,
+    ): Result<Bytes, Error> {
+        if (urls.isEmpty()) return failure(
+            Error.CcipCallFailed(
+                "No urls to resolve ens name!",
+                null,
+            ),
+        )
 
         for (url in urls) {
             if (!url.contains("{sender}")) continue
@@ -327,7 +358,10 @@ class EnsMiddleware @JvmOverloads constructor(
                     runBlocking { httpClient.get(href) }
                 } else {
                     val requestDTO = EnsGatewayRequestDTO(calldata, sender.toString())
-                    val body = Kotlinx.DEFAULT.encodeToString(EnsGatewayRequestDTO.serializer(), requestDTO)
+                    val body = Kotlinx.DEFAULT.encodeToString(
+                        EnsGatewayRequestDTO.serializer(),
+                        requestDTO,
+                    )
                     runBlocking {
                         httpClient.post(href) {
                             contentType(ContentType.Application.Json)
@@ -342,7 +376,12 @@ class EnsMiddleware @JvmOverloads constructor(
             }
         }
 
-        return failure(Error.CcipCallFailed("All urls are invalid or got server response 5xx", null))
+        return failure(
+            Error.CcipCallFailed(
+                "All urls are invalid or got server response 5xx",
+                null,
+            ),
+        )
     }
 
     /**
@@ -358,12 +397,14 @@ class EnsMiddleware @JvmOverloads constructor(
         val code = response.status.value
         if (code in 200..299) {
             val text = runBlocking { response.bodyAsText() }
-            val gatewayRequestDTO = Kotlinx.DEFAULT.decodeFromString(EnsGatewayResponseDTO.serializer(), text)
+            val gatewayRequestDTO =
+                Kotlinx.DEFAULT.decodeFromString(EnsGatewayResponseDTO.serializer(), text)
             return success(gatewayRequestDTO.data)
         }
 
         return if (code in 400..499) {
-            val msg = "Received status code: $code during CCIP call (url: $url, error: ${response.status.description})"
+            val msg =
+                "Received status code: $code during CCIP call (url: $url, error: ${response.status.description})"
             LOG.err { msg }
             failure(Error.CcipCallFailed(msg, null))
         } else {
@@ -437,7 +478,8 @@ class EnsMiddleware @JvmOverloads constructor(
 
             AvatarNFTType.ERC1155 -> {
                 val nft = ERC1155(provider, nftToken.nftAddr)
-                val balanceRes = nft.balanceOf(ensOwner, nftToken.tokenId).call(BlockId.LATEST).sendAwait()
+                val balanceRes =
+                    nft.balanceOf(ensOwner, nftToken.tokenId).call(BlockId.LATEST).sendAwait()
 
                 if (balanceRes.isFailure()) {
                     return failure(
@@ -515,7 +557,10 @@ class EnsMiddleware @JvmOverloads constructor(
             success(metadataDTO.image)
         }.unwrapOrReturn {
             return failure(
-                Error.AvatarParsing("Error while execution metadata request for url: $metadataUri", it),
+                Error.AvatarParsing(
+                    "Error while execution metadata request for url: $metadataUri",
+                    it,
+                ),
             )
         }
     }
@@ -559,7 +604,12 @@ class EnsMiddleware @JvmOverloads constructor(
             return reverseResolver.name(Bytes(nameHash))
                 .call(BlockId.LATEST)
                 .sendAwait()
-                .mapError<Error> { Error.FailedToResolve("Failed to resolve ens name for address: $address", it) }
+                .mapError<Error> {
+                    Error.FailedToResolve(
+                        "Failed to resolve ens name for address: $address",
+                        it,
+                    )
+                }
                 .andThen { ensName ->
                     // Validate ENS name by "resolving the returned name and calling addr on the resolver, checking it matches the original Ethereum address"
                     resolveAddress(ensName).get().andThen { resolved ->
