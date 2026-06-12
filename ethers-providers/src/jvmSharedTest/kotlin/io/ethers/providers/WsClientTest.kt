@@ -8,15 +8,17 @@ import io.kotest.assertions.nondeterministic.eventually
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import io.ktor.client.engine.cio.CIO
+import io.ktor.client.plugins.websocket.WebSockets
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
-import okhttp3.OkHttpClient
 import org.intellij.lang.annotations.Language
-import java.util.concurrent.TimeUnit
+import kotlin.collections.mapOf
 import kotlin.time.Duration.Companion.seconds
+import io.ktor.client.HttpClient as KtorHttpClient
 import kotlinx.serialization.json.JsonElement as KJsonElement
 
 /**
@@ -31,11 +33,7 @@ class WsClientTest : FunSpec({
     val commonJsonRpcTests = JsonRpcTestFactory.commonTests(
         RpcClientVariant.WS,
         { url ->
-            val okhttp = OkHttpClient.Builder()
-                .readTimeout(50, TimeUnit.MILLISECONDS)
-                .build()
-
-            WsClient(url, okhttp)
+            WsClient(url, KtorHttpClient(CIO) { install(WebSockets) }, readTimeoutMs = 50L)
         },
     )
     include(commonJsonRpcTests)
@@ -47,7 +45,7 @@ class WsClientTest : FunSpec({
 
         beforeEach {
             mockServer = mockServerWebsocket()
-            wsClient = WsClient(mockServer.url, OkHttpClient())
+            wsClient = WsClient(mockServer.url, KtorHttpClient(CIO) { install(WebSockets) })
         }
 
         afterEach {
@@ -116,7 +114,7 @@ class WsClientTest : FunSpec({
 
         beforeEach {
             mockServer = mockServerWebsocket()
-            wsClient = WsClient(mockServer.url, OkHttpClient())
+            wsClient = WsClient(mockServer.url, KtorHttpClient(CIO) { install(WebSockets) })
         }
 
         afterEach {
@@ -231,7 +229,7 @@ class WsClientTest : FunSpec({
             // Create client with resubscribeOnReconnect = false
             wsClient = WsClient(
                 mockServer.url,
-                OkHttpClient(),
+                KtorHttpClient(CIO) { install(WebSockets) },
                 emptyMap(),
                 resubscribeOnReconnect = false,
             )
@@ -271,7 +269,7 @@ class WsClientTest : FunSpec({
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"$subscriptionId"}""")
 
             // Create client with default settings (resubscribeOnReconnect = true)
-            wsClient = WsClient(mockServer.url, OkHttpClient())
+            wsClient = WsClient(mockServer.url, KtorHttpClient(CIO) { install(WebSockets) })
 
             // Subscribe to new block headers
             val params = arrayOf("newHeads")

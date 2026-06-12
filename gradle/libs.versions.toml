@@ -7,8 +7,8 @@ eclipse-collections = "13.0.0"
 ksp = "2.3.9"
 kotest = "6.0.7"
 jmh = "1.37"
-okhttp3 = "5.3.2"
 klogging = "8.0.4"
+ktor = "3.2.2"
 ktlint-tool = "1.8.0"
 web3j = "4.10.3"
 ethers = "1.6.0"
@@ -57,9 +57,11 @@ jackson-kotlin = { module = "com.fasterxml.jackson.module:jackson-module-kotlin"
 eclipse-collections-core = { module = "org.eclipse.collections:eclipse-collections", version.ref = "eclipse-collections" }
 eclipse-collections-api = { module = "org.eclipse.collections:eclipse-collections-api", version.ref = "eclipse-collections" }
 
-okhttp3-core = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp3" }
-okhttp3-logging = { module = "com.squareup.okhttp3:logging-interceptor", version.ref = "okhttp3" }
-okhttp3-mockwebserver = { module = "com.squareup.okhttp3:mockwebserver", version.ref = "okhttp3" }
+ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
+ktor-client-cio = { module = "io.ktor:ktor-client-cio", version.ref = "ktor" }
+ktor-client-websockets = { module = "io.ktor:ktor-client-websockets", version.ref = "ktor" }
+ktor-client-mock = { module = "io.ktor:ktor-client-mock", version.ref = "ktor" }
+okhttp3-mockwebserver = { module = "com.squareup.okhttp3:mockwebserver", version = "5.3.2" }
 kotlinpoet = { module = "com.squareup:kotlinpoet", version = "2.3.0" }
 
 kotlincrypto-hash-sha3 = { module = "org.kotlincrypto.hash:sha3", version.ref = "kotlincrypto" }
@@ -107,7 +109,7 @@ web3j-crypto = { module = "corg.web3j:crypto", version.ref = "web3j" }
 [bundles]
 log4j2 = ["log4j2-core", "log4j2-api", "log4j2-slf4j"]
 jackson = ["jackson-databind"]
-okhttp3 = ["okhttp3-core", "okhttp3-logging"]
+ktor-client = ["ktor-client-core", "ktor-client-cio", "ktor-client-websockets"]
 ethers = ["ethers-abi", "ethers-core", "ethers-crypto", "ethers-ens", "ethers-providers", "ethers-rlp", "ethers-signers"]
 
 ##################### TEST #####################

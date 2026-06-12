@@ -11,13 +11,13 @@ import io.kotest.core.spec.style.funSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
+import io.ktor.client.engine.cio.CIO
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
-import okhttp3.OkHttpClient
-import okhttp3.mockwebserver.MockResponse
 import org.intellij.lang.annotations.Language
+import io.ktor.client.HttpClient as KtorHttpClient
 import kotlinx.serialization.json.JsonElement as KJsonElement
 
 /**
@@ -31,7 +31,7 @@ class HttpClientTest : FunSpec({
     include(
         JsonRpcTestFactory.commonTests(
             RpcClientVariant.HTTP,
-            { url -> HttpClient(url, OkHttpClient()) },
+            { url -> HttpClient(url, KtorHttpClient(CIO)) },
         ),
     )
 
@@ -47,7 +47,7 @@ private fun httpSpecificTests() = funSpec {
 
         beforeEach {
             server = mockServerHttp()
-            client = HttpClient(server.url, OkHttpClient())
+            client = HttpClient(server.url, KtorHttpClient(CIO))
         }
 
         afterEach {
@@ -55,7 +55,7 @@ private fun httpSpecificTests() = funSpec {
         }
 
         test("HTTP error with JSON response") {
-            server.enqueue(createMockResponse(RPC_ERROR_RESPONSE, 500))
+            server.enqueue(500, RPC_ERROR_RESPONSE)
 
             val result = client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
 
@@ -66,7 +66,7 @@ private fun httpSpecificTests() = funSpec {
         }
 
         test("HTTP error with non-JSON response") {
-            server.enqueue(MockResponse().setResponseCode(500).setBody("Internal Server Error"))
+            server.enqueue(500, "Internal Server Error")
 
             val result = client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
 
@@ -77,20 +77,20 @@ private fun httpSpecificTests() = funSpec {
         }
 
         test("empty response body") {
-            server.enqueue(MockResponse().setResponseCode(200).setBody(""))
+            server.enqueue(200, "")
 
             val result = client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
 
             result.isFailure() shouldBe true
             val error = result.unwrapError()
-            error.code shouldBe RpcError.CODE_CALL_FAILED // Jackson parsing error for empty content
+            error.code shouldBe RpcError.CODE_CALL_FAILED
         }
 
         test("custom headers are sent") {
-            server.enqueue(createMockResponse(SUCCESSFUL_RESPONSE))
+            server.enqueueJson(SUCCESSFUL_RESPONSE)
 
             val headersMap = mapOf("Authorization" to "Bearer token123", "Custom-Header" to "value")
-            val clientWithHeaders = HttpClient(server.url, OkHttpClient(), headersMap)
+            val clientWithHeaders = HttpClient(server.url, KtorHttpClient(CIO), headersMap)
 
             clientWithHeaders.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
 
@@ -100,16 +100,16 @@ private fun httpSpecificTests() = funSpec {
         }
 
         test("content-Type header is set correctly") {
-            server.enqueue(createMockResponse(SUCCESSFUL_RESPONSE))
+            server.enqueueJson(SUCCESSFUL_RESPONSE)
 
             client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
 
             val request = server.takeRequest()
-            request.getHeader("Content-Type") shouldBe "application/json"
+            request.getHeader("Content-Type") shouldContain "application/json"
         }
 
         test("complex Map / BigInteger / ByteArray params are emitted as proper JSON") {
-            server.enqueue(createMockResponse(SUCCESSFUL_RESPONSE))
+            server.enqueueJson(SUCCESSFUL_RESPONSE)
 
             val callMap = mapOf(
                 "from" to Address("0x1111111111111111111111111111111111111111"),
@@ -121,7 +121,7 @@ private fun httpSpecificTests() = funSpec {
             client.request("eth_call", arrayOf(callMap, "latest"), stringDecoder).get()
 
             val body = Kotlinx.DEFAULT.parseToJsonElement(
-                server.takeRequest().body.readUtf8(),
+                server.takeRequest().bodyText,
             ).jsonObject
 
             body["method"]!!.jsonPrimitive.content shouldBe "eth_call"
@@ -149,11 +149,7 @@ private fun httpSpecificTests() = funSpec {
         }
 
         test("request(Class<T>) with ByteArray decodes a 0x-prefixed hex string") {
-            server.enqueue(
-                createMockResponse(
-                    """{"jsonrpc":"2.0","id":1,"result":"0xdeadbeef"}""",
-                ),
-            )
+            server.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0xdeadbeef"}""")
 
             val result = client.request("eth_getCode", emptyArray<Any>(), ByteArray::class.java).get()
 
@@ -162,23 +158,19 @@ private fun httpSpecificTests() = funSpec {
         }
 
         test("request(Class<T>) with ByteArray handles empty payloads (\"0x\" / \"\")") {
-            server.enqueue(createMockResponse("""{"jsonrpc":"2.0","id":1,"result":"0x"}"""))
+            server.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0x"}""")
             val emptyHex = client.request("eth_getCode", emptyArray<Any>(), ByteArray::class.java).get()
             emptyHex.isSuccess() shouldBe true
             emptyHex.unwrap() shouldBe ByteArray(0)
 
-            server.enqueue(createMockResponse("""{"jsonrpc":"2.0","id":2,"result":""}"""))
+            server.enqueueJson("""{"jsonrpc":"2.0","id":2,"result":""}""")
             val emptyString = client.request("eth_getCode", emptyArray<Any>(), ByteArray::class.java).get()
             emptyString.isSuccess() shouldBe true
             emptyString.unwrap() shouldBe ByteArray(0)
         }
 
         test("request(Class<T>) with @Serializable type still uses its KSerializer") {
-            server.enqueue(
-                createMockResponse(
-                    """{"jsonrpc":"2.0","id":1,"result":"0x1111111111111111111111111111111111111111"}""",
-                ),
-            )
+            server.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0x1111111111111111111111111111111111111111"}""")
 
             val result = client.request("eth_coinbase", emptyArray<Any>(), Address::class.java).get()
 
@@ -187,8 +179,8 @@ private fun httpSpecificTests() = funSpec {
         }
 
         test("unique request IDs are generated") {
-            server.enqueue(createMockResponse(SUCCESSFUL_RESPONSE))
-            server.enqueue(createMockResponse(SUCCESSFUL_RESPONSE))
+            server.enqueueJson(SUCCESSFUL_RESPONSE)
+            server.enqueueJson(SUCCESSFUL_RESPONSE)
 
             client.request("method1", emptyArray<Any>(), stringDecoder).get()
             client.request("method2", emptyArray<Any>(), stringDecoder).get()
@@ -196,8 +188,8 @@ private fun httpSpecificTests() = funSpec {
             val request1 = server.takeRequest()
             val request2 = server.takeRequest()
 
-            val body1 = Kotlinx.DEFAULT.parseToJsonElement(request1.body.readUtf8()).jsonObject
-            val body2 = Kotlinx.DEFAULT.parseToJsonElement(request2.body.readUtf8()).jsonObject
+            val body1 = Kotlinx.DEFAULT.parseToJsonElement(request1.bodyText).jsonObject
+            val body2 = Kotlinx.DEFAULT.parseToJsonElement(request2.bodyText).jsonObject
 
             body1["id"]!!.jsonPrimitive.long shouldNotBe body2["id"]!!.jsonPrimitive.long
         }
@@ -205,7 +197,7 @@ private fun httpSpecificTests() = funSpec {
 
     context("Subscription tests") {
         test("subscription is not supported") {
-            val httpClient = HttpClient("http://localhost:8545", OkHttpClient())
+            val httpClient = HttpClient("http://localhost:8545", KtorHttpClient(CIO))
             val result = httpClient.subscribe(arrayOf("newHeads"), stringDecoder).get()
 
             result.isFailure() shouldBe true
@@ -214,10 +206,6 @@ private fun httpSpecificTests() = funSpec {
             error.message shouldContain "not supported by HTTP client"
         }
     }
-}
-
-private fun createMockResponse(body: String, code: Int = 200): MockResponse {
-    return MockResponse().setResponseCode(code).setBody(body)
 }
 
 @Language("JSON")
