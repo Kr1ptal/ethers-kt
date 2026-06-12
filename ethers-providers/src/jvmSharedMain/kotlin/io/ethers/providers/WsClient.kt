@@ -173,9 +173,6 @@ class WsClient(
 
             var requestId = 1L
             var msg: String?
-            var request: CompletableRequest<*>?
-            var batchRequest: CompletableBatchRequest?
-            var subscriptionRequest: CompletableSubscriptionRequest<*>?
             var unsubscribeRequestId: Long?
 
             var lastTimeoutCheck = TimeSource.Monotonic.markNow()
@@ -192,11 +189,16 @@ class WsClient(
                         }
                     }
 
+                    drainRequestQueuesToPending()
+
                     // second, check if we need to reconnect
                     if (reconnect.value) {
                         var reconnectSuccessful = false
 
                         while (!reconnectSuccessful && !stopping.value) {
+                            drainRequestQueuesToPending()
+                            handleTimeouts(readTimeoutMs.milliseconds)
+
                             LOG.dbg { "Trying to reconnect WebSocket" }
 
                             // cancel the old job (triggers finally → signals connectionClosedCondition)
@@ -215,8 +217,9 @@ class WsClient(
                             }
 
                             if (!reconnectSuccessful) {
+                                drainRequestQueuesToPending()
                                 handleTimeouts(readTimeoutMs.milliseconds)
-                                Thread.sleep(2000L)
+                                eventLock.withLock { newEventCondition.await(2000L, TimeUnit.MILLISECONDS) }
                             }
                         }
 
@@ -274,9 +277,6 @@ class WsClient(
                     }
 
                     // third, process all single and batch requests in the queue
-                    while (requestQueue.poll().also { request = it } != null) {
-                        pendingSendRequests.addLast(request!!)
-                    }
                     while (pendingSendRequests.isNotEmpty()) {
                         val pending = pendingSendRequests.first()
                         val id = requestId++
@@ -291,9 +291,6 @@ class WsClient(
                         }
                     }
 
-                    while (batchRequestQueue.poll().also { batchRequest = it } != null) {
-                        pendingSendBatchRequests.addLast(batchRequest!!)
-                    }
                     while (pendingSendBatchRequests.isNotEmpty()) {
                         val pending = pendingSendBatchRequests.first()
                         var batchId = -1L
@@ -325,9 +322,6 @@ class WsClient(
                     }
 
                     // fourth, process all subscription requests in the queue
-                    while (subscriptionQueue.poll().also { subscriptionRequest = it } != null) {
-                        pendingSendSubscriptionRequests.addLast(subscriptionRequest!!)
-                    }
                     while (pendingSendSubscriptionRequests.isNotEmpty()) {
                         val pending = pendingSendSubscriptionRequests.first()
                         val id = requestId++
@@ -391,6 +385,23 @@ class WsClient(
 
         processorThread.name = "WsClient-Processor-${processorThread.id}"
         processorThread.start()
+    }
+
+    private fun drainRequestQueuesToPending() {
+        var request: CompletableRequest<*>?
+        while (requestQueue.poll().also { request = it } != null) {
+            pendingSendRequests.addLast(request!!)
+        }
+
+        var batchRequest: CompletableBatchRequest?
+        while (batchRequestQueue.poll().also { batchRequest = it } != null) {
+            pendingSendBatchRequests.addLast(batchRequest!!)
+        }
+
+        var subscriptionRequest: CompletableSubscriptionRequest<*>?
+        while (subscriptionQueue.poll().also { subscriptionRequest = it } != null) {
+            pendingSendSubscriptionRequests.addLast(subscriptionRequest!!)
+        }
     }
 
     private fun handleTimeouts(timeout: Duration) {

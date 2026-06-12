@@ -1,6 +1,7 @@
 package io.ethers.providers
 
 import io.ethers.core.Kotlinx
+import io.ethers.core.isFailure
 import io.ethers.core.isSuccess
 import io.ethers.core.types.Address
 import io.github.artificialpb.bignum.BigInteger
@@ -16,6 +17,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
 import org.intellij.lang.annotations.Language
+import java.util.concurrent.TimeUnit
 import kotlin.collections.mapOf
 import kotlin.time.Duration.Companion.seconds
 import io.ktor.client.HttpClient as KtorHttpClient
@@ -380,6 +382,32 @@ class WsClientTest : FunSpec({
 
             stream.isEmpty shouldBe true
             stream.isClosed shouldBe true
+        }
+
+        test("request queued during reconnect times out before reconnect succeeds") {
+            wsClient.close()
+            mockServer.allowReconnect()
+            wsClient = WsClient(
+                mockServer.url,
+                KtorHttpClient(CIO) { install(WebSockets) },
+                connectTimeoutMs = 50L,
+                readTimeoutMs = 100L,
+            )
+
+            val stringDecoder: (KJsonElement) -> String = { element -> element.jsonPrimitive.content }
+            mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0x1234567"}""")
+            wsClient.request("eth_blockNumber", emptyArray<Any>(), stringDecoder)
+                .get(2, TimeUnit.SECONDS)
+                .isSuccess() shouldBe true
+
+            mockServer.closeConnection()
+            Thread.sleep(50)
+
+            val result = wsClient.request("eth_blockNumber", emptyArray<Any>(), stringDecoder)
+                .get(2, TimeUnit.SECONDS)
+
+            result.isFailure() shouldBe true
+            result.unwrapError().code shouldBe RpcError.CODE_CALL_TIMEOUT
         }
     }
 })
