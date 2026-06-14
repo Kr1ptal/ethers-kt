@@ -65,7 +65,7 @@ pluginManager.withPlugin("org.jetbrains.kotlin.multiplatform") {
         // (the androidLibrary {} DSL accessor is not available in precompiled script plugins)
         val androidTarget = the<KotlinMultiplatformAndroidLibraryTarget>()
         androidTarget.namespace = "io.kriptal.ethers.${project.name.replace("-", ".")}"
-        androidTarget.compileSdk = 35
+        androidTarget.compileSdk = 36
         androidTarget.minSdk = 24
 
         jvmToolchain {
