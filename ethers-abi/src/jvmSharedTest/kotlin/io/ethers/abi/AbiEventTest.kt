@@ -1,5 +1,6 @@
 package io.ethers.abi
 
+import io.ethers.core.isFailure
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
@@ -8,6 +9,7 @@ import io.ethers.providers.middleware.Middleware
 import io.github.artificialpb.bignum.BigInteger
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.property.Exhaustive
 import io.kotest.property.checkAll
 import io.kotest.property.exhaustive.of
@@ -203,6 +205,32 @@ class AbiEventTest : FunSpec({
             )
 
             Transfer.decode(log) shouldBe null
+        }
+
+        test("non-anonymous event with malformed matching data returns null") {
+            val log = Log(
+                address = Address("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
+                topics = listOf(
+                    Transfer.abi.topicId,
+                    Hash("0x000000000000000000000000855f02967ee16e9f18d388b07b4c75211e73e8c2"),
+                    Hash("0x000000000000000000000000ed12310d5a37326e6506209c4838146950166760"),
+                ),
+                data = Bytes("0x01"),
+                blockHash = Hash.ZERO,
+                blockNumber = 1,
+                blockTimestamp = 1,
+                transactionHash = Hash.ZERO,
+                transactionIndex = 0,
+                logIndex = 0,
+                removed = false,
+            )
+
+            Transfer.decode(log) shouldBe null
+            Transfer.decodeOrNull(log) shouldBe null
+
+            val decoded = Transfer.tryDecode(log)
+            decoded.isFailure() shouldBe true
+            decoded.unwrapError().shouldBeInstanceOf<EventDecodingError.MalformedEvent>()
         }
     }
 
@@ -474,6 +502,15 @@ class AbiEventTest : FunSpec({
 
         test("toEventOrNull with vararg returns null when none match") {
             invalidLog.toEventOrNull(Transfer, LogNote) shouldBe null
+        }
+
+        test("tryToEvent with vararg returns failure when matching event data is malformed") {
+            val malformedLog = validTransferLog.copy(data = Bytes("0x01"))
+
+            val decoded = malformedLog.tryToEvent(Transfer, LogNote)
+            decoded.isFailure() shouldBe true
+            decoded.unwrapError().shouldBeInstanceOf<EventDecodingError.MalformedEvent>()
+            malformedLog.toEventOrNull(Transfer, LogNote) shouldBe null
         }
     }
 
