@@ -1,14 +1,16 @@
 package io.ethers.providers.types
 
-import io.ethers.core.Result
-import io.ethers.core.failure
-import io.ethers.core.isFailure
-import io.ethers.core.success
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
+import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.getError
 import io.ethers.core.types.Hash
 import io.ethers.core.types.TransactionReceipt
+import io.ethers.core.unwrap
 import io.ethers.providers.RpcError
 import io.ethers.providers.middleware.Middleware
 import java.time.Duration
+import kotlin.time.toKotlinDuration
 
 class PendingTransaction(
     val hash: Hash,
@@ -19,14 +21,14 @@ class PendingTransaction(
         interval: Duration,
         confirmations: Int,
     ): Result<TransactionReceipt, PendingInclusion.Error> {
-        val intervalMillis = interval.toMillis()
+        val intervalMillis = interval.toKotlinDuration().inWholeMilliseconds
         var receiptError: RpcError? = null
         var included: TransactionReceipt? = null
         var retriesLeft = retries
         while (retriesLeft-- > 0) {
             val response = provider.getTransactionReceipt(hash).sendAwait()
-            if (response.isFailure()) {
-                receiptError = response.error
+            if (response.isErr) {
+                receiptError = response.getError()!!
                 Thread.sleep(intervalMillis)
                 continue
             }
@@ -40,26 +42,26 @@ class PendingTransaction(
         }
 
         if (included == null && receiptError != null) {
-            return failure(PendingInclusion.Error.RpcError(hash, receiptError))
+            return Err(PendingInclusion.Error.RpcError(hash, receiptError))
         }
 
         if (included == null) {
-            return failure(PendingInclusion.Error.NoInclusion(hash, retries))
+            return Err(PendingInclusion.Error.NoInclusion(hash, retries))
         }
 
         if (confirmations <= 1) {
-            return success(included)
+            return Ok(included)
         }
 
         while (true) {
             val response = provider.getBlockNumber().sendAwait()
-            if (response.isFailure()) {
-                return failure(PendingInclusion.Error.RpcError(hash, response.error))
+            if (response.isErr) {
+                return Err(PendingInclusion.Error.RpcError(hash, response.getError()!!))
             }
 
             val currentBlock = response.unwrap()
             if ((currentBlock - included.blockNumber) >= (confirmations - 1)) {
-                return success(included)
+                return Ok(included)
             }
 
             Thread.sleep(intervalMillis)

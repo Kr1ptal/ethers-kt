@@ -1,9 +1,9 @@
 package io.ethers.providers
 
+import com.github.michaelbull.result.unwrapError
 import io.ethers.core.Kotlinx
-import io.ethers.core.isFailure
-import io.ethers.core.isSuccess
 import io.ethers.core.types.Address
+import io.ethers.core.unwrap
 import io.github.artificialpb.bignum.BigInteger
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
@@ -59,7 +59,7 @@ private fun httpSpecificTests() = funSpec {
 
             val result = client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
 
-            result.isFailure() shouldBe true
+            result.isErr shouldBe true
             val error = result.unwrapError()
             error.code shouldBe -32601 // Should decode the JSON error
             error.message shouldBe "Method not found"
@@ -70,7 +70,7 @@ private fun httpSpecificTests() = funSpec {
 
             val result = client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
 
-            result.isFailure() shouldBe true
+            result.isErr shouldBe true
             val error = result.unwrapError()
             error.code shouldBe RpcError.CODE_CALL_FAILED
             error.message shouldContain "HTTP 500"
@@ -81,7 +81,7 @@ private fun httpSpecificTests() = funSpec {
 
             val result = client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
 
-            result.isFailure() shouldBe true
+            result.isErr shouldBe true
             val error = result.unwrapError()
             error.code shouldBe RpcError.CODE_CALL_FAILED
         }
@@ -153,19 +153,19 @@ private fun httpSpecificTests() = funSpec {
 
             val result = client.request("eth_getCode", emptyArray<Any>(), ByteArray::class.java).get()
 
-            result.isSuccess() shouldBe true
+            result.isOk shouldBe true
             result.unwrap() shouldBe byteArrayOf(0xde.toByte(), 0xad.toByte(), 0xbe.toByte(), 0xef.toByte())
         }
 
         test("request(Class<T>) with ByteArray handles empty payloads (\"0x\" / \"\")") {
             server.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0x"}""")
             val emptyHex = client.request("eth_getCode", emptyArray<Any>(), ByteArray::class.java).get()
-            emptyHex.isSuccess() shouldBe true
+            emptyHex.isOk shouldBe true
             emptyHex.unwrap() shouldBe ByteArray(0)
 
             server.enqueueJson("""{"jsonrpc":"2.0","id":2,"result":""}""")
             val emptyString = client.request("eth_getCode", emptyArray<Any>(), ByteArray::class.java).get()
-            emptyString.isSuccess() shouldBe true
+            emptyString.isOk shouldBe true
             emptyString.unwrap() shouldBe ByteArray(0)
         }
 
@@ -174,7 +174,7 @@ private fun httpSpecificTests() = funSpec {
 
             val result = client.request("eth_coinbase", emptyArray<Any>(), Address::class.java).get()
 
-            result.isSuccess() shouldBe true
+            result.isOk shouldBe true
             result.unwrap() shouldBe Address("0x1111111111111111111111111111111111111111")
         }
 
@@ -200,7 +200,7 @@ private fun httpSpecificTests() = funSpec {
             val httpClient = HttpClient("http://localhost:8545", KtorHttpClient(CIO))
             val result = httpClient.subscribe(arrayOf("newHeads"), stringDecoder).get()
 
-            result.isFailure() shouldBe true
+            result.isErr shouldBe true
             val error = result.unwrapError()
             error.code shouldBe RpcError.CODE_METHOD_NOT_FOUND
             error.message shouldContain "not supported by HTTP client"

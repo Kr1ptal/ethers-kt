@@ -1,5 +1,7 @@
 package io.ethers.abi.call
 
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Result
 import io.ethers.abi.AbiContract
 import io.ethers.abi.AbiFunction
 import io.ethers.abi.AbiType
@@ -9,8 +11,6 @@ import io.ethers.abi.call.Multicall3.Companion.DEFAULT_ADDRESS
 import io.ethers.abi.call.Multicall3.Companion.STATE_OVERRIDE
 import io.ethers.abi.error.ContractError
 import io.ethers.abi.error.RevertError
-import io.ethers.core.Result
-import io.ethers.core.failure
 import io.ethers.core.types.AccountOverride
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
@@ -277,7 +277,7 @@ class Multicall3(
         val res = if (result.success) {
             request.decodeCallResult(result.returnData)
         } else {
-            failure(tryDecodingCallRevert(result.returnData))
+            Err(tryDecodingCallRevert(result.returnData))
         }
 
         return res
@@ -438,7 +438,7 @@ class Multicall3(
         /**
          * Safely decode the result of the call, returning the decoded value or a [ContractError] if decoding fails.
          * */
-        fun decodeCallResult(result: Bytes): io.ethers.core.Result<T, ContractError>
+        fun decodeCallResult(result: Bytes): com.github.michaelbull.result.Result<T, ContractError>
 
         /**
          * Mark this call as allowing failure, by wrapping it in a new instance of [Aggregatable] that allows failure.

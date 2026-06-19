@@ -2,8 +2,7 @@ package io.ethers.core.types
 
 import io.ethers.core.FastHex
 import io.ethers.core.Kotlinx
-import io.ethers.core.isFailure
-import io.ethers.core.isSuccess
+import io.ethers.core.unwrap
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData
@@ -126,18 +125,18 @@ class BloomTest : FunSpec({
         test("valid hex returns Success") {
             val hex = FastHex.encodeWithPrefix(ByteArray(256))
             val result = Bloom.fromHex(hex)
-            result.isSuccess() shouldBe true
+            result.isOk shouldBe true
             result.unwrap().asByteArray() shouldBe ByteArray(256)
         }
 
         test("invalid hex chars returns Failure") {
             val result = Bloom.fromHex("zzinvalid")
-            result.isFailure() shouldBe true
+            result.isErr shouldBe true
         }
 
         test("valid hex with wrong size returns Failure") {
             val result = Bloom.fromHex("0xaabb")
-            result.isFailure() shouldBe true
+            result.isErr shouldBe true
         }
     }
 

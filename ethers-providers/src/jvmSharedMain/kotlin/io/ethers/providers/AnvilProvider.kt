@@ -1,7 +1,8 @@
 package io.ethers.providers
 
+import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.map
 import io.ethers.core.FastHex
-import io.ethers.core.Result
 import io.ethers.core.asBytes
 import io.ethers.core.asHexBigInteger
 import io.ethers.core.types.Address

@@ -1,9 +1,10 @@
 package io.ethers.core.types
 
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
+import com.github.michaelbull.result.Result
 import io.ethers.core.FastHex
-import io.ethers.core.Result
-import io.ethers.core.failure
-import io.ethers.core.success
+import io.ethers.core.ThrowingError
 import io.ethers.crypto.Hashing
 import io.ethers.crypto.Secp256k1
 import io.ethers.rlp.RlpDecodable
@@ -185,13 +186,13 @@ class Signature(
         @JvmStatic
         fun fromByteArray(byteArray: ByteArray): Result<Signature, InvalidSignatureError> {
             if (byteArray.size != 65) {
-                return failure(InvalidSignatureError("Invalid signature length: ${byteArray.size}"))
+                return Err(InvalidSignatureError("Invalid signature length: ${byteArray.size}"))
             }
 
             val r = BigInteger(1, byteArray, 0, 32)
             val s = BigInteger(1, byteArray, 32, 32)
             val v = byteArray[64].toLong()
-            return success(Signature(r, s, v))
+            return Ok(Signature(r, s, v))
         }
 
         /**
@@ -202,7 +203,7 @@ class Signature(
         @JvmStatic
         fun fromHex(hexString: String): Result<Signature, InvalidSignatureError> {
             if (!FastHex.isValidHex(hexString)) {
-                return failure(InvalidSignatureError("Invalid hex format: $hexString"))
+                return Err(InvalidSignatureError("Invalid hex format: $hexString"))
             }
 
             val byteArray = FastHex.decode(hexString)
@@ -211,8 +212,8 @@ class Signature(
     }
 }
 
-class InvalidSignatureError(val msg: String) : Result.Error {
-    override fun doThrow(): Nothing {
-        throw RuntimeException(msg)
+class InvalidSignatureError(val msg: String) : ThrowingError {
+    override fun toException(): RuntimeException {
+        return RuntimeException(msg)
     }
 }

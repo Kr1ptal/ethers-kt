@@ -1,8 +1,9 @@
 package io.ethers.signers
 
-import io.ethers.core.Result
-import io.ethers.core.failure
-import io.ethers.core.success
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
+import com.github.michaelbull.result.Result
+import io.ethers.core.ThrowingError
 import io.ethers.core.types.Address
 import io.ethers.core.types.Hash
 import io.ethers.core.types.Signature
@@ -61,9 +62,9 @@ interface Signer {
      * */
     fun trySignMessage(message: ByteArray): Result<Signature, SigningError> {
         return try {
-            success(signMessage(message))
+            Ok(signMessage(message))
         } catch (e: Exception) {
-            failure(SigningError("Error signing message: ${String(message)}", e))
+            Err(SigningError("Error signing message: ${String(message)}", e))
         }
     }
 
@@ -74,9 +75,9 @@ interface Signer {
      * */
     fun trySignTransaction(tx: TransactionUnsigned): Result<TransactionSigned, SigningError> {
         return try {
-            success(signTransaction(tx))
+            Ok(signTransaction(tx))
         } catch (e: Exception) {
-            failure(SigningError("Error signing transaction: $tx", e))
+            Err(SigningError("Error signing transaction: $tx", e))
         }
     }
 
@@ -87,9 +88,9 @@ interface Signer {
      * */
     fun trySignHash(hash: ByteArray): Result<Signature, SigningError> {
         return try {
-            success(signHash(hash))
+            Ok(signHash(hash))
         } catch (e: Exception) {
-            failure(SigningError("Error signing hash: ${Hash(hash)}", e))
+            Err(SigningError("Error signing hash: ${Hash(hash)}", e))
         }
     }
 
@@ -97,8 +98,8 @@ interface Signer {
 
     override fun hashCode(): Int
 
-    data class SigningError(val msg: String, val cause: Exception? = null) : Result.Error {
-        override fun doThrow() = throw RuntimeException(msg, cause)
+    data class SigningError(val msg: String, val cause: Exception? = null) : ThrowingError {
+        override fun toException(): RuntimeException = RuntimeException(msg, cause)
     }
 }
 

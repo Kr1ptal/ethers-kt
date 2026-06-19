@@ -1,7 +1,9 @@
 package io.ethers.examples.tokenswapwitheventlistening
 
+import com.github.michaelbull.result.orElse
 import io.ethers.core.types.Address
 import io.ethers.core.types.BlockId
+import io.ethers.core.unwrap
 import io.ethers.examples.gen.UniswapV2Factory
 import io.ethers.examples.gen.UniswapV2Pair
 import io.ethers.examples.gen.UniswapV2Router02

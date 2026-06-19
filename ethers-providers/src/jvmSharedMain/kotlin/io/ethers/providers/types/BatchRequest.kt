@@ -1,6 +1,8 @@
 package io.ethers.providers.types
 
-import io.ethers.core.Result
+import com.github.michaelbull.result.Result
+import io.ethers.core.ThrowingError
+import io.ethers.core.unwrap
 import java.util.concurrent.CompletableFuture
 
 private typealias FutureResponse<R, E> = CompletableFuture<Result<R, E>>
@@ -115,7 +117,7 @@ data class BatchResponse12<R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12>(
     val response12: R12,
 )
 
-fun <R1, R2, E1 : Result.Error, E2 : Result.Error> batchRequest(
+fun <R1, R2, E1 : ThrowingError, E2 : ThrowingError> batchRequest(
     r1: RpcRequest<R1, E1>,
     r2: RpcRequest<R2, E2>,
 ): BatchResponse2<FutureResponse<R1, E1>, FutureResponse<R2, E2>> {
@@ -127,11 +129,11 @@ fun <R1, R2, E1 : Result.Error, E2 : Result.Error> batchRequest(
     return BatchResponse2(f1, f2)
 }
 
-fun <R1, R2, E1 : Result.Error, E2 : Result.Error> BatchResponse2<FutureResponse<R1, E1>, FutureResponse<R2, E2>>.await() = BatchResponse2(response1.join(), response2.join())
+fun <R1, R2, E1 : ThrowingError, E2 : ThrowingError> BatchResponse2<FutureResponse<R1, E1>, FutureResponse<R2, E2>>.await() = BatchResponse2(response1.join(), response2.join())
 
-fun <R1, R2, E1 : Result.Error, E2 : Result.Error> BatchResponse2<Result<R1, E1>, Result<R2, E2>>.unwrap() = BatchResponse2(response1.unwrap(), response2.unwrap())
+fun <R1, R2, E1 : ThrowingError, E2 : ThrowingError> BatchResponse2<Result<R1, E1>, Result<R2, E2>>.unwrap() = BatchResponse2(response1.unwrap(), response2.unwrap())
 
-fun <R1, R2, R3, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error> batchRequest(
+fun <R1, R2, R3, E1 : ThrowingError, E2 : ThrowingError, E3 : ThrowingError> batchRequest(
     r1: RpcRequest<R1, E1>,
     r2: RpcRequest<R2, E2>,
     r3: RpcRequest<R3, E3>,
@@ -145,11 +147,11 @@ fun <R1, R2, R3, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error> batchR
     return BatchResponse3(f1, f2, f3)
 }
 
-fun <R1, R2, R3, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error> BatchResponse3<FutureResponse<R1, E1>, FutureResponse<R2, E2>, FutureResponse<R3, E3>>.await() = BatchResponse3(response1.join(), response2.join(), response3.join())
+fun <R1, R2, R3, E1 : ThrowingError, E2 : ThrowingError, E3 : ThrowingError> BatchResponse3<FutureResponse<R1, E1>, FutureResponse<R2, E2>, FutureResponse<R3, E3>>.await() = BatchResponse3(response1.join(), response2.join(), response3.join())
 
-fun <R1, R2, R3, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error> BatchResponse3<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>>.unwrap() = BatchResponse3(response1.unwrap(), response2.unwrap(), response3.unwrap())
+fun <R1, R2, R3, E1 : ThrowingError, E2 : ThrowingError, E3 : ThrowingError> BatchResponse3<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>>.unwrap() = BatchResponse3(response1.unwrap(), response2.unwrap(), response3.unwrap())
 
-fun <R1, R2, R3, R4, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error> batchRequest(
+fun <R1, R2, R3, R4, E1 : ThrowingError, E2 : ThrowingError, E3 : ThrowingError, E4 : ThrowingError> batchRequest(
     r1: RpcRequest<R1, E1>,
     r2: RpcRequest<R2, E2>,
     r3: RpcRequest<R3, E3>,
@@ -165,16 +167,16 @@ fun <R1, R2, R3, R4, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4
     return BatchResponse4(f1, f2, f3, f4)
 }
 
-fun <R1, R2, R3, R4, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error> BatchResponse4<FutureResponse<R1, E1>, FutureResponse<R2, E2>, FutureResponse<R3, E3>, FutureResponse<R4, E4>>.await() = BatchResponse4(response1.join(), response2.join(), response3.join(), response4.join())
+fun <R1, R2, R3, R4, E1 : ThrowingError, E2 : ThrowingError, E3 : ThrowingError, E4 : ThrowingError> BatchResponse4<FutureResponse<R1, E1>, FutureResponse<R2, E2>, FutureResponse<R3, E3>, FutureResponse<R4, E4>>.await() = BatchResponse4(response1.join(), response2.join(), response3.join(), response4.join())
 
-fun <R1, R2, R3, R4, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error> BatchResponse4<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>, Result<R4, E4>>.unwrap() = BatchResponse4(
+fun <R1, R2, R3, R4, E1 : ThrowingError, E2 : ThrowingError, E3 : ThrowingError, E4 : ThrowingError> BatchResponse4<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>, Result<R4, E4>>.unwrap() = BatchResponse4(
     response1.unwrap(),
     response2.unwrap(),
     response3.unwrap(),
     response4.unwrap(),
 )
 
-fun <R1, R2, R3, R4, R5, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error> batchRequest(
+fun <R1, R2, R3, R4, R5, E1 : ThrowingError, E2 : ThrowingError, E3 : ThrowingError, E4 : ThrowingError, E5 : ThrowingError> batchRequest(
     r1: RpcRequest<R1, E1>,
     r2: RpcRequest<R2, E2>,
     r3: RpcRequest<R3, E3>,
@@ -192,9 +194,9 @@ fun <R1, R2, R3, R4, R5, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error
     return BatchResponse5(f1, f2, f3, f4, f5)
 }
 
-fun <R1, R2, R3, R4, R5, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error> BatchResponse5<FutureResponse<R1, E1>, FutureResponse<R2, E2>, FutureResponse<R3, E3>, FutureResponse<R4, E4>, FutureResponse<R5, E5>>.await() = BatchResponse5(response1.join(), response2.join(), response3.join(), response4.join(), response5.join())
+fun <R1, R2, R3, R4, R5, E1 : ThrowingError, E2 : ThrowingError, E3 : ThrowingError, E4 : ThrowingError, E5 : ThrowingError> BatchResponse5<FutureResponse<R1, E1>, FutureResponse<R2, E2>, FutureResponse<R3, E3>, FutureResponse<R4, E4>, FutureResponse<R5, E5>>.await() = BatchResponse5(response1.join(), response2.join(), response3.join(), response4.join(), response5.join())
 
-fun <R1, R2, R3, R4, R5, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error> BatchResponse5<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>, Result<R4, E4>, Result<R5, E5>>.unwrap() = BatchResponse5(
+fun <R1, R2, R3, R4, R5, E1 : ThrowingError, E2 : ThrowingError, E3 : ThrowingError, E4 : ThrowingError, E5 : ThrowingError> BatchResponse5<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>, Result<R4, E4>, Result<R5, E5>>.unwrap() = BatchResponse5(
     response1.unwrap(),
     response2.unwrap(),
     response3.unwrap(),
@@ -202,7 +204,7 @@ fun <R1, R2, R3, R4, R5, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error
     response5.unwrap(),
 )
 
-fun <R1, R2, R3, R4, R5, R6, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error> batchRequest(
+fun <R1, R2, R3, R4, R5, R6, E1 : ThrowingError, E2 : ThrowingError, E3 : ThrowingError, E4 : ThrowingError, E5 : ThrowingError, E6 : ThrowingError> batchRequest(
     r1: RpcRequest<R1, E1>,
     r2: RpcRequest<R2, E2>,
     r3: RpcRequest<R3, E3>,
@@ -222,7 +224,7 @@ fun <R1, R2, R3, R4, R5, R6, E1 : Result.Error, E2 : Result.Error, E3 : Result.E
     return BatchResponse6(f1, f2, f3, f4, f5, f6)
 }
 
-fun <R1, R2, R3, R4, R5, R6, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error> BatchResponse6<FutureResponse<R1, E1>, FutureResponse<R2, E2>, FutureResponse<R3, E3>, FutureResponse<R4, E4>, FutureResponse<R5, E5>, FutureResponse<R6, E6>>.await() = BatchResponse6(
+fun <R1, R2, R3, R4, R5, R6, E1 : ThrowingError, E2 : ThrowingError, E3 : ThrowingError, E4 : ThrowingError, E5 : ThrowingError, E6 : ThrowingError> BatchResponse6<FutureResponse<R1, E1>, FutureResponse<R2, E2>, FutureResponse<R3, E3>, FutureResponse<R4, E4>, FutureResponse<R5, E5>, FutureResponse<R6, E6>>.await() = BatchResponse6(
     response1.join(),
     response2.join(),
     response3.join(),
@@ -231,7 +233,7 @@ fun <R1, R2, R3, R4, R5, R6, E1 : Result.Error, E2 : Result.Error, E3 : Result.E
     response6.join(),
 )
 
-fun <R1, R2, R3, R4, R5, R6, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error> BatchResponse6<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>, Result<R4, E4>, Result<R5, E5>, Result<R6, E6>>.unwrap() = BatchResponse6(
+fun <R1, R2, R3, R4, R5, R6, E1 : ThrowingError, E2 : ThrowingError, E3 : ThrowingError, E4 : ThrowingError, E5 : ThrowingError, E6 : ThrowingError> BatchResponse6<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>, Result<R4, E4>, Result<R5, E5>, Result<R6, E6>>.unwrap() = BatchResponse6(
     response1.unwrap(),
     response2.unwrap(),
     response3.unwrap(),
@@ -240,7 +242,7 @@ fun <R1, R2, R3, R4, R5, R6, E1 : Result.Error, E2 : Result.Error, E3 : Result.E
     response6.unwrap(),
 )
 
-fun <R1, R2, R3, R4, R5, R6, R7, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error> batchRequest(
+fun <R1, R2, R3, R4, R5, R6, R7, E1 : ThrowingError, E2 : ThrowingError, E3 : ThrowingError, E4 : ThrowingError, E5 : ThrowingError, E6 : ThrowingError, E7 : ThrowingError> batchRequest(
     r1: RpcRequest<R1, E1>,
     r2: RpcRequest<R2, E2>,
     r3: RpcRequest<R3, E3>,
@@ -262,7 +264,7 @@ fun <R1, R2, R3, R4, R5, R6, R7, E1 : Result.Error, E2 : Result.Error, E3 : Resu
     return BatchResponse7(f1, f2, f3, f4, f5, f6, f7)
 }
 
-fun <R1, R2, R3, R4, R5, R6, R7, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error> BatchResponse7<FutureResponse<R1, E1>, FutureResponse<R2, E2>, FutureResponse<R3, E3>, FutureResponse<R4, E4>, FutureResponse<R5, E5>, FutureResponse<R6, E6>, FutureResponse<R7, E7>>.await() = BatchResponse7(
+fun <R1, R2, R3, R4, R5, R6, R7, E1 : ThrowingError, E2 : ThrowingError, E3 : ThrowingError, E4 : ThrowingError, E5 : ThrowingError, E6 : ThrowingError, E7 : ThrowingError> BatchResponse7<FutureResponse<R1, E1>, FutureResponse<R2, E2>, FutureResponse<R3, E3>, FutureResponse<R4, E4>, FutureResponse<R5, E5>, FutureResponse<R6, E6>, FutureResponse<R7, E7>>.await() = BatchResponse7(
     response1.join(),
     response2.join(),
     response3.join(),
@@ -272,7 +274,7 @@ fun <R1, R2, R3, R4, R5, R6, R7, E1 : Result.Error, E2 : Result.Error, E3 : Resu
     response7.join(),
 )
 
-fun <R1, R2, R3, R4, R5, R6, R7, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error> BatchResponse7<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>, Result<R4, E4>, Result<R5, E5>, Result<R6, E6>, Result<R7, E7>>.unwrap() = BatchResponse7(
+fun <R1, R2, R3, R4, R5, R6, R7, E1 : ThrowingError, E2 : ThrowingError, E3 : ThrowingError, E4 : ThrowingError, E5 : ThrowingError, E6 : ThrowingError, E7 : ThrowingError> BatchResponse7<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>, Result<R4, E4>, Result<R5, E5>, Result<R6, E6>, Result<R7, E7>>.unwrap() = BatchResponse7(
     response1.unwrap(),
     response2.unwrap(),
     response3.unwrap(),
@@ -282,7 +284,7 @@ fun <R1, R2, R3, R4, R5, R6, R7, E1 : Result.Error, E2 : Result.Error, E3 : Resu
     response7.unwrap(),
 )
 
-fun <R1, R2, R3, R4, R5, R6, R7, R8, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error, E8 : Result.Error> batchRequest(
+fun <R1, R2, R3, R4, R5, R6, R7, R8, E1 : ThrowingError, E2 : ThrowingError, E3 : ThrowingError, E4 : ThrowingError, E5 : ThrowingError, E6 : ThrowingError, E7 : ThrowingError, E8 : ThrowingError> batchRequest(
     r1: RpcRequest<R1, E1>,
     r2: RpcRequest<R2, E2>,
     r3: RpcRequest<R3, E3>,
@@ -306,7 +308,7 @@ fun <R1, R2, R3, R4, R5, R6, R7, R8, E1 : Result.Error, E2 : Result.Error, E3 : 
     return BatchResponse8(f1, f2, f3, f4, f5, f6, f7, f8)
 }
 
-fun <R1, R2, R3, R4, R5, R6, R7, R8, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error, E8 : Result.Error> BatchResponse8<FutureResponse<R1, E1>, FutureResponse<R2, E2>, FutureResponse<R3, E3>, FutureResponse<R4, E4>, FutureResponse<R5, E5>, FutureResponse<R6, E6>, FutureResponse<R7, E7>, FutureResponse<R8, E8>>.await() = BatchResponse8(
+fun <R1, R2, R3, R4, R5, R6, R7, R8, E1 : ThrowingError, E2 : ThrowingError, E3 : ThrowingError, E4 : ThrowingError, E5 : ThrowingError, E6 : ThrowingError, E7 : ThrowingError, E8 : ThrowingError> BatchResponse8<FutureResponse<R1, E1>, FutureResponse<R2, E2>, FutureResponse<R3, E3>, FutureResponse<R4, E4>, FutureResponse<R5, E5>, FutureResponse<R6, E6>, FutureResponse<R7, E7>, FutureResponse<R8, E8>>.await() = BatchResponse8(
     response1.join(),
     response2.join(),
     response3.join(),
@@ -317,7 +319,7 @@ fun <R1, R2, R3, R4, R5, R6, R7, R8, E1 : Result.Error, E2 : Result.Error, E3 : 
     response8.join(),
 )
 
-fun <R1, R2, R3, R4, R5, R6, R7, R8, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error, E8 : Result.Error> BatchResponse8<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>, Result<R4, E4>, Result<R5, E5>, Result<R6, E6>, Result<R7, E7>, Result<R8, E8>>.unwrap() = BatchResponse8(
+fun <R1, R2, R3, R4, R5, R6, R7, R8, E1 : ThrowingError, E2 : ThrowingError, E3 : ThrowingError, E4 : ThrowingError, E5 : ThrowingError, E6 : ThrowingError, E7 : ThrowingError, E8 : ThrowingError> BatchResponse8<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>, Result<R4, E4>, Result<R5, E5>, Result<R6, E6>, Result<R7, E7>, Result<R8, E8>>.unwrap() = BatchResponse8(
     response1.unwrap(),
     response2.unwrap(),
     response3.unwrap(),
@@ -328,7 +330,7 @@ fun <R1, R2, R3, R4, R5, R6, R7, R8, E1 : Result.Error, E2 : Result.Error, E3 : 
     response8.unwrap(),
 )
 
-fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error, E8 : Result.Error, E9 : Result.Error> batchRequest(
+fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, E1 : ThrowingError, E2 : ThrowingError, E3 : ThrowingError, E4 : ThrowingError, E5 : ThrowingError, E6 : ThrowingError, E7 : ThrowingError, E8 : ThrowingError, E9 : ThrowingError> batchRequest(
     r1: RpcRequest<R1, E1>,
     r2: RpcRequest<R2, E2>,
     r3: RpcRequest<R3, E3>,
@@ -354,7 +356,7 @@ fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, E1 : Result.Error, E2 : Result.Error, E
     return BatchResponse9(f1, f2, f3, f4, f5, f6, f7, f8, f9)
 }
 
-fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error, E8 : Result.Error, E9 : Result.Error> BatchResponse9<FutureResponse<R1, E1>, FutureResponse<R2, E2>, FutureResponse<R3, E3>, FutureResponse<R4, E4>, FutureResponse<R5, E5>, FutureResponse<R6, E6>, FutureResponse<R7, E7>, FutureResponse<R8, E8>, FutureResponse<R9, E9>>.await() = BatchResponse9(
+fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, E1 : ThrowingError, E2 : ThrowingError, E3 : ThrowingError, E4 : ThrowingError, E5 : ThrowingError, E6 : ThrowingError, E7 : ThrowingError, E8 : ThrowingError, E9 : ThrowingError> BatchResponse9<FutureResponse<R1, E1>, FutureResponse<R2, E2>, FutureResponse<R3, E3>, FutureResponse<R4, E4>, FutureResponse<R5, E5>, FutureResponse<R6, E6>, FutureResponse<R7, E7>, FutureResponse<R8, E8>, FutureResponse<R9, E9>>.await() = BatchResponse9(
     response1.join(),
     response2.join(),
     response3.join(),
@@ -366,7 +368,7 @@ fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, E1 : Result.Error, E2 : Result.Error, E
     response9.join(),
 )
 
-fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error, E8 : Result.Error, E9 : Result.Error> BatchResponse9<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>, Result<R4, E4>, Result<R5, E5>, Result<R6, E6>, Result<R7, E7>, Result<R8, E8>, Result<R9, E9>>.unwrap() = BatchResponse9(
+fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, E1 : ThrowingError, E2 : ThrowingError, E3 : ThrowingError, E4 : ThrowingError, E5 : ThrowingError, E6 : ThrowingError, E7 : ThrowingError, E8 : ThrowingError, E9 : ThrowingError> BatchResponse9<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>, Result<R4, E4>, Result<R5, E5>, Result<R6, E6>, Result<R7, E7>, Result<R8, E8>, Result<R9, E9>>.unwrap() = BatchResponse9(
     response1.unwrap(),
     response2.unwrap(),
     response3.unwrap(),
@@ -378,7 +380,7 @@ fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, E1 : Result.Error, E2 : Result.Error, E
     response9.unwrap(),
 )
 
-fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error, E8 : Result.Error, E9 : Result.Error, E10 : Result.Error> batchRequest(
+fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, E1 : ThrowingError, E2 : ThrowingError, E3 : ThrowingError, E4 : ThrowingError, E5 : ThrowingError, E6 : ThrowingError, E7 : ThrowingError, E8 : ThrowingError, E9 : ThrowingError, E10 : ThrowingError> batchRequest(
     r1: RpcRequest<R1, E1>,
     r2: RpcRequest<R2, E2>,
     r3: RpcRequest<R3, E3>,
@@ -406,7 +408,7 @@ fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, E1 : Result.Error, E2 : Result.Err
     return BatchResponse10(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10)
 }
 
-fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error, E8 : Result.Error, E9 : Result.Error, E10 : Result.Error> BatchResponse10<FutureResponse<R1, E1>, FutureResponse<R2, E2>, FutureResponse<R3, E3>, FutureResponse<R4, E4>, FutureResponse<R5, E5>, FutureResponse<R6, E6>, FutureResponse<R7, E7>, FutureResponse<R8, E8>, FutureResponse<R9, E9>, FutureResponse<R10, E10>>.await() = BatchResponse10(
+fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, E1 : ThrowingError, E2 : ThrowingError, E3 : ThrowingError, E4 : ThrowingError, E5 : ThrowingError, E6 : ThrowingError, E7 : ThrowingError, E8 : ThrowingError, E9 : ThrowingError, E10 : ThrowingError> BatchResponse10<FutureResponse<R1, E1>, FutureResponse<R2, E2>, FutureResponse<R3, E3>, FutureResponse<R4, E4>, FutureResponse<R5, E5>, FutureResponse<R6, E6>, FutureResponse<R7, E7>, FutureResponse<R8, E8>, FutureResponse<R9, E9>, FutureResponse<R10, E10>>.await() = BatchResponse10(
     response1.join(),
     response2.join(),
     response3.join(),
@@ -419,7 +421,7 @@ fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, E1 : Result.Error, E2 : Result.Err
     response10.join(),
 )
 
-fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error, E8 : Result.Error, E9 : Result.Error, E10 : Result.Error> BatchResponse10<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>, Result<R4, E4>, Result<R5, E5>, Result<R6, E6>, Result<R7, E7>, Result<R8, E8>, Result<R9, E9>, Result<R10, E10>>.unwrap() = BatchResponse10(
+fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, E1 : ThrowingError, E2 : ThrowingError, E3 : ThrowingError, E4 : ThrowingError, E5 : ThrowingError, E6 : ThrowingError, E7 : ThrowingError, E8 : ThrowingError, E9 : ThrowingError, E10 : ThrowingError> BatchResponse10<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>, Result<R4, E4>, Result<R5, E5>, Result<R6, E6>, Result<R7, E7>, Result<R8, E8>, Result<R9, E9>, Result<R10, E10>>.unwrap() = BatchResponse10(
     response1.unwrap(),
     response2.unwrap(),
     response3.unwrap(),
@@ -432,7 +434,7 @@ fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, E1 : Result.Error, E2 : Result.Err
     response10.unwrap(),
 )
 
-fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error, E8 : Result.Error, E9 : Result.Error, E10 : Result.Error, E11 : Result.Error> batchRequest(
+fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, E1 : ThrowingError, E2 : ThrowingError, E3 : ThrowingError, E4 : ThrowingError, E5 : ThrowingError, E6 : ThrowingError, E7 : ThrowingError, E8 : ThrowingError, E9 : ThrowingError, E10 : ThrowingError, E11 : ThrowingError> batchRequest(
     r1: RpcRequest<R1, E1>,
     r2: RpcRequest<R2, E2>,
     r3: RpcRequest<R3, E3>,
@@ -462,7 +464,7 @@ fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, E1 : Result.Error, E2 : Resul
     return BatchResponse11(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11)
 }
 
-fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error, E8 : Result.Error, E9 : Result.Error, E10 : Result.Error, E11 : Result.Error> BatchResponse11<FutureResponse<R1, E1>, FutureResponse<R2, E2>, FutureResponse<R3, E3>, FutureResponse<R4, E4>, FutureResponse<R5, E5>, FutureResponse<R6, E6>, FutureResponse<R7, E7>, FutureResponse<R8, E8>, FutureResponse<R9, E9>, FutureResponse<R10, E10>, FutureResponse<R11, E11>>.await() = BatchResponse11(
+fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, E1 : ThrowingError, E2 : ThrowingError, E3 : ThrowingError, E4 : ThrowingError, E5 : ThrowingError, E6 : ThrowingError, E7 : ThrowingError, E8 : ThrowingError, E9 : ThrowingError, E10 : ThrowingError, E11 : ThrowingError> BatchResponse11<FutureResponse<R1, E1>, FutureResponse<R2, E2>, FutureResponse<R3, E3>, FutureResponse<R4, E4>, FutureResponse<R5, E5>, FutureResponse<R6, E6>, FutureResponse<R7, E7>, FutureResponse<R8, E8>, FutureResponse<R9, E9>, FutureResponse<R10, E10>, FutureResponse<R11, E11>>.await() = BatchResponse11(
     response1.join(),
     response2.join(),
     response3.join(),
@@ -476,7 +478,7 @@ fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, E1 : Result.Error, E2 : Resul
     response11.join(),
 )
 
-fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error, E8 : Result.Error, E9 : Result.Error, E10 : Result.Error, E11 : Result.Error> BatchResponse11<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>, Result<R4, E4>, Result<R5, E5>, Result<R6, E6>, Result<R7, E7>, Result<R8, E8>, Result<R9, E9>, Result<R10, E10>, Result<R11, E11>>.unwrap() = BatchResponse11(
+fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, E1 : ThrowingError, E2 : ThrowingError, E3 : ThrowingError, E4 : ThrowingError, E5 : ThrowingError, E6 : ThrowingError, E7 : ThrowingError, E8 : ThrowingError, E9 : ThrowingError, E10 : ThrowingError, E11 : ThrowingError> BatchResponse11<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>, Result<R4, E4>, Result<R5, E5>, Result<R6, E6>, Result<R7, E7>, Result<R8, E8>, Result<R9, E9>, Result<R10, E10>, Result<R11, E11>>.unwrap() = BatchResponse11(
     response1.unwrap(),
     response2.unwrap(),
     response3.unwrap(),
@@ -490,7 +492,7 @@ fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, E1 : Result.Error, E2 : Resul
     response11.unwrap(),
 )
 
-fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error, E8 : Result.Error, E9 : Result.Error, E10 : Result.Error, E11 : Result.Error, E12 : Result.Error> batchRequest(
+fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12, E1 : ThrowingError, E2 : ThrowingError, E3 : ThrowingError, E4 : ThrowingError, E5 : ThrowingError, E6 : ThrowingError, E7 : ThrowingError, E8 : ThrowingError, E9 : ThrowingError, E10 : ThrowingError, E11 : ThrowingError, E12 : ThrowingError> batchRequest(
     r1: RpcRequest<R1, E1>,
     r2: RpcRequest<R2, E2>,
     r3: RpcRequest<R3, E3>,
@@ -522,7 +524,7 @@ fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12, E1 : Result.Error, E2 : 
     return BatchResponse12(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12)
 }
 
-fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error, E8 : Result.Error, E9 : Result.Error, E10 : Result.Error, E11 : Result.Error, E12 : Result.Error> BatchResponse12<FutureResponse<R1, E1>, FutureResponse<R2, E2>, FutureResponse<R3, E3>, FutureResponse<R4, E4>, FutureResponse<R5, E5>, FutureResponse<R6, E6>, FutureResponse<R7, E7>, FutureResponse<R8, E8>, FutureResponse<R9, E9>, FutureResponse<R10, E10>, FutureResponse<R11, E11>, FutureResponse<R12, E12>>.await() = BatchResponse12(
+fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12, E1 : ThrowingError, E2 : ThrowingError, E3 : ThrowingError, E4 : ThrowingError, E5 : ThrowingError, E6 : ThrowingError, E7 : ThrowingError, E8 : ThrowingError, E9 : ThrowingError, E10 : ThrowingError, E11 : ThrowingError, E12 : ThrowingError> BatchResponse12<FutureResponse<R1, E1>, FutureResponse<R2, E2>, FutureResponse<R3, E3>, FutureResponse<R4, E4>, FutureResponse<R5, E5>, FutureResponse<R6, E6>, FutureResponse<R7, E7>, FutureResponse<R8, E8>, FutureResponse<R9, E9>, FutureResponse<R10, E10>, FutureResponse<R11, E11>, FutureResponse<R12, E12>>.await() = BatchResponse12(
     response1.join(),
     response2.join(),
     response3.join(),
@@ -537,7 +539,7 @@ fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12, E1 : Result.Error, E2 : 
     response12.join(),
 )
 
-fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error, E8 : Result.Error, E9 : Result.Error, E10 : Result.Error, E11 : Result.Error, E12 : Result.Error> BatchResponse12<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>, Result<R4, E4>, Result<R5, E5>, Result<R6, E6>, Result<R7, E7>, Result<R8, E8>, Result<R9, E9>, Result<R10, E10>, Result<R11, E11>, Result<R12, E12>>.unwrap() = BatchResponse12(
+fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12, E1 : ThrowingError, E2 : ThrowingError, E3 : ThrowingError, E4 : ThrowingError, E5 : ThrowingError, E6 : ThrowingError, E7 : ThrowingError, E8 : ThrowingError, E9 : ThrowingError, E10 : ThrowingError, E11 : ThrowingError, E12 : ThrowingError> BatchResponse12<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>, Result<R4, E4>, Result<R5, E5>, Result<R6, E6>, Result<R7, E7>, Result<R8, E8>, Result<R9, E9>, Result<R10, E10>, Result<R11, E11>, Result<R12, E12>>.unwrap() = BatchResponse12(
     response1.unwrap(),
     response2.unwrap(),
     response3.unwrap(),

@@ -1,20 +1,26 @@
 package io.ethers.ens
 
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
+import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.andThen
+import com.github.michaelbull.result.getError
+import com.github.michaelbull.result.getOr
+import com.github.michaelbull.result.map
+import com.github.michaelbull.result.mapError
 import io.ethers.abi.AbiCodec
 import io.ethers.abi.AbiFunction
 import io.ethers.abi.AbiType
 import io.ethers.core.ExceptionalError
 import io.ethers.core.FastHex
 import io.ethers.core.Kotlinx
-import io.ethers.core.Result
+import io.ethers.core.ThrowingError
 import io.ethers.core.asTypeOrNull
-import io.ethers.core.failure
-import io.ethers.core.isFailure
-import io.ethers.core.success
 import io.ethers.core.types.Address
 import io.ethers.core.types.BlockId
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.CallRequest
+import io.ethers.core.unwrap
 import io.ethers.core.unwrapOrReturn
 import io.ethers.ens.EnsMiddleware.Companion.IPFS_GATEWAY
 import io.ethers.logger.err
@@ -95,9 +101,9 @@ class EnsMiddleware @JvmOverloads constructor(
             // To be certain of reverse lookup ENS name, forward resolution must resolve to the original address
             resolveAddress(ensName).get().andThen {
                 if (it == address) {
-                    success(ensName)
+                    Ok(ensName)
                 } else {
-                    failure(Error.IncorrectOwner("True owner of ENS name: $ensName is not the same as provided address: $address"))
+                    Err(Error.IncorrectOwner("True owner of ENS name: $ensName is not the same as provided address: $address"))
                 }
             }
         }
@@ -109,11 +115,11 @@ class EnsMiddleware @JvmOverloads constructor(
      */
     fun resolveAvatar(ensName: String): CompletableFuture<Result<String, Error>> = CompletableFuture.supplyAsync {
         val uriRes = getAvatarUri(ensName)
-        if (uriRes.isFailure()) return@supplyAsync uriRes
+        if (uriRes.isErr) return@supplyAsync uriRes
 
         // Get owner of ens name for NFT ownership validation
         val ensOwnerRes = resolveAddress(ensName).get()
-        if (ensOwnerRes.isFailure()) return@supplyAsync ensOwnerRes
+        if (ensOwnerRes.isErr) return@supplyAsync Err(ensOwnerRes.getError()!!)
 
         return@supplyAsync matchAvatarUri(uriRes.unwrap(), ensOwnerRes.unwrap())
     }
@@ -124,7 +130,7 @@ class EnsMiddleware @JvmOverloads constructor(
      */
     fun resolveAvatar(address: Address): CompletableFuture<Result<String, Error>> = CompletableFuture.supplyAsync {
         val uriRes = getAvatarUri(address)
-        if (uriRes.isFailure()) return@supplyAsync uriRes
+        if (uriRes.isErr) return@supplyAsync uriRes
 
         return@supplyAsync matchAvatarUri(uriRes.unwrap(), address)
     }
@@ -141,15 +147,15 @@ class EnsMiddleware @JvmOverloads constructor(
     ): Result<Bytes, Error> {
         // Check that ens name is valid
         if (ensName.isBlank() || (ensName.trim().length == 1 && ensName.contains("."))) {
-            return failure(Error.EnsNameInvalid)
+            return Err(Error.EnsNameInvalid)
         }
 
         val nameHash = runCatching { NameHash.nameHash(ensName) }.unwrapOrReturn {
-            return failure(Error.Normalisation(it))
+            return Err(Error.Normalisation(it))
         }
 
         val resolverResponse = getResolver(ensName)
-        if (resolverResponse.isFailure()) return resolverResponse
+        if (resolverResponse.isErr) return Err(resolverResponse.getError()!!)
 
         // Unwrap resolver from RpcResponse and call its addr() function.
         // If RpcResponse is an error, map it to error FailedToResolve.
@@ -160,7 +166,7 @@ class EnsMiddleware @JvmOverloads constructor(
         // add nodehash as first parameter, because it is present in all resolutions
         parameters.add(0, Bytes(nameHash))
         paramTypes.add(0, AbiType.FixedBytes(32))
-        if (supportsWildcard.unwrapElse(false)) {
+        if (supportsWildcard.getOr(false)) {
             val dnsEncoded = NameHash.dnsEncode(ensName)
             val encodedParams = abiFunction.encodeCall(parameters)
 
@@ -170,7 +176,7 @@ class EnsMiddleware @JvmOverloads constructor(
 
             // try to decode OffchainLookup error
             val resolveLookupRevert =
-                resolveResult.unwrapErrorOrNull()?.asTypeOrNull<ExtendedResolver.OffchainLookup>()
+                resolveResult.getError()?.asTypeOrNull<ExtendedResolver.OffchainLookup>()
 
             return if (resolveLookupRevert == null) {
                 // result is resolved ens name
@@ -196,8 +202,8 @@ class EnsMiddleware @JvmOverloads constructor(
             val supportsFunction =
                 resolver.supportsInterface(abiFunction.selector).call(BlockId.LATEST).sendAwait()
 
-            if (!supportsFunction.unwrapElse(false)) {
-                return failure(
+            if (!supportsFunction.getOr(false)) {
+                return Err(
                     Error.UnsupportedSelector(
                         resolver.address,
                         abiFunction.selector.toString(),
@@ -229,7 +235,7 @@ class EnsMiddleware @JvmOverloads constructor(
                             it.asByteArray(),
                         ) == Address.ZERO
                     ) {
-                        return@andThen failure(
+                        return@andThen Err(
                             Error.UnknownEnsName(
                                 resolver.address,
                                 FastHex.encodeWithPrefix(nameHash),
@@ -237,7 +243,7 @@ class EnsMiddleware @JvmOverloads constructor(
                         )
                     }
 
-                    success(it)
+                    Ok(it)
                 }.sendAwait()
         }
     }
@@ -254,11 +260,11 @@ class EnsMiddleware @JvmOverloads constructor(
      */
     private fun getResolverAddress(ensName: String): Result<Address, Error> {
         if (ensName.isEmpty()) {
-            return failure(Error.UnknownResolver)
+            return Err(Error.UnknownResolver)
         }
 
         val nameHash: ByteArray = runCatching { NameHash.nameHash(ensName) }
-            .unwrapOrReturn { return failure(Error.Normalisation(it)) }
+            .unwrapOrReturn { return Err(Error.Normalisation(it)) }
 
         val address = registryContract.resolver(Bytes(nameHash))
             .call(BlockId.LATEST)
@@ -268,10 +274,10 @@ class EnsMiddleware @JvmOverloads constructor(
                     FastHex.encodeWithPrefix(nameHash),
                 )
             }
-            .andThen { if (it == Address.ZERO) failure(Error.UnknownResolver) else success(it) }
+            .andThen { if (it == Address.ZERO) Err(Error.UnknownResolver) else Ok(it) }
             .sendAwait()
 
-        if (address.unwrapErrorOrNull()?.asTypeOrNull<Error.UnknownResolver>() != null) {
+        if (address.getError()?.asTypeOrNull<Error.UnknownResolver>() != null) {
             return getResolverAddress(getParent(ensName))
         }
 
@@ -288,12 +294,12 @@ class EnsMiddleware @JvmOverloads constructor(
         lookupLimit: Int,
     ): Result<Bytes, Error> {
         // OffchainLookup.sender has to be resolver address
-        if (revert.sender != resolver.address) return failure(Error.NestedOffchainLookup)
-        if (revert.callData.isEmpty) return failure(Error.CcipRevertDataInvalid("Calldata is empty!"))
+        if (revert.sender != resolver.address) return Err(Error.NestedOffchainLookup)
+        if (revert.callData.isEmpty) return Err(Error.CcipRevertDataInvalid("Calldata is empty!"))
 
         // get gateway result by trying urls one by one and passing sender and data returned by OffchainLookup error
         val gatewayResult = httpCall(revert.urls, revert.sender, revert.callData).unwrapOrReturn {
-            return failure(it)
+            return Err(it)
         }
 
         // call resolver.callbackFunction(gatewayResult, extraData). If this call is CCIP, repeat the procedure.
@@ -311,19 +317,19 @@ class EnsMiddleware @JvmOverloads constructor(
             },
             BlockId.LATEST,
         ).sendAwait().unwrapOrReturn {
-            return failure(Error.CcipCallFailed("Callback call failed", it))
+            return Err(Error.CcipCallFailed("Callback call failed", it))
         }
 
         // If callbackResult is OffchainLookup error, resolve using recursive CCIP calls
         val callbackLookupRevert = ExtendedResolver.OffchainLookup.decode(callbackResult)
         if (callbackLookupRevert != null) {
-            if (lookupLimit <= 0) return failure(Error.CcipLookupLimit)
+            if (lookupLimit <= 0) return Err(Error.CcipLookupLimit)
 
             return resolveOffchain(callbackLookupRevert, resolver, lookupLimit - 1)
         } else {
             // callbackResult is resolved ENS name. Decode dynamic bytes to address
             val resolvedDecoded = AbiCodec.decode(AbiType.Bytes, callbackResult.asByteArray())
-            return success(resolvedDecoded)
+            return Ok(resolvedDecoded)
         }
     }
 
@@ -340,7 +346,7 @@ class EnsMiddleware @JvmOverloads constructor(
         sender: Address,
         calldata: Bytes,
     ): Result<Bytes, Error> {
-        if (urls.isEmpty()) return failure(
+        if (urls.isEmpty()) return Err(
             Error.CcipCallFailed(
                 "No urls to resolve ens name!",
                 null,
@@ -372,11 +378,11 @@ class EnsMiddleware @JvmOverloads constructor(
                 handleCcipResponse(response, href) ?: continue
             } catch (e: Exception) {
                 LOG.err(e) { e.message ?: "" }
-                failure(Error.CcipCallFailed("Unknown error", ExceptionalError(e)))
+                Err(Error.CcipCallFailed("Unknown error", ExceptionalError(e)))
             }
         }
 
-        return failure(
+        return Err(
             Error.CcipCallFailed(
                 "All urls are invalid or got server response 5xx",
                 null,
@@ -399,14 +405,14 @@ class EnsMiddleware @JvmOverloads constructor(
             val text = runBlocking { response.bodyAsText() }
             val gatewayRequestDTO =
                 Kotlinx.DEFAULT.decodeFromString(EnsGatewayResponseDTO.serializer(), text)
-            return success(gatewayRequestDTO.data)
+            return Ok(gatewayRequestDTO.data)
         }
 
         return if (code in 400..499) {
             val msg =
                 "Received status code: $code during CCIP call (url: $url, error: ${response.status.description})"
             LOG.err { msg }
-            failure(Error.CcipCallFailed(msg, null))
+            Err(Error.CcipCallFailed(msg, null))
         } else {
             LOG.wrn { "500 error during CCIP call: url: $url, error: ${response.status.description}" }
             null
@@ -423,8 +429,8 @@ class EnsMiddleware @JvmOverloads constructor(
      */
     private fun matchAvatarUri(avatarUri: String, ensOwner: Address): Result<String, Error> {
         return when (val scheme = extractScheme(avatarUri)) {
-            "https", "data" -> success(avatarUri)
-            "ipfs" -> success(joinWithIPFSGateway(avatarUri))
+            "https", "data" -> Ok(avatarUri)
+            "ipfs" -> Ok(joinWithIPFSGateway(avatarUri))
             "eip155" -> getAvatarNFT(avatarUri, ensOwner)
                 .andThen(::resolveNftMetadata)
                 .map {
@@ -434,7 +440,7 @@ class EnsMiddleware @JvmOverloads constructor(
                     }
                 }
 
-            else -> failure(Error.UnsupportedScheme(scheme ?: ""))
+            else -> Err(Error.UnsupportedScheme(scheme ?: ""))
         }
     }
 
@@ -443,12 +449,12 @@ class EnsMiddleware @JvmOverloads constructor(
      */
     private fun getAvatarNFT(avatarUri: String, ensOwner: Address): Result<AvatarNFT, Error> {
         val parseResult = AvatarNFT.parse(avatarUri)
-        if (parseResult.isFailure()) return parseResult
+        if (parseResult.isErr) return parseResult
         val nftToken = parseResult.unwrap()
 
         // Validate that the NFT is on the same chain as the provider
         if (nftToken.chainId != chainId) {
-            return failure(Error.AvatarChainIdMismatch(nftToken.chainId, chainId, avatarUri))
+            return Err(Error.AvatarChainIdMismatch(nftToken.chainId, chainId, avatarUri))
         }
 
         // validate NFT ownership
@@ -457,8 +463,8 @@ class EnsMiddleware @JvmOverloads constructor(
                 val nft = ERC721(provider, nftToken.nftAddr)
                 val nftOwnerRes = nft.ownerOf(nftToken.tokenId).call(BlockId.LATEST).sendAwait()
 
-                if (nftOwnerRes.isFailure()) {
-                    return failure(
+                if (nftOwnerRes.isErr) {
+                    return Err(
                         Error.AvatarParsing(
                             "Error when retrieving owner of nft ${nftToken.nftAddr} (token id: ${nftToken.tokenId})",
                             null,
@@ -468,7 +474,7 @@ class EnsMiddleware @JvmOverloads constructor(
 
                 val nftOwner = nftOwnerRes.unwrap()
                 if (nftOwner != ensOwner) {
-                    return failure(
+                    return Err(
                         Error.IncorrectOwner(
                             "ENS name owner: $ensOwner does not match NFT owner: $nftOwner",
                         ),
@@ -481,15 +487,15 @@ class EnsMiddleware @JvmOverloads constructor(
                 val balanceRes =
                     nft.balanceOf(ensOwner, nftToken.tokenId).call(BlockId.LATEST).sendAwait()
 
-                if (balanceRes.isFailure()) {
-                    return failure(
+                if (balanceRes.isErr) {
+                    return Err(
                         Error.AvatarParsing(
                             "Error when retrieving balance of nft ${nftToken.nftAddr} (token id: ${nftToken.tokenId}, owner: $ensOwner)",
                             null,
                         ),
                     )
                 } else if (balanceRes.unwrap() == BigInteger.ZERO) {
-                    return failure(
+                    return Err(
                         Error.IncorrectOwner(
                             "ENS owner has 0 balance of token: ${nftToken.tokenId} for nft: ${nftToken.nftAddr}",
                         ),
@@ -498,7 +504,7 @@ class EnsMiddleware @JvmOverloads constructor(
             }
         }
 
-        return success(nftToken)
+        return Ok(nftToken)
     }
 
     /**
@@ -519,7 +525,7 @@ class EnsMiddleware @JvmOverloads constructor(
                 .call(BlockId.LATEST)
                 .sendAwait()
         }.unwrapOrReturn {
-            return failure(
+            return Err(
                 Error.AvatarParsing(
                     "Error when retrieving metadata URL for token: ${token.tokenId} of NFT: ${token.nftAddr}",
                     it,
@@ -545,7 +551,7 @@ class EnsMiddleware @JvmOverloads constructor(
         return runCatching {
             val response = runBlocking { httpClient.get(metadataUri) }
             if (!response.status.value.let { it in 200..299 }) {
-                return failure(
+                return Err(
                     Error.AvatarParsing(
                         "Error on executing NFT metadata URL: $metadataUri for token: ${token.tokenId} of NFT: ${token.nftAddr} (${response.status.description})",
                         null,
@@ -554,9 +560,9 @@ class EnsMiddleware @JvmOverloads constructor(
             }
             val text = runBlocking { response.bodyAsText() }
             val metadataDTO = Kotlinx.DEFAULT.decodeFromString(MetadataDTO.serializer(), text)
-            success(metadataDTO.image)
+            Ok(metadataDTO.image)
         }.unwrapOrReturn {
-            return failure(
+            return Err(
                 Error.AvatarParsing(
                     "Error while execution metadata request for url: $metadataUri",
                     it,
@@ -571,9 +577,9 @@ class EnsMiddleware @JvmOverloads constructor(
     private fun getAvatarUri(ensName: String): Result<String, Error> {
         return resolveText(ensName, "avatar").get().andThen { uriStr ->
             if (uriStr.isEmpty()) {
-                failure(Error.FailedToResolve("Failed to resolve avatar of ens name: $ensName"))
+                Err(Error.FailedToResolve("Failed to resolve avatar of ens name: $ensName"))
             } else {
-                success(uriStr)
+                Ok(uriStr)
             }
         }
     }
@@ -587,7 +593,7 @@ class EnsMiddleware @JvmOverloads constructor(
 
         // Get resolver for reverse address ENS
         val resolverResponse = getResolver(reverseAddr)
-        if (resolverResponse.isFailure()) return resolverResponse
+        if (resolverResponse.isErr) return Err(resolverResponse.getError()!!)
         val reverseResolver = resolverResponse.unwrap()
 
         // Try to get avatar via text() for reverse address ENS
@@ -595,16 +601,16 @@ class EnsMiddleware @JvmOverloads constructor(
             .call(BlockId.LATEST)
             .sendAwait()
 
-        if (uriRes.isFailure() || uriRes.unwrap().isEmpty()) {
+        if (uriRes.isErr || uriRes.unwrap().isEmpty()) {
             val nameHash = runCatching { NameHash.nameHash(reverseAddr) }.unwrapOrReturn {
-                return failure(Error.Normalisation(it))
+                return Err(Error.Normalisation(it))
             }
 
             // If text() is unsuccessful, reverse resolve address to ENS name, validate its ownership and forward resolve to avatar
             return reverseResolver.name(Bytes(nameHash))
                 .call(BlockId.LATEST)
                 .sendAwait()
-                .mapError<Error> {
+                .mapError {
                     Error.FailedToResolve(
                         "Failed to resolve ens name for address: $address",
                         it,
@@ -614,7 +620,7 @@ class EnsMiddleware @JvmOverloads constructor(
                     // Validate ENS name by "resolving the returned name and calling addr on the resolver, checking it matches the original Ethereum address"
                     resolveAddress(ensName).get().andThen { resolved ->
                         if (resolved != address) {
-                            failure(Error.IncorrectOwner("ENS name: $ensName resolves to: $resolved which is not equal to original address: $address"))
+                            Err(Error.IncorrectOwner("ENS name: $ensName resolves to: $resolved which is not equal to original address: $address"))
                         } else {
                             // Forward resolve avatar
                             getAvatarUri(ensName)
@@ -623,7 +629,12 @@ class EnsMiddleware @JvmOverloads constructor(
                 }
         }
 
-        return uriRes
+        return uriRes.mapError {
+            Error.FailedToResolve(
+                "Failed to resolve avatar for address: $address",
+                it,
+            )
+        }
     }
 
     /**
@@ -647,7 +658,7 @@ class EnsMiddleware @JvmOverloads constructor(
     /**
      * Possible errors during ens name resolution
      */
-    sealed class Error : Result.Error {
+    sealed class Error : ThrowingError {
         /**
          * Ens name is not valid.
          */
@@ -656,9 +667,9 @@ class EnsMiddleware @JvmOverloads constructor(
         /**
          * Error on ens name normalisation attempt.
          */
-        data class Normalisation(val cause: ExceptionalError) : Error() {
-            override fun doThrow(): Nothing {
-                throw RuntimeException("Normalisation failed: $cause")
+        data class Normalisation(val cause: ThrowingError) : Error() {
+            override fun toException(): RuntimeException {
+                return RuntimeException("Normalisation failed", cause.toException())
             }
         }
 
@@ -671,8 +682,8 @@ class EnsMiddleware @JvmOverloads constructor(
             val registryAddress: Address,
             val nameHash: String,
         ) : Error() {
-            override fun doThrow(): Nothing {
-                throw RuntimeException("Error when getting resolver address from registry> $registryAddress for nameHash: $nameHash.")
+            override fun toException(): RuntimeException {
+                return RuntimeException("Error when getting resolver address from registry> $registryAddress for nameHash: $nameHash.")
             }
         }
 
@@ -690,8 +701,8 @@ class EnsMiddleware @JvmOverloads constructor(
             val resolver: Address,
             val selector: String,
         ) : Error() {
-            override fun doThrow(): Nothing {
-                throw RuntimeException("Resolver '$resolver' does not support selector '$selector'")
+            override fun toException(): RuntimeException {
+                return RuntimeException("Resolver '$resolver' does not support selector '$selector'")
             }
         }
 
@@ -702,17 +713,17 @@ class EnsMiddleware @JvmOverloads constructor(
             val resolverAddr: Address,
             val nameHash: String,
         ) : Error() {
-            override fun doThrow(): Nothing {
-                throw RuntimeException("Resolver '$resolverAddr' resolved namehash '$nameHash' to an empty address!")
+            override fun toException(): RuntimeException {
+                return RuntimeException("Resolver '$resolverAddr' resolved namehash '$nameHash' to an empty address!")
             }
         }
 
         /**
          * Resolver for ensName exists, but was not able to resolve it.
          */
-        data class FailedToResolve(val message: String, val cause: Result.Error? = null) : Error() {
-            override fun doThrow(): Nothing {
-                throw RuntimeException("Failed to resolve ens name: $message, caused by: $cause")
+        data class FailedToResolve(val message: String, val cause: ThrowingError? = null) : Error() {
+            override fun toException(): RuntimeException {
+                return RuntimeException("Failed to resolve ens name: $message", cause?.toException())
             }
         }
 
@@ -730,14 +741,14 @@ class EnsMiddleware @JvmOverloads constructor(
          * Avatar URI scheme is not supported
          */
         data class UnsupportedScheme(val scheme: String) : Error() {
-            override fun doThrow(): Nothing {
-                throw RuntimeException("Avatar URI scheme '$scheme' is not supported")
+            override fun toException(): RuntimeException {
+                return RuntimeException("Avatar URI scheme '$scheme' is not supported")
             }
         }
 
-        data class AvatarParsing(val message: String, val cause: Result.Error?) : Error() {
-            override fun doThrow(): Nothing {
-                throw RuntimeException("$message, caused by: $cause")
+        data class AvatarParsing(val message: String, val cause: ThrowingError?) : Error() {
+            override fun toException(): RuntimeException {
+                return RuntimeException(message, cause?.toException())
             }
         }
 
@@ -749,8 +760,8 @@ class EnsMiddleware @JvmOverloads constructor(
             val providerChainId: Long,
             val avatarUri: String,
         ) : Error() {
-            override fun doThrow(): Nothing {
-                throw RuntimeException(
+            override fun toException(): RuntimeException {
+                return RuntimeException(
                     "Avatar NFT chain ID $avatarChainId does not match provider chain ID $providerChainId (URI: $avatarUri)",
                 )
             }
@@ -776,7 +787,11 @@ class EnsMiddleware @JvmOverloads constructor(
         /**
          * Unknown error during CCIP call execution.
          */
-        data class CcipCallFailed(val message: String, val cause: Result.Error?) : Error()
+        data class CcipCallFailed(val message: String, val cause: ThrowingError?) : Error() {
+            override fun toException(): RuntimeException {
+                return RuntimeException(message, cause?.toException())
+            }
+        }
     }
 
     companion object {

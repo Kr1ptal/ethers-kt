@@ -1,10 +1,10 @@
 package io.ethers.core.types
 
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
+import com.github.michaelbull.result.Result
 import io.ethers.core.FastHex
 import io.ethers.core.HexDecodingError
-import io.ethers.core.Result
-import io.ethers.core.failure
-import io.ethers.core.success
 import io.ethers.crypto.Hashing
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
@@ -125,15 +125,15 @@ class Bloom(private val value: ByteArray) {
         @JvmStatic
         fun fromHex(hex: String): Result<Bloom, HexDecodingError> {
             if (!FastHex.isValidHex(hex)) {
-                return failure(HexDecodingError("Invalid hex format: $hex"))
+                return Err(HexDecodingError("Invalid hex format: $hex"))
             }
 
             val bytes = FastHex.decodeUnsafe(hex)
             if (bytes.size != BLOOM_SIZE) {
-                return failure(HexDecodingError("Bloom must be $BLOOM_SIZE bytes long, got ${bytes.size} bytes"))
+                return Err(HexDecodingError("Bloom must be $BLOOM_SIZE bytes long, got ${bytes.size} bytes"))
             }
 
-            return success(Bloom(bytes))
+            return Ok(Bloom(bytes))
         }
 
         /**

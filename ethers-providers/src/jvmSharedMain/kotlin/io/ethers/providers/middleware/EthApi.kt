@@ -1,6 +1,6 @@
 package io.ethers.providers.middleware
 
-import io.ethers.core.Result
+import com.github.michaelbull.result.Result
 import io.ethers.core.types.Address
 import io.ethers.core.types.BlockId
 import io.ethers.core.types.BlockOverride

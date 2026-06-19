@@ -1,11 +1,12 @@
 package io.ethers.abi.call
 
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
+import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.andThen
 import io.ethers.abi.AbiContract
 import io.ethers.abi.error.ContractError
 import io.ethers.abi.error.DeployError
-import io.ethers.core.Result
-import io.ethers.core.failure
-import io.ethers.core.success
 import io.ethers.core.types.Address
 import io.ethers.core.types.BlockId
 import io.ethers.core.types.BlockOverride
@@ -64,9 +65,9 @@ class ConstructorCall<T : AbiContract>(
             .mapError(::tryDecodingContractRevert)
             .andThen {
                 val overrides = it.toStateOverride()
-                val deployedBytecode = overrides[deployAddress]?.code ?: return@andThen failure(DeployError.NoBytecode)
+                val deployedBytecode = overrides[deployAddress]?.code ?: return@andThen Err(DeployError.NoBytecode)
 
-                return@andThen success(
+                return@andThen Ok(
                     CallDeploy(
                         constructor(provider, deployAddress),
                         overrides,
@@ -120,9 +121,9 @@ class PayableConstructorCall<T : AbiContract>(
             .mapError(::tryDecodingContractRevert)
             .andThen {
                 val overrides = it.toStateOverride()
-                val deployedBytecode = overrides[deployAddress]?.code ?: return@andThen failure(DeployError.NoBytecode)
+                val deployedBytecode = overrides[deployAddress]?.code ?: return@andThen Err(DeployError.NoBytecode)
 
-                return@andThen success(
+                return@andThen Ok(
                     CallDeploy(
                         constructor(provider, deployAddress),
                         overrides,
@@ -204,8 +205,8 @@ class PendingContractDeploy<T : AbiContract>(
     ): Result<ContractDeploy<T>, PendingInclusion.Error> {
         return result.awaitInclusion(retries, interval, confirmations).andThen {
             when {
-                !it.isSuccessful || it.contractAddress == null -> success(ContractDeploy(null, it))
-                else -> success(ContractDeploy(constructor(provider, it.contractAddress!!), it))
+                !it.isSuccessful || it.contractAddress == null -> Ok(ContractDeploy(null, it))
+                else -> Ok(ContractDeploy(constructor(provider, it.contractAddress!!), it))
             }
         }
     }

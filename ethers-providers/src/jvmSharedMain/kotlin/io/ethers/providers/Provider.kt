@@ -1,18 +1,19 @@
 package io.ethers.providers
 
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
+import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.getError
 import io.ethers.core.FastHex
 import io.ethers.core.Kotlinx
-import io.ethers.core.Result
+import io.ethers.core.ThrowingError
 import io.ethers.core.asBytes
 import io.ethers.core.asBytesOrNull
 import io.ethers.core.asHash
 import io.ethers.core.asHexBigInteger
 import io.ethers.core.asHexByteArray
 import io.ethers.core.asHexLong
-import io.ethers.core.failure
-import io.ethers.core.isFailure
 import io.ethers.core.json.JsonElement
-import io.ethers.core.success
 import io.ethers.core.types.Address
 import io.ethers.core.types.Block
 import io.ethers.core.types.BlockId
@@ -39,6 +40,7 @@ import io.ethers.core.types.TxpoolStatus
 import io.ethers.core.types.tracers.TracerConfig
 import io.ethers.core.types.tracers.TxTraceResult
 import io.ethers.core.types.transaction.TransactionUnsigned
+import io.ethers.core.unwrap
 import io.ethers.core.unwrapOrReturn
 import io.ethers.providers.Provider.Companion.fromUrl
 import io.ethers.providers.middleware.Middleware
@@ -178,8 +180,8 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
 
                 item.jsonObject.forEach { (field, value) ->
                     when (field) {
-                        "output", "result", "value" -> result = success(value.jsonPrimitive.asBytes())
-                        "error" -> result = failure(CallFailedError(value.jsonPrimitive.content))
+                        "output", "result", "value" -> result = Ok(value.jsonPrimitive.asBytes())
+                        "error" -> result = Err(CallFailedError(value.jsonPrimitive.content))
                     }
                 }
 
@@ -322,7 +324,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
                     manuallyFillTransaction(callRequest)
                 }
 
-                else -> failure(err)
+                else -> Err(err)
             }
         }
     }
@@ -335,11 +337,11 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
 
         var unsigned = call.toUnsignedTransactionOrNull()
         if (unsigned != null) {
-            return success(unsigned)
+            return Ok(unsigned)
         }
 
         if (call.blobVersionedHashes != null && call.to == null) {
-            return failure(
+            return Err(
                 RpcError(
                     RpcError.CODE_CALL_FAILED,
                     "Cannot fill blob transaction, missing 'to' field",
@@ -351,7 +353,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         val nonceFut = when {
             call.nonce >= 0L -> null
 
-            sender == null -> return failure(
+            sender == null -> return Err(
                 RpcError(
                     RpcError.CODE_CALL_FAILED,
                     "Cannot estimate nonce, 'from' field is not set",
@@ -378,24 +380,24 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         val feeHistoryResult = feeHistoryFut?.get()
 
         if (nonceResult != null) {
-            if (nonceResult.isFailure()) {
-                return nonceResult
+            if (nonceResult.isErr) {
+                return Err(nonceResult.getError()!!)
             }
 
             call.nonce(nonceResult.unwrap())
         }
 
         if (gasLimitResult != null) {
-            if (gasLimitResult.isFailure()) {
-                return gasLimitResult
+            if (gasLimitResult.isErr) {
+                return Err(gasLimitResult.getError()!!)
             }
 
             call.gas(gasLimitResult.unwrap())
         }
 
         if (feeHistoryResult != null) {
-            if (feeHistoryResult.isFailure()) {
-                return feeHistoryResult
+            if (feeHistoryResult.isErr) {
+                return Err(feeHistoryResult.getError()!!)
             }
 
             val feeHistory = feeHistoryResult.unwrap()
@@ -430,11 +432,11 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
 
         unsigned = call.toUnsignedTransactionOrNull()
         if (unsigned != null) {
-            return success(unsigned)
+            return Ok(unsigned)
         }
 
         val data = JsonElement(Kotlinx.DEFAULT.encodeToString(CallRequestSerializer, call))
-        return failure(RpcError(RpcError.CODE_CALL_FAILED, "Failed to manually fill transaction", data))
+        return Err(RpcError(RpcError.CODE_CALL_FAILED, "Failed to manually fill transaction", data))
     }
 
     override fun getLogs(filter: LogFilter): RpcRequest<List<Log>, RpcError> {
@@ -647,7 +649,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
     /**
      * Error returned when creating a [Provider] using [fromUrl] fails.
      * */
-    sealed interface Error : Result.Error
+    sealed interface Error : ThrowingError
 
     /**
      * Error indicating the provided [url] has an unsupported protocol.
@@ -682,16 +684,16 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             val client = when {
                 url.matches(PROTO_HTTPS) -> HttpClient(url, config)
                 url.matches(PROTO_WSS) -> WsClient(url, config)
-                else -> return failure(UnsupportedUrlProtocol(url))
+                else -> return Err(UnsupportedUrlProtocol(url))
             }
 
             @Suppress("NAME_SHADOWING")
             var chainId = chainId
             if (chainId == -1L) {
-                chainId = getChainId(client).sendAwait().unwrapOrReturn { return failure(UnableToGetChainId(url, it)) }
+                chainId = getChainId(client).sendAwait().unwrapOrReturn { return Err(UnableToGetChainId(url, it)) }
             }
 
-            return success(Provider(client, chainId))
+            return Ok(Provider(client, chainId))
         }
 
         private fun getChainId(client: JsonRpcClient): RpcRequest<Long, RpcError> {

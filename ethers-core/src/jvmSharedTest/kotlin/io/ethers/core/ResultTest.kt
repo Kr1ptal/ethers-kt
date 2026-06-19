@@ -1,381 +1,135 @@
 package io.ethers.core
 
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
+import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.getError
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 
 class ResultTest : FunSpec({
-    val successValue = Result.success<String, Result.Error>("hello")
-    val testError = object : Result.Error {
-        override fun toString() = "TestError"
-    }
-    val failureValue = Result.failure<String, Result.Error>(testError)
+    context("unwrap") {
+        test("returns ok value for ThrowingError results") {
+            val result: Result<String, TestError> = Ok("hello")
 
-    context("map") {
-        test("transforms Success value") {
-            val mapped = successValue.map { it.length }
-            mapped.unwrap() shouldBe 5
-        }
-
-        test("passes through Failure") {
-            val mapped = failureValue.map { it.length }
-            mapped.isFailure() shouldBe true
-        }
-    }
-
-    context("mapError") {
-        test("transforms Failure error") {
-            val newError = object : Result.Error {
-                override fun toString() = "MappedError"
-            }
-            val mapped = failureValue.mapError { newError }
-            mapped.unwrapError().toString() shouldBe "MappedError"
-        }
-
-        test("passes through Success") {
-            val newError = object : Result.Error {}
-            val mapped = successValue.mapError { newError }
-            mapped.unwrap() shouldBe "hello"
-        }
-    }
-
-    context("andThen") {
-        test("chains on Success") {
-            val result = successValue.andThen { success(it.length) }
-            result.unwrap() shouldBe 5
-        }
-
-        test("short-circuits on Failure") {
-            var called = false
-            val result = failureValue.andThen {
-                called = true
-                success(it.length)
-            }
-            called shouldBe false
-            result.isFailure() shouldBe true
-        }
-    }
-
-    context("orElse") {
-        test("chains on Failure") {
-            val result = failureValue.orElse { success("recovered") }
-            result.unwrap() shouldBe "recovered"
-        }
-
-        test("passes through Success") {
-            var called = false
-            val result = successValue.orElse {
-                called = true
-                success("other")
-            }
-            called shouldBe false
             result.unwrap() shouldBe "hello"
         }
-    }
 
-    context("unwrap") {
-        test("returns value on Success") {
-            successValue.unwrap() shouldBe "hello"
+        test("throws via ThrowingError.doThrow for err results") {
+            val error = TestError()
+            val result: Result<String, TestError> = Err(error)
+
+            shouldThrow<IllegalStateException> { result.unwrap() } shouldBe error.exception
         }
 
-        test("throws on Failure") {
-            shouldThrow<RuntimeException> { failureValue.unwrap() }
-        }
-    }
+        test("throws throwable errors directly") {
+            val exception = IllegalArgumentException("boom")
+            val result: Result<String, IllegalArgumentException> = Err(exception)
 
-    context("unwrapOrNull") {
-        test("returns value on Success") {
-            successValue.unwrapOrNull() shouldBe "hello"
-        }
-
-        test("returns null on Failure") {
-            failureValue.unwrapOrNull() shouldBe null
-        }
-    }
-
-    context("unwrapElse") {
-        test("returns value on Success") {
-            successValue.unwrapElse("default") shouldBe "hello"
-        }
-
-        test("returns default on Failure") {
-            failureValue.unwrapElse("default") shouldBe "default"
-        }
-    }
-
-    context("unwrapOrElse") {
-        test("returns value on Success") {
-            successValue.unwrapOrElse { "default" } shouldBe "hello"
-        }
-
-        test("returns function result on Failure") {
-            failureValue.unwrapOrElse { "from-error" } shouldBe "from-error"
-        }
-    }
-
-    context("unwrapError") {
-        test("returns error on Failure") {
-            failureValue.unwrapError() shouldBe testError
-        }
-
-        test("throws on Success") {
-            shouldThrow<IllegalStateException> { successValue.unwrapError() }
-        }
-    }
-
-    context("unwrapErrorOrNull") {
-        test("returns error on Failure") {
-            failureValue.unwrapErrorOrNull() shouldBe testError
-        }
-
-        test("returns null on Success") {
-            successValue.unwrapErrorOrNull() shouldBe null
-        }
-    }
-
-    context("unwrapErrorElse") {
-        test("returns error on Failure") {
-            failureValue.unwrapErrorElse(testError) shouldBe testError
-        }
-
-        test("returns default on Success") {
-            val defaultError = object : Result.Error {}
-            successValue.unwrapErrorElse(defaultError) shouldBe defaultError
-        }
-    }
-
-    context("unwrapErrorOrElse") {
-        test("returns error on Failure") {
-            failureValue.unwrapErrorOrElse { testError } shouldBe testError
-        }
-
-        test("returns function result on Success") {
-            val defaultError = object : Result.Error {}
-            successValue.unwrapErrorOrElse { defaultError } shouldBe defaultError
-        }
-    }
-
-    context("onSuccess / onFailure") {
-        test("onSuccess fires on Success") {
-            var captured: String? = null
-            successValue.onSuccess { captured = it }
-            captured shouldBe "hello"
-        }
-
-        test("onSuccess does not fire on Failure") {
-            var called = false
-            failureValue.onSuccess { called = true }
-            called shouldBe false
-        }
-
-        test("onFailure fires on Failure") {
-            var captured: Result.Error? = null
-            failureValue.onFailure { captured = it }
-            captured shouldBe testError
-        }
-
-        test("onFailure does not fire on Success") {
-            var called = false
-            successValue.onFailure { called = true }
-            called shouldBe false
-        }
-    }
-
-    context("isSuccess / isFailure / isNullOrFailure") {
-        test("isSuccess returns true for Success") {
-            successValue.isSuccess() shouldBe true
-        }
-
-        test("isSuccess returns false for Failure") {
-            failureValue.isSuccess() shouldBe false
-        }
-
-        test("isFailure returns true for Failure") {
-            failureValue.isFailure() shouldBe true
-        }
-
-        test("isFailure returns false for Success") {
-            successValue.isFailure() shouldBe false
-        }
-
-        test("isNullOrFailure returns true for null") {
-            (null as Result<String, Result.Error>?).isNullOrFailure() shouldBe true
-        }
-
-        test("isNullOrFailure returns true for Failure") {
-            (failureValue as Result<String, Result.Error>?).isNullOrFailure() shouldBe true
-        }
-
-        test("isNullOrFailure returns false for Success") {
-            (successValue as Result<String, Result.Error>?).isNullOrFailure() shouldBe false
-        }
-    }
-
-    context("companion factory methods") {
-        test("success creates Success") {
-            Result.success<Int, Result.Error>(42).shouldBeInstanceOf<Result.Success<Int>>()
-        }
-
-        test("failure creates Failure") {
-            Result.failure<Int, Result.Error>(testError).shouldBeInstanceOf<Result.Failure<Result.Error>>()
-        }
-
-        test("top-level success helper") {
-            success(42).unwrap() shouldBe 42
-        }
-
-        test("top-level failure helper") {
-            failure(testError).unwrapError() shouldBe testError
-        }
-    }
-
-    context("Success equals and hashCode") {
-        test("equal values") {
-            val a = Result.Success("hello")
-            val b = Result.Success("hello")
-            a shouldBe b
-            a.hashCode() shouldBe b.hashCode()
-        }
-
-        test("different values") {
-            val a = Result.Success("hello")
-            val b = Result.Success("world")
-            (a == b) shouldBe false
-        }
-
-        test("not equal to null or different type") {
-            val a = Result.Success("hello")
-            a.equals(null) shouldBe false
-            a.equals("hello") shouldBe false
-        }
-    }
-
-    context("Failure equals and hashCode") {
-        test("equal errors") {
-            val err = object : Result.Error {
-                override fun equals(other: Any?) = other === this
-                override fun hashCode() = 42
-            }
-            val a = Result.Failure(err)
-            val b = Result.Failure(err)
-            a shouldBe b
-            a.hashCode() shouldBe b.hashCode()
-        }
-
-        test("not equal to null or different type") {
-            val a = Result.Failure(testError)
-            a.equals(null) shouldBe false
-            a.equals("string") shouldBe false
+            shouldThrow<IllegalArgumentException> { result.unwrap() } shouldBe exception
         }
     }
 
     context("unwrapOrReturn") {
-        test("returns value on Success") {
+        test("returns ok value") {
             fun doWork(): String {
-                val result: Result<String, Result.Error> = success("value")
+                val result: Result<String, String> = Ok("value")
                 return result.unwrapOrReturn { error("should not be called") }
             }
+
             doWork() shouldBe "value"
         }
 
-        test("calls onFailure on Failure") {
-            fun doWork(): Result<String, Result.Error> {
-                val result: Result<String, Result.Error> = failure(testError)
-                val value = result.unwrapOrReturn { return failure(it) }
-                return success(value)
+        test("lets caller return from failure branch") {
+            fun doWork(): Result<String, String> {
+                val result: Result<String, String> = Err("bad")
+                val value = result.unwrapOrReturn { return Err(it) }
+                return Ok(value)
             }
-            doWork().isFailure() shouldBe true
+
+            doWork().getError() shouldBe "bad"
         }
     }
 
-    context("Error.asTypeOrNull") {
+    context("ThrowingError.asTypeOrNull") {
         test("returns typed error when matching") {
-            val err = ExceptionalError(RuntimeException("test"))
-            val typed = err.asTypeOrNull<ExceptionalError>()
-            typed shouldBe err
+            val error = ExceptionalError(RuntimeException("test"))
+
+            error.asTypeOrNull<ExceptionalError>() shouldBe error
         }
 
         test("returns null when not matching") {
-            val typed = testError.asTypeOrNull<ExceptionalError>()
-            typed shouldBe null
+            TestError().asTypeOrNull<ExceptionalError>() shouldBe null
         }
     }
 
     context("ExceptionalError") {
-        test("doThrow wraps cause") {
+        test("converts cause to exception") {
             val cause = RuntimeException("original")
-            val err = ExceptionalError(cause)
-            val thrown = shouldThrow<RuntimeException> { err.doThrow() }
-            thrown.cause shouldBe cause
+            val error = ExceptionalError(cause)
+
+            error.toException().cause shouldBe cause
+        }
+
+        test("wraps cause when thrown") {
+            val cause = RuntimeException("original")
+            val error = ExceptionalError(cause)
+
+            shouldThrow<RuntimeException> { error.doThrow() }.cause shouldBe cause
         }
     }
 
     context("kotlin.Result extensions") {
-        test("andThen chains on success") {
-            val result = kotlin.Result.success("hello").andThen { kotlin.Result.success(it.length) }
+        test("andThen chains successful results") {
+            val result = kotlin.Result.success("hello")
+                .andThen { kotlin.Result.success(it.length) }
+
             result.getOrThrow() shouldBe 5
         }
 
-        test("andThen passes through failure") {
-            val ex = RuntimeException("fail")
-            val result = kotlin.Result.failure<String>(ex).andThen { kotlin.Result.success(it.length) }
-            result.isFailure shouldBe true
+        test("andThen passes through failures") {
+            val exception = RuntimeException("fail")
+            val result = kotlin.Result.failure<String>(exception)
+                .andThen { kotlin.Result.success(it.length) }
+
+            result.exceptionOrNull() shouldBe exception
         }
 
-        test("andThen with null success value treats as failure") {
-            val result = kotlin.Result.success<String?>(null).andThen { kotlin.Result.success("mapped") }
-            // getOrNull returns null for success(null), so andThen treats it as failure path
-            result.getOrNull() shouldBe null
+        test("andThenCatching catches mapper exceptions") {
+            val result = kotlin.Result.success("hello")
+                .andThenCatching<String, Int> { throw IllegalStateException("boom") }
+
+            result.exceptionOrNull().shouldBeInstanceOf<IllegalStateException>()
         }
 
-        test("andThenCatching catches exceptions in mapper") {
-            val result = kotlin.Result.success("hello").andThenCatching<String, String> { throw IllegalStateException("boom") }
-            result.isFailure shouldBe true
-        }
-
-        test("andThenCatching with null success value treats as failure") {
-            val result = kotlin.Result.success<String?>(null).andThenCatching<String?, String> { kotlin.Result.success("mapped") }
-            result.getOrNull() shouldBe null
-        }
-
-        test("andThenCatching succeeds normally without throwing") {
-            val result = kotlin.Result.success("hello").andThenCatching<String, Int> { kotlin.Result.success(it.length) }
-            result.getOrThrow() shouldBe 5
-        }
-
-        test("andThenCatching passes through failure") {
-            val ex = RuntimeException("fail")
-            val result = kotlin.Result.failure<String>(ex).andThenCatching<String, Int> { kotlin.Result.success(it.length) }
-            result.isFailure shouldBe true
-        }
-
-        test("toResult converts success") {
-            val result = kotlin.Result.success("hello").toResult()
-            result.unwrap() shouldBe "hello"
-        }
-
-        test("toResult converts failure") {
-            val ex = RuntimeException("fail")
-            val result = kotlin.Result.failure<String>(ex).toResult()
-            result.isFailure() shouldBe true
-            result.unwrapError().shouldBeInstanceOf<ExceptionalError>()
-        }
-
-        test("unwrapOrReturn returns value on success") {
+        test("unwrapOrReturn returns success") {
             fun doWork(): String {
                 val result = kotlin.Result.success("value")
                 return result.unwrapOrReturn { error("should not be called") }
             }
+
             doWork() shouldBe "value"
         }
 
-        test("unwrapOrReturn calls onFailure on failure") {
+        test("unwrapOrReturn lets caller return from failure branch") {
             fun doWork(): String {
                 val result = kotlin.Result.failure<String>(RuntimeException("fail"))
                 return result.unwrapOrReturn { return "recovered" }
             }
+
             doWork() shouldBe "recovered"
         }
     }
 })
+
+private class TestError : ThrowingError {
+    val exception = IllegalStateException("test error")
+
+    override fun toException(): RuntimeException {
+        return exception
+    }
+
+    override fun toString(): String = "TestError"
+}

@@ -1,10 +1,10 @@
 package io.ethers.abi.call
 
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
+import com.github.michaelbull.result.Result
 import io.ethers.abi.error.ContractError
 import io.ethers.abi.error.DecodingError
-import io.ethers.core.Result
-import io.ethers.core.failure
-import io.ethers.core.success
 import io.ethers.core.types.Address
 import io.ethers.core.types.BlockId
 import io.ethers.core.types.BlockOverride
@@ -53,9 +53,9 @@ class FunctionCall<T>(
 
     override fun decodeCallResult(result: Bytes): Result<T, ContractError> {
         return try {
-            success(decoder(result))
+            Ok(decoder(result))
         } catch (e: Exception) {
-            failure(DecodingError(result, "Unable to decode result", e))
+            Err(DecodingError(result, "Unable to decode result", e))
         }
     }
 
@@ -89,9 +89,9 @@ class ReadFunctionCall<T>(
 
     override fun decodeCallResult(result: Bytes): Result<T, ContractError> {
         return try {
-            success(decoder(result))
+            Ok(decoder(result))
         } catch (e: Exception) {
-            failure(DecodingError(result, "Unable to decode result", e))
+            Err(DecodingError(result, "Unable to decode result", e))
         }
     }
 }
@@ -123,9 +123,9 @@ class PayableFunctionCall<T>(
 
     override fun decodeCallResult(result: Bytes): Result<T, ContractError> {
         return try {
-            success(decoder(result))
+            Ok(decoder(result))
         } catch (e: Exception) {
-            failure(DecodingError(result, "Unable to decode result", e))
+            Err(DecodingError(result, "Unable to decode result", e))
         }
     }
 
@@ -143,7 +143,7 @@ class PayableFunctionCall<T>(
     }
 }
 
-private val UNIT_RESPONSE = success(Unit)
+private val UNIT_RESPONSE = Ok(Unit)
 
 class ReceiveFunctionCall(
     provider: Middleware,

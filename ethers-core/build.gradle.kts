@@ -12,6 +12,7 @@ kotlin {
                 api(project(":ethers-rlp"))
                 api(project(":ethers-crypto"))
 
+                api(libs.kotlin.result)
                 api(libs.bignumkt)
                 api(libs.kotlinx.serialization)
             }

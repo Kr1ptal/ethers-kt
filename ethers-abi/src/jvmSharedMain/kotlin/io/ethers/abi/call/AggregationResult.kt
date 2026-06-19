@@ -1,7 +1,7 @@
 package io.ethers.abi.call
 
+import com.github.michaelbull.result.Result
 import io.ethers.abi.error.ContractError
-import io.ethers.core.Result
 
 /**
  * Aggregation of multiple results, returned by [Multicall3] when aggregating multiple abi-generated calls.

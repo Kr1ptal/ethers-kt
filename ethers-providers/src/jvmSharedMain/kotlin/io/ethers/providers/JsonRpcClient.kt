@@ -1,9 +1,10 @@
 package io.ethers.providers
 
+import com.github.michaelbull.result.Result
 import io.channels.core.ChannelReceiver
 import io.ethers.core.FastHex
 import io.ethers.core.Kotlinx
-import io.ethers.core.Result
+import io.ethers.core.ThrowingError
 import io.ethers.core.json.JsonElement
 import io.ethers.core.toJsonElement
 import io.ethers.providers.types.BatchRpcRequest
@@ -135,9 +136,9 @@ data class RpcError @JvmOverloads constructor(
     val message: String,
     val data: JsonElement? = null,
     val cause: Exception? = null,
-) : Result.Error {
-    override fun doThrow(): Nothing {
-        throw RuntimeException(this.toString(), cause)
+) : ThrowingError {
+    override fun toException(): RuntimeException {
+        return RuntimeException(toString(), cause)
     }
 
     /**
