@@ -8,9 +8,11 @@ import com.github.michaelbull.result.onErr
 import com.github.michaelbull.result.onOk
 import com.github.michaelbull.result.orElse
 import io.channels.core.ChannelReceiver
+import io.ethers.core.Kotlinx
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.serializer
 import java.util.concurrent.CompletableFuture
 
 interface RpcSubscribe<T : Any, E> {
@@ -108,7 +110,7 @@ class RpcSubscribeCall<T : Any>(
         client: JsonRpcClient,
         params: Array<*>,
         resultType: Class<T>,
-    ) : this(client, params, { p -> io.ethers.core.Kotlinx.DEFAULT.decodeFromJsonElement(kotlinx.serialization.serializer(resultType), p) as T })
+    ) : this(client, params, { p -> Kotlinx.DEFAULT.decodeFromJsonElement(serializer(resultType), p) as T })
 
     override fun sendAwait(): Result<ChannelReceiver<T>, RpcError> = sendAsync().join()
     override fun sendAsync(): CompletableFuture<Result<ChannelReceiver<T>, RpcError>> {
