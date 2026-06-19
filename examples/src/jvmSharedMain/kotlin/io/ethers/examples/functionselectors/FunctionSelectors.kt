@@ -1,7 +1,7 @@
 package io.ethers.examples.functionselectors
 
 import io.ethers.abi.AbiFunction
-import io.ethers.examples.gen.UniswapV2Router02
+import io.ethers.core.unwrap
 import io.ethers.providers.Provider
 import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
@@ -29,7 +29,7 @@ class FunctionSelectors(
         println("Searching for function by selector:  ${abiFunction.selector}")
         var blockCounter = blockNumber
         while (blockCounter > blockNumber - maxBlocks) {
-            val block = provider.getBlockWithTransactions(blockCounter).sendAwait().unwrap().get()
+            val block = provider.getBlockWithTransactions(blockCounter).sendAwait().unwrap()!!
             println("Searching block: ${block.number}")
 
             // Searching for transactions manually from function signature

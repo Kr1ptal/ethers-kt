@@ -1,9 +1,9 @@
 package io.ethers.providers
 
+import com.github.michaelbull.result.unwrapError
 import io.ethers.core.Kotlinx
-import io.ethers.core.isFailure
-import io.ethers.core.isSuccess
 import io.ethers.core.types.Address
+import io.ethers.core.unwrap
 import io.github.artificialpb.bignum.BigInteger
 import io.kotest.assertions.nondeterministic.eventually
 import io.kotest.core.spec.style.FunSpec
@@ -18,7 +18,6 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
 import org.intellij.lang.annotations.Language
 import java.util.concurrent.TimeUnit
-import kotlin.collections.mapOf
 import kotlin.time.Duration.Companion.seconds
 import io.ktor.client.HttpClient as KtorHttpClient
 import kotlinx.serialization.json.JsonElement as KJsonElement
@@ -89,7 +88,7 @@ class WsClientTest : FunSpec({
 
             val result = wsClient.request("eth_getCode", emptyArray<Any>(), ByteArray::class.java).get()
 
-            result.isSuccess() shouldBe true
+            result.isOk shouldBe true
             result.unwrap() shouldBe byteArrayOf(0xde.toByte(), 0xad.toByte(), 0xbe.toByte(), 0xef.toByte())
         }
 
@@ -97,7 +96,7 @@ class WsClientTest : FunSpec({
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0xsub123"}""")
 
             val subscriptionResult = wsClient.subscribe(arrayOf("newPendingTransactions"), ByteArray::class.java).get()
-            subscriptionResult.isSuccess() shouldBe true
+            subscriptionResult.isOk shouldBe true
             val stream = subscriptionResult.unwrap()
 
             mockServer.sendJson(
@@ -134,7 +133,7 @@ class WsClientTest : FunSpec({
             val resultDecoder: (KJsonElement) -> JsonObject = { it.jsonObject }
 
             val subscriptionResult = wsClient.subscribe(params, resultDecoder).get()
-            subscriptionResult.isSuccess() shouldBe true
+            subscriptionResult.isOk shouldBe true
 
             val stream = subscriptionResult.unwrap()
             stream shouldNotBe null
@@ -241,7 +240,7 @@ class WsClientTest : FunSpec({
             val resultDecoder: (KJsonElement) -> JsonObject = { it.jsonObject }
 
             val subscriptionResult = wsClient.subscribe(params, resultDecoder).get()
-            subscriptionResult.isSuccess() shouldBe true
+            subscriptionResult.isOk shouldBe true
 
             val stream = subscriptionResult.unwrap()
             stream shouldNotBe null
@@ -278,7 +277,7 @@ class WsClientTest : FunSpec({
             val resultDecoder: (KJsonElement) -> JsonObject = { it.jsonObject }
 
             val subscriptionResult = wsClient.subscribe(params, resultDecoder).get()
-            subscriptionResult.isSuccess() shouldBe true
+            subscriptionResult.isOk shouldBe true
 
             val stream = subscriptionResult.unwrap()
             stream shouldNotBe null
@@ -328,7 +327,7 @@ class WsClientTest : FunSpec({
             val resultDecoder: (KJsonElement) -> JsonObject = { it.jsonObject }
 
             val subscriptionResult = wsClient.subscribe(params, resultDecoder).get()
-            subscriptionResult.isSuccess() shouldBe true
+            subscriptionResult.isOk shouldBe true
 
             // Send multiple notifications
             @Language("JSON")
@@ -398,7 +397,7 @@ class WsClientTest : FunSpec({
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0x1234567"}""")
             wsClient.request("eth_blockNumber", emptyArray<Any>(), stringDecoder)
                 .get(2, TimeUnit.SECONDS)
-                .isSuccess() shouldBe true
+                .isOk shouldBe true
 
             mockServer.closeConnection()
             Thread.sleep(50)
@@ -406,7 +405,7 @@ class WsClientTest : FunSpec({
             val result = wsClient.request("eth_blockNumber", emptyArray<Any>(), stringDecoder)
                 .get(2, TimeUnit.SECONDS)
 
-            result.isFailure() shouldBe true
+            result.isErr shouldBe true
             result.unwrapError().code shouldBe RpcError.CODE_CALL_TIMEOUT
         }
     }

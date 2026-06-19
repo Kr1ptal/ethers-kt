@@ -1,13 +1,13 @@
 package io.ethers.providers
 
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
+import com.github.michaelbull.result.Result
 import io.channels.core.Channel
 import io.channels.core.ChannelReceiver
 import io.channels.core.QueueChannel
 import io.ethers.core.Kotlinx
-import io.ethers.core.Result
-import io.ethers.core.failure
 import io.ethers.core.json.JsonElement
-import io.ethers.core.success
 import io.ethers.logger.dbg
 import io.ethers.logger.err
 import io.ethers.logger.getLogger
@@ -513,8 +513,8 @@ class WsClient(
 
             val response = when {
                 resultEl == null && error == null -> HttpClient.ERROR_INVALID_RESPONSE
-                resultEl != null -> success(batch.request.requests[responseIndex].resultDecoder(resultEl))
-                else -> failure(error!!)
+                resultEl != null -> Ok(batch.request.requests[responseIndex].resultDecoder(resultEl))
+                else -> Err(error!!)
             }
 
             batch.request.responses[responseIndex].complete(response)
@@ -567,8 +567,8 @@ class WsClient(
 
         val response = when {
             result == null && error == null -> HttpClient.ERROR_INVALID_RESPONSE
-            result != null -> success<T>(result)
-            else -> failure(error!!)
+            result != null -> Ok(result)
+            else -> Err(error!!)
         }
 
         LOG.trc { "Handled response for request $id: $response" }
@@ -582,7 +582,7 @@ class WsClient(
         error: RpcError?,
     ) {
         if (error != null) {
-            request.future.complete(failure(error))
+            request.future.complete(Err(error))
         } else {
             val subscription = Subscription(
                 serverId = resultElement!!.jsonPrimitive.content,
@@ -597,7 +597,7 @@ class WsClient(
             requestIdToSubscription[id] = subscription
             serverIdToSubscription[subscription.serverId] = subscription
 
-            request.future.complete(success(subscription.stream))
+            request.future.complete(Ok(subscription.stream))
         }
 
         LOG.trc { "Handled response for subscription request $id" }

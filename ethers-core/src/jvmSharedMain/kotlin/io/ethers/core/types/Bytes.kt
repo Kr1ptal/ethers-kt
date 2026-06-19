@@ -1,10 +1,10 @@
 package io.ethers.core.types
 
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
+import com.github.michaelbull.result.Result
 import io.ethers.core.FastHex
 import io.ethers.core.HexDecodingError
-import io.ethers.core.Result
-import io.ethers.core.failure
-import io.ethers.core.success
 import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncodable
@@ -222,11 +222,11 @@ class Bytes(private val value: ByteArray) : RlpEncodable {
         @JvmStatic
         fun fromHex(hex: String): Result<Bytes, HexDecodingError> {
             if (!FastHex.isValidHex(hex)) {
-                return failure(HexDecodingError("Invalid hex format: $hex"))
+                return Err(HexDecodingError("Invalid hex format: $hex"))
             }
 
             val bytes = FastHex.decodeUnsafe(hex)
-            return success(Bytes(bytes))
+            return Ok(Bytes(bytes))
         }
 
         /**

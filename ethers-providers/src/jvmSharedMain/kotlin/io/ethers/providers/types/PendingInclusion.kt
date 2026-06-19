@@ -1,6 +1,7 @@
 package io.ethers.providers.types
 
-import io.ethers.core.Result
+import com.github.michaelbull.result.Result
+import io.ethers.core.ThrowingError
 import io.ethers.core.types.Hash
 import java.time.Duration
 import java.util.concurrent.CompletableFuture
@@ -85,7 +86,7 @@ interface PendingInclusion<T> {
      */
     fun awaitInclusion(retries: Int, interval: Duration, confirmations: Int): Result<T, Error>
 
-    sealed class Error : Result.Error {
+    sealed class Error : ThrowingError {
         data class NoInclusion(val txHash: Hash, val retries: Int) : Error()
         data class RpcError(val txHash: Hash, val error: io.ethers.providers.RpcError) : Error()
     }

@@ -1,9 +1,11 @@
 package io.ethers.examples.batchrequests
 
+import com.github.michaelbull.result.get
 import io.ethers.abi.call.Multicall3
 import io.ethers.abi.call.aggregate
 import io.ethers.core.types.Address
 import io.ethers.core.types.BlockId
+import io.ethers.core.unwrap
 import io.ethers.examples.gen.ERC20
 import io.ethers.providers.Provider
 import io.github.artificialpb.bignum.BigInteger
@@ -31,9 +33,9 @@ class Multicall(
         ).call(BlockId.LATEST).sendAwait().unwrap()
 
         // Each aggregated call result is returned in the same order the calls were defined
-        val nameResults = aggregate.getAsAggregation<String>(0).unwrapOrNull()
-        val symbolResults = aggregate.getAsAggregation<String>(1).unwrapOrNull()
-        val decimalsResults = aggregate.getAsAggregation<BigInteger>(2).unwrapOrNull()
+        val nameResults = aggregate.getAsAggregation<String>(0).get()
+        val symbolResults = aggregate.getAsAggregation<String>(1).get()
+        val decimalsResults = aggregate.getAsAggregation<BigInteger>(2).get()
 
         for (i in tokens.indices) {
             println(

@@ -1,15 +1,22 @@
 package io.ethers.providers.types
 
-import io.ethers.core.Result
-import io.ethers.core.Result.Consumer
+import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.andThen
+import com.github.michaelbull.result.map
+import com.github.michaelbull.result.mapError
+import com.github.michaelbull.result.onErr
+import com.github.michaelbull.result.onOk
+import com.github.michaelbull.result.orElse
+import io.ethers.core.Kotlinx
 import io.ethers.providers.AsyncExecutor
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.serializer
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executor
 
-abstract class RpcRequest<T, E : Result.Error> {
+abstract class RpcRequest<T, E> {
     /**
      * Send the RPC request and await the result by blocking calling thread.
      */
@@ -30,7 +37,7 @@ abstract class RpcRequest<T, E : Result.Error> {
      *
      * The function will be executed asynchronously after the request is sent and the response received.
      */
-    fun <R> map(mapper: Result.Transformer<T, R>): RpcRequest<R, E> {
+    fun <R> map(mapper: (T) -> R): RpcRequest<R, E> {
         return MappingRpcRequest(this) { it.map(mapper) }
     }
 
@@ -39,7 +46,7 @@ abstract class RpcRequest<T, E : Result.Error> {
      *
      * The function will be executed asynchronously after the request is sent and the response received.
      */
-    fun <R : Result.Error> mapError(mapper: Result.Transformer<E, R>): RpcRequest<T, R> {
+    fun <R> mapError(mapper: (E) -> R): RpcRequest<T, R> {
         return MappingRpcRequest(this) { it.mapError(mapper) }
     }
 
@@ -49,7 +56,7 @@ abstract class RpcRequest<T, E : Result.Error> {
      *
      * The function will be executed asynchronously after the request is sent and the response received.
      */
-    fun <R> andThen(mapper: Result.Transformer<T, Result<R, E>>): RpcRequest<R, E> {
+    fun <R> andThen(mapper: (T) -> Result<R, E>): RpcRequest<R, E> {
         return MappingRpcRequest(this) { it.andThen(mapper) }
     }
 
@@ -59,7 +66,7 @@ abstract class RpcRequest<T, E : Result.Error> {
      *
      * The function will be executed asynchronously after the request is sent and the response received.
      */
-    fun <R : Result.Error> orElse(mapper: Result.Transformer<E, Result<T, R>>): RpcRequest<T, R> {
+    fun <R> orElse(mapper: (E) -> Result<T, R>): RpcRequest<T, R> {
         return MappingRpcRequest(this) { it.orElse(mapper) }
     }
 
@@ -68,8 +75,8 @@ abstract class RpcRequest<T, E : Result.Error> {
      *
      * The function will be executed asynchronously after the request is sent and the response received.
      */
-    fun onSuccess(block: Consumer<T>): RpcRequest<T, E> {
-        return MappingRpcRequest(this) { it.apply { onSuccess(block) } }
+    fun onSuccess(block: (T) -> Unit): RpcRequest<T, E> {
+        return MappingRpcRequest(this) { it.onOk(block) }
     }
 
     /**
@@ -77,8 +84,8 @@ abstract class RpcRequest<T, E : Result.Error> {
      *
      * The function will be executed asynchronously after the request is sent and the response received.
      */
-    fun onFailure(block: Consumer<E>): RpcRequest<T, E> {
-        return MappingRpcRequest(this) { it.apply { onFailure(block) } }
+    fun onFailure(block: (E) -> Unit): RpcRequest<T, E> {
+        return MappingRpcRequest(this) { it.onErr(block) }
     }
 
     /**
@@ -104,7 +111,7 @@ class RpcCall<T>(
         method: String,
         params: Array<*>,
         resultType: Class<T>,
-    ) : this(client, method, params, { p -> io.ethers.core.Kotlinx.DEFAULT.decodeFromJsonElement(kotlinx.serialization.serializer(resultType), p) as T })
+    ) : this(client, method, params, { p -> Kotlinx.DEFAULT.decodeFromJsonElement(serializer(resultType), p) as T })
 
     override fun sendAwait(): Result<T, RpcError> = sendAsync().join()
     override fun sendAsync(): CompletableFuture<Result<T, RpcError>> = client.request(method, params, resultDecoder)
@@ -118,7 +125,7 @@ class RpcCall<T>(
 /**
  * RPC request which uses [mapper] function to remap RPC response.
  */
-private class MappingRpcRequest<I, O, E : Result.Error, U : Result.Error>(
+private class MappingRpcRequest<I, O, E, U>(
     private val request: RpcRequest<I, E>,
     private val mapper: (Result<I, E>) -> Result<O, U>,
 ) : RpcRequest<O, U>() {

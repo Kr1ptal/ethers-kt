@@ -1,11 +1,11 @@
 package io.ethers.providers
 
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
+import com.github.michaelbull.result.Result
 import io.channels.core.ChannelReceiver
 import io.ethers.core.Kotlinx
-import io.ethers.core.Result
-import io.ethers.core.failure
 import io.ethers.core.json.JsonElement
-import io.ethers.core.success
 import io.ethers.logger.err
 import io.ethers.logger.getLogger
 import io.ethers.logger.trc
@@ -97,7 +97,7 @@ class HttpClient(
                     LOG.err { "Batch request failed: $error" }
 
                     for (i in batch.responses.indices) {
-                        batch.responses[i].complete(failure(error))
+                        batch.responses[i].complete(Err(error))
                     }
                     ret.complete(false)
                     return@launch
@@ -159,7 +159,7 @@ class HttpClient(
                     val data = JsonElement(JsonPrimitive(text).toString())
                     val error = RpcError(RpcError.CODE_CALL_FAILED, message, data)
                     LOG.err { "Call failed for method=$method, params=${params.contentToString()}: $error" }
-                    ret.complete(failure(error))
+                    ret.complete(Err(error))
                     return@launch
                 }
 
@@ -180,10 +180,10 @@ class HttpClient(
         val errorEl = this["error"]
 
         return when {
-            resultEl != null -> success(getDecoder(id)(resultEl))
+            resultEl != null -> Ok(getDecoder(id)(resultEl))
             errorEl != null -> {
                 getDecoder(id)
-                failure(RpcError.fromJsonObject(errorEl.jsonObject))
+                Err(RpcError.fromJsonObject(errorEl.jsonObject))
             }
             else -> {
                 getDecoder(id)
@@ -226,34 +226,34 @@ class HttpClient(
     companion object {
         private const val BYTE_BUFFER_DEFAULT_SIZE = 128
 
-        private val ERROR_SUBSCRIPTION_UNSUPPORTED = failure(
+        private val ERROR_SUBSCRIPTION_UNSUPPORTED = Err(
             RpcError(
                 RpcError.CODE_METHOD_NOT_FOUND,
                 "'eth_subscribe' is not supported by HTTP client",
             ),
         )
 
-        internal val ERROR_NO_ID_RESPONSE = failure(
+        internal val ERROR_NO_ID_RESPONSE = Err(
             RpcError(
                 RpcError.CODE_INVALID_RESPONSE,
                 "Invalid response, field 'id' is missing",
             ),
         )
 
-        internal val ERROR_INVALID_RESPONSE = failure(
+        internal val ERROR_INVALID_RESPONSE = Err(
             RpcError(
                 RpcError.CODE_INVALID_RESPONSE,
                 "Invalid response, no 'result' or 'error' fields in response",
             ),
         )
 
-        internal val ERROR_CALL_TIMEOUT = failure(RpcError(RpcError.CODE_CALL_TIMEOUT, "Call timeout", null))
+        internal val ERROR_CALL_TIMEOUT = Err(RpcError(RpcError.CODE_CALL_TIMEOUT, "Call timeout", null))
 
         private fun getResponseFromException(e: Exception): Result<Nothing, RpcError> {
             val msg = e.message
             return when {
                 msg != null && msg.contains("timeout", ignoreCase = true) -> ERROR_CALL_TIMEOUT
-                else -> failure(RpcError(RpcError.CODE_CALL_FAILED, msg ?: "call failed", null, e))
+                else -> Err(RpcError(RpcError.CODE_CALL_FAILED, msg ?: "call failed", null, e))
             }
         }
     }
