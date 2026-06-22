@@ -7,19 +7,13 @@ plugins {
 
 kotlin {
     sourceSets {
-        val jvmSharedMain by getting {
+        commonMain {
             dependencies {
                 api(project(":ethers-rlp"))
                 api(project(":ethers-crypto"))
 
                 api(libs.bignumkt)
                 api(libs.kotlinx.serialization)
-            }
-        }
-
-        val jvmSharedTest by getting {
-            dependencies {
-                implementation(libs.bundles.kotest)
             }
         }
 
