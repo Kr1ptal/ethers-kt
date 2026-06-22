@@ -5,17 +5,11 @@ plugins {
 
 kotlin {
     sourceSets {
-        val jvmSharedMain by getting {
+        commonMain {
             dependencies {
                 api(project(":ethers-core"))
                 api(project(":ethers-crypto"))
                 api(libs.bignumkt)
-            }
-        }
-
-        val jvmSharedTest by getting {
-            dependencies {
-                implementation(libs.bundles.kotest)
             }
         }
     }
