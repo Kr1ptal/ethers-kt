@@ -6,16 +6,10 @@ plugins {
 
 kotlin {
     sourceSets {
-        val jvmSharedMain by getting {
+        commonMain {
             dependencies {
                 api(libs.bignumkt)
                 implementation(libs.ditchoom.buffer)
-            }
-        }
-
-        val jvmSharedTest by getting {
-            dependencies {
-                implementation(libs.bundles.kotest)
             }
         }
 
