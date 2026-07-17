@@ -1,5 +1,6 @@
 package io.ethers.providers.types
 
+import com.github.michaelbull.result.getError
 import io.channels.core.Channel
 import io.channels.core.ChannelConsumer
 import io.channels.core.ChannelFunction
@@ -8,7 +9,7 @@ import io.channels.core.ChannelReceiver
 import io.channels.core.QueueChannel
 import io.channels.core.blocking.NotificationHandle
 import io.ethers.core.asTypeOrNull
-import io.ethers.core.isFailure
+import io.ethers.core.unwrap
 import io.ethers.logger.dbg
 import io.ethers.logger.err
 import io.ethers.logger.getLogger
@@ -18,6 +19,7 @@ import io.ethers.providers.RpcError
 import io.ethers.providers.middleware.Middleware
 import kotlinx.serialization.json.JsonElement
 import java.time.Duration
+import kotlin.time.toKotlinDuration
 
 private val DEFAULT_POLLER_INTERVAL = Duration.ofSeconds(7)
 
@@ -112,16 +114,17 @@ class FilterPoller<T : Any> private constructor(
                 var filterExists = true
                 while (!channel.isClosed) {
                     val response = getChangesCall.sendAwait()
-                    if (response.isFailure()) {
-                        LOG.err { "Error polling filter '$id': ${response.error}" }
+                    if (response.isErr) {
+                        val error = response.getError()!!
+                        LOG.err { "Error polling filter '$id': $error" }
 
                         // The filters persist on the node for some time if there were no polling requests made to it.
                         // In case the connection drops, the filter will keep accumulating changes on the node and will
                         // return all of them at the next polling request. If the filter is not found, it means it has
                         // expired, and we should stop polling it.
 
-                        val error = response.error.asTypeOrNull<RpcError>()
-                        if (error?.message?.contains("filter not found") == true) {
+                        val rpcError = error.asTypeOrNull<RpcError>()
+                        if (rpcError?.message?.contains("filter not found") == true) {
                             LOG.err { "Filter '$id' expired, stopping polling thread and unsubscribing" }
 
                             // need to unsubscribe via stream so its loop gets terminated
@@ -136,7 +139,7 @@ class FilterPoller<T : Any> private constructor(
                         }
                     }
 
-                    Thread.sleep(interval.toMillis())
+                    Thread.sleep(interval.toKotlinDuration().inWholeMilliseconds)
                 }
 
                 if (filterExists) {
@@ -148,8 +151,8 @@ class FilterPoller<T : Any> private constructor(
                     )
 
                     val response = uninstallCall.sendAwait()
-                    if (response.isFailure()) {
-                        LOG.err { "Error uninstalling filter '$id': ${response.error}" }
+                    if (response.isErr) {
+                        LOG.err { "Error uninstalling filter '$id': ${response.getError()!!}" }
                     } else {
                         LOG.inf { "Uninstalled filter '$id'" }
                     }

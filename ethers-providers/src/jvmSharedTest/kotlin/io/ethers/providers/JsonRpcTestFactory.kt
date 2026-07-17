@@ -1,7 +1,7 @@
 package io.ethers.providers
 
-import io.ethers.core.isFailure
-import io.ethers.core.isSuccess
+import com.github.michaelbull.result.unwrapError
+import io.ethers.core.unwrap
 import io.ethers.providers.types.BatchRpcRequest
 import io.ethers.providers.types.RpcCall
 import io.kotest.core.spec.style.funSpec
@@ -61,7 +61,7 @@ object JsonRpcTestFactory {
 
                 val result = client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
 
-                result.isSuccess() shouldBe true
+                result.isOk shouldBe true
                 result.unwrap() shouldBe "0x1234567"
             }
 
@@ -70,7 +70,7 @@ object JsonRpcTestFactory {
 
                 val result = client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
 
-                result.isFailure() shouldBe true
+                result.isErr shouldBe true
                 val error = result.unwrapError()
                 error.code shouldBe -32601
                 error.message shouldBe "Method not found"
@@ -81,7 +81,7 @@ object JsonRpcTestFactory {
 
                 val result = client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
 
-                result.isFailure() shouldBe true
+                result.isErr shouldBe true
                 val error = result.unwrapError()
                 error.code shouldBe if (variant == RpcClientVariant.WS) RpcError.CODE_CALL_TIMEOUT else RpcError.CODE_CALL_FAILED
             }
@@ -91,7 +91,7 @@ object JsonRpcTestFactory {
 
                 val result = client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
 
-                result.isFailure() shouldBe true
+                result.isErr shouldBe true
                 val error = result.unwrapError()
                 error.code shouldBe RpcError.CODE_INVALID_RESPONSE
             }
@@ -101,7 +101,7 @@ object JsonRpcTestFactory {
 
                 val result = client.request("eth_getBalance", arrayOf("0x1234", "latest"), stringDecoder).get()
 
-                result.isSuccess() shouldBe true
+                result.isOk shouldBe true
                 result.unwrap() shouldBe "0x1234567"
             }
         }
@@ -126,11 +126,11 @@ object JsonRpcTestFactory {
                 batchResult shouldBe true
 
                 val result1 = batch.responses[0].get()
-                result1.isSuccess() shouldBe true
+                result1.isOk shouldBe true
                 result1.unwrap() shouldBe "0x1234567"
 
                 val result2 = batch.responses[1].get()
-                result2.isFailure() shouldBe true
+                result2.isErr shouldBe true
                 result2.unwrapError().code shouldBe -32601
             }
 
@@ -164,7 +164,7 @@ object JsonRpcTestFactory {
                 val batchResult = client.requestBatch(batch).get()
                 batchResult shouldBe false
 
-                batch.responses[0].get().isFailure() shouldBe true
+                batch.responses[0].get().isErr shouldBe true
             }
 
             test("single item batch") {
@@ -178,7 +178,7 @@ object JsonRpcTestFactory {
                 batchResult shouldBe true
 
                 val result = batch.responses[0].get()
-                result.isSuccess() shouldBe true
+                result.isOk shouldBe true
                 result.unwrap() shouldBe "0x1234567"
             }
 
@@ -192,7 +192,7 @@ object JsonRpcTestFactory {
                 val batchResult = client.requestBatch(batch).get()
                 batchResult shouldBe false
 
-                batch.responses[0].get().isFailure() shouldBe true
+                batch.responses[0].get().isErr shouldBe true
             }
         }
     }

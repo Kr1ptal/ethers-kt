@@ -1,12 +1,14 @@
 package io.ethers.abigen.reader
 
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
+import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.mapError
 import io.ethers.abigen.JsonAbi
 import io.ethers.abigen.reader.JsonAbiReaderRegistry.appendReader
 import io.ethers.abigen.reader.JsonAbiReaderRegistry.prependReader
 import io.ethers.abigen.reader.JsonAbiReaderRegistry.tryReadAbi
-import io.ethers.core.Result
-import io.ethers.core.failure
-import io.ethers.core.success
+import io.ethers.core.ThrowingError
 import java.io.ByteArrayInputStream
 import java.io.InputStream
 import java.net.URL
@@ -74,7 +76,7 @@ object JsonAbiReaderRegistry {
      * @return the [JsonAbi], or null if the source does not contain an ABI that any of the readers can read.
      * */
     fun readAbi(abi: InputStream): JsonAbi? {
-        val array = abi.readAllBytes()
+        val array = abi.readBytes()
         for (i in readers.indices) {
             try {
                 val jsonAbi = readers[i].read(ByteArrayInputStream(array))
@@ -114,13 +116,13 @@ object JsonAbiReaderRegistry {
      * @return the resulting [JsonAbi], or an [AbiReadError] if reading failed.
      * */
     fun tryReadAbi(abi: InputStream): Result<JsonAbi, AbiReadError> {
-        val array = abi.readAllBytes()
+        val array = abi.readBytes()
         var causes: MutableList<Exception>? = null
         for (i in readers.indices) {
             try {
                 val jsonAbi = readers[i].read(ByteArrayInputStream(array))
                 if (jsonAbi != null) {
-                    return success(jsonAbi)
+                    return Ok(jsonAbi)
                 }
             } catch (e: Exception) {
                 if (causes == null) {
@@ -130,19 +132,19 @@ object JsonAbiReaderRegistry {
             }
         }
 
-        return failure(AbiReadError(abi, causes ?: emptyList()))
+        return Err(AbiReadError(abi, causes ?: emptyList()))
     }
 
     /**
      * Error returned when reading ABI fails. It contains a list of all exceptions that were thrown by the readers.
      * */
-    data class AbiReadError(val source: Source, val causes: List<Exception>) : Result.Error {
+    data class AbiReadError(val source: Source, val causes: List<Exception>) : ThrowingError {
         constructor(url: URL, causes: List<Exception>) : this(URLSource(url), causes)
         constructor(inputStream: InputStream, causes: List<Exception>) : this(InputStreamSource(inputStream), causes)
         constructor(string: String, causes: List<Exception>) : this(StringSource(string), causes)
 
-        override fun doThrow(): Nothing {
-            throw RuntimeException("Failed to read ABI: $source").also { parent ->
+        override fun toException(): RuntimeException {
+            return RuntimeException("Failed to read ABI: $source").also { parent ->
                 causes.forEach { parent.addSuppressed(it) }
             }
         }

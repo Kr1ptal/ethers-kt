@@ -2,6 +2,9 @@
 
 package io.ethers.signers
 
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
+import com.github.michaelbull.result.Result
 import com.google.cloud.kms.v1.CryptoKeyVersion
 import com.google.cloud.kms.v1.CryptoKeyVersionName
 import com.google.cloud.kms.v1.Digest
@@ -11,9 +14,7 @@ import dev.whyoleg.cryptography.bigint.toJavaBigInteger
 import dev.whyoleg.cryptography.serialization.asn1.Der
 import dev.whyoleg.cryptography.serialization.asn1.modules.DssSignatureValue
 import dev.whyoleg.cryptography.serialization.asn1.modules.SubjectPublicKeyInfo
-import io.ethers.core.Result
-import io.ethers.core.failure
-import io.ethers.core.success
+import io.ethers.core.ThrowingError
 import io.ethers.core.types.Address
 import io.ethers.core.types.Signature
 import io.ethers.crypto.Secp256k1
@@ -103,9 +104,9 @@ class GcpSigner(
         return address.hashCode()
     }
 
-    data class AddressFetchError(val message: String, val cause: Throwable? = null) : Result.Error {
-        override fun doThrow(): Nothing {
-            throw RuntimeException(message, cause)
+    data class AddressFetchError(val message: String, val cause: Throwable? = null) : ThrowingError {
+        override fun toException(): RuntimeException {
+            return RuntimeException(message, cause)
         }
     }
 
@@ -124,7 +125,7 @@ class GcpSigner(
             return try {
                 val publicKey = client.getPublicKey(keyName)
                 if (publicKey.algorithm != CryptoKeyVersion.CryptoKeyVersionAlgorithm.EC_SIGN_SECP256K1_SHA256) {
-                    return failure(AddressFetchError("Only secp256k1 keys are supported"))
+                    return Err(AddressFetchError("Only secp256k1 keys are supported"))
                 }
 
                 // Parse PEM-encoded public key
@@ -137,9 +138,9 @@ class GcpSigner(
                 val pubKeyUncompressed = spki.subjectPublicKey.byteArray
 
                 val address = Address(Secp256k1.publicKeyToAddress(pubKeyUncompressed))
-                success(GcpSigner(client, keyName, address))
+                Ok(GcpSigner(client, keyName, address))
             } catch (e: Exception) {
-                failure(AddressFetchError("Failed to create GCP signer", e))
+                Err(AddressFetchError("Failed to create GCP signer", e))
             }
         }
 

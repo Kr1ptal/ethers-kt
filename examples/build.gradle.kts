@@ -11,8 +11,13 @@ kotlin {
                 implementation(libs.bignumkt)
                 runtimeOnly(libs.bundles.log4j2)
 
-                implementation(project.dependencies.platform(libs.ethers.bom))
-                implementation(libs.bundles.ethers)
+                implementation(project(":ethers-abi"))
+                implementation(project(":ethers-core"))
+                implementation(project(":ethers-crypto"))
+                implementation(project(":ethers-ens"))
+                implementation(project(":ethers-providers"))
+                implementation(project(":ethers-rlp"))
+                implementation(project(":ethers-signers"))
             }
         }
     }

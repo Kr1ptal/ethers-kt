@@ -1,9 +1,10 @@
 package io.ethers.providers.bindings
 
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
+import com.github.michaelbull.result.Result
 import io.ethers.core.FastHex
-import io.ethers.core.Result
-import io.ethers.core.failure
-import io.ethers.core.success
+import io.ethers.core.ThrowingError
 import io.ethers.core.types.Hash
 import io.ethers.crypto.bip39.MnemonicCode
 import io.ethers.signers.PrivateKeySigner
@@ -194,7 +195,7 @@ class AnvilBuilder {
         val errorReader = process.errorStream.bufferedReader()
         while (true) {
             if (System.currentTimeMillis() - startTime > spawnTimeout) {
-                return failure(Error.SpawnTimeout(spawnTimeout))
+                return Err(Error.SpawnTimeout(spawnTimeout))
             }
 
             if (errorReader.ready()) {
@@ -203,7 +204,7 @@ class AnvilBuilder {
                     val nextErrorLine = errorReader.readLine() ?: break
                     fullError.append("\n").append(nextErrorLine)
                 }
-                return failure(Error.SpawnError(fullError.toString()))
+                return Err(Error.SpawnError(fullError.toString()))
             }
 
             if (!reader.ready()) {
@@ -236,7 +237,7 @@ class AnvilBuilder {
                 do {
                     val hexKey = line.split(" ")[1]
                     if (hexKey.length != 66 || !FastHex.isValidHex(hexKey)) {
-                        return failure(Error.SpawnError("Invalid private key format: $hexKey"))
+                        return Err(Error.SpawnError("Invalid private key format: $hexKey"))
                     }
 
                     accounts.add(PrivateKeySigner(hexKey))
@@ -245,10 +246,10 @@ class AnvilBuilder {
             }
         }
 
-        return success(AnvilInstance(process, port, accounts, chainId))
+        return Ok(AnvilInstance(process, port, accounts, chainId))
     }
 
-    sealed interface Error : Result.Error {
+    sealed interface Error : ThrowingError {
         data class SpawnTimeout(val spawnTimeout: Long) : Error
         data class SpawnError(val error: String) : Error
     }

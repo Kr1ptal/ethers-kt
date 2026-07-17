@@ -1,6 +1,6 @@
 package io.ethers.providers.types
 
-import io.ethers.core.isFailure
+import com.github.michaelbull.result.unwrapError
 import io.ethers.core.json.JsonElement
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bloom
@@ -9,6 +9,7 @@ import io.ethers.core.types.Hash
 import io.ethers.core.types.Log
 import io.ethers.core.types.TransactionReceipt
 import io.ethers.core.types.transaction.TxType
+import io.ethers.core.unwrap
 import io.ethers.providers.Provider
 import io.github.artificialpb.bignum.BigInteger
 import io.kotest.core.spec.style.FunSpec
@@ -60,7 +61,7 @@ class PendingTransactionTest : FunSpec({
             enqueueEmptyResponses(mockWebServer, retries)
 
             val response = pendingTransaction.awaitInclusion(retries, Duration.ofMillis(50), 0)
-            response.isFailure() shouldBe true
+            response.isErr shouldBe true
             response.unwrapError().shouldBeInstanceOf<PendingInclusion.Error>()
         }
 
@@ -70,7 +71,7 @@ class PendingTransactionTest : FunSpec({
             mockWebServer.enqueue(generateMockResponse(body = ERROR_RESPONSE_FACTORY(errorMessage)))
 
             val response = pendingTransaction.awaitInclusion(1, Duration.ofMillis(50), 0)
-            response.isFailure() shouldBe true
+            response.isErr shouldBe true
 
             val error = response.unwrapError()
             error.shouldBeInstanceOf<PendingInclusion.Error.RpcError>()
@@ -86,7 +87,7 @@ class PendingTransactionTest : FunSpec({
             mockWebServer.enqueue(generateMockResponse(body = ERROR_RESPONSE_FACTORY(errorMessage)))
 
             val response = pendingTransaction.awaitInclusion(1, Duration.ofMillis(50), 10)
-            response.isFailure() shouldBe true
+            response.isErr shouldBe true
 
             val error = response.unwrapError()
             error.shouldBeInstanceOf<PendingInclusion.Error.RpcError>()

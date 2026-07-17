@@ -2,6 +2,7 @@ package io.ethers.examples
 
 import io.ethers.core.types.Address
 import io.ethers.core.types.BlockId
+import io.ethers.core.unwrap
 import io.ethers.examples.UniswapV2FeeFinder.Companion.getFeePercent
 import io.ethers.examples.gen.UniswapV2Pair
 import io.ethers.providers.Provider

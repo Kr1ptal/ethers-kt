@@ -1,7 +1,7 @@
 package io.ethers.core.types
 
-import io.ethers.core.isFailure
-import io.ethers.core.isSuccess
+import com.github.michaelbull.result.getError
+import io.ethers.core.unwrap
 import io.github.artificialpb.bignum.BigInteger
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
@@ -85,7 +85,7 @@ class SignatureTest : FunSpec({
                 ),
         ) { (hex, expectedSignature) ->
             val result = Signature.fromHex(hex)
-            result.isSuccess() shouldBe true
+            result.isOk shouldBe true
             result.unwrap() shouldBe expectedSignature
         }
     }
@@ -96,8 +96,8 @@ class SignatureTest : FunSpec({
             "1".repeat(200),
         ) { hex ->
             val result = Signature.fromHex(hex)
-            result.isFailure() shouldBe true
-            result.unwrapOrNull()?.shouldBeInstanceOf<InvalidSignatureError>()
+            result.isErr shouldBe true
+            result.getError()?.shouldBeInstanceOf<InvalidSignatureError>()
         }
     }
 })

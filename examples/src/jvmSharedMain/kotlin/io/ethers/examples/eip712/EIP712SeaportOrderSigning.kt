@@ -2,10 +2,11 @@ package io.ethers.examples.eip712
 
 import io.ethers.abi.eip712.EIP712Domain
 import io.ethers.abi.eip712.EIP712TypedData
-import io.ethers.core.Jackson
+import io.ethers.core.Kotlinx
 import io.ethers.core.types.Address
 import io.ethers.core.types.BlockId
 import io.ethers.core.types.Bytes
+import io.ethers.core.unwrap
 import io.ethers.core.utils.EthUnit
 import io.ethers.examples.gen.Seaport_1_6
 import io.ethers.providers.Provider
@@ -95,7 +96,7 @@ class EIP712SigningExample(
             .sendAwait()
 
         println("Order Hash: $orderHash")
-        println("TypedData: " + Jackson.MAPPER.writeValueAsString(typedData))
+        println("TypedData: " + Kotlinx.DEFAULT.encodeToString(typedData))
         println("Signature hash: ${Bytes(typedData.signatureHash())}")
         println("Signature: ${Bytes(signature.toByteArray())}")
         println("Validate result: $validateResult")

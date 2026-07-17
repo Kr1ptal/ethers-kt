@@ -6,6 +6,7 @@ import io.ethers.core.types.tracers.CallTracer
 import io.ethers.core.types.tracers.MuxTracer
 import io.ethers.core.types.tracers.PrestateTracer
 import io.ethers.core.types.tracers.TracerConfig
+import io.ethers.core.unwrap
 import io.ethers.providers.Provider
 import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
@@ -22,7 +23,7 @@ class SimulateBlockTransactions(
         provider.subscribeNewHeads().sendAwait().unwrap().forEach { head ->
             println("New block: ${head.number}")
 
-            val blockWithTransactions = provider.getBlockWithTransactions(head.number).sendAwait().unwrap().get()
+            val blockWithTransactions = provider.getBlockWithTransactions(head.number).sendAwait().unwrap()!!
             val blockOverrides = blockWithTransactions.toBlockOverride()
             val stateOverrides = StateOverride()
             for (tx in blockWithTransactions.transactions) {
@@ -45,7 +46,7 @@ class SimulateBlockTransactions(
                 stateOverrides.takeChanges(result[PrestateTracer::class.java].toStateOverride())
 
                 val call = result[CallTracer::class.java]
-                val txReceipt = txReceiptRequest.get().unwrap().get()
+                val txReceipt = txReceiptRequest.get().unwrap()!!
                 if (!call.isError == txReceipt.isSuccessful && call.gasUsed == txReceipt.gasUsed) {
                     println("Transaction simulation ${tx.hash} was correct")
                 } else {

@@ -2,6 +2,7 @@
 
 package io.ethers.signers
 
+import com.github.michaelbull.result.unwrapError
 import com.google.cloud.kms.v1.AsymmetricSignResponse
 import com.google.cloud.kms.v1.CryptoKeyVersion
 import com.google.cloud.kms.v1.CryptoKeyVersionName
@@ -12,9 +13,8 @@ import com.google.protobuf.ByteString
 import dev.whyoleg.cryptography.bigint.toKotlinBigInt
 import dev.whyoleg.cryptography.serialization.asn1.Der
 import dev.whyoleg.cryptography.serialization.asn1.modules.DssSignatureValue
-import io.ethers.core.isFailure
-import io.ethers.core.isSuccess
 import io.ethers.core.types.Address
+import io.ethers.core.unwrap
 import io.ethers.crypto.Secp256k1
 import io.github.artificialpb.bignum.BigInteger
 import io.kotest.core.spec.style.FunSpec
@@ -127,7 +127,7 @@ class GcpSignerTest : FunSpec({
 
             val result = GcpSigner.create(mockClient, keyName)
 
-            result.isSuccess() shouldBe true
+            result.isOk shouldBe true
             result.unwrap().address shouldBe expectedAddress
 
             verify { mockClient.getPublicKey(keyName) }
@@ -142,7 +142,7 @@ class GcpSignerTest : FunSpec({
 
             val result = GcpSigner.create(mockClient, keyName)
 
-            result.isFailure() shouldBe true
+            result.isErr shouldBe true
             result.unwrapError().shouldBeInstanceOf<GcpSigner.AddressFetchError>()
             result.unwrapError().message shouldBe "Only secp256k1 keys are supported"
         }
@@ -154,7 +154,7 @@ class GcpSignerTest : FunSpec({
 
             val result = GcpSigner.create(mockClient, keyName)
 
-            result.isFailure() shouldBe true
+            result.isErr shouldBe true
             result.unwrapError().shouldBeInstanceOf<GcpSigner.AddressFetchError>()
             result.unwrapError().message shouldBe "Failed to create GCP signer"
         }
@@ -172,7 +172,7 @@ class GcpSignerTest : FunSpec({
 
             val result = GcpSigner.create(mockClient, keyNameString)
 
-            result.isSuccess() shouldBe true
+            result.isOk shouldBe true
             result.unwrap().address shouldBe expectedAddress
         }
 
@@ -199,7 +199,7 @@ class GcpSignerTest : FunSpec({
                 versionId = "1",
             )
 
-            result.isSuccess() shouldBe true
+            result.isOk shouldBe true
             result.unwrap().address shouldBe expectedAddress
         }
     }

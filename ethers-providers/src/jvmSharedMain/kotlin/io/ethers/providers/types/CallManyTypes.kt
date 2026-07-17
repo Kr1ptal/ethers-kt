@@ -1,11 +1,10 @@
 package io.ethers.providers.types
 
-import io.ethers.core.Result
+import io.ethers.core.ThrowingError
 import io.ethers.core.types.BlockId
 import io.ethers.core.types.BlockIdSerializer
 import io.ethers.core.types.BlockOverride
 import io.ethers.core.types.BlockOverrideSerializer
-import io.ethers.core.types.CallRequest
 import io.ethers.core.types.CallRequestSerializer
 import io.ethers.core.types.IntoCallRequest
 import kotlinx.serialization.KSerializer
@@ -21,7 +20,7 @@ import kotlinx.serialization.json.put
 /**
  * Error returned for a call in `eth_callMany` that fails.
  * */
-data class CallFailedError(val error: String) : Result.Error
+data class CallFailedError(val error: String) : ThrowingError
 
 /**
  * Internal type used for correctly serializing `eth_callMany`/`debug_traceCallMany` request arguments.
@@ -57,7 +56,10 @@ internal object CallManyBundleSerializer : KSerializer<CallManyBundle> {
                     },
                 )
                 if (value.blockOverride != null) {
-                    put("blockOverride", jsonEncoder.json.encodeToJsonElement(BlockOverrideSerializer, value.blockOverride))
+                    put(
+                        "blockOverride",
+                        jsonEncoder.json.encodeToJsonElement(BlockOverrideSerializer, value.blockOverride),
+                    )
                 }
             },
         )
