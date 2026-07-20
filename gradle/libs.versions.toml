@@ -125,4 +125,4 @@ ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 kotest = { id = "io.kotest", version.ref = "kotest" }
 shadow = { id = "com.gradleup.shadow", version = "9.5.1" }
 android-kotlin-multiplatform-library = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
-jreleaser = { id = "org.jreleaser", version = "1.24.0" }
+jreleaser = { id = "org.jreleaser", version = "1.25.0" }
