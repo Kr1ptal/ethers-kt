@@ -29,7 +29,7 @@ class BatchRpcResponse<T> internal constructor(
     }
 
     internal fun <R> map(mapper: (T) -> R): BatchRpcResponse<R> {
-        return BatchRpcResponse({ mapper(await()) }, { true })
+        return BatchRpcResponse({ mapper(await()) }, canAwait)
     }
 }
 

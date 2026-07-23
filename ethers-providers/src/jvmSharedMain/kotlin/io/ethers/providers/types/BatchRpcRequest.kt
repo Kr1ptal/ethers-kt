@@ -23,11 +23,11 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) {
     // Enable batchSent modification for batch execution via JsonRpcClient.requestBatch
     internal val batchSent = atomic(false)
 
-    private val _requests = ArrayList<RpcCall<*>>(defaultSize)
-    internal val requests: List<RpcCall<*>> get() = _requests
+    internal val requests: List<RpcCall<*>>
+        field = ArrayList(defaultSize)
 
-    private val _responses = ArrayList<CompletableDeferred<Result<*, RpcError>>>(defaultSize)
-    internal val responses: List<CompletableDeferred<Result<*, RpcError>>> get() = _responses
+    internal val responses: List<CompletableDeferred<Result<*, RpcError>>>
+        field = ArrayList(defaultSize)
 
     private var client: JsonRpcClient? = null
 
@@ -51,8 +51,8 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) {
 
         val response = CompletableDeferred<Result<T, RpcError>>()
 
-        _requests.add(request)
-        _responses.add(response as CompletableDeferred<Result<*, RpcError>>)
+        requests.add(request)
+        responses.add(response as CompletableDeferred<Result<*, RpcError>>)
 
         return BatchRpcResponse(response) { batchSent.value }
     }
@@ -84,7 +84,7 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) {
         .async(start = CoroutineStart.UNDISPATCHED) { send() }
 
     internal fun markAsSent() {
-        if (!batchSent.compareAndSet(false, true)) {
+        if (!batchSent.compareAndSet(expect = false, update = true)) {
             throw IllegalStateException("Batch already sent")
         }
     }
