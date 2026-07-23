@@ -61,4 +61,18 @@ class RpcRequestTests : FunSpec({
         requests.send().unwrap() shouldBe listOf(1, 2)
         requests.sendAwait().unwrap() shouldBe listOf(1, 2)
     }
+
+    test("BatchRequest supports blocking and suspending await") {
+        val blocking = batchRequest(
+            SuppliedRpcRequest { success(1) },
+            SuppliedRpcRequest { success(2) },
+        ).await()
+        blocking.unwrap() shouldBe BatchResponse2(1, 2)
+
+        val suspending = batchRequest(
+            SuppliedRpcRequest { success(3) },
+            SuppliedRpcRequest { success(4) },
+        ).awaitSuspend()
+        suspending.unwrap() shouldBe BatchResponse2(3, 4)
+    }
 })
