@@ -314,7 +314,6 @@ class WsClient(
                         if (wsSend(req)) {
                             pendingSendBatchRequests.removeFirst()
                             inFlightBatchRequests[batchId] = Pair(pending, idToIndex)
-                            pending.request.markAsSent()
                         } else {
                             requestReconnect()
                             break
@@ -643,7 +642,6 @@ class WsClient(
 
     override suspend fun requestBatch(batch: BatchRpcRequest): Boolean {
         if (batch.isEmpty) {
-            batch.markAsSent()
             return true
         }
 

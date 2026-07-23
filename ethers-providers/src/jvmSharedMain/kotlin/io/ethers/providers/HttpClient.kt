@@ -48,8 +48,6 @@ class HttpClient(
     private val requestId = atomic(1L)
 
     override suspend fun requestBatch(batch: BatchRpcRequest): Boolean {
-        batch.markAsSent()
-
         if (batch.isEmpty) {
             return true
         }

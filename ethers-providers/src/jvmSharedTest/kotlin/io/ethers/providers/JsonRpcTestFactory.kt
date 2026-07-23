@@ -4,6 +4,7 @@ import io.ethers.core.isFailure
 import io.ethers.core.isSuccess
 import io.ethers.providers.types.BatchRpcRequest
 import io.ethers.providers.types.RpcCall
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.funSpec
 import io.kotest.matchers.shouldBe
 import kotlinx.serialization.json.jsonPrimitive
@@ -122,7 +123,7 @@ object JsonRpcTestFactory {
                 batch.addRpcCall(call1)
                 batch.addRpcCall(call2)
 
-                val batchResult = client.requestBatch(batch)
+                val batchResult = batch.send()
                 batchResult shouldBe true
 
                 val result1 = batch.responses[0].await()
@@ -145,7 +146,7 @@ object JsonRpcTestFactory {
                 batch.addRpcCall(call2)
                 batch.addRpcCall(call3)
 
-                val batchResult = client.requestBatch(batch)
+                val batchResult = batch.send()
                 batchResult shouldBe true
 
                 // Verify responses are correctly matched to requests despite out-of-order response
@@ -161,7 +162,7 @@ object JsonRpcTestFactory {
                 val call1 = RpcCall(client, "eth_blockNumber", emptyArray<Any>(), stringDecoder)
                 batch.addRpcCall(call1)
 
-                val batchResult = client.requestBatch(batch)
+                val batchResult = batch.send()
                 batchResult shouldBe false
 
                 batch.responses[0].await().isFailure() shouldBe true
@@ -174,12 +175,16 @@ object JsonRpcTestFactory {
                 val call1 = RpcCall(client, "eth_blockNumber", emptyArray<Any>(), stringDecoder)
                 batch.addRpcCall(call1)
 
-                val batchResult = client.requestBatch(batch)
+                val batchResult = batch.send()
                 batchResult shouldBe true
 
                 val result = batch.responses[0].await()
                 result.isSuccess() shouldBe true
                 result.unwrap() shouldBe "0x1234567"
+
+                shouldThrow<IllegalStateException> {
+                    batch.send()
+                }
             }
 
             test("batch with invalid request ID in response") {
@@ -189,7 +194,7 @@ object JsonRpcTestFactory {
                 val call1 = RpcCall(client, "eth_blockNumber", emptyArray<Any>(), stringDecoder)
                 batch.addRpcCall(call1)
 
-                val batchResult = client.requestBatch(batch)
+                val batchResult = batch.send()
                 batchResult shouldBe false
 
                 batch.responses[0].await().isFailure() shouldBe true

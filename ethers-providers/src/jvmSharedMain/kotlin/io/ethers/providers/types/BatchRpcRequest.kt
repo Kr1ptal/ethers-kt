@@ -72,6 +72,7 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) {
      */
     suspend fun send(): Boolean {
         val client = client ?: return false
+        markAsSent()
         return client.requestBatch(this)
     }
 
