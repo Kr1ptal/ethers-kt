@@ -33,7 +33,7 @@ abstract class RpcRequest<T, E : Result.Error> {
     /**
      * Batch this into provided [BatchRpcRequest].
      */
-    abstract fun batch(batch: BatchRpcRequest): CompletableFuture<Result<T, E>>
+    abstract fun batch(batch: BatchRpcRequest): BatchRpcResponse<Result<T, E>>
 
     /**
      * Map the returned response if the call was successful, skipping if it failed.
@@ -111,7 +111,7 @@ class RpcCall<T>(
 
     override suspend fun send(): Result<T, RpcError> = client.request(method, params, resultDecoder)
 
-    override fun batch(batch: BatchRpcRequest): CompletableFuture<Result<T, RpcError>> = batch.addRpcCall(this)
+    override fun batch(batch: BatchRpcRequest): BatchRpcResponse<Result<T, RpcError>> = batch.addRpcCall(this)
 
     override fun toString(): String {
         return "RpcCall(method='$method', params=${params.contentToString()})"
@@ -127,8 +127,8 @@ private class MappingRpcRequest<I, O, E : Result.Error, U : Result.Error>(
 ) : RpcRequest<O, U>() {
     override suspend fun send(): Result<O, U> = mapper(request.send())
 
-    override fun batch(batch: BatchRpcRequest): CompletableFuture<Result<O, U>> {
-        return request.batch(batch).thenApply { mapper(it) }
+    override fun batch(batch: BatchRpcRequest): BatchRpcResponse<Result<O, U>> {
+        return request.batch(batch).map(mapper)
     }
 
     override fun toString(): String {
@@ -144,8 +144,8 @@ class SuppliedRpcRequest<T>(
 ) : RpcRequest<T, RpcError>() {
     override suspend fun send(): Result<T, RpcError> = supplier()
 
-    override fun batch(batch: BatchRpcRequest): CompletableFuture<Result<T, RpcError>> {
-        return sendAsync()
+    override fun batch(batch: BatchRpcRequest): BatchRpcResponse<Result<T, RpcError>> {
+        return BatchRpcResponse(CoroutineScope(Dispatchers.Default).async { send() }) { true }
     }
 
     override fun toString(): String {
