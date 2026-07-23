@@ -6,6 +6,15 @@ import io.ethers.core.Result
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import kotlinx.atomicfu.atomic
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.future.asCompletableFuture
+import kotlinx.coroutines.future.await
+import kotlinx.coroutines.runBlocking
 import java.util.concurrent.CompletableFuture
 
 /**
@@ -18,8 +27,8 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) {
     private val _requests = ArrayList<RpcCall<*>>(defaultSize)
     internal val requests: List<RpcCall<*>> get() = _requests
 
-    private val _responses = ArrayList<CompletableFuture<Result<*, RpcError>>>(defaultSize)
-    internal val responses: List<CompletableFuture<Result<*, RpcError>>> get() = _responses
+    private val _responses = ArrayList<CompletableDeferred<Result<*, RpcError>>>(defaultSize)
+    internal val responses: List<CompletableDeferred<Result<*, RpcError>>> get() = _responses
 
     private var client: JsonRpcClient? = null
 
@@ -34,6 +43,7 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) {
      * NOTE: The returned CompletableFuture should not be awaited until the batch is sent.
      * Doing so will throw an exception to prevent blocking indefinitely.
      */
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun <T> addRpcCall(request: RpcCall<T>): CompletableFuture<Result<T, RpcError>> {
         if (client == null) {
             client = request.client
@@ -41,30 +51,44 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) {
             throw IllegalArgumentException("All requests must use the same client")
         }
 
+        val response = CompletableDeferred<Result<T, RpcError>>()
         val future = ConditionalCompletableFuture<Result<T, RpcError>> { batchSent.value }
+        response.invokeOnCompletion { cause ->
+            if (cause == null) {
+                future.complete(response.getCompleted())
+            } else {
+                future.completeExceptionally(cause)
+            }
+        }
 
         _requests.add(request)
-        _responses.add(future as CompletableFuture<Result<*, RpcError>>)
+        _responses.add(response as CompletableDeferred<Result<*, RpcError>>)
 
         return future
     }
 
     /**
-     * Send a batch request and await the result by blocking the calling thread.
+     * Send the batch request without blocking the calling thread.
      */
-    fun sendAwait(): Boolean {
-        return sendAsync().join()
+    suspend fun send(): Boolean {
+        val client = client ?: return false
+        return client.requestBatch(this)
     }
 
     /**
-     * Asynchronously send a batch request.
+     * Send the batch request and await the result by blocking the calling thread.
+     */
+    fun sendAwait(): Boolean {
+        return runBlocking { send() }
+    }
+
+    /**
+     * Asynchronously send the batch request as a [CompletableFuture].
      */
     fun sendAsync(): CompletableFuture<Boolean> {
-        if (client == null) {
-            return CompletableFuture.completedFuture(false)
-        }
-
-        return client!!.requestBatch(this)
+        return CoroutineScope(Dispatchers.Default)
+            .async(start = CoroutineStart.UNDISPATCHED) { send() }
+            .asCompletableFuture()
     }
 
     internal fun markAsSent() {
@@ -112,13 +136,32 @@ fun <T, E : Result.Error> Iterable<Result<T, E>>.unwrap(): UnwrappedBatchRespons
  * Batch-send all requests, awaiting the result by blocking the calling thread.
  */
 fun <T, E : Result.Error> Iterable<RpcRequest<out T, E>>.sendAwait(): BatchResponse<T, E> {
-    val async = sendAsync()
-    val ret = ArrayList<Result<T, E>>(async.size)
-    for (future in async) {
-        ret.add(future.join())
+    return runBlocking { send() }
+}
+
+/**
+ * Batch-send all requests without blocking the calling thread.
+ */
+suspend fun <T, E : Result.Error> Iterable<RpcRequest<out T, E>>.send(): BatchResponse<T, E> {
+    val iter = iterator()
+    if (!iter.hasNext()) {
+        return BatchResponse(emptyList())
     }
 
-    return BatchResponse(ret)
+    val size = if (this is Collection<*>) this.size else 10
+    val futures = ArrayList<CompletableFuture<Result<T, E>>>(size)
+    val batch = BatchRpcRequest(size)
+    while (iter.hasNext()) {
+        futures.add(iter.next().batch(batch) as CompletableFuture<Result<T, E>>)
+    }
+
+    batch.send()
+
+    val responses = ArrayList<Result<T, E>>(futures.size)
+    for (future in futures) {
+        responses.add(future.await())
+    }
+    return BatchResponse(responses)
 }
 
 /**

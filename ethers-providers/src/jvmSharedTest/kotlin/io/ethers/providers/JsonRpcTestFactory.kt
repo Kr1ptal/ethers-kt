@@ -59,7 +59,7 @@ object JsonRpcTestFactory {
             test("successful request with result") {
                 server.enqueueJson(SUCCESSFUL_RESPONSE)
 
-                val result = client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
+                val result = client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder)
 
                 result.isSuccess() shouldBe true
                 result.unwrap() shouldBe "0x1234567"
@@ -68,7 +68,7 @@ object JsonRpcTestFactory {
             test("RPC error response") {
                 server.enqueueJson(RPC_ERROR_RESPONSE)
 
-                val result = client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
+                val result = client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder)
 
                 result.isFailure() shouldBe true
                 val error = result.unwrapError()
@@ -79,7 +79,7 @@ object JsonRpcTestFactory {
             test("invalid JSON response") {
                 server.enqueueJson("invalid json")
 
-                val result = client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
+                val result = client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder)
 
                 result.isFailure() shouldBe true
                 val error = result.unwrapError()
@@ -89,7 +89,7 @@ object JsonRpcTestFactory {
             test("missing response fields") {
                 server.enqueueJson(RESPONSE_MISSING_FIELDS)
 
-                val result = client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder).get()
+                val result = client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder)
 
                 result.isFailure() shouldBe true
                 val error = result.unwrapError()
@@ -99,7 +99,7 @@ object JsonRpcTestFactory {
             test("request with parameters") {
                 server.enqueueJson(SUCCESSFUL_RESPONSE)
 
-                val result = client.request("eth_getBalance", arrayOf("0x1234", "latest"), stringDecoder).get()
+                val result = client.request("eth_getBalance", arrayOf("0x1234", "latest"), stringDecoder)
 
                 result.isSuccess() shouldBe true
                 result.unwrap() shouldBe "0x1234567"
@@ -109,7 +109,7 @@ object JsonRpcTestFactory {
         context("Common JSON-RPC batch tests") {
             test("empty batch request") {
                 val batch = BatchRpcRequest(0)
-                val batchResult = client.requestBatch(batch).get()
+                val batchResult = client.requestBatch(batch)
                 batchResult shouldBe true // Should complete successfully even with no requests
             }
 
@@ -122,14 +122,14 @@ object JsonRpcTestFactory {
                 batch.addRpcCall(call1)
                 batch.addRpcCall(call2)
 
-                val batchResult = client.requestBatch(batch).get()
+                val batchResult = client.requestBatch(batch)
                 batchResult shouldBe true
 
-                val result1 = batch.responses[0].get()
+                val result1 = batch.responses[0].await()
                 result1.isSuccess() shouldBe true
                 result1.unwrap() shouldBe "0x1234567"
 
-                val result2 = batch.responses[1].get()
+                val result2 = batch.responses[1].await()
                 result2.isFailure() shouldBe true
                 result2.unwrapError().code shouldBe -32601
             }
@@ -145,13 +145,13 @@ object JsonRpcTestFactory {
                 batch.addRpcCall(call2)
                 batch.addRpcCall(call3)
 
-                val batchResult = client.requestBatch(batch).get()
+                val batchResult = client.requestBatch(batch)
                 batchResult shouldBe true
 
                 // Verify responses are correctly matched to requests despite out-of-order response
-                batch.responses[0].get().unwrap() shouldBe "result1"
-                batch.responses[1].get().unwrap() shouldBe "result2"
-                batch.responses[2].get().unwrap() shouldBe "result3"
+                batch.responses[0].await().unwrap() shouldBe "result1"
+                batch.responses[1].await().unwrap() shouldBe "result2"
+                batch.responses[2].await().unwrap() shouldBe "result3"
             }
 
             test("invalid batch JSON response") {
@@ -161,10 +161,10 @@ object JsonRpcTestFactory {
                 val call1 = RpcCall(client, "eth_blockNumber", emptyArray<Any>(), stringDecoder)
                 batch.addRpcCall(call1)
 
-                val batchResult = client.requestBatch(batch).get()
+                val batchResult = client.requestBatch(batch)
                 batchResult shouldBe false
 
-                batch.responses[0].get().isFailure() shouldBe true
+                batch.responses[0].await().isFailure() shouldBe true
             }
 
             test("single item batch") {
@@ -174,10 +174,10 @@ object JsonRpcTestFactory {
                 val call1 = RpcCall(client, "eth_blockNumber", emptyArray<Any>(), stringDecoder)
                 batch.addRpcCall(call1)
 
-                val batchResult = client.requestBatch(batch).get()
+                val batchResult = client.requestBatch(batch)
                 batchResult shouldBe true
 
-                val result = batch.responses[0].get()
+                val result = batch.responses[0].await()
                 result.isSuccess() shouldBe true
                 result.unwrap() shouldBe "0x1234567"
             }
@@ -189,10 +189,10 @@ object JsonRpcTestFactory {
                 val call1 = RpcCall(client, "eth_blockNumber", emptyArray<Any>(), stringDecoder)
                 batch.addRpcCall(call1)
 
-                val batchResult = client.requestBatch(batch).get()
+                val batchResult = client.requestBatch(batch)
                 batchResult shouldBe false
 
-                batch.responses[0].get().isFailure() shouldBe true
+                batch.responses[0].await().isFailure() shouldBe true
             }
         }
     }

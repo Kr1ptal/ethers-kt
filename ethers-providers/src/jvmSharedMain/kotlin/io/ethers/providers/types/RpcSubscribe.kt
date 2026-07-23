@@ -5,19 +5,31 @@ import io.ethers.core.Result
 import io.ethers.core.Result.Consumer
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.future.asCompletableFuture
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonElement
 import java.util.concurrent.CompletableFuture
 
 interface RpcSubscribe<T : Any, E : Result.Error> {
     /**
-     * Subscribe to stream via RPC and await the subscription response by blocking calling thread.
+     * Subscribe to a stream via RPC without blocking the calling thread.
      */
-    fun sendAwait(): Result<ChannelReceiver<T>, E>
+    suspend fun send(): Result<ChannelReceiver<T>, E>
 
     /**
-     * Asynchronously subscribe to stream via RPC.
+     * Subscribe to a stream via RPC and await the subscription response by blocking the calling thread.
      */
-    fun sendAsync(): CompletableFuture<Result<ChannelReceiver<T>, E>>
+    fun sendAwait(): Result<ChannelReceiver<T>, E> = runBlocking { send() }
+
+    /**
+     * Asynchronously subscribe to a stream via RPC as a [CompletableFuture].
+     */
+    fun sendAsync(): CompletableFuture<Result<ChannelReceiver<T>, E>> {
+        return CoroutineScope(Dispatchers.Default).async { send() }.asCompletableFuture()
+    }
 
     /**
      * Map the returned response if the call was successful, skipping if it failed.
@@ -90,10 +102,7 @@ interface RpcSubscribe<T : Any, E : Result.Error> {
 internal class RpcSubscribeConstant<T : Any, E : Result.Error>(
     private val value: Result<ChannelReceiver<T>, E>,
 ) : RpcSubscribe<T, E> {
-    override fun sendAwait(): Result<ChannelReceiver<T>, E> = value
-    override fun sendAsync(): CompletableFuture<Result<ChannelReceiver<T>, E>> {
-        return CompletableFuture.completedFuture(value)
-    }
+    override suspend fun send(): Result<ChannelReceiver<T>, E> = value
 
     override fun toString(): String = "RpcSubscribeConstant(value=$value)"
 }
@@ -113,10 +122,7 @@ class RpcSubscribeCall<T : Any>(
         resultType: Class<T>,
     ) : this(client, params, { p -> io.ethers.core.Kotlinx.DEFAULT.decodeFromJsonElement(kotlinx.serialization.serializer(resultType), p) as T })
 
-    override fun sendAwait(): Result<ChannelReceiver<T>, RpcError> = sendAsync().join()
-    override fun sendAsync(): CompletableFuture<Result<ChannelReceiver<T>, RpcError>> {
-        return client.subscribe(params, resultDecoder)
-    }
+    override suspend fun send(): Result<ChannelReceiver<T>, RpcError> = client.subscribe(params, resultDecoder)
 
     override fun toString(): String {
         return "RpcSubscribeCall(params=${params.contentToString()})"
@@ -130,9 +136,7 @@ private class MappingRpcSubscribe<I : Any, O : Any, E : Result.Error, U : Result
     private val request: RpcSubscribe<I, E>,
     private val mapper: (Result<ChannelReceiver<I>, E>) -> Result<ChannelReceiver<O>, U>,
 ) : RpcSubscribe<O, U> {
-    override fun sendAwait(): Result<ChannelReceiver<O>, U> = sendAsync().join()
-
-    override fun sendAsync(): CompletableFuture<Result<ChannelReceiver<O>, U>> = request.sendAsync().thenApplyAsync { mapper(it) }
+    override suspend fun send(): Result<ChannelReceiver<O>, U> = mapper(request.send())
 
     override fun toString(): String {
         return "MappingRpcSubscribe(request=$request)"
