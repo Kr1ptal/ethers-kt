@@ -119,7 +119,7 @@ class WsClient(
                     for (frame in incoming) {
                         when (frame) {
                             is Frame.Text -> {
-                                messageQueue.offer(frame.readText())
+                                messageQueue.enqueue(frame.readText())
                                 eventLock.withLock { newEventCondition.signalAll() }
                             }
                             is Frame.Close -> {
@@ -233,7 +233,7 @@ class WsClient(
                             while (iter.hasNext()) {
                                 val value = iter.next().value
                                 LOG.dbg { "Re-queued in-flight request: $value" }
-                                requestQueue.offer(value)
+                                requestQueue.enqueue(value)
                                 iter.remove()
                             }
                         }
@@ -244,7 +244,7 @@ class WsClient(
                             while (iter.hasNext()) {
                                 val (batchReq, _) = iter.next().value
                                 LOG.dbg { "Re-queued in-flight batch request: $batchReq" }
-                                batchRequestQueue.offer(batchReq)
+                                batchRequestQueue.enqueue(batchReq)
                                 iter.remove()
                             }
                         }
@@ -255,7 +255,7 @@ class WsClient(
                             while (iter.hasNext()) {
                                 val value = iter.next().value
                                 LOG.dbg { "Re-queued in-flight subscription request: $value" }
-                                subscriptionQueue.offer(value)
+                                subscriptionQueue.enqueue(value)
                                 iter.remove()
                             }
                         }
@@ -401,6 +401,10 @@ class WsClient(
         while (subscriptionQueue.poll().also { subscriptionRequest = it } != null) {
             pendingSendSubscriptionRequests.addLast(subscriptionRequest!!)
         }
+    }
+
+    private fun <T : Any> QueueChannel<T>.enqueue(element: T) {
+        check(offer(element)) { "Failed to enqueue element" }
     }
 
     private fun handleTimeouts(timeout: Duration) {
@@ -588,7 +592,7 @@ class WsClient(
                 params = request.params,
                 resultDecoder = request.resultDecoder,
                 stream = QueueChannel.spscUnbounded {
-                    unsubscribeQueue.offer(id)
+                    unsubscribeQueue.enqueue(id)
                     eventLock.withLock { newEventCondition.signalAll() }
                 },
             )
@@ -647,7 +651,7 @@ class WsClient(
 
         val request = PendingBatchRequest(batch, CompletableDeferred())
 
-        batchRequestQueue.offer(request)
+        batchRequestQueue.enqueue(request)
         eventLock.withLock { newEventCondition.signalAll() }
         return request.response.await()
     }
@@ -664,7 +668,7 @@ class WsClient(
             CompletableDeferred(),
         )
 
-        requestQueue.offer(request)
+        requestQueue.enqueue(request)
         eventLock.withLock { newEventCondition.signalAll() }
         return request.response.await()
     }
@@ -679,7 +683,7 @@ class WsClient(
             CompletableDeferred(),
         )
 
-        subscriptionQueue.offer(request)
+        subscriptionQueue.enqueue(request)
         eventLock.withLock { newEventCondition.signalAll() }
         return request.response.await()
     }
