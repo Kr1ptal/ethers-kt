@@ -123,6 +123,8 @@ new values.
 - Subscribe to new pending transactions via `subscribe` or `watch`
 
   ```kotlin
+  import kotlin.time.Duration.Companion.seconds
+
   val wsUrl = "<url>"
   val wsClient = WsClient(wsUrl)
   val provider = Provider(wsClient)
@@ -131,7 +133,7 @@ new values.
   if (provider.isPubSub) {
       stream = provider.subscribeNewPendingTransactions().sendAwait().resultOrThrow()
   } else {
-      stream = provider.watchNewPendingTransactions().sendAwait().resultOrThrow().withInterval(Duration.ofSeconds(1))
+      stream = provider.watchNewPendingTransactions().sendAwait().resultOrThrow().withInterval(1.seconds)
   }
 
   stream.filter { it.gas > 21000L }.forEach { println("New pending TX: $it") }

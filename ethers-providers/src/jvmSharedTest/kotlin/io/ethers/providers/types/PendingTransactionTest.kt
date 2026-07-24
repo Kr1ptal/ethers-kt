@@ -17,7 +17,7 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.intellij.lang.annotations.Language
-import java.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 
 class PendingTransactionTest : FunSpec({
     context("awaitInclusion()") {
@@ -35,7 +35,7 @@ class PendingTransactionTest : FunSpec({
             enqueueEmptyResponses(mockWebServer, retries - 1)
             mockWebServer.enqueue(generateMockResponse(body = TX_RECEIPT_RESPONSE))
 
-            val response = pendingTransaction.awaitInclusion(retries, Duration.ofMillis(50), 0).unwrap()
+            val response = pendingTransaction.awaitInclusion(retries, 50.milliseconds, 0).unwrap()
             response shouldBe TX_RECEIPT
         }
 
@@ -50,7 +50,7 @@ class PendingTransactionTest : FunSpec({
                 mockWebServer.enqueue(generateMockResponse(body = MINED_BLOCK_RESPONSE_FACTORY(minedBlockNumber + i)))
             }
 
-            val response = pendingTransaction.awaitInclusion(retries, Duration.ofMillis(50), confirmations).unwrap()
+            val response = pendingTransaction.awaitInclusion(retries, 50.milliseconds, confirmations).unwrap()
             response shouldBe TX_RECEIPT
         }
 
@@ -59,7 +59,7 @@ class PendingTransactionTest : FunSpec({
             val retries = 5
             enqueueEmptyResponses(mockWebServer, retries)
 
-            val response = pendingTransaction.awaitInclusion(retries, Duration.ofMillis(50), 0)
+            val response = pendingTransaction.awaitInclusion(retries, 50.milliseconds, 0)
             response.isFailure() shouldBe true
             response.unwrapError().shouldBeInstanceOf<PendingInclusion.Error>()
         }
@@ -69,7 +69,7 @@ class PendingTransactionTest : FunSpec({
             val errorMessage = "Failed to query transaction status"
             mockWebServer.enqueue(generateMockResponse(body = ERROR_RESPONSE_FACTORY(errorMessage)))
 
-            val response = pendingTransaction.awaitInclusion(1, Duration.ofMillis(50), 0)
+            val response = pendingTransaction.awaitInclusion(1, 50.milliseconds, 0)
             response.isFailure() shouldBe true
 
             val error = response.unwrapError()
@@ -85,7 +85,7 @@ class PendingTransactionTest : FunSpec({
             val errorMessage = "Failed to query mined block status"
             mockWebServer.enqueue(generateMockResponse(body = ERROR_RESPONSE_FACTORY(errorMessage)))
 
-            val response = pendingTransaction.awaitInclusion(1, Duration.ofMillis(50), 10)
+            val response = pendingTransaction.awaitInclusion(1, 50.milliseconds, 10)
             response.isFailure() shouldBe true
 
             val error = response.unwrapError()

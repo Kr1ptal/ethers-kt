@@ -2,11 +2,12 @@ package io.ethers.providers.types
 
 import io.ethers.core.Result
 import io.ethers.core.types.Hash
-import java.time.Duration
 import java.util.concurrent.CompletableFuture
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 private const val DEFAULT_RETRIES = 3
-private val DEFAULT_INCLUSION_INTERVAL = Duration.ofSeconds(6)
+private val DEFAULT_INCLUSION_INTERVAL = 6.seconds
 private const val DEFAULT_CONFIRMATIONS = 1
 
 /**
