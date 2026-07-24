@@ -17,9 +17,10 @@ import io.ethers.providers.AsyncExecutor
 import io.ethers.providers.RpcError
 import io.ethers.providers.middleware.Middleware
 import kotlinx.serialization.json.JsonElement
-import java.time.Duration
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
-private val DEFAULT_POLLER_INTERVAL = Duration.ofSeconds(7)
+private val DEFAULT_POLLER_INTERVAL = 7.seconds
 
 /**
  * A poller that periodically fetches new filter values via `eth_getFilterChanges` RPC call. Polling interval
@@ -136,7 +137,7 @@ class FilterPoller<T : Any> private constructor(
                         }
                     }
 
-                    Thread.sleep(interval.toMillis())
+                    Thread.sleep(interval.inWholeMilliseconds)
                 }
 
                 if (filterExists) {

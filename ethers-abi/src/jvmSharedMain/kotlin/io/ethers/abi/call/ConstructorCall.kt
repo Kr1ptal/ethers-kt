@@ -20,7 +20,7 @@ import io.ethers.providers.types.PendingInclusion
 import io.ethers.providers.types.PendingTransaction
 import io.ethers.providers.types.RpcRequest
 import io.github.artificialpb.bignum.BigInteger
-import java.time.Duration
+import kotlin.time.Duration
 
 private val PRESTATE_DIFF_TRACER = PrestateTracer(diffMode = true)
 private val TRACER_CONFIG_NO_OVERRIDES = TracerConfig(PRESTATE_DIFF_TRACER)

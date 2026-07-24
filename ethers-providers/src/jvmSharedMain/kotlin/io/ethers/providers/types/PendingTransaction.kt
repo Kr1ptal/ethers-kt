@@ -8,7 +8,7 @@ import io.ethers.core.types.Hash
 import io.ethers.core.types.TransactionReceipt
 import io.ethers.providers.RpcError
 import io.ethers.providers.middleware.Middleware
-import java.time.Duration
+import kotlin.time.Duration
 
 class PendingTransaction(
     val hash: Hash,
@@ -19,7 +19,7 @@ class PendingTransaction(
         interval: Duration,
         confirmations: Int,
     ): Result<TransactionReceipt, PendingInclusion.Error> {
-        val intervalMillis = interval.toMillis()
+        val intervalMillis = interval.inWholeMilliseconds
         var receiptError: RpcError? = null
         var included: TransactionReceipt? = null
         var retriesLeft = retries
