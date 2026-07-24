@@ -21,6 +21,7 @@ import io.ethers.abi.AbiType
 import io.ethers.abi.AnonymousEventFilter
 import io.ethers.abi.AnonymousEventFilterBase
 import io.ethers.abi.ContractEvent
+import io.ethers.abi.EventDecodingError
 import io.ethers.abi.EventFactory
 import io.ethers.abi.EventFilter
 import io.ethers.abi.EventFilterBase
@@ -31,9 +32,11 @@ import io.ethers.abi.call.PayableFunctionCall
 import io.ethers.abi.call.ReadFunctionCall
 import io.ethers.abi.call.ReceiveFunctionCall
 import io.ethers.abi.error.ContractError
+import io.ethers.abi.error.ContractErrorDecodingError
 import io.ethers.abi.error.CustomContractError
 import io.ethers.abi.error.CustomErrorFactory
 import io.ethers.abi.error.CustomErrorFactoryResolver
+import io.ethers.core.Result
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
@@ -209,16 +212,57 @@ class AbiContractBuilder(
             )
 
             companion.addFunction(
-                FunSpec.builder("decodeError")
+                FunSpec.builder("decodeErrorOrNull")
                     .addAnnotation(JvmStatic::class)
                     .addParameter("error", Bytes::class)
                     .returns(errorSuperclass.copy(nullable = true))
                     .addCode(
                         CodeBlock.builder().apply {
                             beginControlFlow("for (err in ERRORS)")
-                            addStatement("return err.decode(error) ?: continue")
+                            addStatement("return err.decodeOrNull(error) ?: continue")
                             endControlFlow()
                             addStatement("return null")
+                        }.build(),
+                    )
+                    .build(),
+            )
+
+            companion.addFunction(
+                FunSpec.builder("decodeError")
+                    .addAnnotation(JvmStatic::class)
+                    .addParameter("error", Bytes::class)
+                    .returns(errorSuperclass.copy(nullable = true))
+                    .addStatement("return decodeErrorOrNull(error)")
+                    .build(),
+            )
+
+            companion.addFunction(
+                FunSpec.builder("tryDecodeError")
+                    .addAnnotation(JvmStatic::class)
+                    .addParameter("error", Bytes::class)
+                    .returns(
+                        Result::class.asClassName().parameterizedBy(
+                            errorSuperclass,
+                            ContractErrorDecodingError::class.asClassName(),
+                        ),
+                    )
+                    .addCode(
+                        CodeBlock.builder().apply {
+                            beginControlFlow("for (err in ERRORS)")
+                            beginControlFlow("when (val decoded = err.tryDecode(error))")
+                            addStatement("is %T.Success -> return %T.success(decoded.value)", Result::class, Result::class)
+                            beginControlFlow("is %T.Failure ->", Result::class)
+                            beginControlFlow("if (decoded.error !is %T.NoMatchingError)", ContractErrorDecodingError::class)
+                            addStatement("return %T.failure(decoded.error)", Result::class)
+                            endControlFlow()
+                            endControlFlow()
+                            endControlFlow()
+                            endControlFlow()
+                            addStatement(
+                                "return %T.failure(%T.NoMatchingError(error, ERRORS.map { it.abi }))",
+                                Result::class,
+                                ContractErrorDecodingError::class,
+                            )
                         }.build(),
                     )
                     .build(),
@@ -245,16 +289,57 @@ class AbiContractBuilder(
             )
 
             companion.addFunction(
-                FunSpec.builder("decodeEvent")
+                FunSpec.builder("decodeEventOrNull")
                     .addAnnotation(JvmStatic::class)
                     .addParameter("log", Log::class)
                     .returns(eventSuperclass.copy(nullable = true))
                     .addCode(
                         CodeBlock.builder().apply {
                             beginControlFlow("for (event in EVENTS)")
-                            addStatement("return event.decode(log) ?: continue")
+                            addStatement("return event.decodeOrNull(log) ?: continue")
                             endControlFlow()
                             addStatement("return null")
+                        }.build(),
+                    )
+                    .build(),
+            )
+
+            companion.addFunction(
+                FunSpec.builder("decodeEvent")
+                    .addAnnotation(JvmStatic::class)
+                    .addParameter("log", Log::class)
+                    .returns(eventSuperclass.copy(nullable = true))
+                    .addStatement("return decodeEventOrNull(log)")
+                    .build(),
+            )
+
+            companion.addFunction(
+                FunSpec.builder("tryDecodeEvent")
+                    .addAnnotation(JvmStatic::class)
+                    .addParameter("log", Log::class)
+                    .returns(
+                        Result::class.asClassName().parameterizedBy(
+                            eventSuperclass,
+                            EventDecodingError::class.asClassName(),
+                        ),
+                    )
+                    .addCode(
+                        CodeBlock.builder().apply {
+                            beginControlFlow("for (event in EVENTS)")
+                            beginControlFlow("when (val decoded = event.tryDecode(log))")
+                            addStatement("is %T.Success -> return %T.success(decoded.value)", Result::class, Result::class)
+                            beginControlFlow("is %T.Failure ->", Result::class)
+                            beginControlFlow("if (decoded.error is %T.MalformedEvent)", EventDecodingError::class)
+                            addStatement("return %T.failure(decoded.error)", Result::class)
+                            endControlFlow()
+                            endControlFlow()
+                            endControlFlow()
+                            endControlFlow()
+                            addStatement(
+                                "return %T.failure(%T.NoMatchingEvent(log, EVENTS.map { it.abi }))",
+                                Result::class,
+                                EventDecodingError::class,
+                            )
                         }.build(),
                     )
                     .build(),
@@ -613,6 +698,41 @@ class AbiContractBuilder(
             )
             .returns(errorClassName)
 
+        factoryBuilder.addFunction(
+            FunSpec.builder("decodeOrNull")
+                .addAnnotation(JvmStatic::class)
+                .addModifiers(KModifier.OVERRIDE)
+                .addParameter(ParameterSpec.builder("data", Bytes::class).build())
+                .addCode("return super.decodeOrNull(data)")
+                .returns(errorClassName.copy(nullable = true))
+                .build(),
+        )
+
+        factoryBuilder.addFunction(
+            FunSpec.builder("decode")
+                .addAnnotation(JvmStatic::class)
+                .addModifiers(KModifier.OVERRIDE)
+                .addParameter(ParameterSpec.builder("data", Bytes::class).build())
+                .addCode("return decodeOrNull(data)")
+                .returns(errorClassName.copy(nullable = true))
+                .build(),
+        )
+
+        factoryBuilder.addFunction(
+            FunSpec.builder("tryDecode")
+                .addAnnotation(JvmStatic::class)
+                .addModifiers(KModifier.OVERRIDE)
+                .addParameter(ParameterSpec.builder("data", Bytes::class).build())
+                .addCode("return super.tryDecode(data)")
+                .returns(
+                    Result::class.asClassName().parameterizedBy(
+                        errorClassName,
+                        ContractErrorDecodingError::class.asClassName(),
+                    ),
+                )
+                .build(),
+        )
+
         return CodeFactory.createClass(
             errorClassName,
             inputs,
@@ -724,12 +844,37 @@ class AbiContractBuilder(
 
         // override decode to make it statically accessible from java
         factoryBuilder.addFunction(
+            FunSpec.builder("decodeOrNull")
+                .addAnnotation(JvmStatic::class)
+                .addModifiers(KModifier.OVERRIDE)
+                .addParameter(ParameterSpec.builder("log", Log::class).build())
+                .addCode("return super.decodeOrNull(log)")
+                .returns(eventClassName.copy(nullable = true))
+                .build(),
+        )
+
+        factoryBuilder.addFunction(
             FunSpec.builder("decode")
                 .addAnnotation(JvmStatic::class)
                 .addModifiers(KModifier.OVERRIDE)
                 .addParameter(ParameterSpec.builder("log", Log::class).build())
-                .addCode("return super.decode(log)")
+                .addCode("return decodeOrNull(log)")
                 .returns(eventClassName.copy(nullable = true))
+                .build(),
+        )
+
+        factoryBuilder.addFunction(
+            FunSpec.builder("tryDecode")
+                .addAnnotation(JvmStatic::class)
+                .addModifiers(KModifier.OVERRIDE)
+                .addParameter(ParameterSpec.builder("log", Log::class).build())
+                .addCode("return super.tryDecode(log)")
+                .returns(
+                    Result::class.asClassName().parameterizedBy(
+                        eventClassName,
+                        EventDecodingError::class.asClassName(),
+                    ),
+                )
                 .build(),
         )
 
