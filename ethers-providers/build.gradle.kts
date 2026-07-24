@@ -15,7 +15,6 @@ kotlin {
                 api(libs.bignumkt)
 
                 implementation(project(":logger"))
-                implementation(libs.jctools)
                 implementation(libs.kotlinx.atomicfu)
             }
         }

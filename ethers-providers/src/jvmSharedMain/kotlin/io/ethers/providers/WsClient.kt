@@ -35,8 +35,6 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
-import org.jctools.queues.MpscUnboundedXaddArrayQueue
-import org.jctools.queues.SpscUnboundedArrayQueue
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -86,12 +84,14 @@ class WsClient(
     private val connectionOpenedCondition = eventLock.newCondition()
     private val connectionClosedCondition = eventLock.newCondition()
 
-    // queues chosen based on https://vmlens.com/articles/scale/scalability_queue/
-    private val messageQueue = SpscUnboundedArrayQueue<String>(512)
-    private val requestQueue = MpscUnboundedXaddArrayQueue<PendingRequest<*>>(512)
-    private val batchRequestQueue = MpscUnboundedXaddArrayQueue<PendingBatchRequest>(256)
-    private val subscriptionQueue = MpscUnboundedXaddArrayQueue<PendingSubscriptionRequest<*>>(128)
-    private val unsubscribeQueue = MpscUnboundedXaddArrayQueue<Long>(128)
+    // WebSocket messages have one producer (the socket coroutine) and one consumer (the processor thread).
+    private val messageQueue = QueueChannel.spscUnbounded<String>()
+
+    // Requests may be submitted concurrently, but are all consumed by the processor thread.
+    private val requestQueue = QueueChannel.mpscUnbounded<PendingRequest<*>>()
+    private val batchRequestQueue = QueueChannel.mpscUnbounded<PendingBatchRequest>()
+    private val subscriptionQueue = QueueChannel.mpscUnbounded<PendingSubscriptionRequest<*>>()
+    private val unsubscribeQueue = QueueChannel.mpscUnbounded<Long>()
 
     private val reconnect = atomic(false)
     private val stopping = atomic(false)
@@ -119,7 +119,7 @@ class WsClient(
                     for (frame in incoming) {
                         when (frame) {
                             is Frame.Text -> {
-                                messageQueue.add(frame.readText())
+                                messageQueue.offer(frame.readText())
                                 eventLock.withLock { newEventCondition.signalAll() }
                             }
                             is Frame.Close -> {
@@ -233,7 +233,7 @@ class WsClient(
                             while (iter.hasNext()) {
                                 val value = iter.next().value
                                 LOG.dbg { "Re-queued in-flight request: $value" }
-                                requestQueue.add(value)
+                                requestQueue.offer(value)
                                 iter.remove()
                             }
                         }
@@ -244,7 +244,7 @@ class WsClient(
                             while (iter.hasNext()) {
                                 val (batchReq, _) = iter.next().value
                                 LOG.dbg { "Re-queued in-flight batch request: $batchReq" }
-                                batchRequestQueue.add(batchReq)
+                                batchRequestQueue.offer(batchReq)
                                 iter.remove()
                             }
                         }
@@ -255,7 +255,7 @@ class WsClient(
                             while (iter.hasNext()) {
                                 val value = iter.next().value
                                 LOG.dbg { "Re-queued in-flight subscription request: $value" }
-                                subscriptionQueue.add(value)
+                                subscriptionQueue.offer(value)
                                 iter.remove()
                             }
                         }
@@ -588,7 +588,7 @@ class WsClient(
                 params = request.params,
                 resultDecoder = request.resultDecoder,
                 stream = QueueChannel.spscUnbounded {
-                    unsubscribeQueue.add(id)
+                    unsubscribeQueue.offer(id)
                     eventLock.withLock { newEventCondition.signalAll() }
                 },
             )
@@ -647,7 +647,7 @@ class WsClient(
 
         val request = PendingBatchRequest(batch, CompletableDeferred())
 
-        batchRequestQueue.add(request)
+        batchRequestQueue.offer(request)
         eventLock.withLock { newEventCondition.signalAll() }
         return request.response.await()
     }
@@ -664,7 +664,7 @@ class WsClient(
             CompletableDeferred(),
         )
 
-        requestQueue.add(request)
+        requestQueue.offer(request)
         eventLock.withLock { newEventCondition.signalAll() }
         return request.response.await()
     }
@@ -679,7 +679,7 @@ class WsClient(
             CompletableDeferred(),
         )
 
-        subscriptionQueue.add(request)
+        subscriptionQueue.offer(request)
         eventLock.withLock { newEventCondition.signalAll() }
         return request.response.await()
     }
