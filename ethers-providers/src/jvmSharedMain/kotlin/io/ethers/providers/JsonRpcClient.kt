@@ -16,41 +16,40 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.serializer
-import java.util.concurrent.CompletableFuture
 import io.ktor.client.HttpClient as KtorHttpClient
 import kotlinx.serialization.json.JsonElement as KJsonElement
 
 interface JsonRpcClient : AutoCloseable {
     /**
-     * Asynchronously execute RPC request.
+     * Execute an RPC request without blocking the calling thread.
      *
      * @param method RPC function name
      * @param params RPC function parameters
      * @param resultType class into which JSON result is converted
      */
-    fun <T> request(
+    suspend fun <T> request(
         method: String,
         params: Array<*>,
         resultType: Class<T>,
     ) = request(method, params, decoderForClass(resultType))
 
     /**
-     * Asynchronously execute RPC request.
+     * Execute an RPC request without blocking the calling thread.
      *
      * @param method RPC function name
      * @param params RPC function parameters
      * @param resultDecoder function to convert JSON result into object return [T].
      */
-    fun <T> request(
+    suspend fun <T> request(
         method: String,
         params: Array<*>,
         resultDecoder: (KJsonElement) -> T,
-    ): CompletableFuture<Result<T, RpcError>>
+    ): Result<T, RpcError>
 
     /**
-     * Asynchronously execute [batch] of RPC requests.
+     * Execute a [batch] of RPC requests without blocking the calling thread.
      */
-    fun requestBatch(batch: BatchRpcRequest): CompletableFuture<Boolean>
+    suspend fun requestBatch(batch: BatchRpcRequest): Boolean
 
     /**
      * Subscribe to a stream via `eth_subscribe`, if the client supports it.
@@ -58,10 +57,10 @@ interface JsonRpcClient : AutoCloseable {
      * @param params the subscription parameters
      * @param resultType class into which JSON result is converted
      */
-    fun <T : Any> subscribe(
+    suspend fun <T : Any> subscribe(
         params: Array<*>,
         resultType: Class<T>,
-    ): CompletableFuture<Result<ChannelReceiver<T>, RpcError>> {
+    ): Result<ChannelReceiver<T>, RpcError> {
         return subscribe(params, decoderForClass(resultType))
     }
 
@@ -71,10 +70,10 @@ interface JsonRpcClient : AutoCloseable {
      * @param params the subscription parameters
      * @param resultDecoder function to convert JSON result into return object [T]
      */
-    fun <T : Any> subscribe(
+    suspend fun <T : Any> subscribe(
         params: Array<*>,
         resultDecoder: (KJsonElement) -> T,
-    ): CompletableFuture<Result<ChannelReceiver<T>, RpcError>>
+    ): Result<ChannelReceiver<T>, RpcError>
 }
 
 /**

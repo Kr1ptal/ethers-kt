@@ -11,13 +11,13 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.websocket.WebSockets
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
 import org.intellij.lang.annotations.Language
-import java.util.concurrent.TimeUnit
 import kotlin.collections.mapOf
 import kotlin.time.Duration.Companion.seconds
 import io.ktor.client.HttpClient as KtorHttpClient
@@ -64,7 +64,7 @@ class WsClientTest : FunSpec({
                 "data" to byteArrayOf(0xde.toByte(), 0xad.toByte(), 0xbe.toByte(), 0xef.toByte()),
                 "gas" to 21000L,
             )
-            wsClient.request("eth_call", arrayOf(callMap, "latest"), stringDecoder).get()
+            wsClient.request("eth_call", arrayOf(callMap, "latest"), stringDecoder)
 
             val sentText = mockServer.takeReceivedText()!!
             val body = Kotlinx.DEFAULT.parseToJsonElement(sentText).jsonObject
@@ -87,7 +87,7 @@ class WsClientTest : FunSpec({
         test("request(Class<T>) with ByteArray decodes a 0x-prefixed hex string") {
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0xdeadbeef"}""")
 
-            val result = wsClient.request("eth_getCode", emptyArray<Any>(), ByteArray::class.java).get()
+            val result = wsClient.request("eth_getCode", emptyArray<Any>(), ByteArray::class.java)
 
             result.isSuccess() shouldBe true
             result.unwrap() shouldBe byteArrayOf(0xde.toByte(), 0xad.toByte(), 0xbe.toByte(), 0xef.toByte())
@@ -96,7 +96,7 @@ class WsClientTest : FunSpec({
         test("subscribe(Class<T>) with ByteArray decodes hex-string notification results") {
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0xsub123"}""")
 
-            val subscriptionResult = wsClient.subscribe(arrayOf("newPendingTransactions"), ByteArray::class.java).get()
+            val subscriptionResult = wsClient.subscribe(arrayOf("newPendingTransactions"), ByteArray::class.java)
             subscriptionResult.isSuccess() shouldBe true
             val stream = subscriptionResult.unwrap()
 
@@ -133,7 +133,7 @@ class WsClientTest : FunSpec({
             val params = arrayOf("newHeads")
             val resultDecoder: (KJsonElement) -> JsonObject = { it.jsonObject }
 
-            val subscriptionResult = wsClient.subscribe(params, resultDecoder).get()
+            val subscriptionResult = wsClient.subscribe(params, resultDecoder)
             subscriptionResult.isSuccess() shouldBe true
 
             val stream = subscriptionResult.unwrap()
@@ -240,7 +240,7 @@ class WsClientTest : FunSpec({
             val params = arrayOf("newHeads")
             val resultDecoder: (KJsonElement) -> JsonObject = { it.jsonObject }
 
-            val subscriptionResult = wsClient.subscribe(params, resultDecoder).get()
+            val subscriptionResult = wsClient.subscribe(params, resultDecoder)
             subscriptionResult.isSuccess() shouldBe true
 
             val stream = subscriptionResult.unwrap()
@@ -277,7 +277,7 @@ class WsClientTest : FunSpec({
             val params = arrayOf("newHeads")
             val resultDecoder: (KJsonElement) -> JsonObject = { it.jsonObject }
 
-            val subscriptionResult = wsClient.subscribe(params, resultDecoder).get()
+            val subscriptionResult = wsClient.subscribe(params, resultDecoder)
             subscriptionResult.isSuccess() shouldBe true
 
             val stream = subscriptionResult.unwrap()
@@ -327,7 +327,7 @@ class WsClientTest : FunSpec({
             val params = arrayOf("newHeads")
             val resultDecoder: (KJsonElement) -> JsonObject = { it.jsonObject }
 
-            val subscriptionResult = wsClient.subscribe(params, resultDecoder).get()
+            val subscriptionResult = wsClient.subscribe(params, resultDecoder)
             subscriptionResult.isSuccess() shouldBe true
 
             // Send multiple notifications
@@ -396,15 +396,16 @@ class WsClientTest : FunSpec({
 
             val stringDecoder: (KJsonElement) -> String = { element -> element.jsonPrimitive.content }
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0x1234567"}""")
-            wsClient.request("eth_blockNumber", emptyArray<Any>(), stringDecoder)
-                .get(2, TimeUnit.SECONDS)
-                .isSuccess() shouldBe true
+            withTimeout(2.seconds) {
+                wsClient.request("eth_blockNumber", emptyArray<Any>(), stringDecoder)
+            }.isSuccess() shouldBe true
 
             mockServer.closeConnection()
             Thread.sleep(50)
 
-            val result = wsClient.request("eth_blockNumber", emptyArray<Any>(), stringDecoder)
-                .get(2, TimeUnit.SECONDS)
+            val result = withTimeout(2.seconds) {
+                wsClient.request("eth_blockNumber", emptyArray<Any>(), stringDecoder)
+            }
 
             result.isFailure() shouldBe true
             result.unwrapError().code shouldBe RpcError.CODE_CALL_TIMEOUT

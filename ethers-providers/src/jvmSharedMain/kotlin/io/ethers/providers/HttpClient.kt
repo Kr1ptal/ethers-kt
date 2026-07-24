@@ -17,18 +17,13 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import kotlinx.atomicfu.atomic
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
-import java.util.concurrent.CompletableFuture
 import io.ktor.client.HttpClient as KtorHttpClient
 import kotlinx.serialization.json.JsonElement as KJsonElement
 
@@ -51,127 +46,112 @@ class HttpClient(
     private val LOG = getLogger()
     private val httpUrl = url
     private val requestId = atomic(1L)
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
-    override fun requestBatch(batch: BatchRpcRequest): CompletableFuture<Boolean> {
-        batch.markAsSent()
-
+    override suspend fun requestBatch(batch: BatchRpcRequest): Boolean {
         if (batch.isEmpty) {
-            return CompletableFuture.completedFuture(true)
+            return true
         }
-
-        val ret = CompletableFuture<Boolean>()
 
         val (json, requestIndexPerId) = batch.toRequestBody()
 
-        scope.launch {
-            try {
-                val response = client.post(httpUrl) {
-                    contentType(ContentType.Application.Json)
-                    headers { requestHeaders.forEach { (k, v) -> append(k, v) } }
-                    setBody(json)
-                }
-                val text = response.bodyAsText()
-                LOG.trc { "Batch response: ${text.removeSuffix("\n")}" }
-
-                if (!response.status.value.let { it in 200..299 }) {
-                    try {
-                        val parsed = Kotlinx.DEFAULT.parseToJsonElement(text)
-                        for (element in parsed.jsonArray) {
-                            val obj = element.jsonObject
-                            var index = -1
-                            val result = obj.decodeNextResult { id ->
-                                index = requestIndexPerId[id] ?: throw Exception("Invalid response ID: $id")
-                                batch.requests[index].resultDecoder
-                            }
-                            batch.responses[index].complete(result)
-                        }
-                        ret.complete(true)
-                        return@launch
-                    } catch (_: Exception) {
-                    }
-
-                    val message = "HTTP ${response.status.value}: ${response.status.description}"
-                    val data = JsonElement(JsonPrimitive(text).toString())
-                    val error = RpcError(RpcError.CODE_CALL_FAILED, message, data)
-                    LOG.err { "Batch request failed: $error" }
-
-                    for (i in batch.responses.indices) {
-                        batch.responses[i].complete(failure(error))
-                    }
-                    ret.complete(false)
-                    return@launch
-                }
-
-                val parsed = Kotlinx.DEFAULT.parseToJsonElement(text)
-                for (element in parsed.jsonArray) {
-                    val obj = element.jsonObject
-                    var index = -1
-                    val result = obj.decodeNextResult { id ->
-                        index = requestIndexPerId[id] ?: throw Exception("Invalid response ID: $id")
-                        batch.requests[index].resultDecoder
-                    }
-                    batch.responses[index].complete(result)
-                }
-                ret.complete(true)
-            } catch (e: Exception) {
-                LOG.err(e) { "Error processing batch response" }
-                val rpcResponse = getResponseFromException(e)
-                for (i in batch.responses.indices) {
-                    batch.responses[i].complete(rpcResponse)
-                }
-                ret.complete(false)
+        return try {
+            val response = client.post(httpUrl) {
+                contentType(ContentType.Application.Json)
+                headers { requestHeaders.forEach { (k, v) -> append(k, v) } }
+                setBody(json)
             }
-        }
+            val text = response.bodyAsText()
+            LOG.trc { "Batch response: ${text.removeSuffix("\n")}" }
 
-        return ret
+            if (response.status.value !in 200..299) {
+                try {
+                    val parsed = Kotlinx.DEFAULT.parseToJsonElement(text)
+                    for (element in parsed.jsonArray) {
+                        val obj = element.jsonObject
+                        var index = -1
+                        val result = obj.decodeNextResult { id ->
+                            index = requestIndexPerId[id] ?: throw Exception("Invalid response ID: $id")
+                            batch.requests[index].resultDecoder
+                        }
+                        batch.responses[index].complete(result)
+                    }
+                    return true
+                } catch (_: Exception) {
+                }
+
+                val message = "HTTP ${response.status.value}: ${response.status.description}"
+                val data = JsonElement(JsonPrimitive(text).toString())
+                val error = RpcError(RpcError.CODE_CALL_FAILED, message, data)
+                LOG.err { "Batch request failed: $error" }
+
+                for (i in batch.responses.indices) {
+                    batch.responses[i].complete(failure(error))
+                }
+                return false
+            }
+
+            val parsed = Kotlinx.DEFAULT.parseToJsonElement(text)
+            for (element in parsed.jsonArray) {
+                val obj = element.jsonObject
+                var index = -1
+                val result = obj.decodeNextResult { id ->
+                    index = requestIndexPerId[id] ?: throw Exception("Invalid response ID: $id")
+                    batch.requests[index].resultDecoder
+                }
+                batch.responses[index].complete(result)
+            }
+            true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            LOG.err(e) { "Error processing batch response" }
+            val rpcResponse = getResponseFromException(e)
+            for (i in batch.responses.indices) {
+                batch.responses[i].complete(rpcResponse)
+            }
+            false
+        }
     }
 
-    override fun <T> request(
+    override suspend fun <T> request(
         method: String,
         params: Array<*>,
         resultDecoder: (KJsonElement) -> T,
-    ): CompletableFuture<Result<T, RpcError>> {
-        val ret = CompletableFuture<Result<T, RpcError>>()
-
+    ): Result<T, RpcError> {
         val json = buildJsonRpcRequest(method, requestId.getAndIncrement(), params)
         LOG.trc { "Request: $json" }
 
-        scope.launch {
-            try {
-                val response = client.post(httpUrl) {
-                    contentType(ContentType.Application.Json)
-                    headers { requestHeaders.forEach { (k, v) -> append(k, v) } }
-                    setBody(json)
-                }
-                val text = response.bodyAsText()
-                LOG.trc { "Response: ${text.removeSuffix("\n")}" }
-
-                if (!response.status.value.let { it in 200..299 }) {
-                    try {
-                        val obj = Kotlinx.DEFAULT.parseToJsonElement(text).jsonObject
-                        ret.complete(obj.decodeNextResult { resultDecoder })
-                        return@launch
-                    } catch (_: Exception) {
-                    }
-
-                    val message = "HTTP ${response.status.value}: ${response.status.description}"
-                    val data = JsonElement(JsonPrimitive(text).toString())
-                    val error = RpcError(RpcError.CODE_CALL_FAILED, message, data)
-                    LOG.err { "Call failed for method=$method, params=${params.contentToString()}: $error" }
-                    ret.complete(failure(error))
-                    return@launch
-                }
-
-                val obj = Kotlinx.DEFAULT.parseToJsonElement(text).jsonObject
-                ret.complete(obj.decodeNextResult { resultDecoder })
-            } catch (e: Exception) {
-                LOG.err(e) { "Error processing response for method=$method, params=${params.contentToString()}" }
-                ret.complete(getResponseFromException(e))
+        return try {
+            val response = client.post(httpUrl) {
+                contentType(ContentType.Application.Json)
+                headers { requestHeaders.forEach { (k, v) -> append(k, v) } }
+                setBody(json)
             }
-        }
+            val text = response.bodyAsText()
+            LOG.trc { "Response: ${text.removeSuffix("\n")}" }
 
-        return ret
+            if (response.status.value !in 200..299) {
+                try {
+                    val obj = Kotlinx.DEFAULT.parseToJsonElement(text).jsonObject
+                    return obj.decodeNextResult { resultDecoder }
+                } catch (_: Exception) {
+                }
+
+                val message = "HTTP ${response.status.value}: ${response.status.description}"
+                val data = JsonElement(JsonPrimitive(text).toString())
+                val error = RpcError(RpcError.CODE_CALL_FAILED, message, data)
+                LOG.err { "Call failed for method=$method, params=${params.contentToString()}: $error" }
+                return failure(error)
+            }
+
+            val obj = Kotlinx.DEFAULT.parseToJsonElement(text).jsonObject
+            obj.decodeNextResult { resultDecoder }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            LOG.err(e) { "Error processing response for method=$method, params=${params.contentToString()}" }
+            getResponseFromException(e)
+        }
     }
 
     private fun <T> JsonObject.decodeNextResult(getDecoder: (id: Long) -> (KJsonElement) -> T): Result<T, RpcError> {
@@ -192,15 +172,14 @@ class HttpClient(
         }
     }
 
-    override fun <T : Any> subscribe(
+    override suspend fun <T : Any> subscribe(
         params: Array<*>,
         resultDecoder: (KJsonElement) -> T,
-    ): CompletableFuture<Result<ChannelReceiver<T>, RpcError>> {
-        return CompletableFuture.completedFuture(ERROR_SUBSCRIPTION_UNSUPPORTED)
+    ): Result<ChannelReceiver<T>, RpcError> {
+        return ERROR_SUBSCRIPTION_UNSUPPORTED
     }
 
     override fun close() {
-        scope.cancel()
         client.close()
     }
 

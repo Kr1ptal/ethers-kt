@@ -2,28 +2,38 @@ package io.ethers.providers.types
 
 import io.ethers.core.Result
 import io.ethers.core.Result.Consumer
-import io.ethers.providers.AsyncExecutor
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.future.asCompletableFuture
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonElement
 import java.util.concurrent.CompletableFuture
-import java.util.concurrent.Executor
 
 abstract class RpcRequest<T, E : Result.Error> {
     /**
-     * Send the RPC request and await the result by blocking calling thread.
+     * Send the RPC request without blocking the calling thread.
      */
-    abstract fun sendAwait(): Result<T, E>
+    abstract suspend fun send(): Result<T, E>
 
     /**
-     * Asynchronously send RPC request.
+     * Send the RPC request and await the result by blocking the calling thread.
      */
-    abstract fun sendAsync(): CompletableFuture<Result<T, E>>
+    fun sendAwait(): Result<T, E> = runBlocking { send() }
+
+    /**
+     * Asynchronously send the RPC request as a [CompletableFuture].
+     */
+    fun sendAsync(): CompletableFuture<Result<T, E>> {
+        return CoroutineScope(Dispatchers.Default).async { send() }.asCompletableFuture()
+    }
 
     /**
      * Batch this into provided [BatchRpcRequest].
      */
-    abstract fun batch(batch: BatchRpcRequest): CompletableFuture<Result<T, E>>
+    abstract fun batch(batch: BatchRpcRequest): BatchRpcResponse<Result<T, E>>
 
     /**
      * Map the returned response if the call was successful, skipping if it failed.
@@ -80,13 +90,6 @@ abstract class RpcRequest<T, E : Result.Error> {
     fun onFailure(block: Consumer<E>): RpcRequest<T, E> {
         return MappingRpcRequest(this) { it.apply { onFailure(block) } }
     }
-
-    /**
-     * Recommended [Executor] for [CompletableFuture] async operations. See [io.ethers.providers.AsyncExecutor] for details.
-     * */
-    protected fun asyncExecutor(): Executor {
-        return AsyncExecutor.maybeVirtualExecutor()
-    }
 }
 
 /**
@@ -106,9 +109,9 @@ class RpcCall<T>(
         resultType: Class<T>,
     ) : this(client, method, params, { p -> io.ethers.core.Kotlinx.DEFAULT.decodeFromJsonElement(kotlinx.serialization.serializer(resultType), p) as T })
 
-    override fun sendAwait(): Result<T, RpcError> = sendAsync().join()
-    override fun sendAsync(): CompletableFuture<Result<T, RpcError>> = client.request(method, params, resultDecoder)
-    override fun batch(batch: BatchRpcRequest): CompletableFuture<Result<T, RpcError>> = batch.addRpcCall(this)
+    override suspend fun send(): Result<T, RpcError> = client.request(method, params, resultDecoder)
+
+    override fun batch(batch: BatchRpcRequest): BatchRpcResponse<Result<T, RpcError>> = batch.addRpcCall(this)
 
     override fun toString(): String {
         return "RpcCall(method='$method', params=${params.contentToString()})"
@@ -122,12 +125,10 @@ private class MappingRpcRequest<I, O, E : Result.Error, U : Result.Error>(
     private val request: RpcRequest<I, E>,
     private val mapper: (Result<I, E>) -> Result<O, U>,
 ) : RpcRequest<O, U>() {
-    override fun sendAwait(): Result<O, U> = sendAsync().join()
+    override suspend fun send(): Result<O, U> = mapper(request.send())
 
-    override fun sendAsync(): CompletableFuture<Result<O, U>> = request.sendAsync().thenApplyAsync({ mapper(it) }, asyncExecutor())
-
-    override fun batch(batch: BatchRpcRequest): CompletableFuture<Result<O, U>> {
-        return request.batch(batch).thenApplyAsync({ mapper(it) }, asyncExecutor())
+    override fun batch(batch: BatchRpcRequest): BatchRpcResponse<Result<O, U>> {
+        return request.batch(batch).map(mapper)
     }
 
     override fun toString(): String {
@@ -141,12 +142,10 @@ private class MappingRpcRequest<I, O, E : Result.Error, U : Result.Error>(
 class SuppliedRpcRequest<T>(
     private val supplier: () -> Result<T, RpcError>,
 ) : RpcRequest<T, RpcError>() {
-    override fun sendAwait(): Result<T, RpcError> = supplier()
+    override suspend fun send(): Result<T, RpcError> = supplier()
 
-    override fun sendAsync(): CompletableFuture<Result<T, RpcError>> = CompletableFuture.supplyAsync({ supplier() }, asyncExecutor())
-
-    override fun batch(batch: BatchRpcRequest): CompletableFuture<Result<T, RpcError>> {
-        return CompletableFuture.supplyAsync({ supplier() }, asyncExecutor())
+    override fun batch(batch: BatchRpcRequest): BatchRpcResponse<Result<T, RpcError>> {
+        return BatchRpcResponse(CoroutineScope(Dispatchers.Default).async { send() }) { true }
     }
 
     override fun toString(): String {
