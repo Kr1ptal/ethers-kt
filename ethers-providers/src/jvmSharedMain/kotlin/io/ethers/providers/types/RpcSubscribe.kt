@@ -5,31 +5,15 @@ import io.ethers.core.Result
 import io.ethers.core.Result.Consumer
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.future.asCompletableFuture
-import kotlinx.coroutines.runBlocking
+import io.ethers.providers.decoderFor
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.JsonElement
-import java.util.concurrent.CompletableFuture
 
 interface RpcSubscribe<T : Any, E : Result.Error> {
     /**
      * Subscribe to a stream via RPC without blocking the calling thread.
      */
     suspend fun send(): Result<ChannelReceiver<T>, E>
-
-    /**
-     * Subscribe to a stream via RPC and await the subscription response by blocking the calling thread.
-     */
-    fun sendAwait(): Result<ChannelReceiver<T>, E> = runBlocking { send() }
-
-    /**
-     * Asynchronously subscribe to a stream via RPC as a [CompletableFuture].
-     */
-    fun sendAsync(): CompletableFuture<Result<ChannelReceiver<T>, E>> {
-        return CoroutineScope(Dispatchers.Default).async { send() }.asCompletableFuture()
-    }
 
     /**
      * Map the returned response if the call was successful, skipping if it failed.
@@ -115,12 +99,11 @@ class RpcSubscribeCall<T : Any>(
     private val params: Array<*>,
     private val resultDecoder: (JsonElement) -> T,
 ) : RpcSubscribe<T, RpcError> {
-    @Suppress("UNCHECKED_CAST")
     constructor(
         client: JsonRpcClient,
         params: Array<*>,
-        resultType: Class<T>,
-    ) : this(client, params, { p -> io.ethers.core.Kotlinx.DEFAULT.decodeFromJsonElement(kotlinx.serialization.serializer(resultType), p) as T })
+        resultSerializer: KSerializer<T>,
+    ) : this(client, params, decoderFor(resultSerializer))
 
     override suspend fun send(): Result<ChannelReceiver<T>, RpcError> = client.subscribe(params, resultDecoder)
 

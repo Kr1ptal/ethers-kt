@@ -2,33 +2,21 @@ package io.ethers.providers.types
 
 import io.ethers.core.Result
 import io.ethers.core.Result.Consumer
+import io.ethers.core.isFailure
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
+import io.ethers.providers.decoderFor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
-import kotlinx.coroutines.future.asCompletableFuture
-import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.JsonElement
-import java.util.concurrent.CompletableFuture
 
 abstract class RpcRequest<T, E : Result.Error> {
     /**
      * Send the RPC request without blocking the calling thread.
      */
     abstract suspend fun send(): Result<T, E>
-
-    /**
-     * Send the RPC request and await the result by blocking the calling thread.
-     */
-    fun sendAwait(): Result<T, E> = runBlocking { send() }
-
-    /**
-     * Asynchronously send the RPC request as a [CompletableFuture].
-     */
-    fun sendAsync(): CompletableFuture<Result<T, E>> {
-        return CoroutineScope(Dispatchers.Default).async { send() }.asCompletableFuture()
-    }
 
     /**
      * Batch this into provided [BatchRpcRequest].
@@ -74,6 +62,15 @@ abstract class RpcRequest<T, E : Result.Error> {
     }
 
     /**
+     * Same as [orElse], but the recovery function is allowed to suspend.
+     */
+    internal fun orElseSuspend(mapper: suspend (E) -> Result<T, E>): RpcRequest<T, E> {
+        return MappingRpcRequest(this) { result ->
+            if (result.isFailure()) mapper(result.error) else result
+        }
+    }
+
+    /**
      * Callback called only when the call has succeeded.
      *
      * The function will be executed asynchronously after the request is sent and the response received.
@@ -101,13 +98,12 @@ class RpcCall<T>(
     val params: Array<*>,
     val resultDecoder: (JsonElement) -> T,
 ) : RpcRequest<T, RpcError>() {
-    @Suppress("UNCHECKED_CAST")
     constructor(
         client: JsonRpcClient,
         method: String,
         params: Array<*>,
-        resultType: Class<T>,
-    ) : this(client, method, params, { p -> io.ethers.core.Kotlinx.DEFAULT.decodeFromJsonElement(kotlinx.serialization.serializer(resultType), p) as T })
+        resultSerializer: KSerializer<T>,
+    ) : this(client, method, params, decoderFor(resultSerializer))
 
     override suspend fun send(): Result<T, RpcError> = client.request(method, params, resultDecoder)
 
@@ -123,7 +119,7 @@ class RpcCall<T>(
  */
 private class MappingRpcRequest<I, O, E : Result.Error, U : Result.Error>(
     private val request: RpcRequest<I, E>,
-    private val mapper: (Result<I, E>) -> Result<O, U>,
+    private val mapper: suspend (Result<I, E>) -> Result<O, U>,
 ) : RpcRequest<O, U>() {
     override suspend fun send(): Result<O, U> = mapper(request.send())
 
@@ -140,7 +136,7 @@ private class MappingRpcRequest<I, O, E : Result.Error, U : Result.Error>(
  * An [RpcRequest] that provides a [Result] via a [Supplier]. This call is not batched.
  * */
 class SuppliedRpcRequest<T>(
-    private val supplier: () -> Result<T, RpcError>,
+    private val supplier: suspend () -> Result<T, RpcError>,
 ) : RpcRequest<T, RpcError>() {
     override suspend fun send(): Result<T, RpcError> = supplier()
 

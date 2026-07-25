@@ -8,12 +8,9 @@ kotlin {
         val commonMain by getting {
             dependencies {
                 implementation(libs.kotlinx.coroutines.core)
-            }
-        }
 
-        val jvmSharedMain by getting {
-            dependencies {
-                api(libs.bundles.ktor.client)
+                api(libs.ktor.client.core)
+                api(libs.ktor.client.websockets)
                 api(libs.channelskt.core)
 
                 api(project(":ethers-core"))
@@ -22,6 +19,13 @@ kotlin {
 
                 implementation(project(":logger"))
                 implementation(libs.kotlinx.atomicfu)
+            }
+        }
+
+        val jvmSharedMain by getting {
+            dependencies {
+                // engine is selected per-platform via `defaultHttpClientEngineFactory`
+                api(libs.ktor.client.cio)
             }
         }
 

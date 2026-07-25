@@ -20,6 +20,7 @@ import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.JsonElement
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -149,7 +150,7 @@ class FilterPoller<T : Any> private constructor(
                         provider.client,
                         "eth_uninstallFilter",
                         arrayOf(id),
-                        Boolean::class.java,
+                        Boolean.serializer(),
                     )
 
                     val response = uninstallCall.send()

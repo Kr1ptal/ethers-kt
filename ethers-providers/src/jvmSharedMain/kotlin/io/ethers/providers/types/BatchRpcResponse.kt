@@ -1,12 +1,6 @@
 package io.ethers.providers.types
 
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.future.asCompletableFuture
-import java.util.concurrent.CompletableFuture
 
 /**
  * A pending response for a request added to a [BatchRpcRequest].
@@ -28,16 +22,7 @@ class BatchRpcResponse<T> internal constructor(
         return awaitResponse()
     }
 
-    internal fun <R> map(mapper: (T) -> R): BatchRpcResponse<R> {
+    internal fun <R> map(mapper: suspend (T) -> R): BatchRpcResponse<R> {
         return BatchRpcResponse({ mapper(await()) }, canAwait)
     }
-}
-
-/**
- * Convert this pending batch response to a JVM [CompletableFuture].
- */
-fun <T> BatchRpcResponse<T>.toFuture(): CompletableFuture<T> {
-    return CoroutineScope(Dispatchers.Default)
-        .async(start = CoroutineStart.UNDISPATCHED) { await() }
-        .asCompletableFuture()
 }

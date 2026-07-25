@@ -5,6 +5,8 @@ import io.ethers.core.Result
 import io.ethers.core.failure
 import io.ethers.core.success
 import io.ethers.providers.RpcError
+import io.ethers.providers.types.sendAsync
+import io.ethers.providers.types.sendAwait
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 

@@ -153,7 +153,7 @@ private fun httpSpecificTests() = funSpec {
         test("request(Class<T>) with ByteArray decodes a 0x-prefixed hex string") {
             server.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0xdeadbeef"}""")
 
-            val result = client.request("eth_getCode", emptyArray<Any>(), ByteArray::class.java)
+            val result = client.request("eth_getCode", emptyArray<Any>(), HexByteArraySerializer)
 
             result.isSuccess() shouldBe true
             result.unwrap() shouldBe byteArrayOf(0xde.toByte(), 0xad.toByte(), 0xbe.toByte(), 0xef.toByte())
@@ -161,12 +161,12 @@ private fun httpSpecificTests() = funSpec {
 
         test("request(Class<T>) with ByteArray handles empty payloads (\"0x\" / \"\")") {
             server.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0x"}""")
-            val emptyHex = client.request("eth_getCode", emptyArray<Any>(), ByteArray::class.java)
+            val emptyHex = client.request("eth_getCode", emptyArray<Any>(), HexByteArraySerializer)
             emptyHex.isSuccess() shouldBe true
             emptyHex.unwrap() shouldBe ByteArray(0)
 
             server.enqueueJson("""{"jsonrpc":"2.0","id":2,"result":""}""")
-            val emptyString = client.request("eth_getCode", emptyArray<Any>(), ByteArray::class.java)
+            val emptyString = client.request("eth_getCode", emptyArray<Any>(), HexByteArraySerializer)
             emptyString.isSuccess() shouldBe true
             emptyString.unwrap() shouldBe ByteArray(0)
         }
@@ -174,7 +174,7 @@ private fun httpSpecificTests() = funSpec {
         test("request(Class<T>) with @Serializable type still uses its KSerializer") {
             server.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0x1111111111111111111111111111111111111111"}""")
 
-            val result = client.request("eth_coinbase", emptyArray<Any>(), Address::class.java)
+            val result = client.request("eth_coinbase", emptyArray<Any>(), Address.serializer())
 
             result.isSuccess() shouldBe true
             result.unwrap() shouldBe Address("0x1111111111111111111111111111111111111111")

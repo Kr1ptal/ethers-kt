@@ -87,16 +87,16 @@ class WsClientTest : FunSpec({
         test("request(Class<T>) with ByteArray decodes a 0x-prefixed hex string") {
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0xdeadbeef"}""")
 
-            val result = wsClient.request("eth_getCode", emptyArray<Any>(), ByteArray::class.java)
+            val result = wsClient.request("eth_getCode", emptyArray<Any>(), HexByteArraySerializer)
 
             result.isSuccess() shouldBe true
             result.unwrap() shouldBe byteArrayOf(0xde.toByte(), 0xad.toByte(), 0xbe.toByte(), 0xef.toByte())
         }
 
-        test("subscribe(Class<T>) with ByteArray decodes hex-string notification results") {
+        test("subscribe(KSerializer<T>) with ByteArray decodes hex-string notification results") {
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0xsub123"}""")
 
-            val subscriptionResult = wsClient.subscribe(arrayOf("newPendingTransactions"), ByteArray::class.java)
+            val subscriptionResult = wsClient.subscribe(arrayOf("newPendingTransactions"), HexByteArraySerializer)
             subscriptionResult.isSuccess() shouldBe true
             val stream = subscriptionResult.unwrap()
 

@@ -8,26 +8,26 @@ import io.ethers.core.types.Hash
 import io.ethers.core.types.TransactionReceipt
 import io.ethers.providers.RpcError
 import io.ethers.providers.middleware.Middleware
+import kotlinx.coroutines.delay
 import kotlin.time.Duration
 
 class PendingTransaction(
     val hash: Hash,
     private val provider: Middleware,
 ) : PendingInclusion<TransactionReceipt> {
-    override fun awaitInclusion(
+    override suspend fun inclusion(
         retries: Int,
         interval: Duration,
         confirmations: Int,
     ): Result<TransactionReceipt, PendingInclusion.Error> {
-        val intervalMillis = interval.inWholeMilliseconds
         var receiptError: RpcError? = null
         var included: TransactionReceipt? = null
         var retriesLeft = retries
         while (retriesLeft-- > 0) {
-            val response = provider.getTransactionReceipt(hash).sendAwait()
+            val response = provider.getTransactionReceipt(hash).send()
             if (response.isFailure()) {
                 receiptError = response.error
-                Thread.sleep(intervalMillis)
+                delay(interval)
                 continue
             }
 
@@ -36,7 +36,7 @@ class PendingTransaction(
                 break
             }
 
-            Thread.sleep(intervalMillis)
+            delay(interval)
         }
 
         if (included == null && receiptError != null) {
@@ -52,7 +52,7 @@ class PendingTransaction(
         }
 
         while (true) {
-            val response = provider.getBlockNumber().sendAwait()
+            val response = provider.getBlockNumber().send()
             if (response.isFailure()) {
                 return failure(PendingInclusion.Error.RpcError(hash, response.error))
             }
@@ -62,7 +62,7 @@ class PendingTransaction(
                 return success(included)
             }
 
-            Thread.sleep(intervalMillis)
+            delay(interval)
         }
     }
 
