@@ -5,6 +5,12 @@ plugins {
 
 kotlin {
     sourceSets {
+        val commonMain by getting {
+            dependencies {
+                implementation(libs.kotlinx.coroutines.core)
+            }
+        }
+
         val jvmSharedMain by getting {
             dependencies {
                 api(libs.bundles.ktor.client)

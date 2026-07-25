@@ -13,9 +13,13 @@ import io.ethers.logger.dbg
 import io.ethers.logger.err
 import io.ethers.logger.getLogger
 import io.ethers.logger.inf
-import io.ethers.providers.AsyncExecutor
 import io.ethers.providers.RpcError
+import io.ethers.providers.asyncDispatcher
 import io.ethers.providers.middleware.Middleware
+import kotlinx.coroutines.CoroutineName
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonElement
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -89,9 +93,9 @@ class FilterPoller<T : Any> private constructor(
     }
 
     /**
-     * Initialize a polling thread that will poll the filter for changes every [interval] seconds.
+     * Initialize a polling coroutine that will poll the filter for changes every [interval] seconds.
      *
-     * When the [close] method is called, the polling thread will be stopped and the filter will be uninstalled
+     * When the [close] method is called, the polling coroutine will be stopped and the filter will be uninstalled
      * on the host.
      * */
     private class Poller<T : Any>(
@@ -107,12 +111,12 @@ class FilterPoller<T : Any> private constructor(
         init {
             LOG.dbg { "Initializing poller for filter ID: $id" }
 
-            val thread = AsyncExecutor.maybeVirtualThread {
+            CoroutineScope(asyncDispatcher).launch(CoroutineName("FilterPoller-$id")) {
                 val getChangesCall = RpcCall(provider.client, "eth_getFilterChanges", arrayOf(id), decoder)
 
                 var filterExists = true
                 while (!channel.isClosed) {
-                    val response = getChangesCall.sendAwait()
+                    val response = getChangesCall.send()
                     if (response.isFailure()) {
                         LOG.err { "Error polling filter '$id': ${response.error}" }
 
@@ -123,7 +127,7 @@ class FilterPoller<T : Any> private constructor(
 
                         val error = response.error.asTypeOrNull<RpcError>()
                         if (error?.message?.contains("filter not found") == true) {
-                            LOG.err { "Filter '$id' expired, stopping polling thread and unsubscribing" }
+                            LOG.err { "Filter '$id' expired, stopping polling coroutine and unsubscribing" }
 
                             // need to unsubscribe via stream so its loop gets terminated
                             channel.close()
@@ -137,7 +141,7 @@ class FilterPoller<T : Any> private constructor(
                         }
                     }
 
-                    Thread.sleep(interval.inWholeMilliseconds)
+                    delay(interval)
                 }
 
                 if (filterExists) {
@@ -148,7 +152,7 @@ class FilterPoller<T : Any> private constructor(
                         Boolean::class.java,
                     )
 
-                    val response = uninstallCall.sendAwait()
+                    val response = uninstallCall.send()
                     if (response.isFailure()) {
                         LOG.err { "Error uninstalling filter '$id': ${response.error}" }
                     } else {
@@ -156,10 +160,6 @@ class FilterPoller<T : Any> private constructor(
                     }
                 }
             }
-
-            thread.name = "FilterPoller-$id"
-            thread.isDaemon = true
-            thread.start()
         }
     }
 }

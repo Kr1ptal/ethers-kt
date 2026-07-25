@@ -23,6 +23,7 @@ import kotlinx.atomicfu.atomic
 import kotlinx.atomicfu.locks.reentrantLock
 import kotlinx.atomicfu.locks.withLock
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -84,10 +85,10 @@ class WsClient(
     private val connectionOpenedCondition = eventLock.newCondition()
     private val connectionClosedCondition = eventLock.newCondition()
 
-    // WebSocket messages have one producer (the socket coroutine) and one consumer (the processor thread).
+    // WebSocket messages have one producer (the socket coroutine) and one consumer (the processor coroutine).
     private val messageQueue = QueueChannel.spscUnbounded<String>()
 
-    // Requests may be submitted concurrently, but are all consumed by the processor thread.
+    // Requests may be submitted concurrently, but are all consumed by the processor coroutine.
     private val requestQueue = QueueChannel.mpscUnbounded<PendingRequest<*>>()
     private val batchRequestQueue = QueueChannel.mpscUnbounded<PendingBatchRequest>()
     private val subscriptionQueue = QueueChannel.mpscUnbounded<PendingSubscriptionRequest<*>>()
@@ -97,6 +98,8 @@ class WsClient(
     private val stopping = atomic(false)
 
     private val wsScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val processorScopeJob = SupervisorJob()
+    private val processorScope = CoroutineScope(asyncDispatcher + processorScopeJob)
     private val wsUrl = url.replace("http://", "ws://").replace("https://", "wss://")
     private val wsHeaders = headers
 
@@ -105,6 +108,8 @@ class WsClient(
 
     @Volatile
     private var wsJob: Job? = null
+
+    private val processorJob: Job
 
     private fun openWebSocket(): Job = wsScope.launch {
         try {
@@ -163,8 +168,8 @@ class WsClient(
     }
 
     init {
-        val processorThread = AsyncExecutor.maybeVirtualThread {
-            LOG.inf { "Starting WebSocket processor thread and connecting to websocket" }
+        processorJob = processorScope.launch(CoroutineName("WsClient-Processor")) {
+            LOG.inf { "Starting WebSocket processor coroutine and connecting to websocket" }
 
             wsJob = openWebSocket()
             eventLock.withLock {
@@ -381,9 +386,6 @@ class WsClient(
             requestIdToSubscription.clear()
             serverIdToSubscription.clear()
         }
-
-        processorThread.name = "WsClient-Processor-${processorThread.id}"
-        processorThread.start()
     }
 
     private fun drainRequestQueuesToPending() {
@@ -640,6 +642,7 @@ class WsClient(
         stopping.value = true
         eventLock.withLock { newEventCondition.signalAll() }
 
+        processorScopeJob.cancel()
         wsScope.cancel()
         client.close()
     }
