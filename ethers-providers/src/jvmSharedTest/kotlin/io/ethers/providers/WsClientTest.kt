@@ -84,7 +84,7 @@ class WsClientTest : FunSpec({
             params[1].jsonPrimitive.content shouldBe "latest"
         }
 
-        test("request(Class<T>) with ByteArray decodes a 0x-prefixed hex string") {
+        test("request(KSerializer<T>) with ByteArray decodes a 0x-prefixed hex string") {
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0xdeadbeef"}""")
 
             val result = wsClient.request("eth_getCode", emptyArray<Any>(), HexByteArraySerializer)

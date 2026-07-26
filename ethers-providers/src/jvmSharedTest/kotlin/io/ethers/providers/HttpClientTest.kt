@@ -150,7 +150,7 @@ private fun httpSpecificTests() = funSpec {
             ex.message!! shouldContain "CustomBag"
         }
 
-        test("request(Class<T>) with ByteArray decodes a 0x-prefixed hex string") {
+        test("request(KSerializer<T>) with ByteArray decodes a 0x-prefixed hex string") {
             server.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0xdeadbeef"}""")
 
             val result = client.request("eth_getCode", emptyArray<Any>(), HexByteArraySerializer)
@@ -159,7 +159,7 @@ private fun httpSpecificTests() = funSpec {
             result.unwrap() shouldBe byteArrayOf(0xde.toByte(), 0xad.toByte(), 0xbe.toByte(), 0xef.toByte())
         }
 
-        test("request(Class<T>) with ByteArray handles empty payloads (\"0x\" / \"\")") {
+        test("request(KSerializer<T>) with ByteArray handles empty payloads (\"0x\" / \"\")") {
             server.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0x"}""")
             val emptyHex = client.request("eth_getCode", emptyArray<Any>(), HexByteArraySerializer)
             emptyHex.isSuccess() shouldBe true
@@ -171,7 +171,7 @@ private fun httpSpecificTests() = funSpec {
             emptyString.unwrap() shouldBe ByteArray(0)
         }
 
-        test("request(Class<T>) with @Serializable type still uses its KSerializer") {
+        test("request(KSerializer<T>) with @Serializable type still uses its KSerializer") {
             server.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0x1111111111111111111111111111111111111111"}""")
 
             val result = client.request("eth_coinbase", emptyArray<Any>(), Address.serializer())
