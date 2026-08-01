@@ -30,6 +30,12 @@ import kotlinx.serialization.json.JsonElement as KJsonElement
  * to WsClient, though WebSocket testing with MockWebServer has additional complexity.
  * The main demonstration is showing WebSocket-specific capabilities like subscriptions.
  */
+// Waits that span a reconnect have to allow for a full WebSocket handshake against the mock server, not just a
+// local round trip - CI runners are far slower than a dev machine. `eventually` returns as soon as the condition
+// holds, so a generous budget costs nothing when things are fast, it only bounds how long a genuine failure takes
+// to surface.
+private val RECONNECT_WINDOW = 5.seconds
+
 class WsClientTest : FunSpec({
     @Suppress("MoveLambdaOutsideParentheses")
     val commonJsonRpcTests = JsonRpcTestFactory.commonTests(
@@ -254,7 +260,7 @@ class WsClientTest : FunSpec({
             mockServer.closeConnection()
 
             // Stream should be closed because resubscribeOnReconnect = false
-            eventually(1.seconds) {
+            eventually(RECONNECT_WINDOW) {
                 stream.isClosed shouldBe true
             }
         }
@@ -307,7 +313,7 @@ class WsClientTest : FunSpec({
             }
             """.trimIndent()
 
-            eventually(1.seconds) {
+            eventually(RECONNECT_WINDOW) {
                 mockServer.sendJson(notification)
                 stream.isClosed shouldBe false
                 stream.isEmpty shouldBe false
