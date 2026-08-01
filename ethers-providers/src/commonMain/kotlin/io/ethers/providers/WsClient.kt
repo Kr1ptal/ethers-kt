@@ -50,7 +50,7 @@ import kotlinx.serialization.json.JsonElement as KJsonElement
  */
 class WsClient(
     url: String,
-    private val client: KtorHttpClient,
+    client: KtorHttpClient,
     headers: Map<String, String> = emptyMap(),
     private val resubscribeOnReconnect: Boolean = true,
     private val connectTimeoutMs: Long = 10_000L,
@@ -65,6 +65,14 @@ class WsClient(
         config.connectTimeoutMs,
         config.readTimeoutMs,
     )
+
+    /**
+     * A child of the supplied client, sharing its engine and configuration but owning its own lifecycle.
+     *
+     * ktor ref-counts engine users, so [close] tears down only this client: the caller's client, or
+     * [RpcClientConfig]'s shared default, and the connection pool underneath, all survive.
+     */
+    private val client = client.config { }
 
     private val LOG = getLogger()
 
