@@ -2,7 +2,10 @@ package io.ethers.providers.types
 
 import io.ethers.core.Result
 import io.ethers.core.Result.Consumer
+import io.ethers.core.failure
 import io.ethers.core.isFailure
+import io.ethers.core.isSuccess
+import io.ethers.core.success
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import io.ethers.providers.decoderFor
@@ -33,12 +36,32 @@ abstract class RpcRequest<T, E : Result.Error> {
     }
 
     /**
+     * Same as [map], but the mapper is allowed to suspend.
+     */
+    @JvmSynthetic
+    fun <R> map(mapper: suspend (T) -> R): RpcRequest<R, E> {
+        return MappingRpcRequest(this) { result ->
+            if (result.isFailure()) result else success(mapper(result.value))
+        }
+    }
+
+    /**
      * Map the returned response if the call has failed with an error, skipping if it succeeded.
      *
      * The function will be executed asynchronously after the request is sent and the response received.
      */
     fun <R : Result.Error> mapError(mapper: Result.Transformer<E, R>): RpcRequest<T, R> {
         return MappingRpcRequest(this) { it.mapError(mapper) }
+    }
+
+    /**
+     * Same as [mapError], but the mapper is allowed to suspend.
+     */
+    @JvmSynthetic
+    fun <R : Result.Error> mapError(mapper: suspend (E) -> R): RpcRequest<T, R> {
+        return MappingRpcRequest(this) { result ->
+            if (result.isFailure()) failure(mapper(result.error)) else result
+        }
     }
 
     /**
@@ -49,6 +72,16 @@ abstract class RpcRequest<T, E : Result.Error> {
      */
     fun <R> andThen(mapper: Result.Transformer<T, Result<R, E>>): RpcRequest<R, E> {
         return MappingRpcRequest(this) { it.andThen(mapper) }
+    }
+
+    /**
+     * Same as [andThen], but the mapper is allowed to suspend.
+     */
+    @JvmSynthetic
+    fun <R> andThen(mapper: suspend (T) -> Result<R, E>): RpcRequest<R, E> {
+        return MappingRpcRequest(this) { result ->
+            if (result.isFailure()) result else mapper(result.value)
+        }
     }
 
     /**
@@ -64,7 +97,8 @@ abstract class RpcRequest<T, E : Result.Error> {
     /**
      * Same as [orElse], but the recovery function is allowed to suspend.
      */
-    internal fun orElseSuspend(mapper: suspend (E) -> Result<T, E>): RpcRequest<T, E> {
+    @JvmSynthetic
+    fun <R : Result.Error> orElse(mapper: suspend (E) -> Result<T, R>): RpcRequest<T, R> {
         return MappingRpcRequest(this) { result ->
             if (result.isFailure()) mapper(result.error) else result
         }
@@ -80,12 +114,34 @@ abstract class RpcRequest<T, E : Result.Error> {
     }
 
     /**
+     * Same as [onSuccess], but the callback is allowed to suspend.
+     */
+    @JvmSynthetic
+    fun onSuccess(block: suspend (T) -> Unit): RpcRequest<T, E> {
+        return MappingRpcRequest(this) { result ->
+            if (result.isSuccess()) block(result.value)
+            result
+        }
+    }
+
+    /**
      * Callback called only when the call has failed with an error.
      *
      * The function will be executed asynchronously after the request is sent and the response received.
      */
     fun onFailure(block: Consumer<E>): RpcRequest<T, E> {
         return MappingRpcRequest(this) { it.apply { onFailure(block) } }
+    }
+
+    /**
+     * Same as [onFailure], but the callback is allowed to suspend.
+     */
+    @JvmSynthetic
+    fun onFailure(block: suspend (E) -> Unit): RpcRequest<T, E> {
+        return MappingRpcRequest(this) { result ->
+            if (result.isFailure()) block(result.error)
+            result
+        }
     }
 }
 

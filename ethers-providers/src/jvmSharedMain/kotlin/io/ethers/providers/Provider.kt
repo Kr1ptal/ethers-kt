@@ -39,7 +39,6 @@ import io.ethers.core.types.TxpoolStatus
 import io.ethers.core.types.tracers.TracerConfig
 import io.ethers.core.types.tracers.TxTraceResult
 import io.ethers.core.types.transaction.TransactionUnsigned
-import io.ethers.core.unwrapOrReturn
 import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.CallFailedError
 import io.ethers.providers.types.CallManyBundle
@@ -317,7 +316,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
                 val ret = if (raw != null) TransactionUnsigned.rlpDecode(raw.jsonPrimitive.asHexByteArray()) else null
                 ret ?: throw IllegalStateException("Invalid response")
             },
-        ).orElseSuspend { err ->
+        ).orElse { err ->
             when {
                 // If eth_fillTransaction is not supported, fallback to manually filling the transaction.
                 err.isMethodNotFound -> {
@@ -415,7 +414,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
 
                 val medianReward = when {
                     rewards.isEmpty() -> BigInteger.ONE
-                    rewards.size % 2 == 0 -> (rewards[rewards.size / 2 - 1] + rewards[rewards.size / 2]) / BigInteger.TWO
+                    rewards.size % 2 == 0 -> (rewards[rewards.size / 2 - 1] + rewards[rewards.size / 2]) / BIGINT_TWO
                     else -> rewards[rewards.size / 2]
                 }.max(BigInteger.ONE)
 
@@ -668,6 +667,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
     data class UnableToGetChainId(val url: String, val error: RpcError) : Error
 
     companion object {
+        private val BIGINT_TWO = BigInteger.valueOf(2L)
         private val EMPTY_ARRAY = emptyArray<Any>()
 
         internal fun getChainId(client: JsonRpcClient): RpcRequest<Long, RpcError> {
