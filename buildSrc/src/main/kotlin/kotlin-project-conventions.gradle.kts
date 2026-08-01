@@ -105,11 +105,14 @@ pluginManager.withPlugin("org.jetbrains.kotlin.multiplatform") {
                 dependsOn(jvmSharedMain)
             }
 
-            jvmTest {
-                dependsOn(jvmSharedTest)
+            commonTest {
                 dependencies {
                     implementation(libs.bundles.kotest)
                 }
+            }
+
+            jvmTest {
+                dependsOn(jvmSharedTest)
             }
             androidUnitTest {
                 dependsOn(jvmSharedTest)

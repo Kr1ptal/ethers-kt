@@ -33,15 +33,21 @@ staticDataGenerator {
 
 kotlin {
     sourceSets {
-        val jvmSharedMain by getting {
+        commonMain {
             dependencies {
                 api(libs.bignumkt)
                 implementation(libs.kotlincrypto.hash.sha3)
                 implementation(libs.whyoleg.cryptography.core)
                 implementation(libs.whyoleg.cryptography.random)
-                implementation(libs.whyoleg.cryptography.jdk)
                 implementation(libs.secp256k1.kmp)
                 implementation(libs.ditchoom.buffer)
+            }
+        }
+
+        val jvmSharedMain by getting {
+            dependencies {
+                // JVM + Android provider for whyoleg cryptography (SHA256, HMAC, RIPEMD160)
+                implementation(libs.whyoleg.cryptography.jdk)
             }
         }
 
@@ -55,12 +61,6 @@ kotlin {
         androidMain {
             dependencies {
                 runtimeOnly(libs.secp256k1.kmp.jni.android)
-            }
-        }
-
-        val jvmSharedTest by getting {
-            dependencies {
-                implementation(libs.bundles.kotest)
             }
         }
     }
