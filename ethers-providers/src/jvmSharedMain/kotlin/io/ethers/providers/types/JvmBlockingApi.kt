@@ -3,7 +3,6 @@
 
 package io.ethers.providers.types
 
-import io.channels.core.ChannelReceiver
 import io.ethers.core.Result
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -12,7 +11,6 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.future.asCompletableFuture
 import kotlinx.coroutines.runBlocking
 import java.util.concurrent.CompletableFuture
-import kotlin.time.Duration
 
 // Blocking and CompletableFuture-based conveniences over the suspending provider API.
 //
@@ -22,25 +20,6 @@ import kotlin.time.Duration
 // -------------------------------------------------------------------------------------------------------------
 // BatchRpcRequest / BatchRpcResponse
 // -------------------------------------------------------------------------------------------------------------
-
-/**
- * Send the batch request and await the result by blocking the calling thread.
- */
-fun BatchRpcRequest.sendAwait(): Boolean = runBlocking { send() }
-
-/**
- * Asynchronously send the batch request as a [CompletableFuture].
- */
-fun BatchRpcRequest.sendAsync(): CompletableFuture<Boolean> = sendDeferred().asCompletableFuture()
-
-/**
- * Convert this pending batch response to a JVM [CompletableFuture].
- */
-fun <T> BatchRpcResponse<T>.toFuture(): CompletableFuture<T> {
-    return CoroutineScope(Dispatchers.Default)
-        .async(start = CoroutineStart.UNDISPATCHED) { await() }
-        .asCompletableFuture()
-}
 
 /**
  * Batch-send all requests, awaiting the result by blocking the calling thread.
@@ -65,7 +44,13 @@ fun <T, E : Result.Error> Iterable<RpcRequest<out T, E>>.sendAsync(): BatchRespo
 
     batch.sendAsync()
 
-    return BatchResponseAsync(pendingResponses.map { it.toFuture() })
+    val scope = CoroutineScope(Dispatchers.Default)
+    return BatchResponseAsync(
+        pendingResponses.map {
+            scope.async(start = CoroutineStart.UNDISPATCHED) { it.await() }
+                .asCompletableFuture()
+        },
+    )
 }
 
 /**

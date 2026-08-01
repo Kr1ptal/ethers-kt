@@ -14,9 +14,23 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 
 /**
+ * Seam through which each platform adds its own conveniences to [BatchRpcRequest].
+ *
+ * It exists so platform helpers can be inherited *members* rather than extension functions - Java callers get
+ * `batch.sendAwait()` instead of a static call. All implementation stays in ordinary common code in
+ * [BatchRpcRequest].
+ *
+ * JVM and Android actualize this with blocking and `CompletableFuture` variants. A platform without those
+ * primitives actualizes it with no extra members.
+ */
+expect abstract class PlatformBatchRpcRequest() {
+    abstract suspend fun send(): Boolean
+}
+
+/**
  * Single-shot batch request.
  * */
-class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) {
+class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) : PlatformBatchRpcRequest() {
     // Enable batchSent modification for batch execution via JsonRpcClient.requestBatch
     internal val batchSent = atomic(false)
 
@@ -57,7 +71,7 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) {
     /**
      * Send the batch request without blocking the calling thread.
      */
-    suspend fun send(): Boolean {
+    override suspend fun send(): Boolean {
         val client = client ?: return false
         markAsSent()
         return client.requestBatch(this)
