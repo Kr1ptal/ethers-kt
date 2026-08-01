@@ -1,9 +1,13 @@
 package io.ethers.providers
 
 import io.ethers.core.Result
+import io.ethers.core.asHexLong
 import io.ethers.core.failure
 import io.ethers.core.success
 import io.ethers.core.unwrapOrReturn
+import io.ethers.providers.types.RpcCall
+import io.ethers.providers.types.RpcRequest
+import kotlinx.serialization.json.jsonPrimitive
 import kotlin.time.Duration
 import io.ktor.client.HttpClient as KtorHttpClient
 
@@ -78,10 +82,14 @@ class ProviderBuilder internal constructor(private val url: String) : PlatformPr
      * */
     override suspend fun build(): Result<Provider, Provider.Error> {
         val client = clientOrNull() ?: return failure(Provider.UnsupportedUrlProtocol(url))
-        val chainId = Provider.getChainId(client).send()
+        val chainId = getChainId(client).send()
             .unwrapOrReturn { return failure(Provider.UnableToGetChainId(url, it)) }
 
         return success(Provider(client, chainId))
+    }
+
+    private fun getChainId(client: JsonRpcClient): RpcRequest<Long, RpcError> {
+        return RpcCall(client, "eth_chainId", EMPTY_ARRAY, { it.jsonPrimitive.asHexLong() })
     }
 
     private fun clientOrNull(): JsonRpcClient? = when {
@@ -93,5 +101,6 @@ class ProviderBuilder internal constructor(private val url: String) : PlatformPr
     companion object {
         private val PROTO_HTTPS = "^(https?)://.+$".toRegex()
         private val PROTO_WSS = "^(wss?)://.+$".toRegex()
+        private val EMPTY_ARRAY = emptyArray<Any>()
     }
 }

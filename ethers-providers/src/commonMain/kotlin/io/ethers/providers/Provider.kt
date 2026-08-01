@@ -670,10 +670,6 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         private val BIGINT_TWO = BigInteger.valueOf(2L)
         private val EMPTY_ARRAY = emptyArray<Any>()
 
-        internal fun getChainId(client: JsonRpcClient): RpcRequest<Long, RpcError> {
-            return RpcCall(client, "eth_chainId", EMPTY_ARRAY, { it.jsonPrimitive.asHexLong() })
-        }
-
         /**
          * Start building a [Provider] for [url].
          *
