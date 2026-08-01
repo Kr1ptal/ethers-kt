@@ -8,7 +8,6 @@ import io.ethers.core.types.Bytes
 import io.ethers.core.types.CallRequest
 import io.kotest.assertions.json.shouldEqualJson
 import io.kotest.core.spec.style.FunSpec
-import org.intellij.lang.annotations.Language
 
 class CallManyTypesTest : FunSpec({
     test("CallManyBundle serialization") {
@@ -31,7 +30,6 @@ class CallManyTypesTest : FunSpec({
             },
         )
 
-        @Language("JSON")
         val expected = """
             {
               "transactions": [
@@ -62,7 +60,6 @@ class CallManyTypesTest : FunSpec({
             transactionIndex = -1,
         )
 
-        @Language("JSON")
         val expected = """
             {
               "blockNumber": "0x4d2",

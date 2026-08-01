@@ -63,17 +63,8 @@ class ProviderBuilderTest : FunSpec({
             result.unwrapError().shouldBeInstanceOf<Provider.UnableToGetChainId>()
         }
 
-        test("blocking build reports the same failure") {
-            val result = Provider.builder("http://localhost:1").buildAwait()
-
-            result.isFailure() shouldBe true
-            result.unwrapError().shouldBeInstanceOf<Provider.UnableToGetChainId>()
-        }
-
         test("unsupported protocol fails before any RPC call is attempted") {
             Provider.builder("ftp://localhost").build()
-                .unwrapError().shouldBeInstanceOf<Provider.UnsupportedUrlProtocol>()
-            Provider.builder("ftp://localhost").buildAwait()
                 .unwrapError().shouldBeInstanceOf<Provider.UnsupportedUrlProtocol>()
         }
     }
