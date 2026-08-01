@@ -15,12 +15,7 @@ import kotlinx.coroutines.async
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.JsonElement
 
-abstract class RpcRequest<T, E : Result.Error> {
-    /**
-     * Send the RPC request without blocking the calling thread.
-     */
-    abstract suspend fun send(): Result<T, E>
-
+abstract class RpcRequest<T, E : Result.Error> : PlatformRpcRequest<T, E>() {
     /**
      * Batch this into provided [BatchRpcRequest].
      */

@@ -20,38 +20,6 @@ import kotlin.time.Duration
 // in `commonMain` alongside the rest of the module.
 
 // -------------------------------------------------------------------------------------------------------------
-// RpcRequest
-// -------------------------------------------------------------------------------------------------------------
-
-/**
- * Send the RPC request and await the result by blocking the calling thread.
- */
-fun <T, E : Result.Error> RpcRequest<T, E>.sendAwait(): Result<T, E> = runBlocking { send() }
-
-/**
- * Asynchronously send the RPC request as a [CompletableFuture].
- */
-fun <T, E : Result.Error> RpcRequest<T, E>.sendAsync(): CompletableFuture<Result<T, E>> {
-    return CoroutineScope(Dispatchers.Default).async { send() }.asCompletableFuture()
-}
-
-// -------------------------------------------------------------------------------------------------------------
-// RpcSubscribe
-// -------------------------------------------------------------------------------------------------------------
-
-/**
- * Subscribe to a stream via RPC and await the subscription response by blocking the calling thread.
- */
-fun <T : Any, E : Result.Error> RpcSubscribe<T, E>.sendAwait(): Result<ChannelReceiver<T>, E> = runBlocking { send() }
-
-/**
- * Asynchronously subscribe to a stream via RPC as a [CompletableFuture].
- */
-fun <T : Any, E : Result.Error> RpcSubscribe<T, E>.sendAsync(): CompletableFuture<Result<ChannelReceiver<T>, E>> {
-    return CoroutineScope(Dispatchers.Default).async { send() }.asCompletableFuture()
-}
-
-// -------------------------------------------------------------------------------------------------------------
 // BatchRpcRequest / BatchRpcResponse
 // -------------------------------------------------------------------------------------------------------------
 
@@ -130,40 +98,4 @@ value class BatchResponseAsync<T, E : Result.Error>(
     operator fun <O, U : Result.Error> component10() = responses[9] as CompletableFuture<Result<O, U>>
     operator fun <O, U : Result.Error> component11() = responses[10] as CompletableFuture<Result<O, U>>
     operator fun <O, U : Result.Error> component12() = responses[11] as CompletableFuture<Result<O, U>>
-}
-
-// -------------------------------------------------------------------------------------------------------------
-// PendingInclusion
-// -------------------------------------------------------------------------------------------------------------
-
-/**
- * Await for pending transaction to be included in a block (= mined) by blocking the calling thread.
- *
- * @param retries number of attempts to receive a transaction inclusion response
- * @param interval time to wait between retries
- * @param confirmations number of mined blocks required to announce inclusion of the pending transaction
- */
-@JvmOverloads
-fun <T> PendingInclusion<T>.awaitInclusion(
-    retries: Int = DEFAULT_RETRIES,
-    interval: Duration = DEFAULT_INCLUSION_INTERVAL,
-    confirmations: Int = DEFAULT_CONFIRMATIONS,
-): Result<T, PendingInclusion.Error> = runBlocking { inclusion(retries, interval, confirmations) }
-
-/**
- * Asynchronously wait for pending transaction to be included in a block (= mined), as a [CompletableFuture].
- *
- * @param retries number of attempts to receive a transaction inclusion response
- * @param interval time to wait between retries
- * @param confirmations number of mined blocks required to announce inclusion of the pending transaction
- */
-@JvmOverloads
-fun <T> PendingInclusion<T>.inclusionAsync(
-    retries: Int = DEFAULT_RETRIES,
-    interval: Duration = DEFAULT_INCLUSION_INTERVAL,
-    confirmations: Int = DEFAULT_CONFIRMATIONS,
-): CompletableFuture<Result<T, PendingInclusion.Error>> {
-    return CoroutineScope(Dispatchers.Default)
-        .async { inclusion(retries, interval, confirmations) }
-        .asCompletableFuture()
 }

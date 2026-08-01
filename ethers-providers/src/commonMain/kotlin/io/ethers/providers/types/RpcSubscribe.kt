@@ -13,12 +13,7 @@ import io.ethers.providers.decoderFor
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.JsonElement
 
-interface RpcSubscribe<T : Any, E : Result.Error> {
-    /**
-     * Subscribe to a stream via RPC without blocking the calling thread.
-     */
-    suspend fun send(): Result<ChannelReceiver<T>, E>
-
+interface RpcSubscribe<T : Any, E : Result.Error> : PlatformRpcSubscribe<T, E> {
     /**
      * Map the returned response if the call was successful, skipping if it failed.
      *

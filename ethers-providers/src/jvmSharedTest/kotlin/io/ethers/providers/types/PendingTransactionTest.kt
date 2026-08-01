@@ -11,7 +11,6 @@ import io.ethers.core.types.TransactionReceipt
 import io.ethers.core.types.transaction.TxType
 import io.ethers.providers.Provider
 import io.ethers.providers.fromUrl
-import io.ethers.providers.types.awaitInclusion
 import io.github.artificialpb.bignum.BigInteger
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe

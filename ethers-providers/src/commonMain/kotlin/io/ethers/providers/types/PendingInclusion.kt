@@ -12,20 +12,7 @@ internal const val DEFAULT_CONFIRMATIONS = 1
 /**
  * Result that is pending block inclusion (e.i. getting mined).
  * */
-interface PendingInclusion<T> {
-    /**
-     * Wait for pending transaction to be included in a block (= mined), without blocking the calling thread.
-     *
-     * @param retries number of attempts to receive a transaction inclusion response
-     * @param interval time to wait between retries
-     * @param confirmations number of mined blocks required to announce inclusion of the pending transaction
-     */
-    suspend fun inclusion(
-        retries: Int = DEFAULT_RETRIES,
-        interval: Duration = DEFAULT_INCLUSION_INTERVAL,
-        confirmations: Int = DEFAULT_CONFIRMATIONS,
-    ): Result<T, Error>
-
+interface PendingInclusion<T> : PlatformPendingInclusion<T> {
     sealed class Error : Result.Error {
         data class NoInclusion(val txHash: Hash, val retries: Int) : Error()
         data class RpcError(val txHash: Hash, val error: io.ethers.providers.RpcError) : Error()
