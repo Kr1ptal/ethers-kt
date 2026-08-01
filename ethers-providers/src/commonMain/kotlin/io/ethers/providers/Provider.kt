@@ -677,9 +677,9 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
 }
 
 // Private inline extension functions for common decoding patterns
-private inline fun <reified T> KJsonElement.decodeAs(): T = io.ethers.core.Kotlinx.DEFAULT.decodeFromJsonElement(serializer(), this)
+private inline fun <reified T> KJsonElement.decodeAs(): T = Kotlinx.DEFAULT.decodeFromJsonElement(serializer(), this)
 
-private fun <T> KJsonElement.decodeAs(resultSerializer: KSerializer<T>): T = io.ethers.core.Kotlinx.DEFAULT.decodeFromJsonElement(resultSerializer, this)
+private fun <T> KJsonElement.decodeAs(resultSerializer: KSerializer<T>): T = Kotlinx.DEFAULT.decodeFromJsonElement(resultSerializer, this)
 
 private inline fun <reified T> KJsonElement.decodeAsOrNull(): T? = if (this is JsonNull) null else decodeAs<T>()
 
