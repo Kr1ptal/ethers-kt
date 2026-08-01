@@ -111,7 +111,7 @@ The `Provider` class is the main entry point for all RPC calls to the blockchain
 Example:
 ```kotlin
 // Create a provider
-val provider = Provider.fromUrl("<URL>").unwrap()
+val provider = Provider.builder("<URL>").buildAwait().unwrap()
 
 // Query blockchain data
 val blockNumber = provider.getBlockNumber().sendAwait().unwrap()

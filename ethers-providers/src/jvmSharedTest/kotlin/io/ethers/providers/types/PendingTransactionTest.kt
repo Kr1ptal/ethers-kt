@@ -24,7 +24,7 @@ class PendingTransactionTest : FunSpec({
         val mockWebServer = MockWebServer()
         val provider = run<Provider> {
             mockWebServer.start()
-            Provider.fromUrl(mockWebServer.url("").toString(), chainId = 999999).unwrap()
+            Provider.builder(mockWebServer.url("").toString()).build(chainId = 999999).unwrap()
         }
         val minedBlockNumber = 18341180L
         val txHash = Hash("0xce15f8ce74845b0d254fcbfda722ba89976ca6e09936d6761a648a6492b82e9b")

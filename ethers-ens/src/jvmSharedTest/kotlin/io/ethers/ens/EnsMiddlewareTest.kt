@@ -21,7 +21,7 @@ class EnsMiddlewareTest : FunSpec({
     )
 
     context("Init provider and resolver") {
-        val ensMiddleware = Provider.fromUrl(MAINNET_HTTP_RPC).map(::EnsMiddleware).unwrap()
+        val ensMiddleware = Provider.builder(MAINNET_HTTP_RPC).build().map(::EnsMiddleware).unwrap()
 
         context("To address") {
             context("Valid ENS names - No wildcard") {
