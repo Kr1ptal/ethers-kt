@@ -39,6 +39,7 @@ import io.ethers.core.types.TxpoolStatus
 import io.ethers.core.types.tracers.TracerConfig
 import io.ethers.core.types.tracers.TxTraceResult
 import io.ethers.core.types.transaction.TransactionUnsigned
+import io.ethers.core.unwrapOrReturn
 import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.CallFailedError
 import io.ethers.providers.types.CallManyBundle
@@ -669,9 +670,64 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
     companion object {
         private val BIGINT_TWO = BigInteger.valueOf(2L)
         private val EMPTY_ARRAY = emptyArray<Any>()
+        private val PROTO_HTTPS = "^(https?)://.+$".toRegex()
+        private val PROTO_WSS = "^(wss?)://.+$".toRegex()
 
         internal fun getChainId(client: JsonRpcClient): RpcRequest<Long, RpcError> {
             return RpcCall(client, "eth_chainId", EMPTY_ARRAY, { it.jsonPrimitive.asHexLong() })
+        }
+
+        /**
+         * Build the transport for [url], or null if the protocol is not one we support.
+         *
+         * Supported URL protocols:
+         * - http/https
+         * - ws/wss
+         */
+        private fun clientForUrl(url: String, config: RpcClientConfig): JsonRpcClient? = when {
+            url.matches(PROTO_HTTPS) -> HttpClient(url, config)
+            url.matches(PROTO_WSS) -> WsClient(url, config)
+            else -> null
+        }
+
+        /**
+         * Create a new [Provider] for [url] with a known [chainId].
+         *
+         * Makes no RPC call at all, so it neither suspends nor blocks. Prefer this when the chain id is known
+         * up front.
+         *
+         * Supported URL protocols:
+         * - http/https
+         * - ws/wss
+         * */
+        @JvmStatic
+        @JvmOverloads
+        fun fromUrl(
+            url: String,
+            chainId: Long,
+            config: RpcClientConfig = RpcClientConfig(),
+        ): Result<Provider, Error> {
+            val client = clientForUrl(url, config) ?: return failure(UnsupportedUrlProtocol(url))
+            return success(Provider(client, chainId))
+        }
+
+        /**
+         * Create a new [Provider] for [url], resolving the chain id via an `eth_chainId` call.
+         *
+         * Supported URL protocols:
+         * - http/https
+         * - ws/wss
+         * */
+        @JvmSynthetic
+        suspend fun fromUrl(
+            url: String,
+            config: RpcClientConfig = RpcClientConfig(),
+        ): Result<Provider, Error> {
+            val client = clientForUrl(url, config) ?: return failure(UnsupportedUrlProtocol(url))
+            val chainId = Provider.getChainId(client).send()
+                .unwrapOrReturn { return failure(UnableToGetChainId(url, it)) }
+
+            return success(Provider(client, chainId))
         }
     }
 }

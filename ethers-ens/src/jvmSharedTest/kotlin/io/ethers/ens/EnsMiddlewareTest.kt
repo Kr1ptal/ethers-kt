@@ -3,7 +3,6 @@ package io.ethers.ens
 import io.ethers.core.isFailure
 import io.ethers.core.types.Address
 import io.ethers.providers.Provider
-import io.ethers.providers.fromUrl
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData
 import io.kotest.matchers.shouldBe
