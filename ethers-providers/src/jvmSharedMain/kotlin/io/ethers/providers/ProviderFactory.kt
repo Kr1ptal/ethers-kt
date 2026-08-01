@@ -19,7 +19,8 @@ private val PROTO_WSS = "^(wss?)://.+$".toRegex()
  * - http/https
  * - ws/wss
  *
- * JVM/Android-only: it blocks while resolving the chain id, and [WsClient] is not available in common code.
+ * JVM/Android-only: it blocks while resolving the chain id. Both transports are common now, so only that
+ * blocking wait keeps this from moving to common code.
  * */
 @JvmOverloads
 fun Provider.Companion.fromUrl(

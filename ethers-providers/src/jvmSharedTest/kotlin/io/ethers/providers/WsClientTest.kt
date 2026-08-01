@@ -404,9 +404,9 @@ class WsClientTest : FunSpec({
             Thread.sleep(50)
 
             // The request is only failed after the processor loop has been through a reconnect attempt, and a
-            // failed attempt parks for 2s (`newEventCondition.await(2000L, ...)` in WsClient). The budget here has
-            // to exceed that backoff rather than equal it, otherwise the test is racing the wait it depends on.
-            val result = withTimeout(5.seconds) {
+            // failed attempt parks for WsClient.RECONNECT_BACKOFF. The budget here has to exceed that backoff
+            // rather than equal it, otherwise the test races the wait it depends on.
+            val result = withTimeout(WsClient.RECONNECT_BACKOFF + 3.seconds) {
                 wsClient.request("eth_blockNumber", emptyArray<Any>(), stringDecoder)
             }
 

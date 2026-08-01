@@ -84,7 +84,6 @@ value class BatchResponseAsync<T, E : Result.Error>(
     operator fun <O, U : Result.Error> component12() = responses[11] as CompletableFuture<Result<O, U>>
 }
 
-
 // Blocking `await()` conveniences over the suspending `awaitSuspend()` batch API.
 //
 // JVM/Android-only: `runBlocking` has no common equivalent.
