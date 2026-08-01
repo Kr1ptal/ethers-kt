@@ -15,6 +15,19 @@ import kotlinx.coroutines.async
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.JsonElement
 
+/**
+ * Seam through which each platform adds its own conveniences to [RpcRequest].
+ *
+ * It exists so platform helpers can be inherited *members* rather than extension functions - Java callers get
+ * `request.sendAwait()` instead of a static call. All implementation stays in ordinary common code in [RpcRequest].
+ *
+ * JVM and Android actualize this with blocking and `CompletableFuture` variants. A platform without those
+ * primitives actualizes it with no extra members.
+ */
+expect abstract class PlatformRpcRequest<T, E : Result.Error>() {
+    abstract suspend fun send(): Result<T, E>
+}
+
 abstract class RpcRequest<T, E : Result.Error> : PlatformRpcRequest<T, E>() {
     /**
      * Batch this into provided [BatchRpcRequest].

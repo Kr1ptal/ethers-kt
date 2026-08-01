@@ -1,6 +1,5 @@
 package io.ethers.providers.types
 
-import io.channels.core.ChannelReceiver
 import io.ethers.core.Result
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -9,38 +8,6 @@ import kotlinx.coroutines.future.asCompletableFuture
 import kotlinx.coroutines.runBlocking
 import java.util.concurrent.CompletableFuture
 import kotlin.time.Duration
-
-actual abstract class PlatformRpcRequest<T, E : Result.Error> actual constructor() {
-    actual abstract suspend fun send(): Result<T, E>
-
-    /**
-     * Send the RPC request and await the result by blocking the calling thread.
-     */
-    fun sendAwait(): Result<T, E> = runBlocking { send() }
-
-    /**
-     * Asynchronously send the RPC request as a [CompletableFuture].
-     */
-    fun sendAsync(): CompletableFuture<Result<T, E>> {
-        return CoroutineScope(Dispatchers.Default).async { send() }.asCompletableFuture()
-    }
-}
-
-actual interface PlatformRpcSubscribe<T : Any, E : Result.Error> {
-    actual suspend fun send(): Result<ChannelReceiver<T>, E>
-
-    /**
-     * Subscribe to a stream via RPC and await the subscription response by blocking the calling thread.
-     */
-    fun sendAwait(): Result<ChannelReceiver<T>, E> = runBlocking { send() }
-
-    /**
-     * Asynchronously subscribe to a stream via RPC as a [CompletableFuture].
-     */
-    fun sendAsync(): CompletableFuture<Result<ChannelReceiver<T>, E>> {
-        return CoroutineScope(Dispatchers.Default).async { send() }.asCompletableFuture()
-    }
-}
 
 actual interface PlatformPendingInclusion<T> {
     actual suspend fun inclusion(

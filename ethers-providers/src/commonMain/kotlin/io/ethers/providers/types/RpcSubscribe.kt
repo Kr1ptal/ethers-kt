@@ -13,6 +13,19 @@ import io.ethers.providers.decoderFor
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.JsonElement
 
+/**
+ * Seam through which each platform adds its own conveniences to [RpcSubscribe].
+ *
+ * It exists so platform helpers can be inherited *members* rather than extension functions - Java callers get
+ * `subscription.sendAwait()` instead of a static call. All implementation stays in ordinary common code in [RpcSubscribe].
+ *
+ * JVM and Android actualize this with blocking and `CompletableFuture` variants. A platform without those
+ * primitives actualizes it with no extra members.
+ */
+expect interface PlatformRpcSubscribe<T : Any, E : Result.Error> {
+    suspend fun send(): Result<ChannelReceiver<T>, E>
+}
+
 interface RpcSubscribe<T : Any, E : Result.Error> : PlatformRpcSubscribe<T, E> {
     /**
      * Map the returned response if the call was successful, skipping if it failed.
