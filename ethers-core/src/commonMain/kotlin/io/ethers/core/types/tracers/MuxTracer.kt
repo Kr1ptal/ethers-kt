@@ -24,7 +24,7 @@ data class MuxTracer(
             val t = tracers[i]
             for (j in i + 1 until tracers.size) {
                 if (t.name == tracers[j].name) {
-                    throw IllegalArgumentException("Multiple tracers of the same type are not allowed: ${t.javaClass}")
+                    throw IllegalArgumentException("Multiple tracers of the same type are not allowed: ${t::class}")
                 }
             }
         }
@@ -64,9 +64,9 @@ data class MuxTracer(
         val tracers: List<Tracer<out Any>>,
         val results: Array<*>,
     ) {
-        operator fun <R : Any, T : Tracer<R>> get(tracer: Class<T>): R {
+        operator fun <R : Any, T : Tracer<R>> get(tracer: KClass<T>): R {
             for (i in tracers.indices) {
-                if (tracers[i].javaClass == tracer) {
+                if (tracers[i]::class == tracer) {
                     @Suppress("UNCHECKED_CAST")
                     return results[i] as R
                 }

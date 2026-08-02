@@ -156,7 +156,7 @@ class MuxTracerTest : FunSpec({
         context("cast result object to expected result class") {
             withData(
                 result[fourByteTracer],
-                result[FourByteTracer::class.java],
+                result[FourByteTracer::class],
             ) { r ->
                 r shouldBeSameInstanceAs result.results[0]
                 r shouldBe result.results[0]
@@ -164,7 +164,7 @@ class MuxTracerTest : FunSpec({
         }
 
         test("fail when casting to unknown tracer") {
-            listOf({ result[NoopTracer] }, { result[NoopTracer::class.java] }).forAll { r ->
+            listOf({ result[NoopTracer] }, { result[NoopTracer::class] }).forAll { r ->
                 shouldThrow<NoSuchElementException> {
                     r()
                 }
