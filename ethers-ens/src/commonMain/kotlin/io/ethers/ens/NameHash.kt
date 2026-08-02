@@ -28,17 +28,18 @@ object NameHash {
     fun dnsEncode(name: String): Bytes {
         val parts = name.split(".")
         val encoded = Array(parts.size) { i ->
-            val normalized = EnsNormalize.normalize(parts[i])
-            normalized.length to normalized.toByteArray(Charsets.UTF_8)
+            EnsNormalize.normalize(parts[i]).toByteArray(Charsets.UTF_8)
         }
 
         // +1 at the end for the trailing zero byte requirement, which is handled implicitly during
         // initialization of the result array
-        val result = ByteArray(encoded.sumOf { 1 + it.second.size } + 1)
+        val result = ByteArray(encoded.sumOf { 1 + it.size } + 1)
 
         var offset = 0
-        for ((length, bytes) in encoded) {
-            result[offset++] = length.toByte()
+        for (bytes in encoded) {
+            // NOTE: the length prefix is the label's UTF-8 byte length, not its UTF-16 length. These differ for any
+            // non-ASCII label (e.g. "💎" is 2 UTF-16 code units but 4 UTF-8 bytes).
+            result[offset++] = bytes.size.toByte()
             bytes.copyInto(result, offset)
             offset += bytes.size
         }
