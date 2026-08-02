@@ -198,7 +198,11 @@ class WsClientTest : FunSpec({
             mockServer.sendJson(notification2)
             mockServer.sendJson(notification3)
 
-            // Verify all notifications are received in order
+            // Verify all notifications are received in order.
+            //
+            // Each notification is awaited separately: the three frames are written independently and there is no
+            // guarantee they are read and dispatched in a single batch, so asserting that later ones have already
+            // arrived just because the first has is a race - one that shows up on loaded CI machines.
 
             // First notification
             eventually(1.seconds) {
@@ -210,14 +214,18 @@ class WsClientTest : FunSpec({
             event1["timestamp"]?.jsonPrimitive?.content shouldBe "0x1111"
 
             // Second notification
-            stream.isEmpty shouldBe false
+            eventually(1.seconds) {
+                stream.isEmpty shouldBe false
+            }
             val event2 = stream.take()!!
             event2["number"]?.jsonPrimitive?.content shouldBe "0x1235"
             event2["hash"]?.jsonPrimitive?.content shouldBe "0xefgh"
             event2["timestamp"]?.jsonPrimitive?.content shouldBe "0x2222"
 
             // Third notification
-            stream.isEmpty shouldBe false
+            eventually(1.seconds) {
+                stream.isEmpty shouldBe false
+            }
             val event3 = stream.take()!!
             event3["number"]?.jsonPrimitive?.content shouldBe "0x1236"
             event3["hash"]?.jsonPrimitive?.content shouldBe "0xijkl"
