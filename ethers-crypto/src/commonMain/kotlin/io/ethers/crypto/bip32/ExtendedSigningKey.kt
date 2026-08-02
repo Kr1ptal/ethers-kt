@@ -82,7 +82,7 @@ class ExtendedSigningKey(privateKey: ByteArray, val chainCode: ByteArray) {
     }
 
     companion object {
-        private val PREFIX_KEY_BYTES = "Bitcoin seed".toByteArray(Charsets.UTF_8)
+        private val PREFIX_KEY_BYTES = "Bitcoin seed".encodeToByteArray()
 
         @JvmStatic
         fun fromSeed(seed: ByteArray): ExtendedSigningKey {

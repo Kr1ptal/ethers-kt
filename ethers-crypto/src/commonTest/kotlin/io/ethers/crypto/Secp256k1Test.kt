@@ -78,7 +78,7 @@ class Secp256k1Test : FunSpec({
                         return@checkAll
                     }
 
-                    val messageHash = Hashing.hashMessage(message.toByteArray())
+                    val messageHash = Hashing.hashMessage(message.encodeToByteArray())
                     val signingKey = Secp256k1.SigningKey(it)
                     val signature = signingKey.signHash(messageHash)
 
@@ -100,7 +100,7 @@ class Secp256k1Test : FunSpec({
         )
 
         messageToSignature.forAll { (message, signature) ->
-            val messageHash = Hashing.hashMessage(message.toByteArray())
+            val messageHash = Hashing.hashMessage(message.encodeToByteArray())
             signingKey.signHash(messageHash) shouldBe signature
         }
     }

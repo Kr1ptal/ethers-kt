@@ -107,23 +107,23 @@ class RlpDecoderTest : FunSpec({
             val v = rlp.decodeAsListOrNull { decodeByteArray() }
 
             v shouldContainExactly listOf(
-                "dog".toByteArray(),
-                "god".toByteArray(),
-                "cat".toByteArray(),
-                "tac".toByteArray(),
-                "tac".toByteArray(),
-                "tac".toByteArray(),
-                "tac".toByteArray(),
-                "tac".toByteArray(),
-                "tac".toByteArray(),
-                "tac".toByteArray(),
-                "tac".toByteArray(),
-                "tac".toByteArray(),
-                "tac".toByteArray(),
-                "tac".toByteArray(),
-                "tac".toByteArray(),
-                "tac".toByteArray(),
-                "tac".toByteArray(),
+                "dog".encodeToByteArray(),
+                "god".encodeToByteArray(),
+                "cat".encodeToByteArray(),
+                "tac".encodeToByteArray(),
+                "tac".encodeToByteArray(),
+                "tac".encodeToByteArray(),
+                "tac".encodeToByteArray(),
+                "tac".encodeToByteArray(),
+                "tac".encodeToByteArray(),
+                "tac".encodeToByteArray(),
+                "tac".encodeToByteArray(),
+                "tac".encodeToByteArray(),
+                "tac".encodeToByteArray(),
+                "tac".encodeToByteArray(),
+                "tac".encodeToByteArray(),
+                "tac".encodeToByteArray(),
+                "tac".encodeToByteArray(),
             )
         }
 
@@ -142,11 +142,11 @@ class RlpDecoderTest : FunSpec({
             )
 
             v shouldContainExactly listOf(
-                "dog".toByteArray(),
-                "god".toByteArray(),
-                "cat".toByteArray(),
-                "tac".toByteArray(),
-                "tac".toByteArray(),
+                "dog".encodeToByteArray(),
+                "god".encodeToByteArray(),
+                "cat".encodeToByteArray(),
+                "tac".encodeToByteArray(),
+                "tac".encodeToByteArray(),
             )
         }
 
@@ -164,12 +164,12 @@ class RlpDecoderTest : FunSpec({
             rlp.finishList(rlp.position)
 
             ret shouldContainExactly listOf(
-                "dog".toByteArray(),
-                "god".toByteArray(),
-                "cat".toByteArray(),
-                "tac".toByteArray(),
-                "tac".toByteArray(),
-                "tac".toByteArray(),
+                "dog".encodeToByteArray(),
+                "god".encodeToByteArray(),
+                "cat".encodeToByteArray(),
+                "tac".encodeToByteArray(),
+                "tac".encodeToByteArray(),
+                "tac".encodeToByteArray(),
             )
         }
 

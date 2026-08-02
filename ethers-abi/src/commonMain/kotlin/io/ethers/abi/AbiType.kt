@@ -317,7 +317,7 @@ sealed interface AbiType<T : Any> {
          * */
         @JvmStatic
         fun computeSignatureHash(name: kotlin.String, types: List<AbiType<*>>): ByteArray {
-            return Hashing.keccak256(canonicalSignature(name, types).toByteArray(Charsets.UTF_8))
+            return Hashing.keccak256(canonicalSignature(name, types).encodeToByteArray())
         }
 
         /**

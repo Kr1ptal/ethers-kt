@@ -147,23 +147,23 @@ class RlpEncoderTest : FunSpec({
         test("list with many elements") {
             val encoder = RlpEncoder()
             encoder.encodeList {
-                encode("dog".toByteArray())
-                encode("god".toByteArray())
-                encode("cat".toByteArray())
-                encode("tac".toByteArray())
-                encode("tac".toByteArray())
-                encode("tac".toByteArray())
-                encode("tac".toByteArray())
-                encode("tac".toByteArray())
-                encode("tac".toByteArray())
-                encode("tac".toByteArray())
-                encode("tac".toByteArray())
-                encode("tac".toByteArray())
-                encode("tac".toByteArray())
-                encode("tac".toByteArray())
-                encode("tac".toByteArray())
-                encode("tac".toByteArray())
-                encode("tac".toByteArray())
+                encode("dog".encodeToByteArray())
+                encode("god".encodeToByteArray())
+                encode("cat".encodeToByteArray())
+                encode("tac".encodeToByteArray())
+                encode("tac".encodeToByteArray())
+                encode("tac".encodeToByteArray())
+                encode("tac".encodeToByteArray())
+                encode("tac".encodeToByteArray())
+                encode("tac".encodeToByteArray())
+                encode("tac".encodeToByteArray())
+                encode("tac".encodeToByteArray())
+                encode("tac".encodeToByteArray())
+                encode("tac".encodeToByteArray())
+                encode("tac".encodeToByteArray())
+                encode("tac".encodeToByteArray())
+                encode("tac".encodeToByteArray())
+                encode("tac".encodeToByteArray())
             }
             encoder.toHexString() shouldBe "f84483646f6783676f64836361748374616383746163837461638374616383746163837461638374616383746163837461638374616383746163837461638374616383746163"
         }
@@ -173,7 +173,7 @@ class RlpEncoderTest : FunSpec({
             encoder.encodeList(
                 -1,
                 RlpListAction {
-                    listOf("dog", "god", "cat", "tac", "tac").forEach { encoder.encode(it.toByteArray()) }
+                    listOf("dog", "god", "cat", "tac", "tac").forEach { encoder.encode(it.encodeToByteArray()) }
                 },
             )
 

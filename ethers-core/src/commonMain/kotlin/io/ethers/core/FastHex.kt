@@ -99,7 +99,7 @@ object FastHex {
      * */
     @JvmStatic
     fun encodeWithPrefix(buffer: ByteArray, offset: Int, len: Int): String {
-        return String(encodeToAsciiBytes(buffer, offset, len, true), Charsets.US_ASCII)
+        return encodeToAsciiBytes(buffer, offset, len, true).decodeToString()
     }
 
     /**
@@ -115,7 +115,7 @@ object FastHex {
      * */
     @JvmStatic
     fun encodeWithoutPrefix(buffer: ByteArray, offset: Int, len: Int): String {
-        return String(encodeToAsciiBytes(buffer, offset, len, false), Charsets.US_ASCII)
+        return encodeToAsciiBytes(buffer, offset, len, false).decodeToString()
     }
 
     /**
@@ -162,7 +162,7 @@ object FastHex {
             bits -= 8
         }
 
-        return String(bytes!!)
+        return bytes!!.decodeToString()
     }
 
     private fun encodeToAsciiBytes(buffer: ByteArray, offset: Int, len: Int, withPrefix: Boolean): ByteArray {

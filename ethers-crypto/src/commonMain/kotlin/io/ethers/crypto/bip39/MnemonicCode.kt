@@ -53,8 +53,8 @@ class MnemonicCode @JvmOverloads constructor(
      * */
     @JvmOverloads
     fun getSeed(passphrase: String = ""): ByteArray {
-        val input = words.joinToString(separator = wordList.separator.toString()).toByteArray(Charsets.UTF_8)
-        val salt = "mnemonic$passphrase".toByteArray(Charsets.UTF_8)
+        val input = words.joinToString(separator = wordList.separator.toString()).encodeToByteArray()
+        val salt = "mnemonic$passphrase".encodeToByteArray()
 
         val secretDerivation = CryptographyProvider.Default
             .get(PBKDF2)

@@ -16,7 +16,7 @@
 package io.ethers.abi
 
 /**
- * Low-level, high-performance utility methods related to the [UTF-8][Charsets.UTF_8]
+ * Low-level, high-performance utility methods related to the UTF-8
  * character encoding. UTF-8 is defined in section D92 of [The Unicode Standard Core
  * Specification, Chapter 3](http://www.unicode.org/versions/Unicode6.2.0/ch03.pdf).
  *
@@ -77,10 +77,13 @@ internal object Utf8 {
                 utf8Length += 0x7f - c.code ushr 31 // branch free!
             } else {
                 utf8Length += 2
-                // jdk7+: if (Character.isSurrogate(c)) {
-                if (Character.MIN_SURROGATE <= c && c <= Character.MAX_SURROGATE) {
-                    // Check that we have a well-formed surrogate pair.
-                    require(Character.codePointAt(sequence, i) != c.code) { unpairedSurrogateMsg(i) }
+                if (c.isSurrogate()) {
+                    // Check that we have a well-formed surrogate pair. This is equivalent to the JDK's
+                    // `Character.codePointAt(sequence, i) != c.code`, which returns a supplementary code point only
+                    // when a high surrogate at `i` is followed by a low surrogate at `i + 1`.
+                    require(c.isHighSurrogate() && i + 1 < utf16Length && sequence[i + 1].isLowSurrogate()) {
+                        unpairedSurrogateMsg(i)
+                    }
                     i++
                 }
             }

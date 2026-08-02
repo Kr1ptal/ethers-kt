@@ -61,6 +61,18 @@ pluginManager.withPlugin("org.jetbrains.kotlin.multiplatform") {
     configure<KotlinMultiplatformExtension> {
         jvm()
 
+        // Opt-in iOS target, used to verify that commonMain stays free of JVM-only APIs. It is NOT part of any
+        // normal build or publication yet - several modules still have blockers (see docs).
+        //
+        // This exists because a green `./gradlew build` proves nothing about portability: with only JVM and Android
+        // targets (both JVM-family), `compileCommonMainKotlinMetadata` is skipped and commonMain still resolves
+        // `java.*`. Compiling for a native target is the only thing that actually enforces it.
+        //
+        //   ./gradlew :ethers-core:compileKotlinIosSimulatorArm64 -PethersEnableIos
+        if (providers.gradleProperty("ethersEnableIos").isPresent) {
+            iosSimulatorArm64()
+        }
+
         // Configure Android library target using the AGP programmatic API
         // (the androidLibrary {} DSL accessor is not available in precompiled script plugins)
         val androidTarget = the<KotlinMultiplatformAndroidLibraryTarget>()

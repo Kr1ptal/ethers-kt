@@ -85,7 +85,7 @@ class FastHexTest : FunSpec({
                 val decoded = FastHex.decode(hex)
                 val decodedUnsafe = FastHex.decodeUnsafe(hex)
 
-                hex shouldBe bytes.toHexString().toByteArray()
+                hex shouldBe bytes.toHexString().encodeToByteArray()
                 decoded shouldBe bytes
                 decodedUnsafe shouldBe bytes
             }
@@ -93,11 +93,11 @@ class FastHexTest : FunSpec({
 
         test("with 0x prefix") {
             Arb.byteArray(Arb.int(0..512), Arb.byte()).checkAll { bytes ->
-                val hex = "0x".toByteArray() + FastHex.encodeAsBytes(bytes)
+                val hex = "0x".encodeToByteArray() + FastHex.encodeAsBytes(bytes)
                 val decoded = FastHex.decode(hex)
                 val decodedUnsafe = FastHex.decodeUnsafe(hex)
 
-                hex shouldBe "0x${bytes.toHexString()}".toByteArray()
+                hex shouldBe "0x${bytes.toHexString()}".encodeToByteArray()
                 decoded shouldBe bytes
                 decodedUnsafe shouldBe bytes
             }
@@ -202,7 +202,7 @@ class FastHexTest : FunSpec({
 
         test("decode with ByteArray should throw on invalid characters") {
             shouldThrow<IllegalArgumentException> {
-                FastHex.decode("0xabcdefg".toByteArray())
+                FastHex.decode("0xabcdefg".encodeToByteArray())
             }
         }
 
@@ -235,13 +235,13 @@ class FastHexTest : FunSpec({
         test("encodeAsBytes with prefix") {
             val buffer = byteArrayOf(0x0A, 0x0B)
             val result = FastHex.encodeAsBytes(buffer, withPrefix = true)
-            String(result) shouldBe "0x0a0b"
+            result.decodeToString() shouldBe "0x0a0b"
         }
 
         test("encodeAsBytes without prefix") {
             val buffer = byteArrayOf(0x0A, 0x0B)
             val result = FastHex.encodeAsBytes(buffer, withPrefix = false)
-            String(result) shouldBe "0a0b"
+            result.decodeToString() shouldBe "0a0b"
         }
     }
 
@@ -254,7 +254,7 @@ class FastHexTest : FunSpec({
         }
 
         test("ByteArray with explicit offset and length") {
-            val hex = "PPaabbccddPP".toByteArray()
+            val hex = "PPaabbccddPP".encodeToByteArray()
             val decoded = FastHex.decode(hex, offset = 2, length = 8)
             decoded shouldBe byteArrayOf(0xAA.toByte(), 0xBB.toByte(), 0xCC.toByte(), 0xDD.toByte())
         }
@@ -272,7 +272,7 @@ class FastHexTest : FunSpec({
         }
 
         test("decodeUnsafe ByteArray with explicit offset and length") {
-            val hex = "PPaabbccddPP".toByteArray()
+            val hex = "PPaabbccddPP".encodeToByteArray()
             val decoded = FastHex.decodeUnsafe(hex, offset = 2, length = 8)
             decoded shouldBe byteArrayOf(0xAA.toByte(), 0xBB.toByte(), 0xCC.toByte(), 0xDD.toByte())
         }
@@ -299,8 +299,8 @@ class FastHexTest : FunSpec({
             FastHex.decodeUnsafe(hex.toCharArray()) shouldBe expected
 
             if (!hex.startsWith("0X")) {
-                FastHex.decode(hex.toByteArray()) shouldBe expected
-                FastHex.decodeUnsafe(hex.toByteArray()) shouldBe expected
+                FastHex.decode(hex.encodeToByteArray()) shouldBe expected
+                FastHex.decodeUnsafe(hex.encodeToByteArray()) shouldBe expected
             }
         }
     }
@@ -313,7 +313,7 @@ class FastHexTest : FunSpec({
             "0xf" to byteArrayOf(0x0f),
         ) { (hex, expected) ->
             FastHex.decode(hex) shouldBe expected
-            FastHex.decode(hex.toByteArray()) shouldBe expected
+            FastHex.decode(hex.encodeToByteArray()) shouldBe expected
             FastHex.decode(hex.toCharArray()) shouldBe expected
         }
     }
@@ -336,7 +336,7 @@ class FastHexTest : FunSpec({
         }
 
         test("decode '0x' ByteArray returns empty array") {
-            FastHex.decode("0x".toByteArray()) shouldBe byteArrayOf()
+            FastHex.decode("0x".encodeToByteArray()) shouldBe byteArrayOf()
         }
 
         test("decode empty CharArray returns empty array") {
@@ -378,7 +378,7 @@ class FastHexTest : FunSpec({
         ).forEach { (invalidHex, expected) ->
             test("decodeUnsafe('$invalidHex') should replace invalid chars with '0xff'") {
                 val unsafeString = FastHex.decodeUnsafe(invalidHex)
-                val unsafeBytes = FastHex.decodeUnsafe(invalidHex.toByteArray())
+                val unsafeBytes = FastHex.decodeUnsafe(invalidHex.encodeToByteArray())
                 val unsafeChars = FastHex.decodeUnsafe(invalidHex.toCharArray())
 
                 unsafeString shouldBe FastHex.decode(expected)

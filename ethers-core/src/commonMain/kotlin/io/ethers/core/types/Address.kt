@@ -66,7 +66,7 @@ class Address(private val value: ByteArray) : RlpEncodable {
         val encodedOffset = if (validChainId) 2 else 0
         val encodedHex = FastHex.encodeAsBytes(value, withPrefix = validChainId)
         val hash = when (validChainId) {
-            true -> Hashing.keccak256(chainId.toString().toByteArray() + encodedHex)
+            true -> Hashing.keccak256(chainId.toString().encodeToByteArray() + encodedHex)
             false -> Hashing.keccak256(encodedHex)
         }
 
@@ -84,7 +84,7 @@ class Address(private val value: ByteArray) : RlpEncodable {
                 ret[i + 2] = nibble
             }
         }
-        return String(ret)
+        return ret.decodeToString()
     }
 
     override fun rlpEncode(rlp: RlpEncoder) {

@@ -12,7 +12,7 @@ object NameHash {
         for (i in labels.lastIndex downTo 0) {
             if (labels[i].isEmpty()) continue
 
-            val labelHash = Hashing.keccak256(labels[i].toByteArray(Charsets.UTF_8))
+            val labelHash = Hashing.keccak256(labels[i].encodeToByteArray())
 
             labelHash.copyInto(buf, 32)
             Hashing.keccak256(buf).copyInto(buf, 0)
@@ -36,7 +36,7 @@ object NameHash {
     fun dnsEncode(name: String): Bytes {
         val parts = name.split(".")
         val encoded = Array(parts.size) { i ->
-            val bytes = EnsNormalize.normalize(parts[i]).toByteArray(Charsets.UTF_8)
+            val bytes = EnsNormalize.normalize(parts[i]).encodeToByteArray()
 
             // checked in bytes, not characters - a label can be short enough as a string while still being too long
             // once encoded (e.g. 32x "é" is 32 chars but 64 bytes)

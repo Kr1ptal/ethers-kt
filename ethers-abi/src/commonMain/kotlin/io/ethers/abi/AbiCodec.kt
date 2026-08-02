@@ -375,7 +375,7 @@ object AbiCodec {
             }
 
             AbiType.String -> {
-                val value = (data as String).toByteArray(Charsets.UTF_8)
+                val value = (data as String).encodeToByteArray()
                 buff.position(buff.position() + 28)
                 buff.writeInt(value.size)
 
@@ -687,7 +687,8 @@ object AbiCodec {
 
                 buff.ensureRemaining(length)
 
-                val ret = String(rawData, buff.position(), length, Charsets.UTF_8)
+                val position = buff.position()
+                val ret = rawData.decodeToString(position, position + length)
                 buff.position(endPosition)
 
                 return ret
@@ -939,7 +940,7 @@ object AbiCodec {
             }
 
             AbiType.Bytes -> buff.writeBytes((data as Bytes).asByteArray())
-            AbiType.String -> buff.writeBytes((data as String).toByteArray(Charsets.UTF_8))
+            AbiType.String -> buff.writeBytes((data as String).encodeToByteArray())
             is AbiType.Array<*> -> {
                 val values = data as List<*>
                 for (i in values.indices) {

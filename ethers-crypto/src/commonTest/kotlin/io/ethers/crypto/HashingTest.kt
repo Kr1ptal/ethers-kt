@@ -16,13 +16,13 @@ class HashingTest : FunSpec({
 
     test("keccak256") {
         testCases.forAll { (message, keccak256Hash) ->
-            Hashing.keccak256(message.toByteArray()).toHexString() shouldBe keccak256Hash
+            Hashing.keccak256(message.encodeToByteArray()).toHexString() shouldBe keccak256Hash
         }
     }
 
     test("hashMessage") {
         testCases.forAll { (message, _, hash) ->
-            Hashing.hashMessage(message.toByteArray()).toHexString() shouldBe hash
+            Hashing.hashMessage(message.encodeToByteArray()).toHexString() shouldBe hash
         }
     }
 }) {

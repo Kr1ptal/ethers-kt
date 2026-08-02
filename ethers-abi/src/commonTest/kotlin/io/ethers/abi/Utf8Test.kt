@@ -50,7 +50,7 @@ class Utf8Test : FunSpec({
                 "éé中",
             )
             for (s in strings) {
-                Utf8.encodedLength(s) shouldBe s.toByteArray(Charsets.UTF_8).size
+                Utf8.encodedLength(s) shouldBe s.encodeToByteArray().size
             }
         }
 
