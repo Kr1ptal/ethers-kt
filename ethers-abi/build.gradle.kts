@@ -11,7 +11,7 @@ plugins {
 staticDataGenerator {
     generators {
         create("multicall3Deployments") {
-            inputFile.set(file("src/jvmSharedMain/resources/multicall3-deployments.json"))
+            inputFile.set(file("src/commonMain/resources/multicall3-deployments.json"))
             packageName.set("io.ethers.abi.call")
             propertyName.set("DEPLOYMENTS")
             data { file ->
@@ -23,7 +23,7 @@ staticDataGenerator {
 
 kotlin {
     sourceSets {
-        val jvmSharedMain by getting {
+        val commonMain by getting {
             dependencies {
                 api(project(":ethers-core"))
                 api(project(":ethers-providers"))
@@ -34,7 +34,7 @@ kotlin {
             }
         }
 
-        val jvmSharedTest by getting {
+        val commonTest by getting {
             dependencies {
                 implementation(libs.bundles.kotest)
             }
