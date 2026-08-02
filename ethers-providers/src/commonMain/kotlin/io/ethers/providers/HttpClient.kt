@@ -33,9 +33,16 @@ import kotlinx.serialization.json.JsonElement as KJsonElement
  */
 class HttpClient(
     url: String,
-    private val client: KtorHttpClient,
+    client: KtorHttpClient,
     private val requestHeaders: Map<String, String> = emptyMap(),
 ) : JsonRpcClient {
+    /**
+     * A child of the supplied client, sharing its engine and configuration but owning its own lifecycle.
+     *
+     * ktor ref-counts engine users, so [close] tears down only this client: the caller's client, or
+     * [RpcClientConfig]'s shared default, and the connection pool underneath, all survive.
+     */
+    private val client = client.config { }
     @JvmOverloads
     constructor(url: String, config: RpcClientConfig = RpcClientConfig()) : this(
         url,

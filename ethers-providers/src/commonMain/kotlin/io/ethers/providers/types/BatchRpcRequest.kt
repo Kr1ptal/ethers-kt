@@ -12,14 +12,25 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
-import kotlinx.coroutines.future.asCompletableFuture
-import kotlinx.coroutines.runBlocking
-import java.util.concurrent.CompletableFuture
+
+/**
+ * Seam through which each platform adds its own conveniences to [BatchRpcRequest].
+ *
+ * It exists so platform helpers can be inherited *members* rather than extension functions - Java callers get
+ * `batch.sendAwait()` instead of a static call. All implementation stays in ordinary common code in
+ * [BatchRpcRequest].
+ *
+ * JVM and Android actualize this with blocking and `CompletableFuture` variants. A platform without those
+ * primitives actualizes it with no extra members.
+ */
+expect abstract class PlatformBatchRpcRequest() {
+    abstract suspend fun send(): Boolean
+}
 
 /**
  * Single-shot batch request.
  * */
-class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) {
+class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) : PlatformBatchRpcRequest() {
     // Enable batchSent modification for batch execution via JsonRpcClient.requestBatch
     internal val batchSent = atomic(false)
 
@@ -60,24 +71,10 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) {
     /**
      * Send the batch request without blocking the calling thread.
      */
-    suspend fun send(): Boolean {
+    override suspend fun send(): Boolean {
         val client = client ?: return false
         markAsSent()
         return client.requestBatch(this)
-    }
-
-    /**
-     * Send the batch request and await the result by blocking the calling thread.
-     */
-    fun sendAwait(): Boolean {
-        return runBlocking { send() }
-    }
-
-    /**
-     * Asynchronously send the batch request as a [CompletableFuture].
-     */
-    fun sendAsync(): CompletableFuture<Boolean> {
-        return sendDeferred().asCompletableFuture()
     }
 
     internal fun sendDeferred(): Deferred<Boolean> = CoroutineScope(Dispatchers.Default)
@@ -86,22 +83,6 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) {
     internal fun markAsSent() {
         if (!batchSent.compareAndSet(expect = false, update = true)) {
             throw IllegalStateException("Batch already sent")
-        }
-    }
-
-    companion object {
-        // Provide custom JVM names for these functions because the name gets mangled due to the inline
-        // class return type
-        @JvmStatic
-        @JvmName("sendAwait")
-        fun <T, E : Result.Error> sendAwait(requests: Iterable<RpcRequest<out T, E>>): BatchResponse<T, E> {
-            return requests.sendAwait()
-        }
-
-        @JvmStatic
-        @JvmName("sendAsync")
-        fun <T, E : Result.Error> sendAsync(requests: Iterable<RpcRequest<T, E>>): BatchResponseAsync<T, E> {
-            return requests.sendAsync()
         }
     }
 }
@@ -122,13 +103,6 @@ fun <T, E : Result.Error> Iterable<Result<T, E>>.unwrap(): UnwrappedBatchRespons
     }
 
     return UnwrappedBatchResponse(ret)
-}
-
-/**
- * Batch-send all requests, awaiting the result by blocking the calling thread.
- */
-fun <T, E : Result.Error> Iterable<RpcRequest<out T, E>>.sendAwait(): BatchResponse<T, E> {
-    return runBlocking { send() }
 }
 
 /**
@@ -157,38 +131,6 @@ suspend fun <T, E : Result.Error> Iterable<RpcRequest<out T, E>>.send(): BatchRe
 }
 
 /**
- * Batch-send all requests asynchronously.
- */
-fun <T, E : Result.Error> Iterable<RpcRequest<out T, E>>.sendAsync(): BatchResponseAsync<T, E> {
-    val iter = this.iterator()
-    if (!iter.hasNext()) {
-        return BatchResponseAsync(emptyList())
-    }
-
-    val size = if (this is Collection<*>) this.size else 10
-    val pendingResponses = ArrayList<BatchRpcResponse<Result<T, E>>>(size)
-    val batch = BatchRpcRequest()
-    while (iter.hasNext()) {
-        pendingResponses.add(iter.next().batch(batch) as BatchRpcResponse<Result<T, E>>)
-    }
-
-    batch.sendAsync()
-
-    return BatchResponseAsync(pendingResponses.map { it.toFuture() })
-}
-
-/**
- * Await all [CompletableFuture]s in the list, returning a list of results.
- * */
-fun <T> List<CompletableFuture<T>>.await(): List<T> {
-    val ret = ArrayList<T>(size)
-    for (future in this) {
-        ret.add(future.join())
-    }
-    return ret
-}
-
-/**
  * Unwrap all [Result]'s, throwing an exception if any of them is an error, otherwise returning a list
  * of success values.
  * */
@@ -203,24 +145,6 @@ fun <T, E : Result.Error> List<Result<T, E>>.unwrap(): List<T> {
 // Zero-cost typed response classes to provide specialized "component" operators. In case it's used as a different
 // type, it gets boxed (e.g. `map`, `forEach`, etc...). But since we're just wrapping and delegating a `List`,
 // it's still pretty cheap.
-@JvmInline
-value class BatchResponseAsync<T, E : Result.Error>(
-    private val responses: List<CompletableFuture<Result<T, E>>>,
-) : List<CompletableFuture<Result<T, E>>> by responses {
-    operator fun <O, U : Result.Error> component1() = responses[0] as CompletableFuture<Result<O, U>>
-    operator fun <O, U : Result.Error> component2() = responses[1] as CompletableFuture<Result<O, U>>
-    operator fun <O, U : Result.Error> component3() = responses[2] as CompletableFuture<Result<O, U>>
-    operator fun <O, U : Result.Error> component4() = responses[3] as CompletableFuture<Result<O, U>>
-    operator fun <O, U : Result.Error> component5() = responses[4] as CompletableFuture<Result<O, U>>
-    operator fun <O, U : Result.Error> component6() = responses[5] as CompletableFuture<Result<O, U>>
-    operator fun <O, U : Result.Error> component7() = responses[6] as CompletableFuture<Result<O, U>>
-    operator fun <O, U : Result.Error> component8() = responses[7] as CompletableFuture<Result<O, U>>
-    operator fun <O, U : Result.Error> component9() = responses[8] as CompletableFuture<Result<O, U>>
-    operator fun <O, U : Result.Error> component10() = responses[9] as CompletableFuture<Result<O, U>>
-    operator fun <O, U : Result.Error> component11() = responses[10] as CompletableFuture<Result<O, U>>
-    operator fun <O, U : Result.Error> component12() = responses[11] as CompletableFuture<Result<O, U>>
-}
-
 @JvmInline
 value class BatchResponse<T, E : Result.Error>(
     private val responses: List<Result<T, E>>,

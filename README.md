@@ -65,7 +65,7 @@ To interact with the chain, you need to create a `Provider` instance, which is t
 
 ```kotlin
 // create a provider, using a websocket as underlying transport
-val provider = Provider.fromUrl("<WS_URL>").unwrap()
+val provider = Provider.builder("<WS_URL>").buildAwait().unwrap()
 
 // query the latest block number
 val startBlockNum = provider.getBlockNumber().sendAwait().unwrap()

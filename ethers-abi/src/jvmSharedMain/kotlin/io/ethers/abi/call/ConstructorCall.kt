@@ -197,12 +197,12 @@ class PendingContractDeploy<T : AbiContract>(
     val hash: Hash
         get() = result.hash
 
-    override fun awaitInclusion(
+    override suspend fun inclusion(
         retries: Int,
         interval: Duration,
         confirmations: Int,
     ): Result<ContractDeploy<T>, PendingInclusion.Error> {
-        return result.awaitInclusion(retries, interval, confirmations).andThen {
+        return result.inclusion(retries, interval, confirmations).andThen {
             when {
                 !it.isSuccessful || it.contractAddress == null -> success(ContractDeploy(null, it))
                 else -> success(ContractDeploy(constructor(provider, it.contractAddress!!), it))

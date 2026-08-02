@@ -254,7 +254,7 @@ class AnvilProvider private constructor(
             anvil: AnvilInstance,
             config: RpcClientConfig = RpcClientConfig(),
         ): Result<AnvilProvider, Provider.Error> {
-            return Provider.fromUrl(anvil.endpointWs, config, anvil.chainId).map {
+            return Provider.builder(anvil.endpointWs).config(config).build(anvil.chainId).map {
                 AnvilProvider(anvil, it)
             }
         }

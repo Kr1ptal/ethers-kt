@@ -30,6 +30,12 @@ import kotlinx.serialization.json.JsonElement as KJsonElement
  * to WsClient, though WebSocket testing with MockWebServer has additional complexity.
  * The main demonstration is showing WebSocket-specific capabilities like subscriptions.
  */
+// Waits that span a reconnect have to allow for a full WebSocket handshake against the mock server, not just a
+// local round trip - CI runners are far slower than a dev machine. `eventually` returns as soon as the condition
+// holds, so a generous budget costs nothing when things are fast, it only bounds how long a genuine failure takes
+// to surface.
+private val RECONNECT_WINDOW = 5.seconds
+
 class WsClientTest : FunSpec({
     @Suppress("MoveLambdaOutsideParentheses")
     val commonJsonRpcTests = JsonRpcTestFactory.commonTests(
@@ -84,19 +90,19 @@ class WsClientTest : FunSpec({
             params[1].jsonPrimitive.content shouldBe "latest"
         }
 
-        test("request(Class<T>) with ByteArray decodes a 0x-prefixed hex string") {
+        test("request(KSerializer<T>) with ByteArray decodes a 0x-prefixed hex string") {
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0xdeadbeef"}""")
 
-            val result = wsClient.request("eth_getCode", emptyArray<Any>(), ByteArray::class.java)
+            val result = wsClient.request("eth_getCode", emptyArray<Any>(), HexByteArraySerializer)
 
             result.isSuccess() shouldBe true
             result.unwrap() shouldBe byteArrayOf(0xde.toByte(), 0xad.toByte(), 0xbe.toByte(), 0xef.toByte())
         }
 
-        test("subscribe(Class<T>) with ByteArray decodes hex-string notification results") {
+        test("subscribe(KSerializer<T>) with ByteArray decodes hex-string notification results") {
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0xsub123"}""")
 
-            val subscriptionResult = wsClient.subscribe(arrayOf("newPendingTransactions"), ByteArray::class.java)
+            val subscriptionResult = wsClient.subscribe(arrayOf("newPendingTransactions"), HexByteArraySerializer)
             subscriptionResult.isSuccess() shouldBe true
             val stream = subscriptionResult.unwrap()
 
@@ -254,7 +260,7 @@ class WsClientTest : FunSpec({
             mockServer.closeConnection()
 
             // Stream should be closed because resubscribeOnReconnect = false
-            eventually(1.seconds) {
+            eventually(RECONNECT_WINDOW) {
                 stream.isClosed shouldBe true
             }
         }
@@ -307,7 +313,7 @@ class WsClientTest : FunSpec({
             }
             """.trimIndent()
 
-            eventually(1.seconds) {
+            eventually(RECONNECT_WINDOW) {
                 mockServer.sendJson(notification)
                 stream.isClosed shouldBe false
                 stream.isEmpty shouldBe false
@@ -403,7 +409,10 @@ class WsClientTest : FunSpec({
             mockServer.closeConnection()
             Thread.sleep(50)
 
-            val result = withTimeout(2.seconds) {
+            // The request is only failed after the processor loop has been through a reconnect attempt, and a
+            // failed attempt parks for WsClient.RECONNECT_BACKOFF. The budget here has to exceed that backoff
+            // rather than equal it, otherwise the test races the wait it depends on.
+            val result = withTimeout(WsClient.RECONNECT_BACKOFF + 3.seconds) {
                 wsClient.request("eth_blockNumber", emptyArray<Any>(), stringDecoder)
             }
 

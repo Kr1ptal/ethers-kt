@@ -1,12 +1,17 @@
 package io.ethers.providers.types
 
 import io.channels.core.ChannelReceiver
+import io.channels.core.QueueChannel
 import io.ethers.core.Result
 import io.ethers.core.failure
+import io.ethers.core.isSuccess
 import io.ethers.core.success
 import io.ethers.providers.RpcError
+import io.ethers.providers.types.sendAsync
+import io.ethers.providers.types.sendAwait
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.delay
 
 class RpcRequestTests : FunSpec({
     test("RpcRequest adapters execute the suspend send function") {

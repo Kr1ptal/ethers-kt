@@ -39,8 +39,6 @@ import io.ethers.core.types.TxpoolStatus
 import io.ethers.core.types.tracers.TracerConfig
 import io.ethers.core.types.tracers.TxTraceResult
 import io.ethers.core.types.transaction.TransactionUnsigned
-import io.ethers.core.unwrapOrReturn
-import io.ethers.providers.Provider.Companion.fromUrl
 import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.CallFailedError
 import io.ethers.providers.types.CallManyBundle
@@ -53,6 +51,10 @@ import io.ethers.providers.types.RpcSubscribe
 import io.ethers.providers.types.RpcSubscribeCall
 import io.ethers.providers.types.SuppliedRpcRequest
 import io.github.artificialpb.bignum.BigInteger
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonArray
@@ -98,24 +100,24 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
     }
 
     override fun getBlockWithHashes(blockId: BlockId): RpcRequest<BlockWithHashes?, RpcError> {
-        return getBlock(blockId, false, BlockWithHashes::class.java)
+        return getBlock(blockId, false, BlockWithHashes.serializer())
     }
 
     override fun getBlockWithTransactions(blockId: BlockId): RpcRequest<BlockWithTransactions?, RpcError> {
-        return getBlock(blockId, true, BlockWithTransactions::class.java)
+        return getBlock(blockId, true, BlockWithTransactions.serializer())
     }
 
     private fun <T, B : Block<T>> getBlock(
         blockId: BlockId,
         fullTransactions: Boolean,
-        responseType: Class<B>,
+        responseSerializer: KSerializer<B>,
     ): RpcRequest<B?, RpcError> {
         val params = arrayOf<Any>(blockId.id, fullTransactions)
         val method = when (blockId) {
             is BlockId.Hash -> "eth_getBlockByHash"
             is BlockId.Number, is BlockId.Name -> "eth_getBlockByNumber"
         }
-        return RpcCall(client, method, params, { it.decodeAsOrNull(responseType) })
+        return RpcCall(client, method, params, { it.decodeAsOrNull(responseSerializer) })
     }
 
     override fun getUncleBlockHeader(blockId: BlockId, index: Long): RpcRequest<BlockWithHashes?, RpcError> {
@@ -138,12 +140,12 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
 
     override fun getCode(address: Address, blockId: BlockId): RpcRequest<Bytes, RpcError> {
         val params = arrayOf(address, blockId.id)
-        return RpcCall(client, "eth_getCode", params, Bytes::class.java)
+        return RpcCall(client, "eth_getCode", params, Bytes.serializer())
     }
 
     override fun getStorage(address: Address, key: Hash, blockId: BlockId): RpcRequest<Hash, RpcError> {
         val params = arrayOf(address, key, blockId.id)
-        return RpcCall(client, "eth_getStorageAt", params, Hash::class.java)
+        return RpcCall(client, "eth_getStorageAt", params, Hash.serializer())
     }
 
     override fun call(
@@ -159,7 +161,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             else -> arrayOf(call.toCallRequest(), blockId.id)
         }
 
-        return RpcCall(client, "eth_call", params, Bytes::class.java)
+        return RpcCall(client, "eth_call", params, Bytes.serializer())
     }
 
     override fun callMany(
@@ -195,7 +197,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
 
     override fun createAccessList(call: IntoCallRequest, blockId: BlockId): RpcRequest<CreateAccessList, RpcError> {
         val params = arrayOf(call.toCallRequest(), blockId.id)
-        return RpcCall(client, "eth_createAccessList", params, CreateAccessList::class.java)
+        return RpcCall(client, "eth_createAccessList", params, CreateAccessList.serializer())
     }
 
     override fun getGasPrice(): RpcRequest<BigInteger, RpcError> {
@@ -216,7 +218,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         rewardPercentiles: List<BigInteger>,
     ): RpcRequest<FeeHistory, RpcError> {
         val params = arrayOf(FastHex.encodeWithPrefix(blockCount), lastBlockName.id, rewardPercentiles)
-        return RpcCall(client, "eth_feeHistory", params, FeeHistory::class.java)
+        return RpcCall(client, "eth_feeHistory", params, FeeHistory.serializer())
     }
 
     override fun getFeeHistory(
@@ -225,7 +227,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         rewardPercentiles: List<BigInteger>,
     ): RpcRequest<FeeHistory, RpcError> {
         val params = arrayOf(FastHex.encodeWithPrefix(blockCount), lastBlockNumber.id, rewardPercentiles)
-        return RpcCall(client, "eth_feeHistory", params, FeeHistory::class.java)
+        return RpcCall(client, "eth_feeHistory", params, FeeHistory.serializer())
     }
 
     override fun isNodeSyncing(): RpcRequest<SyncStatus, RpcError> {
@@ -247,7 +249,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             is BlockId.Hash -> "eth_getTransactionByBlockHashAndIndex"
             is BlockId.Number, is BlockId.Name -> "eth_getTransactionByBlockNumberAndIndex"
         }
-        return RpcCall(client, method, params, RPCTransaction::class.java)
+        return RpcCall(client, method, params, RPCTransaction.serializer())
     }
 
     override fun getRawTransactionByBlockAndIndex(blockId: BlockId, index: Long): RpcRequest<Bytes, RpcError> {
@@ -256,7 +258,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             is BlockId.Hash -> "eth_getRawTransactionByBlockHashAndIndex"
             is BlockId.Number, is BlockId.Name -> "eth_getRawTransactionByBlockNumberAndIndex"
         }
-        return RpcCall(client, method, params, Bytes::class.java)
+        return RpcCall(client, method, params, Bytes.serializer())
     }
 
     override fun getTransactionCount(address: Address, blockId: BlockId): RpcRequest<Long, RpcError> {
@@ -327,7 +329,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         }
     }
 
-    private fun manuallyFillTransaction(original: CallRequest): Result<TransactionUnsigned, RpcError> {
+    private suspend fun manuallyFillTransaction(original: CallRequest): Result<TransactionUnsigned, RpcError> {
         val call = CallRequest(original)
         if (call.chainId == -1L) {
             call.chainId = provider.chainId
@@ -348,34 +350,39 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         }
 
         val sender = call.from
-        val nonceFut = when {
-            call.nonce >= 0L -> null
-
-            sender == null -> return failure(
+        val needsNonce = call.nonce < 0L
+        if (needsNonce && sender == null) {
+            return failure(
                 RpcError(
                     RpcError.CODE_CALL_FAILED,
                     "Cannot estimate nonce, 'from' field is not set",
                 ),
             )
-
-            else -> provider.getTransactionCount(sender, BlockId.LATEST).sendAsync()
-        }
-
-        val gasLimitFut = when {
-            call.gas >= 21000L -> null
-            else -> provider.estimateGas(call, BlockId.LATEST).sendAsync()
         }
 
         val txFeesSet = call.gasPrice != null || (call.gasTipCap != null && call.gasFeeCap != null)
         val blobFeesSet = call.blobVersionedHashes == null || call.blobFeeCap != null
-        val feeHistoryFut = when {
-            txFeesSet && blobFeesSet -> null
-            else -> fillTransactionFeeHistory.sendAsync()
-        }
 
-        val nonceResult = nonceFut?.get()
-        val gasLimitResult = gasLimitFut?.get()
-        val feeHistoryResult = feeHistoryFut?.get()
+        // request the missing pieces concurrently
+        val (nonceResult, gasLimitResult, feeHistoryResult) = coroutineScope {
+            val nonceFut = if (needsNonce) {
+                async { provider.getTransactionCount(sender!!, BlockId.LATEST).send() }
+            } else {
+                null
+            }
+
+            val gasLimitFut = when {
+                call.gas >= 21000L -> null
+                else -> async { provider.estimateGas(call, BlockId.LATEST).send() }
+            }
+
+            val feeHistoryFut = when {
+                txFeesSet && blobFeesSet -> null
+                else -> async { fillTransactionFeeHistory.send() }
+            }
+
+            Triple(nonceFut?.await(), gasLimitFut?.await(), feeHistoryFut?.await())
+        }
 
         if (nonceResult != null) {
             if (nonceResult.isFailure()) {
@@ -407,7 +414,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
 
                 val medianReward = when {
                     rewards.isEmpty() -> BigInteger.ONE
-                    rewards.size % 2 == 0 -> (rewards[rewards.size / 2 - 1] + rewards[rewards.size / 2]) / BigInteger.TWO
+                    rewards.size % 2 == 0 -> (rewards[rewards.size / 2 - 1] + rewards[rewards.size / 2]) / BIGINT_TWO
                     else -> rewards[rewards.size / 2]
                 }.max(BigInteger.ONE)
 
@@ -507,12 +514,12 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
     //-----------------------------------------------------------------------------------------------------------------
     override fun getRawBlockHeader(blockId: BlockId): RpcRequest<Bytes, RpcError> {
         val params = arrayOf(blockId.id)
-        return RpcCall(client, "debug_getRawHeader", params, Bytes::class.java)
+        return RpcCall(client, "debug_getRawHeader", params, Bytes.serializer())
     }
 
     override fun getRawBlockWithTransactions(blockId: BlockId): RpcRequest<Bytes, RpcError> {
         val params = arrayOf(blockId.id)
-        return RpcCall(client, "debug_getRawBlock", params, Bytes::class.java)
+        return RpcCall(client, "debug_getRawBlock", params, Bytes.serializer())
     }
 
     override fun getRawReceipts(blockId: BlockId): RpcRequest<List<Bytes>, RpcError> {
@@ -534,7 +541,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
 
     override fun printBlock(number: Long): RpcRequest<String, RpcError> {
         val params = arrayOf(number)
-        return RpcCall(client, "debug_printBlock", params, String::class.java)
+        return RpcCall(client, "debug_printBlock", params, String.serializer())
     }
 
     override fun <T : Any> traceCall(
@@ -605,27 +612,27 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
     }
 
     override fun getVersion(): RpcRequest<String, RpcError> {
-        return RpcCall(client, "net_version", EMPTY_ARRAY, String::class.java)
+        return RpcCall(client, "net_version", EMPTY_ARRAY, String.serializer())
     }
 
     //-----------------------------------------------------------------------------------------------------------------
     //                                  TxpoolApi implementation
     //-----------------------------------------------------------------------------------------------------------------
     override fun txpoolContent(): RpcRequest<TxpoolContent, RpcError> {
-        return RpcCall(client, "txpool_content", EMPTY_ARRAY, TxpoolContent::class.java)
+        return RpcCall(client, "txpool_content", EMPTY_ARRAY, TxpoolContent.serializer())
     }
 
     override fun txpoolContentFrom(address: Address): RpcRequest<TxpoolContentFromAddress, RpcError> {
         val params = arrayOf(address)
-        return RpcCall(client, "txpool_contentFrom", params, TxpoolContentFromAddress::class.java)
+        return RpcCall(client, "txpool_contentFrom", params, TxpoolContentFromAddress.serializer())
     }
 
     override fun txpoolStatus(): RpcRequest<TxpoolStatus, RpcError> {
-        return RpcCall(client, "txpool_status", EMPTY_ARRAY, TxpoolStatus::class.java)
+        return RpcCall(client, "txpool_status", EMPTY_ARRAY, TxpoolStatus.serializer())
     }
 
     override fun txpoolInspect(): RpcRequest<TxpoolInspectResult, RpcError> {
-        return RpcCall(client, "txpool_inspect", EMPTY_ARRAY, TxpoolInspectResult::class.java)
+        return RpcCall(client, "txpool_inspect", EMPTY_ARRAY, TxpoolInspectResult.serializer())
     }
 
     //-----------------------------------------------------------------------------------------------------------------
@@ -633,7 +640,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
     //-----------------------------------------------------------------------------------------------------------------
 
     override fun getClientVersion(): RpcRequest<String, RpcError> {
-        return RpcCall(client, "web3_clientVersion", EMPTY_ARRAY, String::class.java)
+        return RpcCall(client, "web3_clientVersion", EMPTY_ARRAY, String.serializer())
     }
 
     //-----------------------------------------------------------------------------------------------------------------
@@ -660,57 +667,30 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
     data class UnableToGetChainId(val url: String, val error: RpcError) : Error
 
     companion object {
+        private val BIGINT_TWO = BigInteger.valueOf(2L)
         private val EMPTY_ARRAY = emptyArray<Any>()
-        private val PROTO_HTTPS = "^(https?)://.+$".toRegex()
-        private val PROTO_WSS = "^(wss?)://.+$".toRegex()
 
         /**
-         * Create a new [Provider] from the given [url] and optional [RpcClientConfig]. If no [chainId] is provided,
-         * it tries to fetch it via `eth_chainId` RPC call.
+         * Start building a [Provider] for [url].
          *
          * Supported URL protocols:
          * - http/https
          * - ws/wss
+         *
+         * @see ProviderBuilder
          * */
         @JvmStatic
-        @JvmOverloads
-        fun fromUrl(
-            url: String,
-            config: RpcClientConfig = RpcClientConfig(),
-            chainId: Long = -1L,
-        ): Result<Provider, Error> {
-            val client = when {
-                url.matches(PROTO_HTTPS) -> HttpClient(url, config)
-                url.matches(PROTO_WSS) -> WsClient(url, config)
-                else -> return failure(UnsupportedUrlProtocol(url))
-            }
-
-            @Suppress("NAME_SHADOWING")
-            var chainId = chainId
-            if (chainId == -1L) {
-                chainId = getChainId(client).sendAwait().unwrapOrReturn { return failure(UnableToGetChainId(url, it)) }
-            }
-
-            return success(Provider(client, chainId))
-        }
-
-        private fun getChainId(client: JsonRpcClient): RpcRequest<Long, RpcError> {
-            return RpcCall(client, "eth_chainId", EMPTY_ARRAY, { it.jsonPrimitive.asHexLong() })
-        }
+        fun builder(url: String): ProviderBuilder = ProviderBuilder(url)
     }
 }
 
 // Private inline extension functions for common decoding patterns
-private inline fun <reified T> KJsonElement.decodeAs(): T = io.ethers.core.Kotlinx.DEFAULT.decodeFromJsonElement(serializer(), this)
+private inline fun <reified T> KJsonElement.decodeAs(): T = Kotlinx.DEFAULT.decodeFromJsonElement(serializer(), this)
 
-@Suppress("UNCHECKED_CAST")
-private fun <T> KJsonElement.decodeAs(resultType: Class<T>): T = io.ethers.core.Kotlinx.DEFAULT.decodeFromJsonElement(
-    serializer(resultType) as kotlinx.serialization.KSerializer<T>,
-    this,
-)
+private fun <T> KJsonElement.decodeAs(resultSerializer: KSerializer<T>): T = Kotlinx.DEFAULT.decodeFromJsonElement(resultSerializer, this)
 
 private inline fun <reified T> KJsonElement.decodeAsOrNull(): T? = if (this is JsonNull) null else decodeAs<T>()
 
-private fun <T> KJsonElement.decodeAsOrNull(resultType: Class<T>): T? = if (this is JsonNull) null else decodeAs(resultType)
+private fun <T> KJsonElement.decodeAsOrNull(resultSerializer: KSerializer<T>): T? = if (this is JsonNull) null else decodeAs(resultSerializer)
 
 private inline fun <reified T> KJsonElement.decodeListAs(): List<T> = jsonArray.map { it.decodeAs<T>() }

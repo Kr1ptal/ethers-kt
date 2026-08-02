@@ -44,3 +44,21 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+### Secrets - never commit
+.env
+.envrc
+gradle/publishing-key-*.asc
+
+### Local tooling and scratch output
+.direnv/
+.kotlin/
+logs/
+**/logs/
+notes.txt
+publishing.txt
+multiplatform.md
+dependencies-after.txt
+docs/superpowers/
+
+### Generated / cached build artifacts
+**/src/jvmSharedTest/solidity/cache/

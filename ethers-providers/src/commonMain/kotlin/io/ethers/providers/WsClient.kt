@@ -20,27 +20,26 @@ import io.ktor.client.plugins.websocket.webSocket
 import io.ktor.websocket.Frame
 import io.ktor.websocket.readText
 import kotlinx.atomicfu.atomic
-import kotlinx.atomicfu.locks.reentrantLock
-import kotlinx.atomicfu.locks.withLock
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
-import java.util.concurrent.TimeUnit
+import kotlin.concurrent.Volatile
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
 import io.ktor.client.HttpClient as KtorHttpClient
+import kotlinx.coroutines.channels.Channel as CoroutineChannel
 import kotlinx.serialization.json.JsonElement as KJsonElement
 
 /**
@@ -51,7 +50,7 @@ import kotlinx.serialization.json.JsonElement as KJsonElement
  */
 class WsClient(
     url: String,
-    private val client: KtorHttpClient,
+    client: KtorHttpClient,
     headers: Map<String, String> = emptyMap(),
     private val resubscribeOnReconnect: Boolean = true,
     private val connectTimeoutMs: Long = 10_000L,
@@ -67,6 +66,14 @@ class WsClient(
         config.readTimeoutMs,
     )
 
+    /**
+     * A child of the supplied client, sharing its engine and configuration but owning its own lifecycle.
+     *
+     * ktor ref-counts engine users, so [close] tears down only this client: the caller's client, or
+     * [RpcClientConfig]'s shared default, and the connection pool underneath, all survive.
+     */
+    private val client = client.config { }
+
     private val LOG = getLogger()
 
     // these are modified by a single thread
@@ -79,11 +86,18 @@ class WsClient(
     private val requestIdToSubscription = HashMap<Long, Subscription<*>>()
     private val serverIdToSubscription = HashMap<String, Subscription<*>>()
 
-    // use lock instead of "synchronized" to avoid thread pinning if using virtual thread for processor
-    private val eventLock = reentrantLock()
-    private val newEventCondition = eventLock.newCondition()
-    private val connectionOpenedCondition = eventLock.newCondition()
-    private val connectionClosedCondition = eventLock.newCondition()
+    // Wakes the processor loop. Conflated: many signals collapse into one pending wakeup, and a signal raised
+    // while the processor is busy is retained instead of being lost, which a condition variable would drop.
+    private val eventSignal = CoroutineChannel<Unit>(CoroutineChannel.CONFLATED)
+
+    // Completed by the socket coroutine when the current connection opens / closes. Recreated per attempt.
+    // Unlike a condition variable these carry their state, so a connection that opens before the processor
+    // starts waiting is observed rather than missed.
+    @Volatile
+    private var connectionOpened = CompletableDeferred<Unit>()
+
+    @Volatile
+    private var connectionClosed = CompletableDeferred<Unit>()
 
     // WebSocket messages have one producer (the socket coroutine) and one consumer (the processor coroutine).
     private val messageQueue = QueueChannel.spscUnbounded<String>()
@@ -97,7 +111,7 @@ class WsClient(
     private val reconnect = atomic(false)
     private val stopping = atomic(false)
 
-    private val wsScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val wsScope = CoroutineScope(asyncDispatcher + SupervisorJob())
     private val processorScopeJob = SupervisorJob()
     private val processorScope = CoroutineScope(asyncDispatcher + processorScopeJob)
     private val wsUrl = url.replace("http://", "ws://").replace("https://", "wss://")
@@ -111,60 +125,77 @@ class WsClient(
 
     private val processorJob: Job
 
-    private fun openWebSocket(): Job = wsScope.launch {
-        try {
-            client.webSocket(wsUrl, request = {
-                wsHeaders.forEach { (k, v) -> headers.append(k, v) }
-            }) {
-                currentSession = this
-                LOG.inf { "WebSocket connection opened" }
-                eventLock.withLock { connectionOpenedCondition.signalAll() }
+    private fun openWebSocket(): Job {
+        connectionOpened = CompletableDeferred()
+        connectionClosed = CompletableDeferred()
+        val opened = connectionOpened
+        val closed = connectionClosed
 
-                try {
-                    for (frame in incoming) {
-                        when (frame) {
-                            is Frame.Text -> {
-                                messageQueue.enqueue(frame.readText())
-                                eventLock.withLock { newEventCondition.signalAll() }
+        return wsScope.launch {
+            try {
+                client.webSocket(wsUrl, request = {
+                    wsHeaders.forEach { (k, v) -> headers.append(k, v) }
+                }) {
+                    currentSession = this
+                    LOG.inf { "WebSocket connection opened" }
+                    opened.complete(Unit)
+
+                    try {
+                        for (frame in incoming) {
+                            when (frame) {
+                                is Frame.Text -> {
+                                    messageQueue.enqueue(frame.readText())
+                                    signalEvent()
+                                }
+                                is Frame.Close -> {
+                                    LOG.dbg { "WebSocket connection closing (server close frame)" }
+                                    break
+                                }
+                                else -> throw Exception("Binary messages are not supported")
                             }
-                            is Frame.Close -> {
-                                LOG.dbg { "WebSocket connection closing (server close frame)" }
-                                break
-                            }
-                            else -> throw Exception("Binary messages are not supported")
                         }
+                    } finally {
+                        currentSession = null
+                        closed.complete(Unit)
+                        if (!stopping.value) requestReconnect()
                     }
-                } finally {
-                    currentSession = null
-                    eventLock.withLock { connectionClosedCondition.signalAll() }
-                    if (!stopping.value) requestReconnect()
                 }
+            } catch (e: Throwable) {
+                when {
+                    stopping.value -> LOG.dbg(e) { "WebSocket failure ignored because we are stopping" }
+                    e is kotlinx.coroutines.CancellationException -> LOG.dbg { "WebSocket coroutine cancelled" }
+                    else -> LOG.err(e) { "WebSocket failure" }
+                }
+                currentSession = null
+                closed.complete(Unit)
+                if (!stopping.value && e !is kotlinx.coroutines.CancellationException) requestReconnect()
             }
-        } catch (e: Throwable) {
-            when {
-                stopping.value -> LOG.dbg(e) { "WebSocket failure ignored because we are stopping" }
-                e is kotlinx.coroutines.CancellationException -> LOG.dbg { "WebSocket coroutine cancelled" }
-                else -> LOG.err(e) { "WebSocket failure" }
-            }
-            currentSession = null
-            eventLock.withLock { connectionClosedCondition.signalAll() }
-            if (!stopping.value && e !is kotlinx.coroutines.CancellationException) requestReconnect()
         }
     }
 
-    private fun wsSend(text: String): Boolean {
+    private suspend fun wsSend(text: String): Boolean {
         val session = currentSession ?: return false
         return try {
-            runBlocking { session.send(Frame.Text(text)) }
+            session.send(Frame.Text(text))
             true
         } catch (_: Exception) {
             false
         }
     }
 
-    private fun requestReconnect() = eventLock.withLock {
+    /** Wake the processor loop. Safe to call from any thread and from non-suspending code. */
+    private fun signalEvent() {
+        eventSignal.trySend(Unit)
+    }
+
+    /** Suspend until the processor is woken, or [timeout] elapses. */
+    private suspend fun awaitEvent(timeout: Duration) {
+        withTimeoutOrNull(timeout) { eventSignal.receive() }
+    }
+
+    private fun requestReconnect() {
         reconnect.value = true
-        newEventCondition.signalAll()
+        signalEvent()
     }
 
     init {
@@ -172,9 +203,7 @@ class WsClient(
             LOG.inf { "Starting WebSocket processor coroutine and connecting to websocket" }
 
             wsJob = openWebSocket()
-            eventLock.withLock {
-                connectionOpenedCondition.await(connectTimeoutMs, TimeUnit.MILLISECONDS)
-            }
+            withTimeoutOrNull(connectTimeoutMs.milliseconds) { connectionOpened.await() }
 
             var requestId = 1L
             var msg: String?
@@ -206,25 +235,24 @@ class WsClient(
 
                             LOG.dbg { "Trying to reconnect WebSocket" }
 
-                            // cancel the old job (triggers finally → signals connectionClosedCondition)
+                            // cancel the old job (its finally block completes `connectionClosed`)
+                            val previouslyClosed = connectionClosed
                             wsJob?.cancel()
-                            eventLock.withLock {
-                                if (currentSession != null) {
-                                    connectionClosedCondition.await()
-                                }
+                            if (currentSession != null) {
+                                previouslyClosed.await()
                             }
 
                             reconnect.value = false
 
                             wsJob = openWebSocket()
-                            reconnectSuccessful = eventLock.withLock {
-                                connectionOpenedCondition.await(connectTimeoutMs, TimeUnit.MILLISECONDS)
-                            }
+                            val opened = connectionOpened
+                            reconnectSuccessful =
+                                withTimeoutOrNull(connectTimeoutMs.milliseconds) { opened.await() } != null
 
                             if (!reconnectSuccessful) {
                                 drainRequestQueuesToPending()
                                 handleTimeouts(readTimeoutMs.milliseconds)
-                                eventLock.withLock { newEventCondition.await(2000L, TimeUnit.MILLISECONDS) }
+                                awaitEvent(RECONNECT_BACKOFF)
                             }
                         }
 
@@ -360,15 +388,13 @@ class WsClient(
                         lastTimeoutCheck = TimeSource.Monotonic.markNow()
                     }
 
-                    eventLock.withLock {
-                        if (messageQueue.isEmpty &&
-                            requestQueue.isEmpty &&
-                            batchRequestQueue.isEmpty &&
-                            subscriptionQueue.isEmpty &&
-                            unsubscribeQueue.isEmpty
-                        ) {
-                            newEventCondition.await(1, TimeUnit.SECONDS)
-                        }
+                    if (messageQueue.isEmpty &&
+                        requestQueue.isEmpty &&
+                        batchRequestQueue.isEmpty &&
+                        subscriptionQueue.isEmpty &&
+                        unsubscribeQueue.isEmpty
+                    ) {
+                        awaitEvent(IDLE_POLL_INTERVAL)
                     }
                 } catch (e: Exception) {
                     LOG.err(e) { "Exception when processing events, reconnecting WebSocket" }
@@ -595,7 +621,7 @@ class WsClient(
                 resultDecoder = request.resultDecoder,
                 stream = QueueChannel.spscUnbounded {
                     unsubscribeQueue.enqueue(id)
-                    eventLock.withLock { newEventCondition.signalAll() }
+                    signalEvent()
                 },
             )
 
@@ -640,7 +666,7 @@ class WsClient(
         LOG.inf { "Requesting to close WebSocket" }
 
         stopping.value = true
-        eventLock.withLock { newEventCondition.signalAll() }
+        signalEvent()
 
         processorScopeJob.cancel()
         wsScope.cancel()
@@ -655,7 +681,7 @@ class WsClient(
         val request = PendingBatchRequest(batch, CompletableDeferred())
 
         batchRequestQueue.enqueue(request)
-        eventLock.withLock { newEventCondition.signalAll() }
+        signalEvent()
         return request.response.await()
     }
 
@@ -672,7 +698,7 @@ class WsClient(
         )
 
         requestQueue.enqueue(request)
-        eventLock.withLock { newEventCondition.signalAll() }
+        signalEvent()
         return request.response.await()
     }
 
@@ -687,7 +713,7 @@ class WsClient(
         )
 
         subscriptionQueue.enqueue(request)
-        eventLock.withLock { newEventCondition.signalAll() }
+        signalEvent()
         return request.response.await()
     }
 
@@ -736,6 +762,18 @@ class WsClient(
         }
 
         abstract fun expireRequest()
+    }
+
+    companion object {
+        /**
+         * How long the processor parks after a failed reconnect attempt before trying again.
+         *
+         * Tests that drive a reconnect have to allow more than this, otherwise they race the wait they depend on.
+         */
+        internal val RECONNECT_BACKOFF = 2.seconds
+
+        /** Upper bound on how long the processor sleeps when every queue is empty. */
+        private val IDLE_POLL_INTERVAL = 1.seconds
     }
 
     private class Subscription<T : Any>(

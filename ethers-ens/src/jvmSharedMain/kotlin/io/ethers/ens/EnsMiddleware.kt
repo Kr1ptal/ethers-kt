@@ -21,6 +21,7 @@ import io.ethers.logger.err
 import io.ethers.logger.getLogger
 import io.ethers.logger.wrn
 import io.ethers.providers.middleware.Middleware
+import io.ethers.providers.types.sendAwait
 import io.github.artificialpb.bignum.BigInteger
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.request.get

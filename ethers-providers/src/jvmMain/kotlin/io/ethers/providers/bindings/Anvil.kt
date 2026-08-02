@@ -13,7 +13,7 @@ import java.util.concurrent.TimeUnit
 /**
  * Anvil instance, created by [AnvilBuilder]. It's automatically stopped when the JVM shuts down.
  *
- * The instance can be used to create [io.ethers.providers.AnvilProvider] via [AnvilProvider.fromAnvil].
+ * The instance can be used to create [io.ethers.providers.AnvilProvider] via [io.ethers.providers.AnvilProvider.fromAnvil].
  * */
 class AnvilInstance(
     private val process: Process,

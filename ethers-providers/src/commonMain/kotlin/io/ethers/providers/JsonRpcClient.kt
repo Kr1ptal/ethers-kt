@@ -7,15 +7,19 @@ import io.ethers.core.Result
 import io.ethers.core.json.JsonElement
 import io.ethers.core.toJsonElement
 import io.ethers.providers.types.BatchRpcRequest
-import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.websocket.WebSockets
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
-import kotlinx.serialization.serializer
 import io.ktor.client.HttpClient as KtorHttpClient
 import kotlinx.serialization.json.JsonElement as KJsonElement
 
@@ -25,13 +29,13 @@ interface JsonRpcClient : AutoCloseable {
      *
      * @param method RPC function name
      * @param params RPC function parameters
-     * @param resultType class into which JSON result is converted
+     * @param resultSerializer serializer used to convert the JSON result into object [T]
      */
     suspend fun <T> request(
         method: String,
         params: Array<*>,
-        resultType: Class<T>,
-    ) = request(method, params, decoderForClass(resultType))
+        resultSerializer: KSerializer<T>,
+    ) = request(method, params, decoderFor(resultSerializer))
 
     /**
      * Execute an RPC request without blocking the calling thread.
@@ -55,13 +59,13 @@ interface JsonRpcClient : AutoCloseable {
      * Subscribe to a stream via `eth_subscribe`, if the client supports it.
      *
      * @param params the subscription parameters
-     * @param resultType class into which JSON result is converted
+     * @param resultSerializer serializer used to convert the JSON result into object [T]
      */
     suspend fun <T : Any> subscribe(
         params: Array<*>,
-        resultType: Class<T>,
+        resultSerializer: KSerializer<T>,
     ): Result<ChannelReceiver<T>, RpcError> {
-        return subscribe(params, decoderForClass(resultType))
+        return subscribe(params, decoderFor(resultSerializer))
     }
 
     /**
@@ -77,29 +81,32 @@ interface JsonRpcClient : AutoCloseable {
 }
 
 /**
- * Build a result decoder for the legacy `Class<T>`-based [JsonRpcClient.request] and
- * [JsonRpcClient.subscribe] entry points.
- *
- * Special-cases [ByteArray]: Ethereum JSON-RPC returns byte payloads (`eth_getCode`,
- * `eth_call`, …) as 0x-prefixed hex strings. Jackson used to register a custom deserializer
- * for that, but kotlinx' default `ByteArray` serializer expects a JSON array of numbers
- * and would throw a [kotlinx.serialization.json.internal.JsonDecodingException] at runtime.
+ * Build a result decoder for the [KSerializer]-based [JsonRpcClient.request] and [JsonRpcClient.subscribe]
+ * entry points.
  */
-@Suppress("UNCHECKED_CAST")
-internal fun <T> decoderForClass(resultType: Class<T>): (KJsonElement) -> T {
-    if (resultType == ByteArray::class.java) {
-        return { element ->
-            val text = element.jsonPrimitive.content
-            val bytes = if (text.isEmpty() || text == "0x" || text == "0X") {
-                ByteArray(0)
-            } else {
-                FastHex.decode(text)
-            }
-            bytes as T
-        }
+internal fun <T> decoderFor(resultSerializer: KSerializer<T>): (KJsonElement) -> T {
+    return { element -> Kotlinx.DEFAULT.decodeFromJsonElement(resultSerializer, element) }
+}
+
+/**
+ * Serializer for byte payloads returned by Ethereum JSON-RPC (`eth_getCode`, `eth_call`, …) as 0x-prefixed hex
+ * strings.
+ *
+ * kotlinx' default [ByteArray] serializer expects a JSON array of numbers and would throw at runtime, so byte
+ * results have to opt into this serializer explicitly.
+ */
+object HexByteArraySerializer : KSerializer<ByteArray> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("io.ethers.providers.HexByteArray", PrimitiveKind.STRING)
+
+    override fun deserialize(decoder: Decoder): ByteArray {
+        val text = decoder.decodeString()
+        return if (text.isEmpty() || text == "0x" || text == "0X") ByteArray(0) else FastHex.decode(text)
     }
-    val serializer = serializer(resultType)
-    return { element -> Kotlinx.DEFAULT.decodeFromJsonElement(serializer, element) as T }
+
+    override fun serialize(encoder: Encoder, value: ByteArray) {
+        encoder.encodeString(FastHex.encodeWithPrefix(value))
+    }
 }
 
 /**
@@ -326,7 +333,7 @@ class RpcClientConfig {
 
     companion object {
         private val DEFAULT_CLIENT by lazy {
-            KtorHttpClient(CIO) {
+            KtorHttpClient(defaultHttpClientEngineFactory) {
                 install(WebSockets) { pingIntervalMillis = 10_000L }
             }
         }

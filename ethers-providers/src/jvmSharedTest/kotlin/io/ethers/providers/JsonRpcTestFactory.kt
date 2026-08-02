@@ -4,7 +4,6 @@ import io.ethers.core.isFailure
 import io.ethers.core.isSuccess
 import io.ethers.providers.types.BatchRpcRequest
 import io.ethers.providers.types.RpcCall
-import io.ethers.providers.types.toFuture
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.funSpec
 import io.kotest.matchers.shouldBe
@@ -191,6 +190,8 @@ object JsonRpcTestFactory {
                 val result = pendingResponse.await()
                 result.isSuccess() shouldBe true
                 result.unwrap() shouldBe "0x1234567"
+                pendingResponse.await() shouldBe result
+                pendingResponse.get() shouldBe result
                 pendingResponse.toFuture().get() shouldBe result
 
                 shouldThrow<IllegalStateException> {
