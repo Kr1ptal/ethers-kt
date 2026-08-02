@@ -1,5 +1,7 @@
 package io.ethers.crypto.bip32
 
+import kotlin.jvm.JvmOverloads
+
 /**
  * Implementation of [BIP-0032](https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki) derivation paths.
  * */

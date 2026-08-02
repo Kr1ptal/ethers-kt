@@ -6,6 +6,7 @@ import io.ethers.core.types.transaction.TxBlob
 import io.ethers.core.types.transaction.TxDynamicFee
 import io.ethers.core.types.transaction.TxLegacy
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.json.shouldEqualJson
 import io.kotest.assertions.throwables.shouldThrowUnit
 import io.kotest.core.spec.style.FunSpec
@@ -74,8 +75,8 @@ class CallRequestTest : FunSpec({
         val callRequest = CallRequest {
             gas(21_000L)
             nonce(1)
-            gasFeeCap(BigInteger.TEN)
-            gasTipCap(BigInteger.ONE)
+            gasFeeCap(bigIntegerOf(10))
+            gasTipCap(bigIntegerOf(1))
             blobFeeCap(BigInteger("100"))
             blobVersionedHashes(listOf(hash1))
             chainId(1)
@@ -97,20 +98,20 @@ class CallRequestTest : FunSpec({
     test("throws on negative BigInteger assignment") {
         val request = CallRequest()
 
-        shouldThrowUnit<IllegalArgumentException> { request.gasPrice = BigInteger.ONE.negate() }
-        shouldThrowUnit<IllegalArgumentException> { request.gasPrice(BigInteger.ONE.negate()) }
+        shouldThrowUnit<IllegalArgumentException> { request.gasPrice = bigIntegerOf(1).negate() }
+        shouldThrowUnit<IllegalArgumentException> { request.gasPrice(bigIntegerOf(1).negate()) }
 
-        shouldThrowUnit<IllegalArgumentException> { request.gasFeeCap = BigInteger.ONE.negate() }
-        shouldThrowUnit<IllegalArgumentException> { request.gasFeeCap(BigInteger.ONE.negate()) }
+        shouldThrowUnit<IllegalArgumentException> { request.gasFeeCap = bigIntegerOf(1).negate() }
+        shouldThrowUnit<IllegalArgumentException> { request.gasFeeCap(bigIntegerOf(1).negate()) }
 
-        shouldThrowUnit<IllegalArgumentException> { request.gasTipCap = BigInteger.ONE.negate() }
-        shouldThrowUnit<IllegalArgumentException> { request.gasTipCap(BigInteger.ONE.negate()) }
+        shouldThrowUnit<IllegalArgumentException> { request.gasTipCap = bigIntegerOf(1).negate() }
+        shouldThrowUnit<IllegalArgumentException> { request.gasTipCap(bigIntegerOf(1).negate()) }
 
-        shouldThrowUnit<IllegalArgumentException> { request.value = BigInteger.ONE.negate() }
-        shouldThrowUnit<IllegalArgumentException> { request.value(BigInteger.ONE.negate()) }
+        shouldThrowUnit<IllegalArgumentException> { request.value = bigIntegerOf(1).negate() }
+        shouldThrowUnit<IllegalArgumentException> { request.value(bigIntegerOf(1).negate()) }
 
-        shouldThrowUnit<IllegalArgumentException> { request.blobFeeCap = BigInteger.ONE.negate() }
-        shouldThrowUnit<IllegalArgumentException> { request.blobFeeCap(BigInteger.ONE.negate()) }
+        shouldThrowUnit<IllegalArgumentException> { request.blobFeeCap = bigIntegerOf(1).negate() }
+        shouldThrowUnit<IllegalArgumentException> { request.blobFeeCap(bigIntegerOf(1).negate()) }
     }
 
     context("toUnsignedTransactionOrNull") {
@@ -119,7 +120,7 @@ class CallRequestTest : FunSpec({
         test("returns null when nonce is negative") {
             val request = CallRequest {
                 gas(21_000L)
-                gasPrice(BigInteger.TEN)
+                gasPrice(bigIntegerOf(10))
             }
             request.toUnsignedTransactionOrNull().shouldBeNull()
         }
@@ -128,7 +129,7 @@ class CallRequestTest : FunSpec({
             val request = CallRequest {
                 nonce(0)
                 gas(20_999L)
-                gasPrice(BigInteger.TEN)
+                gasPrice(bigIntegerOf(10))
             }
             request.toUnsignedTransactionOrNull().shouldBeNull()
         }
@@ -138,8 +139,8 @@ class CallRequestTest : FunSpec({
                 to(addr)
                 nonce(1)
                 gas(21_000L)
-                gasFeeCap(BigInteger.TEN)
-                gasTipCap(BigInteger.ONE)
+                gasFeeCap(bigIntegerOf(10))
+                gasTipCap(bigIntegerOf(1))
                 value(BigInteger("1000"))
                 data(Bytes("0xabcd"))
                 chainId(1)
@@ -150,8 +151,8 @@ class CallRequestTest : FunSpec({
             tx.to shouldBe addr
             tx.nonce shouldBe 1L
             tx.gas shouldBe 21_000L
-            tx.gasFeeCap shouldBe BigInteger.TEN
-            tx.gasTipCap shouldBe BigInteger.ONE
+            tx.gasFeeCap shouldBe bigIntegerOf(10)
+            tx.gasTipCap shouldBe bigIntegerOf(1)
             tx.value shouldBe BigInteger("1000")
             tx.data shouldBe Bytes("0xabcd")
             tx.chainId shouldBe 1L
@@ -161,22 +162,22 @@ class CallRequestTest : FunSpec({
             val request = CallRequest {
                 nonce(0)
                 gas(21_000L)
-                gasFeeCap(BigInteger.TEN)
-                gasTipCap(BigInteger.ONE)
+                gasFeeCap(bigIntegerOf(10))
+                gasTipCap(bigIntegerOf(1))
                 chainId(1)
             }
 
             val tx = request.toUnsignedTransactionOrNull()
             tx.shouldBeInstanceOf<TxDynamicFee>()
-            tx.value shouldBe BigInteger.ZERO
+            tx.value shouldBe bigIntegerOf(0)
         }
 
         test("returns null for TxDynamicFee when chainId is invalid") {
             val request = CallRequest {
                 nonce(0)
                 gas(21_000L)
-                gasFeeCap(BigInteger.TEN)
-                gasTipCap(BigInteger.ONE)
+                gasFeeCap(bigIntegerOf(10))
+                gasTipCap(bigIntegerOf(1))
                 chainId(-1)
             }
             request.toUnsignedTransactionOrNull().shouldBeNull()
@@ -188,8 +189,8 @@ class CallRequestTest : FunSpec({
                 to(addr)
                 nonce(1)
                 gas(21_000L)
-                gasFeeCap(BigInteger.TEN)
-                gasTipCap(BigInteger.ONE)
+                gasFeeCap(bigIntegerOf(10))
+                gasTipCap(bigIntegerOf(1))
                 blobFeeCap(BigInteger("100"))
                 blobVersionedHashes(listOf(blobHash))
                 chainId(1)
@@ -206,8 +207,8 @@ class CallRequestTest : FunSpec({
             val request = CallRequest {
                 nonce(1)
                 gas(21_000L)
-                gasFeeCap(BigInteger.TEN)
-                gasTipCap(BigInteger.ONE)
+                gasFeeCap(bigIntegerOf(10))
+                gasTipCap(bigIntegerOf(1))
                 blobFeeCap(BigInteger("100"))
                 blobVersionedHashes(listOf(Hash("0x2c00f9fd0fcdeb1ccaf7a31d05702b578ea1b8f8feccd2cd63423cdd41e4149c")))
                 chainId(1)
@@ -220,8 +221,8 @@ class CallRequestTest : FunSpec({
                 to(addr)
                 nonce(1)
                 gas(21_000L)
-                gasFeeCap(BigInteger.TEN)
-                gasTipCap(BigInteger.ONE)
+                gasFeeCap(bigIntegerOf(10))
+                gasTipCap(bigIntegerOf(1))
                 blobVersionedHashes(listOf(Hash("0x2c00f9fd0fcdeb1ccaf7a31d05702b578ea1b8f8feccd2cd63423cdd41e4149c")))
                 chainId(1)
             }
@@ -233,8 +234,8 @@ class CallRequestTest : FunSpec({
                 to(addr)
                 nonce(1)
                 gas(21_000L)
-                gasFeeCap(BigInteger.TEN)
-                gasTipCap(BigInteger.ONE)
+                gasFeeCap(bigIntegerOf(10))
+                gasTipCap(bigIntegerOf(1))
                 blobFeeCap(BigInteger("100"))
                 blobVersionedHashes(listOf(Hash("0x2c00f9fd0fcdeb1ccaf7a31d05702b578ea1b8f8feccd2cd63423cdd41e4149c")))
                 chainId(-1)
@@ -251,14 +252,14 @@ class CallRequestTest : FunSpec({
                 to(addr)
                 nonce(1)
                 gas(21_000L)
-                gasPrice(BigInteger.TEN)
+                gasPrice(bigIntegerOf(10))
                 accessList(listOf(accessListItem))
                 chainId(1)
             }
 
             val tx = request.toUnsignedTransactionOrNull()
             tx.shouldBeInstanceOf<TxAccessList>()
-            tx.gasPrice shouldBe BigInteger.TEN
+            tx.gasPrice shouldBe bigIntegerOf(10)
             tx.accessList shouldBe listOf(accessListItem)
         }
 
@@ -266,7 +267,7 @@ class CallRequestTest : FunSpec({
             val request = CallRequest {
                 nonce(1)
                 gas(21_000L)
-                gasPrice(BigInteger.TEN)
+                gasPrice(bigIntegerOf(10))
                 accessList(
                     listOf(
                         AccessList.Item(
@@ -285,13 +286,13 @@ class CallRequestTest : FunSpec({
                 to(addr)
                 nonce(1)
                 gas(21_000L)
-                gasPrice(BigInteger.TEN)
+                gasPrice(bigIntegerOf(10))
                 chainId(1)
             }
 
             val tx = request.toUnsignedTransactionOrNull()
             tx.shouldBeInstanceOf<TxLegacy>()
-            tx.gasPrice shouldBe BigInteger.TEN
+            tx.gasPrice shouldBe bigIntegerOf(10)
             tx.chainId shouldBe 1L
         }
 
@@ -311,9 +312,9 @@ class CallRequestTest : FunSpec({
                 from(Address("0xDAFEA492D9c6733ae3d56b7Ed1ADB60692c98Bc5"))
                 to(Address("0xC4356aF40cc379b15925Fc8C21e52c00F474e8e9"))
                 gas(21_000L)
-                gasPrice(BigInteger.TEN)
+                gasPrice(bigIntegerOf(10))
                 gasFeeCap(BigInteger("100"))
-                gasTipCap(BigInteger.ONE)
+                gasTipCap(bigIntegerOf(1))
                 value(BigInteger("1000"))
                 nonce(1)
                 data(Bytes("0x01"))
@@ -334,13 +335,13 @@ class CallRequestTest : FunSpec({
                 from(Address("0xDAFEA492D9c6733ae3d56b7Ed1ADB60692c98Bc5"))
                 nonce(1)
                 gas(21_000L)
-                gasPrice(BigInteger.TEN)
+                gasPrice(bigIntegerOf(10))
             }
             val b = CallRequest {
                 from(Address("0xDAFEA492D9c6733ae3d56b7Ed1ADB60692c98Bc5"))
                 nonce(1)
                 gas(21_000L)
-                gasPrice(BigInteger.TEN)
+                gasPrice(bigIntegerOf(10))
             }
 
             a shouldBe b

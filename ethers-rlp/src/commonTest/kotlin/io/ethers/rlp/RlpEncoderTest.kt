@@ -1,6 +1,7 @@
 package io.ethers.rlp
 
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData
@@ -21,7 +22,7 @@ class RlpEncoderTest : FunSpec({
             val maxUint256 = BigInteger("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", 16)
             withData(
                 null to "80",
-                BigInteger.ZERO to "80",
+                bigIntegerOf(0) to "80",
                 "130".toBigInteger() to "8182",
                 "73".toBigInteger(16) to "73",
                 "abc12841ff".toBigInteger(16) to "85abc12841ff",
@@ -36,14 +37,14 @@ class RlpEncoderTest : FunSpec({
         test("failure - negative BigInteger value") {
             shouldThrow<IllegalArgumentException> {
                 val encoder = RlpEncoder(1)
-                encoder.encode(BigInteger.ONE.negate())
+                encoder.encode(bigIntegerOf(1).negate())
             }
         }
 
         test("failure - too big BigInteger value") {
             shouldThrow<IllegalArgumentException> {
                 val encoder = RlpEncoder(1)
-                encoder.encode(BigInteger.TWO.pow(256))
+                encoder.encode(bigIntegerOf(2).pow(256))
             }
         }
     }
@@ -146,33 +147,33 @@ class RlpEncoderTest : FunSpec({
         test("list with many elements") {
             val encoder = RlpEncoder()
             encoder.encodeList {
-                encode("dog".toByteArray())
-                encode("god".toByteArray())
-                encode("cat".toByteArray())
-                encode("tac".toByteArray())
-                encode("tac".toByteArray())
-                encode("tac".toByteArray())
-                encode("tac".toByteArray())
-                encode("tac".toByteArray())
-                encode("tac".toByteArray())
-                encode("tac".toByteArray())
-                encode("tac".toByteArray())
-                encode("tac".toByteArray())
-                encode("tac".toByteArray())
-                encode("tac".toByteArray())
-                encode("tac".toByteArray())
-                encode("tac".toByteArray())
-                encode("tac".toByteArray())
+                encode("dog".encodeToByteArray())
+                encode("god".encodeToByteArray())
+                encode("cat".encodeToByteArray())
+                encode("tac".encodeToByteArray())
+                encode("tac".encodeToByteArray())
+                encode("tac".encodeToByteArray())
+                encode("tac".encodeToByteArray())
+                encode("tac".encodeToByteArray())
+                encode("tac".encodeToByteArray())
+                encode("tac".encodeToByteArray())
+                encode("tac".encodeToByteArray())
+                encode("tac".encodeToByteArray())
+                encode("tac".encodeToByteArray())
+                encode("tac".encodeToByteArray())
+                encode("tac".encodeToByteArray())
+                encode("tac".encodeToByteArray())
+                encode("tac".encodeToByteArray())
             }
             encoder.toHexString() shouldBe "f84483646f6783676f64836361748374616383746163837461638374616383746163837461638374616383746163837461638374616383746163837461638374616383746163"
         }
 
-        test("encode via Runnable") {
+        test("encode via RlpListAction") {
             val encoder = RlpEncoder()
             encoder.encodeList(
                 -1,
-                Runnable {
-                    listOf("dog", "god", "cat", "tac", "tac").forEach { encoder.encode(it.toByteArray()) }
+                RlpListAction {
+                    listOf("dog", "god", "cat", "tac", "tac").forEach { encoder.encode(it.encodeToByteArray()) }
                 },
             )
 

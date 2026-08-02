@@ -15,6 +15,7 @@ import io.ethers.core.types.transaction.TxSetCode
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncoder
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData
 import io.kotest.matchers.shouldBe
@@ -271,7 +272,7 @@ class TransactionUnsignedTest : FunSpec({
     }
 
     context("RLP decoding with trailing signature fields") {
-        val emptySignature = Signature(BigInteger.ZERO, BigInteger.ZERO, 0)
+        val emptySignature = Signature(bigIntegerOf(0), bigIntegerOf(0), 0)
 
         test("TxDynamicFee from eth_fillTransaction with zeroed signature fields") {
             // Raw transaction from eth_fillTransaction response that includes zeroed signature fields (v=0, r=0, s=0)

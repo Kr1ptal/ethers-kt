@@ -14,6 +14,7 @@ import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.PendingTransaction
 import io.ethers.providers.types.RpcRequest
 import io.github.artificialpb.bignum.BigInteger
+import kotlin.jvm.JvmSynthetic
 
 class FunctionCall<T>(
     provider: Middleware,

@@ -1,6 +1,7 @@
 package io.ethers.rlp
 
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData
@@ -11,7 +12,7 @@ class RlpDecoderTest : FunSpec({
     context("decode - BigInteger") {
         val maxUint256 = BigInteger("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", 16)
         withData(
-            BigInteger.ZERO to "80",
+            bigIntegerOf(0) to "80",
             "73".toBigInteger(16) to "73",
             "abc12841ff".toBigInteger(16) to "85abc12841ff",
             maxUint256 to "a0ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
@@ -106,23 +107,23 @@ class RlpDecoderTest : FunSpec({
             val v = rlp.decodeAsListOrNull { decodeByteArray() }
 
             v shouldContainExactly listOf(
-                "dog".toByteArray(),
-                "god".toByteArray(),
-                "cat".toByteArray(),
-                "tac".toByteArray(),
-                "tac".toByteArray(),
-                "tac".toByteArray(),
-                "tac".toByteArray(),
-                "tac".toByteArray(),
-                "tac".toByteArray(),
-                "tac".toByteArray(),
-                "tac".toByteArray(),
-                "tac".toByteArray(),
-                "tac".toByteArray(),
-                "tac".toByteArray(),
-                "tac".toByteArray(),
-                "tac".toByteArray(),
-                "tac".toByteArray(),
+                "dog".encodeToByteArray(),
+                "god".encodeToByteArray(),
+                "cat".encodeToByteArray(),
+                "tac".encodeToByteArray(),
+                "tac".encodeToByteArray(),
+                "tac".encodeToByteArray(),
+                "tac".encodeToByteArray(),
+                "tac".encodeToByteArray(),
+                "tac".encodeToByteArray(),
+                "tac".encodeToByteArray(),
+                "tac".encodeToByteArray(),
+                "tac".encodeToByteArray(),
+                "tac".encodeToByteArray(),
+                "tac".encodeToByteArray(),
+                "tac".encodeToByteArray(),
+                "tac".encodeToByteArray(),
+                "tac".encodeToByteArray(),
             )
         }
 
@@ -141,11 +142,11 @@ class RlpDecoderTest : FunSpec({
             )
 
             v shouldContainExactly listOf(
-                "dog".toByteArray(),
-                "god".toByteArray(),
-                "cat".toByteArray(),
-                "tac".toByteArray(),
-                "tac".toByteArray(),
+                "dog".encodeToByteArray(),
+                "god".encodeToByteArray(),
+                "cat".encodeToByteArray(),
+                "tac".encodeToByteArray(),
+                "tac".encodeToByteArray(),
             )
         }
 
@@ -163,12 +164,12 @@ class RlpDecoderTest : FunSpec({
             rlp.finishList(rlp.position)
 
             ret shouldContainExactly listOf(
-                "dog".toByteArray(),
-                "god".toByteArray(),
-                "cat".toByteArray(),
-                "tac".toByteArray(),
-                "tac".toByteArray(),
-                "tac".toByteArray(),
+                "dog".encodeToByteArray(),
+                "god".encodeToByteArray(),
+                "cat".encodeToByteArray(),
+                "tac".encodeToByteArray(),
+                "tac".encodeToByteArray(),
+                "tac".encodeToByteArray(),
             )
         }
 

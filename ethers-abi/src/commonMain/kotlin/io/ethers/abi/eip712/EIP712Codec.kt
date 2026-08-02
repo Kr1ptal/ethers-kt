@@ -9,6 +9,7 @@ import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.crypto.Hashing
 import io.github.artificialpb.bignum.BigInteger
+import kotlin.jvm.JvmOverloads
 
 object EIP712Codec {
     /**
@@ -116,7 +117,7 @@ object EIP712Codec {
      */
     fun typeHash(abi: AbiType.Struct<*>): ByteArray {
         val encodedType = encodeType(abi)
-        return Hashing.keccak256(encodedType.toByteArray(Charsets.UTF_8))
+        return Hashing.keccak256(encodedType.encodeToByteArray())
     }
 
     /**
@@ -256,7 +257,7 @@ object EIP712Codec {
 
         // typeHash
         val encodedType = encodeType(abi)
-        buff.writeBytes(Hashing.keccak256(encodedType.toByteArray(Charsets.UTF_8)))
+        buff.writeBytes(Hashing.keccak256(encodedType.encodeToByteArray()))
 
         // encoded data words
         for (i in 0 until tuple.size) {
@@ -298,7 +299,7 @@ object EIP712Codec {
 
         // Calculate typeHash
         val encodedType = encodeType(primaryType, types)
-        val typeHash = Hashing.keccak256(encodedType.toByteArray(Charsets.UTF_8))
+        val typeHash = Hashing.keccak256(encodedType.encodeToByteArray())
 
         // Allocate buffer for typeHash + encoded data words
         val arr = ByteArray(AbiCodec.WORD_SIZE_BYTES * (1 + fields.size))
@@ -410,7 +411,7 @@ object EIP712Codec {
             is AbiType.Tuple<*> -> throw IllegalArgumentException("Raw Tuple type not supported. Use AbiType.Struct")
 
             AbiType.Bytes -> (value as Bytes).asByteArray()
-            AbiType.String -> (value as String).toByteArray(Charsets.UTF_8)
+            AbiType.String -> (value as String).encodeToByteArray()
 
             is AbiType.Array<*> -> {
                 val array = value as List<*>

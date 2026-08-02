@@ -11,6 +11,7 @@ import io.ethers.core.types.transaction.ChainId
 import io.ethers.core.types.transaction.TransactionRecovered
 import io.ethers.core.types.transaction.TxType
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.descriptors.buildClassSerialDescriptor
@@ -53,7 +54,7 @@ data class RPCTransaction(
      * Return true if the transaction has a signature, false otherwise.
      * */
     val hasSignature: Boolean
-        get() = v != -1L && r != BigInteger.ZERO && s != BigInteger.ZERO
+        get() = v != -1L && r != bigIntegerOf(0) && s != bigIntegerOf(0)
 }
 
 object RPCTransactionSerializer : KSerializer<RPCTransaction> {
@@ -148,8 +149,8 @@ object RPCTransactionSerializer : KSerializer<RPCTransaction> {
             chainId,
             TxType.fromType(type.toInt()),
             v,
-            r ?: BigInteger.ZERO,
-            s ?: BigInteger.ZERO,
+            r ?: bigIntegerOf(0),
+            s ?: bigIntegerOf(0),
             yParity,
             blobVersionedHashes,
             blobFeeCap,

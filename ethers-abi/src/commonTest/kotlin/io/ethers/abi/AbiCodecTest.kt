@@ -3,6 +3,7 @@ package io.ethers.abi
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.inspectors.forAll
@@ -30,8 +31,8 @@ class AbiCodecTest : FunSpec({
             val params = listOf(
                 Address("0xdeadeadeadeadeadeadeadeadeadeadeadeadead"),
                 listOf(Address("0xdeadeadeadeadeadeadeadeadeadeadeadeadead")),
-                listOf(BigInteger.TEN),
-                listOf(BigInteger.TEN),
+                listOf(bigIntegerOf(10)),
+                listOf(bigIntegerOf(10)),
                 Address("0xdeadeadeadeadeadeadeadeadeadeadeadeadead"),
                 Bytes(byteArrayOf(0, 1, 2, 3, 4, 5)),
                 "11424".toBigInteger(),
@@ -76,7 +77,7 @@ class AbiCodecTest : FunSpec({
         test("negative BigInteger to hex") {
             Arb.bigInt(0, 255).checkAll {
                 val num = it.negate()
-                val numTwosComplement = if (num.signum() == -1) num.add(BigInteger.ONE.shiftLeft(256)) else num
+                val numTwosComplement = if (num.signum() == -1) num.add(bigIntegerOf(1).shiftLeft(256)) else num
                 val encodedByCoder = AbiCodec.encode(listOf(AbiType.Int(256)), listOf(num)).toHexString()
                 val encodedByJava = numTwosComplement.toString(16).padStart(64, '0')
 
@@ -395,15 +396,15 @@ class AbiCodecTest : FunSpec({
 
             Exhaustive.of(
                 // too high by one
-                BigInteger.ONE.shiftLeft(255),
+                bigIntegerOf(1).shiftLeft(255),
                 // too high
-                BigInteger.ONE.shiftLeft(256),
-                BigInteger.ONE.shiftLeft(260),
+                bigIntegerOf(1).shiftLeft(256),
+                bigIntegerOf(1).shiftLeft(260),
                 // too low by one
-                BigInteger.ONE.shiftLeft(255).add(BigInteger.ONE).negate(),
+                bigIntegerOf(1).shiftLeft(255).add(bigIntegerOf(1)).negate(),
                 // too low
-                BigInteger.ONE.shiftLeft(256).negate(),
-                BigInteger.ONE.shiftLeft(260).negate(),
+                bigIntegerOf(1).shiftLeft(256).negate(),
+                bigIntegerOf(1).shiftLeft(260).negate(),
             ).checkAll {
                 val params = listOf(it)
                 shouldThrow<AbiCodecException> { AbiCodec.encode(function.inputs, params) }
@@ -415,11 +416,11 @@ class AbiCodecTest : FunSpec({
 
             Exhaustive.of(
                 // too high by one
-                BigInteger.ONE.shiftLeft(256),
+                bigIntegerOf(1).shiftLeft(256),
                 // too high
-                BigInteger.ONE.shiftLeft(260),
+                bigIntegerOf(1).shiftLeft(260),
                 // negative
-                BigInteger.ONE.negate(),
+                bigIntegerOf(1).negate(),
             ).checkAll {
                 val params = listOf(it)
                 shouldThrow<AbiCodecException> { AbiCodec.encode(function.inputs, params) }
@@ -505,7 +506,7 @@ class AbiCodecTest : FunSpec({
         test("negative BigInteger from hex") {
             Arb.bigInt(0, 255).checkAll {
                 val num = it.negate()
-                val numTwosComplement = if (num.signum() == -1) num.add(BigInteger.ONE.shiftLeft(256)) else num
+                val numTwosComplement = if (num.signum() == -1) num.add(bigIntegerOf(1).shiftLeft(256)) else num
                 val encodedByJava = numTwosComplement.toString(16).padStart(64, '0').hexToByteArray()
                 val decoded = AbiCodec.decode(listOf(AbiType.Int(256)), encodedByJava)[0]
 
@@ -910,7 +911,7 @@ class AbiCodecTest : FunSpec({
         test("encode single negative max value int256") {
             val encoded = AbiCodec.encodePacked(
                 listOf(AbiType.Int(256)),
-                listOf(BigInteger.TWO.pow(255) - BigInteger.ONE),
+                listOf(bigIntegerOf(2).pow(255) - bigIntegerOf(1)),
             ).toString()
 
             encoded shouldBe "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
@@ -919,7 +920,7 @@ class AbiCodecTest : FunSpec({
         test("encode single negative max value int256 in fixed array") {
             val encoded = AbiCodec.encodePacked(
                 listOf(AbiType.FixedArray(1, AbiType.Int(256))),
-                listOf(listOf(BigInteger.TWO.pow(255) - BigInteger.ONE)),
+                listOf(listOf(bigIntegerOf(2).pow(255) - bigIntegerOf(1))),
             ).toString()
 
             encoded shouldBe "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
@@ -955,7 +956,7 @@ class AbiCodecTest : FunSpec({
         test("encode single max value uint256") {
             val encoded = AbiCodec.encodePacked(
                 listOf(AbiType.UInt(256)),
-                listOf(BigInteger.TWO.pow(256) - BigInteger.ONE),
+                listOf(bigIntegerOf(2).pow(256) - bigIntegerOf(1)),
             ).toString()
 
             encoded shouldBe "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
@@ -964,7 +965,7 @@ class AbiCodecTest : FunSpec({
         test("encode single max value uint256 in fixed array") {
             val encoded = AbiCodec.encodePacked(
                 listOf(AbiType.FixedArray(1, AbiType.UInt(256))),
-                listOf(listOf(BigInteger.TWO.pow(256) - BigInteger.ONE)),
+                listOf(listOf(bigIntegerOf(2).pow(256) - bigIntegerOf(1))),
             ).toString()
 
             encoded shouldBe "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
@@ -973,7 +974,7 @@ class AbiCodecTest : FunSpec({
         test("encode single max value uint256 in dynamic array") {
             val encoded = AbiCodec.encodePacked(
                 listOf(AbiType.Array(AbiType.UInt(256))),
-                listOf(listOf(BigInteger.TWO.pow(256) - BigInteger.ONE)),
+                listOf(listOf(bigIntegerOf(2).pow(256) - bigIntegerOf(1))),
             ).toString()
 
             encoded shouldBe "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
@@ -994,7 +995,7 @@ class AbiCodecTest : FunSpec({
             FailCase(
                 "tuple not supported",
                 listOf(AbiType.Tuple(AbiType.Int(256))),
-                listOf(listOf(BigInteger.ONE)),
+                listOf(listOf(bigIntegerOf(1))),
             ),
             FailCase(
                 "nested array not supported",

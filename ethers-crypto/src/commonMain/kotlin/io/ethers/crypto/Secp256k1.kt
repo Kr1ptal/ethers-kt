@@ -1,6 +1,7 @@
 package io.ethers.crypto
 
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import fr.acinq.secp256k1.Secp256k1 as AcinqSecp256k1
 
 /**
@@ -51,10 +52,10 @@ object Secp256k1 {
         if (recId < 0) {
             throw IllegalArgumentException("Parameter 'recId' must be positive.")
         }
-        if (r < BigInteger.ZERO) {
+        if (r < bigIntegerOf(0)) {
             throw IllegalArgumentException("Parameter 'r' must be positive.")
         }
-        if (s < BigInteger.ZERO) {
+        if (s < bigIntegerOf(0)) {
             throw IllegalArgumentException("Parameter 's' must be positive.")
         }
 

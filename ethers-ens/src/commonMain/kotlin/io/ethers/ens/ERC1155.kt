@@ -16,6 +16,8 @@ import io.ethers.core.types.Bytes
 import io.ethers.core.types.Log
 import io.ethers.providers.middleware.Middleware
 import io.github.artificialpb.bignum.BigInteger
+import kotlin.jvm.JvmField
+import kotlin.jvm.JvmStatic
 
 public class ERC1155(
     provider: Middleware,

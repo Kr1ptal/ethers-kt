@@ -12,6 +12,8 @@ import io.ethers.abi.error.CustomErrorFactoryResolver
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.providers.middleware.Middleware
+import kotlin.jvm.JvmField
+import kotlin.jvm.JvmStatic
 
 public class ExtendedResolver(
     provider: Middleware,

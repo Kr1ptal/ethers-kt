@@ -10,6 +10,7 @@ import io.ethers.core.asHexLong
 import io.ethers.core.json.JsonElement
 import io.ethers.core.types.transaction.TxType
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.minus
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.descriptors.buildClassSerialDescriptor

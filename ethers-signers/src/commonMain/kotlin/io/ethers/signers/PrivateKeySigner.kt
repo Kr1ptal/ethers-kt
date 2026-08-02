@@ -6,6 +6,7 @@ import io.ethers.core.types.Bytes
 import io.ethers.core.types.Signature
 import io.ethers.crypto.Hashing
 import io.ethers.crypto.Secp256k1
+import kotlin.jvm.JvmStatic
 
 /**
  * A [Signer] that uses a private key to sign messages.

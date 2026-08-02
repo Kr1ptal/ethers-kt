@@ -63,7 +63,7 @@ interface Signer {
         return try {
             success(signMessage(message))
         } catch (e: Exception) {
-            failure(SigningError("Error signing message: ${String(message)}", e))
+            failure(SigningError("Error signing message: ${message.decodeToString()}", e))
         }
     }
 

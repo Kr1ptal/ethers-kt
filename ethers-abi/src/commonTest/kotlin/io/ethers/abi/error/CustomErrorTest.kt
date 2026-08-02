@@ -6,19 +6,22 @@ import io.ethers.abi.ContractStruct
 import io.ethers.abi.StructFactory
 import io.ethers.core.types.Bytes
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.inspectors.forAll
 import io.kotest.matchers.shouldBe
+import kotlin.jvm.JvmField
+import kotlin.jvm.JvmStatic
 
 class CustomErrorTest : FunSpec({
     CustomErrorRegistry.prependResolver(MockCustomErrorResolver())
 
     test("decode complex custom error correctly") {
         val error = ErrorWithStruct(
-            BigInteger.valueOf(123),
+            bigIntegerOf(123),
             ErrorMsg(
                 "hello",
-                BigInteger.valueOf(456),
+                bigIntegerOf(456),
                 listOf(true, false, true),
             ),
         )
@@ -37,7 +40,7 @@ class CustomErrorTest : FunSpec({
     }
 
     test("decode simple custom error correctly") {
-        val error = InvalidFlashswapFlags(BigInteger.valueOf(123), "wrong flags")
+        val error = InvalidFlashswapFlags(bigIntegerOf(123), "wrong flags")
 
         val encoded = InvalidFlashswapFlags.abi.encodeCall(listOf(error.flag, error.name))
         val decoded = ContractError.getOrNull(encoded)

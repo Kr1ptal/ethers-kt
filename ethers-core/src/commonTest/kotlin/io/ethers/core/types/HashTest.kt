@@ -3,6 +3,7 @@ package io.ethers.core.types
 import io.ethers.core.FastHex
 import io.ethers.core.Kotlinx
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData
@@ -51,23 +52,23 @@ class HashTest : FunSpec({
         context("BigInteger") {
             withData(
                 nameFn = { it.toString() },
-                BigInteger.ZERO to "0x0000000000000000000000000000000000000000000000000000000000000000",
-                BigInteger.ONE to "0x0000000000000000000000000000000000000000000000000000000000000001",
-                BigInteger.TEN to "0x000000000000000000000000000000000000000000000000000000000000000a",
+                bigIntegerOf(0) to "0x0000000000000000000000000000000000000000000000000000000000000000",
+                bigIntegerOf(1) to "0x0000000000000000000000000000000000000000000000000000000000000001",
+                bigIntegerOf(10) to "0x000000000000000000000000000000000000000000000000000000000000000a",
                 BigInteger("765456789032412362757890124973865712381") to "0x000000000000000000000000000000023fdd9d780f1088c8e7adeca0bdec3afd",
-                BigInteger.TWO.pow(255) - BigInteger.ONE to "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+                bigIntegerOf(2).pow(255) - bigIntegerOf(1) to "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
             ) { (value, expected) ->
                 Hash(value) shouldBe Hash(expected)
             }
 
             test("throws exception for values with more than 256 bits") {
-                shouldThrow<IllegalArgumentException> { Hash(BigInteger.TWO.pow(256)) }
-                shouldThrow<IllegalArgumentException> { Hash(BigInteger.TWO.pow(300)) }
+                shouldThrow<IllegalArgumentException> { Hash(bigIntegerOf(2).pow(256)) }
+                shouldThrow<IllegalArgumentException> { Hash(bigIntegerOf(2).pow(300)) }
             }
 
             test("correct hash for random bits between 0 and 256") {
                 Arb.int(1..256).checkAll {
-                    val value = BigInteger.TWO.pow(it) - BigInteger.ONE
+                    val value = bigIntegerOf(2).pow(it) - bigIntegerOf(1)
                     val expected = value.toString(16).padStart(64, '0')
                     Hash(value) shouldBe Hash(expected)
                 }

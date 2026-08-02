@@ -12,6 +12,7 @@ import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncodable
 import io.ethers.rlp.RlpEncoder
 import io.github.artificialpb.bignum.BigInteger
+import kotlin.jvm.JvmStatic
 
 /**
  * An [EIP-4844](https://eips.ethereum.org/EIPS/eip-4844) blob-carrying transaction with additional

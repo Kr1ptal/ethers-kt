@@ -9,6 +9,7 @@ import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
 import io.ethers.core.types.StateOverride
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.descriptors.buildClassSerialDescriptor
@@ -87,7 +88,7 @@ data class PrestateTracer(val diffMode: Boolean) : Tracer<PrestateTracer.Result>
                     poststate[address] == null -> ret[address] = AccountOverride {
                         nonce = 0
                         code = Bytes.EMPTY
-                        balance = BigInteger.ZERO
+                        balance = bigIntegerOf(0)
                         state = emptyMap()
                     }
 

@@ -105,12 +105,12 @@ class BloomTest : FunSpec({
                 "0x0000000000000038fe3ae2941ba4460c09b5493c",
             )
             val bloom = Bloom()
-            included.forEach { bloom.add(it.toByteArray()) }
+            included.forEach { bloom.add(it.encodeToByteArray()) }
 
             withData(
                 included.map { it to true } + excluded.map { it to false },
             ) { (value, result) ->
-                bloom.contains(value.toByteArray()) shouldBe result
+                bloom.contains(value.encodeToByteArray()) shouldBe result
             }
         }
     }

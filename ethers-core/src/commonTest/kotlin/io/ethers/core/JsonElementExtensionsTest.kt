@@ -5,6 +5,7 @@ import io.ethers.core.types.Bloom
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import kotlinx.serialization.json.JsonNull
@@ -32,8 +33,8 @@ class JsonElementExtensionsTest : FunSpec({
             JsonPrimitive("0xff").asHexBigInteger() shouldBe BigInteger("255")
         }
 
-        test("returns BigInteger.ZERO for empty hex") {
-            JsonPrimitive("0x").asHexBigInteger() shouldBe BigInteger.ZERO
+        test("returns bigIntegerOf(0) for empty hex") {
+            JsonPrimitive("0x").asHexBigInteger() shouldBe bigIntegerOf(0)
         }
     }
 

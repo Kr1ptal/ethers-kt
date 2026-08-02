@@ -9,16 +9,12 @@ import io.github.oshai.kotlinlogging.KotlinLogging
  * Usage:
  *
  * ```kotlin
- * val LOG = getLogger<ExampleClass>()
+ * val LOG = getLogger()
  * ```
  * */
-inline fun <reified T : Any> getLogger(): KLogger {
-    return KotlinLogging.logger(T::class.java.name)
-}
 
-inline fun <T : Any> T.getLogger(): KLogger {
-    return KotlinLogging.logger(javaClass.name)
-}
+@Suppress("NOTHING_TO_INLINE")
+inline fun getLogger() = KotlinLogging.logger {}
 
 /**
  * Logs with level TRACE if enabled.

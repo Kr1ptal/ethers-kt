@@ -86,7 +86,8 @@ object Base58 {
             temp[--j] = ALPHABET[0].code.toByte()
         }
         val output = copyOfRange(temp, j, temp.size)
-        return String(output, Charsets.US_ASCII)
+        // every byte comes from ALPHABET, which is pure ASCII, so UTF-8 decoding is equivalent to US-ASCII here
+        return output.decodeToString()
     }
 
     fun decode(input: String): ByteArray {

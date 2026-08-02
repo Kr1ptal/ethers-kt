@@ -4,6 +4,7 @@ import com.ditchoom.buffer.BufferFactory
 import com.ditchoom.buffer.Default
 import io.ethers.crypto.Hashing
 import io.ethers.crypto.Secp256k1
+import kotlin.jvm.JvmStatic
 
 /**
  * Implementation of [BIP-0032](https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki) extended keys with
@@ -81,7 +82,7 @@ class ExtendedSigningKey(privateKey: ByteArray, val chainCode: ByteArray) {
     }
 
     companion object {
-        private val PREFIX_KEY_BYTES = "Bitcoin seed".toByteArray(Charsets.UTF_8)
+        private val PREFIX_KEY_BYTES = "Bitcoin seed".encodeToByteArray()
 
         @JvmStatic
         fun fromSeed(seed: ByteArray): ExtendedSigningKey {

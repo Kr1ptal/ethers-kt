@@ -8,9 +8,10 @@ import dev.whyoleg.cryptography.algorithms.SHA256
 import dev.whyoleg.cryptography.algorithms.SHA512
 import dev.whyoleg.cryptography.random.CryptographyRandom
 import org.kotlincrypto.hash.sha3.Keccak256
+import kotlin.jvm.JvmStatic
 
 object Hashing {
-    private val MESSAGE_PREFIX = "\u0019Ethereum Signed Message:\n".toByteArray()
+    private val MESSAGE_PREFIX = "\u0019Ethereum Signed Message:\n".encodeToByteArray()
     private const val VERSIONED_HASH_VERSION_KZG = 0x01.toByte()
 
     private val provider = CryptographyProvider.Default
@@ -37,7 +38,7 @@ object Hashing {
      * */
     @JvmStatic
     fun hashMessage(message: ByteArray): ByteArray {
-        val messageSizeString = message.size.toString().toByteArray()
+        val messageSizeString = message.size.toString().encodeToByteArray()
 
         val input = ByteArray(MESSAGE_PREFIX.size + messageSizeString.size + message.size)
         MESSAGE_PREFIX.copyInto(input)

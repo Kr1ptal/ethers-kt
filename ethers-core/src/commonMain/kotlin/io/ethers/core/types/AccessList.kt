@@ -20,6 +20,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import kotlin.jvm.JvmStatic
 
 // Ideally, this would be an inline class, but java interop is a pain. If you need to add any functions to operate on
 // AccessList, add an extension function to List<AccessList.Item> instead, inside this object, and annotate it with

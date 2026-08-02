@@ -1,6 +1,7 @@
 package io.ethers.core
 
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.descriptors.PrimitiveKind
 import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
@@ -52,9 +53,9 @@ object HexBigIntegerSerializer : KSerializer<BigInteger> {
 
     override fun deserialize(decoder: Decoder): BigInteger {
         val text = decoder.decodeString()
-        if (text.isEmpty() || text == "0x" || text == "0X") return BigInteger.ZERO
+        if (text.isEmpty() || text == "0x" || text == "0X") return bigIntegerOf(0)
         val bytes = FastHex.decode(text)
-        if (bytes.isEmpty()) return BigInteger.ZERO
+        if (bytes.isEmpty()) return bigIntegerOf(0)
         return BigInteger(1, bytes)
     }
 }

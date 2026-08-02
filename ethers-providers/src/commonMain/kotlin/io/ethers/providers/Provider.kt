@@ -51,6 +51,10 @@ import io.ethers.providers.types.RpcSubscribe
 import io.ethers.providers.types.RpcSubscribeCall
 import io.ethers.providers.types.SuppliedRpcRequest
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
+import io.github.artificialpb.bignum.div
+import io.github.artificialpb.bignum.plus
+import io.github.artificialpb.bignum.toBigInteger
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.KSerializer
@@ -61,6 +65,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.serializer
+import kotlin.jvm.JvmStatic
 import kotlinx.serialization.json.JsonElement as KJsonElement
 
 @Suppress("MoveLambdaOutsideParentheses")
@@ -409,18 +414,18 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             if (!txFeesSet) {
                 val rewards = feeHistory.rewards!!.mapNotNull {
                     val r = it.firstOrNull()
-                    if (r == null || r <= BigInteger.ZERO) null else r
+                    if (r == null || r <= bigIntegerOf(0)) null else r
                 }.sorted()
 
                 val medianReward = when {
-                    rewards.isEmpty() -> BigInteger.ONE
+                    rewards.isEmpty() -> bigIntegerOf(1)
                     rewards.size % 2 == 0 -> (rewards[rewards.size / 2 - 1] + rewards[rewards.size / 2]) / BIGINT_TWO
                     else -> rewards[rewards.size / 2]
-                }.max(BigInteger.ONE)
+                }.max(bigIntegerOf(1))
 
                 when {
                     // if eip1559 is supported, fill its fields
-                    feeHistory.nextBaseFeePerGas > BigInteger.ZERO -> {
+                    feeHistory.nextBaseFeePerGas > bigIntegerOf(0) -> {
                         call.gasFeeCap(feeHistory.nextBaseFeePerGas + medianReward)
                         call.gasTipCap(medianReward)
                     }
@@ -667,7 +672,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
     data class UnableToGetChainId(val url: String, val error: RpcError) : Error
 
     companion object {
-        private val BIGINT_TWO = BigInteger.valueOf(2L)
+        private val BIGINT_TWO = bigIntegerOf(2L)
         private val EMPTY_ARRAY = emptyArray<Any>()
 
         /**

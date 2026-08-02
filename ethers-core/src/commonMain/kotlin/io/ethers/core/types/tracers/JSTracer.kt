@@ -8,7 +8,6 @@ import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.JsonElement
-import org.intellij.lang.annotations.Language
 import kotlin.reflect.KClass
 
 /**
@@ -17,7 +16,6 @@ import kotlin.reflect.KClass
  * The result is returned as a raw JSON string, allowing callers to parse it as needed.
  */
 data class JSTracer(
-    @param:Language("JavaScript")
     val code: String,
     override val config: Map<String, Any?>,
 ) : Tracer<JSTracer.Result> {

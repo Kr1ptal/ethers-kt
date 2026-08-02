@@ -18,6 +18,9 @@ import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
+import kotlin.jvm.JvmField
+import kotlin.jvm.JvmOverloads
+import kotlin.jvm.JvmStatic
 import kotlin.random.Random
 
 /**
@@ -63,7 +66,7 @@ class Address(private val value: ByteArray) : RlpEncodable {
         val encodedOffset = if (validChainId) 2 else 0
         val encodedHex = FastHex.encodeAsBytes(value, withPrefix = validChainId)
         val hash = when (validChainId) {
-            true -> Hashing.keccak256(chainId.toString().toByteArray() + encodedHex)
+            true -> Hashing.keccak256(chainId.toString().encodeToByteArray() + encodedHex)
             false -> Hashing.keccak256(encodedHex)
         }
 
@@ -81,7 +84,7 @@ class Address(private val value: ByteArray) : RlpEncodable {
                 ret[i + 2] = nibble
             }
         }
-        return String(ret)
+        return ret.decodeToString()
     }
 
     override fun rlpEncode(rlp: RlpEncoder) {

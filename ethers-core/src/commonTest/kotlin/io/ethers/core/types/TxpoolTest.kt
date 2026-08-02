@@ -3,6 +3,7 @@ package io.ethers.core.types
 import io.ethers.core.Kotlinx
 import io.ethers.core.types.transaction.TxType
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import org.intellij.lang.annotations.Language
@@ -103,7 +104,7 @@ class TxpoolTest : FunSpec({
                         nonce = 1142L,
                         to = Address("0x111111111117dc0aa78b770fa6a738034120c302"),
                         transactionIndex = -1,
-                        value = BigInteger.ZERO,
+                        value = bigIntegerOf(0),
                         type = TxType.Legacy,
                         chainId = 1L,
                         v = 37L,
@@ -225,7 +226,7 @@ class TxpoolTest : FunSpec({
                     nonce = 2,
                     to = Address("0xc7757805b983ee1b6272c1840c18e66837de858e"),
                     transactionIndex = -1,
-                    value = BigInteger.ZERO,
+                    value = bigIntegerOf(0),
                     type = TxType.Legacy,
                     chainId = 1L,
                     accessList = emptyList(),

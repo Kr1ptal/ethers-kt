@@ -24,6 +24,8 @@ import io.ethers.providers.types.PendingTransaction
 import io.ethers.providers.types.RpcRequest
 import io.ethers.signers.Signer
 import io.github.artificialpb.bignum.BigInteger
+import kotlin.jvm.JvmOverloads
+import kotlin.jvm.JvmSynthetic
 
 /**
  * Contract call that can be used to both read and write data to the blockchain.

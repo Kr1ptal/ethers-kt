@@ -6,6 +6,7 @@ import io.ethers.core.types.BlockOverride
 import io.ethers.core.types.BlockOverrideSerializer
 import io.ethers.core.types.StateOverride
 import io.ethers.core.types.StateOverrideSerializer
+import kotlinx.serialization.InternalSerializationApi
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.descriptors.buildClassSerialDescriptor
@@ -17,6 +18,7 @@ import kotlinx.serialization.json.JsonEncoder
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.serializer
+import kotlin.jvm.JvmOverloads
 import kotlin.reflect.KClass
 
 /**
@@ -72,8 +74,9 @@ sealed interface AnyTracer<T : Any> {
      * Override for custom decoding logic (e.g., MuxTracer).
      */
     @Suppress("UNCHECKED_CAST")
+    @OptIn(InternalSerializationApi::class)
     fun decodeResult(json: Json, element: JsonElement): T {
-        return json.decodeFromJsonElement(serializer(resultType.java), element) as T
+        return json.decodeFromJsonElement(resultType.serializer(), element) as T
     }
 }
 

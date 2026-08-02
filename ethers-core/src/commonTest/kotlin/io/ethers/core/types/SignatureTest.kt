@@ -3,6 +3,7 @@ package io.ethers.core.types
 import io.ethers.core.isFailure
 import io.ethers.core.isSuccess
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData
@@ -14,8 +15,8 @@ class SignatureTest : FunSpec({
         val invalidSignature =
             Signature(
                 v = Signature.V_EIP155_OFFSET - 1,
-                r = BigInteger.ZERO,
-                s = BigInteger.ZERO,
+                r = bigIntegerOf(0),
+                s = bigIntegerOf(0),
             )
 
         test("recoveryId() fails") {

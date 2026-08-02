@@ -18,6 +18,9 @@ package io.ethers.core
 
 import io.ethers.core.FastHex.decode
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
+import kotlin.jvm.JvmOverloads
+import kotlin.jvm.JvmStatic
 
 /**
  * Hexadecimal codec with safe-by-default and unsafe encoding/decoding support.
@@ -77,7 +80,7 @@ object FastHex {
      * */
     @JvmStatic
     fun encodeWithPrefix(value: BigInteger): String {
-        if (value == BigInteger.ZERO) return "0x0"
+        if (value == bigIntegerOf(0)) return "0x0"
         var byteIdx = 0
         val arr = value.toByteArray()
         return encodeNumberWithPrefix(arr.size * 8) { arr[byteIdx++].toInt() and 0xff }
@@ -96,7 +99,7 @@ object FastHex {
      * */
     @JvmStatic
     fun encodeWithPrefix(buffer: ByteArray, offset: Int, len: Int): String {
-        return String(encodeToAsciiBytes(buffer, offset, len, true), Charsets.US_ASCII)
+        return encodeToAsciiBytes(buffer, offset, len, true).decodeToString()
     }
 
     /**
@@ -112,7 +115,7 @@ object FastHex {
      * */
     @JvmStatic
     fun encodeWithoutPrefix(buffer: ByteArray, offset: Int, len: Int): String {
-        return String(encodeToAsciiBytes(buffer, offset, len, false), Charsets.US_ASCII)
+        return encodeToAsciiBytes(buffer, offset, len, false).decodeToString()
     }
 
     /**
@@ -159,7 +162,7 @@ object FastHex {
             bits -= 8
         }
 
-        return String(bytes!!)
+        return bytes!!.decodeToString()
     }
 
     private fun encodeToAsciiBytes(buffer: ByteArray, offset: Int, len: Int, withPrefix: Boolean): ByteArray {

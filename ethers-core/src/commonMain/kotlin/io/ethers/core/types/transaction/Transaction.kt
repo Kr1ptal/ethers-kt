@@ -10,6 +10,7 @@ import io.ethers.core.types.IntoCallRequest
 import io.ethers.core.types.Signature
 import io.ethers.core.utils.GasUtils
 import io.github.artificialpb.bignum.BigInteger
+import kotlin.jvm.JvmStatic
 
 /**
  * A [Transaction] with recovered sender address ([from]) and [hash].

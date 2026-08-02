@@ -8,6 +8,7 @@ import io.ethers.abi.Person
 import io.ethers.core.types.Address
 import io.ethers.core.types.Hash
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -237,7 +238,7 @@ class EIP712CodecTest : FunSpec({
             val domain = EIP712Domain(
                 name = "MyDApp",
                 version = "1.0",
-                chainId = BigInteger.valueOf(1),
+                chainId = bigIntegerOf(1),
             )
 
             val message = domain.toEIP712Message()
@@ -384,7 +385,7 @@ class EIP712CodecTest : FunSpec({
             val domain = EIP712Domain(
                 name = "Ether Mail",
                 version = "1",
-                chainId = BigInteger.valueOf(1),
+                chainId = bigIntegerOf(1),
                 verifyingContract = Address("0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC"),
             )
             val typedData = EIP712TypedData.from(domain, domain)
@@ -516,7 +517,7 @@ class EIP712CodecTest : FunSpec({
             val domain = EIP712Domain(
                 name = "MailDApp",
                 version = "1.0",
-                chainId = BigInteger.valueOf(1),
+                chainId = bigIntegerOf(1),
             )
             val typedData = EIP712TypedData.from(mail, domain)
 

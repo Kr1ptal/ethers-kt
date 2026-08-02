@@ -5,6 +5,9 @@ import io.ethers.core.Result.Success
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
+import kotlin.jvm.JvmName
+import kotlin.jvm.JvmStatic
+import kotlin.reflect.KClass
 
 /**
  * Result represents a value that can be either a [Success] or a [Failure].
@@ -183,8 +186,8 @@ sealed class Result<out T, out E : Result.Error> {
          * Useful for accessing details of specific error subclass.
          */
         @Suppress("UNCHECKED_CAST")
-        fun <T : Error> asTypeOrNull(type: Class<T>): T? {
-            return if (type.isAssignableFrom(this::class.java)) this as T else null
+        fun <T : Error> asTypeOrNull(type: KClass<T>): T? {
+            return if (type.isInstance(this)) this as T else null
         }
     }
 
@@ -265,7 +268,7 @@ fun <T, E : Result.Error> Result<T, E>?.isNullOrFailure(): Boolean {
  * Useful for accessing details of specific error subclass.
  */
 inline fun <reified T : Result.Error> Result.Error.asTypeOrNull(): T? {
-    return asTypeOrNull(T::class.java)
+    return asTypeOrNull(T::class)
 }
 
 /**

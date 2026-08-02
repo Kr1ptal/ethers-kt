@@ -25,6 +25,7 @@ import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.RpcRequest
 import io.ethers.providers.types.SuppliedRpcRequest
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -33,6 +34,7 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import kotlinx.serialization.Serializable
+import kotlin.jvm.JvmOverloads
 import io.ktor.client.HttpClient as KtorHttpClient
 
 class EnsMiddleware @JvmOverloads constructor(
@@ -512,7 +514,7 @@ class EnsMiddleware @JvmOverloads constructor(
                             null,
                         ),
                     )
-                } else if (balanceRes.unwrap() == BigInteger.ZERO) {
+                } else if (balanceRes.unwrap() == bigIntegerOf(0)) {
                     return failure(
                         Error.IncorrectOwner(
                             "ENS owner has 0 balance of token: ${nftToken.tokenId} for nft: ${nftToken.nftAddr}",

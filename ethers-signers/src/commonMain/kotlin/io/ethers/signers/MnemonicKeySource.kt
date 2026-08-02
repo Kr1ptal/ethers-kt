@@ -3,6 +3,7 @@ package io.ethers.signers
 import io.ethers.crypto.bip32.ExtendedSigningKey
 import io.ethers.crypto.bip32.HDPath
 import io.ethers.crypto.bip39.MnemonicCode
+import kotlin.jvm.JvmOverloads
 
 /**
  * Key source that uses a mnemonic phrase and derivation path to derive [PrivateKeySigner]s.

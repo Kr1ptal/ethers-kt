@@ -8,6 +8,7 @@ import io.ethers.core.FastHex
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.github.artificialpb.bignum.BigInteger
+import kotlin.jvm.JvmStatic
 
 object AbiCodec {
     private val TWOS_COMPLEMENT_PADDING = (0..<32).map { ByteArray(it) { 0xff.toByte() } }.toTypedArray()
@@ -374,7 +375,7 @@ object AbiCodec {
             }
 
             AbiType.String -> {
-                val value = (data as String).toByteArray(Charsets.UTF_8)
+                val value = (data as String).encodeToByteArray()
                 buff.position(buff.position() + 28)
                 buff.writeInt(value.size)
 
@@ -626,10 +627,13 @@ object AbiCodec {
                 return Bytes(arr)
             }
 
+            // NOTE: both branches below copy the word out of "rawData" instead of using the offset/length BigInteger
+            // constructors. Those are JDK 9+, which means API 33 on android, and we support API 24.
             is AbiType.Int -> {
                 buff.ensureRemaining(WORD_SIZE_BYTES)
 
-                val ret = BigInteger(rawData, buff.position(), 32)
+                val position = buff.position()
+                val ret = BigInteger(rawData.copyOfRange(position, position + WORD_SIZE_BYTES))
                 buff.skip(32)
                 return ret
             }
@@ -637,7 +641,8 @@ object AbiCodec {
             is AbiType.UInt -> {
                 buff.ensureRemaining(WORD_SIZE_BYTES)
 
-                val ret = BigInteger(1, rawData, buff.position(), 32)
+                val position = buff.position()
+                val ret = BigInteger(1, rawData.copyOfRange(position, position + WORD_SIZE_BYTES))
                 buff.skip(32)
                 return ret
             }
@@ -682,7 +687,8 @@ object AbiCodec {
 
                 buff.ensureRemaining(length)
 
-                val ret = String(rawData, buff.position(), length, Charsets.UTF_8)
+                val position = buff.position()
+                val ret = rawData.decodeToString(position, position + length)
                 buff.position(endPosition)
 
                 return ret
@@ -934,7 +940,7 @@ object AbiCodec {
             }
 
             AbiType.Bytes -> buff.writeBytes((data as Bytes).asByteArray())
-            AbiType.String -> buff.writeBytes((data as String).toByteArray(Charsets.UTF_8))
+            AbiType.String -> buff.writeBytes((data as String).encodeToByteArray())
             is AbiType.Array<*> -> {
                 val values = data as List<*>
                 for (i in values.indices) {

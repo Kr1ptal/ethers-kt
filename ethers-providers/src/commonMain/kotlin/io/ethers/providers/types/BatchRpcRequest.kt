@@ -12,6 +12,8 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlin.jvm.JvmInline
+import kotlin.jvm.JvmOverloads
 
 /**
  * Seam through which each platform adds its own conveniences to [BatchRpcRequest].
