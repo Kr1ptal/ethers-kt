@@ -2,6 +2,7 @@ package io.ethers.core.utils
 
 import io.github.artificialpb.bignum.BigDecimal
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData
 import io.kotest.matchers.comparables.shouldBeEqualComparingTo
@@ -132,7 +133,7 @@ class EthUnitTest : FunSpec({
             "Int" to (EthUnit.ETHER.toWei(1) to BigDecimal("1000000000000000000")),
             "Long" to (EthUnit.ETHER.toWei(1L) to BigDecimal("1000000000000000000")),
             "Double" to (EthUnit.ETHER.toWei(1.5) to BigDecimal("1500000000000000000")),
-            "BigInteger" to (EthUnit.ETHER.toWei(BigInteger.ONE) to BigDecimal("1000000000000000000")),
+            "BigInteger" to (EthUnit.ETHER.toWei(bigIntegerOf(1)) to BigDecimal("1000000000000000000")),
             "BigDecimal" to (EthUnit.ETHER.toWei(BigDecimal("0.5")) to BigDecimal("500000000000000000")),
         ) { (_, r) -> r.first shouldBeEqualComparingTo r.second }
     }
@@ -143,7 +144,7 @@ class EthUnitTest : FunSpec({
             "Int" to (EthUnit.ETHER.toGwei(1) to BigDecimal("1000000000")),
             "Long" to (EthUnit.ETHER.toGwei(1L) to BigDecimal("1000000000")),
             "Double" to (EthUnit.ETHER.toGwei(1.5) to BigDecimal("1500000000")),
-            "BigInteger" to (EthUnit.ETHER.toGwei(BigInteger.ONE) to BigDecimal("1000000000")),
+            "BigInteger" to (EthUnit.ETHER.toGwei(bigIntegerOf(1)) to BigDecimal("1000000000")),
             "BigDecimal" to (EthUnit.ETHER.toGwei(BigDecimal("0.5")) to BigDecimal("500000000")),
         ) { (_, r) -> r.first shouldBeEqualComparingTo r.second }
     }
@@ -187,7 +188,7 @@ class EthUnitTest : FunSpec({
             "Int" to (EthUnit.GWEI.fromEther(1) to BigDecimal("1000000000")),
             "Long" to (EthUnit.GWEI.fromEther(1L) to BigDecimal("1000000000")),
             "Double" to (EthUnit.GWEI.fromEther(1.5) to BigDecimal("1500000000")),
-            "BigInteger" to (EthUnit.GWEI.fromEther(BigInteger.ONE) to BigDecimal("1000000000")),
+            "BigInteger" to (EthUnit.GWEI.fromEther(bigIntegerOf(1)) to BigDecimal("1000000000")),
             "BigDecimal" to (EthUnit.GWEI.fromEther(BigDecimal("1.5")) to BigDecimal("1500000000")),
         ) { (_, r) -> r.first shouldBeEqualComparingTo r.second }
     }

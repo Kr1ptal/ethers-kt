@@ -11,6 +11,7 @@ import io.ethers.rlp.RlpEncodable
 import io.ethers.rlp.RlpEncoder
 import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.Serializable
+import kotlin.jvm.JvmStatic
 
 /**
  * EIP-7702 Authorization structure for SetCode transactions.

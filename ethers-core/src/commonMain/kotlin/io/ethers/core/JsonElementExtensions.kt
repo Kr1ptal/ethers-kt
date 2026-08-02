@@ -5,6 +5,7 @@ import io.ethers.core.types.Bloom
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -32,8 +33,8 @@ fun JsonPrimitive.asHexByteArray(): ByteArray {
  */
 fun JsonPrimitive.asHexBigInteger(): BigInteger {
     val decoded = asHexByteArray()
-    if (decoded.isEmpty()) return BigInteger.ZERO
-    return BigInteger(1, decoded)
+    if (decoded.isEmpty()) return bigIntegerOf(0)
+    return bigIntegerFromUnsigned(decoded)
 }
 
 /**

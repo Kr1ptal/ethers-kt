@@ -6,6 +6,7 @@ import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
@@ -18,7 +19,7 @@ class EIP712DomainTest : FunSpec({
         val domain = EIP712Domain(
             name = "TestDApp",
             version = "1.0",
-            chainId = BigInteger.valueOf(1),
+            chainId = bigIntegerOf(1),
             verifyingContract = Address.ZERO,
             salt = Bytes("0000000000000000000000000000000000000000000000000000000000000001"),
         )
@@ -26,7 +27,7 @@ class EIP712DomainTest : FunSpec({
         domain.tuple shouldBe listOf(
             "TestDApp",
             "1.0",
-            BigInteger.valueOf(1),
+            bigIntegerOf(1),
             Address.ZERO,
             Bytes("0000000000000000000000000000000000000000000000000000000000000001"),
         )
@@ -35,13 +36,13 @@ class EIP712DomainTest : FunSpec({
     test("tuple contains only non-null fields when some are null") {
         val domain = EIP712Domain(
             name = "TestDApp",
-            chainId = BigInteger.valueOf(1),
+            chainId = bigIntegerOf(1),
             salt = Bytes("0000000000000000000000000000000000000000000000000000000000000001"),
         )
 
         domain.tuple shouldBe listOf(
             "TestDApp",
-            BigInteger.valueOf(1),
+            bigIntegerOf(1),
             Bytes("0000000000000000000000000000000000000000000000000000000000000001"),
         )
     }
@@ -49,7 +50,7 @@ class EIP712DomainTest : FunSpec({
     test("abiType contains only non-null fields") {
         val domain = EIP712Domain(
             name = "TestDApp",
-            chainId = BigInteger.valueOf(1),
+            chainId = bigIntegerOf(1),
         )
 
         val abiType = domain.abiType
@@ -63,7 +64,7 @@ class EIP712DomainTest : FunSpec({
         val domain = EIP712Domain(
             name = "TestDApp",
             version = "1.0",
-            chainId = BigInteger.valueOf(1),
+            chainId = bigIntegerOf(1),
             verifyingContract = Address.ZERO,
             salt = Bytes("0000000000000000000000000000000000000000000000000000000000000001"),
         )
@@ -89,7 +90,7 @@ class EIP712DomainTest : FunSpec({
         val domain = EIP712Domain(
             name = "TestDApp",
             version = "1.0",
-            chainId = BigInteger.valueOf(1),
+            chainId = bigIntegerOf(1),
         )
 
         domain.abiType.eip712RootType shouldBe "EIP712Domain(string name,string version,uint256 chainId)"
@@ -99,7 +100,7 @@ class EIP712DomainTest : FunSpec({
         val domain = EIP712Domain(
             "Seaport",
             "1.1",
-            BigInteger.ONE,
+            bigIntegerOf(1),
             Address("0x00000000006c3852cbEf3e08E8dF289169EdE581"),
         )
 
@@ -150,7 +151,7 @@ class EIP712DomainTest : FunSpec({
             val domain = EIP712Domain(
                 name = "TestDApp",
                 version = "1.0.0",
-                chainId = BigInteger.valueOf(137),
+                chainId = bigIntegerOf(137),
                 verifyingContract = Address("0x3333333333333333333333333333333333333333"),
                 salt = null,
             )
@@ -178,7 +179,7 @@ class EIP712DomainTest : FunSpec({
             val domain = EIP712Domain(
                 name = "FullDApp",
                 version = "2.1.0",
-                chainId = BigInteger.valueOf(1337),
+                chainId = bigIntegerOf(1337),
                 verifyingContract = Address("0x4444444444444444444444444444444444444444"),
                 salt = Bytes("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"),
             )

@@ -14,6 +14,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.JsonElement
+import kotlin.jvm.JvmSynthetic
 
 /**
  * Seam through which each platform adds its own conveniences to [RpcRequest].

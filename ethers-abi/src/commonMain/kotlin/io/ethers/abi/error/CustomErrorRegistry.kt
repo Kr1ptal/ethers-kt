@@ -3,6 +3,7 @@ package io.ethers.abi.error
 import io.ethers.abi.error.CustomErrorRegistry.appendResolver
 import io.ethers.abi.error.CustomErrorRegistry.prependResolver
 import io.ethers.core.types.Bytes
+import kotlin.jvm.JvmStatic
 
 /**
  * Registry of custom contract errors. This registry is used to decode errors returned by contract calls. By default,

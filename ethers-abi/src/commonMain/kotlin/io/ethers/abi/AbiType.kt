@@ -8,6 +8,8 @@ import io.ethers.abi.AbiType.Tuple
 import io.ethers.abi.eip712.EIP712Codec
 import io.ethers.crypto.Hashing
 import io.github.artificialpb.bignum.BigInteger
+import kotlin.jvm.JvmName
+import kotlin.jvm.JvmStatic
 import kotlin.reflect.KClass
 
 /**

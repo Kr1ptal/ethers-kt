@@ -15,6 +15,7 @@ import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlin.experimental.and
 import kotlin.experimental.or
+import kotlin.jvm.JvmStatic
 
 private const val BLOOM_SIZE = 256
 

@@ -5,6 +5,8 @@ import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
 import io.ethers.core.types.Log
 import io.ethers.providers.middleware.Middleware
+import kotlin.jvm.JvmField
+import kotlin.jvm.JvmStatic
 
 interface EventFactory<T : ContractEvent> {
     val abi: AbiEvent

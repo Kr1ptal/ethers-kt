@@ -11,6 +11,7 @@ import kotlinx.serialization.json.JsonEncoder
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlin.jvm.JvmSynthetic
 
 /**
  * An account override, used to override the nonce, balance, code, and storage of an account.

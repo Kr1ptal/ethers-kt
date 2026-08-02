@@ -9,6 +9,7 @@ import io.ethers.core.asHexBigInteger
 import io.ethers.core.asHexLong
 import io.ethers.core.json.JsonElement
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.descriptors.buildClassSerialDescriptor
@@ -165,7 +166,7 @@ private data class BlockCommonData(
 
 private fun deserializeBlockCommon(obj: JsonObject, jsonDecoder: JsonDecoder): BlockCommonData {
     var baseFeePerGas: BigInteger? = null
-    var difficulty = BigInteger.ZERO
+    var difficulty = bigIntegerOf(0)
     lateinit var extraData: Bytes
     var gasLimit = -1L
     var gasUsed = -1L
@@ -181,7 +182,7 @@ private fun deserializeBlockCommon(obj: JsonObject, jsonDecoder: JsonDecoder): B
     var size = -1L
     lateinit var stateRoot: Hash
     var timestamp = -1L
-    var totalDifficulty = BigInteger.ZERO
+    var totalDifficulty = bigIntegerOf(0)
     lateinit var transactionsRoot: Hash
     var uncles: List<Hash> = emptyList()
     var withdrawals: List<Withdrawal>? = null

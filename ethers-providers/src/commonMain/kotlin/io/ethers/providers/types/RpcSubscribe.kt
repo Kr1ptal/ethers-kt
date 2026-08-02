@@ -12,6 +12,7 @@ import io.ethers.providers.RpcError
 import io.ethers.providers.decoderFor
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.JsonElement
+import kotlin.jvm.JvmSynthetic
 
 /**
  * Seam through which each platform adds its own conveniences to [RpcSubscribe].

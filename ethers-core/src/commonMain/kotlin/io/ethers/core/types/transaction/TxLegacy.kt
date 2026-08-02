@@ -10,6 +10,7 @@ import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncoder
 import io.github.artificialpb.bignum.BigInteger
+import kotlin.jvm.JvmStatic
 
 data class TxLegacy(
     override val to: Address?,

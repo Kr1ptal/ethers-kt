@@ -2,6 +2,7 @@ package io.ethers.core.types
 
 import io.ethers.core.FastHex
 import io.ethers.core.Result
+import io.ethers.core.bigIntegerFromUnsigned
 import io.ethers.core.failure
 import io.ethers.core.success
 import io.ethers.crypto.Hashing
@@ -11,6 +12,7 @@ import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncodable
 import io.ethers.rlp.RlpEncoder
 import io.github.artificialpb.bignum.BigInteger
+import kotlin.jvm.JvmStatic
 
 class Signature(
     val r: BigInteger,
@@ -188,8 +190,8 @@ class Signature(
                 return failure(InvalidSignatureError("Invalid signature length: ${byteArray.size}"))
             }
 
-            val r = BigInteger(1, byteArray, 0, 32)
-            val s = BigInteger(1, byteArray, 32, 32)
+            val r = bigIntegerFromUnsigned(byteArray, 0, 32)
+            val s = bigIntegerFromUnsigned(byteArray, 32, 32)
             val v = byteArray[64].toLong()
             return success(Signature(r, s, v))
         }

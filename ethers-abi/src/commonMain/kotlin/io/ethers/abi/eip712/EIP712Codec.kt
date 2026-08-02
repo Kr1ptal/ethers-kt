@@ -9,6 +9,7 @@ import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.crypto.Hashing
 import io.github.artificialpb.bignum.BigInteger
+import kotlin.jvm.JvmOverloads
 
 object EIP712Codec {
     /**

@@ -1,6 +1,7 @@
 package io.ethers.crypto
 
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import fr.acinq.secp256k1.Secp256k1 as AcinqSecp256k1
 
 /**
@@ -51,10 +52,10 @@ object Secp256k1 {
         if (recId < 0) {
             throw IllegalArgumentException("Parameter 'recId' must be positive.")
         }
-        if (r < BigInteger.ZERO) {
+        if (r < bigIntegerOf(0)) {
             throw IllegalArgumentException("Parameter 'r' must be positive.")
         }
-        if (s < BigInteger.ZERO) {
+        if (s < bigIntegerOf(0)) {
             throw IllegalArgumentException("Parameter 's' must be positive.")
         }
 
@@ -138,8 +139,8 @@ object Secp256k1 {
             val sig = AcinqSecp256k1.sign(hash, privateKey)
 
             // Extract r and s from the compact signature (64 bytes)
-            val r = BigInteger(1, sig.copyOfRange(0, 32))
-            val s = BigInteger(1, sig.copyOfRange(32, 64))
+            val r = bigIntegerFromUnsigned(sig.copyOfRange(0, 32))
+            val s = bigIntegerFromUnsigned(sig.copyOfRange(32, 64))
 
             // Determine recovery ID by trying each value and checking which recovers our public key
             val recId = findRecoveryId(hash, sig, publicKey)

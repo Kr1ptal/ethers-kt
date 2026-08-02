@@ -6,11 +6,12 @@ import io.ethers.core.types.Authorization
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.transaction.TxSetCode
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 
 object TxSetCodeFactory {
     fun create(
         to: Address = Address("0x1234567890123456789012345678901234567890"),
-        value: BigInteger = BigInteger.ZERO,
+        value: BigInteger = bigIntegerOf(0),
         nonce: Long = 0,
         gas: Long = 21000,
         gasFeeCap: BigInteger = BigInteger("20000000000"),

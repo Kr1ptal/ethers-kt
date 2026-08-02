@@ -1,6 +1,7 @@
 package io.ethers.crypto
 
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.inspectors.forAll
@@ -38,26 +39,26 @@ class Secp256k1Test : FunSpec({
     context("recoverPublicKey") {
         test("invalid 'r' parameter") {
             shouldThrow<IllegalArgumentException> {
-                Secp256k1.recoverPublicKey(ByteArray(0), BigInteger("-1"), BigInteger.ZERO, 0)
+                Secp256k1.recoverPublicKey(ByteArray(0), BigInteger("-1"), bigIntegerOf(0), 0)
             }
         }
 
         test("invalid 's' parameter") {
             shouldThrow<IllegalArgumentException> {
-                Secp256k1.recoverPublicKey(ByteArray(0), BigInteger.ZERO, BigInteger("-1"), 0)
+                Secp256k1.recoverPublicKey(ByteArray(0), bigIntegerOf(0), BigInteger("-1"), 0)
             }
         }
 
         test("invalid 'recId' parameter") {
             shouldThrow<IllegalArgumentException> {
-                Secp256k1.recoverPublicKey(ByteArray(0), BigInteger.ZERO, BigInteger.ZERO, -1)
+                Secp256k1.recoverPublicKey(ByteArray(0), bigIntegerOf(0), bigIntegerOf(0), -1)
             }
         }
 
         test("x-coordinate overflow") {
             // secp256k1 curve order (q)
             val curveOrder = BigInteger("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F", 16)
-            val recoveredPublicKey = Secp256k1.recoverPublicKey(ByteArray(32), curveOrder, BigInteger.ZERO, 0)
+            val recoveredPublicKey = Secp256k1.recoverPublicKey(ByteArray(32), curveOrder, bigIntegerOf(0), 0)
             recoveredPublicKey shouldBe null
         }
 
@@ -73,7 +74,7 @@ class Secp256k1Test : FunSpec({
 
             messages.forAll { message ->
                 Arb.bigInt(0, 256).checkAll {
-                    if (it == BigInteger.ZERO) {
+                    if (it == bigIntegerOf(0)) {
                         return@checkAll
                     }
 

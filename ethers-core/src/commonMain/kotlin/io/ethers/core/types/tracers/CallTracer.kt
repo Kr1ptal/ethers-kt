@@ -23,6 +23,7 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlin.jvm.JvmOverloads
 import kotlin.reflect.KClass
 import kotlinx.serialization.json.JsonElement as KJsonElement
 

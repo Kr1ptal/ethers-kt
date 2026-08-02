@@ -2,6 +2,7 @@ package io.ethers.core.types
 
 import io.ethers.core.Kotlinx
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.json.shouldEqualJson
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
@@ -70,7 +71,7 @@ class BlockOverrideTest : FunSpec({
         test("produces equal but distinct instance") {
             val original = BlockOverride {
                 number(100L)
-                difficulty(BigInteger.TEN)
+                difficulty(bigIntegerOf(10))
                 time(1000L)
                 gasLimit(30_000_000L)
                 coinbase(Address("0xDAFEA492D9c6733ae3d56b7Ed1ADB60692c98Bc5"))
@@ -89,12 +90,12 @@ class BlockOverrideTest : FunSpec({
             val a = BlockOverride {
                 number(100L)
                 time(1000L)
-                baseFee(BigInteger.TEN)
+                baseFee(bigIntegerOf(10))
             }
             val b = BlockOverride {
                 number(100L)
                 time(1000L)
-                baseFee(BigInteger.TEN)
+                baseFee(bigIntegerOf(10))
             }
             a shouldBe b
             a.hashCode() shouldBe b.hashCode()
@@ -103,12 +104,12 @@ class BlockOverrideTest : FunSpec({
         withData(
             nameFn = { it.first },
             "number" to (BlockOverride { number(100L) } to BlockOverride { number(200L) }),
-            "difficulty" to (BlockOverride { difficulty(BigInteger.ONE) } to BlockOverride { difficulty(BigInteger.TEN) }),
+            "difficulty" to (BlockOverride { difficulty(bigIntegerOf(1)) } to BlockOverride { difficulty(bigIntegerOf(10)) }),
             "time" to (BlockOverride { time(100L) } to BlockOverride { time(200L) }),
             "gasLimit" to (BlockOverride { gasLimit(100L) } to BlockOverride { gasLimit(200L) }),
             "coinbase" to (BlockOverride { coinbase(Address("0xDAFEA492D9c6733ae3d56b7Ed1ADB60692c98Bc5")) } to BlockOverride { coinbase(Address("0xC4356aF40cc379b15925Fc8C21e52c00F474e8e9")) }),
             "random" to (BlockOverride { random(Hash("0x2c00f9fd0fcdeb1ccaf7a31d05702b578ea1b8f8feccd2cd63423cdd41e4149c")) } to BlockOverride { random(Hash("0x21a92b9ac209df2b952dcbe85dad7355ce3d9389692e7ebc6372a7cc1bc23f9b")) }),
-            "baseFee" to (BlockOverride { baseFee(BigInteger.ONE) } to BlockOverride { baseFee(BigInteger.TEN) }),
+            "baseFee" to (BlockOverride { baseFee(bigIntegerOf(1)) } to BlockOverride { baseFee(bigIntegerOf(10)) }),
         ) { (_, pair) ->
             pair.first shouldNotBe pair.second
         }

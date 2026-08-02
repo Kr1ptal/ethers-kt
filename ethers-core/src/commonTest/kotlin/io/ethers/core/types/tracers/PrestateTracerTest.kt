@@ -6,6 +6,7 @@ import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.json.shouldEqualJson
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.maps.shouldContainExactly
@@ -182,7 +183,7 @@ class PrestateTracerTest : FunSpec({
             // selfdestructed - no entry in poststate
             Address("0x98774823490094192491249129049abcdeffffff") to AccountOverride {
                 nonce = 0
-                balance = BigInteger.ZERO
+                balance = bigIntegerOf(0)
                 code = Bytes.EMPTY
                 state = emptyMap()
             },

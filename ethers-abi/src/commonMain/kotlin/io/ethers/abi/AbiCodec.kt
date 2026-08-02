@@ -8,6 +8,7 @@ import io.ethers.core.FastHex
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.github.artificialpb.bignum.BigInteger
+import kotlin.jvm.JvmStatic
 
 object AbiCodec {
     private val TWOS_COMPLEMENT_PADDING = (0..<32).map { ByteArray(it) { 0xff.toByte() } }.toTypedArray()
@@ -637,7 +638,7 @@ object AbiCodec {
             is AbiType.UInt -> {
                 buff.ensureRemaining(WORD_SIZE_BYTES)
 
-                val ret = BigInteger(1, rawData, buff.position(), 32)
+                val ret = bigIntegerFromUnsigned(rawData, buff.position(), 32)
                 buff.skip(32)
                 return ret
             }

@@ -2,6 +2,7 @@ package io.ethers.core.utils
 
 import io.ethers.core.utils.GasUtils.getEffectiveGasTip
 import io.github.artificialpb.bignum.BigInteger
+import kotlin.jvm.JvmStatic
 
 object GasUtils {
     /**

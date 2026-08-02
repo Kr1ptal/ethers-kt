@@ -4,6 +4,7 @@ import io.ethers.core.Kotlinx
 import io.ethers.core.json.JsonElement
 import io.ethers.core.types.transaction.TxType
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import org.intellij.lang.annotations.Language
@@ -76,7 +77,7 @@ class BlockTest : FunSpec({
 
         val expectedResult = BlockWithHashes(
             baseFeePerGas = BigInteger("774040271"),
-            difficulty = BigInteger.TEN,
+            difficulty = bigIntegerOf(10),
             extraData = Bytes("0x626f62612d6275696c6465722e636f6d"),
             gasLimit = 29_999_972L,
             gasUsed = 11_568_601L,
@@ -84,7 +85,7 @@ class BlockTest : FunSpec({
             logsBloom = Bloom("0x4a70205e49ee334de13ff8b490a9483654e1f04222c7801806317d301faeb685404f79a80295e96813d05baa660e1b05965cfcbf3d113ccaa2a4a01a422e5f25de12d73812689a3f98f77f09f66af06300b6051c147c3d8e433a22758c324a4094902e8d6286a783fd01101775415ec5165763e5ea19c556ccf28e76374f4267a7dc724ba2e60ae70def135d2baa97971175114d19216258026c544c26dc2c005fe6f540b928a1d14babe2d492b26d4a58a2be8502898120cda8d2023008697d67d9046b823325e0c6808f482fb27dcd2980437a330430562aa648efe14e729428523cb64b0a84c84026d1bf6463c085a184ff5b1188b3f8730c194b3293161b"),
             miner = Address("0x3b64216ad1a58f61538b4fa1b27327675ab7ed67"),
             mixHash = Hash("0x6192bd2e8367a2b1d422fb7a00c8ef106afa8c00caa552b5efca32ec8a8aa399"),
-            nonce = BigInteger.TWO,
+            nonce = bigIntegerOf(2),
             number = 18334327L,
             parentHash = Hash("0x91e83f42e9fa6ca0c83c059c7bfa3eec339cdcf48ed14f2327d2af5006073067"),
             receiptsRoot = Hash("0x9132ead936ccd38b4a8c3f53d8491603b0bcfc715d3515a55a8f1248e31532f4"),
@@ -215,7 +216,7 @@ class BlockTest : FunSpec({
 
         val expectedResult = BlockWithTransactions(
             baseFeePerGas = BigInteger("774040271"),
-            difficulty = BigInteger.TEN,
+            difficulty = bigIntegerOf(10),
             extraData = Bytes("0x626f62612d6275696c6465722e636f6d"),
             gasLimit = 29_999_972L,
             gasUsed = 11_568_601L,
@@ -223,7 +224,7 @@ class BlockTest : FunSpec({
             logsBloom = Bloom("0x4a70205e49ee334de13ff8b490a9483654e1f04222c7801806317d301faeb685404f79a80295e96813d05baa660e1b05965cfcbf3d113ccaa2a4a01a422e5f25de12d73812689a3f98f77f09f66af06300b6051c147c3d8e433a22758c324a4094902e8d6286a783fd01101775415ec5165763e5ea19c556ccf28e76374f4267a7dc724ba2e60ae70def135d2baa97971175114d19216258026c544c26dc2c005fe6f540b928a1d14babe2d492b26d4a58a2be8502898120cda8d2023008697d67d9046b823325e0c6808f482fb27dcd2980437a330430562aa648efe14e729428523cb64b0a84c84026d1bf6463c085a184ff5b1188b3f8730c194b3293161b"),
             miner = Address("0x3b64216ad1a58f61538b4fa1b27327675ab7ed67"),
             mixHash = Hash("0x6192bd2e8367a2b1d422fb7a00c8ef106afa8c00caa552b5efca32ec8a8aa399"),
-            nonce = BigInteger.TWO,
+            nonce = bigIntegerOf(2),
             number = 18334327L,
             parentHash = Hash("0x91e83f42e9fa6ca0c83c059c7bfa3eec339cdcf48ed14f2327d2af5006073067"),
             receiptsRoot = Hash("0x9132ead936ccd38b4a8c3f53d8491603b0bcfc715d3515a55a8f1248e31532f4"),

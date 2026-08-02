@@ -7,6 +7,7 @@ import io.ethers.core.Kotlinx
 import io.ethers.core.types.Address
 import io.ethers.core.types.Hash
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -89,7 +90,7 @@ class EIP712TypedDataTest : FunSpec({
             val domain = EIP712Domain(
                 name = "TestDApp",
                 version = "1.0",
-                chainId = BigInteger.valueOf(1),
+                chainId = bigIntegerOf(1),
             )
 
             val typedData = EIP712TypedData.from(domain, domain)
@@ -123,7 +124,7 @@ class EIP712TypedDataTest : FunSpec({
             val domain = EIP712Domain(
                 name = "MailDApp",
                 version = "2.0",
-                chainId = BigInteger.valueOf(1),
+                chainId = bigIntegerOf(1),
                 verifyingContract = Address("0x2222222222222222222222222222222222222222"),
             )
             val typedData = EIP712TypedData.from(mail, domain)
@@ -139,7 +140,7 @@ class EIP712TypedDataTest : FunSpec({
             val mail1 = Mail(person, person, "Test 1")
             val mail2 = Mail(person, person, "Test 2")
             val inbox = Inbox("Test Inbox", listOf(mail1, mail2))
-            val domain = EIP712Domain(name = "InboxDApp", chainId = BigInteger.TEN)
+            val domain = EIP712Domain(name = "InboxDApp", chainId = bigIntegerOf(10))
             val typedData = EIP712TypedData.from(inbox, domain)
 
             val json = Kotlinx.DEFAULT.encodeToString(typedData)
@@ -215,7 +216,7 @@ class EIP712TypedDataTest : FunSpec({
         test("serializes message values of type Number and Boolean (stringified)") {
             val domain = EIP712Domain(name = "PrimitiveValues", version = "1.0")
             val message = mapOf<String, Any>(
-                "amount" to BigInteger.ONE,
+                "amount" to bigIntegerOf(1),
                 "blockNumber" to 42L,
                 "active" to true,
                 "ratio" to 0.5,
@@ -309,7 +310,7 @@ class EIP712TypedDataTest : FunSpec({
             val domain = EIP712Domain(
                 "Seaport",
                 "1.1",
-                BigInteger.ONE,
+                bigIntegerOf(1),
                 Address("0x00000000006c3852cbEf3e08E8dF289169EdE581"),
             )
 
@@ -392,7 +393,7 @@ class EIP712TypedDataTest : FunSpec({
             val domain = EIP712Domain(
                 "Seaport",
                 "1.6",
-                BigInteger.ONE,
+                bigIntegerOf(1),
                 Address("0x0000000000000068F116a894984e2DB1123eB395"),
             )
 

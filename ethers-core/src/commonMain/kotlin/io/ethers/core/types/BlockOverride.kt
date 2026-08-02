@@ -2,6 +2,7 @@ package io.ethers.core.types
 
 import io.ethers.core.FastHex
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.descriptors.buildClassSerialDescriptor
@@ -10,6 +11,8 @@ import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.JsonEncoder
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlin.jvm.JvmStatic
+import kotlin.jvm.JvmSynthetic
 
 /**
  * Block override, which can be used to override certain fields of a block, such as the block number, timestamp,
@@ -33,7 +36,7 @@ class BlockOverride() {
 
     var difficulty: BigInteger? = null
         @JvmSynthetic set(value) {
-            require(value == null || value >= BigInteger.ZERO) { "Difficulty must be non-negative" }
+            require(value == null || value >= bigIntegerOf(0)) { "Difficulty must be non-negative" }
             field = value
         }
 
@@ -51,7 +54,7 @@ class BlockOverride() {
 
     var baseFee: BigInteger? = null
         @JvmSynthetic set(value) {
-            require(value == null || value >= BigInteger.ZERO) { "BaseFee must be non-negative" }
+            require(value == null || value >= bigIntegerOf(0)) { "BaseFee must be non-negative" }
             field = value
         }
 

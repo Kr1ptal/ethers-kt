@@ -1,6 +1,7 @@
 package io.ethers.core
 
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData
@@ -68,7 +69,7 @@ class FastHexTest : FunSpec({
 
                 hex shouldBe ("0x" + value.toString(16))
 
-                if (value == BigInteger.ZERO) {
+                if (value == bigIntegerOf(0)) {
                     hex shouldBe "0x0"
                 } else {
                     hex shouldNotStartWith "0x0"

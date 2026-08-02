@@ -4,6 +4,7 @@ import io.ethers.core.asAnyLong
 import io.ethers.core.asDouble
 import io.ethers.core.asHexBigInteger
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.descriptors.buildClassSerialDescriptor
@@ -41,13 +42,13 @@ data class FeeHistory(
      * Get the next base fee per gas, or ZERO for pre-EIP-1559 blocks.
      * */
     val nextBaseFeePerGas: BigInteger
-        get() = baseFeePerGas.lastOrNull() ?: BigInteger.ZERO
+        get() = baseFeePerGas.lastOrNull() ?: bigIntegerOf(0)
 
     /**
      * Get the next base fee per blob gas, or ZERO for pre-EIP-4844 blocks.
      * */
     val nextBaseFeePerBlobGas: BigInteger
-        get() = baseFeePerBlobGas?.lastOrNull() ?: BigInteger.ZERO
+        get() = baseFeePerBlobGas?.lastOrNull() ?: bigIntegerOf(0)
 }
 
 object FeeHistorySerializer : KSerializer<FeeHistory> {

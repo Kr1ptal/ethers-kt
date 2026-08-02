@@ -1,6 +1,7 @@
 package io.ethers.rlp
 
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
@@ -436,9 +437,9 @@ class RlpDecoder(private val array: ByteArray) {
     }
 
     private fun takeBigInteger(size: Int): BigInteger {
-        if (size == 0) return BigInteger.ZERO
+        if (size == 0) return bigIntegerOf(0)
 
-        return BigInteger(1, takeByteArray(size))
+        return bigIntegerFromUnsigned(takeByteArray(size))
     }
 
     private fun takeLong(size: Int): Long {

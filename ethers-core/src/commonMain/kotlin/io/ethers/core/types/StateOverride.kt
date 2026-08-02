@@ -7,6 +7,9 @@ import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.JsonEncoder
 import kotlinx.serialization.json.buildJsonObject
+import kotlin.jvm.JvmOverloads
+import kotlin.jvm.JvmStatic
+import kotlin.jvm.JvmSynthetic
 
 /**
  * Represents a [Map] of [AccountOverride] per account [Address]. This class is a wrapper around a map, with additional

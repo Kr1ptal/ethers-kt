@@ -8,6 +8,7 @@ import io.ethers.core.types.transaction.TxBlob
 import io.ethers.core.types.transaction.TxDynamicFee
 import io.ethers.core.types.transaction.TxLegacy
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.descriptors.buildClassSerialDescriptor
@@ -18,6 +19,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlin.jvm.JvmSynthetic
 
 @Serializable(with = CallRequestSerializer::class)
 class CallRequest() : IntoCallRequest {
@@ -51,25 +53,25 @@ class CallRequest() : IntoCallRequest {
 
     var gasPrice: BigInteger? = null
         @JvmSynthetic set(value) {
-            require(value == null || value >= BigInteger.ZERO) { "GasPrice must be non-negative" }
+            require(value == null || value >= bigIntegerOf(0)) { "GasPrice must be non-negative" }
             field = value
         }
 
     var gasFeeCap: BigInteger? = null
         @JvmSynthetic set(value) {
-            require(value == null || value >= BigInteger.ZERO) { "GasFeeCap must be non-negative" }
+            require(value == null || value >= bigIntegerOf(0)) { "GasFeeCap must be non-negative" }
             field = value
         }
 
     var gasTipCap: BigInteger? = null
         @JvmSynthetic set(value) {
-            require(value == null || value >= BigInteger.ZERO) { "GasTipCap must be non-negative" }
+            require(value == null || value >= bigIntegerOf(0)) { "GasTipCap must be non-negative" }
             field = value
         }
 
     var value: BigInteger? = null
         @JvmSynthetic set(value) {
-            require(value == null || value >= BigInteger.ZERO) { "Value must be non-negative" }
+            require(value == null || value >= bigIntegerOf(0)) { "Value must be non-negative" }
             field = value
         }
 
@@ -87,7 +89,7 @@ class CallRequest() : IntoCallRequest {
 
     var blobFeeCap: BigInteger? = null
         @JvmSynthetic set(value) {
-            require(value == null || value >= BigInteger.ZERO) { "BlobFeeCap must be non-negative" }
+            require(value == null || value >= bigIntegerOf(0)) { "BlobFeeCap must be non-negative" }
             field = value
         }
 
@@ -130,7 +132,7 @@ class CallRequest() : IntoCallRequest {
 
                 return TxBlob(
                     to = to!!,
-                    value = value ?: BigInteger.ZERO,
+                    value = value ?: bigIntegerOf(0),
                     nonce = nonce,
                     gas = gas,
                     gasFeeCap = gasFeeCap!!,
@@ -150,7 +152,7 @@ class CallRequest() : IntoCallRequest {
 
                 return TxDynamicFee(
                     to = to,
-                    value = value ?: BigInteger.ZERO,
+                    value = value ?: bigIntegerOf(0),
                     nonce = nonce,
                     gas = gas,
                     gasFeeCap = gasFeeCap!!,
@@ -168,7 +170,7 @@ class CallRequest() : IntoCallRequest {
 
                 return TxAccessList(
                     to = to,
-                    value = value ?: BigInteger.ZERO,
+                    value = value ?: bigIntegerOf(0),
                     nonce = nonce,
                     gas = gas,
                     gasPrice = gasPrice!!,
@@ -181,7 +183,7 @@ class CallRequest() : IntoCallRequest {
             gasPrice != null && accessList.isEmpty() -> {
                 return TxLegacy(
                     to = to,
-                    value = value ?: BigInteger.ZERO,
+                    value = value ?: bigIntegerOf(0),
                     nonce = nonce,
                     gas = gas,
                     gasPrice = gasPrice!!,

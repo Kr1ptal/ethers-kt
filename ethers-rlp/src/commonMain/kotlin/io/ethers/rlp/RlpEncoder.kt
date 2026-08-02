@@ -4,6 +4,9 @@ import com.ditchoom.buffer.BufferFactory
 import com.ditchoom.buffer.Default
 import com.ditchoom.buffer.PlatformBuffer
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
+import kotlin.jvm.JvmOverloads
+import kotlin.jvm.JvmStatic
 import kotlin.math.max
 
 /**
@@ -60,9 +63,12 @@ class RlpEncoder @JvmOverloads constructor(
 
     /**
      * RLP encode list of values provided via [action].
+     *
+     * Exists for Java callers, which cannot use the inline `RlpEncoder.() -> Unit` overload. Kotlin should use
+     * that one instead.
      */
     @JvmOverloads
-    fun encodeList(bodySize: Int = -1, action: Runnable): RlpEncoder {
+    fun encodeList(bodySize: Int = -1, action: RlpListAction): RlpEncoder {
         return encodeList(bodySize) { action.run() }
     }
 
@@ -148,13 +154,13 @@ class RlpEncoder @JvmOverloads constructor(
     }
 
     fun encode(value: BigInteger?): RlpEncoder {
-        if (value == null || value == BigInteger.ZERO) {
+        if (value == null || value == bigIntegerOf(0)) {
             ensureCapacity(1)
             buffer.writeByte(RLP_NULL.toByte())
             return this
         }
 
-        if (value < BigInteger.ZERO) {
+        if (value < bigIntegerOf(0)) {
             throw IllegalArgumentException("Negative values are not supported: $value")
         }
 
@@ -297,7 +303,7 @@ class RlpEncoder @JvmOverloads constructor(
 
     companion object {
         private const val BUFFER_GROWTH_FACTOR = 1.5
-        private val RLP_STRING_SHORT_BIGINT = BigInteger.valueOf(0x80)
+        private val RLP_STRING_SHORT_BIGINT = bigIntegerOf(0x80)
 
         /**
          * Return the size of the RLP encoding of [value], without actually encoding it.
@@ -316,11 +322,11 @@ class RlpEncoder @JvmOverloads constructor(
                 return 1
             }
 
-            if (value < BigInteger.ZERO) {
+            if (value < bigIntegerOf(0)) {
                 throw IllegalArgumentException("Negative values are not supported: $value")
             }
 
-            if (value == BigInteger.ZERO) {
+            if (value == bigIntegerOf(0)) {
                 return 1
             }
 

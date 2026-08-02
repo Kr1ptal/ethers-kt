@@ -6,6 +6,7 @@ import io.ethers.core.utils.EthUnit.Companion.WEI
 import io.github.artificialpb.bignum.BigDecimal
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.RoundingMode
+import kotlin.jvm.JvmField
 
 /**
  * Represents a unit of measurement within the EVM ecosystem.

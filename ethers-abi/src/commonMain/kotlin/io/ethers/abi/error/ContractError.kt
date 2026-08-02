@@ -7,6 +7,8 @@ import io.ethers.core.Result
 import io.ethers.core.types.Bytes
 import io.ethers.providers.RpcError
 import io.github.artificialpb.bignum.BigInteger
+import kotlin.jvm.JvmField
+import kotlin.jvm.JvmStatic
 
 /**
  * Error returned from a contract call.

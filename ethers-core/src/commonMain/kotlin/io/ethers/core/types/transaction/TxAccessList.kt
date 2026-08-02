@@ -10,6 +10,7 @@ import io.ethers.rlp.RlpDecodable
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncoder
 import io.github.artificialpb.bignum.BigInteger
+import kotlin.jvm.JvmStatic
 
 /**
  * EIP-2930 transaction with optional access list.

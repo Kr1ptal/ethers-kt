@@ -17,6 +17,7 @@ import kotlinx.serialization.json.JsonEncoder
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.serializer
+import kotlin.jvm.JvmOverloads
 import kotlin.reflect.KClass
 
 /**

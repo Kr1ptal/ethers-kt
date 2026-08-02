@@ -18,8 +18,11 @@ import io.ethers.core.types.CallRequest
 import io.ethers.core.types.IntoCallRequest
 import io.ethers.providers.middleware.Middleware
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlinx.atomicfu.locks.synchronized
+import kotlin.jvm.JvmField
+import kotlin.jvm.JvmStatic
 
 private typealias EthersResult<T, E> = Result<T, E>
 
@@ -690,7 +693,7 @@ private inline fun <T> List<Multicall3.Aggregatable<*>>.withDataAndValue(consume
     var mixedFailureConditions = false
     for (i in this.indices) {
         val call = this[i]
-        if (call.value != null && call.value != BigInteger.ZERO) {
+        if (call.value != null && call.value != bigIntegerOf(0)) {
             anyPayable = true
             break
         }
@@ -704,10 +707,10 @@ private inline fun <T> List<Multicall3.Aggregatable<*>>.withDataAndValue(consume
     // try to pack the calls using as few calldata as possible
     return when {
         anyPayable -> {
-            var totalValue = BigInteger.ZERO
+            var totalValue = bigIntegerOf(0)
             val arr = List(this.size) {
                 val req = this[it]
-                val value = req.value ?: BigInteger.ZERO
+                val value = req.value ?: bigIntegerOf(0)
                 totalValue += value
 
                 Multicall3.Call3Value(req.to!!, req.allowFailure, value, req.data ?: Bytes.EMPTY)
