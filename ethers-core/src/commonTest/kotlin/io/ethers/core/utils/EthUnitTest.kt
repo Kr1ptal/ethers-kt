@@ -127,6 +127,36 @@ class EthUnitTest : FunSpec({
         }
     }
 
+    context("Double conversion uses the decimal value, not the binary representation") {
+        // Doubles that are not exactly representable in binary (0.1, 0.2, 0.3, ...) must widen via the shortest
+        // decimal representation that round-trips, so the caller gets the value they wrote. Widening through the
+        // full binary expansion instead would make `toWei(0.1)` return 100000000000000005 wei.
+        //
+        // This holds both for kotlin-stdlib's `Double.toBigDecimal()` and for bignum-kt's, since both delegate to
+        // `BigDecimal.valueOf`. These pin it, because the two are interchangeable at the call site and only one of
+        // them is available off the JVM.
+        withData(
+            nameFn = { "${it.first} ether -> ${it.second} wei" },
+            0.1 to "100000000000000000",
+            0.2 to "200000000000000000",
+            0.3 to "300000000000000000",
+            0.7 to "700000000000000000",
+            1.1 to "1100000000000000000",
+            // binary-exact values, which cannot differ either way
+            0.5 to "500000000000000000",
+            1.5 to "1500000000000000000",
+            2.0 to "2000000000000000000",
+        ) { (ether, wei) ->
+            EthUnit.ETHER.toWei(ether) shouldBeEqualComparingTo BigDecimal(wei)
+        }
+
+        test("holds for the other Double entry points too") {
+            EthUnit.ETHER.toGwei(0.1) shouldBeEqualComparingTo BigDecimal("100000000")
+            EthUnit.GWEI.fromEther(0.1) shouldBeEqualComparingTo BigDecimal("100000000")
+            EthUnit.ETHER.convert(0.3, EthUnit.WEI) shouldBeEqualComparingTo BigDecimal("300000000000000000")
+        }
+    }
+
     context("toWei overloads") {
         withData(
             nameFn = { it.first },
