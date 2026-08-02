@@ -57,6 +57,35 @@ class NameHashTest : FunSpec({
         }
     }
 
+    context("DNS encode label length limit") {
+        test("a 63-byte label is allowed") {
+            val label = "a".repeat(63)
+            val encoded = NameHash.dnsEncode("$label.eth").asByteArray()
+            (encoded[0].toInt() and 0xff) shouldBe 63
+        }
+
+        test("a 64-byte label is rejected") {
+            shouldThrow<IllegalArgumentException> {
+                NameHash.dnsEncode("${"a".repeat(64)}.eth")
+            }
+        }
+
+        test("the limit counts UTF-8 bytes, not characters") {
+            // 32 x "é" is only 32 characters but 64 UTF-8 bytes, so it must be rejected
+            val label = "é".repeat(32)
+            label.length shouldBe 32
+            label.encodeToByteArray().size shouldBe 64
+
+            shouldThrow<IllegalArgumentException> {
+                NameHash.dnsEncode("$label.eth")
+            }
+
+            // ...while 31 x "é" is 62 bytes and must still be accepted
+            val ok = NameHash.dnsEncode("${"é".repeat(31)}.eth").asByteArray()
+            (ok[0].toInt() and 0xff) shouldBe 62
+        }
+    }
+
     test("Normalisation error") {
         shouldThrow<InvalidLabelException> {
             NameHash.nameHash(".")

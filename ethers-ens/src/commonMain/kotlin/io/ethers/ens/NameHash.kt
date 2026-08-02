@@ -22,13 +22,29 @@ object NameHash {
     }
 
     /**
+     * Maximum length of a single DNS label, in bytes. The DNS wire format reserves the two high bits of the length
+     * byte to mark compression pointers, so a label length can never exceed 0b0011_1111.
+     * */
+    private const val MAX_LABEL_LENGTH_BYTES = 63
+
+    /**
      * Encode Dns name. Reference implementation
      * https://github.com/ethers-io/ethers.js/blob/fc1e006575d59792fa97b4efb9ea2f8cca1944cf/packages/hash/src.ts/namehash.ts#L49
+     *
+     * @throws IllegalArgumentException if any label exceeds [MAX_LABEL_LENGTH_BYTES] once UTF-8 encoded.
      */
     fun dnsEncode(name: String): Bytes {
         val parts = name.split(".")
         val encoded = Array(parts.size) { i ->
-            EnsNormalize.normalize(parts[i]).toByteArray(Charsets.UTF_8)
+            val bytes = EnsNormalize.normalize(parts[i]).toByteArray(Charsets.UTF_8)
+
+            // checked in bytes, not characters - a label can be short enough as a string while still being too long
+            // once encoded (e.g. 32x "é" is 32 chars but 64 bytes)
+            require(bytes.size <= MAX_LABEL_LENGTH_BYTES) {
+                "DNS label exceeds $MAX_LABEL_LENGTH_BYTES bytes: ${bytes.size}"
+            }
+
+            bytes
         }
 
         // +1 at the end for the trailing zero byte requirement, which is handled implicitly during
