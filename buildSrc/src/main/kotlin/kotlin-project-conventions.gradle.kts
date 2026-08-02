@@ -69,7 +69,8 @@ pluginManager.withPlugin("org.jetbrains.kotlin.multiplatform") {
         // `java.*`. Compiling for a native target is the only thing that actually enforces it.
         //
         //   ./gradlew :ethers-core:compileKotlinIosSimulatorArm64 -PethersEnableIos
-        if (providers.gradleProperty("ethersEnableIos").isPresent) {
+        val iosEnabled = providers.gradleProperty("ethersEnableIos").isPresent
+        if (iosEnabled) {
             iosSimulatorArm64()
         }
 
@@ -128,6 +129,25 @@ pluginManager.withPlugin("org.jetbrains.kotlin.multiplatform") {
             }
             androidUnitTest {
                 dependsOn(jvmSharedTest)
+            }
+
+            // Intermediate source set for native targets, holding the `actual` declarations that cannot live in
+            // jvmSharedMain. Only created alongside the opt-in iOS target, so `src/nativeMain` is simply not
+            // compiled unless -PethersEnableIos is set.
+            if (iosEnabled) {
+                val nativeMain by creating {
+                    dependsOn(commonMain.get())
+                }
+                val nativeTest by creating {
+                    dependsOn(commonTest.get())
+                }
+
+                named("iosSimulatorArm64Main") {
+                    dependsOn(nativeMain)
+                }
+                named("iosSimulatorArm64Test") {
+                    dependsOn(nativeTest)
+                }
             }
         }
     }
