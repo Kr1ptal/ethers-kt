@@ -638,7 +638,7 @@ object AbiCodec {
             is AbiType.UInt -> {
                 buff.ensureRemaining(WORD_SIZE_BYTES)
 
-                val ret = bigIntegerFromUnsigned(rawData, buff.position(), 32)
+                val ret = BigInteger(1, rawData, buff.position(), 32)
                 buff.skip(32)
                 return ret
             }

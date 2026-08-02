@@ -439,7 +439,7 @@ class RlpDecoder(private val array: ByteArray) {
     private fun takeBigInteger(size: Int): BigInteger {
         if (size == 0) return bigIntegerOf(0)
 
-        return bigIntegerFromUnsigned(takeByteArray(size))
+        return BigInteger(1, takeByteArray(size))
     }
 
     private fun takeLong(size: Int): Long {

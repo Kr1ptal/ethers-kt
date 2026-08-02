@@ -56,7 +56,7 @@ object HexBigIntegerSerializer : KSerializer<BigInteger> {
         if (text.isEmpty() || text == "0x" || text == "0X") return bigIntegerOf(0)
         val bytes = FastHex.decode(text)
         if (bytes.isEmpty()) return bigIntegerOf(0)
-        return bigIntegerFromUnsigned(bytes)
+        return BigInteger(1, bytes)
     }
 }
 

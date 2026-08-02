@@ -139,8 +139,8 @@ object Secp256k1 {
             val sig = AcinqSecp256k1.sign(hash, privateKey)
 
             // Extract r and s from the compact signature (64 bytes)
-            val r = bigIntegerFromUnsigned(sig.copyOfRange(0, 32))
-            val s = bigIntegerFromUnsigned(sig.copyOfRange(32, 64))
+            val r = BigInteger(1, sig.copyOfRange(0, 32))
+            val s = BigInteger(1, sig.copyOfRange(32, 64))
 
             // Determine recovery ID by trying each value and checking which recovers our public key
             val recId = findRecoveryId(hash, sig, publicKey)

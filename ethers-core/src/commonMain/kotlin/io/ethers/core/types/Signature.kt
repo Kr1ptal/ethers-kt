@@ -2,7 +2,6 @@ package io.ethers.core.types
 
 import io.ethers.core.FastHex
 import io.ethers.core.Result
-import io.ethers.core.bigIntegerFromUnsigned
 import io.ethers.core.failure
 import io.ethers.core.success
 import io.ethers.crypto.Hashing
@@ -190,8 +189,8 @@ class Signature(
                 return failure(InvalidSignatureError("Invalid signature length: ${byteArray.size}"))
             }
 
-            val r = bigIntegerFromUnsigned(byteArray, 0, 32)
-            val s = bigIntegerFromUnsigned(byteArray, 32, 32)
+            val r = BigInteger(1, byteArray, 0, 32)
+            val s = BigInteger(1, byteArray, 32, 32)
             val v = byteArray[64].toLong()
             return success(Signature(r, s, v))
         }

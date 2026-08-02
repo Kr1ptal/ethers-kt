@@ -34,7 +34,7 @@ fun JsonPrimitive.asHexByteArray(): ByteArray {
 fun JsonPrimitive.asHexBigInteger(): BigInteger {
     val decoded = asHexByteArray()
     if (decoded.isEmpty()) return bigIntegerOf(0)
-    return bigIntegerFromUnsigned(decoded)
+    return BigInteger(1, decoded)
 }
 
 /**
