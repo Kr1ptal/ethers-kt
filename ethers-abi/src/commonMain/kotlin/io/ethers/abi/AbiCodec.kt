@@ -627,10 +627,13 @@ object AbiCodec {
                 return Bytes(arr)
             }
 
+            // NOTE: both branches below copy the word out of "rawData" instead of using the offset/length BigInteger
+            // constructors. Those are JDK 9+, which means API 33 on android, and we support API 24.
             is AbiType.Int -> {
                 buff.ensureRemaining(WORD_SIZE_BYTES)
 
-                val ret = BigInteger(rawData, buff.position(), 32)
+                val position = buff.position()
+                val ret = BigInteger(rawData.copyOfRange(position, position + WORD_SIZE_BYTES))
                 buff.skip(32)
                 return ret
             }
@@ -638,7 +641,8 @@ object AbiCodec {
             is AbiType.UInt -> {
                 buff.ensureRemaining(WORD_SIZE_BYTES)
 
-                val ret = BigInteger(1, rawData, buff.position(), 32)
+                val position = buff.position()
+                val ret = BigInteger(1, rawData.copyOfRange(position, position + WORD_SIZE_BYTES))
                 buff.skip(32)
                 return ret
             }

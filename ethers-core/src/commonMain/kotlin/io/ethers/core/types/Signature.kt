@@ -189,8 +189,10 @@ class Signature(
                 return failure(InvalidSignatureError("Invalid signature length: ${byteArray.size}"))
             }
 
-            val r = BigInteger(1, byteArray, 0, 32)
-            val s = BigInteger(1, byteArray, 32, 32)
+            // NOTE: the offset/length BigInteger constructors are JDK 9+, which means API 33 on android. Since we
+            // support API 24, the range must be copied out and passed to the (signum, magnitude) constructor instead.
+            val r = BigInteger(1, byteArray.copyOfRange(0, 32))
+            val s = BigInteger(1, byteArray.copyOfRange(32, 64))
             val v = byteArray[64].toLong()
             return success(Signature(r, s, v))
         }
