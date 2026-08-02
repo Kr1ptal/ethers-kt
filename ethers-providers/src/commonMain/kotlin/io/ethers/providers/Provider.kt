@@ -52,6 +52,9 @@ import io.ethers.providers.types.RpcSubscribeCall
 import io.ethers.providers.types.SuppliedRpcRequest
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
+import io.github.artificialpb.bignum.div
+import io.github.artificialpb.bignum.plus
+import io.github.artificialpb.bignum.toBigInteger
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.KSerializer
