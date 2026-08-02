@@ -22,7 +22,6 @@ import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.PendingInclusion
 import io.ethers.providers.types.PendingTransaction
 import io.ethers.providers.types.RpcRequest
-import io.ethers.providers.types.sendAwait
 import io.ethers.signers.Signer
 import io.github.artificialpb.bignum.BigInteger
 
@@ -82,7 +81,7 @@ abstract class ReadWriteContractCall<C, S : PendingInclusion<*>, B : ReadWriteCo
         val call = toCallRequest().from(signer.address)
         return provider.fillTransaction(call).andThen { unsigned ->
             val tx = signer.signTransaction(unsigned)
-            provider.sendRawTransaction(tx).map(::handleSendResult).sendAwait()
+            provider.sendRawTransaction(tx).map(::handleSendResult).send()
         }
     }
 
