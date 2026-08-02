@@ -22,23 +22,40 @@ object NameHash {
     }
 
     /**
+     * Maximum length of a single DNS label, in bytes. The DNS wire format reserves the two high bits of the length
+     * byte to mark compression pointers, so a label length can never exceed 0b0011_1111.
+     * */
+    private const val MAX_LABEL_LENGTH_BYTES = 63
+
+    /**
      * Encode Dns name. Reference implementation
      * https://github.com/ethers-io/ethers.js/blob/fc1e006575d59792fa97b4efb9ea2f8cca1944cf/packages/hash/src.ts/namehash.ts#L49
+     *
+     * @throws IllegalArgumentException if any label exceeds [MAX_LABEL_LENGTH_BYTES] once UTF-8 encoded.
      */
     fun dnsEncode(name: String): Bytes {
         val parts = name.split(".")
         val encoded = Array(parts.size) { i ->
-            val normalized = EnsNormalize.normalize(parts[i])
-            normalized.length to normalized.toByteArray(Charsets.UTF_8)
+            val bytes = EnsNormalize.normalize(parts[i]).toByteArray(Charsets.UTF_8)
+
+            // checked in bytes, not characters - a label can be short enough as a string while still being too long
+            // once encoded (e.g. 32x "é" is 32 chars but 64 bytes)
+            require(bytes.size <= MAX_LABEL_LENGTH_BYTES) {
+                "DNS label exceeds $MAX_LABEL_LENGTH_BYTES bytes: ${bytes.size}"
+            }
+
+            bytes
         }
 
         // +1 at the end for the trailing zero byte requirement, which is handled implicitly during
         // initialization of the result array
-        val result = ByteArray(encoded.sumOf { 1 + it.second.size } + 1)
+        val result = ByteArray(encoded.sumOf { 1 + it.size } + 1)
 
         var offset = 0
-        for ((length, bytes) in encoded) {
-            result[offset++] = length.toByte()
+        for (bytes in encoded) {
+            // NOTE: the length prefix is the label's UTF-8 byte length, not its UTF-16 length. These differ for any
+            // non-ASCII label (e.g. "💎" is 2 UTF-16 code units but 4 UTF-8 bytes).
+            result[offset++] = bytes.size.toByte()
             bytes.copyInto(result, offset)
             offset += bytes.size
         }

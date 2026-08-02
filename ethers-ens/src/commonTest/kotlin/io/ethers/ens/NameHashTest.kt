@@ -26,9 +26,63 @@ class NameHashTest : FunSpec({
         withData(
             listOf(
                 "1.offchainexample.eth" to "0x01310f6f6666636861696e6578616d706c650365746800",
+                // each label is length-prefixed with its UTF-8 *byte* length, not its UTF-16 length. 💎 (U+1F48E)
+                // is 2 UTF-16 code units but 4 UTF-8 bytes, so the prefix must be 0x04.
+                "💎.eth" to "0x04f09f928e0365746800",
+                // é (U+00E9) is 1 UTF-16 code unit but 2 UTF-8 bytes: "café" is 4 chars / 5 bytes -> 0x05
+                "café.eth" to "0x05636166c3a90365746800",
             ),
         ) {
             NameHash.dnsEncode(it.first) shouldBe Bytes(it.second)
+        }
+    }
+
+    test("DNS encode length prefix matches the UTF-8 byte length of each label") {
+        // walks the encoding and checks every prefix against the bytes that follow it, so a UTF-16/UTF-8
+        // mismatch is caught for any label rather than only the hard-coded vectors above
+        for (name in listOf("a.eth", "café.eth", "💎.eth", "日本語.eth", "mixed-café-💎.eth")) {
+            val encoded = NameHash.dnsEncode(name).asByteArray()
+            val expectedLabels = name.split(".").map { it.encodeToByteArray() }
+
+            var offset = 0
+            for (expected in expectedLabels) {
+                val declaredLength = encoded[offset].toInt() and 0xff
+                declaredLength shouldBe expected.size
+                offset++
+                encoded.copyOfRange(offset, offset + declaredLength) shouldBe expected
+                offset += declaredLength
+            }
+            offset shouldBe encoded.size - 1
+            encoded[offset] shouldBe 0.toByte()
+        }
+    }
+
+    context("DNS encode label length limit") {
+        test("a 63-byte label is allowed") {
+            val label = "a".repeat(63)
+            val encoded = NameHash.dnsEncode("$label.eth").asByteArray()
+            (encoded[0].toInt() and 0xff) shouldBe 63
+        }
+
+        test("a 64-byte label is rejected") {
+            shouldThrow<IllegalArgumentException> {
+                NameHash.dnsEncode("${"a".repeat(64)}.eth")
+            }
+        }
+
+        test("the limit counts UTF-8 bytes, not characters") {
+            // 32 x "é" is only 32 characters but 64 UTF-8 bytes, so it must be rejected
+            val label = "é".repeat(32)
+            label.length shouldBe 32
+            label.encodeToByteArray().size shouldBe 64
+
+            shouldThrow<IllegalArgumentException> {
+                NameHash.dnsEncode("$label.eth")
+            }
+
+            // ...while 31 x "é" is 62 bytes and must still be accepted
+            val ok = NameHash.dnsEncode("${"é".repeat(31)}.eth").asByteArray()
+            (ok[0].toInt() and 0xff) shouldBe 62
         }
     }
 

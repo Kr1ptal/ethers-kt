@@ -182,7 +182,9 @@ class EnsMiddleware @JvmOverloads constructor(
         parameters.add(0, Bytes(nameHash))
         paramTypes.add(0, AbiType.FixedBytes(32))
         if (supportsWildcard.unwrapElse(false)) {
-            val dnsEncoded = NameHash.dnsEncode(ensName)
+            val dnsEncoded = runCatching { NameHash.dnsEncode(ensName) }.unwrapOrReturn {
+                return failure(Error.Normalisation(it))
+            }
             val encodedParams = abiFunction.encodeCall(parameters)
 
             val resolveResult = resolver.resolve(dnsEncoded, encodedParams)
