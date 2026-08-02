@@ -44,7 +44,7 @@ class EnsMiddlewareTest : FunSpec({
                         ),
                     ),
                 ) {
-                    ensMiddleware.resolveAddress(it.ensName).unwrap() shouldBe it.resolvedAddr
+                    ensMiddleware.resolveAddress(it.ensName).send().unwrap() shouldBe it.resolvedAddr
                 }
             }
 
@@ -57,7 +57,7 @@ class EnsMiddlewareTest : FunSpec({
                         ),
                     ),
                 ) {
-                    ensMiddleware.resolveAddress(it.ensName).unwrap() shouldBe it.resolvedAddr
+                    ensMiddleware.resolveAddress(it.ensName).send().unwrap() shouldBe it.resolvedAddr
                 }
             }
         }
@@ -73,7 +73,7 @@ class EnsMiddlewareTest : FunSpec({
                         ),
                     ),
                 ) {
-                    ensMiddleware.resolveText(it.ensName, it.key).unwrap() shouldBe it.resolvedRecord
+                    ensMiddleware.resolveText(it.ensName, it.key).send().unwrap() shouldBe it.resolvedRecord
                 }
             }
 
@@ -87,7 +87,7 @@ class EnsMiddlewareTest : FunSpec({
                         ),
                     ),
                 ) {
-                    ensMiddleware.resolveText(it.ensName, it.key).unwrap() shouldBe it.resolvedRecord
+                    ensMiddleware.resolveText(it.ensName, it.key).send().unwrap() shouldBe it.resolvedRecord
                 }
             }
         }
@@ -102,7 +102,7 @@ class EnsMiddlewareTest : FunSpec({
                         ),
                     ),
                 ) {
-                    ensMiddleware.resolveEnsName(it.resolvedAddr).unwrap() shouldBe it.ensName
+                    ensMiddleware.resolveEnsName(it.resolvedAddr).send().unwrap() shouldBe it.ensName
                 }
             }
         }
@@ -134,7 +134,7 @@ class EnsMiddlewareTest : FunSpec({
                         ),
                     ),
                 ) {
-                    ensMiddleware.resolveAvatar(it.ensName).unwrap() shouldBe it.resolvedUri
+                    ensMiddleware.resolveAvatar(it.ensName).send().unwrap() shouldBe it.resolvedUri
                 }
             }
             // TODO uncomment
@@ -148,7 +148,7 @@ class EnsMiddlewareTest : FunSpec({
 //                        ),
 //                    ),
 //                ) {
-//                    ensMiddleware.resolveAvatar(it.resolvedAddr).resultOrThrow() shouldBe it.resolvedUri
+//                    ensMiddleware.resolveAvatar(it.resolvedAddr).send().resultOrThrow() shouldBe it.resolvedUri
 //                }
 //            }
         }
@@ -159,11 +159,11 @@ class EnsMiddlewareTest : FunSpec({
             // Testing [EnsMiddleware.Error.EnsNameInvalid]
             test("Invalid ENS names") {
                 listOf("", "\t", ".", "\n.").forEach {
-                    val resolveAddr = ensMiddleware.resolveAddress(it)
+                    val resolveAddr = ensMiddleware.resolveAddress(it).send()
                     resolveAddr.isFailure() shouldBe true
                     resolveAddr.unwrapError().shouldBeInstanceOf<EnsMiddleware.Error.EnsNameInvalid>()
 
-                    val resolveText = ensMiddleware.resolveText(it, key)
+                    val resolveText = ensMiddleware.resolveText(it, key).send()
                     resolveText.isFailure() shouldBe true
                     resolveText.unwrapError().shouldBeInstanceOf<EnsMiddleware.Error.EnsNameInvalid>()
                 }
@@ -171,11 +171,11 @@ class EnsMiddlewareTest : FunSpec({
 
             // Testing [EnsMiddleware.Error.Normalisation]
             test("Failed normalisation") {
-                val resolveAddr = ensMiddleware.resolveAddress("xn--u-ccb.com")
+                val resolveAddr = ensMiddleware.resolveAddress("xn--u-ccb.com").send()
                 resolveAddr.isFailure() shouldBe true
                 resolveAddr.unwrapError().shouldBeInstanceOf<EnsMiddleware.Error.Normalisation>()
 
-                val resolveText = ensMiddleware.resolveAddress("xn--u-ccb.com")
+                val resolveText = ensMiddleware.resolveAddress("xn--u-ccb.com").send()
                 resolveText.isFailure() shouldBe true
                 resolveText.unwrapError().shouldBeInstanceOf<EnsMiddleware.Error.Normalisation>()
             }
@@ -189,15 +189,15 @@ class EnsMiddlewareTest : FunSpec({
                         ),
                     ),
                 ) {
-                    val resolveAddr = ensMiddleware.resolveAddress(it.ensName)
+                    val resolveAddr = ensMiddleware.resolveAddress(it.ensName).send()
                     resolveAddr.isFailure() shouldBe true
                     resolveAddr.unwrapError().shouldBeInstanceOf<EnsMiddleware.Error.UnknownResolver>()
 
-                    val resolveText = ensMiddleware.resolveText(it.ensName, key)
+                    val resolveText = ensMiddleware.resolveText(it.ensName, key).send()
                     resolveText.isFailure() shouldBe true
                     resolveText.unwrapError().shouldBeInstanceOf<EnsMiddleware.Error.UnknownResolver>()
 
-                    val resolveEns = ensMiddleware.resolveEnsName(Address.ZERO)
+                    val resolveEns = ensMiddleware.resolveEnsName(Address.ZERO).send()
                     resolveEns.isFailure() shouldBe true
                     resolveEns.unwrapError().shouldBeInstanceOf<EnsMiddleware.Error.EnsNameInvalid>()
                 }
@@ -215,7 +215,7 @@ class EnsMiddlewareTest : FunSpec({
                     // TODO: tests for other resolutions when mocking
                     // address with invalid resolver (WETH token 0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2 as resolver)
                     val addr = Address("0x30c9223d9e3d23e0af1073a38e0834b055bf68ed")
-                    val resolveEns = ensMiddleware.resolveEnsName(addr)
+                    val resolveEns = ensMiddleware.resolveEnsName(addr).send()
                     resolveEns.isFailure() shouldBe true
                     resolveEns.unwrapError().shouldBeInstanceOf<EnsMiddleware.Error.UnsupportedSelector>()
                 }
@@ -233,7 +233,7 @@ class EnsMiddlewareTest : FunSpec({
                             ),
                         ),
                     ) {
-                        val resolveAvatar = ensMiddleware.resolveAvatar(it.ensName)
+                        val resolveAvatar = ensMiddleware.resolveAvatar(it.ensName).send()
                         resolveAvatar.isFailure() shouldBe true
                         resolveAvatar.unwrapError().shouldBeInstanceOf<EnsMiddleware.Error.IncorrectOwner>()
                     }
@@ -254,14 +254,14 @@ class EnsMiddlewareTest : FunSpec({
                         ),
                     ),
                 ) {
-                    val resolveAddress = ensMiddleware.resolveAddress(it.ensName)
+                    val resolveAddress = ensMiddleware.resolveAddress(it.ensName).send()
                     resolveAddress.isFailure() shouldBe true
                     val error = resolveAddress.unwrapError()
                     error.shouldBeInstanceOf<EnsMiddleware.Error.UnknownEnsName>()
                     error.resolverAddr shouldBe it.resolverAddr
                     error.nameHash shouldBe it.nameHash
 
-                    ensMiddleware.resolveText(it.ensName, "").unwrap() shouldBe ""
+                    ensMiddleware.resolveText(it.ensName, "").send().unwrap() shouldBe ""
                 }
             }
 

@@ -197,14 +197,18 @@ private class MappingRpcRequest<I, O, E : Result.Error, U : Result.Error>(
 }
 
 /**
- * An [RpcRequest] that provides a [Result] via a [Supplier]. This call is not batched.
+ * An [RpcRequest] whose [Result] comes from an arbitrary suspending [supplier].
+ *
+ * NOTE: despite implementing [batch], this is never actually batched. [batch] runs the supplier on its own and
+ * hands back an already-satisfiable response, so batching one of these alongside real RPC calls costs an extra
+ * round trip rather than saving one.
  * */
-class SuppliedRpcRequest<T>(
-    private val supplier: suspend () -> Result<T, RpcError>,
-) : RpcRequest<T, RpcError>() {
-    override suspend fun send(): Result<T, RpcError> = supplier()
+class SuppliedRpcRequest<T, E : Result.Error>(
+    private val supplier: suspend () -> Result<T, E>,
+) : RpcRequest<T, E>() {
+    override suspend fun send(): Result<T, E> = supplier()
 
-    override fun batch(batch: BatchRpcRequest): BatchRpcResponse<Result<T, RpcError>> {
+    override fun batch(batch: BatchRpcRequest): BatchRpcResponse<Result<T, E>> {
         return BatchRpcResponse(CoroutineScope(Dispatchers.Default).async { send() }) { true }
     }
 

@@ -22,6 +22,8 @@ import io.ethers.logger.getLogger
 import io.ethers.logger.wrn
 import io.ethers.providers.RpcClientConfig
 import io.ethers.providers.middleware.Middleware
+import io.ethers.providers.types.RpcRequest
+import io.ethers.providers.types.SuppliedRpcRequest
 import io.github.artificialpb.bignum.BigInteger
 import io.ktor.client.request.get
 import io.ktor.client.request.post
@@ -33,34 +35,12 @@ import io.ktor.http.contentType
 import kotlinx.serialization.Serializable
 import io.ktor.client.HttpClient as KtorHttpClient
 
-/**
- * Seam through which each platform adds its own conveniences to [EnsMiddleware].
- *
- * It exists so platform helpers can be inherited *members* rather than extension functions - Java callers get
- * `ens.resolveAddressAsync(name)` instead of a static call. All implementation stays in ordinary common code in
- * [EnsMiddleware].
- *
- * JVM and Android actualize this with `CompletableFuture`-returning variants. A platform without those primitives
- * actualizes it with no extra members.
- */
-expect abstract class PlatformEnsMiddleware() {
-    abstract suspend fun resolveAddress(ensName: String): Result<Address, EnsMiddleware.Error>
-
-    abstract suspend fun resolveText(ensName: String, key: String): Result<String, EnsMiddleware.Error>
-
-    abstract suspend fun resolveEnsName(address: Address): Result<String, EnsMiddleware.Error>
-
-    abstract suspend fun resolveAvatar(ensName: String): Result<String, EnsMiddleware.Error>
-
-    abstract suspend fun resolveAvatar(address: Address): Result<String, EnsMiddleware.Error>
-}
-
 class EnsMiddleware @JvmOverloads constructor(
     provider: Middleware,
     private val registryAddress: Address,
     private val ccipLookupLimit: Int = 4,
     private val httpClient: KtorHttpClient = RpcClientConfig().client!!,
-) : PlatformEnsMiddleware(), Middleware by provider {
+) : Middleware by provider {
     private val LOG = getLogger()
     private val registryContract = EnsRegistry(provider, registryAddress)
 
@@ -83,7 +63,11 @@ class EnsMiddleware @JvmOverloads constructor(
      * - [Wildcard resolution](https://docs.ens.domains/ens-improvement-proposals/ensip-10-wildcard-resolution)
      * - [Offchain metadata](https://docs.ens.domains/ens-improvement-proposals/ensip-16-offchain-metadata)
      */
-    override suspend fun resolveAddress(ensName: String): Result<Address, Error> {
+    fun resolveAddress(ensName: String): RpcRequest<Address, Error> = SuppliedRpcRequest {
+        resolveAddressInternal(ensName)
+    }
+
+    private suspend fun resolveAddressInternal(ensName: String): Result<Address, Error> {
         return resolveWithParameters(
             ensName,
             ExtendedResolver.FUNCTION_ADDR,
@@ -93,7 +77,11 @@ class EnsMiddleware @JvmOverloads constructor(
     /**
      * Resolve ENS name to a text record associated with a [key], as per [specification](https://docs.ens.domains/ens-improvement-proposals/ensip-5-text-records).
      */
-    override suspend fun resolveText(ensName: String, key: String): Result<String, Error> {
+    fun resolveText(ensName: String, key: String): RpcRequest<String, Error> = SuppliedRpcRequest {
+        resolveTextInternal(ensName, key)
+    }
+
+    private suspend fun resolveTextInternal(ensName: String, key: String): Result<String, Error> {
         return resolveWithParameters(
             ensName,
             ExtendedResolver.FUNCTION_TEXT,
@@ -105,7 +93,11 @@ class EnsMiddleware @JvmOverloads constructor(
     /**
      * Reverse ENS name resolution, as per [specification](https://docs.ens.domains/ens-improvement-proposals/ensip-3-reverse-resolution).
      */
-    override suspend fun resolveEnsName(address: Address): Result<String, Error> {
+    fun resolveEnsName(address: Address): RpcRequest<String, Error> = SuppliedRpcRequest {
+        resolveEnsNameInternal(address)
+    }
+
+    private suspend fun resolveEnsNameInternal(address: Address): Result<String, Error> {
         val resolvedName = resolveWithParameters(
             reverseAddressEnsName(address),
             ExtendedResolver.FUNCTION_NAME,
@@ -115,7 +107,7 @@ class EnsMiddleware @JvmOverloads constructor(
         val ensName = resolvedName.unwrap()
 
         // To be certain of reverse lookup ENS name, forward resolution must resolve to the original address
-        return resolveAddress(ensName).andThen {
+        return resolveAddressInternal(ensName).andThen {
             if (it == address) {
                 success(ensName)
             } else {
@@ -128,12 +120,16 @@ class EnsMiddleware @JvmOverloads constructor(
      * Resolve avatar of [ensName], as per
      * [specification](https://docs.ens.domains/ens-improvement-proposals/ensip-12-avatar-text-records).
      */
-    override suspend fun resolveAvatar(ensName: String): Result<String, Error> {
+    fun resolveAvatar(ensName: String): RpcRequest<String, Error> = SuppliedRpcRequest {
+        resolveAvatarInternal(ensName)
+    }
+
+    private suspend fun resolveAvatarInternal(ensName: String): Result<String, Error> {
         val uriRes = getAvatarUri(ensName)
         if (uriRes.isFailure()) return uriRes
 
         // Get owner of ens name for NFT ownership validation
-        val ensOwnerRes = resolveAddress(ensName)
+        val ensOwnerRes = resolveAddressInternal(ensName)
         if (ensOwnerRes.isFailure()) return ensOwnerRes
 
         return matchAvatarUri(uriRes.unwrap(), ensOwnerRes.unwrap())
@@ -143,7 +139,11 @@ class EnsMiddleware @JvmOverloads constructor(
      * Resolve avatar of [address], as per
      * [specification](https://docs.ens.domains/ens-improvement-proposals/ensip-12-avatar-text-records).
      */
-    override suspend fun resolveAvatar(address: Address): Result<String, Error> {
+    fun resolveAvatar(address: Address): RpcRequest<String, Error> = SuppliedRpcRequest {
+        resolveAvatarInternal(address)
+    }
+
+    private suspend fun resolveAvatarInternal(address: Address): Result<String, Error> {
         val uriRes = getAvatarUri(address)
         if (uriRes.isFailure()) return uriRes
 
@@ -591,7 +591,7 @@ class EnsMiddleware @JvmOverloads constructor(
      * Get avatar URI text record from [ensName].
      */
     private suspend fun getAvatarUri(ensName: String): Result<String, Error> {
-        return resolveText(ensName, "avatar").andThen { uriStr ->
+        return resolveTextInternal(ensName, "avatar").andThen { uriStr ->
             if (uriStr.isEmpty()) {
                 failure(Error.FailedToResolve("Failed to resolve avatar of ens name: $ensName"))
             } else {
@@ -636,7 +636,7 @@ class EnsMiddleware @JvmOverloads constructor(
 
             // Validate ENS name by "resolving the returned name and calling addr on the resolver, checking it matches the original Ethereum address"
             val ensName = nameRes.unwrap()
-            val resolvedRes = resolveAddress(ensName)
+            val resolvedRes = resolveAddressInternal(ensName)
             if (resolvedRes.isFailure()) return failure(resolvedRes.unwrapError())
 
             val resolved = resolvedRes.unwrap()
