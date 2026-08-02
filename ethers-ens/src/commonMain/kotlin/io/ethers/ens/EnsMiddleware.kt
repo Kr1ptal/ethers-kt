@@ -20,10 +20,11 @@ import io.ethers.ens.EnsMiddleware.Companion.IPFS_GATEWAY
 import io.ethers.logger.err
 import io.ethers.logger.getLogger
 import io.ethers.logger.wrn
+import io.ethers.providers.RpcClientConfig
 import io.ethers.providers.middleware.Middleware
-import io.ethers.providers.types.sendAwait
+import io.ethers.providers.types.RpcRequest
+import io.ethers.providers.types.SuppliedRpcRequest
 import io.github.artificialpb.bignum.BigInteger
-import io.ktor.client.engine.cio.CIO
 import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -31,16 +32,14 @@ import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
-import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
-import java.util.concurrent.CompletableFuture
 import io.ktor.client.HttpClient as KtorHttpClient
 
 class EnsMiddleware @JvmOverloads constructor(
     provider: Middleware,
     private val registryAddress: Address,
     private val ccipLookupLimit: Int = 4,
-    private val httpClient: KtorHttpClient = KtorHttpClient(CIO),
+    private val httpClient: KtorHttpClient = RpcClientConfig().client!!,
 ) : Middleware by provider {
     private val LOG = getLogger()
     private val registryContract = EnsRegistry(provider, registryAddress)
@@ -49,7 +48,7 @@ class EnsMiddleware @JvmOverloads constructor(
     constructor(
         provider: Middleware,
         ccipLookupLimit: Int = 4,
-        client: KtorHttpClient = KtorHttpClient(CIO),
+        client: KtorHttpClient = RpcClientConfig().client!!,
     ) : this(
         provider,
         getRegistryAddressOrThrow(provider.chainId),
@@ -64,8 +63,12 @@ class EnsMiddleware @JvmOverloads constructor(
      * - [Wildcard resolution](https://docs.ens.domains/ens-improvement-proposals/ensip-10-wildcard-resolution)
      * - [Offchain metadata](https://docs.ens.domains/ens-improvement-proposals/ensip-16-offchain-metadata)
      */
-    fun resolveAddress(ensName: String): CompletableFuture<Result<Address, Error>> = CompletableFuture.supplyAsync {
-        resolveWithParameters(
+    fun resolveAddress(ensName: String): RpcRequest<Address, Error> = SuppliedRpcRequest {
+        resolveAddressInternal(ensName)
+    }
+
+    private suspend fun resolveAddressInternal(ensName: String): Result<Address, Error> {
+        return resolveWithParameters(
             ensName,
             ExtendedResolver.FUNCTION_ADDR,
         ).map { AbiCodec.decode(AbiType.Address, it.asByteArray()) }
@@ -74,8 +77,12 @@ class EnsMiddleware @JvmOverloads constructor(
     /**
      * Resolve ENS name to a text record associated with a [key], as per [specification](https://docs.ens.domains/ens-improvement-proposals/ensip-5-text-records).
      */
-    fun resolveText(ensName: String, key: String): CompletableFuture<Result<String, Error>> = CompletableFuture.supplyAsync {
-        return@supplyAsync resolveWithParameters(
+    fun resolveText(ensName: String, key: String): RpcRequest<String, Error> = SuppliedRpcRequest {
+        resolveTextInternal(ensName, key)
+    }
+
+    private suspend fun resolveTextInternal(ensName: String, key: String): Result<String, Error> {
+        return resolveWithParameters(
             ensName,
             ExtendedResolver.FUNCTION_TEXT,
             mutableListOf(key),
@@ -86,20 +93,25 @@ class EnsMiddleware @JvmOverloads constructor(
     /**
      * Reverse ENS name resolution, as per [specification](https://docs.ens.domains/ens-improvement-proposals/ensip-3-reverse-resolution).
      */
-    fun resolveEnsName(address: Address): CompletableFuture<Result<String, Error>> = CompletableFuture.supplyAsync {
+    fun resolveEnsName(address: Address): RpcRequest<String, Error> = SuppliedRpcRequest {
+        resolveEnsNameInternal(address)
+    }
+
+    private suspend fun resolveEnsNameInternal(address: Address): Result<String, Error> {
         val resolvedName = resolveWithParameters(
             reverseAddressEnsName(address),
             ExtendedResolver.FUNCTION_NAME,
         ).map { AbiCodec.decode(AbiType.String, it.asByteArray()) }
 
-        return@supplyAsync resolvedName.andThen { ensName ->
-            // To be certain of reverse lookup ENS name, forward resolution must resolve to the original address
-            resolveAddress(ensName).get().andThen {
-                if (it == address) {
-                    success(ensName)
-                } else {
-                    failure(Error.IncorrectOwner("True owner of ENS name: $ensName is not the same as provided address: $address"))
-                }
+        if (resolvedName.isFailure()) return resolvedName
+        val ensName = resolvedName.unwrap()
+
+        // To be certain of reverse lookup ENS name, forward resolution must resolve to the original address
+        return resolveAddressInternal(ensName).andThen {
+            if (it == address) {
+                success(ensName)
+            } else {
+                failure(Error.IncorrectOwner("True owner of ENS name: $ensName is not the same as provided address: $address"))
             }
         }
     }
@@ -108,33 +120,41 @@ class EnsMiddleware @JvmOverloads constructor(
      * Resolve avatar of [ensName], as per
      * [specification](https://docs.ens.domains/ens-improvement-proposals/ensip-12-avatar-text-records).
      */
-    fun resolveAvatar(ensName: String): CompletableFuture<Result<String, Error>> = CompletableFuture.supplyAsync {
+    fun resolveAvatar(ensName: String): RpcRequest<String, Error> = SuppliedRpcRequest {
+        resolveAvatarInternal(ensName)
+    }
+
+    private suspend fun resolveAvatarInternal(ensName: String): Result<String, Error> {
         val uriRes = getAvatarUri(ensName)
-        if (uriRes.isFailure()) return@supplyAsync uriRes
+        if (uriRes.isFailure()) return uriRes
 
         // Get owner of ens name for NFT ownership validation
-        val ensOwnerRes = resolveAddress(ensName).get()
-        if (ensOwnerRes.isFailure()) return@supplyAsync ensOwnerRes
+        val ensOwnerRes = resolveAddressInternal(ensName)
+        if (ensOwnerRes.isFailure()) return ensOwnerRes
 
-        return@supplyAsync matchAvatarUri(uriRes.unwrap(), ensOwnerRes.unwrap())
+        return matchAvatarUri(uriRes.unwrap(), ensOwnerRes.unwrap())
     }
 
     /**
      * Resolve avatar of [address], as per
      * [specification](https://docs.ens.domains/ens-improvement-proposals/ensip-12-avatar-text-records).
      */
-    fun resolveAvatar(address: Address): CompletableFuture<Result<String, Error>> = CompletableFuture.supplyAsync {
-        val uriRes = getAvatarUri(address)
-        if (uriRes.isFailure()) return@supplyAsync uriRes
+    fun resolveAvatar(address: Address): RpcRequest<String, Error> = SuppliedRpcRequest {
+        resolveAvatarInternal(address)
+    }
 
-        return@supplyAsync matchAvatarUri(uriRes.unwrap(), address)
+    private suspend fun resolveAvatarInternal(address: Address): Result<String, Error> {
+        val uriRes = getAvatarUri(address)
+        if (uriRes.isFailure()) return uriRes
+
+        return matchAvatarUri(uriRes.unwrap(), address)
     }
 
     /**
      * Resolves [ensName] with provided [abiFunction] (eg. addr(bytes32), text(bytes32,string), name(bytes32), ...)
      * and corresponding parameters and parameter types.
      */
-    private fun resolveWithParameters(
+    private suspend fun resolveWithParameters(
         ensName: String,
         abiFunction: AbiFunction,
         parameters: MutableList<Any> = mutableListOf(),
@@ -156,7 +176,7 @@ class EnsMiddleware @JvmOverloads constructor(
         // If RpcResponse is an error, map it to error FailedToResolve.
         val resolver = resolverResponse.unwrap()
         val supportsWildcard =
-            resolver.supportsInterface(ENSIP_10_INTERFACE_ID).call(BlockId.LATEST).sendAwait()
+            resolver.supportsInterface(ENSIP_10_INTERFACE_ID).call(BlockId.LATEST).send()
 
         // add nodehash as first parameter, because it is present in all resolutions
         parameters.add(0, Bytes(nameHash))
@@ -167,7 +187,7 @@ class EnsMiddleware @JvmOverloads constructor(
 
             val resolveResult = resolver.resolve(dnsEncoded, encodedParams)
                 .call(BlockId.LATEST)
-                .sendAwait()
+                .send()
 
             // try to decode OffchainLookup error
             val resolveLookupRevert =
@@ -195,7 +215,7 @@ class EnsMiddleware @JvmOverloads constructor(
 
             // Validate that resolver supports abiFunction
             val supportsFunction =
-                resolver.supportsInterface(abiFunction.selector).call(BlockId.LATEST).sendAwait()
+                resolver.supportsInterface(abiFunction.selector).call(BlockId.LATEST).send()
 
             if (!supportsFunction.unwrapElse(false)) {
                 return failure(
@@ -239,21 +259,21 @@ class EnsMiddleware @JvmOverloads constructor(
                     }
 
                     success(it)
-                }.sendAwait()
+                }.send()
         }
     }
 
     /**
      * Get [ExtendedResolver] for [ensName] using [EnsRegistry] of current chain.
      */
-    private fun getResolver(ensName: String): Result<ExtendedResolver, Error> {
+    private suspend fun getResolver(ensName: String): Result<ExtendedResolver, Error> {
         return getResolverAddress(ensName).map { ExtendedResolver(provider, it) }
     }
 
     /**
      * Get resolver address for [ensName] from [EnsRegistry].
      */
-    private fun getResolverAddress(ensName: String): Result<Address, Error> {
+    private suspend fun getResolverAddress(ensName: String): Result<Address, Error> {
         if (ensName.isEmpty()) {
             return failure(Error.UnknownResolver)
         }
@@ -270,7 +290,7 @@ class EnsMiddleware @JvmOverloads constructor(
                 )
             }
             .andThen { if (it == Address.ZERO) failure(Error.UnknownResolver) else success(it) }
-            .sendAwait()
+            .send()
 
         if (address.unwrapErrorOrNull()?.asTypeOrNull<Error.UnknownResolver>() != null) {
             return getResolverAddress(getParent(ensName))
@@ -283,7 +303,7 @@ class EnsMiddleware @JvmOverloads constructor(
      * If result of resolver.resolve() call is [ExtendedResolver.OffchainLookup] error, try to resolve the name using
      * [ERC-3668: CCIP offchain data retrieval](https://eips.ethereum.org/EIPS/eip-3668)
      */
-    private fun resolveOffchain(
+    private suspend fun resolveOffchain(
         revert: ExtendedResolver.OffchainLookup,
         resolver: ExtendedResolver,
         lookupLimit: Int,
@@ -311,7 +331,7 @@ class EnsMiddleware @JvmOverloads constructor(
                 data = Bytes(callbackData)
             },
             BlockId.LATEST,
-        ).sendAwait().unwrapOrReturn {
+        ).send().unwrapOrReturn {
             return failure(Error.CcipCallFailed("Callback call failed", it))
         }
 
@@ -336,7 +356,7 @@ class EnsMiddleware @JvmOverloads constructor(
      * @param sender sender parameter of [ExtendedResolver.OffchainLookup] - replacing {sender} RPC call parameter
      * @param calldata calldata parameter of [ExtendedResolver.OffchainLookup] - replacing {data} RPC call parameter
      */
-    private fun httpCall(
+    private suspend fun httpCall(
         urls: List<String>,
         sender: Address,
         calldata: Bytes,
@@ -356,18 +376,16 @@ class EnsMiddleware @JvmOverloads constructor(
             return try {
                 val response = if (url.contains("{data}")) {
                     href = href.replace("{data}", calldata.toString())
-                    runBlocking { httpClient.get(href) }
+                    httpClient.get(href)
                 } else {
                     val requestDTO = EnsGatewayRequestDTO(calldata, sender.toString())
                     val body = Kotlinx.DEFAULT.encodeToString(
                         EnsGatewayRequestDTO.serializer(),
                         requestDTO,
                     )
-                    runBlocking {
-                        httpClient.post(href) {
-                            contentType(ContentType.Application.Json)
-                            setBody(body)
-                        }
+                    httpClient.post(href) {
+                        contentType(ContentType.Application.Json)
+                        setBody(body)
                     }
                 }
                 handleCcipResponse(response, href) ?: continue
@@ -391,13 +409,13 @@ class EnsMiddleware @JvmOverloads constructor(
      * - has status code 4xx, return error. Execution is stopped.
      * - has status code 5xx, return null and try another url, if present.
      */
-    private fun handleCcipResponse(
+    private suspend fun handleCcipResponse(
         response: HttpResponse,
         url: String,
     ): Result<Bytes, Error>? {
         val code = response.status.value
         if (code in 200..299) {
-            val text = runBlocking { response.bodyAsText() }
+            val text = response.bodyAsText()
             val gatewayRequestDTO =
                 Kotlinx.DEFAULT.decodeFromString(EnsGatewayResponseDTO.serializer(), text)
             return success(gatewayRequestDTO.data)
@@ -422,18 +440,21 @@ class EnsMiddleware @JvmOverloads constructor(
      * - ipfs, converts IPFS into HTTPS url
      * - eip155, resolves NFT avatar
      */
-    private fun matchAvatarUri(avatarUri: String, ensOwner: Address): Result<String, Error> {
+    private suspend fun matchAvatarUri(avatarUri: String, ensOwner: Address): Result<String, Error> {
         return when (val scheme = extractScheme(avatarUri)) {
             "https", "data" -> success(avatarUri)
             "ipfs" -> success(joinWithIPFSGateway(avatarUri))
-            "eip155" -> getAvatarNFT(avatarUri, ensOwner)
-                .andThen(::resolveNftMetadata)
-                .map {
+            "eip155" -> {
+                val nft = getAvatarNFT(avatarUri, ensOwner)
+                if (nft.isFailure()) return failure(nft.unwrapError())
+
+                resolveNftMetadata(nft.unwrap()).map {
                     when (extractScheme(it)) {
                         "ipfs" -> joinWithIPFSGateway(it)
                         else -> it
                     }
                 }
+            }
 
             else -> failure(Error.UnsupportedScheme(scheme ?: ""))
         }
@@ -442,7 +463,7 @@ class EnsMiddleware @JvmOverloads constructor(
     /**
      * Retrieves [AvatarNFT] from [avatarUri] and returns it as [Result]. Performs NFT ownership validation.
      */
-    private fun getAvatarNFT(avatarUri: String, ensOwner: Address): Result<AvatarNFT, Error> {
+    private suspend fun getAvatarNFT(avatarUri: String, ensOwner: Address): Result<AvatarNFT, Error> {
         val parseResult = AvatarNFT.parse(avatarUri)
         if (parseResult.isFailure()) return parseResult
         val nftToken = parseResult.unwrap()
@@ -456,7 +477,7 @@ class EnsMiddleware @JvmOverloads constructor(
         when (nftToken.nftType) {
             AvatarNFTType.ERC721 -> {
                 val nft = ERC721(provider, nftToken.nftAddr)
-                val nftOwnerRes = nft.ownerOf(nftToken.tokenId).call(BlockId.LATEST).sendAwait()
+                val nftOwnerRes = nft.ownerOf(nftToken.tokenId).call(BlockId.LATEST).send()
 
                 if (nftOwnerRes.isFailure()) {
                     return failure(
@@ -480,7 +501,7 @@ class EnsMiddleware @JvmOverloads constructor(
             AvatarNFTType.ERC1155 -> {
                 val nft = ERC1155(provider, nftToken.nftAddr)
                 val balanceRes =
-                    nft.balanceOf(ensOwner, nftToken.tokenId).call(BlockId.LATEST).sendAwait()
+                    nft.balanceOf(ensOwner, nftToken.tokenId).call(BlockId.LATEST).send()
 
                 if (balanceRes.isFailure()) {
                     return failure(
@@ -508,17 +529,17 @@ class EnsMiddleware @JvmOverloads constructor(
      * Metadata URL [example](https://ipfs.io/ipfs/QmYTuHaoY1winNAxmf7JmCmSrkChuMAAnqgSuJBTiWZe9f):
      * ipfs://ipfs/QmYTuHaoY1winNAxmf7JmCmSrkChuMAAnqgSuJBTiWZe9f
      */
-    private fun resolveNftMetadata(token: AvatarNFT): Result<String, Error> {
+    private suspend fun resolveNftMetadata(token: AvatarNFT): Result<String, Error> {
         val metadataUriStr = when (token.nftType) {
             AvatarNFTType.ERC721 -> ERC721(provider, token.nftAddr)
                 .tokenURI(token.tokenId)
                 .call(BlockId.LATEST)
-                .sendAwait()
+                .send()
 
             AvatarNFTType.ERC1155 -> ERC1155(provider, token.nftAddr)
                 .uri(token.tokenId)
                 .call(BlockId.LATEST)
-                .sendAwait()
+                .send()
         }.unwrapOrReturn {
             return failure(
                 Error.AvatarParsing(
@@ -544,7 +565,7 @@ class EnsMiddleware @JvmOverloads constructor(
 
         // Execute metadataUri request and extract "image" attribute
         return runCatching {
-            val response = runBlocking { httpClient.get(metadataUri) }
+            val response = httpClient.get(metadataUri)
             if (!response.status.value.let { it in 200..299 }) {
                 return failure(
                     Error.AvatarParsing(
@@ -553,7 +574,7 @@ class EnsMiddleware @JvmOverloads constructor(
                     ),
                 )
             }
-            val text = runBlocking { response.bodyAsText() }
+            val text = response.bodyAsText()
             val metadataDTO = Kotlinx.DEFAULT.decodeFromString(MetadataDTO.serializer(), text)
             success(metadataDTO.image)
         }.unwrapOrReturn {
@@ -569,8 +590,8 @@ class EnsMiddleware @JvmOverloads constructor(
     /**
      * Get avatar URI text record from [ensName].
      */
-    private fun getAvatarUri(ensName: String): Result<String, Error> {
-        return resolveText(ensName, "avatar").get().andThen { uriStr ->
+    private suspend fun getAvatarUri(ensName: String): Result<String, Error> {
+        return resolveTextInternal(ensName, "avatar").andThen { uriStr ->
             if (uriStr.isEmpty()) {
                 failure(Error.FailedToResolve("Failed to resolve avatar of ens name: $ensName"))
             } else {
@@ -582,7 +603,7 @@ class EnsMiddleware @JvmOverloads constructor(
     /**
      * Get avatar URI text record from [address].
      */
-    private fun getAvatarUri(address: Address): Result<String, Error> {
+    private suspend fun getAvatarUri(address: Address): Result<String, Error> {
         // Build reverse address ENS
         val reverseAddr = reverseAddressEnsName(address)
 
@@ -594,7 +615,7 @@ class EnsMiddleware @JvmOverloads constructor(
         // Try to get avatar via text() for reverse address ENS
         val uriRes = reverseResolver.text(Bytes(NameHash.nameHash(reverseAddr)), "avatar")
             .call(BlockId.LATEST)
-            .sendAwait()
+            .send()
 
         if (uriRes.isFailure() || uriRes.unwrap().isEmpty()) {
             val nameHash = runCatching { NameHash.nameHash(reverseAddr) }.unwrapOrReturn {
@@ -602,26 +623,31 @@ class EnsMiddleware @JvmOverloads constructor(
             }
 
             // If text() is unsuccessful, reverse resolve address to ENS name, validate its ownership and forward resolve to avatar
-            return reverseResolver.name(Bytes(nameHash))
+            val nameRes = reverseResolver.name(Bytes(nameHash))
                 .call(BlockId.LATEST)
-                .sendAwait()
+                .send()
                 .mapError<Error> {
                     Error.FailedToResolve(
                         "Failed to resolve ens name for address: $address",
                         it,
                     )
                 }
-                .andThen { ensName ->
-                    // Validate ENS name by "resolving the returned name and calling addr on the resolver, checking it matches the original Ethereum address"
-                    resolveAddress(ensName).get().andThen { resolved ->
-                        if (resolved != address) {
-                            failure(Error.IncorrectOwner("ENS name: $ensName resolves to: $resolved which is not equal to original address: $address"))
-                        } else {
-                            // Forward resolve avatar
-                            getAvatarUri(ensName)
-                        }
-                    }
-                }
+            if (nameRes.isFailure()) return nameRes
+
+            // Validate ENS name by "resolving the returned name and calling addr on the resolver, checking it matches the original Ethereum address"
+            val ensName = nameRes.unwrap()
+            val resolvedRes = resolveAddressInternal(ensName)
+            if (resolvedRes.isFailure()) return failure(resolvedRes.unwrapError())
+
+            val resolved = resolvedRes.unwrap()
+            if (resolved != address) {
+                return failure(
+                    Error.IncorrectOwner("ENS name: $ensName resolves to: $resolved which is not equal to original address: $address"),
+                )
+            }
+
+            // Forward resolve avatar
+            return getAvatarUri(ensName)
         }
 
         return uriRes

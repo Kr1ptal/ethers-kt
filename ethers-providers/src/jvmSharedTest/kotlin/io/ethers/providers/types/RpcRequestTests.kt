@@ -16,7 +16,7 @@ import kotlinx.coroutines.delay
 class RpcRequestTests : FunSpec({
     test("RpcRequest adapters execute the suspend send function") {
         var calls = 0
-        val request = SuppliedRpcRequest {
+        val request = SuppliedRpcRequest<Int, RpcError> {
             calls++
             success(calls)
         }
@@ -27,7 +27,7 @@ class RpcRequestTests : FunSpec({
     }
 
     test("mapped RpcRequest uses the suspend send function") {
-        val request = SuppliedRpcRequest { success(1) }.map { it + 1 }
+        val request = SuppliedRpcRequest<Int, RpcError> { success(1) }.map { it + 1 }
 
         request.send().unwrap() shouldBe 2
         request.sendAsync().get().unwrap() shouldBe 2
@@ -59,8 +59,8 @@ class RpcRequestTests : FunSpec({
 
     test("Iterable send awaits all request results") {
         val requests = listOf(
-            SuppliedRpcRequest { success(1) },
-            SuppliedRpcRequest { success(2) },
+            SuppliedRpcRequest<Int, RpcError> { success(1) },
+            SuppliedRpcRequest<Int, RpcError> { success(2) },
         )
 
         requests.send().unwrap() shouldBe listOf(1, 2)
@@ -69,14 +69,14 @@ class RpcRequestTests : FunSpec({
 
     test("BatchRequest supports blocking and suspending await") {
         val blocking = batchRequest(
-            SuppliedRpcRequest { success(1) },
-            SuppliedRpcRequest { success(2) },
+            SuppliedRpcRequest<Int, RpcError> { success(1) },
+            SuppliedRpcRequest<Int, RpcError> { success(2) },
         ).await()
         blocking.unwrap() shouldBe BatchResponse2(1, 2)
 
         val suspending = batchRequest(
-            SuppliedRpcRequest { success(3) },
-            SuppliedRpcRequest { success(4) },
+            SuppliedRpcRequest<Int, RpcError> { success(3) },
+            SuppliedRpcRequest<Int, RpcError> { success(4) },
         ).awaitSuspend()
         suspending.unwrap() shouldBe BatchResponse2(3, 4)
     }

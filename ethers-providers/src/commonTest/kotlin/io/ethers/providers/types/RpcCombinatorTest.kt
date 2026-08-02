@@ -19,8 +19,8 @@ class RpcCombinatorTest : FunSpec({
     context("suspend combinator overloads") {
         val err = RpcError(RpcError.CODE_CALL_FAILED, "boom")
         val otherErr = RpcError(RpcError.CODE_CALL_TIMEOUT, "timeout")
-        fun ok(v: Int) = SuppliedRpcRequest { success(v) }
-        fun bad() = SuppliedRpcRequest<Int> { failure(err) }
+        fun ok(v: Int) = SuppliedRpcRequest<Int, RpcError> { success(v) }
+        fun bad() = SuppliedRpcRequest<Int, RpcError> { failure(err) }
 
         test("map applies a suspending mapper on success and skips on failure") {
             ok(1).map {
