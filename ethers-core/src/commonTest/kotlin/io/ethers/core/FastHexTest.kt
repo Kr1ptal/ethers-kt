@@ -1,5 +1,6 @@
 package io.ethers.core
 
+import io.ethers.core.bigInteger
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.throwables.shouldThrow
@@ -8,7 +9,6 @@ import io.kotest.datatest.withData
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotStartWith
 import io.kotest.property.Arb
-import io.kotest.property.arbitrary.bigInt
 import io.kotest.property.arbitrary.byte
 import io.kotest.property.arbitrary.byteArray
 import io.kotest.property.arbitrary.int
@@ -64,7 +64,7 @@ class FastHexTest : FunSpec({
             }
         }
         test("big integer") {
-            Arb.bigInt(80).checkAll { value ->
+            Arb.bigInteger(80).checkAll { value ->
                 val hex = FastHex.encodeWithPrefix(value)
 
                 hex shouldBe ("0x" + value.toString(16))

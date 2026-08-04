@@ -1,9 +1,13 @@
 package io.ethers.abi
 
+import io.ethers.abi.bigInteger
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
+import io.github.artificialpb.bignum.minus
+import io.github.artificialpb.bignum.toBigInteger
+import io.github.artificialpb.bignum.unaryMinus
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.inspectors.forAll
@@ -11,7 +15,6 @@ import io.kotest.matchers.comparables.shouldBeEqualComparingTo
 import io.kotest.matchers.shouldBe
 import io.kotest.property.Arb
 import io.kotest.property.Exhaustive
-import io.kotest.property.arbitrary.bigInt
 import io.kotest.property.checkAll
 import io.kotest.property.exhaustive.of
 
@@ -61,13 +64,13 @@ class AbiCodecTest : FunSpec({
                 000000000000000000000000000000000000000000000000000000000000000a
                 0000000000000000000000000000000000000000000000000000000000000006
                 0001020304050000000000000000000000000000000000000000000000000000
-            """.trimIndent().replace(System.lineSeparator(), "")
+            """.trimIndent().replace("\n", "")
 
             encoded shouldBe expected
         }
 
         test("positive BigInteger to hex") {
-            Arb.bigInt(0, 256).checkAll {
+            Arb.bigInteger(0, 256).checkAll {
                 val encodedByCoder = AbiCodec.encode(listOf(AbiType.UInt(256)), listOf(it)).toHexString()
                 val encodedByJava = it.toString(16).padStart(64, '0')
 
@@ -75,8 +78,8 @@ class AbiCodecTest : FunSpec({
             }
         }
         test("negative BigInteger to hex") {
-            Arb.bigInt(0, 255).checkAll {
-                val num = it.negate()
+            Arb.bigInteger(0, 255).checkAll {
+                val num = -it
                 val numTwosComplement = if (num.signum() == -1) num.add(bigIntegerOf(1).shiftLeft(256)) else num
                 val encodedByCoder = AbiCodec.encode(listOf(AbiType.Int(256)), listOf(num)).toHexString()
                 val encodedByJava = numTwosComplement.toString(16).padStart(64, '0')
@@ -117,7 +120,7 @@ class AbiCodecTest : FunSpec({
                 00000000000000000000000000000000000000000000000000000000000000e0
                 0000000000000000000000000000000000000000000000000000000000000009
                 6761766f66796f726b0000000000000000000000000000000000000000000000
-            """.trimIndent().replace(System.lineSeparator(), "")
+            """.trimIndent().replace("\n", "")
 
             encoded shouldBe expected
         }
@@ -145,7 +148,7 @@ class AbiCodecTest : FunSpec({
                 0000000000000000000000002222222222222222222222222222222222222222
                 0000000000000000000000003333333333333333333333333333333333333333
                 0000000000000000000000004444444444444444444444444444444444444444
-            """.trimIndent().replace(System.lineSeparator(), "")
+            """.trimIndent().replace("\n", "")
 
             encoded shouldBe expected
         }
@@ -178,7 +181,7 @@ class AbiCodecTest : FunSpec({
                 0000000000000000000000000000000000000000000000000000000000000002
                 0000000000000000000000003333333333333333333333333333333333333333
                 0000000000000000000000004444444444444444444444444444444444444444
-            """.trimIndent().replace(System.lineSeparator(), "")
+            """.trimIndent().replace("\n", "")
 
             encoded shouldBe expected
         }
@@ -211,7 +214,7 @@ class AbiCodecTest : FunSpec({
                 0000000000000000000000000000000000000000000000000000000000000002
                 0000000000000000000000003333333333333333333333333333333333333333
                 0000000000000000000000004444444444444444444444444444444444444444
-            """.trimIndent().replace(System.lineSeparator(), "")
+            """.trimIndent().replace("\n", "")
 
             encoded shouldBe expected
         }
@@ -251,7 +254,7 @@ class AbiCodecTest : FunSpec({
                 0000000000000000000000000000000000000000000000000000000000000005
                 0000000000000000000000000000000000000000000000000000000000000006
                 0000000000000000000000000000000000000000000000000000000000000007
-            """.trimIndent().replace(System.lineSeparator(), "")
+            """.trimIndent().replace("\n", "")
 
             encoded shouldBe expected
         }
@@ -270,7 +273,7 @@ class AbiCodecTest : FunSpec({
                 0000000000000000000000000000000000000000000000000000000000000060
                 0000000000000000000000000000000000000000000000000000000000000000
                 0000000000000000000000000000000000000000000000000000000000000000
-            """.trimIndent().replace(System.lineSeparator(), "")
+            """.trimIndent().replace("\n", "")
 
             encoded shouldBe expected
         }
@@ -291,7 +294,7 @@ class AbiCodecTest : FunSpec({
                 0000000000000000000000000000000000000000000000000000000000000026
                 4444444444444444444444444444444444444444444444444444444444444444
                 4444444444440000000000000000000000000000000000000000000000000000
-            """.trimIndent().replace(System.lineSeparator(), "")
+            """.trimIndent().replace("\n", "")
 
             encoded shouldBe expected
         }
@@ -313,7 +316,7 @@ class AbiCodecTest : FunSpec({
                 0000000000000000000000000000000000000000000000000000000000003035
                 00000000000000000000000000000000000000000000000000000000000d0869
                 00000000000000000000000000000000000000000000000000000000499adabf
-            """.trimIndent().replace(System.lineSeparator(), "")
+            """.trimIndent().replace("\n", "")
 
             encoded shouldBe expected
         }
@@ -335,7 +338,7 @@ class AbiCodecTest : FunSpec({
                 6761766f66796f726b0000000000000000000000000000000000000000000000
                 0000000000000000000000000000000000000000000000000000000000000009
                 6761766f66796f726b0000000000000000000000000000000000000000000000
-            """.trimIndent().replace(System.lineSeparator(), "")
+            """.trimIndent().replace("\n", "")
 
             encoded shouldBe expected
         }
@@ -372,7 +375,7 @@ class AbiCodecTest : FunSpec({
                 7765656500000000000000000000000000000000000000000000000000000000
                 0000000000000000000000000000000000000000000000000000000000000008
                 66756e7465737473000000000000000000000000000000000000000000000000
-            """.trimIndent().replace(System.lineSeparator(), "")
+            """.trimIndent().replace("\n", "")
 
             encoded shouldBe expected
         }
@@ -401,10 +404,10 @@ class AbiCodecTest : FunSpec({
                 bigIntegerOf(1).shiftLeft(256),
                 bigIntegerOf(1).shiftLeft(260),
                 // too low by one
-                bigIntegerOf(1).shiftLeft(255).add(bigIntegerOf(1)).negate(),
+                -bigIntegerOf(1).shiftLeft(255).add(bigIntegerOf(1)),
                 // too low
-                bigIntegerOf(1).shiftLeft(256).negate(),
-                bigIntegerOf(1).shiftLeft(260).negate(),
+                -bigIntegerOf(1).shiftLeft(256),
+                -bigIntegerOf(1).shiftLeft(260),
             ).checkAll {
                 val params = listOf(it)
                 shouldThrow<AbiCodecException> { AbiCodec.encode(function.inputs, params) }
@@ -420,7 +423,7 @@ class AbiCodecTest : FunSpec({
                 // too high
                 bigIntegerOf(1).shiftLeft(260),
                 // negative
-                bigIntegerOf(1).negate(),
+                -bigIntegerOf(1),
             ).checkAll {
                 val params = listOf(it)
                 shouldThrow<AbiCodecException> { AbiCodec.encode(function.inputs, params) }
@@ -496,7 +499,7 @@ class AbiCodecTest : FunSpec({
         }
 
         test("positive BigInteger from hex") {
-            Arb.bigInt(0, 256).checkAll {
+            Arb.bigInteger(0, 256).checkAll {
                 val encodedByJava = it.toString(16).padStart(64, '0').hexToByteArray()
                 val decoded = AbiCodec.decode(listOf(AbiType.UInt(256)), encodedByJava)[0]
 
@@ -504,8 +507,8 @@ class AbiCodecTest : FunSpec({
             }
         }
         test("negative BigInteger from hex") {
-            Arb.bigInt(0, 255).checkAll {
-                val num = it.negate()
+            Arb.bigInteger(0, 255).checkAll {
+                val num = -it
                 val numTwosComplement = if (num.signum() == -1) num.add(bigIntegerOf(1).shiftLeft(256)) else num
                 val encodedByJava = numTwosComplement.toString(16).padStart(64, '0').hexToByteArray()
                 val decoded = AbiCodec.decode(listOf(AbiType.Int(256)), encodedByJava)[0]
@@ -526,7 +529,7 @@ class AbiCodecTest : FunSpec({
                 00000000000000000000000000000000000000000000000000000000000000e0
                 0000000000000000000000000000000000000000000000000000000000000009
                 6761766f66796f726b0000000000000000000000000000000000000000000000
-            """.trimIndent().replace(System.lineSeparator(), "").hexToByteArray()
+            """.trimIndent().replace("\n", "").hexToByteArray()
 
             val decoded = AbiCodec.decode(function.inputs, dataHex)
 
@@ -557,7 +560,7 @@ class AbiCodecTest : FunSpec({
                 0000000000000000000000002222222222222222222222222222222222222222
                 0000000000000000000000003333333333333333333333333333333333333333
                 0000000000000000000000004444444444444444444444444444444444444444
-            """.trimIndent().replace(System.lineSeparator(), "").hexToByteArray()
+            """.trimIndent().replace("\n", "").hexToByteArray()
 
             val decoded = AbiCodec.decode(function.inputs, dataHex)
 
@@ -590,7 +593,7 @@ class AbiCodecTest : FunSpec({
                 0000000000000000000000000000000000000000000000000000000000000002
                 0000000000000000000000003333333333333333333333333333333333333333
                 0000000000000000000000004444444444444444444444444444444444444444
-            """.trimIndent().replace(System.lineSeparator(), "").hexToByteArray()
+            """.trimIndent().replace("\n", "").hexToByteArray()
 
             val decoded = AbiCodec.decode(function.inputs, dataHex)
             val expected = listOf(
@@ -623,7 +626,7 @@ class AbiCodecTest : FunSpec({
                 0000000000000000000000000000000000000000000000000000000000000002
                 0000000000000000000000003333333333333333333333333333333333333333
                 0000000000000000000000004444444444444444444444444444444444444444
-            """.trimIndent().replace(System.lineSeparator(), "").hexToByteArray()
+            """.trimIndent().replace("\n", "").hexToByteArray()
 
             val decoded = AbiCodec.decode(function.inputs, dataHex)
 
@@ -662,7 +665,7 @@ class AbiCodecTest : FunSpec({
                 0000000000000000000000000000000000000000000000000000000000000005
                 0000000000000000000000000000000000000000000000000000000000000006
                 0000000000000000000000000000000000000000000000000000000000000007
-            """.trimIndent().replace(System.lineSeparator(), "").hexToByteArray()
+            """.trimIndent().replace("\n", "").hexToByteArray()
 
             val decoded = AbiCodec.decodeWithPrefix(function.selector.size, function.inputs, dataHex)
 
@@ -688,7 +691,7 @@ class AbiCodecTest : FunSpec({
                 0000000000000000000000000000000000000000000000000000000000000060
                 0000000000000000000000000000000000000000000000000000000000000000
                 0000000000000000000000000000000000000000000000000000000000000000
-            """.trimIndent().replace(System.lineSeparator(), "").hexToByteArray()
+            """.trimIndent().replace("\n", "").hexToByteArray()
 
             val decoded = AbiCodec.decode(function.outputs, dataHex)
 
@@ -709,7 +712,7 @@ class AbiCodecTest : FunSpec({
                 0000000000000000000000000000000000000000000000000000000000000026
                 4444444444444444444444444444444444444444444444444444444444444444
                 4444444444440000000000000000000000000000000000000000000000000000
-            """.trimIndent().replace(System.lineSeparator(), "").hexToByteArray()
+            """.trimIndent().replace("\n", "").hexToByteArray()
 
             val decoded = AbiCodec.decode(function.outputs, dataHex)
 
@@ -736,7 +739,7 @@ class AbiCodecTest : FunSpec({
                 0102000000000000000000000000000000000000000000000000000000000000
                 0000000000000000000000000000000000000000000000000000000000000002
                 0304000000000000000000000000000000000000000000000000000000000000
-            """.trimIndent().replace(System.lineSeparator(), "").hexToByteArray()
+            """.trimIndent().replace("\n", "").hexToByteArray()
 
             val decoded = AbiCodec.decode(function.outputs, dataHex)
 
@@ -774,7 +777,7 @@ class AbiCodecTest : FunSpec({
                 7765656500000000000000000000000000000000000000000000000000000000
                 0000000000000000000000000000000000000000000000000000000000000008
                 66756e7465737473000000000000000000000000000000000000000000000000
-            """.trimIndent().replace(System.lineSeparator(), "").hexToByteArray()
+            """.trimIndent().replace("\n", "").hexToByteArray()
 
             val decoded = AbiCodec.decode(function.inputs, dataHex)
             val expected = listOf(
@@ -792,7 +795,7 @@ class AbiCodecTest : FunSpec({
                 0000000000000000000000000000000000000000000000000000000000003035
                 00000000000000000000000000000000000000000000000000000000000d0869
                 00000000000000000000000000000000000000000000000000000000499adabf
-            """.trimIndent().replace(System.lineSeparator(), "").hexToByteArray()
+            """.trimIndent().replace("\n", "").hexToByteArray()
 
             val decoded = AbiCodec.decode(function.outputs, dataHex)
 

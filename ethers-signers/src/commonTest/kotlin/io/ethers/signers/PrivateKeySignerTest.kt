@@ -6,6 +6,7 @@ import io.ethers.core.types.Hash
 import io.ethers.core.types.Signature
 import io.ethers.core.types.transaction.TxDynamicFee
 import io.ethers.core.types.transaction.TxLegacy
+import io.github.artificialpb.bignum.toBigInteger
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.inspectors.forAll

@@ -7,6 +7,7 @@ import io.ethers.core.types.transaction.TxDynamicFee
 import io.ethers.core.types.transaction.TxLegacy
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
+import io.github.artificialpb.bignum.unaryMinus
 import io.kotest.assertions.json.shouldEqualJson
 import io.kotest.assertions.throwables.shouldThrowUnit
 import io.kotest.core.spec.style.FunSpec
@@ -98,20 +99,20 @@ class CallRequestTest : FunSpec({
     test("throws on negative BigInteger assignment") {
         val request = CallRequest()
 
-        shouldThrowUnit<IllegalArgumentException> { request.gasPrice = bigIntegerOf(1).negate() }
-        shouldThrowUnit<IllegalArgumentException> { request.gasPrice(bigIntegerOf(1).negate()) }
+        shouldThrowUnit<IllegalArgumentException> { request.gasPrice = -bigIntegerOf(1) }
+        shouldThrowUnit<IllegalArgumentException> { request.gasPrice(-bigIntegerOf(1)) }
 
-        shouldThrowUnit<IllegalArgumentException> { request.gasFeeCap = bigIntegerOf(1).negate() }
-        shouldThrowUnit<IllegalArgumentException> { request.gasFeeCap(bigIntegerOf(1).negate()) }
+        shouldThrowUnit<IllegalArgumentException> { request.gasFeeCap = -bigIntegerOf(1) }
+        shouldThrowUnit<IllegalArgumentException> { request.gasFeeCap(-bigIntegerOf(1)) }
 
-        shouldThrowUnit<IllegalArgumentException> { request.gasTipCap = bigIntegerOf(1).negate() }
-        shouldThrowUnit<IllegalArgumentException> { request.gasTipCap(bigIntegerOf(1).negate()) }
+        shouldThrowUnit<IllegalArgumentException> { request.gasTipCap = -bigIntegerOf(1) }
+        shouldThrowUnit<IllegalArgumentException> { request.gasTipCap(-bigIntegerOf(1)) }
 
-        shouldThrowUnit<IllegalArgumentException> { request.value = bigIntegerOf(1).negate() }
-        shouldThrowUnit<IllegalArgumentException> { request.value(bigIntegerOf(1).negate()) }
+        shouldThrowUnit<IllegalArgumentException> { request.value = -bigIntegerOf(1) }
+        shouldThrowUnit<IllegalArgumentException> { request.value(-bigIntegerOf(1)) }
 
-        shouldThrowUnit<IllegalArgumentException> { request.blobFeeCap = bigIntegerOf(1).negate() }
-        shouldThrowUnit<IllegalArgumentException> { request.blobFeeCap(bigIntegerOf(1).negate()) }
+        shouldThrowUnit<IllegalArgumentException> { request.blobFeeCap = -bigIntegerOf(1) }
+        shouldThrowUnit<IllegalArgumentException> { request.blobFeeCap(-bigIntegerOf(1)) }
     }
 
     context("toUnsignedTransactionOrNull") {
