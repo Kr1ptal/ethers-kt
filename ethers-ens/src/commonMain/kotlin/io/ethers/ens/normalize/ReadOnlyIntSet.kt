@@ -12,7 +12,7 @@
 package io.ethers.ens.normalize
 
 internal class ReadOnlyIntSet private constructor(array: IntArray) : ReadOnlyIntList(array) {
-    override fun contains(value: Int): Boolean = array.binarySearch(value) >= 0
+    override fun contains(value: Int): Boolean = array.containsSorted(value)
 
     companion object {
         val EMPTY = ReadOnlyIntSet(IntArray(0))
