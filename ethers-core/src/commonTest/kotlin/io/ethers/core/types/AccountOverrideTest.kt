@@ -5,6 +5,7 @@ import io.github.artificialpb.bignum.BigInteger
 import io.kotest.assertions.json.shouldEqualJson
 import io.kotest.assertions.throwables.shouldThrowUnit
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.datatest.withData
 import io.kotest.matchers.shouldBe
 
 class AccountOverrideTest : FunSpec({
@@ -166,6 +167,34 @@ class AccountOverrideTest : FunSpec({
                     ),
                 )
             }
+        }
+    }
+
+    context("mergeChanges leaves the source override untouched") {
+        // `applyChanges` assigns `state = other.state` by reference, so the stateDiff branch must never update that
+        // map in place. Whether it did used to depend on the map being a HashMap, which varies by platform and by
+        // size: on the JVM `mapOf(singlePair)` is a singletonMap, but two or more entries give a LinkedHashMap, and
+        // on native every `mapOf` is a LinkedHashMap - so this silently corrupted the source for larger maps.
+        val h1 = Hash(ByteArray(32) { 1 })
+        val h2 = Hash(ByteArray(32) { 2 })
+        val h3 = Hash(ByteArray(32) { 3 })
+
+        withData(
+            nameFn = { "${it.size} entry state map" },
+            mapOf(h1 to h1),
+            mapOf(h1 to h1, h2 to h2),
+        ) { stateMap ->
+            val expected = LinkedHashMap(stateMap) // snapshot taken before the merge
+            val source = AccountOverride { state(stateMap) }
+
+            val merged = source.mergeChanges(AccountOverride { stateDiff(mapOf(h3 to h3)) })
+
+            // neither the caller's map nor the source override may have changed
+            stateMap shouldBe expected
+            source.state shouldBe expected
+
+            // ...while the merge result does carry the diff
+            merged.state shouldBe (expected + mapOf(h3 to h3))
         }
     }
 

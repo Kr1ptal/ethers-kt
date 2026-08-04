@@ -120,17 +120,20 @@ class AccountOverride() {
 
             // if we already have a "state" override, apply diff to it. This means that the state was cleared before,
             // and we're applying a diff to a fresh state.
-            var curr = if (applyingOnFreshState) state else stateDiff
-            if (curr == null) {
-                curr = HashMap(other.stateDiff!!.size)
-            }
+            val curr = if (applyingOnFreshState) state else stateDiff
 
-            when (curr) {
-                is HashMap -> curr.putAll(other.stateDiff!!)
-                else -> curr = HashMap(curr).apply { putAll(other.stateDiff!!) }
+            // NOTE: always copy. `curr` can be a map owned by another AccountOverride - the branch above assigns
+            // `state = other.state` by reference - so updating it in place would corrupt that instance. Whether
+            // that happened used to depend on `curr` being a HashMap, which varies by platform and by map size:
+            // on the JVM `mapOf(singlePair)` is a singletonMap, but with two or more entries it is a LinkedHashMap,
+            // and every `mapOf` is a LinkedHashMap on native.
+            val merged = HashMap<Hash, Hash>((curr?.size ?: 0) + other.stateDiff!!.size)
+            if (curr != null) {
+                merged.putAll(curr)
             }
+            merged.putAll(other.stateDiff!!)
 
-            if (applyingOnFreshState) state = curr else stateDiff = curr
+            if (applyingOnFreshState) state = merged else stateDiff = merged
         }
     }
 
