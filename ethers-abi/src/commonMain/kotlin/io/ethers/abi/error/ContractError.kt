@@ -7,6 +7,7 @@ import io.ethers.core.Result
 import io.ethers.core.types.Bytes
 import io.ethers.providers.RpcError
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.toBigInteger
 import kotlin.jvm.JvmField
 import kotlin.jvm.JvmStatic
 
