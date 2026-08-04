@@ -51,6 +51,13 @@ kotlin {
             }
         }
 
+        // only present when the opt-in iOS target is enabled (-PethersEnableIos)
+        findByName("nativeMain")?.dependencies {
+            // native provider for whyoleg cryptography. Apple's CommonCrypto/CryptoKit providers have no
+            // RIPEMD160, which Hashing.ripemd160() needs, so OpenSSL is the one that covers everything.
+            implementation(libs.whyoleg.cryptography.openssl3)
+        }
+
         // Platform-specific native libraries for secp256k1
         jvmMain {
             dependencies {
