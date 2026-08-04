@@ -73,7 +73,8 @@ internal class NF(dec: Decoder) {
 
         fun add(cp: Int) {
             var packed = cp
-            val cc = ranks.getOrDefault(cp, 0)
+            // `Map.getOrDefault` is JVM-only; ranks holds non-null Ints so an absent key is exactly a null lookup
+            val cc = ranks[cp] ?: 0
             if (cc != 0) {
                 check = true
                 packed = packed or cc

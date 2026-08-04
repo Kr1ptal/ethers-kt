@@ -370,7 +370,7 @@ internal class ENSIP15(val nf: NF, dec: Decoder) {
                 } else {
                     var b = 0
                     for (i in 0 until bound) {
-                        if (comp.binarySearch(maker!![i]) >= 0) {
+                        if (comp.containsSorted(maker!![i])) {
                             maker[b++] = maker[i]
                         }
                     }
