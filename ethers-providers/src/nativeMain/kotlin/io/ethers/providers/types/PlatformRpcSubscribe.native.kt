@@ -1,7 +1,7 @@
 package io.ethers.providers.types
 
-import io.ethers.core.Result
 import io.channels.core.ChannelReceiver
+import io.ethers.core.Result
 
 /**
  * Native targets have no blocking primitives to expose, so this adds no members beyond the suspending [send] that

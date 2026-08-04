@@ -41,4 +41,44 @@ jobs:
         if: failure()
         with:
           name: report-unit-test
-          path: build/reports/tests/unit-test
+          path: |
+            */build/reports/tests
+            */build/test-results
+
+  native-test:
+    name: native-test (iOS simulator)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/environment-setup
+
+      # The iOS target is opt-in, so `src/nativeMain` and `src/nativeTest` are invisible to the ubuntu job -
+      # ktlint has no source set to check there. Running it here is the only coverage those files get.
+      - name: Gradle ktlint (incl. native source sets)
+        run: ./gradlew ktlintCheck -PethersEnableIos --no-watch-fs --stacktrace
+
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: report-lint-native
+          path: |
+            build/reports/ktlint
+            */build/reports/ktlint
+
+      # Compiling for a native target is what actually enforces that commonMain and commonTest stay free of
+      # JVM-only APIs: with only jvm() and android (both JVM-family), compileCommonMainKotlinMetadata is skipped
+      # and commonMain resolves java.* just fine. Running the tests then catches what compiling cannot - a missing
+      # runtime provider, or a platform-dependent branch.
+      - name: Gradle test (iosSimulatorArm64)
+        run: ./gradlew iosSimulatorArm64Test -PethersEnableIos --no-watch-fs --stacktrace
+
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: report-native-test
+          path: |
+            */build/reports/tests
+            */build/test-results
