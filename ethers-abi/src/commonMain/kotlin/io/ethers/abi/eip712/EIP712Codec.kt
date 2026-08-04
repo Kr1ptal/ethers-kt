@@ -170,15 +170,17 @@ object EIP712Codec {
      */
     @JvmOverloads
     fun encodeType(abi: AbiType.Struct<*>, builder: StringBuilder = StringBuilder()): String {
-        // ASC-sorted component types
-        val sortedComponents = getSortedComponents(abi)
+        val components = collectComponents(abi)
 
         // remove the root type so it's always first
-        sortedComponents.remove(abi.eip712RootType)
+        components.remove(abi.eip712RootType)
 
         // add the root type first
         builder.append(abi.eip712RootType)
-        for (component in sortedComponents) {
+
+        // EIP-712 requires the referenced struct types in ascending order. Sorting happens here rather than in the
+        // accumulator because kotlin has no sorted set in common code.
+        for (component in components.sorted()) {
             builder.append(component)
         }
 
@@ -203,8 +205,7 @@ object EIP712Codec {
         types: Map<String, List<EIP712Field>>,
         builder: StringBuilder = StringBuilder(),
     ): String {
-        // Get all dependent types in ASC-sorted order
-        val sortedComponents = getSortedComponents(primaryType, types)
+        val components = collectComponents(primaryType, types)
 
         // Build the primary type string first
         val primaryFields = types[primaryType]
@@ -213,12 +214,13 @@ object EIP712Codec {
         val primaryEip712Type = encodeRootType(primaryType, primaryFields)
 
         // remove the root type so it's always first
-        sortedComponents.remove(primaryEip712Type)
+        components.remove(primaryEip712Type)
 
         builder.append(primaryEip712Type)
 
-        // Add all dependent types in sorted order (excluding primary)
-        for (component in sortedComponents) {
+        // Add all dependent types in ascending order (excluding primary). Sorting happens here rather than in the
+        // accumulator because kotlin has no sorted set in common code.
+        for (component in components.sorted()) {
             builder.append(component)
         }
 
@@ -445,19 +447,19 @@ object EIP712Codec {
      * detection to prevent infinite recursion.
      *
      * @param type The ABI type to process
-     * @param components Accumulator for sorted component type strings
+     * @param components Accumulator for component type strings; callers sort the result
      * @param visiting Set to track currently visiting types for cycle detection
-     * @return Set of all component type strings in sorted order
+     * @return Set of all component type strings, in unspecified order
      * @throws IllegalStateException if circular references are detected
      */
-    private fun getSortedComponents(
+    private fun collectComponents(
         type: AbiType<*>,
-        components: MutableSet<String> = sortedSetOf(),
+        components: MutableSet<String> = mutableSetOf(),
         visiting: MutableSet<String> = mutableSetOf(),
     ): MutableSet<String> {
         return when (type) {
-            is AbiType.Array<*> -> getSortedComponents(type.type, components, visiting)
-            is AbiType.FixedArray<*> -> getSortedComponents(type.type, components, visiting)
+            is AbiType.Array<*> -> collectComponents(type.type, components, visiting)
+            is AbiType.FixedArray<*> -> collectComponents(type.type, components, visiting)
             is AbiType.Struct<*> -> {
                 // Check for cycles
                 if (!visiting.add(type.name)) {
@@ -467,7 +469,7 @@ object EIP712Codec {
                 components.add(type.eip712RootType)
 
                 for (field in type.fields) {
-                    getSortedComponents(field.type, components, visiting)
+                    collectComponents(field.type, components, visiting)
                 }
 
                 // Remove from the visiting set after processing
@@ -489,16 +491,16 @@ object EIP712Codec {
      *
      * @param primaryType The name of the primary struct type
      * @param types Map of type names to their field definitions
-     * @param components Accumulator for sorted component type strings
+     * @param components Accumulator for component type strings; callers sort the result
      * @param visiting Set to track currently visiting types for cycle detection
-     * @return Set of all component type strings in sorted order
+     * @return Set of all component type strings, in unspecified order
      * @throws IllegalArgumentException if a referenced type is not found
      * @throws IllegalStateException if circular references are detected
      */
-    private fun getSortedComponents(
+    private fun collectComponents(
         primaryType: String,
         types: Map<String, List<EIP712Field>>,
-        components: MutableSet<String> = sortedSetOf(),
+        components: MutableSet<String> = mutableSetOf(),
         visiting: MutableSet<String> = mutableSetOf(),
     ): MutableSet<String> {
         // Check for cycles
@@ -530,7 +532,7 @@ object EIP712Codec {
                     }
 
                     if (types.containsKey(baseType)) {
-                        getSortedComponents(baseType, types, components, visiting)
+                        collectComponents(baseType, types, components, visiting)
                     }
                 }
 
@@ -540,7 +542,7 @@ object EIP712Codec {
                         throw IllegalArgumentException("Type '$fieldType' not found in types map")
                     }
 
-                    getSortedComponents(fieldType, types, components, visiting)
+                    collectComponents(fieldType, types, components, visiting)
                 }
             }
         }

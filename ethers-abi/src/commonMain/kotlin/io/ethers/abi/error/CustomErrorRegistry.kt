@@ -3,6 +3,8 @@ package io.ethers.abi.error
 import io.ethers.abi.error.CustomErrorRegistry.appendResolver
 import io.ethers.abi.error.CustomErrorRegistry.prependResolver
 import io.ethers.core.types.Bytes
+import kotlinx.atomicfu.locks.SynchronizedObject
+import kotlinx.atomicfu.locks.synchronized
 import kotlin.jvm.JvmStatic
 
 /**
@@ -13,6 +15,10 @@ import kotlin.jvm.JvmStatic
  * and the first resolver that can decode the error is used.
  * */
 object CustomErrorRegistry {
+    // `kotlin.synchronized` is JVM-only, so writes are guarded by an atomicfu lock instead. On the JVM this still
+    // compiles down to a monitor, so behaviour is unchanged.
+    private val lock = SynchronizedObject()
+
     private val resolvers = ArrayList<CustomErrorResolver>().apply {
         add(CustomErrorFactoryResolver)
     }
@@ -22,7 +28,7 @@ object CustomErrorRegistry {
      * */
     @JvmStatic
     fun prependResolver(resolver: CustomErrorResolver) {
-        synchronized(resolvers) {
+        synchronized(lock) {
             resolvers.add(0, resolver)
         }
     }
@@ -32,7 +38,7 @@ object CustomErrorRegistry {
      * */
     @JvmStatic
     fun appendResolver(resolver: CustomErrorResolver) {
-        synchronized(resolvers) {
+        synchronized(lock) {
             resolvers.add(resolver)
         }
     }
@@ -70,18 +76,20 @@ interface CustomErrorResolver {
  * errors are automatically added to this resolver.
  * */
 object CustomErrorFactoryResolver : CustomErrorResolver {
+    private val lock = SynchronizedObject()
+
     private val factories = ArrayList<CustomErrorFactory<*>>()
 
     @JvmStatic
     fun <T : CustomContractError> addFactories(newFactories: Array<CustomErrorFactory<out T>>) {
-        synchronized(factories) {
+        synchronized(lock) {
             factories.addAll(newFactories)
         }
     }
 
     @JvmStatic
     fun <T : CustomContractError> addFactories(newFactories: List<CustomErrorFactory<out T>>) {
-        synchronized(factories) {
+        synchronized(lock) {
             factories.addAll(newFactories)
         }
     }

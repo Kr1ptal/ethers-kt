@@ -2,6 +2,7 @@ package io.ethers.abi.call
 
 import io.ethers.abi.error.ContractError
 import io.ethers.core.Result
+import kotlin.jvm.JvmSynthetic
 
 /**
  * Aggregation of multiple results, returned by [Multicall3] when aggregating multiple abi-generated calls.

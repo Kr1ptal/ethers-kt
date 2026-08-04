@@ -19,6 +19,7 @@ import io.ethers.core.types.IntoCallRequest
 import io.ethers.providers.middleware.Middleware
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
+import io.github.artificialpb.bignum.plus
 import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlinx.atomicfu.locks.synchronized
 import kotlin.jvm.JvmField
