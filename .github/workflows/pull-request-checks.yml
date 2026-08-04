@@ -55,6 +55,23 @@ jobs:
 
       - uses: ./.github/actions/environment-setup
 
+      # setup-gradle caches ~/.gradle but not ~/.konan, where the Kotlin/Native toolchain lives, so the job
+      # otherwise re-downloads and unpacks the compiler bundle and LLVM every run - about 2.5 min of the total.
+      #
+      # `dependencies/cache` holds the downloaded tarballs, which are only needed to extract the directories
+      # beside them, so it is excluded - that keeps the entry near ~2GB against the 10GB per-repo budget.
+      #
+      # Keyed on the version catalog so a kotlin upgrade invalidates it; the prefix restore-key still yields a
+      # usable cache when other dependencies move, since ~/.konan is additive.
+      - name: Cache Kotlin/Native toolchain
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.konan
+            !~/.konan/dependencies/cache
+          key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml') }}
+          restore-keys: konan-${{ runner.os }}-
+
       # The iOS target is opt-in, so `src/nativeMain` and `src/nativeTest` are invisible to the ubuntu job -
       # ktlint has no source set to check there. Running it here is the only coverage those files get.
       - name: Gradle ktlint (incl. native source sets)
