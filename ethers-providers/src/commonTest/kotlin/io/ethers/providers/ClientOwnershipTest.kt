@@ -4,7 +4,6 @@ import io.ethers.core.isSuccess
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
-import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.HttpClient as KtorHttpClient
 
@@ -33,7 +32,7 @@ class ClientOwnershipTest : FunSpec({
 
     test("closing a provider does not close a caller-supplied client") {
         val server = mockServerHttp()
-        val ownClient = KtorHttpClient(CIO) { install(WebSockets) }
+        val ownClient = KtorHttpClient { install(WebSockets) }
 
         val provider = Provider.builder(server.url).httpClient(ownClient).build(1L).unwrap()
         server.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0x1"}""")

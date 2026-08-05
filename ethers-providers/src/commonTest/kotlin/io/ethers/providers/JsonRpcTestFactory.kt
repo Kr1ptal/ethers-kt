@@ -9,8 +9,6 @@ import io.kotest.core.spec.style.funSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.serialization.json.jsonPrimitive
-import org.intellij.lang.annotations.Language
-import java.util.concurrent.ExecutionException
 import kotlinx.serialization.json.JsonElement as KJsonElement
 
 enum class RpcClientVariant {
@@ -180,9 +178,6 @@ object JsonRpcTestFactory {
                 shouldThrow<IllegalStateException> {
                     pendingResponse.await()
                 }
-                shouldThrow<ExecutionException> {
-                    pendingResponse.toFuture().get()
-                }.cause.shouldBeInstanceOf<IllegalStateException>()
 
                 val batchResult = batch.send()
                 batchResult shouldBe true
@@ -191,8 +186,6 @@ object JsonRpcTestFactory {
                 result.isSuccess() shouldBe true
                 result.unwrap() shouldBe "0x1234567"
                 pendingResponse.await() shouldBe result
-                pendingResponse.get() shouldBe result
-                pendingResponse.toFuture().get() shouldBe result
 
                 shouldThrow<IllegalStateException> {
                     batch.send()
@@ -215,7 +208,6 @@ object JsonRpcTestFactory {
     }
 
     // Test response constants
-    @Language("JSON")
     private val SUCCESSFUL_RESPONSE = """
     {
         "jsonrpc": "2.0",
@@ -224,7 +216,6 @@ object JsonRpcTestFactory {
     }
     """.trimIndent()
 
-    @Language("JSON")
     private val RPC_ERROR_RESPONSE = """
     {
         "jsonrpc": "2.0",
@@ -236,7 +227,6 @@ object JsonRpcTestFactory {
     }
     """.trimIndent()
 
-    @Language("JSON")
     private val RESPONSE_MISSING_FIELDS = """
     {
         "jsonrpc": "2.0",
@@ -244,7 +234,6 @@ object JsonRpcTestFactory {
     }
     """.trimIndent()
 
-    @Language("JSON")
     private val MIXED_BATCH_RESPONSE = """
     [
         {
@@ -263,7 +252,6 @@ object JsonRpcTestFactory {
     ]
     """.trimIndent()
 
-    @Language("JSON")
     private val OUT_OF_ORDER_BATCH_RESPONSE = """
     [
         {
@@ -284,7 +272,6 @@ object JsonRpcTestFactory {
     ]
     """.trimIndent()
 
-    @Language("JSON")
     private val SINGLE_ITEM_BATCH_RESPONSE = """
     [
         {
@@ -295,7 +282,6 @@ object JsonRpcTestFactory {
     ]
     """.trimIndent()
 
-    @Language("JSON")
     private val BATCH_INVALID_ID_RESPONSE = """
     [
         {

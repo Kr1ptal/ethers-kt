@@ -5,19 +5,19 @@ import io.ethers.core.isFailure
 import io.ethers.core.isSuccess
 import io.ethers.core.types.Address
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.nondeterministic.eventually
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.websocket.WebSockets
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
-import org.intellij.lang.annotations.Language
 import kotlin.collections.mapOf
 import kotlin.time.Duration.Companion.seconds
 import io.ktor.client.HttpClient as KtorHttpClient
@@ -27,7 +27,7 @@ import kotlinx.serialization.json.JsonElement as KJsonElement
  * WsClient tests demonstrating the funSpec factory pattern for JsonRpcClient testing.
  *
  * This shows how the same factory pattern used for HttpClient can conceptually be applied
- * to WsClient, though WebSocket testing with MockWebServer has additional complexity.
+ * to WsClient, backed by an embedded ktor server on loopback.
  * The main demonstration is showing WebSocket-specific capabilities like subscriptions.
  */
 // Waits that span a reconnect have to allow for a full WebSocket handshake against the mock server, not just a
@@ -41,7 +41,7 @@ class WsClientTest : FunSpec({
     val commonJsonRpcTests = JsonRpcTestFactory.commonTests(
         RpcClientVariant.WS,
         { url ->
-            WsClient(url, KtorHttpClient(CIO) { install(WebSockets) }, readTimeoutMs = 50L)
+            WsClient(url, KtorHttpClient { install(WebSockets) }, readTimeoutMs = 50L)
         },
     )
     include(commonJsonRpcTests)
@@ -53,7 +53,7 @@ class WsClientTest : FunSpec({
 
         beforeEach {
             mockServer = mockServerWebsocket()
-            wsClient = WsClient(mockServer.url, KtorHttpClient(CIO) { install(WebSockets) })
+            wsClient = WsClient(mockServer.url, KtorHttpClient { install(WebSockets) })
         }
 
         afterEach {
@@ -66,7 +66,7 @@ class WsClientTest : FunSpec({
             val callMap = mapOf(
                 "from" to Address("0x1111111111111111111111111111111111111111"),
                 "to" to Address("0x2222222222222222222222222222222222222222"),
-                "value" to BigInteger.ONE,
+                "value" to bigIntegerOf(1),
                 "data" to byteArrayOf(0xde.toByte(), 0xad.toByte(), 0xbe.toByte(), 0xef.toByte()),
                 "gas" to 21000L,
             )
@@ -122,7 +122,7 @@ class WsClientTest : FunSpec({
 
         beforeEach {
             mockServer = mockServerWebsocket()
-            wsClient = WsClient(mockServer.url, KtorHttpClient(CIO) { install(WebSockets) })
+            wsClient = WsClient(mockServer.url, KtorHttpClient { install(WebSockets) })
         }
 
         afterEach {
@@ -146,7 +146,6 @@ class WsClientTest : FunSpec({
             stream shouldNotBe null
 
             // Send multiple notifications
-            @Language("JSON")
             val notification1 = """
             {
                 "jsonrpc": "2.0",
@@ -162,7 +161,6 @@ class WsClientTest : FunSpec({
             }
             """.trimIndent()
 
-            @Language("JSON")
             val notification2 = """
             {
                 "jsonrpc": "2.0",
@@ -178,7 +176,6 @@ class WsClientTest : FunSpec({
             }
             """.trimIndent()
 
-            @Language("JSON")
             val notification3 = """
             {
                 "jsonrpc": "2.0",
@@ -235,9 +232,8 @@ class WsClientTest : FunSpec({
         test("resubscribeOnReconnect=false closes streams on reconnection") {
             val subscriptionId = "0xreconnect123"
 
-            // Close default wsClient and prepare mock server for new connection
+            // Close the default wsClient; the embedded server keeps accepting, so no reconnect setup is needed
             wsClient.close()
-            mockServer.allowReconnect()
 
             // Pre-queue subscription response
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"$subscriptionId"}""")
@@ -245,7 +241,7 @@ class WsClientTest : FunSpec({
             // Create client with resubscribeOnReconnect = false
             wsClient = WsClient(
                 mockServer.url,
-                KtorHttpClient(CIO) { install(WebSockets) },
+                KtorHttpClient { install(WebSockets) },
                 emptyMap(),
                 resubscribeOnReconnect = false,
             )
@@ -261,8 +257,7 @@ class WsClientTest : FunSpec({
             stream shouldNotBe null
             stream.isClosed shouldBe false
 
-            // Allow reconnection (no need to queue subscription response since streams will be closed)
-            mockServer.allowReconnect()
+            // No reconnect setup needed - the embedded server accepts connections continuously
 
             // Close the connection from server side to trigger reconnection
             mockServer.closeConnection()
@@ -277,15 +272,14 @@ class WsClientTest : FunSpec({
             val subscriptionId = "0xdefault123"
             val newSubscriptionId = "0xdefault456"
 
-            // Close default wsClient and prepare mock server for new connection
+            // Close the default wsClient; the embedded server keeps accepting, so no reconnect setup is needed
             wsClient.close()
-            mockServer.allowReconnect()
 
             // Pre-queue subscription response
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"$subscriptionId"}""")
 
             // Create client with default settings (resubscribeOnReconnect = true)
-            wsClient = WsClient(mockServer.url, KtorHttpClient(CIO) { install(WebSockets) })
+            wsClient = WsClient(mockServer.url, KtorHttpClient { install(WebSockets) })
 
             // Subscribe to new block headers
             val params = arrayOf("newHeads")
@@ -298,15 +292,13 @@ class WsClientTest : FunSpec({
             stream shouldNotBe null
             stream.isClosed shouldBe false
 
-            // Allow reconnection and queue new subscription response for auto-resubscription
-            mockServer.allowReconnect()
+            // Queue the new subscription response for auto-resubscription
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"$newSubscriptionId"}""")
 
             // Close the connection from server side to trigger reconnection
             mockServer.closeConnection()
 
             // Verify stream is still open and receives messages after reconnection
-            @Language("JSON")
             val notification = """
             {
                 "jsonrpc": "2.0",
@@ -345,7 +337,6 @@ class WsClientTest : FunSpec({
             subscriptionResult.isSuccess() shouldBe true
 
             // Send multiple notifications
-            @Language("JSON")
             val notification1 = """
             {
                 "jsonrpc": "2.0",
@@ -375,7 +366,6 @@ class WsClientTest : FunSpec({
 
             stream.close()
 
-            @Language("JSON")
             val notification2 = """
             {
                 "jsonrpc": "2.0",
@@ -392,7 +382,7 @@ class WsClientTest : FunSpec({
             """.trimIndent()
 
             mockServer.sendJson(notification2)
-            Thread.sleep(100)
+            delay(100)
 
             stream.isEmpty shouldBe true
             stream.isClosed shouldBe true
@@ -400,22 +390,28 @@ class WsClientTest : FunSpec({
 
         test("request queued during reconnect times out before reconnect succeeds") {
             wsClient.close()
-            mockServer.allowReconnect()
             wsClient = WsClient(
                 mockServer.url,
-                KtorHttpClient(CIO) { install(WebSockets) },
-                connectTimeoutMs = 50L,
-                readTimeoutMs = 100L,
+                KtorHttpClient { install(WebSockets) },
+                // These were 50ms/100ms, tuned to MockWebServer's in-process accept. Over a real socket a round
+                // trip cannot reliably complete that fast under the load of a full multi-module run, and the
+                // warm-up request below started failing. They only need to be short relative to the budget the
+                // second half of the test allows, which is RECONNECT_BACKOFF + 3s.
+                connectTimeoutMs = 2000L,
+                readTimeoutMs = 1000L,
             )
 
             val stringDecoder: (KJsonElement) -> String = { element -> element.jsonPrimitive.content }
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0x1234567"}""")
-            withTimeout(2.seconds) {
+            withTimeout(10.seconds) {
                 wsClient.request("eth_blockNumber", emptyArray<Any>(), stringDecoder)
             }.isSuccess() shouldBe true
 
             mockServer.closeConnection()
-            Thread.sleep(50)
+            // stop the server so the reconnect attempt is refused - previously this fell out of MockWebServer
+            // only accepting a connection when an upgrade had been enqueued
+            mockServer.stop()
+            delay(50)
 
             // The request is only failed after the processor loop has been through a reconnect attempt, and a
             // failed attempt parks for WsClient.RECONNECT_BACKOFF. The budget here has to exceed that backoff
