@@ -16,6 +16,7 @@ import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncoder
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
+import io.github.artificialpb.bignum.toBigInteger
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData
 import io.kotest.matchers.shouldBe

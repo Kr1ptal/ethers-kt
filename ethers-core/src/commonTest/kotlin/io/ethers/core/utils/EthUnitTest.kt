@@ -1,13 +1,15 @@
 package io.ethers.core.utils
 
+import io.ethers.core.bigInteger
 import io.github.artificialpb.bignum.BigDecimal
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigDecimalOf
 import io.github.artificialpb.bignum.bigIntegerOf
+import io.github.artificialpb.bignum.toBigDecimal
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData
 import io.kotest.matchers.comparables.shouldBeEqualComparingTo
 import io.kotest.property.Arb
-import io.kotest.property.arbitrary.bigInt
 import io.kotest.property.checkAll
 
 class EthUnitTest : FunSpec({
@@ -235,15 +237,15 @@ class EthUnitTest : FunSpec({
     test("Bulk test") {
         for (fromDecimals in 0..30) {
             for (toDecimals in 0..30) {
-                Arb.bigInt(0, 256).checkAll(25) {
+                Arb.bigInteger(0, 256).checkAll(25) {
                     val weiAmount = it.toBigDecimal()
-                    val gweiAmount = it.toBigDecimal().divide(BigDecimal.TEN.pow(9))
-                    val etherAmount = it.toBigDecimal().divide(BigDecimal.TEN.pow(18))
+                    val gweiAmount = it.toBigDecimal().divide(bigDecimalOf(10).pow(9))
+                    val etherAmount = it.toBigDecimal().divide(bigDecimalOf(10).pow(18))
 
-                    val fromAmountDec = weiAmount.divide(BigDecimal.TEN.pow(fromDecimals))
+                    val fromAmountDec = weiAmount.divide(bigDecimalOf(10).pow(fromDecimals))
                     val fromUnit = EthUnit(fromDecimals)
                     val toUnit = EthUnit(toDecimals)
-                    val toAmount = weiAmount.divide(BigDecimal.TEN.pow(toDecimals))
+                    val toAmount = weiAmount.divide(bigDecimalOf(10).pow(toDecimals))
 
                     // # To and from wei (String only)
                     fromUnit.toWei(fromAmountDec.toString()) shouldBeEqualComparingTo weiAmount
@@ -267,15 +269,15 @@ class EthUnitTest : FunSpec({
                     // toUnit using BigInteger
                     // calculate sourceAmount without decimals
                     val fromAmountInt = weiAmount
-                        .divide(BigDecimal.TEN.pow(fromDecimals)).toBigInteger()
+                        .divide(bigDecimalOf(10).pow(fromDecimals)).toBigInteger()
 
                     // When input is BigInteger we can't calculate toAmount from wei,
                     // because of loss of decimals when calculating sourceAmount
                     val toAmountInt =
                         if (toDecimals > fromDecimals)
-                            fromAmountInt.toBigDecimal().divide(BigDecimal.TEN.pow(toDecimals - fromDecimals))
+                            fromAmountInt.toBigDecimal().divide(bigDecimalOf(10).pow(toDecimals - fromDecimals))
                         else
-                            fromAmountInt.toBigDecimal().multiply(BigDecimal.TEN.pow(fromDecimals - toDecimals))
+                            fromAmountInt.toBigDecimal().multiply(bigDecimalOf(10).pow(fromDecimals - toDecimals))
 
                     testConvert(fromAmountInt, fromUnit, toAmountInt, toUnit)
                 }

@@ -2,21 +2,22 @@ package io.ethers.core.types
 
 import io.ethers.core.FastHex
 import io.ethers.core.Kotlinx
+import io.ethers.core.bigInteger
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
+import io.github.artificialpb.bignum.minus
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData
 import io.kotest.matchers.shouldBe
 import io.kotest.property.Arb
-import io.kotest.property.arbitrary.bigInt
 import io.kotest.property.arbitrary.int
 import io.kotest.property.checkAll
 
 class HashTest : FunSpec({
 
     test("Hash must be 32 bytes long") {
-        Arb.bigInt(0, 247).checkAll {
+        Arb.bigInteger(0, 247).checkAll {
             shouldThrow<IllegalArgumentException> {
                 Hash(it.toByteArray())
             }

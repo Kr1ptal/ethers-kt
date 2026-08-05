@@ -2,6 +2,7 @@ package io.ethers.rlp
 
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
+import io.github.artificialpb.bignum.toBigInteger
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData
@@ -13,8 +14,8 @@ class RlpDecoderTest : FunSpec({
         val maxUint256 = BigInteger("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", 16)
         withData(
             bigIntegerOf(0) to "80",
-            "73".toBigInteger(16) to "73",
-            "abc12841ff".toBigInteger(16) to "85abc12841ff",
+            BigInteger("73", 16) to "73",
+            BigInteger("abc12841ff", 16) to "85abc12841ff",
             maxUint256 to "a0ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
         ) { (result, input) ->
             val rlp = RlpDecoder(input.hexToByteArray())

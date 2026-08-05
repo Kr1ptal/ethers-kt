@@ -75,6 +75,7 @@ secp256k1-kmp-jni-android = { module = "fr.acinq.secp256k1:secp256k1-kmp-jni-and
 whyoleg-cryptography-core = { module = "dev.whyoleg.cryptography:cryptography-core", version.ref = "cryptography" }
 whyoleg-cryptography-random = { module = "dev.whyoleg.cryptography:cryptography-random", version.ref = "cryptography" }
 whyoleg-cryptography-jdk = { module = "dev.whyoleg.cryptography:cryptography-provider-jdk", version.ref = "cryptography" }
+whyoleg-cryptography-openssl3 = { module = "dev.whyoleg.cryptography:cryptography-provider-openssl3-prebuilt", version.ref = "cryptography" }
 whyoleg-cryptography-asn1 = { module = "dev.whyoleg.cryptography:cryptography-serialization-asn1-modules", version.ref = "cryptography" }
 
 gcp-kms = { module = "com.google.cloud:google-cloud-kms", version = "2.96.0" }

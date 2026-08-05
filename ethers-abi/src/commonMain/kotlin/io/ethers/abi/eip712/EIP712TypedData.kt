@@ -4,6 +4,8 @@ import io.ethers.abi.ContractStruct
 import io.ethers.core.types.Signature
 import io.ethers.crypto.Hashing
 import io.ethers.signers.Signer
+import io.github.artificialpb.bignum.BigDecimal
+import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.descriptors.buildClassSerialDescriptor
@@ -204,6 +206,14 @@ internal object EIP712TypedDataSerializer : KSerializer<EIP712TypedData> {
 
     private fun anyToJsonElement(value: Any): JsonElement = when (value) {
         is String -> JsonPrimitive(value)
+
+        // NOTE: these must come before `is Number`, and cannot rely on it. bignum-kt's BigInteger/BigDecimal are
+        // `java.math` typealiases on the JVM, so they are Numbers there, but on other platforms they are plain
+        // classes implementing only Comparable - `is Number` silently misses them and the value falls through to
+        // the `else` branch, which throws.
+        is BigInteger -> JsonPrimitive(value.toString())
+        is BigDecimal -> JsonPrimitive(value.toString())
+
         is Number -> JsonPrimitive(value.toString())
         is Boolean -> JsonPrimitive(value.toString())
         is List<*> -> JsonArray(value.map { anyToJsonElement(it!!) })

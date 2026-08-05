@@ -2,6 +2,8 @@ package io.ethers.rlp
 
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
+import io.github.artificialpb.bignum.toBigInteger
+import io.github.artificialpb.bignum.unaryMinus
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData
@@ -24,8 +26,8 @@ class RlpEncoderTest : FunSpec({
                 null to "80",
                 bigIntegerOf(0) to "80",
                 "130".toBigInteger() to "8182",
-                "73".toBigInteger(16) to "73",
-                "abc12841ff".toBigInteger(16) to "85abc12841ff",
+                BigInteger("73", 16) to "73",
+                BigInteger("abc12841ff", 16) to "85abc12841ff",
                 maxUint256 to "a0ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
             ) { (input, result) ->
                 val encoder = RlpEncoder(1)
@@ -37,7 +39,7 @@ class RlpEncoderTest : FunSpec({
         test("failure - negative BigInteger value") {
             shouldThrow<IllegalArgumentException> {
                 val encoder = RlpEncoder(1)
-                encoder.encode(bigIntegerOf(1).negate())
+                encoder.encode(-bigIntegerOf(1))
             }
         }
 

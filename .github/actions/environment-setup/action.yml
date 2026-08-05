@@ -10,7 +10,13 @@ runs:
         java-version: 17
         java-package: jdk
         distribution: "temurin"
-        cache: gradle
+        # NOTE: deliberately no `cache: gradle` here. setup-gradle below caches the Gradle User Home - including
+        # `caches/build-cache-1`, the local build cache - and its docs explicitly warn that setup-java's coarser
+        # caching may interfere with it. Having both meant the two mechanisms wrote overlapping copies of
+        # ~/.gradle/caches under different keys.
+        #
+        # The build cache matters a lot for the native job: Kotlin/Native compile *and* link tasks are cacheable,
+        # so a populated cache turns most of that job into FROM-CACHE.
 
     - uses: gradle/actions/setup-gradle@v4
       with:

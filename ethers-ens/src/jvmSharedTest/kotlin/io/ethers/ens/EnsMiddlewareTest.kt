@@ -7,6 +7,8 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+// NOTE: this suite makes live calls against a public mainnet endpoint, so it lives in jvmSharedTest rather than
+// commonTest - it is an integration test, not a unit test, and should not run on every target.
 private const val MAINNET_HTTP_RPC = "https://ethereum-rpc.publicnode.com"
 
 class EnsMiddlewareTest : FunSpec({

@@ -1,5 +1,6 @@
 package io.ethers.crypto
 
+import io.ethers.crypto.bigInteger
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.throwables.shouldThrow
@@ -8,7 +9,6 @@ import io.kotest.inspectors.forAll
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.property.Arb
-import io.kotest.property.arbitrary.bigInt
 import io.kotest.property.checkAll
 
 class Secp256k1Test : FunSpec({
@@ -73,7 +73,7 @@ class Secp256k1Test : FunSpec({
             )
 
             messages.forAll { message ->
-                Arb.bigInt(0, 256).checkAll {
+                Arb.bigInteger(0, 256).checkAll {
                     if (it == bigIntegerOf(0)) {
                         return@checkAll
                     }
