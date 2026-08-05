@@ -16,11 +16,10 @@ import io.github.artificialpb.bignum.BigInteger
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
-import org.intellij.lang.annotations.Language
 import kotlin.time.Duration.Companion.milliseconds
 
 class PendingTransactionTest : FunSpec({
-    context("awaitInclusion()") {
+    context("inclusion()") {
         val mockWebServer = mockServerHttp()
         val provider = Provider.builder(mockWebServer.url).build(chainId = 999999).unwrap()
         val minedBlockNumber = 18341180L
@@ -32,7 +31,7 @@ class PendingTransactionTest : FunSpec({
             enqueueEmptyResponses(mockWebServer, retries - 1)
             mockWebServer.enqueueJson(TX_RECEIPT_RESPONSE)
 
-            val response = pendingTransaction.awaitInclusion(retries, 50.milliseconds, 0).unwrap()
+            val response = pendingTransaction.inclusion(retries, 50.milliseconds, 0).unwrap()
             response shouldBe TX_RECEIPT
         }
 
@@ -47,7 +46,7 @@ class PendingTransactionTest : FunSpec({
                 mockWebServer.enqueueJson(MINED_BLOCK_RESPONSE_FACTORY(minedBlockNumber + i))
             }
 
-            val response = pendingTransaction.awaitInclusion(retries, 50.milliseconds, confirmations).unwrap()
+            val response = pendingTransaction.inclusion(retries, 50.milliseconds, confirmations).unwrap()
             response shouldBe TX_RECEIPT
         }
 
@@ -56,7 +55,7 @@ class PendingTransactionTest : FunSpec({
             val retries = 5
             enqueueEmptyResponses(mockWebServer, retries)
 
-            val response = pendingTransaction.awaitInclusion(retries, 50.milliseconds, 0)
+            val response = pendingTransaction.inclusion(retries, 50.milliseconds, 0)
             response.isFailure() shouldBe true
             response.unwrapError().shouldBeInstanceOf<PendingInclusion.Error>()
         }
@@ -66,7 +65,7 @@ class PendingTransactionTest : FunSpec({
             val errorMessage = "Failed to query transaction status"
             mockWebServer.enqueueJson(ERROR_RESPONSE_FACTORY(errorMessage))
 
-            val response = pendingTransaction.awaitInclusion(1, 50.milliseconds, 0)
+            val response = pendingTransaction.inclusion(1, 50.milliseconds, 0)
             response.isFailure() shouldBe true
 
             val error = response.unwrapError()
@@ -82,7 +81,7 @@ class PendingTransactionTest : FunSpec({
             val errorMessage = "Failed to query mined block status"
             mockWebServer.enqueueJson(ERROR_RESPONSE_FACTORY(errorMessage))
 
-            val response = pendingTransaction.awaitInclusion(1, 50.milliseconds, 10)
+            val response = pendingTransaction.inclusion(1, 50.milliseconds, 10)
             response.isFailure() shouldBe true
 
             val error = response.unwrapError()
@@ -92,7 +91,6 @@ class PendingTransactionTest : FunSpec({
     }
 })
 
-@Language("JSON")
 private val EMPTY_RESPONSE = """
         {
             "jsonrpc": "2.0",
@@ -101,9 +99,7 @@ private val EMPTY_RESPONSE = """
         }
 """.trimIndent()
 
-@Language("JSON")
 private val ERROR_RESPONSE_FACTORY: (String) -> String = { error ->
-    @Language("JSON")
     val response = """
             {
                 "jsonrpc": "2.0",
@@ -119,7 +115,6 @@ private val ERROR_RESPONSE_FACTORY: (String) -> String = { error ->
 }
 
 private val MINED_BLOCK_RESPONSE_FACTORY: (Long) -> String = { blockNumber ->
-    @Language("JSON")
     val response = """
             {
                 "jsonrpc": "2.0",
@@ -130,7 +125,6 @@ private val MINED_BLOCK_RESPONSE_FACTORY: (Long) -> String = { blockNumber ->
     response
 }
 
-@Language("JSON")
 private val TX_RECEIPT_RESPONSE = """
         {
           "jsonrpc": "2.0",
