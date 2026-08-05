@@ -5,17 +5,16 @@ import io.ethers.core.isFailure
 import io.ethers.core.isSuccess
 import io.ethers.core.types.Address
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.core.spec.style.funSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
-import io.ktor.client.engine.cio.CIO
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
-import org.intellij.lang.annotations.Language
 import io.ktor.client.HttpClient as KtorHttpClient
 import kotlinx.serialization.json.JsonElement as KJsonElement
 
@@ -30,7 +29,7 @@ class HttpClientTest : FunSpec({
     include(
         JsonRpcTestFactory.commonTests(
             RpcClientVariant.HTTP,
-            { url -> HttpClient(url, KtorHttpClient(CIO)) },
+            { url -> HttpClient(url, KtorHttpClient()) },
         ),
     )
 
@@ -46,7 +45,7 @@ private fun httpSpecificTests() = funSpec {
 
         beforeEach {
             server = mockServerHttp()
-            client = HttpClient(server.url, KtorHttpClient(CIO))
+            client = HttpClient(server.url, KtorHttpClient())
         }
 
         afterEach {
@@ -89,7 +88,7 @@ private fun httpSpecificTests() = funSpec {
             server.enqueueJson(SUCCESSFUL_RESPONSE)
 
             val headersMap = mapOf("Authorization" to "Bearer token123", "Custom-Header" to "value")
-            val clientWithHeaders = HttpClient(server.url, KtorHttpClient(CIO), headersMap)
+            val clientWithHeaders = HttpClient(server.url, KtorHttpClient(), headersMap)
 
             clientWithHeaders.request("eth_blockNumber", emptyArray<Any>(), stringDecoder)
 
@@ -113,7 +112,7 @@ private fun httpSpecificTests() = funSpec {
             val callMap = mapOf(
                 "from" to Address("0x1111111111111111111111111111111111111111"),
                 "to" to Address("0x2222222222222222222222222222222222222222"),
-                "value" to BigInteger.ONE,
+                "value" to bigIntegerOf(1),
                 "data" to byteArrayOf(0xde.toByte(), 0xad.toByte(), 0xbe.toByte(), 0xef.toByte()),
                 "gas" to 21000L,
             )
@@ -199,7 +198,7 @@ private fun httpSpecificTests() = funSpec {
 
     context("Subscription tests") {
         test("subscription is not supported") {
-            val httpClient = HttpClient("http://localhost:8545", KtorHttpClient(CIO))
+            val httpClient = HttpClient("http://localhost:8545", KtorHttpClient())
             val result = httpClient.subscribe(arrayOf("newHeads"), stringDecoder)
 
             result.isFailure() shouldBe true
@@ -210,7 +209,6 @@ private fun httpSpecificTests() = funSpec {
     }
 }
 
-@Language("JSON")
 private val SUCCESSFUL_RESPONSE = """
 {
     "jsonrpc": "2.0",
@@ -219,7 +217,6 @@ private val SUCCESSFUL_RESPONSE = """
 }
 """.trimIndent()
 
-@Language("JSON")
 private val RPC_ERROR_RESPONSE = """
 {
     "jsonrpc": "2.0",

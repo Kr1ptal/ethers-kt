@@ -9,23 +9,19 @@ import io.ethers.core.types.Hash
 import io.ethers.core.types.Log
 import io.ethers.core.types.TransactionReceipt
 import io.ethers.core.types.transaction.TxType
+import io.ethers.providers.MockServer
 import io.ethers.providers.Provider
+import io.ethers.providers.mockServerHttp
 import io.github.artificialpb.bignum.BigInteger
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
-import okhttp3.mockwebserver.MockResponse
-import okhttp3.mockwebserver.MockWebServer
-import org.intellij.lang.annotations.Language
 import kotlin.time.Duration.Companion.milliseconds
 
 class PendingTransactionTest : FunSpec({
-    context("awaitInclusion()") {
-        val mockWebServer = MockWebServer()
-        val provider = run<Provider> {
-            mockWebServer.start()
-            Provider.builder(mockWebServer.url("").toString()).build(chainId = 999999).unwrap()
-        }
+    context("inclusion()") {
+        val mockWebServer = mockServerHttp()
+        val provider = Provider.builder(mockWebServer.url).build(chainId = 999999).unwrap()
         val minedBlockNumber = 18341180L
         val txHash = Hash("0xce15f8ce74845b0d254fcbfda722ba89976ca6e09936d6761a648a6492b82e9b")
         val pendingTransaction = PendingTransaction(txHash, provider)
@@ -33,24 +29,24 @@ class PendingTransactionTest : FunSpec({
         test("transaction included, no confirmations") {
             val retries = 5
             enqueueEmptyResponses(mockWebServer, retries - 1)
-            mockWebServer.enqueue(generateMockResponse(body = TX_RECEIPT_RESPONSE))
+            mockWebServer.enqueueJson(TX_RECEIPT_RESPONSE)
 
-            val response = pendingTransaction.awaitInclusion(retries, 50.milliseconds, 0).unwrap()
+            val response = pendingTransaction.inclusion(retries, 50.milliseconds, 0).unwrap()
             response shouldBe TX_RECEIPT
         }
 
         test("transaction included, confirmation required") {
             val retries = 5
             enqueueEmptyResponses(mockWebServer, retries - 1)
-            mockWebServer.enqueue(generateMockResponse(body = TX_RECEIPT_RESPONSE))
+            mockWebServer.enqueueJson(TX_RECEIPT_RESPONSE)
 
             // Generate mock responses for subsequent confirmations until we reach final response
             val confirmations = 3
             for (i in 1..<3) {
-                mockWebServer.enqueue(generateMockResponse(body = MINED_BLOCK_RESPONSE_FACTORY(minedBlockNumber + i)))
+                mockWebServer.enqueueJson(MINED_BLOCK_RESPONSE_FACTORY(minedBlockNumber + i))
             }
 
-            val response = pendingTransaction.awaitInclusion(retries, 50.milliseconds, confirmations).unwrap()
+            val response = pendingTransaction.inclusion(retries, 50.milliseconds, confirmations).unwrap()
             response shouldBe TX_RECEIPT
         }
 
@@ -59,7 +55,7 @@ class PendingTransactionTest : FunSpec({
             val retries = 5
             enqueueEmptyResponses(mockWebServer, retries)
 
-            val response = pendingTransaction.awaitInclusion(retries, 50.milliseconds, 0)
+            val response = pendingTransaction.inclusion(retries, 50.milliseconds, 0)
             response.isFailure() shouldBe true
             response.unwrapError().shouldBeInstanceOf<PendingInclusion.Error>()
         }
@@ -67,9 +63,9 @@ class PendingTransactionTest : FunSpec({
         test("inclusion response returns error") {
             // Failed transaction status response
             val errorMessage = "Failed to query transaction status"
-            mockWebServer.enqueue(generateMockResponse(body = ERROR_RESPONSE_FACTORY(errorMessage)))
+            mockWebServer.enqueueJson(ERROR_RESPONSE_FACTORY(errorMessage))
 
-            val response = pendingTransaction.awaitInclusion(1, 50.milliseconds, 0)
+            val response = pendingTransaction.inclusion(1, 50.milliseconds, 0)
             response.isFailure() shouldBe true
 
             val error = response.unwrapError()
@@ -79,13 +75,13 @@ class PendingTransactionTest : FunSpec({
 
         test("confirmation response returns error") {
             // Successful transaction status response
-            mockWebServer.enqueue(generateMockResponse(body = TX_RECEIPT_RESPONSE))
+            mockWebServer.enqueueJson(TX_RECEIPT_RESPONSE)
 
             // Failed block status response
             val errorMessage = "Failed to query mined block status"
-            mockWebServer.enqueue(generateMockResponse(body = ERROR_RESPONSE_FACTORY(errorMessage)))
+            mockWebServer.enqueueJson(ERROR_RESPONSE_FACTORY(errorMessage))
 
-            val response = pendingTransaction.awaitInclusion(1, 50.milliseconds, 10)
+            val response = pendingTransaction.inclusion(1, 50.milliseconds, 10)
             response.isFailure() shouldBe true
 
             val error = response.unwrapError()
@@ -95,7 +91,6 @@ class PendingTransactionTest : FunSpec({
     }
 })
 
-@Language("JSON")
 private val EMPTY_RESPONSE = """
         {
             "jsonrpc": "2.0",
@@ -104,9 +99,7 @@ private val EMPTY_RESPONSE = """
         }
 """.trimIndent()
 
-@Language("JSON")
 private val ERROR_RESPONSE_FACTORY: (String) -> String = { error ->
-    @Language("JSON")
     val response = """
             {
                 "jsonrpc": "2.0",
@@ -122,7 +115,6 @@ private val ERROR_RESPONSE_FACTORY: (String) -> String = { error ->
 }
 
 private val MINED_BLOCK_RESPONSE_FACTORY: (Long) -> String = { blockNumber ->
-    @Language("JSON")
     val response = """
             {
                 "jsonrpc": "2.0",
@@ -133,7 +125,6 @@ private val MINED_BLOCK_RESPONSE_FACTORY: (Long) -> String = { blockNumber ->
     response
 }
 
-@Language("JSON")
 private val TX_RECEIPT_RESPONSE = """
         {
           "jsonrpc": "2.0",
@@ -214,13 +205,9 @@ private val TX_RECEIPT = TransactionReceipt(
     ),
 )
 
-private fun generateMockResponse(body: String): MockResponse {
-    return MockResponse().setResponseCode(200).setBody(body)
-}
-
-private fun enqueueEmptyResponses(mockWebServer: MockWebServer, count: Int) {
+private fun enqueueEmptyResponses(mockWebServer: MockServer, count: Int) {
     // Generate mock responses for subsequent retries until we reach final response
     for (i in 0..<count) {
-        mockWebServer.enqueue(generateMockResponse(body = EMPTY_RESPONSE))
+        mockWebServer.enqueueJson(EMPTY_RESPONSE)
     }
 }

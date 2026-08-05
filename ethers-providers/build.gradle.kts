@@ -35,10 +35,18 @@ kotlin {
             api(libs.ktor.client.darwin)
         }
 
+        val commonTest by getting {
+            dependencies {
+                // embedded server for the mock JSON-RPC endpoint. Replaces okhttp's MockWebServer, which is
+                // JVM-only and kept these suites out of commonTest.
+                implementation(libs.ktor.server.cio)
+                implementation(libs.ktor.server.websockets)
+            }
+        }
+
         val jvmSharedTest by getting {
             dependencies {
                 implementation(libs.bundles.kotest)
-                implementation(libs.okhttp3.mockwebserver)
             }
         }
     }
