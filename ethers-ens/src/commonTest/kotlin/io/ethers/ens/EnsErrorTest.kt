@@ -1,34 +1,38 @@
 package io.ethers.ens
 
 import io.ethers.abi.error.DecodingError
+import io.ethers.core.ThrowableErrorException
 import io.ethers.core.asTypeOrNull
+import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.providers.RpcError
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 
 class EnsErrorTest : FunSpec({
     context("errors carrying a structured cause") {
         test("CcipCallbackFailed keeps the RpcError and chains its exception") {
-            val cause = RpcError(-32000, "execution reverted", null)
-            val error = EnsMiddleware.Error.CcipCallbackFailed(cause)
+            val rpcError = RpcError(-32000, "execution reverted", null)
+            val error = EnsMiddleware.Error.CcipCallbackFailed(rpcError)
 
             // the cause stays a fully typed RpcError, not a flattened exception
-            error.cause shouldBe cause
-            error.cause.code shouldBe -32000
+            error.error shouldBe rpcError
+            error.error.code shouldBe -32000
 
             val exception = error.toException()
             exception.message shouldBe "CCIP callback call failed"
-            exception.cause?.message shouldBe cause.toException().message
+            exception.toString() shouldBe "CcipCallbackFailed: CCIP callback call failed"
+            exception.cause.shouldBeInstanceOf<ThrowableErrorException>().error shouldBe rpcError
         }
 
         test("AvatarNftCallFailed keeps the ContractError and chains its exception") {
-            val cause = DecodingError(Bytes("0x1234"), "failed to decode tokenURI", null)
-            val error = EnsMiddleware.Error.AvatarNftCallFailed("Error when retrieving metadata URL", cause)
+            val decodingError = DecodingError(Bytes("0x1234"), "failed to decode tokenURI", null)
+            val error = EnsMiddleware.Error.AvatarNftCallFailed("Error when retrieving metadata URL", decodingError)
 
             // the cause stays a fully typed ContractError, not a flattened exception
-            error.cause shouldBe cause
-            error.cause.asTypeOrNull<DecodingError>()?.result shouldBe Bytes("0x1234")
+            error.error shouldBe decodingError
+            error.error.asTypeOrNull<DecodingError>()?.result shouldBe Bytes("0x1234")
 
             val exception = error.toException()
             exception.message shouldBe "Error when retrieving metadata URL"
@@ -44,7 +48,7 @@ class EnsErrorTest : FunSpec({
             error.cause shouldBe cause
 
             val exception = error.toException()
-            exception.message shouldBe "Normalisation failed"
+            exception.message shouldBe "Failed to normalise ENS name"
             exception.cause shouldBe cause
         }
 
@@ -54,6 +58,23 @@ class EnsErrorTest : FunSpec({
             val exception = error.toException()
             exception.message shouldBe "Unsupported URI link"
             exception.cause shouldBe null
+        }
+    }
+
+    context("the thrown exception stays typed") {
+        test("the original error is recoverable from a catch block") {
+            val error = EnsMiddleware.Error.UnknownEnsName(
+                Address("0x0000000000000000000000000000000000000001"),
+                "0xabcd",
+            )
+
+            val caught = try {
+                throw error.toException()
+            } catch (e: ThrowableErrorException) {
+                e
+            }
+
+            caught.error.asTypeOrNull<EnsMiddleware.Error.UnknownEnsName>()?.nameHash shouldBe "0xabcd"
         }
     }
 })

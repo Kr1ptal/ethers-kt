@@ -5,8 +5,6 @@ import io.ethers.core.Result.Success
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
-import kotlin.jvm.JvmName
-import kotlin.jvm.JvmStatic
 
 /**
  * Result represents a value that can be either a [Success] or a [Failure].
@@ -32,7 +30,7 @@ sealed class Result<out T, out E> {
             return value == other.value
         }
 
-        override fun hashCode() = value?.hashCode() ?: 0
+        override fun hashCode() = value.hashCode()
     }
 
     class Failure<out E>(val error: E) : Result<Nothing, E>() {

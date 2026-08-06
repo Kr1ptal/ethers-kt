@@ -304,6 +304,36 @@ class ResultTest : FunSpec({
             val thrown = shouldThrow<RuntimeException> { failure(err).unwrap() }
             thrown shouldBe expected
         }
+
+        test("message and cause are carried into the exception") {
+            val cause = IllegalStateException("underlying")
+            val err = object : ThrowableError {
+                override val message get() = "explicit message"
+                override val cause get() = cause
+            }
+
+            val exception = err.toException()
+            exception.message shouldBe "explicit message"
+            exception.cause shouldBe cause
+        }
+
+        test("the thrown exception retains the error it was built from") {
+            val err = HexDecodingError("Invalid hex: 0xzz")
+            val thrown = shouldThrow<ThrowableErrorException> { failure(err).unwrap() }
+
+            thrown.error shouldBe err
+            thrown.error.asTypeOrNull<HexDecodingError>()?.message shouldBe "Invalid hex: 0xzz"
+        }
+
+        test("an explicit message renders with the error type name") {
+            HexDecodingError("Invalid hex: 0xzz").toException().toString() shouldBe
+                "HexDecodingError: Invalid hex: 0xzz"
+        }
+
+        test("without an explicit message the error's own toString is used, avoiding a duplicated type name") {
+            val err = ExampleDataError("boom")
+            err.toException().toString() shouldBe "ExampleDataError(detail=boom)"
+        }
     }
 
     context("ThrowableError.asTypeOrNull") {
@@ -404,3 +434,5 @@ class ResultTest : FunSpec({
         }
     }
 })
+
+private data class ExampleDataError(val detail: String) : ThrowableError

@@ -1,11 +1,9 @@
 package io.ethers.abigen.reader
 
 import io.ethers.abigen.JsonAbi
-import io.ethers.abigen.reader.JsonAbiReaderRegistry.appendReader
-import io.ethers.abigen.reader.JsonAbiReaderRegistry.prependReader
-import io.ethers.abigen.reader.JsonAbiReaderRegistry.tryReadAbi
 import io.ethers.core.Result
 import io.ethers.core.ThrowableError
+import io.ethers.core.ThrowableErrorException
 import io.ethers.core.failure
 import io.ethers.core.success
 import java.io.ByteArrayInputStream
@@ -142,8 +140,11 @@ object JsonAbiReaderRegistry {
         constructor(inputStream: InputStream, causes: List<Exception>) : this(InputStreamSource(inputStream), causes)
         constructor(string: String, causes: List<Exception>) : this(StringSource(string), causes)
 
+        override val message get() = "Failed to read ABI: $source"
+
+        // overridden to attach every reader's failure as a suppressed exception, which a single cause cannot express
         override fun toException(): RuntimeException {
-            return RuntimeException("Failed to read ABI: $source").also { parent ->
+            return ThrowableErrorException(this).also { parent ->
                 causes.forEach { parent.addSuppressed(it) }
             }
         }

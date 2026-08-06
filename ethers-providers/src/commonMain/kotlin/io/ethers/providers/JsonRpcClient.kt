@@ -142,13 +142,10 @@ internal fun Any?.toParamJsonElement(): KJsonElement = toJsonElement()
  */
 data class RpcError @JvmOverloads constructor(
     val code: Int,
-    val message: String,
+    override val message: String,
     val data: JsonElement? = null,
-    val cause: Exception? = null,
+    override val cause: Exception? = null,
 ) : ThrowableError {
-    override fun toException(): RuntimeException {
-        return RuntimeException(this.toString(), cause)
-    }
 
     /**
      * Invalid JSON was received by the server. An error occurred on the server while parsing the JSON text.

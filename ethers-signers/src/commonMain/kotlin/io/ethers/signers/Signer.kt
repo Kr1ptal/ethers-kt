@@ -98,9 +98,10 @@ interface Signer {
 
     override fun hashCode(): Int
 
-    data class SigningError(val msg: String, val cause: Exception? = null) : ThrowableError {
-        override fun toException() = RuntimeException(msg, cause)
-    }
+    data class SigningError(
+        override val message: String,
+        override val cause: Exception? = null,
+    ) : ThrowableError
 }
 
 fun TransactionUnsigned.sign(signer: Signer) = signer.signTransaction(this)

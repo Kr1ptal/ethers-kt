@@ -215,8 +215,4 @@ class Signature(
     }
 }
 
-class InvalidSignatureError(val msg: String) : ThrowableError {
-    override fun toException(): RuntimeException {
-        return RuntimeException(msg)
-    }
-}
+class InvalidSignatureError(override val message: String) : ThrowableError

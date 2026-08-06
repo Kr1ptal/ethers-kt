@@ -164,15 +164,11 @@ data class RevertError(val reason: String) : ContractError() {
  * Use ```traceCall``` with ```CallTracer(onlyTopCall = false)``` to debug which call fails.
  * */
 data object ExecutionRevertedError : ContractError() {
-    private val MSG = """
+    override val message = """
         Execution reverted. This happens when calling a function that does not exist, the function is called
         with incorrect arguments, or the function returns unexpected/incorrect response. Use "traceCall" with
         "CallTracer(onlyTopCall = false)" to debug which call fails.
     """.trimIndent().replace("\n", " ")
-
-    override fun toException(): RuntimeException {
-        return RuntimeException(MSG)
-    }
 }
 
 /**
@@ -201,27 +197,22 @@ interface CustomErrorFactory<T : CustomContractError> {
  * */
 data class DecodingError(
     val result: Bytes,
-    val message: String,
-    val exception: Exception?,
-) : ContractError() {
-    override fun toException(): RuntimeException {
-        return RuntimeException(message, exception)
-    }
-}
+    override val message: String,
+    override val cause: Exception?,
+) : ContractError()
 
 /**
  * Error returned when a contract deploy fails. This happens when no response is returned by the RPC when deploying a
  * contract.
  * */
-sealed class DeployError(val msg: String) : ContractError() {
+sealed class DeployError(override val message: String) : ContractError() {
     data object NoBytecode : DeployError("No bytecode returned by the RPC")
 }
 
 /**
  * Error returned when a contract RPC call fails.
  * */
-data class ContractRpcError(val cause: RpcError) : ContractError() {
-    override fun toException(): RuntimeException {
-        return RuntimeException("RPC error while calling contract function: $cause")
-    }
+data class ContractRpcError(val rpcError: RpcError) : ContractError() {
+    override val message get() = "RPC error while calling contract function"
+    override val cause get() = rpcError.toException()
 }

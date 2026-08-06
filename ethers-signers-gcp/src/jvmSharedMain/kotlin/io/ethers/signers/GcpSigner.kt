@@ -104,11 +104,10 @@ class GcpSigner(
         return address.hashCode()
     }
 
-    data class AddressFetchError(val message: String, val cause: Throwable? = null) : ThrowableError {
-        override fun toException(): RuntimeException {
-            return RuntimeException(message, cause)
-        }
-    }
+    data class AddressFetchError(
+        override val message: String,
+        override val cause: Throwable? = null,
+    ) : ThrowableError
 
     companion object {
         /**
