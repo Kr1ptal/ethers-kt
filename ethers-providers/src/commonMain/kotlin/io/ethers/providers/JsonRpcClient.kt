@@ -5,6 +5,7 @@ import io.ethers.core.FastHex
 import io.ethers.core.Kotlinx
 import io.ethers.core.Result
 import io.ethers.core.ThrowableError
+import io.ethers.core.ThrowableErrorException
 import io.ethers.core.json.JsonElement
 import io.ethers.core.toJsonElement
 import io.ethers.providers.types.BatchRpcRequest
@@ -146,6 +147,10 @@ data class RpcError @JvmOverloads constructor(
     val data: JsonElement? = null,
     override val cause: Exception? = null,
 ) : ThrowableError {
+    // [message] is the JSON-RPC error message, which on its own omits the code that identifies the failure
+    override fun toException(): RuntimeException {
+        return ThrowableErrorException(this, "$message (code: $code)")
+    }
 
     /**
      * Invalid JSON was received by the server. An error occurred on the server while parsing the JSON text.

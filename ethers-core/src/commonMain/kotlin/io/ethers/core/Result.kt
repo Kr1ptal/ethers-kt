@@ -5,6 +5,8 @@ import io.ethers.core.Result.Success
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
+import kotlin.jvm.JvmName
+import kotlin.jvm.JvmStatic
 
 /**
  * Result represents a value that can be either a [Success] or a [Failure].

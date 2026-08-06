@@ -55,10 +55,11 @@ interface ThrowableError {
  * */
 class ThrowableErrorException(
     val error: ThrowableError,
-) : RuntimeException(error.message ?: error.toString(), error.cause) {
+    private val description: String? = error.message,
+) : RuntimeException(description ?: error.toString(), error.cause) {
     override fun toString(): String {
-        // when the error has no explicit message, its toString already names the type
-        val description = error.message ?: return error.toString()
+        // when there is no description, the error's toString already names the type
+        val description = description ?: return error.toString()
         val name = error::class.simpleName ?: return description
         return "$name: $description"
     }
