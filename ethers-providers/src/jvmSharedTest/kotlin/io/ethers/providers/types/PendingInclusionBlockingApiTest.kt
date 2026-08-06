@@ -2,7 +2,6 @@ package io.ethers.providers.types
 
 import io.ethers.core.isFailure
 import io.ethers.core.types.Hash
-import io.ethers.core.unwrap
 import io.ethers.providers.Provider
 import io.ethers.providers.mockServerHttp
 import io.kotest.core.spec.style.FunSpec

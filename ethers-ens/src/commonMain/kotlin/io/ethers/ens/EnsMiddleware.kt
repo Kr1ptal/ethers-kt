@@ -3,7 +3,6 @@ package io.ethers.ens
 import io.ethers.abi.AbiCodec
 import io.ethers.abi.AbiFunction
 import io.ethers.abi.AbiType
-import io.ethers.core.ExceptionalError
 import io.ethers.core.FastHex
 import io.ethers.core.Kotlinx
 import io.ethers.core.Result
@@ -16,7 +15,6 @@ import io.ethers.core.types.Address
 import io.ethers.core.types.BlockId
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.CallRequest
-import io.ethers.core.unwrap
 import io.ethers.core.unwrapOrReturn
 import io.ethers.ens.EnsMiddleware.Companion.IPFS_GATEWAY
 import io.ethers.logger.err
@@ -338,7 +336,7 @@ class EnsMiddleware @JvmOverloads constructor(
             },
             BlockId.LATEST,
         ).send().unwrapOrReturn {
-            return failure(Error.CcipCallFailed("Callback call failed", it))
+            return failure(Error.CcipCallFailed("Callback call failed", it.toException()))
         }
 
         // If callbackResult is OffchainLookup error, resolve using recursive CCIP calls
@@ -397,7 +395,7 @@ class EnsMiddleware @JvmOverloads constructor(
                 handleCcipResponse(response, href) ?: continue
             } catch (e: Exception) {
                 LOG.err(e) { e.message ?: "" }
-                failure(Error.CcipCallFailed("Unknown error", ExceptionalError(e)))
+                failure(Error.CcipCallFailed("Unknown error", e))
             }
         }
 
@@ -550,7 +548,7 @@ class EnsMiddleware @JvmOverloads constructor(
             return failure(
                 Error.AvatarParsing(
                     "Error when retrieving metadata URL for token: ${token.tokenId} of NFT: ${token.nftAddr}",
-                    it,
+                    it.toException(),
                 ),
             )
         }
@@ -689,9 +687,9 @@ class EnsMiddleware @JvmOverloads constructor(
         /**
          * Error on ens name normalisation attempt.
          */
-        data class Normalisation(val cause: ExceptionalError) : Error() {
+        data class Normalisation(val cause: Throwable) : Error() {
             override fun toException(): RuntimeException {
-                return RuntimeException("Normalisation failed: $cause")
+                return RuntimeException("Normalisation failed", cause)
             }
         }
 
@@ -768,9 +766,9 @@ class EnsMiddleware @JvmOverloads constructor(
             }
         }
 
-        data class AvatarParsing(val message: String, val cause: ThrowableError?) : Error() {
+        data class AvatarParsing(val message: String, val cause: Throwable?) : Error() {
             override fun toException(): RuntimeException {
-                return RuntimeException("$message, caused by: $cause")
+                return RuntimeException(message, cause)
             }
         }
 
@@ -809,7 +807,11 @@ class EnsMiddleware @JvmOverloads constructor(
         /**
          * Unknown error during CCIP call execution.
          */
-        data class CcipCallFailed(val message: String, val cause: ThrowableError?) : Error()
+        data class CcipCallFailed(val message: String, val cause: Throwable?) : Error() {
+            override fun toException(): RuntimeException {
+                return RuntimeException(message, cause)
+            }
+        }
     }
 
     companion object {

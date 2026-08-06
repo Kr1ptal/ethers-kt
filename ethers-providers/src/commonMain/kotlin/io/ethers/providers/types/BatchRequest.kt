@@ -2,7 +2,6 @@ package io.ethers.providers.types
 
 import io.ethers.core.Result
 import io.ethers.core.ThrowableError
-import io.ethers.core.unwrap
 
 internal typealias PendingResponse<R, E> = BatchRpcResponse<Result<R, E>>
 

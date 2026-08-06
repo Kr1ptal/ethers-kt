@@ -1,7 +1,6 @@
 package io.ethers.providers
 
 import io.ethers.core.Result
-import io.ethers.core.unwrap
 import io.ethers.providers.types.BatchRpcRequest
 import io.ethers.providers.types.RpcCall
 import io.kotest.assertions.throwables.shouldThrow

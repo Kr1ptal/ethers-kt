@@ -296,15 +296,6 @@ class ResultTest : FunSpec({
             exception.cause shouldBe null
         }
 
-        test("doThrow throws the exception returned by toException") {
-            val expected = RuntimeException("custom")
-            val err = object : ThrowableError {
-                override fun toException() = expected
-            }
-            val thrown = shouldThrow<RuntimeException> { err.doThrow() }
-            thrown shouldBe expected
-        }
-
         test("unwrap throws the exception returned by toException") {
             val expected = RuntimeException("custom")
             val err = object : ThrowableError {
@@ -317,23 +308,31 @@ class ResultTest : FunSpec({
 
     context("ThrowableError.asTypeOrNull") {
         test("returns typed error when matching") {
-            val err = ExceptionalError(RuntimeException("test"))
-            val typed = err.asTypeOrNull<ExceptionalError>()
+            val err = HexDecodingError("test")
+            val typed = err.asTypeOrNull<HexDecodingError>()
             typed shouldBe err
         }
 
         test("returns null when not matching") {
-            val typed = testError.asTypeOrNull<ExceptionalError>()
+            val typed = testError.asTypeOrNull<HexDecodingError>()
             typed shouldBe null
         }
     }
 
-    context("ExceptionalError") {
-        test("doThrow wraps cause") {
-            val cause = RuntimeException("original")
-            val err = ExceptionalError(cause)
-            val thrown = shouldThrow<RuntimeException> { err.doThrow() }
-            thrown.cause shouldBe cause
+    context("unwrap error dispatch") {
+        test("throws a Throwable error directly") {
+            val cause = IllegalStateException("boom")
+            shouldThrow<IllegalStateException> { failure(cause).unwrap() } shouldBe cause
+        }
+
+        test("wraps an error that is neither ThrowableError nor Throwable, naming its type") {
+            val thrown = shouldThrow<RuntimeException> { failure("plain string").unwrap() }
+            thrown.message shouldBe "Result is not a success: String"
+        }
+
+        test("wraps a null error") {
+            val thrown = shouldThrow<RuntimeException> { failure(null).unwrap() }
+            thrown.message shouldBe "Result is not a success: null"
         }
     }
 
@@ -385,7 +384,7 @@ class ResultTest : FunSpec({
             val ex = RuntimeException("fail")
             val result = kotlin.Result.failure<String>(ex).toResult()
             result.isFailure() shouldBe true
-            result.unwrapError().shouldBeInstanceOf<ExceptionalError>()
+            result.unwrapError() shouldBe ex
         }
 
         test("unwrapOrReturn returns value on success") {

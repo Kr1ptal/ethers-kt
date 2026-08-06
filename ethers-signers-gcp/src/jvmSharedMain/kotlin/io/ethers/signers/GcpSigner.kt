@@ -17,7 +17,6 @@ import io.ethers.core.failure
 import io.ethers.core.success
 import io.ethers.core.types.Address
 import io.ethers.core.types.Signature
-import io.ethers.core.unwrap
 import io.ethers.crypto.Secp256k1
 import io.ethers.signers.GcpSigner.Companion.create
 import kotlin.io.encoding.Base64

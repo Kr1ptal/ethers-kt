@@ -14,7 +14,6 @@ import io.ethers.core.types.transaction.TxBlob
 import io.ethers.core.types.transaction.TxDynamicFee
 import io.ethers.core.types.transaction.TxLegacy
 import io.ethers.core.types.transaction.TxType
-import io.ethers.core.unwrap
 import io.ethers.rlp.RlpDecoder
 import io.ethers.rlp.RlpEncoder
 import io.github.artificialpb.bignum.BigInteger

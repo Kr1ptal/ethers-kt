@@ -15,7 +15,6 @@ import dev.whyoleg.cryptography.serialization.asn1.modules.DssSignatureValue
 import io.ethers.core.isFailure
 import io.ethers.core.isSuccess
 import io.ethers.core.types.Address
-import io.ethers.core.unwrap
 import io.ethers.crypto.Secp256k1
 import io.github.artificialpb.bignum.BigInteger
 import io.kotest.core.spec.style.FunSpec

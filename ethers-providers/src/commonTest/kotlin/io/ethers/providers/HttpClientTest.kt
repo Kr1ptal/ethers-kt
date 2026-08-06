@@ -4,7 +4,6 @@ import io.ethers.core.Kotlinx
 import io.ethers.core.isFailure
 import io.ethers.core.isSuccess
 import io.ethers.core.types.Address
-import io.ethers.core.unwrap
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.core.spec.style.FunSpec

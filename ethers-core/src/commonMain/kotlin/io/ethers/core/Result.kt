@@ -106,6 +106,23 @@ sealed class Result<out T, out E> {
     }
 
     /**
+     * Unwrap the value if [Result] is [Success], or throw an exception if [Result] is [Failure].
+     *
+     * A [ThrowableError] error is thrown via [ThrowableError.toException], and a [Throwable] error is thrown
+     * directly. Any other error type is not convertible to an exception, so a generic [RuntimeException] naming
+     * its type is thrown.
+     * */
+    fun unwrap(): T = fold({ it.value }) {
+        when (val e = it.error) {
+            is ThrowableError -> throw e.toException()
+            is Throwable -> throw e
+            else -> throw RuntimeException(
+                "Result is not a success: ${if (e == null) "null" else e::class.simpleName}",
+            )
+        }
+    }
+
+    /**
      * Unwrap the value if [Result] is [Success], or return null if [Result] is [Failure].
      * */
     fun unwrapOrNull(): T? = fold({ it.value }, { null })
@@ -309,22 +326,22 @@ inline fun <T, R> kotlin.Result<T>.andThenCatching(mapper: (T) -> kotlin.Result<
  * ```
  * */
 @OptIn(ExperimentalContracts::class)
-inline fun <R, T : R> kotlin.Result<T>.unwrapOrReturn(onFailure: (ExceptionalError) -> Nothing): R {
+inline fun <R, T : R> kotlin.Result<T>.unwrapOrReturn(onFailure: (Throwable) -> Nothing): R {
     contract { callsInPlace(onFailure, InvocationKind.AT_MOST_ONCE) }
 
     if (isSuccess) {
         return this.getOrThrow()
     }
-    onFailure(ExceptionalError(this.exceptionOrNull()!!))
+    onFailure(this.exceptionOrNull()!!)
 }
 
 /**
- * Transform [kotlin.Result] into [Result], wrapping the exception in [ExceptionalError] if it holds a failure.
+ * Transform [kotlin.Result] into [Result], holding the thrown exception as the error if it holds a failure.
  * */
 @Suppress("NOTHING_TO_INLINE")
-inline fun <T> kotlin.Result<T>.toResult(): Result<T, ExceptionalError> {
+inline fun <T> kotlin.Result<T>.toResult(): Result<T, Throwable> {
     if (isSuccess) {
         return success(this.getOrThrow())
     }
-    return failure(ExceptionalError(this.exceptionOrNull()!!))
+    return failure(this.exceptionOrNull()!!)
 }

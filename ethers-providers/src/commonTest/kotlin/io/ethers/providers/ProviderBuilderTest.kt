@@ -2,7 +2,6 @@ package io.ethers.providers
 
 import io.ethers.core.isFailure
 import io.ethers.core.isSuccess
-import io.ethers.core.unwrap
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf

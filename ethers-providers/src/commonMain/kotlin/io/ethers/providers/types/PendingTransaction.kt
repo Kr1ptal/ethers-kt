@@ -6,7 +6,6 @@ import io.ethers.core.isFailure
 import io.ethers.core.success
 import io.ethers.core.types.Hash
 import io.ethers.core.types.TransactionReceipt
-import io.ethers.core.unwrap
 import io.ethers.providers.RpcError
 import io.ethers.providers.middleware.Middleware
 import kotlinx.coroutines.delay

@@ -9,7 +9,6 @@ import io.channels.core.QueueChannel
 import io.channels.core.blocking.NotificationHandle
 import io.ethers.core.asTypeOrNull
 import io.ethers.core.isFailure
-import io.ethers.core.unwrap
 import io.ethers.logger.dbg
 import io.ethers.logger.err
 import io.ethers.logger.getLogger

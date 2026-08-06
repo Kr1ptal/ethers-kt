@@ -40,7 +40,6 @@ import io.ethers.core.types.TxpoolStatus
 import io.ethers.core.types.tracers.TracerConfig
 import io.ethers.core.types.tracers.TxTraceResult
 import io.ethers.core.types.transaction.TransactionUnsigned
-import io.ethers.core.unwrap
 import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.CallFailedError
 import io.ethers.providers.types.CallManyBundle

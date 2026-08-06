@@ -25,32 +25,9 @@ interface ThrowableError {
 }
 
 /**
- * Throw this error as an exception.
- * */
-fun ThrowableError.doThrow(): Nothing {
-    throw toException()
-}
-
-/**
  * Cast [ThrowableError] to [T] or return null if error is not of type [T].
  * Useful for accessing details of specific error subclass.
  * */
 inline fun <reified T : ThrowableError> ThrowableError.asTypeOrNull(): T? {
     return asTypeOrNull(T::class)
-}
-
-/**
- * Unwrap the value if [Result] is [Result.Success], or throw the error if [Result] is [Result.Failure].
- * */
-fun <T, E : ThrowableError> Result<T, E>.unwrap(): T {
-    return fold({ it.value }, { it.error.doThrow() })
-}
-
-/**
- * An error that wraps an exception.
- * */
-data class ExceptionalError(val cause: Throwable) : ThrowableError {
-    override fun toException(): RuntimeException {
-        return RuntimeException("Exceptional execution", cause)
-    }
 }

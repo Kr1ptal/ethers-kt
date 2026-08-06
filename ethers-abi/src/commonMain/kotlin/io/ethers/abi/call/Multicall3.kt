@@ -16,7 +16,6 @@ import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.CallRequest
 import io.ethers.core.types.IntoCallRequest
-import io.ethers.core.unwrap
 import io.ethers.providers.middleware.Middleware
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf

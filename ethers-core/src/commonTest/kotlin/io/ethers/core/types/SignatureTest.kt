@@ -2,7 +2,6 @@ package io.ethers.core.types
 
 import io.ethers.core.isFailure
 import io.ethers.core.isSuccess
-import io.ethers.core.unwrap
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
 import io.github.artificialpb.bignum.toBigInteger

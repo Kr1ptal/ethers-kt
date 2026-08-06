@@ -15,7 +15,6 @@ import io.ethers.core.types.StateOverride
 import io.ethers.core.types.TransactionReceipt
 import io.ethers.core.types.tracers.PrestateTracer
 import io.ethers.core.types.tracers.TracerConfig
-import io.ethers.core.unwrap
 import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.PendingInclusion
 import io.ethers.providers.types.PendingTransaction

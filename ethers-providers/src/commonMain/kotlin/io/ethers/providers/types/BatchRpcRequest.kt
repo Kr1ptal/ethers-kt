@@ -4,7 +4,6 @@ package io.ethers.providers.types
 
 import io.ethers.core.Result
 import io.ethers.core.ThrowableError
-import io.ethers.core.unwrap
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import kotlinx.atomicfu.atomic
