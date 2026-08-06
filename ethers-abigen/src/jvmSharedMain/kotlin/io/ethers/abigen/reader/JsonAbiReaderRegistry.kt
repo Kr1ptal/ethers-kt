@@ -5,6 +5,7 @@ import io.ethers.abigen.reader.JsonAbiReaderRegistry.appendReader
 import io.ethers.abigen.reader.JsonAbiReaderRegistry.prependReader
 import io.ethers.abigen.reader.JsonAbiReaderRegistry.tryReadAbi
 import io.ethers.core.Result
+import io.ethers.core.ThrowableError
 import io.ethers.core.failure
 import io.ethers.core.success
 import java.io.ByteArrayInputStream
@@ -136,13 +137,13 @@ object JsonAbiReaderRegistry {
     /**
      * Error returned when reading ABI fails. It contains a list of all exceptions that were thrown by the readers.
      * */
-    data class AbiReadError(val source: Source, val causes: List<Exception>) : Result.Error {
+    data class AbiReadError(val source: Source, val causes: List<Exception>) : ThrowableError {
         constructor(url: URL, causes: List<Exception>) : this(URLSource(url), causes)
         constructor(inputStream: InputStream, causes: List<Exception>) : this(InputStreamSource(inputStream), causes)
         constructor(string: String, causes: List<Exception>) : this(StringSource(string), causes)
 
-        override fun doThrow(): Nothing {
-            throw RuntimeException("Failed to read ABI: $source").also { parent ->
+        override fun toException(): RuntimeException {
+            return RuntimeException("Failed to read ABI: $source").also { parent ->
                 causes.forEach { parent.addSuppressed(it) }
             }
         }

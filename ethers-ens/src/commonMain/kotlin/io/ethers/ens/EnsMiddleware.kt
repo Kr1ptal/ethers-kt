@@ -7,6 +7,7 @@ import io.ethers.core.ExceptionalError
 import io.ethers.core.FastHex
 import io.ethers.core.Kotlinx
 import io.ethers.core.Result
+import io.ethers.core.ThrowableError
 import io.ethers.core.asTypeOrNull
 import io.ethers.core.failure
 import io.ethers.core.isFailure
@@ -15,6 +16,7 @@ import io.ethers.core.types.Address
 import io.ethers.core.types.BlockId
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.CallRequest
+import io.ethers.core.unwrap
 import io.ethers.core.unwrapOrReturn
 import io.ethers.ens.EnsMiddleware.Companion.IPFS_GATEWAY
 import io.ethers.logger.err
@@ -678,7 +680,7 @@ class EnsMiddleware @JvmOverloads constructor(
     /**
      * Possible errors during ens name resolution
      */
-    sealed class Error : Result.Error {
+    sealed class Error : ThrowableError {
         /**
          * Ens name is not valid.
          */
@@ -688,8 +690,8 @@ class EnsMiddleware @JvmOverloads constructor(
          * Error on ens name normalisation attempt.
          */
         data class Normalisation(val cause: ExceptionalError) : Error() {
-            override fun doThrow(): Nothing {
-                throw RuntimeException("Normalisation failed: $cause")
+            override fun toException(): RuntimeException {
+                return RuntimeException("Normalisation failed: $cause")
             }
         }
 
@@ -702,8 +704,8 @@ class EnsMiddleware @JvmOverloads constructor(
             val registryAddress: Address,
             val nameHash: String,
         ) : Error() {
-            override fun doThrow(): Nothing {
-                throw RuntimeException("Error when getting resolver address from registry> $registryAddress for nameHash: $nameHash.")
+            override fun toException(): RuntimeException {
+                return RuntimeException("Error when getting resolver address from registry> $registryAddress for nameHash: $nameHash.")
             }
         }
 
@@ -721,8 +723,8 @@ class EnsMiddleware @JvmOverloads constructor(
             val resolver: Address,
             val selector: String,
         ) : Error() {
-            override fun doThrow(): Nothing {
-                throw RuntimeException("Resolver '$resolver' does not support selector '$selector'")
+            override fun toException(): RuntimeException {
+                return RuntimeException("Resolver '$resolver' does not support selector '$selector'")
             }
         }
 
@@ -733,17 +735,17 @@ class EnsMiddleware @JvmOverloads constructor(
             val resolverAddr: Address,
             val nameHash: String,
         ) : Error() {
-            override fun doThrow(): Nothing {
-                throw RuntimeException("Resolver '$resolverAddr' resolved namehash '$nameHash' to an empty address!")
+            override fun toException(): RuntimeException {
+                return RuntimeException("Resolver '$resolverAddr' resolved namehash '$nameHash' to an empty address!")
             }
         }
 
         /**
          * Resolver for ensName exists, but was not able to resolve it.
          */
-        data class FailedToResolve(val message: String, val cause: Result.Error? = null) : Error() {
-            override fun doThrow(): Nothing {
-                throw RuntimeException("Failed to resolve ens name: $message, caused by: $cause")
+        data class FailedToResolve(val message: String, val cause: ThrowableError? = null) : Error() {
+            override fun toException(): RuntimeException {
+                return RuntimeException("Failed to resolve ens name: $message, caused by: $cause")
             }
         }
 
@@ -761,14 +763,14 @@ class EnsMiddleware @JvmOverloads constructor(
          * Avatar URI scheme is not supported
          */
         data class UnsupportedScheme(val scheme: String) : Error() {
-            override fun doThrow(): Nothing {
-                throw RuntimeException("Avatar URI scheme '$scheme' is not supported")
+            override fun toException(): RuntimeException {
+                return RuntimeException("Avatar URI scheme '$scheme' is not supported")
             }
         }
 
-        data class AvatarParsing(val message: String, val cause: Result.Error?) : Error() {
-            override fun doThrow(): Nothing {
-                throw RuntimeException("$message, caused by: $cause")
+        data class AvatarParsing(val message: String, val cause: ThrowableError?) : Error() {
+            override fun toException(): RuntimeException {
+                return RuntimeException("$message, caused by: $cause")
             }
         }
 
@@ -780,8 +782,8 @@ class EnsMiddleware @JvmOverloads constructor(
             val providerChainId: Long,
             val avatarUri: String,
         ) : Error() {
-            override fun doThrow(): Nothing {
-                throw RuntimeException(
+            override fun toException(): RuntimeException {
+                return RuntimeException(
                     "Avatar NFT chain ID $avatarChainId does not match provider chain ID $providerChainId (URI: $avatarUri)",
                 )
             }
@@ -807,7 +809,7 @@ class EnsMiddleware @JvmOverloads constructor(
         /**
          * Unknown error during CCIP call execution.
          */
-        data class CcipCallFailed(val message: String, val cause: Result.Error?) : Error()
+        data class CcipCallFailed(val message: String, val cause: ThrowableError?) : Error()
     }
 
     companion object {

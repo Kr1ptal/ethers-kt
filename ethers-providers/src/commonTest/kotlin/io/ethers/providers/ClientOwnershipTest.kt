@@ -1,6 +1,7 @@
 package io.ethers.providers
 
 import io.ethers.core.isSuccess
+import io.ethers.core.unwrap
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe

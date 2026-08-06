@@ -3,6 +3,7 @@ package io.ethers.abigen.plugin.task
 import io.ethers.abigen.AbiContractBuilder
 import io.ethers.abigen.plugin.source.AbiSource
 import io.ethers.abigen.reader.JsonAbiReaderRegistry
+import io.ethers.core.unwrap
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.MapProperty
 import org.gradle.api.provider.Property

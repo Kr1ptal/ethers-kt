@@ -3,6 +3,8 @@
 package io.ethers.providers.types
 
 import io.ethers.core.Result
+import io.ethers.core.ThrowableError
+import io.ethers.core.unwrap
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import kotlinx.atomicfu.atomic
@@ -92,7 +94,7 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) : Platfor
 /**
  * Unwrap all responses, throwing an exception if any of them is an error.
  * */
-fun <T, E : Result.Error> Iterable<Result<T, E>>.unwrap(): UnwrappedBatchResponse<T> {
+fun <T, E : ThrowableError> Iterable<Result<T, E>>.unwrap(): UnwrappedBatchResponse<T> {
     val iter = this.iterator()
     if (!iter.hasNext()) {
         return UnwrappedBatchResponse(emptyList())
@@ -110,7 +112,7 @@ fun <T, E : Result.Error> Iterable<Result<T, E>>.unwrap(): UnwrappedBatchRespons
 /**
  * Batch-send all requests without blocking the calling thread.
  */
-suspend fun <T, E : Result.Error> Iterable<RpcRequest<out T, E>>.send(): BatchResponse<T, E> {
+suspend fun <T, E : ThrowableError> Iterable<RpcRequest<out T, E>>.send(): BatchResponse<T, E> {
     val iter = iterator()
     if (!iter.hasNext()) {
         return BatchResponse(emptyList())
@@ -136,7 +138,7 @@ suspend fun <T, E : Result.Error> Iterable<RpcRequest<out T, E>>.send(): BatchRe
  * Unwrap all [Result]'s, throwing an exception if any of them is an error, otherwise returning a list
  * of success values.
  * */
-fun <T, E : Result.Error> List<Result<T, E>>.unwrap(): List<T> {
+fun <T, E : ThrowableError> List<Result<T, E>>.unwrap(): List<T> {
     val ret = ArrayList<T>(size)
     for (result in this) {
         ret.add(result.unwrap())
@@ -148,21 +150,21 @@ fun <T, E : Result.Error> List<Result<T, E>>.unwrap(): List<T> {
 // type, it gets boxed (e.g. `map`, `forEach`, etc...). But since we're just wrapping and delegating a `List`,
 // it's still pretty cheap.
 @JvmInline
-value class BatchResponse<T, E : Result.Error>(
+value class BatchResponse<T, E : ThrowableError>(
     private val responses: List<Result<T, E>>,
 ) : List<Result<T, E>> by responses {
-    operator fun <O, U : Result.Error> component1() = responses[0] as Result<O, U>
-    operator fun <O, U : Result.Error> component2() = responses[1] as Result<O, U>
-    operator fun <O, U : Result.Error> component3() = responses[2] as Result<O, U>
-    operator fun <O, U : Result.Error> component4() = responses[3] as Result<O, U>
-    operator fun <O, U : Result.Error> component5() = responses[4] as Result<O, U>
-    operator fun <O, U : Result.Error> component6() = responses[5] as Result<O, U>
-    operator fun <O, U : Result.Error> component7() = responses[6] as Result<O, U>
-    operator fun <O, U : Result.Error> component8() = responses[7] as Result<O, U>
-    operator fun <O, U : Result.Error> component9() = responses[8] as Result<O, U>
-    operator fun <O, U : Result.Error> component10() = responses[9] as Result<O, U>
-    operator fun <O, U : Result.Error> component11() = responses[10] as Result<O, U>
-    operator fun <O, U : Result.Error> component12() = responses[11] as Result<O, U>
+    operator fun <O, U : ThrowableError> component1() = responses[0] as Result<O, U>
+    operator fun <O, U : ThrowableError> component2() = responses[1] as Result<O, U>
+    operator fun <O, U : ThrowableError> component3() = responses[2] as Result<O, U>
+    operator fun <O, U : ThrowableError> component4() = responses[3] as Result<O, U>
+    operator fun <O, U : ThrowableError> component5() = responses[4] as Result<O, U>
+    operator fun <O, U : ThrowableError> component6() = responses[5] as Result<O, U>
+    operator fun <O, U : ThrowableError> component7() = responses[6] as Result<O, U>
+    operator fun <O, U : ThrowableError> component8() = responses[7] as Result<O, U>
+    operator fun <O, U : ThrowableError> component9() = responses[8] as Result<O, U>
+    operator fun <O, U : ThrowableError> component10() = responses[9] as Result<O, U>
+    operator fun <O, U : ThrowableError> component11() = responses[10] as Result<O, U>
+    operator fun <O, U : ThrowableError> component12() = responses[11] as Result<O, U>
 }
 
 @JvmInline

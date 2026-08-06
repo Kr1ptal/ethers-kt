@@ -2,6 +2,7 @@ package io.ethers.providers
 
 import io.ethers.core.isFailure
 import io.ethers.core.isSuccess
+import io.ethers.core.unwrap
 import io.ethers.providers.types.BatchRpcRequest
 import io.ethers.providers.types.RpcCall
 import io.kotest.assertions.throwables.shouldThrow

@@ -4,6 +4,7 @@ import io.ethers.core.FastHex
 import io.ethers.core.Kotlinx
 import io.ethers.core.isFailure
 import io.ethers.core.isSuccess
+import io.ethers.core.unwrap
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData

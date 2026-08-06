@@ -2,6 +2,7 @@ package io.ethers.providers.bindings
 
 import io.ethers.core.FastHex
 import io.ethers.core.Result
+import io.ethers.core.ThrowableError
 import io.ethers.core.failure
 import io.ethers.core.success
 import io.ethers.core.types.Hash
@@ -248,7 +249,7 @@ class AnvilBuilder {
         return success(AnvilInstance(process, port, accounts, chainId))
     }
 
-    sealed interface Error : Result.Error {
+    sealed interface Error : ThrowableError {
         data class SpawnTimeout(val spawnTimeout: Long) : Error
         data class SpawnError(val error: String) : Error
     }

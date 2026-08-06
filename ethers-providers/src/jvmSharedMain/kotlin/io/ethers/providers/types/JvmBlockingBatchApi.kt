@@ -3,6 +3,7 @@
 package io.ethers.providers.types
 
 import io.ethers.core.Result
+import io.ethers.core.ThrowableError
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -23,12 +24,12 @@ import java.util.concurrent.CompletableFuture
 /**
  * Batch-send all requests, awaiting the result by blocking the calling thread.
  */
-fun <T, E : Result.Error> Iterable<RpcRequest<out T, E>>.sendAwait(): BatchResponse<T, E> = runBlocking { send() }
+fun <T, E : ThrowableError> Iterable<RpcRequest<out T, E>>.sendAwait(): BatchResponse<T, E> = runBlocking { send() }
 
 /**
  * Batch-send all requests asynchronously.
  */
-fun <T, E : Result.Error> Iterable<RpcRequest<out T, E>>.sendAsync(): BatchResponseAsync<T, E> {
+fun <T, E : ThrowableError> Iterable<RpcRequest<out T, E>>.sendAsync(): BatchResponseAsync<T, E> {
     val iter = this.iterator()
     if (!iter.hasNext()) {
         return BatchResponseAsync(emptyList())
@@ -67,35 +68,35 @@ fun <T> List<CompletableFuture<T>>.await(): List<T> {
 // type, it gets boxed (e.g. `map`, `forEach`, etc...). But since we're just wrapping and delegating a `List`,
 // it's still pretty cheap.
 @JvmInline
-value class BatchResponseAsync<T, E : Result.Error>(
+value class BatchResponseAsync<T, E : ThrowableError>(
     private val responses: List<CompletableFuture<Result<T, E>>>,
 ) : List<CompletableFuture<Result<T, E>>> by responses {
-    operator fun <O, U : Result.Error> component1() = responses[0] as CompletableFuture<Result<O, U>>
-    operator fun <O, U : Result.Error> component2() = responses[1] as CompletableFuture<Result<O, U>>
-    operator fun <O, U : Result.Error> component3() = responses[2] as CompletableFuture<Result<O, U>>
-    operator fun <O, U : Result.Error> component4() = responses[3] as CompletableFuture<Result<O, U>>
-    operator fun <O, U : Result.Error> component5() = responses[4] as CompletableFuture<Result<O, U>>
-    operator fun <O, U : Result.Error> component6() = responses[5] as CompletableFuture<Result<O, U>>
-    operator fun <O, U : Result.Error> component7() = responses[6] as CompletableFuture<Result<O, U>>
-    operator fun <O, U : Result.Error> component8() = responses[7] as CompletableFuture<Result<O, U>>
-    operator fun <O, U : Result.Error> component9() = responses[8] as CompletableFuture<Result<O, U>>
-    operator fun <O, U : Result.Error> component10() = responses[9] as CompletableFuture<Result<O, U>>
-    operator fun <O, U : Result.Error> component11() = responses[10] as CompletableFuture<Result<O, U>>
-    operator fun <O, U : Result.Error> component12() = responses[11] as CompletableFuture<Result<O, U>>
+    operator fun <O, U : ThrowableError> component1() = responses[0] as CompletableFuture<Result<O, U>>
+    operator fun <O, U : ThrowableError> component2() = responses[1] as CompletableFuture<Result<O, U>>
+    operator fun <O, U : ThrowableError> component3() = responses[2] as CompletableFuture<Result<O, U>>
+    operator fun <O, U : ThrowableError> component4() = responses[3] as CompletableFuture<Result<O, U>>
+    operator fun <O, U : ThrowableError> component5() = responses[4] as CompletableFuture<Result<O, U>>
+    operator fun <O, U : ThrowableError> component6() = responses[5] as CompletableFuture<Result<O, U>>
+    operator fun <O, U : ThrowableError> component7() = responses[6] as CompletableFuture<Result<O, U>>
+    operator fun <O, U : ThrowableError> component8() = responses[7] as CompletableFuture<Result<O, U>>
+    operator fun <O, U : ThrowableError> component9() = responses[8] as CompletableFuture<Result<O, U>>
+    operator fun <O, U : ThrowableError> component10() = responses[9] as CompletableFuture<Result<O, U>>
+    operator fun <O, U : ThrowableError> component11() = responses[10] as CompletableFuture<Result<O, U>>
+    operator fun <O, U : ThrowableError> component12() = responses[11] as CompletableFuture<Result<O, U>>
 }
 
 // Blocking `await()` conveniences over the suspending `awaitSuspend()` batch API.
 //
 // JVM/Android-only: `runBlocking` has no common equivalent.
 
-fun <R1, R2, E1 : Result.Error, E2 : Result.Error> BatchResponse2<PendingResponse<R1, E1>, PendingResponse<R2, E2>>.await() = runBlocking { awaitSuspend() }
-fun <R1, R2, R3, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error> BatchResponse3<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>>.await() = runBlocking { awaitSuspend() }
-fun <R1, R2, R3, R4, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error> BatchResponse4<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>, PendingResponse<R4, E4>>.await() = runBlocking { awaitSuspend() }
-fun <R1, R2, R3, R4, R5, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error> BatchResponse5<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>, PendingResponse<R4, E4>, PendingResponse<R5, E5>>.await() = runBlocking { awaitSuspend() }
-fun <R1, R2, R3, R4, R5, R6, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error> BatchResponse6<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>, PendingResponse<R4, E4>, PendingResponse<R5, E5>, PendingResponse<R6, E6>>.await() = runBlocking { awaitSuspend() }
-fun <R1, R2, R3, R4, R5, R6, R7, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error> BatchResponse7<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>, PendingResponse<R4, E4>, PendingResponse<R5, E5>, PendingResponse<R6, E6>, PendingResponse<R7, E7>>.await() = runBlocking { awaitSuspend() }
-fun <R1, R2, R3, R4, R5, R6, R7, R8, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error, E8 : Result.Error> BatchResponse8<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>, PendingResponse<R4, E4>, PendingResponse<R5, E5>, PendingResponse<R6, E6>, PendingResponse<R7, E7>, PendingResponse<R8, E8>>.await() = runBlocking { awaitSuspend() }
-fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error, E8 : Result.Error, E9 : Result.Error> BatchResponse9<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>, PendingResponse<R4, E4>, PendingResponse<R5, E5>, PendingResponse<R6, E6>, PendingResponse<R7, E7>, PendingResponse<R8, E8>, PendingResponse<R9, E9>>.await() = runBlocking { awaitSuspend() }
-fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error, E8 : Result.Error, E9 : Result.Error, E10 : Result.Error> BatchResponse10<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>, PendingResponse<R4, E4>, PendingResponse<R5, E5>, PendingResponse<R6, E6>, PendingResponse<R7, E7>, PendingResponse<R8, E8>, PendingResponse<R9, E9>, PendingResponse<R10, E10>>.await() = runBlocking { awaitSuspend() }
-fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error, E8 : Result.Error, E9 : Result.Error, E10 : Result.Error, E11 : Result.Error> BatchResponse11<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>, PendingResponse<R4, E4>, PendingResponse<R5, E5>, PendingResponse<R6, E6>, PendingResponse<R7, E7>, PendingResponse<R8, E8>, PendingResponse<R9, E9>, PendingResponse<R10, E10>, PendingResponse<R11, E11>>.await() = runBlocking { awaitSuspend() }
-fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error, E8 : Result.Error, E9 : Result.Error, E10 : Result.Error, E11 : Result.Error, E12 : Result.Error> BatchResponse12<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>, PendingResponse<R4, E4>, PendingResponse<R5, E5>, PendingResponse<R6, E6>, PendingResponse<R7, E7>, PendingResponse<R8, E8>, PendingResponse<R9, E9>, PendingResponse<R10, E10>, PendingResponse<R11, E11>, PendingResponse<R12, E12>>.await() = runBlocking { awaitSuspend() }
+fun <R1, R2, E1 : ThrowableError, E2 : ThrowableError> BatchResponse2<PendingResponse<R1, E1>, PendingResponse<R2, E2>>.await() = runBlocking { awaitSuspend() }
+fun <R1, R2, R3, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError> BatchResponse3<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>>.await() = runBlocking { awaitSuspend() }
+fun <R1, R2, R3, R4, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError, E4 : ThrowableError> BatchResponse4<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>, PendingResponse<R4, E4>>.await() = runBlocking { awaitSuspend() }
+fun <R1, R2, R3, R4, R5, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError, E4 : ThrowableError, E5 : ThrowableError> BatchResponse5<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>, PendingResponse<R4, E4>, PendingResponse<R5, E5>>.await() = runBlocking { awaitSuspend() }
+fun <R1, R2, R3, R4, R5, R6, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError, E4 : ThrowableError, E5 : ThrowableError, E6 : ThrowableError> BatchResponse6<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>, PendingResponse<R4, E4>, PendingResponse<R5, E5>, PendingResponse<R6, E6>>.await() = runBlocking { awaitSuspend() }
+fun <R1, R2, R3, R4, R5, R6, R7, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError, E4 : ThrowableError, E5 : ThrowableError, E6 : ThrowableError, E7 : ThrowableError> BatchResponse7<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>, PendingResponse<R4, E4>, PendingResponse<R5, E5>, PendingResponse<R6, E6>, PendingResponse<R7, E7>>.await() = runBlocking { awaitSuspend() }
+fun <R1, R2, R3, R4, R5, R6, R7, R8, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError, E4 : ThrowableError, E5 : ThrowableError, E6 : ThrowableError, E7 : ThrowableError, E8 : ThrowableError> BatchResponse8<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>, PendingResponse<R4, E4>, PendingResponse<R5, E5>, PendingResponse<R6, E6>, PendingResponse<R7, E7>, PendingResponse<R8, E8>>.await() = runBlocking { awaitSuspend() }
+fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError, E4 : ThrowableError, E5 : ThrowableError, E6 : ThrowableError, E7 : ThrowableError, E8 : ThrowableError, E9 : ThrowableError> BatchResponse9<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>, PendingResponse<R4, E4>, PendingResponse<R5, E5>, PendingResponse<R6, E6>, PendingResponse<R7, E7>, PendingResponse<R8, E8>, PendingResponse<R9, E9>>.await() = runBlocking { awaitSuspend() }
+fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError, E4 : ThrowableError, E5 : ThrowableError, E6 : ThrowableError, E7 : ThrowableError, E8 : ThrowableError, E9 : ThrowableError, E10 : ThrowableError> BatchResponse10<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>, PendingResponse<R4, E4>, PendingResponse<R5, E5>, PendingResponse<R6, E6>, PendingResponse<R7, E7>, PendingResponse<R8, E8>, PendingResponse<R9, E9>, PendingResponse<R10, E10>>.await() = runBlocking { awaitSuspend() }
+fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError, E4 : ThrowableError, E5 : ThrowableError, E6 : ThrowableError, E7 : ThrowableError, E8 : ThrowableError, E9 : ThrowableError, E10 : ThrowableError, E11 : ThrowableError> BatchResponse11<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>, PendingResponse<R4, E4>, PendingResponse<R5, E5>, PendingResponse<R6, E6>, PendingResponse<R7, E7>, PendingResponse<R8, E8>, PendingResponse<R9, E9>, PendingResponse<R10, E10>, PendingResponse<R11, E11>>.await() = runBlocking { awaitSuspend() }
+fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError, E4 : ThrowableError, E5 : ThrowableError, E6 : ThrowableError, E7 : ThrowableError, E8 : ThrowableError, E9 : ThrowableError, E10 : ThrowableError, E11 : ThrowableError, E12 : ThrowableError> BatchResponse12<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>, PendingResponse<R4, E4>, PendingResponse<R5, E5>, PendingResponse<R6, E6>, PendingResponse<R7, E7>, PendingResponse<R8, E8>, PendingResponse<R9, E9>, PendingResponse<R10, E10>, PendingResponse<R11, E11>, PendingResponse<R12, E12>>.await() = runBlocking { awaitSuspend() }

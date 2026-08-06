@@ -2,6 +2,7 @@ package io.ethers.providers.types
 
 import io.channels.core.ChannelReceiver
 import io.ethers.core.Result
+import io.ethers.core.ThrowableError
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -9,7 +10,7 @@ import kotlinx.coroutines.future.asCompletableFuture
 import kotlinx.coroutines.runBlocking
 import java.util.concurrent.CompletableFuture
 
-actual interface PlatformRpcSubscribe<T : Any, E : Result.Error> {
+actual interface PlatformRpcSubscribe<T : Any, E : ThrowableError> {
     actual suspend fun send(): Result<ChannelReceiver<T>, E>
 
     /**

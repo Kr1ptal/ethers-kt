@@ -9,6 +9,7 @@ import io.ethers.core.types.Hash
 import io.ethers.core.types.Log
 import io.ethers.core.types.TransactionReceipt
 import io.ethers.core.types.transaction.TxType
+import io.ethers.core.unwrap
 import io.ethers.providers.MockServer
 import io.ethers.providers.Provider
 import io.ethers.providers.mockServerHttp

@@ -2,6 +2,7 @@ package io.ethers.core.types
 
 import io.ethers.core.FastHex
 import io.ethers.core.Result
+import io.ethers.core.ThrowableError
 import io.ethers.core.failure
 import io.ethers.core.success
 import io.ethers.crypto.Hashing
@@ -214,8 +215,8 @@ class Signature(
     }
 }
 
-class InvalidSignatureError(val msg: String) : Result.Error {
-    override fun doThrow(): Nothing {
-        throw RuntimeException(msg)
+class InvalidSignatureError(val msg: String) : ThrowableError {
+    override fun toException(): RuntimeException {
+        return RuntimeException(msg)
     }
 }

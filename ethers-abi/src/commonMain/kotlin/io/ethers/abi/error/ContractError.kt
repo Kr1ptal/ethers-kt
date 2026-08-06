@@ -4,6 +4,7 @@ import io.ethers.abi.AbiCodec
 import io.ethers.abi.AbiFunction
 import io.ethers.abi.AbiType
 import io.ethers.core.Result
+import io.ethers.core.ThrowableError
 import io.ethers.core.types.Bytes
 import io.ethers.providers.RpcError
 import io.github.artificialpb.bignum.BigInteger
@@ -14,7 +15,7 @@ import kotlin.jvm.JvmStatic
 /**
  * Error returned from a contract call.
  * */
-sealed class ContractError : Result.Error {
+sealed class ContractError : ThrowableError {
     companion object {
         /**
          * Try to get either [PanicError], [RevertError], or [CustomContractError] from provided [data].
@@ -169,8 +170,8 @@ data object ExecutionRevertedError : ContractError() {
         "CallTracer(onlyTopCall = false)" to debug which call fails.
     """.trimIndent().replace("\n", " ")
 
-    override fun doThrow(): Nothing {
-        throw RuntimeException(MSG)
+    override fun toException(): RuntimeException {
+        return RuntimeException(MSG)
     }
 }
 
@@ -203,8 +204,8 @@ data class DecodingError(
     val message: String,
     val exception: Exception?,
 ) : ContractError() {
-    override fun doThrow(): Nothing {
-        throw RuntimeException(message, exception)
+    override fun toException(): RuntimeException {
+        return RuntimeException(message, exception)
     }
 }
 
@@ -220,7 +221,7 @@ sealed class DeployError(val msg: String) : ContractError() {
  * Error returned when a contract RPC call fails.
  * */
 data class ContractRpcError(val cause: RpcError) : ContractError() {
-    override fun doThrow(): Nothing {
-        throw RuntimeException("RPC error while calling contract function: $cause")
+    override fun toException(): RuntimeException {
+        return RuntimeException("RPC error while calling contract function: $cause")
     }
 }

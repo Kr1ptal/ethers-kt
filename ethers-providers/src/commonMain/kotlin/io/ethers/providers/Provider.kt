@@ -3,6 +3,7 @@ package io.ethers.providers
 import io.ethers.core.FastHex
 import io.ethers.core.Kotlinx
 import io.ethers.core.Result
+import io.ethers.core.ThrowableError
 import io.ethers.core.asBytes
 import io.ethers.core.asBytesOrNull
 import io.ethers.core.asHash
@@ -39,6 +40,7 @@ import io.ethers.core.types.TxpoolStatus
 import io.ethers.core.types.tracers.TracerConfig
 import io.ethers.core.types.tracers.TxTraceResult
 import io.ethers.core.types.transaction.TransactionUnsigned
+import io.ethers.core.unwrap
 import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.CallFailedError
 import io.ethers.providers.types.CallManyBundle
@@ -659,7 +661,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
     /**
      * Error returned when creating a [Provider] using [fromUrl] fails.
      * */
-    sealed interface Error : Result.Error
+    sealed interface Error : ThrowableError
 
     /**
      * Error indicating the provided [url] has an unsupported protocol.

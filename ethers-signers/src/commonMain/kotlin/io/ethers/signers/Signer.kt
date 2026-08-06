@@ -1,6 +1,7 @@
 package io.ethers.signers
 
 import io.ethers.core.Result
+import io.ethers.core.ThrowableError
 import io.ethers.core.failure
 import io.ethers.core.success
 import io.ethers.core.types.Address
@@ -97,8 +98,8 @@ interface Signer {
 
     override fun hashCode(): Int
 
-    data class SigningError(val msg: String, val cause: Exception? = null) : Result.Error {
-        override fun doThrow() = throw RuntimeException(msg, cause)
+    data class SigningError(val msg: String, val cause: Exception? = null) : ThrowableError {
+        override fun toException() = RuntimeException(msg, cause)
     }
 }
 

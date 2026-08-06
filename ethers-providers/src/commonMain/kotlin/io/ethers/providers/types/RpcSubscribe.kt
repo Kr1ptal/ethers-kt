@@ -3,6 +3,7 @@ package io.ethers.providers.types
 import io.channels.core.ChannelReceiver
 import io.ethers.core.Result
 import io.ethers.core.Result.Consumer
+import io.ethers.core.ThrowableError
 import io.ethers.core.failure
 import io.ethers.core.isFailure
 import io.ethers.core.isSuccess
@@ -23,11 +24,11 @@ import kotlin.jvm.JvmSynthetic
  * JVM and Android actualize this with blocking and `CompletableFuture` variants. A platform without those
  * primitives actualizes it with no extra members.
  */
-expect interface PlatformRpcSubscribe<T : Any, E : Result.Error> {
+expect interface PlatformRpcSubscribe<T : Any, E : ThrowableError> {
     suspend fun send(): Result<ChannelReceiver<T>, E>
 }
 
-interface RpcSubscribe<T : Any, E : Result.Error> : PlatformRpcSubscribe<T, E> {
+interface RpcSubscribe<T : Any, E : ThrowableError> : PlatformRpcSubscribe<T, E> {
     /**
      * Map the returned response if the call was successful, skipping if it failed.
      *
@@ -52,7 +53,7 @@ interface RpcSubscribe<T : Any, E : Result.Error> : PlatformRpcSubscribe<T, E> {
      *
      * The function will be executed asynchronously after the request is sent and response received.
      */
-    fun <R : Result.Error> mapError(mapper: Result.Transformer<E, R>): RpcSubscribe<T, R> {
+    fun <R : ThrowableError> mapError(mapper: Result.Transformer<E, R>): RpcSubscribe<T, R> {
         return MappingRpcSubscribe(this) { it.mapError(mapper) }
     }
 
@@ -60,7 +61,7 @@ interface RpcSubscribe<T : Any, E : Result.Error> : PlatformRpcSubscribe<T, E> {
      * Same as [mapError], but the mapper is allowed to suspend.
      */
     @JvmSynthetic
-    fun <R : Result.Error> mapError(mapper: suspend (E) -> R): RpcSubscribe<T, R> {
+    fun <R : ThrowableError> mapError(mapper: suspend (E) -> R): RpcSubscribe<T, R> {
         return MappingRpcSubscribe(this) { result ->
             if (result.isFailure()) failure(mapper(result.error)) else result
         }
@@ -94,7 +95,7 @@ interface RpcSubscribe<T : Any, E : Result.Error> : PlatformRpcSubscribe<T, E> {
      *
      * The function will be executed asynchronously after the request is sent and response received.
      */
-    fun <R : Result.Error> orElse(mapper: Result.Transformer<E, Result<ChannelReceiver<T>, R>>): RpcSubscribe<T, R> {
+    fun <R : ThrowableError> orElse(mapper: Result.Transformer<E, Result<ChannelReceiver<T>, R>>): RpcSubscribe<T, R> {
         return MappingRpcSubscribe(this) { it.orElse(mapper) }
     }
 
@@ -102,7 +103,7 @@ interface RpcSubscribe<T : Any, E : Result.Error> : PlatformRpcSubscribe<T, E> {
      * Same as [orElse], but the recovery function is allowed to suspend.
      */
     @JvmSynthetic
-    fun <R : Result.Error> orElse(
+    fun <R : ThrowableError> orElse(
         mapper: suspend (E) -> Result<ChannelReceiver<T>, R>,
     ): RpcSubscribe<T, R> {
         return MappingRpcSubscribe(this) { result ->
@@ -162,7 +163,7 @@ interface RpcSubscribe<T : Any, E : Result.Error> : PlatformRpcSubscribe<T, E> {
 /**
  * Internal implementation of [RpcSubscribe] which always returns the same value.
  * */
-internal class RpcSubscribeConstant<T : Any, E : Result.Error>(
+internal class RpcSubscribeConstant<T : Any, E : ThrowableError>(
     private val value: Result<ChannelReceiver<T>, E>,
 ) : RpcSubscribe<T, E> {
     override suspend fun send(): Result<ChannelReceiver<T>, E> = value
@@ -194,7 +195,7 @@ class RpcSubscribeCall<T : Any>(
 /**
  * Stream subscription via RPC which uses [mapper] function to remap [ChannelReceiver].
  */
-private class MappingRpcSubscribe<I : Any, O : Any, E : Result.Error, U : Result.Error>(
+private class MappingRpcSubscribe<I : Any, O : Any, E : ThrowableError, U : ThrowableError>(
     private val request: RpcSubscribe<I, E>,
     private val mapper: suspend (Result<ChannelReceiver<I>, E>) -> Result<ChannelReceiver<O>, U>,
 ) : RpcSubscribe<O, U> {
