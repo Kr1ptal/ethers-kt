@@ -3,6 +3,7 @@ package io.ethers.ens
 import io.ethers.abi.AbiCodec
 import io.ethers.abi.AbiFunction
 import io.ethers.abi.AbiType
+import io.ethers.abi.error.ContractError
 import io.ethers.core.FastHex
 import io.ethers.core.Kotlinx
 import io.ethers.core.Result
@@ -21,6 +22,7 @@ import io.ethers.logger.err
 import io.ethers.logger.getLogger
 import io.ethers.logger.wrn
 import io.ethers.providers.RpcClientConfig
+import io.ethers.providers.RpcError
 import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.RpcRequest
 import io.ethers.providers.types.SuppliedRpcRequest
@@ -336,7 +338,7 @@ class EnsMiddleware @JvmOverloads constructor(
             },
             BlockId.LATEST,
         ).send().unwrapOrReturn {
-            return failure(Error.CcipCallFailed("Callback call failed", it.toException()))
+            return failure(Error.CcipCallbackFailed(it))
         }
 
         // If callbackResult is OffchainLookup error, resolve using recursive CCIP calls
@@ -546,9 +548,9 @@ class EnsMiddleware @JvmOverloads constructor(
                 .send()
         }.unwrapOrReturn {
             return failure(
-                Error.AvatarParsing(
+                Error.AvatarNftCallFailed(
                     "Error when retrieving metadata URL for token: ${token.tokenId} of NFT: ${token.nftAddr}",
-                    it.toException(),
+                    it,
                 ),
             )
         }
@@ -773,6 +775,15 @@ class EnsMiddleware @JvmOverloads constructor(
         }
 
         /**
+         * Retrieving the avatar NFT metadata URL from the token contract failed.
+         */
+        data class AvatarNftCallFailed(val message: String, val cause: ContractError) : Error() {
+            override fun toException(): RuntimeException {
+                return RuntimeException(message, cause.toException())
+            }
+        }
+
+        /**
          * Avatar NFT chain ID does not match the provider's chain ID.
          */
         data class AvatarChainIdMismatch(
@@ -810,6 +821,15 @@ class EnsMiddleware @JvmOverloads constructor(
         data class CcipCallFailed(val message: String, val cause: Throwable?) : Error() {
             override fun toException(): RuntimeException {
                 return RuntimeException(message, cause)
+            }
+        }
+
+        /**
+         * The RPC call to the CCIP callback function failed.
+         */
+        data class CcipCallbackFailed(val cause: RpcError) : Error() {
+            override fun toException(): RuntimeException {
+                return RuntimeException("CCIP callback call failed", cause.toException())
             }
         }
     }

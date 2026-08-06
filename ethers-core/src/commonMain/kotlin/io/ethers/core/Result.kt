@@ -79,7 +79,7 @@ sealed class Result<out T, out E> {
      * Maps a [Result]<[T], [E]> to [Result]<[R], [E]> by applying a function to a [Success] value, leaving a
      * [Failure] value untouched.
      * */
-    fun <R : Any?> map(mapper: Transformer<T, R>): Result<R, E> = fold({ Success(mapper(it.value)) }, { it })
+    fun <R> map(mapper: Transformer<T, R>): Result<R, E> = fold({ Success(mapper(it.value)) }, { it })
 
     /**
      * Maps a [Result]<[T], [E]> to [Result]<[T], [R]> by applying a function to a [Failure], leaving a
@@ -93,7 +93,7 @@ sealed class Result<out T, out E> {
      * Call the function with value of [Success], expecting another result, and skipping if [Result] is [Failure].
      * Useful when chaining multiple fallible operations on the result.
      * */
-    fun <R : Any?> andThen(mapper: Transformer<T, Result<R, @UnsafeVariance E>>): Result<R, E> {
+    fun <R> andThen(mapper: Transformer<T, Result<R, @UnsafeVariance E>>): Result<R, E> {
         return fold({ mapper(it.value) }, { it })
     }
 
@@ -116,9 +116,7 @@ sealed class Result<out T, out E> {
         when (val e = it.error) {
             is ThrowableError -> throw e.toException()
             is Throwable -> throw e
-            else -> throw RuntimeException(
-                "Result is not a success: ${if (e == null) "null" else e::class.simpleName}",
-            )
+            else -> throw RuntimeException("Unable to unwrap a value, result is not a success")
         }
     }
 
@@ -142,7 +140,7 @@ sealed class Result<out T, out E> {
     /**
      * Unwrap the error if [Result] is [Failure], or throw an exception if [Result] is [Success].
      * */
-    fun unwrapError(): E = fold({ throw IllegalStateException("Cannot unwrap success as error") }, { it.error })
+    fun unwrapError(): E = fold({ throw IllegalStateException("Unable to unwrap an error, result is not a failure") }, { it.error })
 
     /**
      * Unwrap the error if [Result] is [Failure], or return null if [Result] is [Success].
@@ -201,13 +199,13 @@ sealed class Result<out T, out E> {
          * Return a [Result.Success] with the given [value].
          * */
         @JvmStatic
-        fun <T : Any?, E> success(value: T): Result<T, E> = Success(value)
+        fun <T, E> success(value: T): Result<T, E> = Success(value)
 
         /**
          * Return a [Result.Failure] with the given [error].
          * */
         @JvmStatic
-        fun <T : Any?, E> failure(error: E): Result<T, E> = Failure(error)
+        fun <T, E> failure(error: E): Result<T, E> = Failure(error)
     }
 }
 
@@ -255,7 +253,7 @@ fun <T, E> Result<T, E>?.isNullOrFailure(): Boolean {
 /**
  * Return a [Result.Success] with the given [value].
  * */
-fun <T : Any?> success(value: T): Result<T, Nothing> = Result.success(value)
+fun <T> success(value: T): Result<T, Nothing> = Result.success(value)
 
 /**
  * Return a [Result.Failure] with the given [error].
