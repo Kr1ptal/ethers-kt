@@ -1,6 +1,7 @@
 package io.ethers.providers
 
 import io.ethers.core.Kotlinx
+import io.ethers.core.ThrowableError
 import io.ethers.core.json.JsonElement
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -10,6 +11,17 @@ import io.kotest.property.exhaustive.of
 import kotlinx.serialization.json.jsonObject
 
 class RpcErrorTest : FunSpec({
+    test("exception includes the error code") {
+        val error = RpcError(RpcError.CODE_EXECUTION_ERROR, "execution reverted", null)
+        val exception = error.toException()
+
+        exception.message shouldBe "execution reverted (code: ${RpcError.CODE_EXECUTION_ERROR})"
+        exception.toString() shouldBe "RpcError: execution reverted (code: ${RpcError.CODE_EXECUTION_ERROR})"
+
+        // the error itself is still retained, so the code stays reachable as an Int
+        (exception as ThrowableError.Exception).error shouldBe error
+    }
+
     test("deserialization") {
         data class TestCase(
             val json: String,

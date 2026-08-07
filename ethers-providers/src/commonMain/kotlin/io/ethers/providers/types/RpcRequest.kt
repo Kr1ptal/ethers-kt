@@ -2,6 +2,7 @@ package io.ethers.providers.types
 
 import io.ethers.core.Result
 import io.ethers.core.Result.Consumer
+import io.ethers.core.ThrowableError
 import io.ethers.core.failure
 import io.ethers.core.isFailure
 import io.ethers.core.isSuccess
@@ -25,11 +26,11 @@ import kotlin.jvm.JvmSynthetic
  * JVM and Android actualize this with blocking and `CompletableFuture` variants. A platform without those
  * primitives actualizes it with no extra members.
  */
-expect abstract class PlatformRpcRequest<T, E : Result.Error>() {
+expect abstract class PlatformRpcRequest<T, E : ThrowableError>() {
     abstract suspend fun send(): Result<T, E>
 }
 
-abstract class RpcRequest<T, E : Result.Error> : PlatformRpcRequest<T, E>() {
+abstract class RpcRequest<T, E : ThrowableError> : PlatformRpcRequest<T, E>() {
     /**
      * Batch this into provided [BatchRpcRequest].
      */
@@ -59,7 +60,7 @@ abstract class RpcRequest<T, E : Result.Error> : PlatformRpcRequest<T, E>() {
      *
      * The function will be executed asynchronously after the request is sent and the response received.
      */
-    fun <R : Result.Error> mapError(mapper: Result.Transformer<E, R>): RpcRequest<T, R> {
+    fun <R : ThrowableError> mapError(mapper: Result.Transformer<E, R>): RpcRequest<T, R> {
         return MappingRpcRequest(this) { it.mapError(mapper) }
     }
 
@@ -67,7 +68,7 @@ abstract class RpcRequest<T, E : Result.Error> : PlatformRpcRequest<T, E>() {
      * Same as [mapError], but the mapper is allowed to suspend.
      */
     @JvmSynthetic
-    fun <R : Result.Error> mapError(mapper: suspend (E) -> R): RpcRequest<T, R> {
+    fun <R : ThrowableError> mapError(mapper: suspend (E) -> R): RpcRequest<T, R> {
         return MappingRpcRequest(this) { result ->
             if (result.isFailure()) failure(mapper(result.error)) else result
         }
@@ -99,7 +100,7 @@ abstract class RpcRequest<T, E : Result.Error> : PlatformRpcRequest<T, E>() {
      *
      * The function will be executed asynchronously after the request is sent and the response received.
      */
-    fun <R : Result.Error> orElse(mapper: Result.Transformer<E, Result<T, R>>): RpcRequest<T, R> {
+    fun <R : ThrowableError> orElse(mapper: Result.Transformer<E, Result<T, R>>): RpcRequest<T, R> {
         return MappingRpcRequest(this) { it.orElse(mapper) }
     }
 
@@ -107,7 +108,7 @@ abstract class RpcRequest<T, E : Result.Error> : PlatformRpcRequest<T, E>() {
      * Same as [orElse], but the recovery function is allowed to suspend.
      */
     @JvmSynthetic
-    fun <R : Result.Error> orElse(mapper: suspend (E) -> Result<T, R>): RpcRequest<T, R> {
+    fun <R : ThrowableError> orElse(mapper: suspend (E) -> Result<T, R>): RpcRequest<T, R> {
         return MappingRpcRequest(this) { result ->
             if (result.isFailure()) mapper(result.error) else result
         }
@@ -182,7 +183,7 @@ class RpcCall<T>(
 /**
  * RPC request which uses [mapper] function to remap RPC response.
  */
-private class MappingRpcRequest<I, O, E : Result.Error, U : Result.Error>(
+private class MappingRpcRequest<I, O, E : ThrowableError, U : ThrowableError>(
     private val request: RpcRequest<I, E>,
     private val mapper: suspend (Result<I, E>) -> Result<O, U>,
 ) : RpcRequest<O, U>() {
@@ -204,7 +205,7 @@ private class MappingRpcRequest<I, O, E : Result.Error, U : Result.Error>(
  * hands back an already-satisfiable response, so batching one of these alongside real RPC calls costs an extra
  * round trip rather than saving one.
  * */
-class SuppliedRpcRequest<T, E : Result.Error>(
+class SuppliedRpcRequest<T, E : ThrowableError>(
     private val supplier: suspend () -> Result<T, E>,
 ) : RpcRequest<T, E>() {
     override suspend fun send(): Result<T, E> = supplier()

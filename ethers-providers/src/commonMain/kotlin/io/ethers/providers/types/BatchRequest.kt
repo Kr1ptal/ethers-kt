@@ -1,6 +1,7 @@
 package io.ethers.providers.types
 
 import io.ethers.core.Result
+import io.ethers.core.ThrowableError
 
 internal typealias PendingResponse<R, E> = BatchRpcResponse<Result<R, E>>
 
@@ -114,7 +115,7 @@ data class BatchResponse12<R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12>(
     val response12: R12,
 )
 
-fun <R1, R2, E1 : Result.Error, E2 : Result.Error> batchRequest(
+fun <R1, R2, E1 : ThrowableError, E2 : ThrowableError> batchRequest(
     r1: RpcRequest<R1, E1>,
     r2: RpcRequest<R2, E2>,
 ): BatchResponse2<PendingResponse<R1, E1>, PendingResponse<R2, E2>> {
@@ -126,11 +127,11 @@ fun <R1, R2, E1 : Result.Error, E2 : Result.Error> batchRequest(
     return BatchResponse2(f1, f2)
 }
 
-suspend fun <R1, R2, E1 : Result.Error, E2 : Result.Error> BatchResponse2<PendingResponse<R1, E1>, PendingResponse<R2, E2>>.awaitSuspend() = BatchResponse2(response1.await(), response2.await())
+suspend fun <R1, R2, E1 : ThrowableError, E2 : ThrowableError> BatchResponse2<PendingResponse<R1, E1>, PendingResponse<R2, E2>>.awaitSuspend() = BatchResponse2(response1.await(), response2.await())
 
-fun <R1, R2, E1 : Result.Error, E2 : Result.Error> BatchResponse2<Result<R1, E1>, Result<R2, E2>>.unwrap() = BatchResponse2(response1.unwrap(), response2.unwrap())
+fun <R1, R2, E1 : ThrowableError, E2 : ThrowableError> BatchResponse2<Result<R1, E1>, Result<R2, E2>>.unwrap() = BatchResponse2(response1.unwrap(), response2.unwrap())
 
-fun <R1, R2, R3, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error> batchRequest(
+fun <R1, R2, R3, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError> batchRequest(
     r1: RpcRequest<R1, E1>,
     r2: RpcRequest<R2, E2>,
     r3: RpcRequest<R3, E3>,
@@ -144,11 +145,11 @@ fun <R1, R2, R3, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error> batchR
     return BatchResponse3(f1, f2, f3)
 }
 
-suspend fun <R1, R2, R3, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error> BatchResponse3<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>>.awaitSuspend() = BatchResponse3(response1.await(), response2.await(), response3.await())
+suspend fun <R1, R2, R3, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError> BatchResponse3<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>>.awaitSuspend() = BatchResponse3(response1.await(), response2.await(), response3.await())
 
-fun <R1, R2, R3, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error> BatchResponse3<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>>.unwrap() = BatchResponse3(response1.unwrap(), response2.unwrap(), response3.unwrap())
+fun <R1, R2, R3, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError> BatchResponse3<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>>.unwrap() = BatchResponse3(response1.unwrap(), response2.unwrap(), response3.unwrap())
 
-fun <R1, R2, R3, R4, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error> batchRequest(
+fun <R1, R2, R3, R4, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError, E4 : ThrowableError> batchRequest(
     r1: RpcRequest<R1, E1>,
     r2: RpcRequest<R2, E2>,
     r3: RpcRequest<R3, E3>,
@@ -164,16 +165,16 @@ fun <R1, R2, R3, R4, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4
     return BatchResponse4(f1, f2, f3, f4)
 }
 
-suspend fun <R1, R2, R3, R4, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error> BatchResponse4<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>, PendingResponse<R4, E4>>.awaitSuspend() = BatchResponse4(response1.await(), response2.await(), response3.await(), response4.await())
+suspend fun <R1, R2, R3, R4, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError, E4 : ThrowableError> BatchResponse4<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>, PendingResponse<R4, E4>>.awaitSuspend() = BatchResponse4(response1.await(), response2.await(), response3.await(), response4.await())
 
-fun <R1, R2, R3, R4, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error> BatchResponse4<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>, Result<R4, E4>>.unwrap() = BatchResponse4(
+fun <R1, R2, R3, R4, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError, E4 : ThrowableError> BatchResponse4<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>, Result<R4, E4>>.unwrap() = BatchResponse4(
     response1.unwrap(),
     response2.unwrap(),
     response3.unwrap(),
     response4.unwrap(),
 )
 
-fun <R1, R2, R3, R4, R5, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error> batchRequest(
+fun <R1, R2, R3, R4, R5, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError, E4 : ThrowableError, E5 : ThrowableError> batchRequest(
     r1: RpcRequest<R1, E1>,
     r2: RpcRequest<R2, E2>,
     r3: RpcRequest<R3, E3>,
@@ -191,9 +192,9 @@ fun <R1, R2, R3, R4, R5, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error
     return BatchResponse5(f1, f2, f3, f4, f5)
 }
 
-suspend fun <R1, R2, R3, R4, R5, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error> BatchResponse5<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>, PendingResponse<R4, E4>, PendingResponse<R5, E5>>.awaitSuspend() = BatchResponse5(response1.await(), response2.await(), response3.await(), response4.await(), response5.await())
+suspend fun <R1, R2, R3, R4, R5, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError, E4 : ThrowableError, E5 : ThrowableError> BatchResponse5<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>, PendingResponse<R4, E4>, PendingResponse<R5, E5>>.awaitSuspend() = BatchResponse5(response1.await(), response2.await(), response3.await(), response4.await(), response5.await())
 
-fun <R1, R2, R3, R4, R5, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error> BatchResponse5<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>, Result<R4, E4>, Result<R5, E5>>.unwrap() = BatchResponse5(
+fun <R1, R2, R3, R4, R5, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError, E4 : ThrowableError, E5 : ThrowableError> BatchResponse5<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>, Result<R4, E4>, Result<R5, E5>>.unwrap() = BatchResponse5(
     response1.unwrap(),
     response2.unwrap(),
     response3.unwrap(),
@@ -201,7 +202,7 @@ fun <R1, R2, R3, R4, R5, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error
     response5.unwrap(),
 )
 
-fun <R1, R2, R3, R4, R5, R6, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error> batchRequest(
+fun <R1, R2, R3, R4, R5, R6, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError, E4 : ThrowableError, E5 : ThrowableError, E6 : ThrowableError> batchRequest(
     r1: RpcRequest<R1, E1>,
     r2: RpcRequest<R2, E2>,
     r3: RpcRequest<R3, E3>,
@@ -221,7 +222,7 @@ fun <R1, R2, R3, R4, R5, R6, E1 : Result.Error, E2 : Result.Error, E3 : Result.E
     return BatchResponse6(f1, f2, f3, f4, f5, f6)
 }
 
-suspend fun <R1, R2, R3, R4, R5, R6, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error> BatchResponse6<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>, PendingResponse<R4, E4>, PendingResponse<R5, E5>, PendingResponse<R6, E6>>.awaitSuspend() = BatchResponse6(
+suspend fun <R1, R2, R3, R4, R5, R6, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError, E4 : ThrowableError, E5 : ThrowableError, E6 : ThrowableError> BatchResponse6<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>, PendingResponse<R4, E4>, PendingResponse<R5, E5>, PendingResponse<R6, E6>>.awaitSuspend() = BatchResponse6(
     response1.await(),
     response2.await(),
     response3.await(),
@@ -230,7 +231,7 @@ suspend fun <R1, R2, R3, R4, R5, R6, E1 : Result.Error, E2 : Result.Error, E3 : 
     response6.await(),
 )
 
-fun <R1, R2, R3, R4, R5, R6, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error> BatchResponse6<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>, Result<R4, E4>, Result<R5, E5>, Result<R6, E6>>.unwrap() = BatchResponse6(
+fun <R1, R2, R3, R4, R5, R6, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError, E4 : ThrowableError, E5 : ThrowableError, E6 : ThrowableError> BatchResponse6<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>, Result<R4, E4>, Result<R5, E5>, Result<R6, E6>>.unwrap() = BatchResponse6(
     response1.unwrap(),
     response2.unwrap(),
     response3.unwrap(),
@@ -239,7 +240,7 @@ fun <R1, R2, R3, R4, R5, R6, E1 : Result.Error, E2 : Result.Error, E3 : Result.E
     response6.unwrap(),
 )
 
-fun <R1, R2, R3, R4, R5, R6, R7, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error> batchRequest(
+fun <R1, R2, R3, R4, R5, R6, R7, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError, E4 : ThrowableError, E5 : ThrowableError, E6 : ThrowableError, E7 : ThrowableError> batchRequest(
     r1: RpcRequest<R1, E1>,
     r2: RpcRequest<R2, E2>,
     r3: RpcRequest<R3, E3>,
@@ -261,7 +262,7 @@ fun <R1, R2, R3, R4, R5, R6, R7, E1 : Result.Error, E2 : Result.Error, E3 : Resu
     return BatchResponse7(f1, f2, f3, f4, f5, f6, f7)
 }
 
-suspend fun <R1, R2, R3, R4, R5, R6, R7, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error> BatchResponse7<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>, PendingResponse<R4, E4>, PendingResponse<R5, E5>, PendingResponse<R6, E6>, PendingResponse<R7, E7>>.awaitSuspend() = BatchResponse7(
+suspend fun <R1, R2, R3, R4, R5, R6, R7, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError, E4 : ThrowableError, E5 : ThrowableError, E6 : ThrowableError, E7 : ThrowableError> BatchResponse7<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>, PendingResponse<R4, E4>, PendingResponse<R5, E5>, PendingResponse<R6, E6>, PendingResponse<R7, E7>>.awaitSuspend() = BatchResponse7(
     response1.await(),
     response2.await(),
     response3.await(),
@@ -271,7 +272,7 @@ suspend fun <R1, R2, R3, R4, R5, R6, R7, E1 : Result.Error, E2 : Result.Error, E
     response7.await(),
 )
 
-fun <R1, R2, R3, R4, R5, R6, R7, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error> BatchResponse7<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>, Result<R4, E4>, Result<R5, E5>, Result<R6, E6>, Result<R7, E7>>.unwrap() = BatchResponse7(
+fun <R1, R2, R3, R4, R5, R6, R7, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError, E4 : ThrowableError, E5 : ThrowableError, E6 : ThrowableError, E7 : ThrowableError> BatchResponse7<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>, Result<R4, E4>, Result<R5, E5>, Result<R6, E6>, Result<R7, E7>>.unwrap() = BatchResponse7(
     response1.unwrap(),
     response2.unwrap(),
     response3.unwrap(),
@@ -281,7 +282,7 @@ fun <R1, R2, R3, R4, R5, R6, R7, E1 : Result.Error, E2 : Result.Error, E3 : Resu
     response7.unwrap(),
 )
 
-fun <R1, R2, R3, R4, R5, R6, R7, R8, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error, E8 : Result.Error> batchRequest(
+fun <R1, R2, R3, R4, R5, R6, R7, R8, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError, E4 : ThrowableError, E5 : ThrowableError, E6 : ThrowableError, E7 : ThrowableError, E8 : ThrowableError> batchRequest(
     r1: RpcRequest<R1, E1>,
     r2: RpcRequest<R2, E2>,
     r3: RpcRequest<R3, E3>,
@@ -305,7 +306,7 @@ fun <R1, R2, R3, R4, R5, R6, R7, R8, E1 : Result.Error, E2 : Result.Error, E3 : 
     return BatchResponse8(f1, f2, f3, f4, f5, f6, f7, f8)
 }
 
-suspend fun <R1, R2, R3, R4, R5, R6, R7, R8, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error, E8 : Result.Error> BatchResponse8<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>, PendingResponse<R4, E4>, PendingResponse<R5, E5>, PendingResponse<R6, E6>, PendingResponse<R7, E7>, PendingResponse<R8, E8>>.awaitSuspend() = BatchResponse8(
+suspend fun <R1, R2, R3, R4, R5, R6, R7, R8, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError, E4 : ThrowableError, E5 : ThrowableError, E6 : ThrowableError, E7 : ThrowableError, E8 : ThrowableError> BatchResponse8<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>, PendingResponse<R4, E4>, PendingResponse<R5, E5>, PendingResponse<R6, E6>, PendingResponse<R7, E7>, PendingResponse<R8, E8>>.awaitSuspend() = BatchResponse8(
     response1.await(),
     response2.await(),
     response3.await(),
@@ -316,7 +317,7 @@ suspend fun <R1, R2, R3, R4, R5, R6, R7, R8, E1 : Result.Error, E2 : Result.Erro
     response8.await(),
 )
 
-fun <R1, R2, R3, R4, R5, R6, R7, R8, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error, E8 : Result.Error> BatchResponse8<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>, Result<R4, E4>, Result<R5, E5>, Result<R6, E6>, Result<R7, E7>, Result<R8, E8>>.unwrap() = BatchResponse8(
+fun <R1, R2, R3, R4, R5, R6, R7, R8, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError, E4 : ThrowableError, E5 : ThrowableError, E6 : ThrowableError, E7 : ThrowableError, E8 : ThrowableError> BatchResponse8<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>, Result<R4, E4>, Result<R5, E5>, Result<R6, E6>, Result<R7, E7>, Result<R8, E8>>.unwrap() = BatchResponse8(
     response1.unwrap(),
     response2.unwrap(),
     response3.unwrap(),
@@ -327,7 +328,7 @@ fun <R1, R2, R3, R4, R5, R6, R7, R8, E1 : Result.Error, E2 : Result.Error, E3 : 
     response8.unwrap(),
 )
 
-fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error, E8 : Result.Error, E9 : Result.Error> batchRequest(
+fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError, E4 : ThrowableError, E5 : ThrowableError, E6 : ThrowableError, E7 : ThrowableError, E8 : ThrowableError, E9 : ThrowableError> batchRequest(
     r1: RpcRequest<R1, E1>,
     r2: RpcRequest<R2, E2>,
     r3: RpcRequest<R3, E3>,
@@ -353,7 +354,7 @@ fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, E1 : Result.Error, E2 : Result.Error, E
     return BatchResponse9(f1, f2, f3, f4, f5, f6, f7, f8, f9)
 }
 
-suspend fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error, E8 : Result.Error, E9 : Result.Error> BatchResponse9<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>, PendingResponse<R4, E4>, PendingResponse<R5, E5>, PendingResponse<R6, E6>, PendingResponse<R7, E7>, PendingResponse<R8, E8>, PendingResponse<R9, E9>>.awaitSuspend() = BatchResponse9(
+suspend fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError, E4 : ThrowableError, E5 : ThrowableError, E6 : ThrowableError, E7 : ThrowableError, E8 : ThrowableError, E9 : ThrowableError> BatchResponse9<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>, PendingResponse<R4, E4>, PendingResponse<R5, E5>, PendingResponse<R6, E6>, PendingResponse<R7, E7>, PendingResponse<R8, E8>, PendingResponse<R9, E9>>.awaitSuspend() = BatchResponse9(
     response1.await(),
     response2.await(),
     response3.await(),
@@ -365,7 +366,7 @@ suspend fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, E1 : Result.Error, E2 : Result.
     response9.await(),
 )
 
-fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error, E8 : Result.Error, E9 : Result.Error> BatchResponse9<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>, Result<R4, E4>, Result<R5, E5>, Result<R6, E6>, Result<R7, E7>, Result<R8, E8>, Result<R9, E9>>.unwrap() = BatchResponse9(
+fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError, E4 : ThrowableError, E5 : ThrowableError, E6 : ThrowableError, E7 : ThrowableError, E8 : ThrowableError, E9 : ThrowableError> BatchResponse9<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>, Result<R4, E4>, Result<R5, E5>, Result<R6, E6>, Result<R7, E7>, Result<R8, E8>, Result<R9, E9>>.unwrap() = BatchResponse9(
     response1.unwrap(),
     response2.unwrap(),
     response3.unwrap(),
@@ -377,7 +378,7 @@ fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, E1 : Result.Error, E2 : Result.Error, E
     response9.unwrap(),
 )
 
-fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error, E8 : Result.Error, E9 : Result.Error, E10 : Result.Error> batchRequest(
+fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError, E4 : ThrowableError, E5 : ThrowableError, E6 : ThrowableError, E7 : ThrowableError, E8 : ThrowableError, E9 : ThrowableError, E10 : ThrowableError> batchRequest(
     r1: RpcRequest<R1, E1>,
     r2: RpcRequest<R2, E2>,
     r3: RpcRequest<R3, E3>,
@@ -405,7 +406,7 @@ fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, E1 : Result.Error, E2 : Result.Err
     return BatchResponse10(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10)
 }
 
-suspend fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error, E8 : Result.Error, E9 : Result.Error, E10 : Result.Error> BatchResponse10<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>, PendingResponse<R4, E4>, PendingResponse<R5, E5>, PendingResponse<R6, E6>, PendingResponse<R7, E7>, PendingResponse<R8, E8>, PendingResponse<R9, E9>, PendingResponse<R10, E10>>.awaitSuspend() = BatchResponse10(
+suspend fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError, E4 : ThrowableError, E5 : ThrowableError, E6 : ThrowableError, E7 : ThrowableError, E8 : ThrowableError, E9 : ThrowableError, E10 : ThrowableError> BatchResponse10<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>, PendingResponse<R4, E4>, PendingResponse<R5, E5>, PendingResponse<R6, E6>, PendingResponse<R7, E7>, PendingResponse<R8, E8>, PendingResponse<R9, E9>, PendingResponse<R10, E10>>.awaitSuspend() = BatchResponse10(
     response1.await(),
     response2.await(),
     response3.await(),
@@ -418,7 +419,7 @@ suspend fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, E1 : Result.Error, E2 : Re
     response10.await(),
 )
 
-fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error, E8 : Result.Error, E9 : Result.Error, E10 : Result.Error> BatchResponse10<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>, Result<R4, E4>, Result<R5, E5>, Result<R6, E6>, Result<R7, E7>, Result<R8, E8>, Result<R9, E9>, Result<R10, E10>>.unwrap() = BatchResponse10(
+fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError, E4 : ThrowableError, E5 : ThrowableError, E6 : ThrowableError, E7 : ThrowableError, E8 : ThrowableError, E9 : ThrowableError, E10 : ThrowableError> BatchResponse10<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>, Result<R4, E4>, Result<R5, E5>, Result<R6, E6>, Result<R7, E7>, Result<R8, E8>, Result<R9, E9>, Result<R10, E10>>.unwrap() = BatchResponse10(
     response1.unwrap(),
     response2.unwrap(),
     response3.unwrap(),
@@ -431,7 +432,7 @@ fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, E1 : Result.Error, E2 : Result.Err
     response10.unwrap(),
 )
 
-fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error, E8 : Result.Error, E9 : Result.Error, E10 : Result.Error, E11 : Result.Error> batchRequest(
+fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError, E4 : ThrowableError, E5 : ThrowableError, E6 : ThrowableError, E7 : ThrowableError, E8 : ThrowableError, E9 : ThrowableError, E10 : ThrowableError, E11 : ThrowableError> batchRequest(
     r1: RpcRequest<R1, E1>,
     r2: RpcRequest<R2, E2>,
     r3: RpcRequest<R3, E3>,
@@ -461,7 +462,7 @@ fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, E1 : Result.Error, E2 : Resul
     return BatchResponse11(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11)
 }
 
-suspend fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error, E8 : Result.Error, E9 : Result.Error, E10 : Result.Error, E11 : Result.Error> BatchResponse11<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>, PendingResponse<R4, E4>, PendingResponse<R5, E5>, PendingResponse<R6, E6>, PendingResponse<R7, E7>, PendingResponse<R8, E8>, PendingResponse<R9, E9>, PendingResponse<R10, E10>, PendingResponse<R11, E11>>.awaitSuspend() = BatchResponse11(
+suspend fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError, E4 : ThrowableError, E5 : ThrowableError, E6 : ThrowableError, E7 : ThrowableError, E8 : ThrowableError, E9 : ThrowableError, E10 : ThrowableError, E11 : ThrowableError> BatchResponse11<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>, PendingResponse<R4, E4>, PendingResponse<R5, E5>, PendingResponse<R6, E6>, PendingResponse<R7, E7>, PendingResponse<R8, E8>, PendingResponse<R9, E9>, PendingResponse<R10, E10>, PendingResponse<R11, E11>>.awaitSuspend() = BatchResponse11(
     response1.await(),
     response2.await(),
     response3.await(),
@@ -475,7 +476,7 @@ suspend fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, E1 : Result.Error, E2
     response11.await(),
 )
 
-fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error, E8 : Result.Error, E9 : Result.Error, E10 : Result.Error, E11 : Result.Error> BatchResponse11<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>, Result<R4, E4>, Result<R5, E5>, Result<R6, E6>, Result<R7, E7>, Result<R8, E8>, Result<R9, E9>, Result<R10, E10>, Result<R11, E11>>.unwrap() = BatchResponse11(
+fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError, E4 : ThrowableError, E5 : ThrowableError, E6 : ThrowableError, E7 : ThrowableError, E8 : ThrowableError, E9 : ThrowableError, E10 : ThrowableError, E11 : ThrowableError> BatchResponse11<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>, Result<R4, E4>, Result<R5, E5>, Result<R6, E6>, Result<R7, E7>, Result<R8, E8>, Result<R9, E9>, Result<R10, E10>, Result<R11, E11>>.unwrap() = BatchResponse11(
     response1.unwrap(),
     response2.unwrap(),
     response3.unwrap(),
@@ -489,7 +490,7 @@ fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, E1 : Result.Error, E2 : Resul
     response11.unwrap(),
 )
 
-fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error, E8 : Result.Error, E9 : Result.Error, E10 : Result.Error, E11 : Result.Error, E12 : Result.Error> batchRequest(
+fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError, E4 : ThrowableError, E5 : ThrowableError, E6 : ThrowableError, E7 : ThrowableError, E8 : ThrowableError, E9 : ThrowableError, E10 : ThrowableError, E11 : ThrowableError, E12 : ThrowableError> batchRequest(
     r1: RpcRequest<R1, E1>,
     r2: RpcRequest<R2, E2>,
     r3: RpcRequest<R3, E3>,
@@ -521,7 +522,7 @@ fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12, E1 : Result.Error, E2 : 
     return BatchResponse12(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12)
 }
 
-suspend fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error, E8 : Result.Error, E9 : Result.Error, E10 : Result.Error, E11 : Result.Error, E12 : Result.Error> BatchResponse12<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>, PendingResponse<R4, E4>, PendingResponse<R5, E5>, PendingResponse<R6, E6>, PendingResponse<R7, E7>, PendingResponse<R8, E8>, PendingResponse<R9, E9>, PendingResponse<R10, E10>, PendingResponse<R11, E11>, PendingResponse<R12, E12>>.awaitSuspend() = BatchResponse12(
+suspend fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError, E4 : ThrowableError, E5 : ThrowableError, E6 : ThrowableError, E7 : ThrowableError, E8 : ThrowableError, E9 : ThrowableError, E10 : ThrowableError, E11 : ThrowableError, E12 : ThrowableError> BatchResponse12<PendingResponse<R1, E1>, PendingResponse<R2, E2>, PendingResponse<R3, E3>, PendingResponse<R4, E4>, PendingResponse<R5, E5>, PendingResponse<R6, E6>, PendingResponse<R7, E7>, PendingResponse<R8, E8>, PendingResponse<R9, E9>, PendingResponse<R10, E10>, PendingResponse<R11, E11>, PendingResponse<R12, E12>>.awaitSuspend() = BatchResponse12(
     response1.await(),
     response2.await(),
     response3.await(),
@@ -536,7 +537,7 @@ suspend fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12, E1 : Result.Erro
     response12.await(),
 )
 
-fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12, E1 : Result.Error, E2 : Result.Error, E3 : Result.Error, E4 : Result.Error, E5 : Result.Error, E6 : Result.Error, E7 : Result.Error, E8 : Result.Error, E9 : Result.Error, E10 : Result.Error, E11 : Result.Error, E12 : Result.Error> BatchResponse12<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>, Result<R4, E4>, Result<R5, E5>, Result<R6, E6>, Result<R7, E7>, Result<R8, E8>, Result<R9, E9>, Result<R10, E10>, Result<R11, E11>, Result<R12, E12>>.unwrap() = BatchResponse12(
+fun <R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12, E1 : ThrowableError, E2 : ThrowableError, E3 : ThrowableError, E4 : ThrowableError, E5 : ThrowableError, E6 : ThrowableError, E7 : ThrowableError, E8 : ThrowableError, E9 : ThrowableError, E10 : ThrowableError, E11 : ThrowableError, E12 : ThrowableError> BatchResponse12<Result<R1, E1>, Result<R2, E2>, Result<R3, E3>, Result<R4, E4>, Result<R5, E5>, Result<R6, E6>, Result<R7, E7>, Result<R8, E8>, Result<R9, E9>, Result<R10, E10>, Result<R11, E11>, Result<R12, E12>>.unwrap() = BatchResponse12(
     response1.unwrap(),
     response2.unwrap(),
     response3.unwrap(),

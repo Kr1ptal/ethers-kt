@@ -3,10 +3,11 @@ package io.ethers.ens
 import io.ethers.abi.AbiCodec
 import io.ethers.abi.AbiFunction
 import io.ethers.abi.AbiType
-import io.ethers.core.ExceptionalError
+import io.ethers.abi.error.ContractError
 import io.ethers.core.FastHex
 import io.ethers.core.Kotlinx
 import io.ethers.core.Result
+import io.ethers.core.ThrowableError
 import io.ethers.core.asTypeOrNull
 import io.ethers.core.failure
 import io.ethers.core.isFailure
@@ -21,6 +22,7 @@ import io.ethers.logger.err
 import io.ethers.logger.getLogger
 import io.ethers.logger.wrn
 import io.ethers.providers.RpcClientConfig
+import io.ethers.providers.RpcError
 import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.RpcRequest
 import io.ethers.providers.types.SuppliedRpcRequest
@@ -336,7 +338,7 @@ class EnsMiddleware @JvmOverloads constructor(
             },
             BlockId.LATEST,
         ).send().unwrapOrReturn {
-            return failure(Error.CcipCallFailed("Callback call failed", it))
+            return failure(Error.CcipCallbackFailed(it))
         }
 
         // If callbackResult is OffchainLookup error, resolve using recursive CCIP calls
@@ -395,7 +397,7 @@ class EnsMiddleware @JvmOverloads constructor(
                 handleCcipResponse(response, href) ?: continue
             } catch (e: Exception) {
                 LOG.err(e) { e.message ?: "" }
-                failure(Error.CcipCallFailed("Unknown error", ExceptionalError(e)))
+                failure(Error.CcipCallFailed("Unknown error", e))
             }
         }
 
@@ -546,7 +548,7 @@ class EnsMiddleware @JvmOverloads constructor(
                 .send()
         }.unwrapOrReturn {
             return failure(
-                Error.AvatarParsing(
+                Error.AvatarNftCallFailed(
                     "Error when retrieving metadata URL for token: ${token.tokenId} of NFT: ${token.nftAddr}",
                     it,
                 ),
@@ -678,7 +680,7 @@ class EnsMiddleware @JvmOverloads constructor(
     /**
      * Possible errors during ens name resolution
      */
-    sealed class Error : Result.Error {
+    sealed class Error : ThrowableError {
         /**
          * Ens name is not valid.
          */
@@ -687,10 +689,8 @@ class EnsMiddleware @JvmOverloads constructor(
         /**
          * Error on ens name normalisation attempt.
          */
-        data class Normalisation(val cause: ExceptionalError) : Error() {
-            override fun doThrow(): Nothing {
-                throw RuntimeException("Normalisation failed: $cause")
-            }
+        data class Normalisation(override val cause: Throwable) : Error() {
+            override val message get() = "Failed to normalise ENS name"
         }
 
         // Errors when getting resolver address
@@ -702,9 +702,8 @@ class EnsMiddleware @JvmOverloads constructor(
             val registryAddress: Address,
             val nameHash: String,
         ) : Error() {
-            override fun doThrow(): Nothing {
-                throw RuntimeException("Error when getting resolver address from registry> $registryAddress for nameHash: $nameHash.")
-            }
+            override val message
+                get() = "Error when getting resolver address from registry> $registryAddress for nameHash: $nameHash."
         }
 
         /**
@@ -721,9 +720,7 @@ class EnsMiddleware @JvmOverloads constructor(
             val resolver: Address,
             val selector: String,
         ) : Error() {
-            override fun doThrow(): Nothing {
-                throw RuntimeException("Resolver '$resolver' does not support selector '$selector'")
-            }
+            override val message get() = "Resolver '$resolver' does not support selector '$selector'"
         }
 
         /**
@@ -733,18 +730,18 @@ class EnsMiddleware @JvmOverloads constructor(
             val resolverAddr: Address,
             val nameHash: String,
         ) : Error() {
-            override fun doThrow(): Nothing {
-                throw RuntimeException("Resolver '$resolverAddr' resolved namehash '$nameHash' to an empty address!")
-            }
+            override val message get() = "Resolver '$resolverAddr' resolved namehash '$nameHash' to an empty address!"
         }
 
         /**
          * Resolver for ensName exists, but was not able to resolve it.
          */
-        data class FailedToResolve(val message: String, val cause: Result.Error? = null) : Error() {
-            override fun doThrow(): Nothing {
-                throw RuntimeException("Failed to resolve ens name: $message, caused by: $cause")
-            }
+        data class FailedToResolve(
+            val reason: String,
+            val error: ThrowableError? = null,
+        ) : Error() {
+            override val message get() = "Failed to resolve ens name: $reason"
+            override val cause get() = error?.toException()
         }
 
         // Reverse lookup specific errors
@@ -753,7 +750,7 @@ class EnsMiddleware @JvmOverloads constructor(
          * Reverse lookup ENS name does not resolve to original address.
          * The owner of ENS name is incorrect
          */
-        data class IncorrectOwner(val message: String) : Error()
+        data class IncorrectOwner(override val message: String) : Error()
 
         // Avatar specific errors
 
@@ -761,15 +758,22 @@ class EnsMiddleware @JvmOverloads constructor(
          * Avatar URI scheme is not supported
          */
         data class UnsupportedScheme(val scheme: String) : Error() {
-            override fun doThrow(): Nothing {
-                throw RuntimeException("Avatar URI scheme '$scheme' is not supported")
-            }
+            override val message get() = "Avatar URI scheme '$scheme' is not supported"
         }
 
-        data class AvatarParsing(val message: String, val cause: Result.Error?) : Error() {
-            override fun doThrow(): Nothing {
-                throw RuntimeException("$message, caused by: $cause")
-            }
+        data class AvatarParsing(
+            override val message: String,
+            override val cause: Throwable?,
+        ) : Error()
+
+        /**
+         * Retrieving the avatar NFT metadata URL from the token contract failed.
+         */
+        data class AvatarNftCallFailed(
+            override val message: String,
+            val error: ContractError,
+        ) : Error() {
+            override val cause get() = error.toException()
         }
 
         /**
@@ -780,11 +784,8 @@ class EnsMiddleware @JvmOverloads constructor(
             val providerChainId: Long,
             val avatarUri: String,
         ) : Error() {
-            override fun doThrow(): Nothing {
-                throw RuntimeException(
-                    "Avatar NFT chain ID $avatarChainId does not match provider chain ID $providerChainId (URI: $avatarUri)",
-                )
-            }
+            override val message
+                get() = "Avatar NFT chain ID $avatarChainId does not match provider chain ID $providerChainId (URI: $avatarUri)"
         }
 
         // CCIP specific errors
@@ -802,12 +803,23 @@ class EnsMiddleware @JvmOverloads constructor(
         /**
          * Data returned with OffchainLookup error is invalid.
          */
-        data class CcipRevertDataInvalid(val message: String) : Error()
+        data class CcipRevertDataInvalid(override val message: String) : Error()
 
         /**
          * Unknown error during CCIP call execution.
          */
-        data class CcipCallFailed(val message: String, val cause: Result.Error?) : Error()
+        data class CcipCallFailed(
+            override val message: String,
+            override val cause: Throwable?,
+        ) : Error()
+
+        /**
+         * The RPC call to the CCIP callback function failed.
+         */
+        data class CcipCallbackFailed(val error: RpcError) : Error() {
+            override val message get() = "CCIP callback call failed"
+            override val cause get() = error.toException()
+        }
     }
 
     companion object {

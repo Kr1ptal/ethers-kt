@@ -7,13 +7,12 @@ import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
 import kotlin.jvm.JvmName
 import kotlin.jvm.JvmStatic
-import kotlin.reflect.KClass
 
 /**
  * Result represents a value that can be either a [Success] or a [Failure].
  * */
 // code is optimized to avoid branching operators (if/else) for better JIT compiler optimizations
-sealed class Result<out T, out E : Result.Error> {
+sealed class Result<out T, out E> {
     class Success<out T>(val value: T) : Result<T, Nothing>() {
         override fun <R> fold(
             onSuccess: Transformer<Success<T>, R>,
@@ -33,10 +32,10 @@ sealed class Result<out T, out E : Result.Error> {
             return value == other.value
         }
 
-        override fun hashCode() = value?.hashCode() ?: 0
+        override fun hashCode() = value.hashCode()
     }
 
-    class Failure<out E : Error>(val error: E) : Result<Nothing, E>() {
+    class Failure<out E>(val error: E) : Result<Nothing, E>() {
         override fun <R> fold(
             onSuccess: Transformer<Success<Nothing>, R>,
             onFailure: Transformer<Failure<E>, R>,
@@ -80,13 +79,13 @@ sealed class Result<out T, out E : Result.Error> {
      * Maps a [Result]<[T], [E]> to [Result]<[R], [E]> by applying a function to a [Success] value, leaving a
      * [Failure] value untouched.
      * */
-    fun <R : Any?> map(mapper: Transformer<T, R>): Result<R, E> = fold({ Success(mapper(it.value)) }, { it })
+    fun <R> map(mapper: Transformer<T, R>): Result<R, E> = fold({ Success(mapper(it.value)) }, { it })
 
     /**
      * Maps a [Result]<[T], [E]> to [Result]<[T], [R]> by applying a function to a [Failure], leaving a
      * [Success] value untouched.
      * */
-    fun <R : Error> mapError(mapper: Transformer<E, R>): Result<T, R> {
+    fun <R> mapError(mapper: Transformer<E, R>): Result<T, R> {
         return fold({ it }, { Failure(mapper(it.error)) })
     }
 
@@ -94,7 +93,7 @@ sealed class Result<out T, out E : Result.Error> {
      * Call the function with value of [Success], expecting another result, and skipping if [Result] is [Failure].
      * Useful when chaining multiple fallible operations on the result.
      * */
-    fun <R : Any?> andThen(mapper: Transformer<T, Result<R, @UnsafeVariance E>>): Result<R, E> {
+    fun <R> andThen(mapper: Transformer<T, Result<R, @UnsafeVariance E>>): Result<R, E> {
         return fold({ mapper(it.value) }, { it })
     }
 
@@ -102,14 +101,24 @@ sealed class Result<out T, out E : Result.Error> {
      * Call the function with error of [Failure], expecting another result, and skipping if [Result] is [Success].
      * Useful when chaining multiple fallible operations on the error (e.g. trying to recover from an error).
      * */
-    fun <R : Error> orElse(mapper: Transformer<E, Result<@UnsafeVariance T, R>>): Result<T, R> {
+    fun <R> orElse(mapper: Transformer<E, Result<@UnsafeVariance T, R>>): Result<T, R> {
         return fold({ it }, { mapper(it.error) })
     }
 
     /**
      * Unwrap the value if [Result] is [Success], or throw an exception if [Result] is [Failure].
+     *
+     * A [ThrowableError] error is thrown via [ThrowableError.toException], and a [Throwable] error is thrown
+     * directly. Any other error type is not convertible to an exception, so an [IllegalStateException] describing
+     * the error is thrown.
      * */
-    fun unwrap(): T = fold({ it.value }, { it.error.doThrow() })
+    fun unwrap(): T = fold({ it.value }) {
+        when (val e = it.error) {
+            is ThrowableError -> throw e.toException()
+            is Throwable -> throw e
+            else -> throw IllegalStateException("Value is not success: $e")
+        }
+    }
 
     /**
      * Unwrap the value if [Result] is [Success], or return null if [Result] is [Failure].
@@ -131,7 +140,7 @@ sealed class Result<out T, out E : Result.Error> {
     /**
      * Unwrap the error if [Result] is [Failure], or throw an exception if [Result] is [Success].
      * */
-    fun unwrapError(): E = fold({ throw IllegalStateException("Cannot unwrap success as error") }, { it.error })
+    fun unwrapError(): E = fold({ throw IllegalStateException("Value is not error: ${it.value}") }, { it.error })
 
     /**
      * Unwrap the error if [Result] is [Failure], or return null if [Result] is [Success].
@@ -170,28 +179,6 @@ sealed class Result<out T, out E : Result.Error> {
     ): R
 
     /**
-     * Type used for encapsulating error details within [Result.Failure].
-     * */
-    interface Error {
-        /**
-         * Throw this [Error] as an exception. If implementation wraps an exception, this method should be overridden
-         * to provide an accurate stacktrace.
-         * */
-        fun doThrow(): Nothing {
-            throw RuntimeException(this.toString())
-        }
-
-        /**
-         * Cast [Error] to a given class or return null if error is not of type [T].
-         * Useful for accessing details of specific error subclass.
-         */
-        @Suppress("UNCHECKED_CAST")
-        fun <T : Error> asTypeOrNull(type: KClass<T>): T? {
-            return if (type.isInstance(this)) this as T else null
-        }
-    }
-
-    /**
      * Custom functional interface for better java interop with kotlin lambdas. Prevents the java caller having to
      * explicitly return `Unit.INSTANCE`.
      * */
@@ -212,13 +199,13 @@ sealed class Result<out T, out E : Result.Error> {
          * Return a [Result.Success] with the given [value].
          * */
         @JvmStatic
-        fun <T : Any?, E : Error> success(value: T): Result<T, E> = Success(value)
+        fun <T, E> success(value: T): Result<T, E> = Success(value)
 
         /**
          * Return a [Result.Failure] with the given [error].
          * */
         @JvmStatic
-        fun <T : Any?, E : Error> failure(error: E): Result<T, E> = Failure(error)
+        fun <T, E> failure(error: E): Result<T, E> = Failure(error)
     }
 }
 
@@ -232,7 +219,7 @@ sealed class Result<out T, out E : Result.Error> {
  * Returns true if [Result] is [Success], false otherwise.
  * */
 @OptIn(ExperimentalContracts::class)
-fun <T, E : Result.Error> Result<T, E>.isSuccess(): Boolean {
+fun <T, E> Result<T, E>.isSuccess(): Boolean {
     contract {
         returns(true) implies (this@isSuccess is Success<T>)
         returns(false) implies (this@isSuccess is Failure<E>)
@@ -244,7 +231,7 @@ fun <T, E : Result.Error> Result<T, E>.isSuccess(): Boolean {
  * Returns true if [Result] is [Failure], false otherwise.
  * */
 @OptIn(ExperimentalContracts::class)
-fun <T, E : Result.Error> Result<T, E>.isFailure(): Boolean {
+fun <T, E> Result<T, E>.isFailure(): Boolean {
     contract {
         returns(false) implies (this@isFailure is Success<T>)
         returns(true) implies (this@isFailure is Failure<E>)
@@ -256,30 +243,23 @@ fun <T, E : Result.Error> Result<T, E>.isFailure(): Boolean {
  * Returns true if [Result] is either **null** or [Failure], false otherwise.
  * */
 @OptIn(ExperimentalContracts::class)
-fun <T, E : Result.Error> Result<T, E>?.isNullOrFailure(): Boolean {
+fun <T, E> Result<T, E>?.isNullOrFailure(): Boolean {
     contract {
         returns(true) implies (this@isNullOrFailure is Failure<E> || this@isNullOrFailure == null)
+        returns(false) implies (this@isNullOrFailure is Success<T>)
     }
     return this == null || this is Failure<E>
 }
 
 /**
- * Cast [Error] to [T] or return null if error is not of type [T].
- * Useful for accessing details of specific error subclass.
- */
-inline fun <reified T : Result.Error> Result.Error.asTypeOrNull(): T? {
-    return asTypeOrNull(T::class)
-}
-
-/**
  * Return a [Result.Success] with the given [value].
  * */
-fun <T : Any?> success(value: T): Result<T, Nothing> = Result.success(value)
+fun <T> success(value: T): Result<T, Nothing> = Result.success(value)
 
 /**
  * Return a [Result.Failure] with the given [error].
  * */
-fun <E : Result.Error> failure(error: E) = Result.failure<Nothing, E>(error)
+fun <E> failure(error: E) = Result.failure<Nothing, E>(error)
 
 /**
  * Unwrap the value if [Result] is [Success], or call the [onFailure] function which must either
@@ -294,7 +274,7 @@ fun <E : Result.Error> failure(error: E) = Result.failure<Nothing, E>(error)
  * ```
  * */
 @OptIn(ExperimentalContracts::class)
-inline fun <R, T : R, E : Result.Error> Result<T, E>.unwrapOrReturn(onFailure: (E) -> Nothing): R {
+inline fun <R, T : R, E> Result<T, E>.unwrapOrReturn(onFailure: (E) -> Nothing): R {
     contract { callsInPlace(onFailure, InvocationKind.AT_MOST_ONCE) }
 
     if (isSuccess()) {
@@ -304,41 +284,24 @@ inline fun <R, T : R, E : Result.Error> Result<T, E>.unwrapOrReturn(onFailure: (
     }
 }
 
-/**
- * An error that wraps an exception.
- * */
-data class ExceptionalError(val cause: Throwable) : Result.Error {
-    override fun doThrow(): Nothing {
-        throw RuntimeException("Exceptional execution", cause)
-    }
-}
-
 // ---------------------------------------------------- //
 // ------------- kotlin.Result Extensions ------------- //
 // ---------------------------------------------------- //
 
 @OptIn(ExperimentalContracts::class)
-@Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
 // value returned from mapper will be boxed
 inline fun <T, R> kotlin.Result<T>.andThen(mapper: (T) -> kotlin.Result<R>): kotlin.Result<R> {
     contract { callsInPlace(mapper, InvocationKind.AT_MOST_ONCE) }
 
-    return when (val v = getOrNull()) {
-        null -> kotlin.Result(value)
-        else -> mapper(v)
-    }
+    return fold({ mapper(it) }, { kotlin.Result.failure(it) })
 }
 
 @OptIn(ExperimentalContracts::class)
-@Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
 // value returned from mapper will be boxed
 inline fun <T, R> kotlin.Result<T>.andThenCatching(mapper: (T) -> kotlin.Result<R>): kotlin.Result<R> {
     contract { callsInPlace(mapper, InvocationKind.AT_MOST_ONCE) }
 
-    return when (val v = getOrNull()) {
-        null -> kotlin.Result(value)
-        else -> runCatching { mapper(v).getOrThrow() }
-    }
+    return fold({ runCatching { mapper(it).getOrThrow() } }, { kotlin.Result.failure(it) })
 }
 
 /**
@@ -354,22 +317,22 @@ inline fun <T, R> kotlin.Result<T>.andThenCatching(mapper: (T) -> kotlin.Result<
  * ```
  * */
 @OptIn(ExperimentalContracts::class)
-inline fun <R, T : R> kotlin.Result<T>.unwrapOrReturn(onFailure: (ExceptionalError) -> Nothing): R {
+inline fun <R, T : R> kotlin.Result<T>.unwrapOrReturn(onFailure: (Throwable) -> Nothing): R {
     contract { callsInPlace(onFailure, InvocationKind.AT_MOST_ONCE) }
 
     if (isSuccess) {
         return this.getOrThrow()
     }
-    onFailure(ExceptionalError(this.exceptionOrNull()!!))
+    onFailure(this.exceptionOrNull()!!)
 }
 
 /**
- * Transform [kotlin.Result] into [Result], wrapping the exception in [ExceptionalError] if it holds a failure.
+ * Transform [kotlin.Result] into [Result], holding the thrown exception as the error if it holds a failure.
  * */
 @Suppress("NOTHING_TO_INLINE")
-inline fun <T> kotlin.Result<T>.toResult(): Result<T, ExceptionalError> {
+inline fun <T> kotlin.Result<T>.toResult(): Result<T, Throwable> {
     if (isSuccess) {
         return success(this.getOrThrow())
     }
-    return failure(ExceptionalError(this.exceptionOrNull()!!))
+    return failure(this.exceptionOrNull()!!)
 }

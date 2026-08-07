@@ -12,6 +12,7 @@ import dev.whyoleg.cryptography.serialization.asn1.Der
 import dev.whyoleg.cryptography.serialization.asn1.modules.DssSignatureValue
 import dev.whyoleg.cryptography.serialization.asn1.modules.SubjectPublicKeyInfo
 import io.ethers.core.Result
+import io.ethers.core.ThrowableError
 import io.ethers.core.failure
 import io.ethers.core.success
 import io.ethers.core.types.Address
@@ -103,11 +104,10 @@ class GcpSigner(
         return address.hashCode()
     }
 
-    data class AddressFetchError(val message: String, val cause: Throwable? = null) : Result.Error {
-        override fun doThrow(): Nothing {
-            throw RuntimeException(message, cause)
-        }
-    }
+    data class AddressFetchError(
+        override val message: String,
+        override val cause: Throwable? = null,
+    ) : ThrowableError
 
     companion object {
         /**

@@ -6,11 +6,11 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 
 class ResultTest : FunSpec({
-    val successValue = Result.success<String, Result.Error>("hello")
-    val testError = object : Result.Error {
+    val successValue = Result.success<String, ThrowableError>("hello")
+    val testError = object : ThrowableError {
         override fun toString() = "TestError"
     }
-    val failureValue = Result.failure<String, Result.Error>(testError)
+    val failureValue = Result.failure<String, ThrowableError>(testError)
 
     context("map") {
         test("transforms Success value") {
@@ -26,7 +26,7 @@ class ResultTest : FunSpec({
 
     context("mapError") {
         test("transforms Failure error") {
-            val newError = object : Result.Error {
+            val newError = object : ThrowableError {
                 override fun toString() = "MappedError"
             }
             val mapped = failureValue.mapError { newError }
@@ -34,7 +34,7 @@ class ResultTest : FunSpec({
         }
 
         test("passes through Success") {
-            val newError = object : Result.Error {}
+            val newError = object : ThrowableError {}
             val mapped = successValue.mapError { newError }
             mapped.unwrap() shouldBe "hello"
         }
@@ -140,7 +140,7 @@ class ResultTest : FunSpec({
         }
 
         test("returns default on Success") {
-            val defaultError = object : Result.Error {}
+            val defaultError = object : ThrowableError {}
             successValue.unwrapErrorElse(defaultError) shouldBe defaultError
         }
     }
@@ -151,7 +151,7 @@ class ResultTest : FunSpec({
         }
 
         test("returns function result on Success") {
-            val defaultError = object : Result.Error {}
+            val defaultError = object : ThrowableError {}
             successValue.unwrapErrorOrElse { defaultError } shouldBe defaultError
         }
     }
@@ -170,7 +170,7 @@ class ResultTest : FunSpec({
         }
 
         test("onFailure fires on Failure") {
-            var captured: Result.Error? = null
+            var captured: ThrowableError? = null
             failureValue.onFailure { captured = it }
             captured shouldBe testError
         }
@@ -200,25 +200,38 @@ class ResultTest : FunSpec({
         }
 
         test("isNullOrFailure returns true for null") {
-            (null as Result<String, Result.Error>?).isNullOrFailure() shouldBe true
+            (null as Result<String, ThrowableError>?).isNullOrFailure() shouldBe true
         }
 
         test("isNullOrFailure returns true for Failure") {
-            (failureValue as Result<String, Result.Error>?).isNullOrFailure() shouldBe true
+            (failureValue as Result<String, ThrowableError>?).isNullOrFailure() shouldBe true
         }
 
         test("isNullOrFailure returns false for Success") {
-            (successValue as Result<String, Result.Error>?).isNullOrFailure() shouldBe false
+            (successValue as Result<String, ThrowableError>?).isNullOrFailure() shouldBe false
+        }
+
+        test("isNullOrFailure smart-casts to Success of the value type") {
+            val result: Result<String, HexDecodingError>? = success("hi")
+
+            if (result.isNullOrFailure()) {
+                throw IllegalStateException("should be a success")
+            }
+
+            // the explicit type pins the smart cast: a contract implying Success<E> would type
+            // this as HexDecodingError and fail to compile
+            val value: String = result.value
+            value shouldBe "hi"
         }
     }
 
     context("companion factory methods") {
         test("success creates Success") {
-            Result.success<Int, Result.Error>(42).shouldBeInstanceOf<Result.Success<Int>>()
+            Result.success<Int, ThrowableError>(42).shouldBeInstanceOf<Result.Success<Int>>()
         }
 
         test("failure creates Failure") {
-            Result.failure<Int, Result.Error>(testError).shouldBeInstanceOf<Result.Failure<Result.Error>>()
+            Result.failure<Int, ThrowableError>(testError).shouldBeInstanceOf<Result.Failure<ThrowableError>>()
         }
 
         test("top-level success helper") {
@@ -253,7 +266,7 @@ class ResultTest : FunSpec({
 
     context("Failure equals and hashCode") {
         test("equal errors") {
-            val err = object : Result.Error {
+            val err = object : ThrowableError {
                 override fun equals(other: Any?) = other === this
                 override fun hashCode() = 42
             }
@@ -273,15 +286,15 @@ class ResultTest : FunSpec({
     context("unwrapOrReturn") {
         test("returns value on Success") {
             fun doWork(): String {
-                val result: Result<String, Result.Error> = success("value")
+                val result: Result<String, ThrowableError> = success("value")
                 return result.unwrapOrReturn { error("should not be called") }
             }
             doWork() shouldBe "value"
         }
 
         test("calls onFailure on Failure") {
-            fun doWork(): Result<String, Result.Error> {
-                val result: Result<String, Result.Error> = failure(testError)
+            fun doWork(): Result<String, ThrowableError> {
+                val result: Result<String, ThrowableError> = failure(testError)
                 val value = result.unwrapOrReturn { return failure(it) }
                 return success(value)
             }
@@ -289,25 +302,80 @@ class ResultTest : FunSpec({
         }
     }
 
-    context("Error.asTypeOrNull") {
+    context("ThrowableError") {
+        test("default toException wraps toString") {
+            val exception = testError.toException()
+            exception.message shouldBe "TestError"
+            exception.cause shouldBe null
+        }
+
+        test("unwrap throws the exception returned by toException") {
+            val expected = RuntimeException("custom")
+            val err = object : ThrowableError {
+                override fun toException() = expected
+            }
+            val thrown = shouldThrow<RuntimeException> { failure(err).unwrap() }
+            thrown shouldBe expected
+        }
+
+        test("message and cause are carried into the exception") {
+            val cause = IllegalStateException("underlying")
+            val err = object : ThrowableError {
+                override val message get() = "explicit message"
+                override val cause get() = cause
+            }
+
+            val exception = err.toException()
+            exception.message shouldBe "explicit message"
+            exception.cause shouldBe cause
+        }
+
+        test("the thrown exception retains the error it was built from") {
+            val err = HexDecodingError("Invalid hex: 0xzz")
+            val thrown = shouldThrow<ThrowableError.Exception> { failure(err).unwrap() }
+
+            thrown.error shouldBe err
+            thrown.error.asTypeOrNull<HexDecodingError>()?.message shouldBe "Invalid hex: 0xzz"
+        }
+
+        test("an explicit message renders with the error type name") {
+            HexDecodingError("Invalid hex: 0xzz").toException().toString() shouldBe
+                "HexDecodingError: Invalid hex: 0xzz"
+        }
+
+        test("without an explicit message the error's own toString is used, avoiding a duplicated type name") {
+            val err = ExampleDataError("boom")
+            err.toException().toString() shouldBe "ExampleDataError(detail=boom)"
+        }
+    }
+
+    context("ThrowableError.asTypeOrNull") {
         test("returns typed error when matching") {
-            val err = ExceptionalError(RuntimeException("test"))
-            val typed = err.asTypeOrNull<ExceptionalError>()
+            val err = HexDecodingError("test")
+            val typed = err.asTypeOrNull<HexDecodingError>()
             typed shouldBe err
         }
 
         test("returns null when not matching") {
-            val typed = testError.asTypeOrNull<ExceptionalError>()
+            val typed = testError.asTypeOrNull<HexDecodingError>()
             typed shouldBe null
         }
     }
 
-    context("ExceptionalError") {
-        test("doThrow wraps cause") {
-            val cause = RuntimeException("original")
-            val err = ExceptionalError(cause)
-            val thrown = shouldThrow<RuntimeException> { err.doThrow() }
-            thrown.cause shouldBe cause
+    context("unwrap error dispatch") {
+        test("throws a Throwable error directly") {
+            val cause = IllegalStateException("boom")
+            shouldThrow<IllegalStateException> { failure(cause).unwrap() } shouldBe cause
+        }
+
+        test("throws generically for an error that is neither ThrowableError nor Throwable") {
+            val thrown = shouldThrow<IllegalStateException> { failure("plain string").unwrap() }
+            thrown.message shouldBe "Value is not success: plain string"
+        }
+
+        test("throws generically for a null error") {
+            val thrown = shouldThrow<IllegalStateException> { failure(null).unwrap() }
+            thrown.message shouldBe "Value is not success: null"
         }
     }
 
@@ -323,10 +391,11 @@ class ResultTest : FunSpec({
             result.isFailure shouldBe true
         }
 
-        test("andThen with null success value treats as failure") {
+        test("andThen maps a success holding null") {
+            // a null success value must not be mistaken for a failure, which is what distinguishing
+            // the two via getOrNull() used to do
             val result = kotlin.Result.success<String?>(null).andThen { kotlin.Result.success("mapped") }
-            // getOrNull returns null for success(null), so andThen treats it as failure path
-            result.getOrNull() shouldBe null
+            result.getOrThrow() shouldBe "mapped"
         }
 
         test("andThenCatching catches exceptions in mapper") {
@@ -334,9 +403,9 @@ class ResultTest : FunSpec({
             result.isFailure shouldBe true
         }
 
-        test("andThenCatching with null success value treats as failure") {
+        test("andThenCatching maps a success holding null") {
             val result = kotlin.Result.success<String?>(null).andThenCatching<String?, String> { kotlin.Result.success("mapped") }
-            result.getOrNull() shouldBe null
+            result.getOrThrow() shouldBe "mapped"
         }
 
         test("andThenCatching succeeds normally without throwing") {
@@ -359,7 +428,7 @@ class ResultTest : FunSpec({
             val ex = RuntimeException("fail")
             val result = kotlin.Result.failure<String>(ex).toResult()
             result.isFailure() shouldBe true
-            result.unwrapError().shouldBeInstanceOf<ExceptionalError>()
+            result.unwrapError() shouldBe ex
         }
 
         test("unwrapOrReturn returns value on success") {
@@ -379,3 +448,5 @@ class ResultTest : FunSpec({
         }
     }
 })
+
+private data class ExampleDataError(val detail: String) : ThrowableError

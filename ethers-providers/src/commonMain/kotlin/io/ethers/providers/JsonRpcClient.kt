@@ -4,6 +4,7 @@ import io.channels.core.ChannelReceiver
 import io.ethers.core.FastHex
 import io.ethers.core.Kotlinx
 import io.ethers.core.Result
+import io.ethers.core.ThrowableError
 import io.ethers.core.json.JsonElement
 import io.ethers.core.toJsonElement
 import io.ethers.providers.types.BatchRpcRequest
@@ -141,12 +142,13 @@ internal fun Any?.toParamJsonElement(): KJsonElement = toJsonElement()
  */
 data class RpcError @JvmOverloads constructor(
     val code: Int,
-    val message: String,
+    override val message: String,
     val data: JsonElement? = null,
-    val cause: Exception? = null,
-) : Result.Error {
-    override fun doThrow(): Nothing {
-        throw RuntimeException(this.toString(), cause)
+    override val cause: Exception? = null,
+) : ThrowableError {
+    // [message] is the JSON-RPC error message, which on its own omits the code that identifies the failure
+    override fun toException(): RuntimeException {
+        return ThrowableError.Exception(this, "$message (code: $code)")
     }
 
     /**
