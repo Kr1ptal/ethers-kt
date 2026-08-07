@@ -5,9 +5,12 @@ import kotlin.reflect.KClass
 /**
  * Type used by errors that can be converted to thrown exceptions.
  *
- * Implementations should provide a [message] and, if they wrap another failure, a [cause]. The exception itself is
- * built by [toException], which retains the error so no detail is lost when crossing from [Result] into exceptions.
- * Overriding [toException] is only needed for exceptions that cannot be described by a message and a cause.
+ * Errors are plain values rather than [Throwable]s, so that returning one on a hot path does not pay for a stack
+ * trace capture. Nothing is given up in exchange: [toException] builds a [ThrowableError.Exception] that retains
+ * the error, so a caller who does want to throw gets the full, still typed detail back out of a `catch` block.
+ *
+ * Implementations should provide a [message] and, if they wrap another failure, a [cause]. Overriding [toException]
+ * is only needed for exceptions that cannot be described by a message and a cause.
  * */
 interface ThrowableError {
     /**
