@@ -1,7 +1,7 @@
 package io.ethers.providers
 
 import io.ethers.core.Kotlinx
-import io.ethers.core.ThrowableErrorException
+import io.ethers.core.ThrowableError
 import io.ethers.core.json.JsonElement
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -19,7 +19,7 @@ class RpcErrorTest : FunSpec({
         exception.toString() shouldBe "RpcError: execution reverted (code: ${RpcError.CODE_EXECUTION_ERROR})"
 
         // the error itself is still retained, so the code stays reachable as an Int
-        (exception as ThrowableErrorException).error shouldBe error
+        (exception as ThrowableError.Exception).error shouldBe error
     }
 
     test("deserialization") {

@@ -28,7 +28,7 @@ interface ThrowableError {
      * Convert this error to an exception that retains it.
      * */
     fun toException(): RuntimeException {
-        return ThrowableErrorException(this)
+        return Exception(this)
     }
 
     /**
@@ -39,29 +39,33 @@ interface ThrowableError {
     fun <T : ThrowableError> asTypeOrNull(type: KClass<T>): T? {
         return if (type.isInstance(this)) this as T else null
     }
-}
 
-/**
- * Exception thrown for a [ThrowableError]. It keeps a reference to the [error] it was created from, so the original,
- * fully typed error remains reachable from a `catch` block:
- *
- * ```kotlin
- * try {
- *     result.unwrap()
- * } catch (e: ThrowableErrorException) {
- *     val decodingError = e.error.asTypeOrNull<DecodingError>()
- * }
- * ```
- * */
-class ThrowableErrorException(
-    val error: ThrowableError,
-    private val description: String? = error.message,
-) : RuntimeException(description ?: error.toString(), error.cause) {
-    override fun toString(): String {
-        // when there is no description, the error's toString already names the type
-        val description = description ?: return error.toString()
-        val name = error::class.simpleName ?: return description
-        return "$name: $description"
+    /**
+     * Exception thrown for a [ThrowableError]. It keeps a reference to the [error] it was created from, so the
+     * original, fully typed error remains reachable from a `catch` block:
+     *
+     * ```kotlin
+     * try {
+     *     result.unwrap()
+     * } catch (e: ThrowableError.Exception) {
+     *     val decodingError = e.error.asTypeOrNull<DecodingError>()
+     * }
+     * ```
+     *
+     * **NOTE**: this shadows [kotlin.Exception] only where it is referenced as `ThrowableError.Exception` or
+     * imported directly. Implementations of [ThrowableError] are unaffected, since Kotlin does not bring nested
+     * classifiers of a supertype into the implementing class's scope.
+     * */
+    class Exception(
+        val error: ThrowableError,
+        private val description: String? = error.message,
+    ) : RuntimeException(description ?: error.toString(), error.cause) {
+        override fun toString(): String {
+            // when there is no description, the error's toString already names the type
+            val description = description ?: return error.toString()
+            val name = error::class.simpleName ?: return description
+            return "$name: $description"
+        }
     }
 }
 

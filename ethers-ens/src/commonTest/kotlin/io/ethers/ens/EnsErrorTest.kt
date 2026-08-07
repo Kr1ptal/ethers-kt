@@ -1,7 +1,7 @@
 package io.ethers.ens
 
 import io.ethers.abi.error.DecodingError
-import io.ethers.core.ThrowableErrorException
+import io.ethers.core.ThrowableError
 import io.ethers.core.asTypeOrNull
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
@@ -23,7 +23,7 @@ class EnsErrorTest : FunSpec({
             val exception = error.toException()
             exception.message shouldBe "CCIP callback call failed"
             exception.toString() shouldBe "CcipCallbackFailed: CCIP callback call failed"
-            exception.cause.shouldBeInstanceOf<ThrowableErrorException>().error shouldBe rpcError
+            exception.cause.shouldBeInstanceOf<ThrowableError.Exception>().error shouldBe rpcError
         }
 
         test("AvatarNftCallFailed keeps the ContractError and chains its exception") {
@@ -70,7 +70,7 @@ class EnsErrorTest : FunSpec({
 
             val caught = try {
                 throw error.toException()
-            } catch (e: ThrowableErrorException) {
+            } catch (e: ThrowableError.Exception) {
                 e
             }
 

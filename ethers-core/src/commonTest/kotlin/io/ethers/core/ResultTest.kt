@@ -319,7 +319,7 @@ class ResultTest : FunSpec({
 
         test("the thrown exception retains the error it was built from") {
             val err = HexDecodingError("Invalid hex: 0xzz")
-            val thrown = shouldThrow<ThrowableErrorException> { failure(err).unwrap() }
+            val thrown = shouldThrow<ThrowableError.Exception> { failure(err).unwrap() }
 
             thrown.error shouldBe err
             thrown.error.asTypeOrNull<HexDecodingError>()?.message shouldBe "Invalid hex: 0xzz"

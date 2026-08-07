@@ -3,7 +3,6 @@ package io.ethers.abigen.reader
 import io.ethers.abigen.JsonAbi
 import io.ethers.core.Result
 import io.ethers.core.ThrowableError
-import io.ethers.core.ThrowableErrorException
 import io.ethers.core.failure
 import io.ethers.core.success
 import java.io.ByteArrayInputStream
@@ -144,7 +143,7 @@ object JsonAbiReaderRegistry {
 
         // overridden to attach every reader's failure as a suppressed exception, which a single cause cannot express
         override fun toException(): RuntimeException {
-            return ThrowableErrorException(this).also { parent ->
+            return ThrowableError.Exception(this).also { parent ->
                 causes.forEach { parent.addSuppressed(it) }
             }
         }
