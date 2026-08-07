@@ -5,6 +5,8 @@ import io.ethers.abi.AbiFunction
 import io.ethers.abi.AbiType
 import io.ethers.core.Result
 import io.ethers.core.ThrowableError
+import io.ethers.core.failure
+import io.ethers.core.success
 import io.ethers.core.types.Bytes
 import io.ethers.providers.RpcError
 import io.github.artificialpb.bignum.BigInteger
@@ -24,21 +26,69 @@ sealed class ContractError : ThrowableError {
          * */
         @JvmStatic
         fun getOrNull(data: Bytes): ContractError? {
-            val panic = PanicError.getOrNull(data)
-            if (panic != null) {
-                return panic
-            }
-            val revert = RevertError.getOrNull(data)
-            if (revert != null) {
-                return revert
-            }
-            val customError = CustomErrorRegistry.getOrNull(data)
-            if (customError != null) {
-                return customError
-            }
+            PanicError.getOrNull(data)?.let { return it }
+            RevertError.getOrNull(data)?.let { return it }
+            CustomErrorRegistry.getOrNull(data)?.let { return it }
             return null
         }
+
+        /**
+         * Try to get either [PanicError], [RevertError], or [CustomContractError] from provided [data].
+         *
+         * @return the decoded error, or a [ContractErrorDecodingError] if [data] cannot be decoded.
+         * */
+        @JvmStatic
+        fun tryGet(data: Bytes): Result<ContractError, ContractErrorDecodingError> {
+            // collected from each candidate, so the returned NoMatchingError names everything that was tried
+            val expectedErrors = ArrayList<AbiFunction>()
+
+            when (val panic = PanicError.tryGet(data)) {
+                is Result.Success -> return success(panic.value)
+                is Result.Failure -> {
+                    val error = panic.error
+                    if (error !is ContractErrorDecodingError.NoMatchingError) return failure(error)
+                    expectedErrors.addAll(error.expectedErrors)
+                }
+            }
+
+            when (val revert = RevertError.tryGet(data)) {
+                is Result.Success -> return success(revert.value)
+                is Result.Failure -> {
+                    val error = revert.error
+                    if (error !is ContractErrorDecodingError.NoMatchingError) return failure(error)
+                    expectedErrors.addAll(error.expectedErrors)
+                }
+            }
+
+            when (val customError = CustomErrorRegistry.tryGet(data)) {
+                is Result.Success -> return success(customError.value)
+                is Result.Failure -> {
+                    val error = customError.error
+                    if (error !is ContractErrorDecodingError.NoMatchingError) return failure(error)
+                    expectedErrors.addAll(error.expectedErrors)
+                }
+            }
+
+            return failure(ContractErrorDecodingError.NoMatchingError(data, expectedErrors))
+        }
     }
+}
+
+sealed class ContractErrorDecodingError(
+    open val data: Bytes,
+    override val message: String,
+    override val cause: Exception? = null,
+) : ThrowableError {
+    data class NoMatchingError(
+        override val data: Bytes,
+        val expectedErrors: List<AbiFunction>,
+    ) : ContractErrorDecodingError(data, "Data does not match any expected contract error")
+
+    data class MalformedError(
+        override val data: Bytes,
+        val expectedError: AbiFunction?,
+        override val cause: Exception,
+    ) : ContractErrorDecodingError(data, "Unable to decode contract error", cause)
 }
 
 /**
@@ -117,7 +167,11 @@ data class PanicError(val kind: Kind) : ContractError() {
             if (data.size < 4) return null
             if (!data.startsWith(FUNCTION.selector)) return null
 
-            val decoded = AbiCodec.decodeWithPrefix(FUNCTION.selector.size, FUNCTION.inputs, data.asByteArray())
+            val decoded = try {
+                AbiCodec.decodeWithPrefix(FUNCTION.selector.size, FUNCTION.inputs, data.asByteArray())
+            } catch (_: Exception) {
+                return null
+            }
             val errorCode = decoded[0] as BigInteger
 
             for (i in Kind.entries.indices) {
@@ -128,6 +182,33 @@ data class PanicError(val kind: Kind) : ContractError() {
             }
 
             return null
+        }
+
+        /**
+         * Try to decode [PanicError] from [data].
+         *
+         * @return the decoded [PanicError], or a [ContractErrorDecodingError] if [data] cannot be decoded into [PanicError].
+         * */
+        @JvmStatic
+        fun tryGet(data: Bytes): Result<PanicError, ContractErrorDecodingError> {
+            if (data.size < 4) return failure(ContractErrorDecodingError.NoMatchingError(data, listOf(FUNCTION)))
+            if (!data.startsWith(FUNCTION.selector)) return failure(ContractErrorDecodingError.NoMatchingError(data, listOf(FUNCTION)))
+
+            val decoded = try {
+                AbiCodec.decodeWithPrefix(FUNCTION.selector.size, FUNCTION.inputs, data.asByteArray())
+            } catch (e: Exception) {
+                return failure(ContractErrorDecodingError.MalformedError(data, FUNCTION, e))
+            }
+            val errorCode = decoded[0] as BigInteger
+
+            for (i in Kind.entries.indices) {
+                val kind = Kind.entries[i]
+                if (kind.code == errorCode) {
+                    return success(PanicError(kind))
+                }
+            }
+
+            return failure(ContractErrorDecodingError.NoMatchingError(data, listOf(FUNCTION)))
         }
     }
 }
@@ -149,8 +230,30 @@ data class RevertError(val reason: String) : ContractError() {
         fun getOrNull(data: Bytes): RevertError? {
             if (data.size < 4) return null
             if (!data.startsWith(FUNCTION.selector)) return null
-            val decoded = AbiCodec.decodeWithPrefix(FUNCTION.selector.size, FUNCTION.inputs, data.asByteArray())
+
+            val decoded = try {
+                AbiCodec.decodeWithPrefix(FUNCTION.selector.size, FUNCTION.inputs, data.asByteArray())
+            } catch (_: Exception) {
+                return null
+            }
             return RevertError(decoded[0] as String)
+        }
+
+        /**
+         * Try to decode [RevertError] from [data].
+         *
+         * @return the decoded [RevertError], or a [ContractErrorDecodingError] if [data] cannot be decoded into [RevertError].
+         * */
+        @JvmStatic
+        fun tryGet(data: Bytes): Result<RevertError, ContractErrorDecodingError> {
+            if (data.size < 4) return failure(ContractErrorDecodingError.NoMatchingError(data, listOf(FUNCTION)))
+            if (!data.startsWith(FUNCTION.selector)) return failure(ContractErrorDecodingError.NoMatchingError(data, listOf(FUNCTION)))
+            val decoded = try {
+                AbiCodec.decodeWithPrefix(FUNCTION.selector.size, FUNCTION.inputs, data.asByteArray())
+            } catch (e: Exception) {
+                return failure(ContractErrorDecodingError.MalformedError(data, FUNCTION, e))
+            }
+            return success(RevertError(decoded[0] as String))
         }
     }
 }
@@ -182,14 +285,56 @@ abstract class CustomContractError : ContractError()
 interface CustomErrorFactory<T : CustomContractError> {
     val abi: AbiFunction
 
-    fun decode(data: Bytes): T? {
+    /**
+     * Decode [data] into this error type, returning null if the data does not match this error or decoding fails.
+     *
+     * If you need to know why decoding failed, use [tryDecode].
+     * */
+    fun decodeOrNull(data: Bytes): T? {
         if (data.size < 4) return null
         if (!data.startsWith(abi.selector)) return null
 
-        return decode(abi.decodeCall(data))
+        return try {
+            decode(abi.decodeCall(data))
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun tryDecode(data: Bytes): Result<T, ContractErrorDecodingError> {
+        if (data.size < 4) return failure(ContractErrorDecodingError.NoMatchingError(data, listOf(abi)))
+        if (!data.startsWith(abi.selector)) return failure(ContractErrorDecodingError.NoMatchingError(data, listOf(abi)))
+
+        return try {
+            success(decode(abi.decodeCall(data)))
+        } catch (e: Exception) {
+            failure(ContractErrorDecodingError.MalformedError(data, abi, e))
+        }
     }
 
     fun decode(data: List<Any>): T
+}
+
+fun <T : CustomContractError> List<CustomErrorFactory<out T>>.decodeOrNull(error: Bytes): T? {
+    for (i in indices) {
+        return this[i].decodeOrNull(error) ?: continue
+    }
+    return null
+}
+
+fun <T : CustomContractError> List<CustomErrorFactory<out T>>.tryDecode(error: Bytes): Result<T, ContractErrorDecodingError> {
+    for (i in indices) {
+        when (val decoded = this[i].tryDecode(error)) {
+            is Result.Success -> return success(decoded.value)
+            is Result.Failure -> {
+                if (decoded.error !is ContractErrorDecodingError.NoMatchingError) {
+                    return failure(decoded.error)
+                }
+            }
+        }
+    }
+
+    return failure(ContractErrorDecodingError.NoMatchingError(error, map { it.abi }))
 }
 
 /**

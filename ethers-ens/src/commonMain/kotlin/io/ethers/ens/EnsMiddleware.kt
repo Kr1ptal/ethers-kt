@@ -342,7 +342,7 @@ class EnsMiddleware @JvmOverloads constructor(
         }
 
         // If callbackResult is OffchainLookup error, resolve using recursive CCIP calls
-        val callbackLookupRevert = ExtendedResolver.OffchainLookup.decode(callbackResult)
+        val callbackLookupRevert = ExtendedResolver.OffchainLookup.decodeOrNull(callbackResult)
         if (callbackLookupRevert != null) {
             if (lookupLimit <= 0) return failure(Error.CcipLookupLimit)
 

@@ -70,7 +70,7 @@ class EventsTest : FunSpec({
                 false,
             )
 
-            val decoded = indexedAndDataArgsEvent.decode(log)
+            val decoded = indexedAndDataArgsEvent.decodeOrNull(log)
             val expected = eventClass.primaryConstructor!!.call(
                 topic1,
                 errorCode,

@@ -74,7 +74,7 @@ abstract class EthersAbigenTask @Inject constructor(private val executor: Worker
      * causes the new version of the plugin to invalidate previous output automatically.
      * */
     @get:Input
-    internal val outputVersion: Property<String> = objectFactory.property(String::class.java).convention("8")
+    internal val outputVersion: Property<String> = objectFactory.property(String::class.java).convention("9")
 
     /**
      * Project path for generating loader prefix. This property is used instead of direct project.path access

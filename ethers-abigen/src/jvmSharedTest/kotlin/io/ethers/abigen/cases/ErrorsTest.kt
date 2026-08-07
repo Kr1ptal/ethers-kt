@@ -63,7 +63,7 @@ class ErrorsTest : FunSpec({
                 listOf(detailsStruct1, detailsStruct2),
             )
 
-            structArgsError.decode(Bytes(encoded)) shouldBe expected
+            structArgsError.decodeOrNull(Bytes(encoded)) shouldBe expected
         }
 
         test("all factories have correct abi signature") {

@@ -1,5 +1,6 @@
 package io.ethers.abi
 
+import io.ethers.core.isFailure
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
@@ -8,6 +9,7 @@ import io.ethers.providers.middleware.Middleware
 import io.github.artificialpb.bignum.BigInteger
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.property.Exhaustive
 import io.kotest.property.checkAll
 import io.kotest.property.exhaustive.of
@@ -61,7 +63,7 @@ class AbiEventTest : FunSpec({
                 removed = false,
             )
 
-            val event = LogNote.decode(log)
+            val event = LogNote.decodeOrNull(log)
             event shouldBe LogNote(
                 sig = Bytes("0x9f678cca"),
                 usr = Address("0x83f20f44975d03b1b09e64809b757c47f942beea"),
@@ -89,7 +91,7 @@ class AbiEventTest : FunSpec({
                 removed = false,
             )
 
-            LogNote.decode(log) shouldBe null
+            LogNote.decodeOrNull(log) shouldBe null
         }
 
         test("anonymous event with no data returns null") {
@@ -111,7 +113,7 @@ class AbiEventTest : FunSpec({
                 removed = false,
             )
 
-            LogNote.decode(log) shouldBe null
+            LogNote.decodeOrNull(log) shouldBe null
         }
 
         test("non-anonymous event") {
@@ -132,7 +134,7 @@ class AbiEventTest : FunSpec({
                 removed = false,
             )
 
-            val event = Transfer.decode(log)
+            val event = Transfer.decodeOrNull(log)
             event shouldBe Transfer(
                 from = Address("0x855f02967ee16e9f18d388b07b4c75211e73e8c2"),
                 to = Address("0xed12310d5a37326e6506209c4838146950166760"),
@@ -160,7 +162,7 @@ class AbiEventTest : FunSpec({
                 removed = false,
             )
 
-            Transfer.decode(log) shouldBe null
+            Transfer.decodeOrNull(log) shouldBe null
         }
 
         test("non-anonymous event with no data returns null") {
@@ -181,7 +183,7 @@ class AbiEventTest : FunSpec({
                 removed = false,
             )
 
-            Transfer.decode(log) shouldBe null
+            Transfer.decodeOrNull(log) shouldBe null
         }
 
         test("non-anonymous event with different topicId returns null") {
@@ -202,7 +204,33 @@ class AbiEventTest : FunSpec({
                 removed = false,
             )
 
-            Transfer.decode(log) shouldBe null
+            Transfer.decodeOrNull(log) shouldBe null
+        }
+
+        test("non-anonymous event with malformed matching data returns null") {
+            val log = Log(
+                address = Address("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
+                topics = listOf(
+                    Transfer.abi.topicId,
+                    Hash("0x000000000000000000000000855f02967ee16e9f18d388b07b4c75211e73e8c2"),
+                    Hash("0x000000000000000000000000ed12310d5a37326e6506209c4838146950166760"),
+                ),
+                data = Bytes("0x01"),
+                blockHash = Hash.ZERO,
+                blockNumber = 1,
+                blockTimestamp = 1,
+                transactionHash = Hash.ZERO,
+                transactionIndex = 0,
+                logIndex = 0,
+                removed = false,
+            )
+
+            Transfer.decodeOrNull(log) shouldBe null
+            Transfer.decodeOrNull(log) shouldBe null
+
+            val decoded = Transfer.tryDecode(log)
+            decoded.isFailure() shouldBe true
+            decoded.unwrapError().shouldBeInstanceOf<EventDecodingError.MalformedEvent>()
         }
     }
 
@@ -475,6 +503,15 @@ class AbiEventTest : FunSpec({
         test("toEventOrNull with vararg returns null when none match") {
             invalidLog.toEventOrNull(Transfer, LogNote) shouldBe null
         }
+
+        test("tryToEvent with vararg returns failure when matching event data is malformed") {
+            val malformedLog = validTransferLog.copy(data = Bytes("0x01"))
+
+            val decoded = malformedLog.tryToEvent(Transfer, LogNote)
+            decoded.isFailure() shouldBe true
+            decoded.unwrapError().shouldBeInstanceOf<EventDecodingError.MalformedEvent>()
+            malformedLog.toEventOrNull(Transfer, LogNote) shouldBe null
+        }
     }
 
     context("List/Array EventFactory decode extension") {
@@ -508,37 +545,37 @@ class AbiEventTest : FunSpec({
             removed = false,
         )
 
-        test("List<EventFactory>.decode matches") {
+        test("List<EventFactory>.decodeOrNull matches") {
             val factories = listOf(Transfer, LogNote)
-            val event = factories.decode(validTransferLog)
+            val event = factories.decodeOrNull(validTransferLog)
             (event is Transfer) shouldBe true
         }
 
-        test("List<EventFactory>.decode returns null when none match") {
+        test("List<EventFactory>.decodeOrNull returns null when none match") {
             val factories = listOf(Transfer, LogNote)
-            factories.decode(invalidLog) shouldBe null
+            factories.decodeOrNull(invalidLog) shouldBe null
         }
 
-        test("Array<EventFactory>.decode matches") {
+        test("Array<EventFactory>.decodeOrNull matches") {
             val factories = arrayOf<EventFactory<out ContractEvent>>(Transfer, LogNote)
-            val event = factories.decode(validTransferLog)
+            val event = factories.decodeOrNull(validTransferLog)
             (event is Transfer) shouldBe true
         }
 
-        test("Array<EventFactory>.decode returns null when none match") {
+        test("Array<EventFactory>.decodeOrNull returns null when none match") {
             val factories = arrayOf<EventFactory<out ContractEvent>>(Transfer, LogNote)
-            factories.decode(invalidLog) shouldBe null
+            factories.decodeOrNull(invalidLog) shouldBe null
         }
 
-        test("Iterable<EventFactory>.decode matches") {
+        test("Iterable<EventFactory>.decodeOrNull matches") {
             val factories: Iterable<EventFactory<out ContractEvent>> = setOf(Transfer, LogNote)
-            val event = factories.decode(validTransferLog)
+            val event = factories.decodeOrNull(validTransferLog)
             (event is Transfer) shouldBe true
         }
 
-        test("Iterable<EventFactory>.decode returns null when none match") {
+        test("Iterable<EventFactory>.decodeOrNull returns null when none match") {
             val factories: Iterable<EventFactory<out ContractEvent>> = setOf(Transfer, LogNote)
-            factories.decode(invalidLog) shouldBe null
+            factories.decodeOrNull(invalidLog) shouldBe null
         }
     }
 }) {

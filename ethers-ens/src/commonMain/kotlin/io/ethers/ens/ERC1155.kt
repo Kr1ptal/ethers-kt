@@ -7,10 +7,12 @@ import io.ethers.abi.AbiEvent
 import io.ethers.abi.AbiFunction
 import io.ethers.abi.AbiType
 import io.ethers.abi.ContractEvent
+import io.ethers.abi.EventDecodingError
 import io.ethers.abi.EventFactory
 import io.ethers.abi.EventFilter
 import io.ethers.abi.call.FunctionCall
 import io.ethers.abi.call.ReadFunctionCall
+import io.ethers.core.Result
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Log
@@ -279,7 +281,10 @@ public class ERC1155(
             override fun filter(provider: Middleware): EventFilter<ApprovalForAll> = EventFilter(provider, this)
 
             @JvmStatic
-            override fun decode(log: Log): ApprovalForAll? = super.decode(log)
+            override fun decodeOrNull(log: Log): ApprovalForAll? = super.decodeOrNull(log)
+
+            @JvmStatic
+            override fun tryDecode(log: Log): Result<ApprovalForAll, EventDecodingError> = super.tryDecode(log)
 
             @JvmStatic
             override fun decode(log: Log, `data`: List<Any>): ApprovalForAll = ApprovalForAll(
@@ -353,7 +358,10 @@ public class ERC1155(
             override fun filter(provider: Middleware): EventFilter<TransferBatch> = EventFilter(provider, this)
 
             @JvmStatic
-            override fun decode(log: Log): TransferBatch? = super.decode(log)
+            override fun decodeOrNull(log: Log): TransferBatch? = super.decodeOrNull(log)
+
+            @JvmStatic
+            override fun tryDecode(log: Log): Result<TransferBatch, EventDecodingError> = super.tryDecode(log)
 
             @JvmStatic
             override fun decode(log: Log, `data`: List<Any>): TransferBatch = TransferBatch(
@@ -429,7 +437,10 @@ public class ERC1155(
             override fun filter(provider: Middleware): EventFilter<TransferSingle> = EventFilter(provider, this)
 
             @JvmStatic
-            override fun decode(log: Log): TransferSingle? = super.decode(log)
+            override fun decodeOrNull(log: Log): TransferSingle? = super.decodeOrNull(log)
+
+            @JvmStatic
+            override fun tryDecode(log: Log): Result<TransferSingle, EventDecodingError> = super.tryDecode(log)
 
             @JvmStatic
             override fun decode(log: Log, `data`: List<Any>): TransferSingle = TransferSingle(
@@ -490,7 +501,10 @@ public class ERC1155(
             override fun filter(provider: Middleware): EventFilter<URI> = EventFilter(provider, this)
 
             @JvmStatic
-            override fun decode(log: Log): URI? = super.decode(log)
+            override fun decodeOrNull(log: Log): URI? = super.decodeOrNull(log)
+
+            @JvmStatic
+            override fun tryDecode(log: Log): Result<URI, EventDecodingError> = super.tryDecode(log)
 
             @JvmStatic
             override fun decode(log: Log, `data`: List<Any>): URI = URI(data[0] as kotlin.String, data[1] as io.github.artificialpb.bignum.BigInteger, log)
@@ -575,11 +589,26 @@ public class ERC1155(
             AbiFunction("supportsInterface", listOf(AbiType.FixedBytes(4)), listOf(AbiType.Bool))
 
         @JvmStatic
-        public fun decodeEvent(log: Log): ERC1155.Event? {
+        public fun decodeEventOrNull(log: Log): ERC1155.Event? {
             for (event in EVENTS) {
-                return event.decode(log) ?: continue
+                return event.decodeOrNull(log) ?: continue
             }
             return null
+        }
+
+        @JvmStatic
+        public fun tryDecodeEvent(log: Log): Result<ERC1155.Event, EventDecodingError> {
+            for (event in EVENTS) {
+                when (val decoded = event.tryDecode(log)) {
+                    is Result.Success -> return Result.success(decoded.value)
+                    is Result.Failure -> {
+                        if (decoded.error !is EventDecodingError.NoMatchingEvent) {
+                            return Result.failure(decoded.error)
+                        }
+                    }
+                }
+            }
+            return Result.failure(EventDecodingError.NoMatchingEvent(log, EVENTS.map { it.abi }))
         }
     }
 }

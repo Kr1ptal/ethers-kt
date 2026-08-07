@@ -1,6 +1,10 @@
 package io.ethers.abi
 
 import io.ethers.abi.AbiEvent.Companion.NON_VALUE_INDEXED_TYPE
+import io.ethers.core.Result
+import io.ethers.core.ThrowableError
+import io.ethers.core.failure
+import io.ethers.core.success
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
 import io.ethers.core.types.Log
@@ -40,11 +44,13 @@ interface EventFactory<T : ContractEvent> {
     }
 
     /**
-     * Decode the [log] into this event type, returning null if the log does not match this event.
+     * Decode the [log] into this event type, returning null if the log does not match this event or decoding fails.
      *
-     * @return the decoded event, or null if the log does not match this event.
+     * If you need to know why decoding failed, use [tryDecode].
+     *
+     * @return the decoded event, or null if the log does not match this event or cannot be decoded.
      * */
-    fun decode(log: Log): T? {
+    fun decodeOrNull(log: Log): T? {
         val topics: List<Any>
         val data: List<Any>
         val logTopicSize: Int
@@ -54,16 +60,24 @@ interface EventFactory<T : ContractEvent> {
             if (abi.indexed.size != logTopicSize) return null
             if (abi.data.isEmpty() != log.data.isEmpty) return null
 
-            topics = if (logTopicSize == 0) emptyList() else abi.decodeTopics(log.topics)
-            data = if (abi.data.isEmpty()) emptyList() else abi.decodeData(log.data)
+            try {
+                topics = if (logTopicSize == 0) emptyList() else abi.decodeTopics(log.topics)
+                data = if (abi.data.isEmpty()) emptyList() else abi.decodeData(log.data)
+            } catch (_: Exception) {
+                return null
+            }
         } else {
             logTopicSize = log.topics.size - 1
             if (abi.indexed.size != logTopicSize) return null
             if (abi.data.isEmpty() != log.data.isEmpty) return null
             if (abi.topicId != log.topics[0]) return null
 
-            topics = if (logTopicSize == 0) emptyList() else abi.decodeTopics(log.topics)
-            data = if (abi.data.isEmpty()) emptyList() else abi.decodeData(log.data)
+            try {
+                topics = if (logTopicSize == 0) emptyList() else abi.decodeTopics(log.topics)
+                data = if (abi.data.isEmpty()) emptyList() else abi.decodeData(log.data)
+            } catch (_: Exception) {
+                return null
+            }
         }
 
         var topicIndex = 0
@@ -77,10 +91,84 @@ interface EventFactory<T : ContractEvent> {
             }
         }
 
-        return decode(log, merged)
+        return try {
+            decode(log, merged)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Try to decode the [log] into this event type.
+     *
+     * @return the decoded event, or an [EventDecodingError] if the log does not match or cannot be decoded.
+     * */
+    fun tryDecode(log: Log): Result<T, EventDecodingError> {
+        val topics: List<Any>
+        val data: List<Any>
+        val logTopicSize: Int
+
+        if (abi.isAnonymous) {
+            logTopicSize = log.topics.size
+            if (abi.indexed.size != logTopicSize) return failure(EventDecodingError.NoMatchingEvent(log, listOf(abi)))
+            if (abi.data.isEmpty() != log.data.isEmpty) return failure(EventDecodingError.NoMatchingEvent(log, listOf(abi)))
+
+            try {
+                topics = if (logTopicSize == 0) emptyList() else abi.decodeTopics(log.topics)
+                data = if (abi.data.isEmpty()) emptyList() else abi.decodeData(log.data)
+            } catch (e: Exception) {
+                return failure(EventDecodingError.MalformedEvent(log, abi, e))
+            }
+        } else {
+            logTopicSize = log.topics.size - 1
+            if (abi.indexed.size != logTopicSize) return failure(EventDecodingError.NoMatchingEvent(log, listOf(abi)))
+            if (abi.data.isEmpty() != log.data.isEmpty) return failure(EventDecodingError.NoMatchingEvent(log, listOf(abi)))
+            if (abi.topicId != log.topics[0]) return failure(EventDecodingError.NoMatchingEvent(log, listOf(abi)))
+
+            try {
+                topics = if (logTopicSize == 0) emptyList() else abi.decodeTopics(log.topics)
+                data = if (abi.data.isEmpty()) emptyList() else abi.decodeData(log.data)
+            } catch (e: Exception) {
+                return failure(EventDecodingError.MalformedEvent(log, abi, e))
+            }
+        }
+
+        var topicIndex = 0
+        var dataIndex = 0
+        val merged = ArrayList<Any>(logTopicSize + data.size)
+        for (i in 0 until (logTopicSize + data.size)) {
+            if (abi.tokens[i].indexed) {
+                merged.add(topics[topicIndex++])
+            } else {
+                merged.add(data[dataIndex++])
+            }
+        }
+
+        return try {
+            success(decode(log, merged))
+        } catch (e: Exception) {
+            failure(EventDecodingError.MalformedEvent(log, abi, e))
+        }
     }
 
     fun decode(log: Log, data: List<Any>): T
+}
+
+sealed class EventDecodingError(
+    open val log: Log,
+    override val message: String,
+    override val cause: Exception? = null,
+) : ThrowableError {
+    data class NoMatchingEvent(
+        override val log: Log,
+        val expectedEvents: List<AbiEvent>,
+    ) : EventDecodingError(log, "Log does not match any expected event")
+
+    data class MalformedEvent(
+        override val log: Log,
+        val expectedEvent: AbiEvent,
+        override val cause: Exception,
+    ) : EventDecodingError(log, "Unable to decode event log", cause)
 }
 
 data class AbiEvent(
@@ -145,42 +233,86 @@ interface ContractEvent {
 }
 
 /**
- * Decode the [Log] into any event of `this` types, returning null if the log does not match the event.
+ * Decode the [Log] into any event of `this` types, returning null if the log does not match the event or decoding fails.
  * */
-fun <T : ContractEvent> List<EventFactory<out T>>.decode(log: Log): T? {
+fun <T : ContractEvent> List<EventFactory<out T>>.decodeOrNull(log: Log): T? {
     for (i in indices) {
-        val event = log.toEventOrNull(this[i])
-        if (event != null) {
-            return event
-        }
+        return this[i].decodeOrNull(log) ?: continue
     }
     return null
 }
 
 /**
- * Decode the [Log] into any event of `this` types, returning null if the log does not match the event.
+ * Try to decode the [Log] into any event of `this` types.
  * */
-fun <T : ContractEvent> Array<out EventFactory<out T>>.decode(log: Log): T? {
-    for (i in this) {
-        val event = log.toEventOrNull(i)
-        if (event != null) {
-            return event
+fun <T : ContractEvent> List<EventFactory<out T>>.tryDecode(log: Log): Result<T, EventDecodingError> {
+    for (i in indices) {
+        when (val event = this[i].tryDecode(log)) {
+            is Result.Success -> return success(event.value)
+            is Result.Failure -> {
+                if (event.error !is EventDecodingError.NoMatchingEvent) {
+                    return failure(event.error)
+                }
+            }
         }
+    }
+    return failure(EventDecodingError.NoMatchingEvent(log, map { it.abi }))
+}
+
+/**
+ * Decode the [Log] into any event of `this` types, returning null if the log does not match the event or decoding fails.
+ * */
+fun <T : ContractEvent> Array<out EventFactory<out T>>.decodeOrNull(log: Log): T? {
+    for (i in this) {
+        return i.decodeOrNull(log) ?: continue
     }
     return null
 }
 
 /**
- * Decode the [Log] into any event of `this` types, returning null if the log does not match the event.
+ * Try to decode the [Log] into any event of `this` types.
  * */
-fun <T : ContractEvent> Iterable<EventFactory<out T>>.decode(log: Log): T? {
+fun <T : ContractEvent> Array<out EventFactory<out T>>.tryDecode(log: Log): Result<T, EventDecodingError> {
     for (i in this) {
-        val event = log.toEventOrNull(i)
-        if (event != null) {
-            return event
+        when (val event = i.tryDecode(log)) {
+            is Result.Success -> return success(event.value)
+            is Result.Failure -> {
+                if (event.error !is EventDecodingError.NoMatchingEvent) {
+                    return failure(event.error)
+                }
+            }
         }
     }
+    return failure(EventDecodingError.NoMatchingEvent(log, map { it.abi }))
+}
+
+/**
+ * Decode the [Log] into any event of `this` types, returning null if the log does not match the event or decoding fails.
+ * */
+fun <T : ContractEvent> Iterable<EventFactory<out T>>.decodeOrNull(log: Log): T? {
+    for (i in this) {
+        return i.decodeOrNull(log) ?: continue
+    }
     return null
+}
+
+/**
+ * Try to decode the [Log] into any event of `this` types.
+ * */
+fun <T : ContractEvent> Iterable<EventFactory<out T>>.tryDecode(log: Log): Result<T, EventDecodingError> {
+    val expectedEvents = ArrayList<AbiEvent>()
+    for (i in this) {
+        expectedEvents.add(i.abi)
+        when (val event = i.tryDecode(log)) {
+            is Result.Success -> return success(event.value)
+            is Result.Failure -> {
+                if (event.error !is EventDecodingError.NoMatchingEvent) {
+                    return failure(event.error)
+                }
+            }
+        }
+    }
+    return failure(EventDecodingError.NoMatchingEvent(log, expectedEvents))
 }
 
 /**
@@ -228,44 +360,54 @@ fun Log.isEvent(vararg events: EventFactory<*>): Boolean {
  * Decode the [Log] into an event of the [event] type, returning null if the log does not match the event.
  * */
 fun <T : ContractEvent> Log.toEventOrNull(event: EventFactory<T>): T? {
-    return event.decode(this)
+    return event.decodeOrNull(this)
+}
+
+/**
+ * Try to decode this [Log] into an event of the [event] type.
+ * */
+fun <T : ContractEvent> Log.tryToEvent(event: EventFactory<T>): Result<T, EventDecodingError> {
+    return event.tryDecode(this)
 }
 
 /**
  * Decode the [Log] into any event of the [events] types, returning null if the log does not match any event.
  * */
 fun <T : ContractEvent> Log.toEventOrNull(events: List<EventFactory<out T>>): T? {
-    for (i in events.indices) {
-        val event = this.toEventOrNull(events[i])
-        if (event != null) {
-            return event
-        }
-    }
-    return null
+    return events.decodeOrNull(this)
+}
+
+/**
+ * Try to decode this [Log] into any event of the [events] types.
+ * */
+fun <T : ContractEvent> Log.tryToEvent(events: List<EventFactory<out T>>): Result<T, EventDecodingError> {
+    return events.tryDecode(this)
 }
 
 /**
  * Decode the [Log] into any event of the [events] types, returning null if the log does not match any event.
  * */
 fun <T : ContractEvent> Log.toEventOrNull(events: Iterable<EventFactory<out T>>): T? {
-    for (e in events) {
-        val event = this.toEventOrNull(e)
-        if (event != null) {
-            return event
-        }
-    }
-    return null
+    return events.decodeOrNull(this)
+}
+
+/**
+ * Try to decode this [Log] into any event of the [events] types.
+ * */
+fun <T : ContractEvent> Log.tryToEvent(events: Iterable<EventFactory<out T>>): Result<T, EventDecodingError> {
+    return events.tryDecode(this)
 }
 
 /**
  * Decode the [Log] into any event of the [events] types, returning null if the log does not match any event.
  * */
 fun <T : ContractEvent> Log.toEventOrNull(vararg events: EventFactory<out T>): T? {
-    for (e in events) {
-        val event = this.toEventOrNull(e)
-        if (event != null) {
-            return event
-        }
-    }
-    return null
+    return events.decodeOrNull(this)
+}
+
+/**
+ * Try to decode this [Log] into any event of the [events] types.
+ * */
+fun <T : ContractEvent> Log.tryToEvent(vararg events: EventFactory<out T>): Result<T, EventDecodingError> {
+    return events.tryDecode(this)
 }
