@@ -356,13 +356,13 @@ class ResultTest : FunSpec({
         }
 
         test("throws generically for an error that is neither ThrowableError nor Throwable") {
-            val thrown = shouldThrow<RuntimeException> { failure("plain string").unwrap() }
-            thrown.message shouldBe "Unable to unwrap a value, result is not a success"
+            val thrown = shouldThrow<IllegalStateException> { failure("plain string").unwrap() }
+            thrown.message shouldBe "Value is not success: plain string"
         }
 
         test("throws generically for a null error") {
-            val thrown = shouldThrow<RuntimeException> { failure(null).unwrap() }
-            thrown.message shouldBe "Unable to unwrap a value, result is not a success"
+            val thrown = shouldThrow<IllegalStateException> { failure(null).unwrap() }
+            thrown.message shouldBe "Value is not success: null"
         }
     }
 

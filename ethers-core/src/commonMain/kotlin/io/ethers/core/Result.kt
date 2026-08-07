@@ -116,7 +116,7 @@ sealed class Result<out T, out E> {
         when (val e = it.error) {
             is ThrowableError -> throw e.toException()
             is Throwable -> throw e
-            else -> throw RuntimeException("Unable to unwrap a value, result is not a success")
+            else -> throw IllegalStateException("Value is not success: $e")
         }
     }
 
@@ -140,7 +140,7 @@ sealed class Result<out T, out E> {
     /**
      * Unwrap the error if [Result] is [Failure], or throw an exception if [Result] is [Success].
      * */
-    fun unwrapError(): E = fold({ throw IllegalStateException("Unable to unwrap an error, result is not a failure") }, { it.error })
+    fun unwrapError(): E = fold({ throw IllegalStateException("Value is not error: ${it.value}") }, { it.error })
 
     /**
      * Unwrap the error if [Result] is [Failure], or return null if [Result] is [Success].
