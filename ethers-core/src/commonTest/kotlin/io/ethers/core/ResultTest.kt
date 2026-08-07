@@ -210,6 +210,19 @@ class ResultTest : FunSpec({
         test("isNullOrFailure returns false for Success") {
             (successValue as Result<String, ThrowableError>?).isNullOrFailure() shouldBe false
         }
+
+        test("isNullOrFailure smart-casts to Success of the value type") {
+            val result: Result<String, HexDecodingError>? = success("hi")
+
+            if (result.isNullOrFailure()) {
+                throw IllegalStateException("should be a success")
+            }
+
+            // the explicit type pins the smart cast: a contract implying Success<E> would type
+            // this as HexDecodingError and fail to compile
+            val value: String = result.value
+            value shouldBe "hi"
+        }
     }
 
     context("companion factory methods") {
@@ -378,10 +391,11 @@ class ResultTest : FunSpec({
             result.isFailure shouldBe true
         }
 
-        test("andThen with null success value treats as failure") {
+        test("andThen maps a success holding null") {
+            // a null success value must not be mistaken for a failure, which is what distinguishing
+            // the two via getOrNull() used to do
             val result = kotlin.Result.success<String?>(null).andThen { kotlin.Result.success("mapped") }
-            // getOrNull returns null for success(null), so andThen treats it as failure path
-            result.getOrNull() shouldBe null
+            result.getOrThrow() shouldBe "mapped"
         }
 
         test("andThenCatching catches exceptions in mapper") {
@@ -389,9 +403,9 @@ class ResultTest : FunSpec({
             result.isFailure shouldBe true
         }
 
-        test("andThenCatching with null success value treats as failure") {
+        test("andThenCatching maps a success holding null") {
             val result = kotlin.Result.success<String?>(null).andThenCatching<String?, String> { kotlin.Result.success("mapped") }
-            result.getOrNull() shouldBe null
+            result.getOrThrow() shouldBe "mapped"
         }
 
         test("andThenCatching succeeds normally without throwing") {

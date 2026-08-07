@@ -109,8 +109,8 @@ sealed class Result<out T, out E> {
      * Unwrap the value if [Result] is [Success], or throw an exception if [Result] is [Failure].
      *
      * A [ThrowableError] error is thrown via [ThrowableError.toException], and a [Throwable] error is thrown
-     * directly. Any other error type is not convertible to an exception, so a generic [RuntimeException] naming
-     * its type is thrown.
+     * directly. Any other error type is not convertible to an exception, so an [IllegalStateException] describing
+     * the error is thrown.
      * */
     fun unwrap(): T = fold({ it.value }) {
         when (val e = it.error) {
@@ -246,6 +246,7 @@ fun <T, E> Result<T, E>.isFailure(): Boolean {
 fun <T, E> Result<T, E>?.isNullOrFailure(): Boolean {
     contract {
         returns(true) implies (this@isNullOrFailure is Failure<E> || this@isNullOrFailure == null)
+        returns(false) implies (this@isNullOrFailure is Success<T>)
     }
     return this == null || this is Failure<E>
 }
@@ -288,27 +289,19 @@ inline fun <R, T : R, E> Result<T, E>.unwrapOrReturn(onFailure: (E) -> Nothing):
 // ---------------------------------------------------- //
 
 @OptIn(ExperimentalContracts::class)
-@Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
 // value returned from mapper will be boxed
 inline fun <T, R> kotlin.Result<T>.andThen(mapper: (T) -> kotlin.Result<R>): kotlin.Result<R> {
     contract { callsInPlace(mapper, InvocationKind.AT_MOST_ONCE) }
 
-    return when (val v = getOrNull()) {
-        null -> kotlin.Result(value)
-        else -> mapper(v)
-    }
+    return fold({ mapper(it) }, { kotlin.Result.failure(it) })
 }
 
 @OptIn(ExperimentalContracts::class)
-@Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
 // value returned from mapper will be boxed
 inline fun <T, R> kotlin.Result<T>.andThenCatching(mapper: (T) -> kotlin.Result<R>): kotlin.Result<R> {
     contract { callsInPlace(mapper, InvocationKind.AT_MOST_ONCE) }
 
-    return when (val v = getOrNull()) {
-        null -> kotlin.Result(value)
-        else -> runCatching { mapper(v).getOrThrow() }
-    }
+    return fold({ runCatching { mapper(it).getOrThrow() } }, { kotlin.Result.failure(it) })
 }
 
 /**
