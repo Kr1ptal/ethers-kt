@@ -6,9 +6,11 @@ import io.ethers.abi.AbiContract
 import io.ethers.abi.AbiFunction
 import io.ethers.abi.AbiType
 import io.ethers.abi.call.ReadFunctionCall
+import io.ethers.abi.error.ContractErrorDecodingError
 import io.ethers.abi.error.CustomContractError
 import io.ethers.abi.error.CustomErrorFactory
 import io.ethers.abi.error.CustomErrorFactoryResolver
+import io.ethers.core.Result
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.providers.middleware.Middleware
@@ -174,11 +176,26 @@ public class ExtendedResolver(
         }
 
         @JvmStatic
-        public fun decodeError(error: Bytes): ExtendedResolver.Error? {
+        public fun decodeErrorOrNull(error: Bytes): ExtendedResolver.Error? {
             for (err in ERRORS) {
-                return err.decode(error) ?: continue
+                return err.decodeOrNull(error) ?: continue
             }
             return null
+        }
+
+        @JvmStatic
+        public fun tryDecodeError(error: Bytes): Result<ExtendedResolver.Error, ContractErrorDecodingError> {
+            for (err in ERRORS) {
+                when (val decoded = err.tryDecode(error)) {
+                    is Result.Success -> return Result.success(decoded.value)
+                    is Result.Failure -> {
+                        if (decoded.error !is ContractErrorDecodingError.NoMatchingError) {
+                            return Result.failure(decoded.error)
+                        }
+                    }
+                }
+            }
+            return Result.failure(ContractErrorDecodingError.NoMatchingError(error, ERRORS.map { it.abi }))
         }
     }
 }

@@ -4,12 +4,15 @@ import io.ethers.abi.AbiFunction
 import io.ethers.abi.AbiType
 import io.ethers.abi.ContractStruct
 import io.ethers.abi.StructFactory
+import io.ethers.core.isFailure
 import io.ethers.core.types.Bytes
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.inspectors.forAll
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.jvm.JvmField
 import kotlin.jvm.JvmStatic
 
@@ -57,20 +60,86 @@ class CustomErrorTest : FunSpec({
             CustomErrorRegistry.getOrNull(it) shouldBe null
         }
     }
+
+    test("decoding malformed matching custom error returns null or failure") {
+        val data = ErrorWithStruct.abi.selector
+
+        ErrorWithStruct.decodeOrNull(data) shouldBe null
+        ErrorWithStruct.decodeOrNull(data) shouldBe null
+
+        val decoded = ErrorWithStruct.tryDecode(data)
+        decoded.isFailure() shouldBe true
+        decoded.unwrapError().shouldBeInstanceOf<ContractErrorDecodingError.MalformedError>()
+    }
+
+    test("decoding malformed matching revert error returns null or failure") {
+        val data = RevertError.FUNCTION.selector
+
+        RevertError.getOrNull(data) shouldBe null
+        ContractError.getOrNull(data) shouldBe null
+
+        val decoded = ContractError.tryGet(data)
+        decoded.isFailure() shouldBe true
+        decoded.unwrapError().shouldBeInstanceOf<ContractErrorDecodingError.MalformedError>()
+    }
+
+    test("NoMatchingError names every candidate that was tried") {
+        // unknown selector, so nothing matches and all candidates get reported
+        val data = Bytes("0x31920d0e0000000000000000000000000000000000000000000000000000000000000001")
+
+        val error = ContractError.tryGet(data)
+            .unwrapError()
+            .shouldBeInstanceOf<ContractErrorDecodingError.NoMatchingError>()
+
+        error.expectedErrors shouldContain PanicError.FUNCTION
+        error.expectedErrors shouldContain RevertError.FUNCTION
+    }
+
+    test("resolve keeps searching when a selector-colliding factory fails to decode") {
+        // both factories have the same signature, so they share a selector. The first one always fails to decode,
+        // and must not prevent the second one from resolving the error.
+        CustomErrorFactoryResolver.addFactories(listOf(FailingCollidingErrorFactory, CollidingError))
+
+        val encoded = CollidingError.abi.encodeCall(listOf(bigIntegerOf(7)))
+
+        CustomErrorFactoryResolver.resolve(encoded) shouldBe CollidingError(bigIntegerOf(7))
+
+        // the Result-based path reports the first malformed match instead, since it can tell the two apart
+        CustomErrorFactoryResolver.tryResolve(encoded)
+            .unwrapError()
+            .shouldBeInstanceOf<ContractErrorDecodingError.MalformedError>()
+    }
 }) {
+    private data class CollidingError(val flag: BigInteger) : CustomContractError() {
+        companion object : CustomErrorFactory<CollidingError> {
+            @JvmStatic
+            override val abi: AbiFunction = AbiFunction("CollidingError", listOf(AbiType.UInt(256)), emptyList())
+
+            @JvmStatic
+            override fun decode(data: List<Any>): CollidingError = CollidingError(data[0] as BigInteger)
+        }
+    }
+
+    /** Same signature as [CollidingError], so it matches the same selector, but never decodes successfully. */
+    private object FailingCollidingErrorFactory : CustomErrorFactory<CollidingError> {
+        override val abi: AbiFunction = AbiFunction("CollidingError", listOf(AbiType.UInt(256)), emptyList())
+
+        override fun decode(data: List<Any>): CollidingError = throw IllegalStateException("cannot decode")
+    }
+
     private class MockCustomErrorResolver : CustomErrorResolver {
         override fun resolve(error: Bytes): CustomContractError? {
-            val err1 = ErrorWithStruct.decode(error)
+            val err1 = ErrorWithStruct.decodeOrNull(error)
             if (err1 != null) {
                 return err1
             }
 
-            val err2 = NoArgsError.decode(error)
+            val err2 = NoArgsError.decodeOrNull(error)
             if (err2 != null) {
                 return err2
             }
 
-            val err3 = InvalidFlashswapFlags.decode(error)
+            val err3 = InvalidFlashswapFlags.decodeOrNull(error)
             if (err3 != null) {
                 return err3
             }

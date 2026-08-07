@@ -7,11 +7,13 @@ import io.ethers.abi.AbiEvent
 import io.ethers.abi.AbiFunction
 import io.ethers.abi.AbiType
 import io.ethers.abi.ContractEvent
+import io.ethers.abi.EventDecodingError
 import io.ethers.abi.EventFactory
 import io.ethers.abi.EventFilter
 import io.ethers.abi.call.FunctionCall
 import io.ethers.abi.call.PayableFunctionCall
 import io.ethers.abi.call.ReadFunctionCall
+import io.ethers.core.Result
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Log
@@ -335,7 +337,10 @@ public class ERC721(
             override fun filter(provider: Middleware): EventFilter<Approval> = EventFilter(provider, this)
 
             @JvmStatic
-            override fun decode(log: Log): Approval? = super.decode(log)
+            override fun decodeOrNull(log: Log): Approval? = super.decodeOrNull(log)
+
+            @JvmStatic
+            override fun tryDecode(log: Log): Result<Approval, EventDecodingError> = super.tryDecode(log)
 
             @JvmStatic
             override fun decode(log: Log, `data`: List<Any>): Approval = Approval(data[0] as io.ethers.core.types.Address, data[1] as io.ethers.core.types.Address, data[2] as io.github.artificialpb.bignum.BigInteger, log)
@@ -388,7 +393,10 @@ public class ERC721(
             override fun filter(provider: Middleware): EventFilter<ApprovalForAll> = EventFilter(provider, this)
 
             @JvmStatic
-            override fun decode(log: Log): ApprovalForAll? = super.decode(log)
+            override fun decodeOrNull(log: Log): ApprovalForAll? = super.decodeOrNull(log)
+
+            @JvmStatic
+            override fun tryDecode(log: Log): Result<ApprovalForAll, EventDecodingError> = super.tryDecode(log)
 
             @JvmStatic
             override fun decode(log: Log, `data`: List<Any>): ApprovalForAll = ApprovalForAll(data[0] as io.ethers.core.types.Address, data[1] as io.ethers.core.types.Address, data[2] as kotlin.Boolean, log)
@@ -441,7 +449,10 @@ public class ERC721(
             override fun filter(provider: Middleware): EventFilter<Transfer> = EventFilter(provider, this)
 
             @JvmStatic
-            override fun decode(log: Log): Transfer? = super.decode(log)
+            override fun decodeOrNull(log: Log): Transfer? = super.decodeOrNull(log)
+
+            @JvmStatic
+            override fun tryDecode(log: Log): Result<Transfer, EventDecodingError> = super.tryDecode(log)
 
             @JvmStatic
             override fun decode(log: Log, `data`: List<Any>): Transfer = Transfer(data[0] as io.ethers.core.types.Address, data[1] as io.ethers.core.types.Address, data[2] as io.github.artificialpb.bignum.BigInteger, log)
@@ -522,11 +533,26 @@ public class ERC721(
             AbiFunction("supportsInterface", listOf(AbiType.FixedBytes(4)), listOf(AbiType.Bool))
 
         @JvmStatic
-        public fun decodeEvent(log: Log): ERC721.Event? {
+        public fun decodeEventOrNull(log: Log): ERC721.Event? {
             for (event in EVENTS) {
-                return event.decode(log) ?: continue
+                return event.decodeOrNull(log) ?: continue
             }
             return null
+        }
+
+        @JvmStatic
+        public fun tryDecodeEvent(log: Log): Result<ERC721.Event, EventDecodingError> {
+            for (event in EVENTS) {
+                when (val decoded = event.tryDecode(log)) {
+                    is Result.Success -> return Result.success(decoded.value)
+                    is Result.Failure -> {
+                        if (decoded.error !is EventDecodingError.NoMatchingEvent) {
+                            return Result.failure(decoded.error)
+                        }
+                    }
+                }
+            }
+            return Result.failure(EventDecodingError.NoMatchingEvent(log, EVENTS.map { it.abi }))
         }
     }
 }
