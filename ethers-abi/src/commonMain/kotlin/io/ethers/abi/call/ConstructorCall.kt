@@ -62,7 +62,7 @@ class ConstructorCall<T : AbiContract>(
         // - contracts that might have been created in the constructor,
         // - storage slots that might have been written in the constructor
         return provider.traceCall(call, blockId, config)
-            .mapError(::tryDecodingContractRevert)
+            .mapError(::decodeContractRevert)
             .andThen {
                 val overrides = it.toStateOverride()
                 val deployedBytecode = overrides[deployAddress]?.code ?: return@andThen failure(DeployError.NoBytecode)
@@ -118,7 +118,7 @@ class PayableConstructorCall<T : AbiContract>(
         // - contracts that might have been created in the constructor,
         // - storage slots that might have been written in the constructor
         return provider.traceCall(call, blockId, config)
-            .mapError(::tryDecodingContractRevert)
+            .mapError(::decodeContractRevert)
             .andThen {
                 val overrides = it.toStateOverride()
                 val deployedBytecode = overrides[deployAddress]?.code ?: return@andThen failure(DeployError.NoBytecode)

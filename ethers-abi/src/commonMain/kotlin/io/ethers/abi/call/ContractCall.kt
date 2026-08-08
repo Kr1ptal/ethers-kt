@@ -5,6 +5,9 @@ import io.ethers.abi.error.ContractRpcError
 import io.ethers.abi.error.ExecutionRevertedError
 import io.ethers.abi.error.RevertError
 import io.ethers.core.FastHex
+import io.ethers.core.Result
+import io.ethers.core.ThrowableError
+import io.ethers.core.failure
 import io.ethers.core.types.AccessList
 import io.ethers.core.types.Address
 import io.ethers.core.types.BlockId
@@ -28,23 +31,61 @@ import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmSynthetic
 
 /**
+ * Error returned when signing a [ReadWriteContractCall] fails.
+ * */
+sealed class CallSigningError : ThrowableError {
+    /**
+     * The [call] is missing fields required to build a signable transaction.
+     * */
+    data class IncompleteCall(val call: CallRequest) : CallSigningError() {
+        override val message: String
+            get() = "Call is missing fields required for signing: $call"
+    }
+
+    /**
+     * The [Signer] failed to sign the transaction.
+     * */
+    data class SigningFailed(val error: Signer.SigningError) : CallSigningError() {
+        override val message: String
+            get() = error.message
+
+        override val cause: Throwable
+            get() = error.toException()
+    }
+}
+
+/**
  * Contract call that can be used to both read and write data to the blockchain.
  * */
 abstract class ReadWriteContractCall<C, S : PendingInclusion<*>, B : ReadWriteContractCall<C, S, B>>(
     provider: Middleware,
 ) : ReadContractCall<C, B>(provider) {
     /**
-     * Try to sign the call using the [signer]. If [call] does not have all the required fields set, the function
-     * returns null. The following fields must be set:
+     * Sign the call using the [signer], returning null if [call] does not have all the required fields set. The
+     * following fields must be set:
      * - [nonce]
      * - [gas]
      * - [gasPrice] or [gasFeeCap] + [gasTipCap]
      *
-     * @return [TransactionSigned], or null if [call] is not ready to be signed (missing some fields).
+     * If you need to know why signing failed, use [trySign].
+     *
+     * @return [TransactionSigned], or null if [call] is not ready to be signed or signing failed.
      * */
-    fun sign(signer: Signer): TransactionSigned? {
+    fun signOrNull(signer: Signer): TransactionSigned? {
         val tx = call.toUnsignedTransactionOrNull() ?: return null
-        return signer.signTransaction(tx)
+        return signer.trySignTransaction(tx).unwrapOrNull()
+    }
+
+    /**
+     * Try to sign the call using the [signer].
+     *
+     * Safe alternative to [signOrNull], which cannot tell an incomplete [call] apart from a signer failure.
+     *
+     * @return [TransactionSigned], or a [CallSigningError] if [call] is not ready to be signed or signing failed.
+     * */
+    fun trySign(signer: Signer): Result<TransactionSigned, CallSigningError> {
+        val tx = call.toUnsignedTransactionOrNull() ?: return failure(CallSigningError.IncompleteCall(call))
+        return signer.trySignTransaction(tx).mapError(CallSigningError::SigningFailed)
     }
 
     /**
@@ -70,13 +111,14 @@ abstract class ReadWriteContractCall<C, S : PendingInclusion<*>, B : ReadWriteCo
 
     /**
      * Sign the call using the [signer] and send it to the network. If call does not have all the required fields
-     * set (see [sign] function), it will be filled using [Middleware.fillTransaction] before signing and sending.
+     * set (see [signOrNull] function), it will be filled using [Middleware.fillTransaction] before signing and sending.
      * */
     fun send(signer: Signer): RpcRequest<S, RpcError> {
-        // if all params are set on "call", create signed tx directly
-        val signed = sign(signer)
-        if (signed != null) {
-            return provider.sendRawTransaction(signed).map(::handleSendResult)
+        // if all params are set on "call", create signed tx directly. Signing failures are propagated instead of
+        // falling back to "fillTransaction", which would only fail again after an extra round-trip.
+        val unsigned = call.toUnsignedTransactionOrNull()
+        if (unsigned != null) {
+            return provider.sendRawTransaction(signer.signTransaction(unsigned)).map(::handleSendResult)
         }
 
         // create a new copy to avoid modifying the original
@@ -179,7 +221,7 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
         return provider.traceCall(call, blockId, config)
     }
 
-    protected fun tryDecodingContractRevert(err: RpcError): ContractError {
+    protected fun decodeContractRevert(err: RpcError): ContractError {
         val isRevertMessage = err.message.contains("execution revert", true)
         if (err.isExecutionError || isRevertMessage) {
             when {

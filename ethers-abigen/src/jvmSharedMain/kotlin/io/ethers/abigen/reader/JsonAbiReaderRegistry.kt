@@ -45,40 +45,40 @@ object JsonAbiReaderRegistry {
     /**
      * Read the ABI from the given [String]. Returns null if the source does not contain an ABI that any of the readers can read.
      *
-     * See [tryReadAbi] for a version that returns a [Result] with all errors instead.
+     * Exceptions thrown by the readers are swallowed and treated as "this reader cannot read the source".
+     * See [tryReadAbi] for a version that returns a [Result] with all of them instead.
      *
      * @return the [JsonAbi], or null if the source does not contain an ABI that any of the readers can read.
      * */
-    fun readAbi(abi: String): JsonAbi? {
-        return readAbi(abi.byteInputStream())
+    fun readAbiOrNull(abi: String): JsonAbi? {
+        return readAbiOrNull(abi.byteInputStream())
     }
 
     /**
      * Read the ABI from the given [URL]. Returns null if the source does not contain an ABI that any of the readers can read.
      *
-     * See [tryReadAbi] for a version that returns a [Result] with all errors instead.
+     * Exceptions thrown by the readers are swallowed and treated as "this reader cannot read the source".
+     * See [tryReadAbi] for a version that returns a [Result] with all of them instead.
      *
      * @return the [JsonAbi], or null if the source does not contain an ABI that any of the readers can read.
      * */
-    fun readAbi(abi: URL): JsonAbi? {
-        return readAbi(abi.openStream())
+    fun readAbiOrNull(abi: URL): JsonAbi? {
+        return readAbiOrNull(abi.openStream())
     }
 
     /**
      * Read the ABI from the given [InputStream]. Returns null if the source does not contain an ABI that any of the readers can read.
      *
-     * See [tryReadAbi] for a version that returns a [Result] with all errors instead.
+     * Exceptions thrown by the readers are swallowed and treated as "this reader cannot read the source".
+     * See [tryReadAbi] for a version that returns a [Result] with all of them instead.
      *
      * @return the [JsonAbi], or null if the source does not contain an ABI that any of the readers can read.
      * */
-    fun readAbi(abi: InputStream): JsonAbi? {
+    fun readAbiOrNull(abi: InputStream): JsonAbi? {
         val array = abi.readAllBytes()
         for (i in readers.indices) {
             try {
-                val jsonAbi = readers[i].read(ByteArrayInputStream(array))
-                if (jsonAbi != null) {
-                    return jsonAbi
-                }
+                return readers[i].read(ByteArrayInputStream(array))
             } catch (_: Exception) {
             }
         }
@@ -116,10 +116,7 @@ object JsonAbiReaderRegistry {
         var causes: MutableList<Exception>? = null
         for (i in readers.indices) {
             try {
-                val jsonAbi = readers[i].read(ByteArrayInputStream(array))
-                if (jsonAbi != null) {
-                    return success(jsonAbi)
-                }
+                return success(readers[i].read(ByteArrayInputStream(array)))
             } catch (e: Exception) {
                 if (causes == null) {
                     causes = ArrayList()

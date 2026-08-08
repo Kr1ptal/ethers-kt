@@ -102,7 +102,7 @@ class CustomErrorTest : FunSpec({
 
         val encoded = CollidingError.abi.encodeCall(listOf(bigIntegerOf(7)))
 
-        CustomErrorFactoryResolver.resolve(encoded) shouldBe CollidingError(bigIntegerOf(7))
+        CustomErrorFactoryResolver.resolveOrNull(encoded) shouldBe CollidingError(bigIntegerOf(7))
 
         // the Result-based path reports the first malformed match instead, since it can tell the two apart
         CustomErrorFactoryResolver.tryResolve(encoded)
@@ -128,7 +128,7 @@ class CustomErrorTest : FunSpec({
     }
 
     private class MockCustomErrorResolver : CustomErrorResolver {
-        override fun resolve(error: Bytes): CustomContractError? {
+        override fun resolveOrNull(error: Bytes): CustomContractError? {
             val err1 = ErrorWithStruct.decodeOrNull(error)
             if (err1 != null) {
                 return err1

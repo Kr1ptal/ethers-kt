@@ -59,7 +59,7 @@ object CustomErrorRegistry {
 
         for (i in resolvers.indices) {
             val customError = try {
-                resolvers[i].resolve(error)
+                resolvers[i].resolveOrNull(error)
             } catch (_: Exception) {
                 return null
             }
@@ -100,11 +100,16 @@ object CustomErrorRegistry {
  * Resolver for decoding [CustomContractError] from [Bytes].
  * */
 interface CustomErrorResolver {
-    fun resolve(error: Bytes): CustomContractError?
+    /**
+     * Decode [error] into a [CustomContractError], returning null if this resolver cannot decode it.
+     *
+     * If you need to know why decoding failed, use [tryResolve].
+     * */
+    fun resolveOrNull(error: Bytes): CustomContractError?
 
     fun tryResolve(error: Bytes): Result<CustomContractError, ContractErrorDecodingError> {
         return try {
-            resolve(error)?.let(::success)
+            resolveOrNull(error)?.let(::success)
                 ?: failure(ContractErrorDecodingError.NoMatchingError(error, emptyList()))
         } catch (e: Exception) {
             failure(ContractErrorDecodingError.MalformedError(error, null, e))
@@ -135,7 +140,7 @@ object CustomErrorFactoryResolver : CustomErrorResolver {
         }
     }
 
-    override fun resolve(error: Bytes): CustomContractError? {
+    override fun resolveOrNull(error: Bytes): CustomContractError? {
         if (error.size < 4) return null
 
         // the values are only appended to the end of the list, so we can safely iterate by index. Worst case,
