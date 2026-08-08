@@ -48,7 +48,7 @@ class FunctionCall<T>(
         blockOverride: BlockOverride?,
     ): RpcRequest<T, ContractError> {
         return provider.call(call, blockId, stateOverride, blockOverride)
-            .mapError(::tryDecodingContractRevert)
+            .mapError(::decodeContractRevert)
             .andThen(::decodeCallResult)
     }
 
@@ -84,7 +84,7 @@ class ReadFunctionCall<T>(
         blockOverride: BlockOverride?,
     ): RpcRequest<T, ContractError> {
         return provider.call(call, blockId, stateOverride, blockOverride)
-            .mapError(::tryDecodingContractRevert)
+            .mapError(::decodeContractRevert)
             .andThen(::decodeCallResult)
     }
 
@@ -118,7 +118,7 @@ class PayableFunctionCall<T>(
         blockOverride: BlockOverride?,
     ): RpcRequest<T, ContractError> {
         return provider.call(call, blockId, stateOverride, blockOverride)
-            .mapError(::tryDecodingContractRevert)
+            .mapError(::decodeContractRevert)
             .andThen(::decodeCallResult)
     }
 
@@ -166,7 +166,7 @@ class ReceiveFunctionCall(
         blockOverride: BlockOverride?,
     ): RpcRequest<Unit, ContractError> {
         return provider.call(call, blockId, stateOverride, blockOverride)
-            .mapError(::tryDecodingContractRevert)
+            .mapError(::decodeContractRevert)
             .andThen(::decodeCallResult)
     }
 

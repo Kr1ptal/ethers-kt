@@ -44,7 +44,7 @@ object AbigenCompiler {
 
         val genSources = abis.map {
             val resourceName = it.name
-            val abi = JsonAbiReaderRegistry.readAbi(it.toURI().toURL())
+            val abi = JsonAbiReaderRegistry.readAbiOrNull(it.toURI().toURL())
                 ?: throw IllegalArgumentException("Invalid ABI: $resourceName")
 
             val contractName = resourceName.removeSuffix(".json").split("/").last()

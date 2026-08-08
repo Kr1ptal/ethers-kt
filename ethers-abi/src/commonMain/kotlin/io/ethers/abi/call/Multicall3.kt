@@ -281,13 +281,13 @@ class Multicall3(
         val res = if (result.success) {
             request.decodeCallResult(result.returnData)
         } else {
-            failure(tryDecodingCallRevert(result.returnData))
+            failure(decodeCallRevert(result.returnData))
         }
 
         return res
     }
 
-    private fun tryDecodingCallRevert(err: Bytes): ContractError {
+    private fun decodeCallRevert(err: Bytes): ContractError {
         val contractError = ContractError.getOrNull(err)
         if (contractError != null) {
             return contractError
