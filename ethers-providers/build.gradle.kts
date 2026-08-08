@@ -29,10 +29,11 @@ kotlin {
             }
         }
 
-        // only present when the opt-in iOS target is enabled (-PethersEnableIos)
-        findByName("nativeMain")?.dependencies {
-            // engine is selected per-platform via `defaultHttpClientEngineFactory`
-            api(libs.ktor.client.darwin)
+        val nativeMain by getting {
+            dependencies {
+                // engine is selected per-platform via `defaultHttpClientEngineFactory`
+                api(libs.ktor.client.darwin)
+            }
         }
 
         val commonTest by getting {

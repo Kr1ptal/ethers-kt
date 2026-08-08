@@ -16,7 +16,9 @@ concurrency:
 
 jobs:
   deploy-snapshot:
-    runs-on: ubuntu-latest
+    # macOS, not ubuntu: the project has Apple targets and Kotlin/Native cannot cross-compile those from Linux,
+    # so `build` would fail outright and `publish` would emit no native artifacts.
+    runs-on: macos-latest
     
     steps:
       - uses: actions/checkout@v7

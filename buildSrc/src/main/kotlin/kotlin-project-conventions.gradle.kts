@@ -61,18 +61,17 @@ pluginManager.withPlugin("org.jetbrains.kotlin.multiplatform") {
     configure<KotlinMultiplatformExtension> {
         jvm()
 
-        // Opt-in iOS target, used to verify that commonMain stays free of JVM-only APIs. It is NOT part of any
-        // normal build or publication yet - several modules still have blockers (see docs).
+        // Apple targets. These also keep commonMain honest: with only JVM and Android, both JVM-family,
+        // `compileCommonMainKotlinMetadata` is skipped and commonMain resolves `java.*` without complaint, so a
+        // green build proves nothing about portability. Compiling for a native target is what enforces it.
         //
-        // This exists because a green `./gradlew build` proves nothing about portability: with only JVM and Android
-        // targets (both JVM-family), `compileCommonMainKotlinMetadata` is skipped and commonMain still resolves
-        // `java.*`. Compiling for a native target is the only thing that actually enforces it.
-        //
-        //   ./gradlew :ethers-core:compileKotlinIosSimulatorArm64 -PethersEnableIos
-        val iosEnabled = providers.gradleProperty("ethersEnableIos").isPresent
-        if (iosEnabled) {
-            iosSimulatorArm64()
-        }
+        // NOTE: they can only be built on a macOS host - Kotlin/Native cannot cross-compile Apple targets. Any
+        // task that reaches them (`build`, `allTests`, an unscoped `ktlintCheck`) therefore fails on Linux, which
+        // is why CI splits JVM work onto ubuntu and everything else onto macOS.
+        macosArm64()
+        iosArm64()
+        iosX64()
+        iosSimulatorArm64()
 
         // Configure Android library target using the AGP programmatic API
         // (the androidLibrary {} DSL accessor is not available in precompiled script plugins)
@@ -131,23 +130,18 @@ pluginManager.withPlugin("org.jetbrains.kotlin.multiplatform") {
                 dependsOn(jvmSharedTest)
             }
 
-            // Intermediate source set for native targets, holding the `actual` declarations that cannot live in
-            // jvmSharedMain. Only created alongside the opt-in iOS target, so `src/nativeMain` is simply not
-            // compiled unless -PethersEnableIos is set.
-            if (iosEnabled) {
-                val nativeMain by creating {
-                    dependsOn(commonMain.get())
-                }
-                val nativeTest by creating {
-                    dependsOn(commonTest.get())
-                }
+            // Intermediate source set shared by every native target, holding the `actual` declarations that
+            // cannot live in jvmSharedMain.
+            val nativeMain by creating {
+                dependsOn(commonMain.get())
+            }
+            val nativeTest by creating {
+                dependsOn(commonTest.get())
+            }
 
-                named("iosSimulatorArm64Main") {
-                    dependsOn(nativeMain)
-                }
-                named("iosSimulatorArm64Test") {
-                    dependsOn(nativeTest)
-                }
+            listOf("macosArm64", "iosArm64", "iosX64", "iosSimulatorArm64").forEach { target ->
+                named("${target}Main") { dependsOn(nativeMain) }
+                named("${target}Test") { dependsOn(nativeTest) }
             }
         }
     }
