@@ -61,6 +61,15 @@ pluginManager.withPlugin("org.jetbrains.kotlin.multiplatform") {
     configure<KotlinMultiplatformExtension> {
         jvm()
 
+        // Modules whose code is inherently JVM-bound and so have no commonMain at all: ethers-abigen is
+        // build-time code generation, ethers-signers-gcp wraps the Google Cloud KMS client.
+        //
+        // They must not declare Apple targets. A target with no common sources compiles to NO-SOURCE and produces
+        // no klib, but the publication still expects that artifact, so `publish` dies with
+        // `FileNotFoundException: ethers-abigen-iosArm64Main-<version>.klib`.
+        val jvmOnlyModules = setOf("ethers-abigen", "ethers-signers-gcp")
+        val supportsNative = project.name !in jvmOnlyModules
+
         // Apple targets. These also keep commonMain honest: with only JVM and Android, both JVM-family,
         // `compileCommonMainKotlinMetadata` is skipped and commonMain resolves `java.*` without complaint, so a
         // green build proves nothing about portability. Compiling for a native target is what enforces it.
@@ -68,10 +77,12 @@ pluginManager.withPlugin("org.jetbrains.kotlin.multiplatform") {
         // NOTE: they can only be built on a macOS host - Kotlin/Native cannot cross-compile Apple targets. Any
         // task that reaches them (`build`, `allTests`, an unscoped `ktlintCheck`) therefore fails on Linux, which
         // is why CI splits JVM work onto ubuntu and everything else onto macOS.
-        macosArm64()
-        iosArm64()
-        iosX64()
-        iosSimulatorArm64()
+        if (supportsNative) {
+            macosArm64()
+            iosArm64()
+            iosX64()
+            iosSimulatorArm64()
+        }
 
         // Configure Android library target using the AGP programmatic API
         // (the androidLibrary {} DSL accessor is not available in precompiled script plugins)
@@ -132,16 +143,18 @@ pluginManager.withPlugin("org.jetbrains.kotlin.multiplatform") {
 
             // Intermediate source set shared by every native target, holding the `actual` declarations that
             // cannot live in jvmSharedMain.
-            val nativeMain by creating {
-                dependsOn(commonMain.get())
-            }
-            val nativeTest by creating {
-                dependsOn(commonTest.get())
-            }
+            if (supportsNative) {
+                val nativeMain by creating {
+                    dependsOn(commonMain.get())
+                }
+                val nativeTest by creating {
+                    dependsOn(commonTest.get())
+                }
 
-            listOf("macosArm64", "iosArm64", "iosX64", "iosSimulatorArm64").forEach { target ->
-                named("${target}Main") { dependsOn(nativeMain) }
-                named("${target}Test") { dependsOn(nativeTest) }
+                listOf("macosArm64", "iosArm64", "iosX64", "iosSimulatorArm64").forEach { target ->
+                    named("${target}Main") { dependsOn(nativeMain) }
+                    named("${target}Test") { dependsOn(nativeTest) }
+                }
             }
         }
     }
