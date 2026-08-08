@@ -65,7 +65,7 @@ jobs:
             */build/test-results
 
   native-test:
-    name: native-test (iOS simulator)
+    name: native-test (apple targets)
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7
@@ -101,13 +101,15 @@ jobs:
             build/reports/ktlint
             */build/reports/ktlint
 
-      # One representative Apple target per PR, for turnaround; the scheduled workflow runs the rest.
-      #
-      # iosArm64 and iosX64 are compile-checked rather than tested: the former is a device target with no test
-      # task, and iosX64Test is SKIPPED on an arm64 runner because an x64 simulator binary cannot execute there.
-      - name: Gradle test (iosSimulatorArm64)
+      # Every Apple target, so nothing is published untested. Only two of the four can execute tests:
+      #   - iosArm64 is a device target and has no test task at all
+      #   - iosX64Test is SKIPPED on an arm64 runner, since an x64 simulator binary cannot execute there. It is
+      #     silently skipped rather than failed, so it is compile-checked instead - a green `iosX64Test` would
+      #     mean nothing.
+      - name: Gradle test (Apple targets)
         run: >-
           ./gradlew
+          macosArm64Test
           iosSimulatorArm64Test
           compileTestKotlinIosArm64
           compileTestKotlinIosX64
