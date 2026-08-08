@@ -437,7 +437,11 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             }
 
             if (!blobFeesSet) {
-                call.blobFeeCap(feeHistory.nextBaseFeePerBlobGas)
+                // Blob gas has no priority fee - the base fee is fully burned and the cap only limits what we're
+                // willing to pay, so overshooting is free. Double it for headroom: the blob base fee can keep rising
+                // between now and inclusion, and a blob transaction that ends up underpriced needs a 100% fee bump
+                // to be replaced (unlike the usual 10%), so it's effectively stuck until fees fall back.
+                call.blobFeeCap(feeHistory.nextBaseFeePerBlobGas * BIGINT_TWO)
             }
         }
 
