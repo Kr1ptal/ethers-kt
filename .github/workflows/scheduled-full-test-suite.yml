@@ -1,0 +1,61 @@
+name: Scheduled Full Test Suite
+
+# PR checks run one Apple target for turnaround. This runs every target, so a break confined to macosArm64 is
+# caught within the day rather than at release time.
+on:
+  schedule:
+    - cron: '0 3 * * *'
+
+  workflow_dispatch:
+
+concurrency:
+  group: scheduled-full-test-suite
+  cancel-in-progress: false
+
+jobs:
+  full-test-suite:
+    name: Full Test Suite (all targets)
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/environment-setup
+
+      - name: Cache Kotlin/Native toolchain
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.konan
+            !~/.konan/dependencies/cache
+          key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml') }}
+          restore-keys: konan-${{ runner.os }}-
+
+      # `allTests` runs macosArm64 and iosSimulatorArm64. It also wires in `jvmTest`, which this project disables
+      # in favour of kotest, so `jvmKotest` has to be named separately or the JVM is silently not covered.
+      #
+      # Two targets are compile-only, and `allTests` alone would not say so:
+      #   - iosArm64 is a device target and has no test task at all
+      #   - iosX64Test is SKIPPED on an arm64 runner, since an x64 simulator binary cannot execute there. It is
+      #     silently skipped rather than failed, so do not read a green run as having exercised it.
+      # Both are compile-checked explicitly below.
+      - name: Run all tests
+        run: >-
+          ./gradlew
+          allTests
+          jvmKotest
+          :ethers-abigen-plugin:test
+          compileKotlinIosArm64
+          compileTestKotlinIosX64
+          --no-watch-fs
+          --stacktrace
+
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: report-full-test-suite
+          path: |
+            */build/reports/tests
+            */build/test-results
