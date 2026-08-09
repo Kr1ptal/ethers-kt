@@ -16,6 +16,7 @@ import io.ethers.core.types.Address
 import io.ethers.core.types.BlockId
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.CallRequest
+import io.ethers.core.types.Hash
 import io.ethers.core.unwrapOrReturn
 import io.ethers.ens.EnsResolver.Companion.IPFS_GATEWAY
 import io.ethers.logger.err
@@ -152,6 +153,39 @@ class EnsResolver @JvmOverloads constructor(
         if (uriRes.isFailure()) return uriRes
 
         return matchAvatarUri(uriRes.unwrap(), address)
+    }
+
+    /**
+     * Get the balance of the account [ensName] resolves to, at [blockId].
+     * */
+    fun getBalance(ensName: String, blockId: BlockId): RpcRequest<BigInteger, Error> = SuppliedRpcRequest {
+        val address = resolveAddressInternal(ensName).unwrapOrReturn { return@SuppliedRpcRequest failure(it) }
+        provider.getBalance(address, blockId).send().mapError { Error.RpcCallFailed("eth_getBalance", it) }
+    }
+
+    /**
+     * Get the deployed code of the account [ensName] resolves to, at [blockId].
+     * */
+    fun getCode(ensName: String, blockId: BlockId): RpcRequest<Bytes, Error> = SuppliedRpcRequest {
+        val address = resolveAddressInternal(ensName).unwrapOrReturn { return@SuppliedRpcRequest failure(it) }
+        provider.getCode(address, blockId).send().mapError { Error.RpcCallFailed("eth_getCode", it) }
+    }
+
+    /**
+     * Get the transaction count of the account [ensName] resolves to, at [blockId].
+     * */
+    fun getTransactionCount(ensName: String, blockId: BlockId): RpcRequest<Long, Error> = SuppliedRpcRequest {
+        val address = resolveAddressInternal(ensName).unwrapOrReturn { return@SuppliedRpcRequest failure(it) }
+        provider.getTransactionCount(address, blockId).send()
+            .mapError { Error.RpcCallFailed("eth_getTransactionCount", it) }
+    }
+
+    /**
+     * Get the storage value at [key] of the account [ensName] resolves to, at [blockId].
+     * */
+    fun getStorage(ensName: String, key: Hash, blockId: BlockId): RpcRequest<Hash, Error> = SuppliedRpcRequest {
+        val address = resolveAddressInternal(ensName).unwrapOrReturn { return@SuppliedRpcRequest failure(it) }
+        provider.getStorage(address, key, blockId).send().mapError { Error.RpcCallFailed("eth_getStorage", it) }
     }
 
     /**
@@ -751,6 +785,17 @@ class EnsResolver @JvmOverloads constructor(
          * The owner of ENS name is incorrect
          */
         data class IncorrectOwner(override val message: String) : Error()
+
+        /**
+         * The ENS name resolved successfully, but the RPC call made against the resolved address failed.
+         */
+        data class RpcCallFailed(
+            val method: String,
+            val error: RpcError,
+        ) : Error() {
+            override val message get() = "RPC call '$method' failed after resolving the ENS name"
+            override val cause get() = error.toException()
+        }
 
         // Avatar specific errors
 
