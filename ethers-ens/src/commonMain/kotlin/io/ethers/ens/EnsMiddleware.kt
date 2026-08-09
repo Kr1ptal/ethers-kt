@@ -1,5 +1,7 @@
 package io.ethers.ens
 
+import io.ethers.core.Result
+import io.ethers.core.failure
 import io.ethers.core.success
 import io.ethers.core.types.BlockId
 import io.ethers.core.types.BlockOverride
@@ -10,10 +12,15 @@ import io.ethers.core.types.IntoCallRequest
 import io.ethers.core.types.StateOverride
 import io.ethers.core.types.tracers.TracerConfig
 import io.ethers.core.types.transaction.TransactionUnsigned
+import io.ethers.core.unwrapOrReturn
 import io.ethers.providers.RpcError
 import io.ethers.providers.middleware.Middleware
+import io.ethers.providers.types.CallFailedError
 import io.ethers.providers.types.RpcRequest
 import io.ethers.providers.types.SuppliedRpcRequest
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 
 /**
  * A [Middleware] layer that accepts an [EnsCallRequest] anywhere a call request is expected, resolves its ENS
@@ -30,8 +37,8 @@ import io.ethers.providers.types.SuppliedRpcRequest
  * [RpcError] with code [CODE_ENS_RESOLUTION_FAILED] and the typed [EnsResolver.Error] as their cause. Use [ens]
  * directly when you need the typed error.
  *
- * Note that [callMany] does not resolve ENS names: it takes a list of call requests, and resolving each element
- * is not yet supported. Resolve the names up front with [ens] and pass plain call requests instead.
+ * The batch methods [callMany] and [traceCallMany] resolve every name in the list concurrently, and a name that
+ * cannot be resolved fails the whole batch rather than being reported as a single failed entry.
  * */
 class EnsMiddleware(
     override val inner: Middleware,
@@ -163,6 +170,101 @@ class EnsMiddleware(
     override fun <T : Any> traceCall(call: IntoCallRequest, blockNumber: Long, config: TracerConfig<T>) = traceCall(call, BlockId.Number(blockNumber), config)
 
     override fun <T : Any> traceCall(call: IntoCallRequest, blockHash: Hash, config: TracerConfig<T>) = traceCall(call, BlockId.Hash(blockHash), config)
+
+    /**
+     * Resolve the recipient of every [EnsCallRequest] in [calls], leaving the other entries untouched and
+     * preserving order.
+     *
+     * Names are resolved concurrently: a batch exists to save round trips, and resolving N names one after
+     * another in front of it would cost more than it saves.
+     *
+     * A name that cannot be resolved fails the whole batch. Per-entry failures would have to be reported as
+     * [CallFailedError], which carries only a string and would make an unresolvable name indistinguishable from
+     * a reverted call - an unresolvable name is bad input, not an execution result.
+     * */
+    private suspend fun resolveRecipients(calls: List<IntoCallRequest>): Result<List<IntoCallRequest>, RpcError> {
+        if (calls.none { it is EnsCallRequest }) {
+            return success(calls)
+        }
+
+        val resolved = coroutineScope {
+            calls.map { call ->
+                async {
+                    if (call is EnsCallRequest) resolveRecipient(call).send() else success(call)
+                }
+            }.awaitAll()
+        }
+
+        val out = ArrayList<IntoCallRequest>(calls.size)
+        for (result in resolved) {
+            out.add(result.unwrapOrReturn { return failure(it) })
+        }
+
+        return success(out)
+    }
+
+    override fun callMany(
+        blockId: BlockId,
+        calls: List<IntoCallRequest>,
+        transactionIndex: Int,
+        stateOverride: StateOverride?,
+        blockOverride: BlockOverride?,
+    ): RpcRequest<List<Result<Bytes, CallFailedError>>, RpcError> {
+        if (calls.none { it is EnsCallRequest }) {
+            return inner.callMany(blockId, calls, transactionIndex, stateOverride, blockOverride)
+        }
+
+        return SuppliedRpcRequest {
+            val resolved = resolveRecipients(calls).unwrapOrReturn { return@SuppliedRpcRequest failure(it) }
+            inner.callMany(blockId, resolved, transactionIndex, stateOverride, blockOverride).send()
+        }
+    }
+
+    override fun callMany(
+        blockNumber: Long,
+        calls: List<IntoCallRequest>,
+        transactionIndex: Int,
+        stateOverride: StateOverride?,
+        blockOverride: BlockOverride?,
+    ) = callMany(BlockId.Number(blockNumber), calls, transactionIndex, stateOverride, blockOverride)
+
+    override fun callMany(
+        blockHash: Hash,
+        calls: List<IntoCallRequest>,
+        transactionIndex: Int,
+        stateOverride: StateOverride?,
+        blockOverride: BlockOverride?,
+    ) = callMany(BlockId.Hash(blockHash), calls, transactionIndex, stateOverride, blockOverride)
+
+    override fun <T : Any> traceCallMany(
+        blockId: BlockId,
+        calls: List<IntoCallRequest>,
+        config: TracerConfig<T>,
+        transactionIndex: Int,
+    ): RpcRequest<List<T>, RpcError> {
+        if (calls.none { it is EnsCallRequest }) {
+            return inner.traceCallMany(blockId, calls, config, transactionIndex)
+        }
+
+        return SuppliedRpcRequest {
+            val resolved = resolveRecipients(calls).unwrapOrReturn { return@SuppliedRpcRequest failure(it) }
+            inner.traceCallMany(blockId, resolved, config, transactionIndex).send()
+        }
+    }
+
+    override fun <T : Any> traceCallMany(
+        blockNumber: Long,
+        calls: List<IntoCallRequest>,
+        config: TracerConfig<T>,
+        transactionIndex: Int,
+    ) = traceCallMany(BlockId.Number(blockNumber), calls, config, transactionIndex)
+
+    override fun <T : Any> traceCallMany(
+        blockHash: Hash,
+        calls: List<IntoCallRequest>,
+        config: TracerConfig<T>,
+        transactionIndex: Int,
+    ) = traceCallMany(BlockId.Hash(blockHash), calls, config, transactionIndex)
 
     companion object {
         /**

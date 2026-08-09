@@ -57,15 +57,19 @@ CallRequest().data(callData).toEns("vitalik.eth")            // wrap an existing
 There is deliberately no `to(Address)` builder — the recipient of an `EnsCallRequest` is always its ENS name. Use
 a plain `CallRequest` to target a raw address.
 
-Supported on `call`, `estimateGas`, `createAccessList`, `fillTransaction` and `traceCall`. Requests that are not
-an `EnsCallRequest` pass through untouched.
+Supported on `call`, `estimateGas`, `createAccessList`, `fillTransaction`, `traceCall`, `callMany` and
+`traceCallMany`. Requests that are not an `EnsCallRequest` pass through untouched.
 
 Two things to know:
 
 - `Middleware` fixes the error type to `RpcError`, so an ENS failure arrives as an `RpcError` with code
   `EnsMiddleware.CODE_ENS_RESOLUTION_FAILED` and the typed `EnsResolver.Error` as its `cause`. Reach for
   `EnsResolver` directly when you need the typed error.
-- `callMany` does not resolve names. Resolve them up front and pass plain call requests.
+- In the batch methods (`callMany`, `traceCallMany`) every name resolves concurrently — a batch exists to save
+  round trips, and resolving names one after another in front of it would cost more than it saves. A name that
+  cannot be resolved fails the **whole batch**, rather than becoming one failed entry: per-entry failures are
+  reported as `CallFailedError`, which carries only a string, and an unresolvable name is bad input rather than
+  an execution result.
 
 Passing an `EnsCallRequest` to a provider that is not wrapped in `EnsMiddleware` throws an `IllegalStateException`
 naming the fix, rather than silently sending a call with no recipient.

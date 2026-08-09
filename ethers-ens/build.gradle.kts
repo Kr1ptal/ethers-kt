@@ -27,6 +27,7 @@ kotlin {
 
                 implementation(project(":logger"))
                 implementation(libs.kotlinx.atomicfu)
+                implementation(libs.kotlinx.coroutines.core)
             }
         }
 
