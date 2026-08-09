@@ -92,13 +92,24 @@ class EnsCallRequestTest : FunSpec({
             .gas(21000L)
             .toEns("vitalik.eth")
 
-        call.toEnsName shouldBe "vitalik.eth"
+        call.toEns shouldBe "vitalik.eth"
 
         val resolvedCall = call.resolveTo(resolved)
         resolvedCall.to shouldBe resolved
         resolvedCall.from shouldBe from
         resolvedCall.data shouldBe Bytes("0x1234")
         resolvedCall.gas shouldBe 21000L
+    }
+
+    test("resolveTo copies, so the builder lambda's request is not aliased into the dispatched call") {
+        val call = EnsCallRequest("vitalik.eth") { data = Bytes("0x1234") }
+        val first = Address("0x0000000000000000000000000000000000000001")
+
+        val resolved = call.resolveTo(first)
+        resolved.data = Bytes("0xffff")
+
+        // mutating a resolved request must not reach back into the EnsCallRequest
+        call.resolveTo(first).data shouldBe Bytes("0x1234")
     }
 
     test("toEns copies, so mutating the source afterwards does not leak into the wrapper") {

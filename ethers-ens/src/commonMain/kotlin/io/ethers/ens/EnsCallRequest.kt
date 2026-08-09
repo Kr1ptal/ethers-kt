@@ -7,7 +7,6 @@ import io.ethers.core.types.CallRequest
 import io.ethers.core.types.Hash
 import io.ethers.core.types.IntoCallRequest
 import io.github.artificialpb.bignum.BigInteger
-import kotlin.jvm.JvmOverloads
 
 /**
  * A call request whose recipient is an ENS name that has not been resolved yet.
@@ -35,16 +34,23 @@ import kotlin.jvm.JvmOverloads
  * Passing one to a plain [io.ethers.providers.Provider] throws from [toCallRequest] rather than silently
  * producing a call with no recipient.
  * */
-class EnsCallRequest @JvmOverloads constructor(
-    val toEnsName: String,
-    request: CallRequest = CallRequest(),
-) : IntoCallRequest {
-    // defensive copy - callers must not be able to mutate the request after it has been handed over
-    private val request = CallRequest(request)
+class EnsCallRequest : IntoCallRequest {
+    val toEns: String
+    private val request: CallRequest
+
+    constructor(toEns: String, request: CallRequest) {
+        this.toEns = toEns
+        this.request = CallRequest(request)
+    }
+
+    constructor(toEns: String) {
+        this.toEns = toEns
+        this.request = CallRequest()
+    }
 
     override fun toCallRequest(): CallRequest {
         throw IllegalStateException(
-            "Call to ENS name '$toEnsName' reached a provider that cannot resolve it. " +
+            "Call to ENS name '$toEns' reached a provider that cannot resolve it. " +
                 "Wrap your provider in EnsMiddleware: EnsMiddleware(provider).",
         )
     }
@@ -75,14 +81,18 @@ class EnsCallRequest @JvmOverloads constructor(
         request.blobVersionedHashes = blobVersionedHashes
     }
 
-    override fun toString(): String = "EnsCallRequest(toEnsName=$toEnsName, request=$request)"
+    override fun toString(): String = "EnsCallRequest(toEns=$toEns, request=$request)"
 
     companion object {
         /**
          * Build an [EnsCallRequest] for [ensName], configuring the underlying request with [builder].
          * */
-        inline operator fun invoke(ensName: String, builder: CallRequest.() -> Unit): EnsCallRequest {
-            return EnsCallRequest(ensName, CallRequest().apply(builder))
+        operator fun invoke(ensName: String, builder: CallRequest.() -> Unit): EnsCallRequest {
+            // configure the request in place rather than building one and handing it to the copying constructor -
+            // nothing else holds a reference to it, so there is nothing to defend against
+            val call = EnsCallRequest(ensName)
+            call.request.builder()
+            return call
         }
     }
 }

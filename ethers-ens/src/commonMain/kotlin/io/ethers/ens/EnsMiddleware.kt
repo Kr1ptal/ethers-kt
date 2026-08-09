@@ -54,11 +54,11 @@ class EnsMiddleware(
             return SuppliedRpcRequest { success(call) }
         }
 
-        return ens.resolveAddress(call.toEnsName)
+        return ens.resolveAddress(call.toEns)
             .mapError { error ->
                 RpcError(
                     CODE_ENS_RESOLUTION_FAILED,
-                    "Failed to resolve ENS name '${call.toEnsName}': ${error.message}",
+                    "Failed to resolve ENS name '${call.toEns}': ${error.message}",
                     null,
                     error.toException(),
                 )
