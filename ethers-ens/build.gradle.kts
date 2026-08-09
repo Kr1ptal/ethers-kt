@@ -26,6 +26,7 @@ kotlin {
                 api(libs.bignumkt)
 
                 implementation(project(":logger"))
+                implementation(libs.kotlinx.atomicfu)
             }
         }
 

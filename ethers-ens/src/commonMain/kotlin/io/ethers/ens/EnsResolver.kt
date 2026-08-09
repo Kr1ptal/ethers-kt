@@ -45,6 +45,7 @@ class EnsResolver @JvmOverloads constructor(
     private val registryAddress: Address,
     private val ccipLookupLimit: Int = 4,
     private val httpClient: KtorHttpClient = RpcClientConfig().client!!,
+    private val cache: EnsNameCache = EnsNameCache(),
 ) {
     private val LOG = getLogger()
     private val registryContract = EnsRegistry(provider, registryAddress)
@@ -54,11 +55,13 @@ class EnsResolver @JvmOverloads constructor(
         provider: Middleware,
         ccipLookupLimit: Int = 4,
         client: KtorHttpClient = RpcClientConfig().client!!,
+        cache: EnsNameCache = EnsNameCache(),
     ) : this(
         provider,
         getRegistryAddressOrThrow(provider.chainId),
         ccipLookupLimit,
         client,
+        cache,
     )
 
     /**
@@ -73,10 +76,16 @@ class EnsResolver @JvmOverloads constructor(
     }
 
     private suspend fun resolveAddressInternal(ensName: String): Result<Address, Error> {
+        cache.get(ensName)?.let { return success(it) }
+
         return resolveWithParameters(
             ensName,
             ExtendedResolver.FUNCTION_ADDR,
         ).map { AbiCodec.decode(AbiType.Address, it.asByteArray()) }
+            .andThen { address ->
+                cache.put(ensName, address)
+                success(address)
+            }
     }
 
     /**
