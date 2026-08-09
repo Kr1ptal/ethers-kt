@@ -3,28 +3,15 @@
 <p style="text-align: center;"> <b>ethers-kt</b> is an async, high-performance Kotlin Multiplatform library for
 interacting with EVM-based blockchains. It targets <b>JVM</b>, <b>Android</b>, <b>iOS</b> and <b>macOS</b>. </p>
 
-## Supported platforms
-
-| Target | Notes |
-|---|---|
-| `jvm` | Java 11 bytecode |
-| `android` | `minSdk 24` |
-| `iosArm64` | device |
-| `iosX64`, `iosSimulatorArm64` | simulator |
-| `macosArm64` | |
-
-Everything except `ethers-abigen` and `ethers-signers-gcp` is available on every target. Those two are JVM-only by
-nature — the first is build-time code generation, the second wraps the Google Cloud KMS client.
-
 ## Features:
 
 - **High Performance**: Optimized types and code to minimize the number of allocations and copying.
 
 - **Clean Abstractions**: Intuitive, extensible, and easy to use.
 
-- **Async**: RPC calls are coroutine-based — `send()` suspends rather than blocking. On JVM and Android you also
-  get blocking (`sendAwait`) and `CompletableFuture` (`sendAsync`) variants as inherited members, so Java callers
-  need no wrapping.
+- **Async**: RPC calls are coroutine-based — `send()` suspends rather than blocking. On JVM and Android you also get
+  blocking (`sendAwait`) and `CompletableFuture` (`sendAsync`) variants as inherited members, so Java callers need no
+  wrapping.
 
 - **Safe**: RPC calls return an error object in case of failure, instead of throwing an exception.
 
@@ -37,6 +24,19 @@ nature — the first is build-time code generation, the second wraps the Google 
     - **Batch JSON-RPC**: RPC calls can be batched together in a single request, reducing the number of round trips to
       the server.
     - **Multicall**: Aggregate multiple smart contract calls into a single call via `Multicall3` contract.
+
+## Supported platforms
+
+| Target                        | Notes            |
+|-------------------------------|------------------|
+| `jvm`                         | Java 11 bytecode |
+| `android`                     | `minSdk 24`      |
+| `iosArm64`                    | device           |
+| `iosX64`, `iosSimulatorArm64` | simulator        |
+| `macosArm64`                  |                  |
+
+Everything except `ethers-abigen` and `ethers-signers-gcp` is available on every target. Those two are JVM-only by
+nature — the first is build-time code generation, the second wraps the Google Cloud KMS client.
 
 ## 🚀 Quickstart
 
@@ -142,8 +142,8 @@ a more in-depth explanation, please refer to the individual module's *README.md*
 - **[crypto][crypto-module]**: Includes cryptographic utilities for signing and verifying **ECDSA** signatures on the
   **secp256k1** curve.
 
-- **[ens][ens-module]**: Full support for **ENS** names and avatars, with wildcard resolution and offchain
-  resolution via CCIP-Read. `EnsResolver` resolves explicitly with typed errors, while `EnsMiddleware` is a
+- **[ens][ens-module]**: Full support for **ENS** names and avatars, with wildcard resolution and offchain resolution
+  via CCIP-Read. `EnsResolver` resolves explicitly with typed errors, while `EnsMiddleware` is a
   `Middleware` layer that accepts an ENS name anywhere a call request is expected.
 
 - **[providers][providers-module]**: Logic for interacting with **JSON-RPC API** using various transports (**HTTP**,
@@ -151,8 +151,8 @@ a more in-depth explanation, please refer to the individual module's *README.md*
 
 - **[rlp][rlp-module]**: Handles the encoding and decoding of RLP.
 
-- **[signers][signers-module]**: Code for transaction/message signing, allowing multiple signing key
-  sources: `hardware wallet`, `mnemonic` or `raw private key`.
+- **[signers][signers-module]**: Code for transaction/message signing, allowing multiple signing key sources:
+  `hardware wallet`, `mnemonic` or `raw private key`.
 
 - **[signers-gcp][signers-gcp-module]**: Signer backed by **Google Cloud KMS**. JVM-only.
 
@@ -169,15 +169,15 @@ Before submitting a PR make sure to format the code and run all checks using the
 ./gradlew ktlintFormat check
 ```
 
-`check` builds and tests the Apple targets too, and Kotlin/Native cannot cross-compile those, so the command above
-only completes on a **macOS** host. On Linux or Windows, run the JVM and Android half and let CI cover the rest:
+`check` builds and tests the Apple targets too, and Kotlin/Native cannot cross-compile those, so the command above only
+completes on a **macOS** host. On Linux or Windows, run the JVM and Android half and let CI cover the rest:
 
 ```shell
 ./gradlew jvmKotest :ethers-abigen-plugin:test
 ```
 
-Formatting is source-set scoped there as well — see the `java-test` job
-in [`pull-request-checks.yml`][pr-checks-workflow] for the exact task list CI uses on Linux.
+Formatting is source-set scoped there as well — see the `java-test` job in [
+`pull-request-checks.yml`][pr-checks-workflow] for the exact task list CI uses on Linux.
 
 ## Need help❓
 
