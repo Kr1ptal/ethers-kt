@@ -6,8 +6,10 @@ Abstracts the transaction and messages signing process, allowing multiple signin
 - `mnemonic` or
 - `raw private key`.
 
-Currently `raw private key` signer is supported. Functionality can be easily extended to other sources by implementing
-the `Signer` interface.
+`PrivateKeySigner` covers the raw-private-key case, and `MnemonicKeySource` derives keys from a BIP-39 seed
+phrase. A Google Cloud KMS-backed signer lives in the separate, JVM-only `ethers-signers-gcp` module.
+Functionality can be easily extended to other sources by implementing the `Signer` interface - the only member
+you have to provide is `signHash`.
 
 ## 💻 Code Examples
 
@@ -17,7 +19,7 @@ the `Signer` interface.
     val privateKey = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
     val signer = PrivateKeySigner(privateKey)
     
-    val messageToSign = "ethers-signers".toByteArray()
+    val messageToSign = "ethers-signers".encodeToByteArray()
     val signature = signer.signMessage(messageToSign)
     val recoveredAddress = signature.recoverFromMessage(messageToSign)
     ```
@@ -42,5 +44,5 @@ the `Signer` interface.
     val signature = signer.signTransaction(transactionToSign)
     ```
 
-Other signing examples can be found in [tests](src/test/kotlin/io/ethers/signers).
+Other signing examples can be found in [tests](src/commonTest/kotlin/io/ethers/signers).
 

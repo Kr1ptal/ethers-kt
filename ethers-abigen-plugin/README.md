@@ -7,6 +7,11 @@ in `generated/source/ethers/main/kotlin`.
 File directory structure for `directorySource` is used as package structure,
 e.g. `src/main/abi/io/ethers/erc20/ERC20.json` will be generated as `io.ethers.erc20.ERC20`.
 
+The generated code is registered as a source directory on the project's own Kotlin source set. In a Kotlin
+Multiplatform project that is `commonMain`, so the wrappers are visible to every target; in a plain JVM or Android
+project it is `main`. `directorySource` is a plain path and is unaffected either way - point it wherever you keep
+the ABI files.
+
 It supports the following configuration options:
 
 ```kotlin

@@ -1,17 +1,20 @@
 # ethers-core
 
 Contains core data types for interacting with EVM-based blockchains. It also includes a highly optimized `FastHex`
-hexadecimal codec implementation and serialization/deserialization utility
-functions (`Jackson`, `JsonParserExtensions`).
+hexadecimal codec implementation and the `kotlinx.serialization` glue used to (de)serialize JSON-RPC payloads.
 
-When implementing a new data structure make sure to implement custom serializer/deserializer for it. For example, see
-the [Address](src/main/kotlin/io/ethers/core/types/Address.kt) class. If the data type is expect to be
-only received by the library, then only a deserializer is required.
+When implementing a new data structure make sure to annotate it with `@Serializable` and give it a custom
+`KSerializer` where the wire format is not the default one. For example, see
+the [Address](src/commonMain/kotlin/io/ethers/core/types/Address.kt) class. If the data type is expected to be
+only received by the library, then only deserialization needs to be correct.
 
-For working with JSON data, use the JsonMapper instance defined in [Jackson](src/main/kotlin/io/ethers/core/Jackson.kt).
-Additionally, there exists a set of pre-developed extension functions for `JsonParser`, simplifying the process of
-working with JSON data. These can be found
-in [JsonParserExtensions](src/main/kotlin/io/ethers/core/JsonParserExtensions.kt).
+For working with JSON data, use the shared `Json` instance defined
+in [Kotlinx](src/commonMain/kotlin/io/ethers/core/Kotlinx.kt). Ethereum encodes most scalars as 0x-prefixed hex
+strings rather than JSON numbers, so field-level serializers for those live
+in [HexSerializers](src/commonMain/kotlin/io/ethers/core/HexSerializers.kt) - annotate a field
+with `@Serializable(with = HexLongSerializer::class)` and it round-trips as a quantity. There is also a set of
+extension functions for reading values straight off a `JsonElement`,
+in [JsonElementExtensions](src/commonMain/kotlin/io/ethers/core/JsonElementExtensions.kt).
 
 ## 🧱 Transaction types
 
@@ -47,6 +50,10 @@ The structure of transactions is defined by the following hierarchy:
       in [EIP-2930](https://eips.ethereum.org/EIPS/eip-2930).
     - `TxDynamicFee` - A **Dynamic Fee Transaction** type introduced in Ethereum's London fork
       through [EIP-1559](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-1559.md).
+    - `TxBlob` - A **Blob Transaction** type introduced in Ethereum's Cancun fork
+      through [EIP-4844](https://eips.ethereum.org/EIPS/eip-4844).
+    - `TxSetCode` - A **Set Code Transaction** type introduced in Ethereum's Prague fork
+      through [EIP-7702](https://eips.ethereum.org/EIPS/eip-7702).
 
 - `TransactionRecovered` contains the recovered `from` address and transaction `hash` fields, without the signature.
 
@@ -58,7 +65,7 @@ The structure of transactions is defined by the following hierarchy:
 - Use FastHex to encode and decode string with and without prefix.
 
     ```kotlin
-    val bytes = "ethers-core".toByteArray()
+    val bytes = "ethers-core".encodeToByteArray()
     
     val hexWithPrefix = FastHex.encodeWithPrefix(bytes)
     val hexWithoutPrefix = FastHex.encodeWithoutPrefix(bytes)
@@ -69,7 +76,7 @@ The structure of transactions is defined by the following hierarchy:
 - Decode raw transaction:
 
     ```kotlin
-    val tx = TransactionSigned.rlpDecode(Bytes("0x12412433525432deadbeef").value)
+    val tx = TransactionSigned.rlpDecode(Bytes("0x12412433525432deadbeef").asByteArray())
     ```
 
 - Create and sign transaction (need to import `ethers-crypto` module):
@@ -86,7 +93,7 @@ The structure of transactions is defined by the following hierarchy:
         gasTipCap = "21000000000".toBigInteger(),
         data = Bytes("0x1214abcdef12445980"),
         chainId = 1L,
-        accessList = null,
+        accessList = emptyList(),
     )
     
     val signed = unsigned.sign(signer)
@@ -101,10 +108,10 @@ The structure of transactions is defined by the following hierarchy:
     val nonce = 2L
     val computedCreateAddress = Address.computeCreate(sender, nonce)
     
-    val salt = "ethers-core".padStart(64, '0').toByteArray()
+    val salt = "ethers-core".padStart(64, '0').encodeToByteArray()
     val initCodeHash = Hashing.keccak256("deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadabcd".hexToByteArray())
     val computedCreate2Address = Address.computeCreate2(sender, salt, initCodeHash)
     ```
 
-Additional examples can be found in [tests](src/test/kotlin/io/ethers/core).
+Additional examples can be found in [tests](src/commonTest/kotlin/io/ethers/core).
 

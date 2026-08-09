@@ -1,7 +1,20 @@
 # <h1 align="center"> ethers-kt </h1>
 
-<p style="text-align: center;"> <b>ethers-kt</b> is an async, high-performance Kotlin library for interacting with
-EVM-based blockchains. It targets <b>JVM</b> and <b>Android</b> platforms. </p>
+<p style="text-align: center;"> <b>ethers-kt</b> is an async, high-performance Kotlin Multiplatform library for
+interacting with EVM-based blockchains. It targets <b>JVM</b>, <b>Android</b>, <b>iOS</b> and <b>macOS</b>. </p>
+
+## Supported platforms
+
+| Target | Notes |
+|---|---|
+| `jvm` | Java 11 bytecode |
+| `android` | `minSdk 24` |
+| `iosArm64` | device |
+| `iosX64`, `iosSimulatorArm64` | simulator |
+| `macosArm64` | |
+
+Everything except `ethers-abigen` and `ethers-signers-gcp` is available on every target. Those two are JVM-only by
+nature — the first is build-time code generation, the second wraps the Google Cloud KMS client.
 
 ## Features:
 
@@ -9,7 +22,9 @@ EVM-based blockchains. It targets <b>JVM</b> and <b>Android</b> platforms. </p>
 
 - **Clean Abstractions**: Intuitive, extensible, and easy to use.
 
-- **Async**: RPC requests are async by default, with helper functions for awaiting results.
+- **Async**: RPC calls are coroutine-based — `send()` suspends rather than blocking. On JVM and Android you also
+  get blocking (`sendAwait`) and `CompletableFuture` (`sendAsync`) variants as inherited members, so Java callers
+  need no wrapping.
 
 - **Safe**: RPC calls return an error object in case of failure, instead of throwing an exception.
 
@@ -61,6 +76,23 @@ dependencies {
 }
 ```
 
+In a multiplatform project, add the artifacts to `commonMain` instead:
+
+```kotlin
+kotlin {
+    sourceSets {
+        commonMain.dependencies {
+            implementation(project.dependencies.platform("io.kriptal.ethers:ethers-bom:2.0.0"))
+
+            implementation("io.kriptal.ethers:ethers-abi")
+            implementation("io.kriptal.ethers:ethers-core")
+            implementation("io.kriptal.ethers:ethers-providers")
+            implementation("io.kriptal.ethers:ethers-signers")
+        }
+    }
+}
+```
+
 To interact with the chain, you need to create a `Provider` instance, which is the main entry point for all RPC calls.
 
 ```kotlin
@@ -73,6 +105,22 @@ println("Starting at block $startBlockNum")
 
 // subscribe to new blocks, blocking the calling thread. Use "forEachAsync" to stream without blocking the caller.
 provider.subscribeNewHeads().sendAwait().unwrap().forEach {
+    println("New Block: ${it.number}, ${it.number - startBlockNum} blocks since start")
+}
+```
+
+`buildAwait` and `sendAwait` block the calling thread and exist only on JVM and Android. From common code — or any
+coroutine — use the suspending `build()` and `send()` instead:
+
+```kotlin
+val provider = Provider.builder("<WS_URL>").build().unwrap()
+
+val startBlockNum = provider.getBlockNumber().send().unwrap()
+println("Starting at block $startBlockNum")
+
+// "forEach" consumes on the calling thread on every platform. Its non-blocking counterpart, "forEachAsync",
+// is JVM/Android-only - from common code, run this on a dispatcher of your choosing.
+provider.subscribeNewHeads().send().unwrap().forEach {
     println("New Block: ${it.number}, ${it.number - startBlockNum} blocks since start")
 }
 ```
@@ -94,8 +142,9 @@ a more in-depth explanation, please refer to the individual module's *README.md*
 - **[crypto][crypto-module]**: Includes cryptographic utilities for signing and verifying **ECDSA** signatures on the
   **secp256k1** curve.
 
-- **[ens][ens-module]**: Full support for **ENS** names and avatars, with wildcard resolution and offchain resolution
-  via CCIP-Read.
+- **[ens][ens-module]**: Full support for **ENS** names and avatars, with wildcard resolution and offchain
+  resolution via CCIP-Read. `EnsResolver` resolves explicitly with typed errors, while `EnsMiddleware` is a
+  `Middleware` layer that accepts an ENS name anywhere a call request is expected.
 
 - **[providers][providers-module]**: Logic for interacting with **JSON-RPC API** using various transports (**HTTP**,
   **WebSocket**).
@@ -104,6 +153,10 @@ a more in-depth explanation, please refer to the individual module's *README.md*
 
 - **[signers][signers-module]**: Code for transaction/message signing, allowing multiple signing key
   sources: `hardware wallet`, `mnemonic` or `raw private key`.
+
+- **[signers-gcp][signers-gcp-module]**: Signer backed by **Google Cloud KMS**. JVM-only.
+
+- **[logger][logger-module]**: Lightweight logging facade used across the other modules.
 
 ## 🙋‍♂️ Contributing
 
@@ -115,6 +168,16 @@ Before submitting a PR make sure to format the code and run all checks using the
 ```shell
 ./gradlew ktlintFormat check
 ```
+
+`check` builds and tests the Apple targets too, and Kotlin/Native cannot cross-compile those, so the command above
+only completes on a **macOS** host. On Linux or Windows, run the JVM and Android half and let CI cover the rest:
+
+```shell
+./gradlew jvmKotest :ethers-abigen-plugin:test
+```
+
+Formatting is source-set scoped there as well — see the `java-test` job
+in [`pull-request-checks.yml`][pr-checks-workflow] for the exact task list CI uses on Linux.
 
 ## Need help❓
 
@@ -136,6 +199,8 @@ This library has been made possible thanks to the inspiration provided by the fo
 
 [contributing-md]: https://github.com/Kr1ptal/ethers-kt/blob/master/CONTRIBUTING.md
 
+[pr-checks-workflow]: https://github.com/Kr1ptal/ethers-kt/blob/master/.github/workflows/pull-request-checks.yml
+
 [abi-module]: https://github.com/Kr1ptal/ethers-kt/blob/master/ethers-abi/
 
 [abigen-module]: https://github.com/Kr1ptal/ethers-kt/blob/master/ethers-abigen/
@@ -153,3 +218,7 @@ This library has been made possible thanks to the inspiration provided by the fo
 [rlp-module]: https://github.com/Kr1ptal/ethers-kt/blob/master/ethers-rlp/
 
 [signers-module]: https://github.com/Kr1ptal/ethers-kt/blob/master/ethers-signers/
+
+[signers-gcp-module]: https://github.com/Kr1ptal/ethers-kt/blob/master/ethers-signers-gcp/
+
+[logger-module]: https://github.com/Kr1ptal/ethers-kt/blob/master/logger/

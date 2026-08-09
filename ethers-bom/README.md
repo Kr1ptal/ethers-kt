@@ -6,13 +6,13 @@ each other.
 ```kotlin
 dependencies {
     // Define a BOM and its version
-    implementation(platform("io.ethers:ethers-bom:0.1.0"))
+    implementation(platform("io.kriptal.ethers:ethers-bom:2.0.0"))
 
     // Define any required artifacts without version
-    implementation("io.ethers:ethers-abi")
-    implementation("io.ethers:ethers-core")
-    implementation("io.ethers:ethers-providers")
-    implementation("io.ethers:ethers-signers")
+    implementation("io.kriptal.ethers:ethers-abi")
+    implementation("io.kriptal.ethers:ethers-core")
+    implementation("io.kriptal.ethers:ethers-providers")
+    implementation("io.kriptal.ethers:ethers-signers")
 }
 ```
 

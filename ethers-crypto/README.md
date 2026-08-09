@@ -11,8 +11,8 @@ curve.
     ```kotlin
     val messageToHash = "ethers-crypto"
     
-    val dataHash = Hashing.keccak256(messageToHash.toByteArray())
-    val msgHash = Hashing.hashMessage(messageToHash.toByteArray())
+    val dataHash = Hashing.keccak256(messageToHash.encodeToByteArray())
+    val msgHash = Hashing.hashMessage(messageToHash.encodeToByteArray())
     ```
 
 - Use the `Secp256k1.SigningKey` to derive the address from a public key, sign a hash, recover the public key from the
@@ -25,17 +25,15 @@ curve.
   val address = Secp256k1.publicKeyToAddress(signingKey.publicKey)
 
   val messageToSign = "ethers-crypto"
-  val messageHash = Hashing.hashMessage(messageToSign.toByteArray())
+  val messageHash = Hashing.hashMessage(messageToSign.encodeToByteArray())
   val signature = signingKey.signHash(messageHash)
 
   val recoveredPublicKey = Secp256k1.recoverPublicKey(
       messageHash,
-      signature[0], // r
-      signature[1], // s
-      signature[2].toLong() // v 
+      signature.r,
+      signature.s,
+      signature.v,
   )
   ```
 
-Alternative usages can be found in [tests](src/test/kotlin/io/ethers/crypto).
-
-[ecdsa-recoverable-source]: src/main/kotlin/io/ethers/crypto/ECDSASignerRecoverable.kt
+Alternative usages can be found in [tests](src/commonTest/kotlin/io/ethers/crypto).

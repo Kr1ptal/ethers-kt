@@ -6,6 +6,9 @@ and [CCIP-Read offchain resolution (ERC-3668)](https://eips.ethereum.org/EIPS/ei
 
 The module has two entry points.
 
+The snippets below use the blocking `buildAwait`/`sendAwait` terminals, which exist only on JVM and Android. From
+common code, or from any coroutine, call the suspending `build()`/`send()` instead - everything else is identical.
+
 ## `EnsResolver` — explicit resolution
 
 Use this when you want to resolve something and care about *why* it failed. Errors are typed as

@@ -41,7 +41,7 @@ be changed by the consumer.
 - Generate contract wrappers from JSON-ABI file:
   ```kotlin
   val file = File("src/main/abi/TestContract.json")
-  val abi = JsonAbiReaderRegistry.readAbi(file.toURI().toURL()) ?: throw Exception("Failed to read ABI")
+  val abi = JsonAbiReaderRegistry.readAbiOrNull(file.toURI().toURL()) ?: throw Exception("Failed to read ABI")
   
   AbiContractBuilder(
       contractName = file.nameWithoutExtension,
