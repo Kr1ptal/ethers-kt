@@ -18,6 +18,144 @@ Sections:
 ### Security = Security patches.
 -->
 
+## [2.0.0] - 2026-08-08
+
+ethers-kt is now a Kotlin Multiplatform library. Where 1.x was a JVM library that happened to build for Android,
+2.0 publishes JVM, Android and Apple native artifacts from a single common codebase.
+
+Reaching that meant replacing every JVM-only dependency and API in the shared code, so this release carries a large
+number of breaking changes. Most JVM consumers can migrate mechanically; the sections below list what moved.
+
+### Supported targets
+
+| Target | Notes |
+| --- | --- |
+| `jvm` | Java 11 bytecode |
+| `android` | `minSdk 24`, `compileSdk 36` |
+| `macosArm64` | |
+| `iosArm64` | device |
+| `iosX64` | Intel simulator |
+| `iosSimulatorArm64` | Apple silicon simulator |
+
+Eight modules are available on every target: `ethers-core`, `ethers-crypto`, `ethers-rlp`, `ethers-abi`,
+`ethers-signers`, `ethers-providers`, `ethers-ens` and `logger`.
+
+Two remain JVM-only by nature: `ethers-abigen` (build-time code generation) and `ethers-signers-gcp` (Google Cloud
+KMS).
+
+### Added
+
+- Kotlin Multiplatform targets for Apple platforms, with `Darwin` as the ktor engine and OpenSSL as the
+  cryptography provider on native
+- Safe event and custom-error decoding APIs in `ethers-abi` — `decodeOrNull` / `tryDecode` on event and error
+  factories, collections, generated contract companions and `Log` extensions (#465)
+- `Provider.builder(url)` for constructing providers, replacing the `fromUrl` factories. `build(chainId)` makes no
+  RPC call, `build()` resolves the chain id, and `buildAwait()` blocks (JVM and Android only)
+- **ENS names accepted wherever a call request is** (#516). The new `EnsMiddleware` is a real `Middleware` layer:
+  hand it an `EnsCallRequest` and it resolves the name and forwards a plain call request to `inner`. Supported on
+  `call`, `estimateGas`, `createAccessList`, `fillTransaction`, `traceCall`, `callMany` and `traceCallMany`;
+  anything that is not an `EnsCallRequest` passes through untouched at no extra cost.
+
+  ```kotlin
+  val provider = EnsMiddleware(Provider.builder(url).buildAwait().unwrap())
+  provider.call(EnsCallRequest("vitalik.eth").data(callData), BlockId.LATEST).sendAwait()
+  ```
+
+  Batch methods resolve every name concurrently; one unresolvable name fails the whole batch rather than
+  surfacing as a single failed entry, since `CallFailedError` carries only a string and could not be told apart
+  from a revert.
+- `EnsResolver` gains ENS-name overloads for `getBalance`, `getCode`, `getTransactionCount` and `getStorage`,
+  which take a bare `Address` and so cannot be intercepted (#516)
+- `EnsNameCache`, a 5-minute TTL cache — interception turns one `eth_call` into five round trips, and ENS records
+  change rarely (#516)
+- `getChainId` RPC call, and decoding of `position` and `index` fields in `CallTracer` logs
+
+### Changed
+
+**Suspending APIs.** The JSON-RPC clients are coroutine-based. `sendAwait()` becomes `suspend fun send()`,
+`requestBatch()` returns `Boolean` rather than `CompletableFuture<Boolean>`, and inclusion polling becomes
+`suspend fun inclusion(...)`.
+
+JVM and Android keep the blocking and `CompletableFuture` variants as inherited members — `sendAwait`, `sendAsync`,
+`get`, `toFuture`, `awaitInclusion`, `inclusionAsync`, `buildAwait` — so Java callers are largely unaffected. They
+are supplied by platform seams and are not available on native.
+
+**Errors.** `Result.Error` becomes the standalone `ThrowableError`, and `Result<out T, out E>` no longer constrains
+its error type, so a result can carry any type including `Throwable` (#513).
+
+`doThrow()` is removed. Implementations now supply `message` and `cause`, and `toException()` builds a
+`ThrowableError.Exception` that keeps a reference to the originating error — previously, overriding `doThrow()`
+discarded the error's identity. `ExceptionalError` is removed; `kotlin.Result.toResult()` now yields
+`Result<T, Throwable>`.
+
+**Naming convention for fallible APIs** (#514). `xOrNull` returns `T?` and discards the reason, `tryX` returns
+`Result<T, E>`, and a bare name throws. `JsonAbiReaderRegistry.readAbi` is renamed to `readAbiOrNull` (3
+overloads), and `JsonAbiReader.read` loses `?` from its return type — no implementation ever returned null.
+
+**Raw JSON.** `otherFields` on `RPCTransaction`, `TransactionReceipt`, `Block` and `CallTracer`, and `RpcError.data`,
+now use a library-agnostic `JsonElement` rather than Jackson's `JsonNode` (#423).
+
+**`EnsMiddleware` is now `EnsResolver`** (#516), and no longer implements `Middleware`. The old type delegated the
+whole `Middleware` interface while overriding none of it, so passing one where a `Middleware` was expected bought
+nothing — and because class delegation forwards `inner` too, `EnsMiddleware(provider).inner` returned
+`provider.inner`, making the layer invisible to anything stacked above it.
+
+```kotlin
+// before
+val ens = EnsMiddleware(provider)
+// after
+val ens = EnsResolver(provider)
+```
+
+`resolveAddress`, `resolveText`, `resolveEnsName` and `resolveAvatar` are unchanged, as is the typed
+`EnsResolver.Error`. Call the provider directly for RPC methods that used to reach it through delegation.
+
+There is deliberately **no deprecated alias**: the name `EnsMiddleware` is immediately reused by the interception
+layer described above, so the two cannot coexist.
+
+**Java interop.** `RlpEncoder.encodeList` takes an `RlpListAction` fun interface instead of `Runnable` — the lambda
+syntax is unchanged. `ThrowableError.asTypeOrNull` and `MuxTracer.Result.get` take `KClass<T>` instead of `Class<T>`;
+Kotlin callers pass `T::class`, and the reified `asTypeOrNull<T>()` is unaffected.
+
+**Dependencies replaced.** These are transitive-visible changes:
+
+| Was | Now |
+| --- | --- |
+| OkHttp | ktor (#464) |
+| Jackson | kotlinx.serialization (#444) |
+| jctools | channels-kt (#494) |
+| `java.util.concurrent` atomics | atomicfu (#378) |
+| `java.math.BigInteger` | bignum-kt (#437) |
+
+bignum-kt's `BigInteger` is a `typealias` to `java.math.BigInteger` on the JVM, so JVM source stays compatible.
+
+`JsonRpcClient` and `Middleware` implement `AutoCloseable` rather than `Closeable`.
+
+### Fixed
+
+- **`BigInteger` crash on Android below API 33.** ABI decoding of any `int`/`uint` and every
+  `Signature.fromByteArray` call threw `NoSuchMethodError` on Android 24–32. The offset/length `BigInteger`
+  constructors are JDK 9 additions that only reached Android in API 33, and core library desugaring does not cover
+  `java.math`. The bug dates to the 1.6.0 buffer migration; fixed here in #504
+- **`AccountOverride.mergeChanges` corrupted its receiver.** It folded a state diff into a map owned by another
+  instance whenever that map happened to be a `HashMap` — which, on the JVM, is any state map with two or more
+  entries. A method documented as returning a new instance was mutating its input (#511)
+- **ENS `dnsEncode` produced malformed output for non-ASCII names.** Each label's length prefix used the UTF-16
+  length while the payload is UTF-8, so any name with a non-ASCII character encoded incorrectly. Labels longer
+  than 63 bytes are now rejected rather than silently emitting a length byte that DNS reads as a compression
+  pointer (#505)
+- **EIP-712 typed-data serialization** rejected `BigInteger` message values on non-JVM targets (#511)
+- Provider no longer tears down a shared HTTP client when one provider is closed (#496)
+- WebSocket requests queued during a reconnect no longer hang past their timeout (#466)
+- Default `Tracer` deserialization under kotlinx.serialization (#458)
+
+### Removed
+
+- `Result.Error` (see `ThrowableError`), `ExceptionalError`, and `doThrow()`
+- `Provider.fromUrl` / `fromUrlAwait` (see `Provider.builder`)
+- Jackson and OkHttp from the runtime dependencies of every published library module. Jackson is still used by
+  `ethers-abigen-plugin`, which is a JVM-only Gradle plugin, and by the build itself
+
 ## [1.6.0] - 2026-02-03
 
 ### Bug Fixes

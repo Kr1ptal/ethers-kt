@@ -13,7 +13,7 @@ tasks.register("test") {
 
 allprojects {
     group = "io.kriptal.ethers"
-    version = "1.6.0-SNAPSHOT"
+    version = "2.0.0"
 }
 
 subprojects {
