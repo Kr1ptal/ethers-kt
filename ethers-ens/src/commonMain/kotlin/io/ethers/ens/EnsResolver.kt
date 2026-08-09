@@ -17,7 +17,7 @@ import io.ethers.core.types.BlockId
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.CallRequest
 import io.ethers.core.unwrapOrReturn
-import io.ethers.ens.EnsMiddleware.Companion.IPFS_GATEWAY
+import io.ethers.ens.EnsResolver.Companion.IPFS_GATEWAY
 import io.ethers.logger.err
 import io.ethers.logger.getLogger
 import io.ethers.logger.wrn
@@ -39,12 +39,12 @@ import kotlinx.serialization.Serializable
 import kotlin.jvm.JvmOverloads
 import io.ktor.client.HttpClient as KtorHttpClient
 
-class EnsMiddleware @JvmOverloads constructor(
-    provider: Middleware,
+class EnsResolver @JvmOverloads constructor(
+    val provider: Middleware,
     private val registryAddress: Address,
     private val ccipLookupLimit: Int = 4,
     private val httpClient: KtorHttpClient = RpcClientConfig().client!!,
-) : Middleware by provider {
+) {
     private val LOG = getLogger()
     private val registryContract = EnsRegistry(provider, registryAddress)
 
@@ -173,7 +173,7 @@ class EnsMiddleware @JvmOverloads constructor(
             return failure(Error.Normalisation(it))
         }
 
-        val resolverResponse = getResolver(ensName)
+        val resolverResponse = getOnchainResolver(ensName)
         if (resolverResponse.isFailure()) return resolverResponse
 
         // Unwrap resolver from RpcResponse and call its addr() function.
@@ -272,14 +272,14 @@ class EnsMiddleware @JvmOverloads constructor(
     /**
      * Get [ExtendedResolver] for [ensName] using [EnsRegistry] of current chain.
      */
-    private suspend fun getResolver(ensName: String): Result<ExtendedResolver, Error> {
-        return getResolverAddress(ensName).map { ExtendedResolver(provider, it) }
+    private suspend fun getOnchainResolver(ensName: String): Result<ExtendedResolver, Error> {
+        return getOnchainResolverAddress(ensName).map { ExtendedResolver(provider, it) }
     }
 
     /**
      * Get resolver address for [ensName] from [EnsRegistry].
      */
-    private suspend fun getResolverAddress(ensName: String): Result<Address, Error> {
+    private suspend fun getOnchainResolverAddress(ensName: String): Result<Address, Error> {
         if (ensName.isEmpty()) {
             return failure(Error.UnknownResolver)
         }
@@ -299,7 +299,7 @@ class EnsMiddleware @JvmOverloads constructor(
             .send()
 
         if (address.unwrapErrorOrNull()?.asTypeOrNull<Error.UnknownResolver>() != null) {
-            return getResolverAddress(getParent(ensName))
+            return getOnchainResolverAddress(getParent(ensName))
         }
 
         return address
@@ -475,8 +475,8 @@ class EnsMiddleware @JvmOverloads constructor(
         val nftToken = parseResult.unwrap()
 
         // Validate that the NFT is on the same chain as the provider
-        if (nftToken.chainId != chainId) {
-            return failure(Error.AvatarChainIdMismatch(nftToken.chainId, chainId, avatarUri))
+        if (nftToken.chainId != provider.chainId) {
+            return failure(Error.AvatarChainIdMismatch(nftToken.chainId, provider.chainId, avatarUri))
         }
 
         // validate NFT ownership
@@ -614,7 +614,7 @@ class EnsMiddleware @JvmOverloads constructor(
         val reverseAddr = reverseAddressEnsName(address)
 
         // Get resolver for reverse address ENS
-        val resolverResponse = getResolver(reverseAddr)
+        val resolverResponse = getOnchainResolver(reverseAddr)
         if (resolverResponse.isFailure()) return resolverResponse
         val reverseResolver = resolverResponse.unwrap()
 
@@ -707,7 +707,7 @@ class EnsMiddleware @JvmOverloads constructor(
         }
 
         /**
-         * Resolver address not found for given nameHash on registry.
+         * No on-chain ENS resolver contract is registered for the given nameHash in the registry.
          */
         data object UnknownResolver : Error()
 

@@ -14,7 +14,7 @@ class EnsErrorTest : FunSpec({
     context("errors carrying a structured cause") {
         test("CcipCallbackFailed keeps the RpcError and chains its exception") {
             val rpcError = RpcError(-32000, "execution reverted", null)
-            val error = EnsMiddleware.Error.CcipCallbackFailed(rpcError)
+            val error = EnsResolver.Error.CcipCallbackFailed(rpcError)
 
             // the cause stays a fully typed RpcError, not a flattened exception
             error.error shouldBe rpcError
@@ -28,7 +28,7 @@ class EnsErrorTest : FunSpec({
 
         test("AvatarNftCallFailed keeps the ContractError and chains its exception") {
             val decodingError = DecodingError(Bytes("0x1234"), "failed to decode tokenURI", null)
-            val error = EnsMiddleware.Error.AvatarNftCallFailed("Error when retrieving metadata URL", decodingError)
+            val error = EnsResolver.Error.AvatarNftCallFailed("Error when retrieving metadata URL", decodingError)
 
             // the cause stays a fully typed ContractError, not a flattened exception
             error.error shouldBe decodingError
@@ -43,7 +43,7 @@ class EnsErrorTest : FunSpec({
     context("errors carrying a plain throwable cause") {
         test("Normalisation keeps the original throwable and chains it") {
             val cause = IllegalArgumentException("invalid label")
-            val error = EnsMiddleware.Error.Normalisation(cause)
+            val error = EnsResolver.Error.Normalisation(cause)
 
             error.cause shouldBe cause
 
@@ -53,7 +53,7 @@ class EnsErrorTest : FunSpec({
         }
 
         test("AvatarParsing chains a null cause without failing") {
-            val error = EnsMiddleware.Error.AvatarParsing("Unsupported URI link", null)
+            val error = EnsResolver.Error.AvatarParsing("Unsupported URI link", null)
 
             val exception = error.toException()
             exception.message shouldBe "Unsupported URI link"
@@ -63,7 +63,7 @@ class EnsErrorTest : FunSpec({
 
     context("the thrown exception stays typed") {
         test("the original error is recoverable from a catch block") {
-            val error = EnsMiddleware.Error.UnknownEnsName(
+            val error = EnsResolver.Error.UnknownEnsName(
                 Address("0x0000000000000000000000000000000000000001"),
                 "0xabcd",
             )
@@ -74,7 +74,7 @@ class EnsErrorTest : FunSpec({
                 e
             }
 
-            caught.error.asTypeOrNull<EnsMiddleware.Error.UnknownEnsName>()?.nameHash shouldBe "0xabcd"
+            caught.error.asTypeOrNull<EnsResolver.Error.UnknownEnsName>()?.nameHash shouldBe "0xabcd"
         }
     }
 })
