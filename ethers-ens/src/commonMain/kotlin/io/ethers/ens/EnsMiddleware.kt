@@ -4,9 +4,12 @@ import io.ethers.core.success
 import io.ethers.core.types.BlockId
 import io.ethers.core.types.BlockOverride
 import io.ethers.core.types.Bytes
+import io.ethers.core.types.CreateAccessList
 import io.ethers.core.types.Hash
 import io.ethers.core.types.IntoCallRequest
 import io.ethers.core.types.StateOverride
+import io.ethers.core.types.tracers.TracerConfig
+import io.ethers.core.types.transaction.TransactionUnsigned
 import io.ethers.providers.RpcError
 import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.RpcRequest
@@ -26,6 +29,9 @@ import io.ethers.providers.types.SuppliedRpcRequest
  * Note that [Middleware] fixes the error type of these methods to [RpcError], so ENS failures are wrapped in an
  * [RpcError] with code [CODE_ENS_RESOLUTION_FAILED] and the typed [EnsResolver.Error] as their cause. Use [ens]
  * directly when you need the typed error.
+ *
+ * Note that [callMany] does not resolve ENS names: it takes a list of call requests, and resolving each element
+ * is not yet supported. Resolve the names up front with [ens] and pass plain call requests instead.
  * */
 class EnsMiddleware(
     override val inner: Middleware,
@@ -106,6 +112,57 @@ class EnsMiddleware(
         stateOverride: StateOverride?,
         blockOverride: BlockOverride?,
     ) = call(call, BlockId.Number(blockNumber), stateOverride, blockOverride)
+
+    //-----------------------------------------------------------------------------------------------------------------
+    //                                  Remaining IntoCallRequest-shaped methods
+    //-----------------------------------------------------------------------------------------------------------------
+    override fun estimateGas(call: IntoCallRequest, blockId: BlockId): RpcRequest<Long, RpcError> {
+        if (call !is EnsCallRequest) {
+            return inner.estimateGas(call, blockId)
+        }
+
+        return resolveRecipient(call).andThen { resolved -> inner.estimateGas(resolved, blockId).send() }
+    }
+
+    override fun estimateGas(call: IntoCallRequest, hash: Hash) = estimateGas(call, BlockId.Hash(hash))
+
+    override fun estimateGas(call: IntoCallRequest, number: Long) = estimateGas(call, BlockId.Number(number))
+
+    override fun createAccessList(call: IntoCallRequest, blockId: BlockId): RpcRequest<CreateAccessList, RpcError> {
+        if (call !is EnsCallRequest) {
+            return inner.createAccessList(call, blockId)
+        }
+
+        return resolveRecipient(call).andThen { resolved -> inner.createAccessList(resolved, blockId).send() }
+    }
+
+    override fun createAccessList(call: IntoCallRequest, hash: Hash) = createAccessList(call, BlockId.Hash(hash))
+
+    override fun createAccessList(call: IntoCallRequest, number: Long) = createAccessList(call, BlockId.Number(number))
+
+    override fun fillTransaction(call: IntoCallRequest): RpcRequest<TransactionUnsigned, RpcError> {
+        if (call !is EnsCallRequest) {
+            return inner.fillTransaction(call)
+        }
+
+        return resolveRecipient(call).andThen { resolved -> inner.fillTransaction(resolved).send() }
+    }
+
+    override fun <T : Any> traceCall(
+        call: IntoCallRequest,
+        blockId: BlockId,
+        config: TracerConfig<T>,
+    ): RpcRequest<T, RpcError> {
+        if (call !is EnsCallRequest) {
+            return inner.traceCall(call, blockId, config)
+        }
+
+        return resolveRecipient(call).andThen { resolved -> inner.traceCall(resolved, blockId, config).send() }
+    }
+
+    override fun <T : Any> traceCall(call: IntoCallRequest, blockNumber: Long, config: TracerConfig<T>) = traceCall(call, BlockId.Number(blockNumber), config)
+
+    override fun <T : Any> traceCall(call: IntoCallRequest, blockHash: Hash, config: TracerConfig<T>) = traceCall(call, BlockId.Hash(blockHash), config)
 
     companion object {
         /**

@@ -70,6 +70,29 @@ class EnsMiddlewareTest : FunSpec({
         error.cause.shouldNotBeNull()
     }
 
+    test("estimateGas resolves the ENS name") {
+        val client = FakeJsonRpcClient()
+            .enqueueAddressResolution(RESOLVER, VITALIK)
+            .enqueue("eth_estimateGas", "\"0x5208\"")
+        val middleware = EnsMiddleware(Provider(client, 1L))
+
+        val result = middleware.estimateGas(EnsCallRequest("vitalik.eth"), BlockId.LATEST).send()
+
+        result.unwrap() shouldBe 21000L
+        (client.requests.last().params[0] as CallRequest).to shouldBe VITALIK
+    }
+
+    test("createAccessList resolves the ENS name") {
+        val client = FakeJsonRpcClient()
+            .enqueueAddressResolution(RESOLVER, VITALIK)
+            .enqueue("eth_createAccessList", """{"accessList":[],"gasUsed":"0x5208"}""")
+        val middleware = EnsMiddleware(Provider(client, 1L))
+
+        middleware.createAccessList(EnsCallRequest("vitalik.eth"), BlockId.LATEST).send().unwrap()
+
+        (client.requests.last().params[0] as CallRequest).to shouldBe VITALIK
+    }
+
     test("inner points at the wrapped middleware instead of reporting itself as the bottom layer") {
         val provider = Provider(FakeJsonRpcClient(), 1L)
         val middleware = EnsMiddleware(provider)
