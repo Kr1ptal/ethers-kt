@@ -80,7 +80,7 @@ jobs:
       # `dependencies/cache` holds the downloaded tarballs, which are only needed to extract the directories
       # beside them, so it is excluded to keep the entry near ~2GB against the 10GB per-repo budget.
       - name: Cache Kotlin/Native toolchain
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.konan
