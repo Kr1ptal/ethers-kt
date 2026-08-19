@@ -18,6 +18,20 @@ Sections:
 ### Security = Security patches.
 -->
 
+## [2.0.1] - 2026-08-19
+
+### Fixed
+
+- abigen: generated contract wrappers referenced `java.math.BigInteger` and `javaClass`, so they could not be
+  compiled for any native target. They now use the multiplatform `io.github.artificialpb.bignum.BigInteger` and
+  `this::class`. The JVM types were `actual typealias`es of the same classes, so JVM and Android behaviour is
+  unchanged. The Gradle plugin invalidates its cached output automatically, so bindings regenerate on the next
+  build.
+
+### Changed
+
+- Bump ktor to 3.5.2, bignum-kt to 1.0.5 and secp256k1 to 0.24.0.
+
 ## [2.0.0] - 2026-08-08
 
 ethers-kt is now a Kotlin Multiplatform library. Where 1.x was a JVM library that happened to build for Android,
