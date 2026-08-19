@@ -42,7 +42,6 @@ import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
 import io.ethers.core.types.Log
 import io.ethers.providers.middleware.Middleware
-import io.github.artificialpb.bignum.BigInteger
 import java.io.File
 import javax.lang.model.SourceVersion
 import kotlin.reflect.full.functions
@@ -404,7 +403,7 @@ class AbiContractBuilder(
         // Static function
         val providerParam = ParameterSpec.builder("provider", Middleware::class).build()
         val addressParam = ParameterSpec.builder("address", Address::class).build()
-        val valueParam = ParameterSpec.builder("value", BigInteger::class).build()
+        val valueParam = ParameterSpec.builder("value", BIG_INTEGER).build()
 
         val staticFunction = FunSpec.builder("receive")
             .addAnnotation(JvmStatic::class)
@@ -418,7 +417,7 @@ class AbiContractBuilder(
 
         // Instance function
         val instanceFunction = FunSpec.builder("receive")
-            .addParameter("value", BigInteger::class)
+            .addParameter("value", BIG_INTEGER)
             .addStatement("return Companion.receive(this.provider, this.address, value)")
             .returns(callClass)
             .build()
@@ -427,7 +426,7 @@ class AbiContractBuilder(
         val scopeFunction = if (generateMiddlewareExtensions) {
             FunSpec.builder("receive")
                 .addParameter("address", Address::class)
-                .addParameter("value", BigInteger::class)
+                .addParameter("value", BIG_INTEGER)
                 .addStatement(
                     "return %T.receive(provider, address, value)",
                     ClassName(packageName, contractName),

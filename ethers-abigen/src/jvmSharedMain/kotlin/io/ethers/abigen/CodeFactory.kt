@@ -60,7 +60,8 @@ object CodeFactory {
             .addParameter("other", Any::class.asClassName().copy(nullable = true))
             .returns(Boolean::class)
             .addStatement("if (this === other) return·true")
-            .addStatement("if (javaClass != other?.javaClass) return·false")
+            // `this::class` rather than `javaClass`: generated code must compile on every KMP target
+            .addStatement("if (other == null || this::class != other::class) return·false")
 
         val hashCode = FunSpec.builder("hashCode")
             .addModifiers(KModifier.OVERRIDE)
@@ -68,7 +69,7 @@ object CodeFactory {
 
         if (fields.isEmpty()) {
             equals.addStatement("return·true")
-            hashCode.addStatement("return·javaClass.hashCode()")
+            hashCode.addStatement("return·this::class.hashCode()")
             clazz.addFunction(equals.build())
             clazz.addFunction(hashCode.build())
             return

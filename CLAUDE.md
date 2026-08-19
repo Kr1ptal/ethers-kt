@@ -58,6 +58,7 @@ commonMain
 - **ethers-abigen-plugin** — standalone `kotlin("jvm")` module (not KMP) because `java-gradle-plugin` is incompatible with KMP. Has its own secp256k1 JVM version override and uses `useJUnitPlatform()` with `kotest-runner-junit5`.
 - **ethers-bom** — `java-platform` module, not KMP.
 - **ethers-crypto** — the only module with platform-specific dependencies (secp256k1 JNI for JVM vs Android).
+- **ethers-abigen** — a JVM-only tool that nonetheless declares Apple targets. Its `generateContractWrappers` task runs `io.ethers.abigen.AbigenCli` (a JVM-only entry point in `src/jvmMain`) over the test ABIs and feeds the output into `commonTest`, so generated wrappers are compiled for every target. The Gradle plugin cannot be applied here because it belongs to this same build, hence the plain JVM process. Its main compilations are empty and produce no klib, so `publish` must run with `-PethersPublishing`, which drops those targets.
 
 ## Common Commands
 
@@ -147,6 +148,8 @@ The project uses Kotest 6 with the Kotest Gradle plugin for test discovery (no J
 - The `ethers-abigen-plugin` module is the exception: it uses `useJUnitPlatform()` with `kotest-runner-junit5` since it's a standalone JVM module
 - Bug fixes must include a regression test that explicitly exercises the fixed behavior to prevent regressions
 - New features must have tests covering the happy path, obvious failures, and edge cases
+- Changes to abigen's generated output must stay multiplatform. The `AbigenCompiler`-based tests only compile the output for the JVM, so `java.math` types, `javaClass` and similar slip through; `:ethers-abigen:macosArm64Test`, which compiles the wrappers generated into `commonTest`, is what catches them
+- Bump `EthersAbigenTask#outputVersion` whenever generated output changes, so Gradle invalidates cached abigen results
 
 ## Code Style Guidelines
 
