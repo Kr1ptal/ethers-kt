@@ -18,13 +18,18 @@ kotlin {
     }
 }
 
-// TODO remove after publishing abigen-plugin with KMP fix (adds generated sources only to commonMain)
-// The published plugin (1.6.0) adds generated sources to all *Main source sets, causing duplication errors in KMP.
-// Keep them only in jvmSharedMain, remove from all others.
+// The abigen plugin registers its generated sources on a single source set: `commonMain` since 2.0.0, every
+// `*Main` before that. Neither placement works here - the generated bindings reference `java.math.BigInteger`,
+// and the ethers dependencies are declared on `jvmSharedMain` - so strip the generated dir from every other
+// source set and register the task output on `jvmSharedMain`, where all the examples live.
 afterEvaluate {
     kotlin.sourceSets
         .matching { it.name.endsWith("Main") && it.name != "jvmSharedMain" }
         .configureEach {
             kotlin.setSrcDirs(kotlin.srcDirs.filter { !it.path.contains("generated/source/ethers") })
         }
+
+    kotlin.sourceSets.named("jvmSharedMain") {
+        kotlin.srcDir(tasks.named("ethersAbigen"))
+    }
 }

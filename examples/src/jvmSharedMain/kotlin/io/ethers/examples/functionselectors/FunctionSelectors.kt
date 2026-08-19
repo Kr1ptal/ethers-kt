@@ -17,7 +17,7 @@ class FunctionSelectors(
     private val maxBlocks: Int,
 ) {
     // Initialize provider
-    private val provider = Provider.fromUrl(rpcUrl).unwrap()
+    private val provider = Provider.builder(rpcUrl).buildAwait().unwrap()
 
     fun run() {
         // Get current block number
@@ -29,7 +29,7 @@ class FunctionSelectors(
         println("Searching for function by selector:  ${abiFunction.selector}")
         var blockCounter = blockNumber
         while (blockCounter > blockNumber - maxBlocks) {
-            val block = provider.getBlockWithTransactions(blockCounter).sendAwait().unwrap().get()
+            val block = provider.getBlockWithTransactions(blockCounter).sendAwait().unwrap()!!
             println("Searching block: ${block.number}")
 
             // Searching for transactions manually from function signature

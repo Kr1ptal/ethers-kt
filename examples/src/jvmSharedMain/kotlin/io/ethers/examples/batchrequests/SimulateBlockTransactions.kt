@@ -15,14 +15,14 @@ class SimulateBlockTransactions(
     rpcUrl: String,
 ) {
     // Init provider
-    private val provider = Provider.fromUrl(rpcUrl).unwrap()
+    private val provider = Provider.builder(rpcUrl).buildAwait().unwrap()
 
     fun run() {
         // For each new block, simulate all transactions in the block with traceCall
         provider.subscribeNewHeads().sendAwait().unwrap().forEach { head ->
             println("New block: ${head.number}")
 
-            val blockWithTransactions = provider.getBlockWithTransactions(head.number).sendAwait().unwrap().get()
+            val blockWithTransactions = provider.getBlockWithTransactions(head.number).sendAwait().unwrap()!!
             val blockOverrides = blockWithTransactions.toBlockOverride()
             val stateOverrides = StateOverride()
             for (tx in blockWithTransactions.transactions) {
@@ -42,10 +42,10 @@ class SimulateBlockTransactions(
                 // Accumulate all changes made by transactions, upon which subsequent transactions are executed.
                 // This mirrors the process of building a block on the node.
                 // Utilize takeChanges to bypass copying the resulting state override, as it is not required post-call.
-                stateOverrides.takeChanges(result[PrestateTracer::class.java].toStateOverride())
+                stateOverrides.takeChanges(result[PrestateTracer::class].toStateOverride())
 
-                val call = result[CallTracer::class.java]
-                val txReceipt = txReceiptRequest.get().unwrap().get()
+                val call = result[CallTracer::class]
+                val txReceipt = txReceiptRequest.get().unwrap()!!
                 if (!call.isError == txReceipt.isSuccessful && call.gasUsed == txReceipt.gasUsed) {
                     println("Transaction simulation ${tx.hash} was correct")
                 } else {

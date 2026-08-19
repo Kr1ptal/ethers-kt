@@ -2,7 +2,7 @@ package io.ethers.examples.eip712
 
 import io.ethers.abi.eip712.EIP712Domain
 import io.ethers.abi.eip712.EIP712TypedData
-import io.ethers.core.Jackson
+import io.ethers.core.Kotlinx
 import io.ethers.core.types.Address
 import io.ethers.core.types.BlockId
 import io.ethers.core.types.Bytes
@@ -95,7 +95,7 @@ class EIP712SigningExample(
             .sendAwait()
 
         println("Order Hash: $orderHash")
-        println("TypedData: " + Jackson.MAPPER.writeValueAsString(typedData))
+        println("TypedData: " + Kotlinx.DEFAULT.encodeToString(typedData))
         println("Signature hash: ${Bytes(typedData.signatureHash())}")
         println("Signature: ${Bytes(signature.toByteArray())}")
         println("Validate result: $validateResult")
@@ -118,7 +118,7 @@ fun main(args: Array<String>) {
 
     argParser.parse(args)
 
-    val provider = Provider.fromUrl(rpcUrl).unwrap()
+    val provider = Provider.builder(rpcUrl).buildAwait().unwrap()
     val signer = PrivateKeySigner(signerPrivateKey)
     EIP712SigningExample(provider, signer).run()
 }

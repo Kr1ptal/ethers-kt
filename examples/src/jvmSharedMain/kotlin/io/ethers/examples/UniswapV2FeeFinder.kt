@@ -20,7 +20,7 @@ import kotlinx.cli.required
  * 5. calculate the fees using [getFeePercent].
  * */
 class UniswapV2FeeFinder(rpcUrl: String, private val univ2Pair: Address) : Runnable {
-    private val provider = Provider.fromUrl(rpcUrl).unwrap()
+    private val provider = Provider.builder(rpcUrl).buildAwait().unwrap()
 
     override fun run() {
         val latest = provider.getBlockNumber().sendAwait().unwrap()
