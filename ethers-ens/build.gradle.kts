@@ -5,17 +5,6 @@ plugins {
     kotlin("plugin.serialization") version libs.versions.kotlin.get()
 }
 
-// TODO remove after publishing abigen-plugin with KMP fix (adds generated sources only to commonMain)
-// The published plugin (1.6.0) adds generated sources to all *Main source sets, causing duplication errors in KMP.
-// Keep them only in commonMain, remove from all others.
-afterEvaluate {
-    kotlin.sourceSets
-        .matching { it.name.endsWith("Main") && it.name != "commonMain" }
-        .configureEach {
-            kotlin.setSrcDirs(kotlin.srcDirs.filter { !it.path.contains("generated/source/ethers") })
-        }
-}
-
 kotlin {
     sourceSets {
         val commonMain by getting {

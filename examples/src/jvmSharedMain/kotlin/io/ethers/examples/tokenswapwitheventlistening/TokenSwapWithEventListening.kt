@@ -1,5 +1,6 @@
 package io.ethers.examples.tokenswapwitheventlistening
 
+import io.channels.core.forEachAsync
 import io.ethers.core.types.Address
 import io.ethers.core.types.BlockId
 import io.ethers.examples.gen.UniswapV2Factory
@@ -25,7 +26,7 @@ class TokenSwapWithEventListening(
     private val ethAmount: BigInteger,
 ) {
     // Init provider for swap and subscription
-    private val provider = Provider.fromUrl(rpcUrl).unwrap()
+    private val provider = Provider.builder(rpcUrl).buildAwait().unwrap()
     private val signer = PrivateKeySigner(privateKey)
     private val router = UniswapV2Router02(provider, Address(routerAddress))
 

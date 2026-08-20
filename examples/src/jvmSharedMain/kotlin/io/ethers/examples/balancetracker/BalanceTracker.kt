@@ -20,7 +20,7 @@ class BalanceTracker(
     private val address: Address,
     private val tokenList: List<String>,
 ) {
-    private val provider = Provider.fromUrl(rpcUrl).unwrap()
+    private val provider = Provider.builder(rpcUrl).buildAwait().unwrap()
 
     fun run() {
         val tokens = tokenList.map { ERC20(provider, Address(it)) }

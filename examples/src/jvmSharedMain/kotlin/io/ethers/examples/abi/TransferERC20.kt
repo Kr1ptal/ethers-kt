@@ -9,7 +9,7 @@ import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
 import kotlinx.cli.default
 import kotlinx.cli.required
-import java.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * This example shows how to use smart contract ABI of ERC20 token USDC (src/main/abi) to generate contract wrappers
@@ -23,7 +23,7 @@ class TransferERC20(
     private val amount: BigInteger,
     rpcUrl: String,
 ) {
-    private val provider = Provider.fromUrl(rpcUrl).unwrap()
+    private val provider = Provider.builder(rpcUrl).buildAwait().unwrap()
     private val signer = PrivateKeySigner(privateKey)
 
     fun run() {
@@ -39,7 +39,7 @@ class TransferERC20(
 
         // Wait for transaction to be included in a block.
         // Wait for tx inclusion: 2 block confirmation (default 1) for 12 retries, retry every 10 seconds (default 6 seconds)
-        val receipt = pendingTransaction.awaitInclusion(12, Duration.ofSeconds(8), 2).unwrap()
+        val receipt = pendingTransaction.awaitInclusion(12, 8.seconds, 2).unwrap()
 
         println("Tx ${receipt.transactionHash} was included in block ${receipt.blockNumber}")
     }

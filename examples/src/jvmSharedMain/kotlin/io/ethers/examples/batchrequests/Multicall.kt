@@ -19,7 +19,7 @@ class Multicall(
     private val tokens: List<Address>,
 ) {
     // Init provider
-    private val provider = Provider.fromUrl(rpcUrl).unwrap()
+    private val provider = Provider.builder(rpcUrl).buildAwait().unwrap()
 
     fun run() {
         // We are nesting multiple aggregations. By default, calls cannot revert. To prevent top-level

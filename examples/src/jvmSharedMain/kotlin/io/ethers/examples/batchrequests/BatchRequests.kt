@@ -23,7 +23,7 @@ class BatchRequests(
     sushiPoolAddr: String,
 ) {
     // Init provider
-    private val provider = Provider.fromUrl(rpcUrl).unwrap()
+    private val provider = Provider.builder(rpcUrl).buildAwait().unwrap()
 
     // Init pair contracts
     private val uniPool = UniswapV2Pair(provider, Address(uniPoolAddr))
