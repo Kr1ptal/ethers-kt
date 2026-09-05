@@ -78,6 +78,12 @@ stream.close()
 provider.close()
 ```
 
+The builder configures Solana subscription routing without modifying the supplied `RpcClientConfig`.
+When constructing a `WsClient` directly, set
+`RpcClientConfig().subscriptionDescriptor(SolanaSubscriptionDescriptor)`. Low-level `subscribe` calls
+take the stream name first (for example, `arrayOf("slot")`); the descriptor converts it into Solana's
+RPC method and removes the name from the wire parameters. Ethereum remains the default for other clients.
+
 Streams cover accounts, program accounts (data-size/memcmp filters), logs, signatures, slots, and roots.
 Signature streams optionally deliver a `Received` event, then a `Status` event and close. Read queued events
 even when a stream reports closed. Reconnects restore active subscriptions by default but do not replay missed

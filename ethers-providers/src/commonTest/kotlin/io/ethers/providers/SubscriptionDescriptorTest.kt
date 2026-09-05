@@ -19,10 +19,23 @@ class SubscriptionDescriptorTest : FunSpec({
     lateinit var server: MockWSServer
     lateinit var client: WsClient
     lateinit var ktor: KtorHttpClient
+    var resolutions = 0
     beforeEach {
         server = mockServerWebsocket()
         ktor = KtorHttpClient { install(WebSockets) }
-        client = WsClient(server.url, ktor)
+        resolutions = 0
+        client = WsClient(
+            server.url,
+            RpcClientConfig().client(ktor).subscriptionDescriptor(
+                SubscriptionDescriptor { params ->
+                    resolutions++
+                    val name = params[0] as String
+                    SubscriptionDescriptor.Resolved("${name}Subscribe", "${name}Unsubscribe", "${name}Notification", params.copyOfRange(1, params.size)) {
+                        name == "signature" && it.jsonPrimitive.content == "done"
+                    }
+                },
+            ),
+        )
     }
     afterEach {
         client.close()
@@ -31,10 +44,11 @@ class SubscriptionDescriptorTest : FunSpec({
     }
 
     test("numeric subscription ids and method-specific unsubscribe survive reconnect") {
-        val descriptor = SubscriptionDescriptor("slotSubscribe", "slotUnsubscribe", "slotNotification")
         server.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":42}""")
-        val stream = client.subscribe(descriptor, emptyArray<Any>()) { it.jsonPrimitive.content }.unwrap()
-        Kotlinx.DEFAULT.parseToJsonElement(server.takeReceivedText()!!).jsonObject["method"] shouldBe JsonPrimitive("slotSubscribe")
+        val stream = client.subscribe(arrayOf("slot")) { it.jsonPrimitive.content }.unwrap()
+        val subscribe = Kotlinx.DEFAULT.parseToJsonElement(server.takeReceivedText()!!).jsonObject
+        subscribe["method"] shouldBe JsonPrimitive("slotSubscribe")
+        subscribe.getValue("params").jsonArray.size shouldBe 0
         server.sendJson("""{"jsonrpc":"2.0","method":"wrongNotification","params":{"subscription":42,"result":"wrong"}}""")
         server.sendJson("""{"jsonrpc":"2.0","method":"slotNotification","params":{"subscription":42,"result":"before"}}""")
         eventually(5.seconds) { stream.isEmpty shouldBe false }
@@ -44,6 +58,8 @@ class SubscriptionDescriptorTest : FunSpec({
         server.closeConnection()
         val resubscribe = Kotlinx.DEFAULT.parseToJsonElement(server.takeReceivedText(5000)!!).jsonObject
         resubscribe["method"] shouldBe JsonPrimitive("slotSubscribe")
+        resubscribe["params"] shouldBe subscribe["params"]
+        resolutions shouldBe 1
         eventually(5.seconds) {
             server.sendJson("""{"jsonrpc":"2.0","method":"slotNotification","params":{"subscription":43,"result":"after"}}""")
             stream.isEmpty shouldBe false
@@ -56,10 +72,10 @@ class SubscriptionDescriptorTest : FunSpec({
     }
 
     test("terminal notification is delivered before close and never unsubscribed or resubscribed") {
-        val descriptor = SubscriptionDescriptor("signatureSubscribe", "signatureUnsubscribe", "signatureNotification") { it.jsonPrimitive.content == "done" }
         server.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":7}""")
-        val stream = client.subscribe(descriptor, arrayOf("signature")) { it.jsonPrimitive.content }.unwrap()
-        server.takeReceivedText()
+        val stream = client.subscribe(arrayOf("signature", "test-signature")) { it.jsonPrimitive.content }.unwrap()
+        val subscribe = Kotlinx.DEFAULT.parseToJsonElement(server.takeReceivedText()!!).jsonObject
+        subscribe.getValue("params").jsonArray shouldBe listOf(JsonPrimitive("test-signature"))
         server.sendJson("""{"jsonrpc":"2.0","method":"signatureNotification","params":{"subscription":7,"result":"received"}}""")
         eventually(5.seconds) { stream.isEmpty shouldBe false }
         stream.take() shouldBe "received"
@@ -75,7 +91,7 @@ class SubscriptionDescriptorTest : FunSpec({
     test("cancelling an in-flight subscription unsubscribes a late server response") {
         coroutineScope {
             val pending = async {
-                client.subscribe(SubscriptionDescriptor("rootSubscribe", "rootUnsubscribe", "rootNotification"), emptyArray<Any>()) { it.jsonPrimitive.content }
+                client.subscribe(arrayOf("root")) { it.jsonPrimitive.content }
             }
             server.takeReceivedText(5000)
             pending.cancelAndJoin()
@@ -87,9 +103,8 @@ class SubscriptionDescriptorTest : FunSpec({
     }
 
     test("close during resubscription waits for the new numeric id") {
-        val descriptor = SubscriptionDescriptor("slotSubscribe", "slotUnsubscribe", "slotNotification")
         server.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":42}""")
-        val stream = client.subscribe(descriptor, emptyArray<Any>()) { it.jsonPrimitive.content }.unwrap()
+        val stream = client.subscribe(arrayOf("slot")) { it.jsonPrimitive.content }.unwrap()
         server.takeReceivedText()
         server.closeConnection()
         server.takeReceivedText(5000)

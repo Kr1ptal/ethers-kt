@@ -28,15 +28,6 @@ import io.ktor.client.HttpClient as KtorHttpClient
 import kotlinx.serialization.json.JsonElement as KJsonElement
 
 interface JsonRpcClient : AutoCloseable {
-    /** Subscribe using protocol-specific methods. Existing custom clients can opt into this capability. */
-    suspend fun <T : Any> subscribe(
-        descriptor: SubscriptionDescriptor,
-        params: Array<*>,
-        resultDecoder: (KJsonElement) -> T,
-    ): Result<ChannelReceiver<T>, RpcError> = io.ethers.core.failure(
-        RpcError(RpcError.CODE_METHOD_NOT_FOUND, "Protocol-specific subscriptions are not supported by this client"),
-    )
-
     /**
      * Execute an RPC request without blocking the calling thread.
      *
@@ -69,9 +60,9 @@ interface JsonRpcClient : AutoCloseable {
     suspend fun requestBatch(batch: BatchRpcRequest): Boolean
 
     /**
-     * Subscribe to a stream via `eth_subscribe`, if the client supports it.
+     * Subscribe to a stream using the client's configured protocol, if the client supports it.
      *
-     * @param params the subscription parameters
+     * @param params the stream name followed by its arguments
      * @param resultSerializer serializer used to convert the JSON result into object [T]
      */
     suspend fun <T : Any> subscribe(
@@ -82,9 +73,9 @@ interface JsonRpcClient : AutoCloseable {
     }
 
     /**
-     * Subscribe to a stream via `eth_subscribe`, if the client supports it.
+     * Subscribe to a stream using the client's configured protocol, if the client supports it.
      *
-     * @param params the subscription parameters
+     * @param params the stream name followed by its arguments
      * @param resultDecoder function to convert JSON result into return object [T]
      */
     suspend fun <T : Any> subscribe(
@@ -298,6 +289,10 @@ class RpcClientConfig {
     var requestHeaders: Map<String, String> = emptyMap()
         @JvmSynthetic set
 
+    /** Subscription protocol rules. Defaults to Ethereum. Only used by [WsClient]. */
+    var subscriptionDescriptor: SubscriptionDescriptor = SubscriptionDescriptor.ETHEREUM
+        @JvmSynthetic set
+
     /**
      * If true, automatically resubscribes existing subscription streams on WebSocket reconnection.
      * If false, closes the streams instead, allowing consumers to handle resubscription explicitly.
@@ -329,6 +324,9 @@ class RpcClientConfig {
      * Headers to include with each RPC request. Can be used to set authorization headers, etc...
      * */
     fun requestHeaders(headers: Map<String, String>) = apply { this.requestHeaders = headers }
+
+    /** Subscription protocol rules. Only used by [WsClient]. */
+    fun subscriptionDescriptor(descriptor: SubscriptionDescriptor) = apply { this.subscriptionDescriptor = descriptor }
 
     /**
      * If true, automatically resubscribes existing subscription streams on WebSocket reconnection.

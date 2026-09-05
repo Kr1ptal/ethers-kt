@@ -6,16 +6,19 @@ import io.ethers.core.Kotlinx
 import io.ethers.core.Result
 import io.ethers.core.success
 import io.ethers.providers.JsonRpcClient
+import io.ethers.providers.RpcClientConfig
 import io.ethers.providers.RpcError
 import io.ethers.providers.SubscriptionDescriptor
 import io.ethers.providers.types.BatchRpcRequest
 import io.ethers.solana.providers.AccountFilter
 import io.ethers.solana.providers.LogsFilter
 import io.ethers.solana.providers.SolanaProvider
+import io.ethers.solana.providers.SolanaSubscriptionDescriptor
 import io.ethers.solana.types.Programs
 import io.ethers.solana.types.Signature
 import io.ethers.solana.types.SignatureNotification
 import io.github.artificialpb.bignum.bigIntegerOf
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import kotlinx.serialization.json.JsonElement
@@ -30,6 +33,22 @@ class SubscriptionsTest : FunSpec({
     fun contextual(value: String) = """{"context":{"slot":42},"value":$value}"""
     val client = SubscriptionClient()
     val provider = SolanaProvider(client)
+
+    test("descriptor resolves all six methods without changing caller params") {
+        for (name in listOf("account", "program", "logs", "signature", "slot", "root")) {
+            val params = arrayOf(name, "argument")
+            val resolved = SolanaSubscriptionDescriptor.resolve(params)
+            resolved.subscribeMethod shouldBe "${name}Subscribe"
+            resolved.unsubscribeMethod shouldBe "${name}Unsubscribe"
+            resolved.notificationMethod shouldBe "${name}Notification"
+            resolved.params.toList() shouldBe listOf("argument")
+            params[1] = "changed"
+            resolved.params.toList() shouldBe listOf("argument")
+            resolved.isTerminal(Kotlinx.DEFAULT.parseToJsonElement(contextual("{\"err\":null}"))) shouldBe (name == "signature")
+        }
+        shouldThrow<IllegalArgumentException> { SolanaSubscriptionDescriptor.resolve(emptyArray<Any>()) }
+        shouldThrow<IllegalArgumentException> { SolanaSubscriptionDescriptor.resolve(arrayOf("unknown")) }
+    }
 
     test("account and program subscriptions decode contextual data and filters") {
         client.event = contextual(account)
@@ -80,17 +99,17 @@ class SubscriptionsTest : FunSpec({
 
 private class SubscriptionClient : JsonRpcClient {
     var event = "null"
-    lateinit var descriptor: SubscriptionDescriptor
+    private val config = RpcClientConfig().subscriptionDescriptor(SolanaSubscriptionDescriptor)
+    lateinit var descriptor: SubscriptionDescriptor.Resolved
     lateinit var params: Array<*>
-    override suspend fun <T : Any> subscribe(descriptor: SubscriptionDescriptor, params: Array<*>, resultDecoder: (JsonElement) -> T): Result<ChannelReceiver<T>, RpcError> {
-        this.descriptor = descriptor
-        this.params = params
+    override suspend fun <T : Any> subscribe(params: Array<*>, resultDecoder: (JsonElement) -> T): Result<ChannelReceiver<T>, RpcError> {
+        this.descriptor = config.subscriptionDescriptor.resolve(params)
+        this.params = descriptor.params
         val channel = QueueChannel.spscUnbounded<T>()
         channel.offer(resultDecoder(Kotlinx.DEFAULT.parseToJsonElement(event)))
         return success(channel)
     }
     override suspend fun <T> request(method: String, params: Array<*>, resultDecoder: (JsonElement) -> T): Result<T, RpcError> = error("Unexpected request")
     override suspend fun requestBatch(batch: BatchRpcRequest): Boolean = error("Unexpected batch")
-    override suspend fun <T : Any> subscribe(params: Array<*>, resultDecoder: (JsonElement) -> T): Result<ChannelReceiver<T>, RpcError> = error("Unexpected Ethereum subscription")
     override fun close() = Unit
 }

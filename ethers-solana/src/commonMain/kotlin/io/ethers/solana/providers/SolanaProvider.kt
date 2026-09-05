@@ -8,7 +8,6 @@ import io.ethers.providers.HttpClient
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcClientConfig
 import io.ethers.providers.RpcError
-import io.ethers.providers.SubscriptionDescriptor
 import io.ethers.providers.WsClient
 import io.ethers.providers.types.RpcRequest
 import io.ethers.providers.types.RpcSubscribe
@@ -38,7 +37,10 @@ import kotlinx.serialization.json.put
 import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmStatic
 
-/** Owns the supplied RPC clients; closing the provider closes each distinct client once. */
+/**
+ * Owns the supplied RPC clients; closing the provider closes each distinct client once.
+ * Supplied WebSocket clients must use [SolanaSubscriptionDescriptor]; [builder] configures it automatically.
+ */
 class SolanaProvider @JvmOverloads constructor(
     override val client: JsonRpcClient,
     override val commitment: Commitment = Commitment.FINALIZED,
@@ -75,14 +77,11 @@ class SolanaProvider @JvmOverloads constructor(
     /** The stream closes after its status event; received notifications are non-terminal. */
     @JvmOverloads
     fun subscribeSignature(signature: Signature, commitment: Commitment = this.commitment, enableReceivedNotification: Boolean = false): RpcSubscribe<SignatureNotification, RpcError> {
-        val descriptor = SubscriptionDescriptor("signatureSubscribe", "signatureUnsubscribe", "signatureNotification") {
-            it.jsonObject.getValue("value") !is JsonPrimitive
-        }
         val config = buildJsonObject {
             put("commitment", commitment.toString())
             put("enableReceivedNotification", enableReceivedNotification)
         }
-        return RpcSubscribeCall(subscriptionClient, descriptor, arrayOf(signature.toString(), config)) {
+        return subscribe("signature", arrayOf(signature.toString(), config)) {
             val obj = it.jsonObject
             val context = decode<RpcContext>(obj.getValue("context"))
             val value = obj.getValue("value")
@@ -98,7 +97,7 @@ class SolanaProvider @JvmOverloads constructor(
     fun subscribeSlot(): RpcSubscribe<SlotNotification, RpcError> = subscribe("slot", emptyArray<Any>()) { decode(it) }
     fun subscribeRoot(): RpcSubscribe<BigInteger, RpcError> = subscribe("root", emptyArray<Any>(), ::decodeU64)
 
-    private fun <T : Any> subscribe(method: String, params: Array<*>, decoder: (JsonElement) -> T): RpcSubscribe<T, RpcError> = RpcSubscribeCall(subscriptionClient, SubscriptionDescriptor("${method}Subscribe", "${method}Unsubscribe", "${method}Notification"), params, decoder)
+    private fun <T : Any> subscribe(method: String, params: Array<*>, decoder: (JsonElement) -> T): RpcSubscribe<T, RpcError> = RpcSubscribeCall(subscriptionClient, arrayOf(method, *params), decoder)
 
     override fun close() {
         client.close()
@@ -130,8 +129,17 @@ class SolanaProviderBuilder internal constructor(private val url: String) {
         val ws = webSocketUrl
         if (!url.matches(Regex("^(https?|wss?)://.+$"))) return failure(SolanaProviderBuildError("Unsupported RPC URL: $url"))
         if (ws != null && !ws.matches(Regex("^wss?://.+$"))) return failure(SolanaProviderBuildError("Unsupported WebSocket URL: $ws"))
-        val client = if (url.startsWith("http")) HttpClient(url, config) else WsClient(url, config)
-        val subscriptions = if (ws == null || ws == url) client else WsClient(ws, config)
+        // Do not change the caller's config, which may also be used for an Ethereum client.
+        val rpcConfig = RpcClientConfig {
+            client = config.client
+            requestHeaders = config.requestHeaders
+            resubscribeOnReconnect = config.resubscribeOnReconnect
+            connectTimeoutMs = config.connectTimeoutMs
+            readTimeoutMs = config.readTimeoutMs
+            subscriptionDescriptor = SolanaSubscriptionDescriptor
+        }
+        val client = if (url.startsWith("http")) HttpClient(url, rpcConfig) else WsClient(url, rpcConfig)
+        val subscriptions = if (ws == null || ws == url) client else WsClient(ws, rpcConfig)
         return success(SolanaProvider(client, commitment, subscriptions))
     }
 }

@@ -56,6 +56,7 @@ class WsClient(
     private val resubscribeOnReconnect: Boolean = true,
     private val connectTimeoutMs: Long = 10_000L,
     private val readTimeoutMs: Long = 30_000L,
+    private val subscriptionDescriptor: SubscriptionDescriptor = SubscriptionDescriptor.ETHEREUM,
 ) : JsonRpcClient {
     @JvmOverloads
     constructor(url: String, config: RpcClientConfig = RpcClientConfig()) : this(
@@ -65,6 +66,7 @@ class WsClient(
         config.resubscribeOnReconnect,
         config.connectTimeoutMs,
         config.readTimeoutMs,
+        config.subscriptionDescriptor,
     )
 
     /**
@@ -308,7 +310,7 @@ class WsClient(
                                 }
                                 LOG.dbg { "Resubscribing stream with ID: $id" }
                                 sub.awaitingResubscribe = true
-                                wsSend(buildJsonRpcRequest(sub.descriptor.subscribeMethod, id, sub.params))
+                                wsSend(buildJsonRpcRequest(sub.descriptor.subscribeMethod, id, sub.descriptor.params))
                             }
                         } else {
                             for ((id, sub) in requestIdToSubscription) {
@@ -372,7 +374,7 @@ class WsClient(
                             continue
                         }
                         val id = requestId++
-                        val req = buildJsonRpcRequest(pending.descriptor.subscribeMethod, id, pending.params)
+                        val req = buildJsonRpcRequest(pending.descriptor.subscribeMethod, id, pending.descriptor.params)
                         LOG.trc { "Processing subscription request: $req" }
                         if (wsSend(req)) {
                             pendingSendSubscriptionRequests.removeFirst()
@@ -640,7 +642,6 @@ class WsClient(
                 serverId = resultElement!!.jsonPrimitive,
                 descriptor = request.descriptor,
                 closed = closed,
-                params = request.params,
                 resultDecoder = request.resultDecoder,
                 stream = QueueChannel.spscUnbounded {
                     closed.value = true
@@ -739,20 +740,13 @@ class WsClient(
         return request.response.await()
     }
 
-    override suspend fun <T : Any> subscribe(
-        params: Array<*>,
-        resultDecoder: (KJsonElement) -> T,
-    ): Result<ChannelReceiver<T>, RpcError> = subscribe(SubscriptionDescriptor.ETHEREUM, params, resultDecoder)
-
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     override suspend fun <T : Any> subscribe(
-        descriptor: SubscriptionDescriptor,
         params: Array<*>,
         resultDecoder: (KJsonElement) -> T,
     ): Result<ChannelReceiver<T>, RpcError> {
         val request = PendingSubscriptionRequest(
-            descriptor,
-            params,
+            subscriptionDescriptor.resolve(params),
             resultDecoder,
             CompletableDeferred(),
         )
@@ -794,8 +788,7 @@ class WsClient(
     }
 
     private class PendingSubscriptionRequest<T : Any>(
-        val descriptor: SubscriptionDescriptor,
-        val params: Array<*>,
+        val descriptor: SubscriptionDescriptor.Resolved,
         val resultDecoder: (KJsonElement) -> T,
         val response: CompletableDeferred<Result<ChannelReceiver<T>, RpcError>>,
     ) : ExpiringRequest() {
@@ -833,9 +826,8 @@ class WsClient(
     private class Subscription<T : Any>(
         val requestId: Long,
         var serverId: kotlinx.serialization.json.JsonPrimitive,
-        val descriptor: SubscriptionDescriptor,
+        val descriptor: SubscriptionDescriptor.Resolved,
         val closed: kotlinx.atomicfu.AtomicBoolean,
-        val params: Array<*>,
         val resultDecoder: (KJsonElement) -> T,
         val stream: Channel<T>,
     ) {

@@ -5,6 +5,7 @@ import io.ethers.core.isFailure
 import io.ethers.providers.HttpClient
 import io.ethers.providers.RpcClientConfig
 import io.ethers.providers.RpcError
+import io.ethers.providers.SubscriptionDescriptor
 import io.ethers.solana.instruction.TransferInstruction
 import io.ethers.solana.providers.SolanaProvider
 import io.ethers.solana.signers.KeypairSigner
@@ -166,7 +167,9 @@ class SolanaProviderTest : FunSpec({
     }
 
     test("builder performs no RPC and uses finalized by default") {
-        val built = SolanaProvider.builder("https://example.invalid").config(RpcClientConfig().client(ktor)).build().unwrap()
+        val config = RpcClientConfig().client(ktor)
+        val built = SolanaProvider.builder("https://example.invalid").config(config).build().unwrap()
+        config.subscriptionDescriptor shouldBe SubscriptionDescriptor.ETHEREUM
         built.commitment shouldBe Commitment.FINALIZED
         requests.size shouldBe 0
         built.close()
