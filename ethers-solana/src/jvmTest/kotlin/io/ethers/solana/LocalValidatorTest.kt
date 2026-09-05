@@ -25,7 +25,7 @@ class LocalValidatorTest : FunSpec({
             val sender = KeypairSigner.generate()
             val recipient = KeypairSigner.generate().publicKey
             provider.requestAirdrop(sender.publicKey, 1000000000L).send().unwrap()
-            eventually(30.seconds) { provider.getBalance(sender.publicKey).send().unwrap() shouldBe bigIntegerOf(1000000000L) }
+            eventually(30.seconds) { provider.getBalance(sender.publicKey).send().unwrap().value shouldBe bigIntegerOf(1000000000L) }
             val latest = provider.getLatestBlockhash().send().unwrap().value
             val message = SolanaTxV0.compile(sender.publicKey, latest.blockhash, TransferInstruction(sender.publicKey, recipient, 1000000L))
             val transaction = message.sign(sender)
@@ -36,7 +36,7 @@ class LocalValidatorTest : FunSpec({
                 eventually(30.seconds) { stream.isEmpty shouldBe false }
                 (stream.take() as SignatureNotification.Status).err shouldBe null
                 eventually(5.seconds) { stream.isClosed shouldBe true }
-                provider.getBalance(recipient).send().unwrap() shouldBe bigIntegerOf(1000000)
+                provider.getBalance(recipient).send().unwrap().value shouldBe bigIntegerOf(1000000)
             } finally {
                 stream.close()
             }

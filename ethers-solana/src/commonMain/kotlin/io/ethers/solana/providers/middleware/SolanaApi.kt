@@ -18,6 +18,7 @@ import io.ethers.solana.types.PrioritizationFee
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.types.SolanaNodeHealth
+import io.ethers.solana.types.SolanaNodeIdentity
 import io.ethers.solana.types.SolanaNodeVersion
 import io.ethers.solana.types.SolanaRPCTransaction
 import io.ethers.solana.types.SolanaSignature
@@ -33,27 +34,28 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlin.io.encoding.Base64
 
-/** Solana JSON-RPC capabilities, composable over an existing ethers JsonRpcClient. */
+/**
+ * Solana JSON-RPC capabilities, composable over an existing ethers JsonRpcClient.
+ * Results retain the RPC response shape, including context when supplied by the node.
+ */
 interface SolanaApi {
     val client: JsonRpcClient
 
     /** Immutable fallback for commitment-aware calls; explicit request arguments take precedence. */
     val defaultCommitment: Commitment
 
-    fun getBalance(address: SolanaAddress, commitment: Commitment = this.defaultCommitment): RpcRequest<BigInteger, RpcError> = getBalanceWithContext(address, commitment).map { it.value }
-    fun getBalanceWithContext(address: SolanaAddress, commitment: Commitment = this.defaultCommitment): RpcRequest<ContextValue<BigInteger>, RpcError> = rpc("getBalance", address.toString(), config(commitment)) { decodeContext(it, ::decodeU64) }
+    fun getBalance(address: SolanaAddress, commitment: Commitment = this.defaultCommitment): RpcRequest<ContextValue<BigInteger>, RpcError> = rpc("getBalance", address.toString(), config(commitment)) { decodeContext(it, ::decodeU64) }
     fun getTokenAccountBalance(address: SolanaAddress, commitment: Commitment = this.defaultCommitment): RpcRequest<ContextValue<TokenAmount>, RpcError> = rpc("getTokenAccountBalance", address.toString(), config(commitment)) { decode(it) }
     fun getTokenSupply(mint: SolanaAddress, commitment: Commitment = this.defaultCommitment): RpcRequest<ContextValue<TokenAmount>, RpcError> = rpc("getTokenSupply", mint.toString(), config(commitment)) { decode(it) }
     fun getLatestBlockhash(commitment: Commitment = this.defaultCommitment): RpcRequest<ContextValue<LatestBlockhash>, RpcError> = rpc("getLatestBlockhash", config(commitment)) { decode(it) }
     fun isBlockhashValid(blockhash: SolanaBlockhash, commitment: Commitment = this.defaultCommitment): RpcRequest<ContextValue<Boolean>, RpcError> = rpc("isBlockhashValid", blockhash.toString(), config(commitment)) { decodeContext(it) { v -> v.jsonPrimitive.boolean } }
     fun getHealth(): RpcRequest<SolanaNodeHealth, RpcError> = rpc("getHealth") { if (it.jsonPrimitive.content == "ok") SolanaNodeHealth.OK else SolanaNodeHealth.ERROR }
     fun getEpochInfo(commitment: Commitment = this.defaultCommitment): RpcRequest<EpochInfo, RpcError> = rpc("getEpochInfo", config(commitment)) { decode(it) }
-    fun getIdentity(): RpcRequest<SolanaAddress, RpcError> = rpc("getIdentity") { SolanaAddress(it.jsonObject.getValue("identity").jsonPrimitive.content) }
+    fun getIdentity(): RpcRequest<SolanaNodeIdentity, RpcError> = rpc("getIdentity") { decode(it) }
     fun getVersion(): RpcRequest<SolanaNodeVersion, RpcError> = rpc("getVersion") { decode(it) }
     fun getTransactionCount(commitment: Commitment = this.defaultCommitment): RpcRequest<BigInteger, RpcError> = rpc("getTransactionCount", config(commitment), decoder = ::decodeU64)
 

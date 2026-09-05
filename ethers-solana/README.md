@@ -210,6 +210,17 @@ For submission, `preflightCommitment` controls preflight simulation, not confirm
 defaults to `defaultCommitment`. No Ethereum chain-ID lookup is performed. Construction does not guarantee
 that an endpoint is reachable.
 
+RPC methods retain the node's result shape: contextual responses expose both `context` and `value`,
+object responses remain typed objects (for example, `getIdentity` returns `SolanaNodeIdentity`), and
+scalar responses stay scalar. Extracting only the value is an explicit caller choice:
+
+```kotlin
+val balance = provider.getBalance(address).send().unwrap()
+val lamports = balance.value
+val slot = balance.context.slot
+val apiVersion = balance.context.apiVersion // Optional on older nodes
+```
+
 ## Unit conversion
 
 `SolUnit` follows `EthUnit`'s decimals-based API, with `MICRO_LAMPORT`, `LAMPORT`, and `SOL` constants.

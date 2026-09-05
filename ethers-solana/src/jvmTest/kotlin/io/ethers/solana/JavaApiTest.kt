@@ -16,6 +16,9 @@ class JavaApiTest : FunSpec({
             import io.ethers.solana.signers.KeypairSigner;
             import io.ethers.solana.types.SolanaAddress;
             import io.ethers.solana.types.SolanaBytes;
+            import io.ethers.solana.types.ContextValue;
+            import io.ethers.solana.types.RpcContext;
+            import io.ethers.solana.types.SolanaNodeIdentity;
             import io.ethers.solana.types.transaction.SolanaTxV0;
             import io.ethers.solana.types.transaction.SolanaTxLegacy;
             import io.ethers.solana.types.transaction.SolanaTransaction;
@@ -28,6 +31,12 @@ class JavaApiTest : FunSpec({
                     var builder = SolanaProvider.builder("https://example.invalid")
                         .defaultCommitment(io.ethers.solana.types.Commitment.CONFIRMED);
                     var defaultCommitment = provider.getDefaultCommitment();
+                    ContextValue<java.math.BigInteger> balance = provider.getBalance(recipient).sendAwait().unwrap();
+                    ContextValue<java.math.BigInteger> overridden = provider.getBalance(recipient, defaultCommitment).sendAwait().unwrap();
+                    RpcContext context = balance.getContext();
+                    java.math.BigInteger lamports = balance.getValue();
+                    SolanaNodeIdentity identity = provider.getIdentity().sendAwait().unwrap();
+                    SolanaAddress nodeAddress = identity.getIdentity();
                     var bytes = SolanaBytes.fromBytes(new byte[] {1, 2, 3});
                     var decoded58 = SolanaBytes.fromBase58(bytes.toBase58());
                     var decoded64 = SolanaBytes.fromBase64(bytes.toBase64());

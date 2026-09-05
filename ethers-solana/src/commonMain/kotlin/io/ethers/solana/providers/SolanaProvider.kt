@@ -48,7 +48,7 @@ class SolanaProvider @JvmOverloads constructor(
 ) : SolanaApi, AutoCloseable {
     // Java-friendly conveniences for the main workflow; the full interface also accepts explicit commitment.
     fun getLatestBlockhash(): RpcRequest<ContextValue<LatestBlockhash>, RpcError> = getLatestBlockhash(defaultCommitment)
-    fun getBalance(address: SolanaAddress): RpcRequest<BigInteger, RpcError> = getBalance(address, defaultCommitment)
+    fun getBalance(address: SolanaAddress): RpcRequest<ContextValue<BigInteger>, RpcError> = getBalance(address, defaultCommitment)
     fun getAccountInfo(address: SolanaAddress): RpcRequest<ContextValue<AccountInfo?>, RpcError> = getAccountInfo(address, defaultCommitment)
     fun sendTransaction(transaction: SolanaTransactionSigned): RpcRequest<SolanaSignature, RpcError> = sendTransaction(transaction, defaultCommitment)
     fun getTransaction(signature: SolanaSignature): RpcRequest<SolanaRPCTransaction?, RpcError> = getTransaction(signature, defaultCommitment)

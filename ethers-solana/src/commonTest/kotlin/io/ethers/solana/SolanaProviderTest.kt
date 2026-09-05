@@ -12,9 +12,12 @@ import io.ethers.solana.providers.SolanaProvider
 import io.ethers.solana.signers.KeypairSigner
 import io.ethers.solana.types.AccountMeta
 import io.ethers.solana.types.Commitment
+import io.ethers.solana.types.ContextValue
 import io.ethers.solana.types.Programs
+import io.ethers.solana.types.RpcContext
 import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.types.SolanaNodeHealth
+import io.ethers.solana.types.SolanaNodeIdentity
 import io.ethers.solana.types.SolanaSignature
 import io.ethers.solana.types.transaction.SolanaTxType
 import io.ethers.solana.types.transaction.SolanaTxV0
@@ -75,19 +78,27 @@ class SolanaProviderTest : FunSpec({
         val overridden = provider.getBalance(address, commitment = Commitment.FINALIZED)
         val inherited = provider.getBalance(address)
         provider.defaultCommitment shouldBe Commitment.CONFIRMED
-        overridden.send().unwrap() shouldBe bigIntegerOf(1)
+        val expected = ContextValue(RpcContext(BigInteger("9007199254740993"), "3.0.0"), bigIntegerOf(1))
+        overridden.send().unwrap() shouldBe expected
         assertRequest("getBalance", """["$address",{"commitment":"finalized"}]""")
-        inherited.send().unwrap() shouldBe bigIntegerOf(1)
+        inherited.send().unwrap() shouldBe expected
         assertRequest("getBalance", """["$address",{"commitment":"confirmed"}]""")
         provider.defaultCommitment shouldBe Commitment.CONFIRMED
     }
 
-    test("account queries preserve u64, context, missing accounts and binary data") {
+    test("balance queries preserve context and the full u64 range") {
         response = contextual("18446744073709551615")
-        provider.getBalance(address).send().unwrap() shouldBe BigInteger("18446744073709551615")
+        val expectedContext = RpcContext(BigInteger("9007199254740993"), "3.0.0")
+        provider.getBalance(address).send().unwrap() shouldBe ContextValue(expectedContext, BigInteger("18446744073709551615"))
         assertRequest("getBalance", """["$address",{"commitment":"confirmed"}]""")
-        provider.getBalanceWithContext(address, Commitment.FINALIZED).send().unwrap().context.slot shouldBe BigInteger("9007199254740993")
+        response = contextual("0")
+        provider.getBalance(address, Commitment.FINALIZED).send().unwrap() shouldBe ContextValue(expectedContext, bigIntegerOf(0))
         assertRequest("getBalance", """["$address",{"commitment":"finalized"}]""")
+        response = """{"context":{"slot":42},"value":0}"""
+        provider.getBalance(address).send().unwrap() shouldBe ContextValue(RpcContext(bigIntegerOf(42)), bigIntegerOf(0))
+    }
+
+    test("account queries preserve u64, context, missing accounts and binary data") {
         response = contextual(account)
         val info = provider.getAccountInfo(address).send().unwrap().value!!
         info.data shouldBe byteArrayOf(1, 2, 3)
@@ -131,7 +142,9 @@ class SolanaProviderTest : FunSpec({
         provider.getEpochInfo().send().unwrap().slotsInEpoch shouldBe bigIntegerOf(5)
         assertRequest("getEpochInfo", """[{"commitment":"confirmed"}]""")
         response = """{"identity":"$address"}"""
-        provider.getIdentity().send().unwrap() shouldBe address
+        val identity = provider.getIdentity().send().unwrap()
+        identity shouldBe SolanaNodeIdentity(address)
+        Kotlinx.DEFAULT.encodeToString(SolanaNodeIdentity.serializer(), identity) shouldBe response
         assertRequest("getIdentity", "[]")
         response = """{"solana-core":"3.0.0","feature-set":42}"""
         provider.getVersion().send().unwrap().solanaCore shouldBe "3.0.0"
@@ -268,7 +281,7 @@ class SolanaProviderTest : FunSpec({
         try {
             built.defaultCommitment shouldBe Commitment.PROCESSED
             response = contextual("1")
-            built.getBalance(address).send().unwrap() shouldBe bigIntegerOf(1)
+            built.getBalance(address).send().unwrap().value shouldBe bigIntegerOf(1)
             assertRequest("getBalance", """["$address",{"commitment":"processed"}]""")
             val sent = requests.size
             shouldThrow<IllegalArgumentException> { built.getTransaction(signature) }
