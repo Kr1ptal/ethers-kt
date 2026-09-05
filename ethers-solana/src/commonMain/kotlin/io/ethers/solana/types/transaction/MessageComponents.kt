@@ -26,30 +26,41 @@ data class MessageHeader(
 
 object MessageHeaderSerializer : ExtensibleJsonSerializer<MessageHeader>(MessageHeader.generatedSerializer(), { it.otherFields })
 
-class AddressLookupTableAccount(val key: SolanaAddress, addresses: List<SolanaAddress>) {
-    private val entries = addresses.toList().also { require(it.size <= 256) { "Lookup table exceeds 256 addresses" } }
-    val addresses: List<SolanaAddress> get() = entries.toList()
+data class AddressLookupTableAccount(val key: SolanaAddress, val addresses: List<SolanaAddress>) {
+    init {
+        require(addresses.size <= 256) { "Lookup table exceeds 256 addresses" }
+    }
 }
 
-class CompiledInstruction(val programIdIndex: Int, accounts: List<Int>, data: ByteArray) {
-    private val indices = accounts.toList()
-    private val payload = data.copyOf()
-    val accounts: List<Int> get() = indices.toList()
-    val data: ByteArray get() = payload.copyOf()
+data class CompiledInstruction(val programIdIndex: Int, val accounts: List<Int>, val data: ByteArray) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other == null || this::class != other::class) return false
+
+        other as CompiledInstruction
+
+        if (programIdIndex != other.programIdIndex) return false
+        if (accounts != other.accounts) return false
+        if (!data.contentEquals(other.data)) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = programIdIndex
+        result = 31 * result + accounts.hashCode()
+        result = 31 * result + data.contentHashCode()
+        return result
+    }
 }
 
 @Serializable(with = CompiledAddressLookupTableSerializer::class)
-class CompiledAddressLookupTable(
+data class CompiledAddressLookupTable(
     val key: SolanaAddress,
-    writableIndexes: List<Int>,
-    readonlyIndexes: List<Int>,
+    val writableIndexes: List<Int>,
+    val readonlyIndexes: List<Int>,
     @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
-) {
-    private val writable = writableIndexes.toList()
-    private val readonly = readonlyIndexes.toList()
-    val writableIndexes: List<Int> get() = writable.toList()
-    val readonlyIndexes: List<Int> get() = readonly.toList()
-}
+)
 
 object CompiledAddressLookupTableSerializer : KSerializer<CompiledAddressLookupTable> {
     override val descriptor = LookupTableFields.serializer().descriptor

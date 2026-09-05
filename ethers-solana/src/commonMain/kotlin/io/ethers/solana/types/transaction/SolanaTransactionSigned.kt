@@ -8,18 +8,17 @@ import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmStatic
 
 /** A transaction with a verified signature for every required signer, in message account order. */
-class SolanaTransactionSigned(val tx: SolanaTransactionUnsigned, signatures: List<SolanaSignature>) : SolanaTransaction by tx {
-    private val signatureSlots = signatures.toList()
-    val signatures: List<SolanaSignature> get() = signatureSlots.toList()
+class SolanaTransactionSigned(val tx: SolanaTransactionUnsigned, val signatures: List<SolanaSignature>) :
+    SolanaTransaction by tx {
 
     /** Solana's transaction id is the fee payer's signature, not a hash of the envelope. */
-    val id: SolanaSignature get() = signatureSlots.first()
+    val id: SolanaSignature get() = signatures.first()
 
     init {
-        validateSignatures(tx, signatureSlots)
+        validateSignatures(tx, signatures)
     }
 
-    fun serialize(): ByteArray = encodeTransactionEnvelope(tx, signatureSlots)
+    fun serialize(): ByteArray = encodeTransactionEnvelope(tx, signatures)
     fun toBase64(): String = Base64.encode(serialize())
     override fun serializeForSimulation(): ByteArray = serialize()
 
@@ -32,42 +31,41 @@ class SolanaTransactionSigned(val tx: SolanaTransactionUnsigned, signatures: Lis
         val tx: SolanaTransactionUnsigned,
         signatures: List<SolanaSignature?> = List(tx.header.requiredSignatures) { null },
     ) {
-        private var signatureSlots = signatures.toList()
-        val signatures: List<SolanaSignature?> get() = signatureSlots.toList()
-        val isFullySigned: Boolean get() = signatureSlots.all { it != null }
-        val missingSigners: List<SolanaAddress> get() = tx.signers.filterIndexed { index, _ -> signatureSlots[index] == null }
+        val signatures: List<SolanaSignature?>
+            field = signatures.toMutableList()
+
+        val isFullySigned: Boolean get() = signatures.all { it != null }
+        val missingSigners: List<SolanaAddress> get() = tx.signers.filterIndexed { index, _ -> signatures[index] == null }
 
         init {
-            validateSignatures(tx, signatureSlots)
+            validateSignatures(tx, this.signatures)
         }
 
         fun addSignature(signer: SolanaAddress, signature: SolanaSignature): Builder = apply {
             val index = tx.signers.indexOf(signer)
             require(index >= 0) { "Address is not a required signer" }
-            val updated = signatureSlots.toMutableList().also { it[index] = signature }
-            validateSignatures(tx, updated)
-            signatureSlots = updated
+            signatures[index] = signature
+            validateSignatures(tx, signatures)
         }
 
         /** Collect signatures atomically: a failure leaves the builder's previous signatures intact. */
         fun sign(vararg signers: SolanaSigner): Builder = apply {
             val requiredSigners = tx.signers
             val indices = signers.map { signer ->
-                requiredSigners.indexOf(signer.publicKey).also { require(it >= 0) { "Address is not a required signer" } }
+                requiredSigners.indexOf(signer.publicKey)
+                    .also { require(it >= 0) { "Address is not a required signer" } }
             }
             val message = tx.serializeMessage()
-            val updated = signatureSlots.toMutableList()
-            signers.forEachIndexed { i, signer -> updated[indices[i]] = signer.signMessage(message.copyOf()) }
-            validateSignatures(tx, updated)
-            signatureSlots = updated
+            signers.forEachIndexed { i, signer -> signatures[indices[i]] = signer.signMessage(message.copyOf()) }
+            validateSignatures(tx, signatures)
         }
 
-        fun clearSignatures(): Builder = apply { signatureSlots = List(tx.header.requiredSignatures) { null } }
+        fun clearSignatures(): Builder = apply { this@Builder.signatures.clear() }
 
-        fun build(): SolanaTransactionSigned = SolanaTransactionSigned(tx, signatureSlots.map { requireNotNull(it) { "Missing required signatures" } })
+        fun build(): SolanaTransactionSigned = SolanaTransactionSigned(tx, signatures.map { requireNotNull(it) { "Missing required signatures" } })
 
         /** Full envelope with zeros for missing signatures, for offline exchange or simulation only. */
-        fun serializePartial(): ByteArray = encodeTransactionEnvelope(tx, signatureSlots)
+        fun serializePartial(): ByteArray = encodeTransactionEnvelope(tx, signatures)
         fun toBase64Partial(): String = Base64.encode(serializePartial())
 
         companion object {

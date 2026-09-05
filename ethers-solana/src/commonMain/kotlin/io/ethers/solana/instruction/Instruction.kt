@@ -2,6 +2,7 @@ package io.ethers.solana.instruction
 
 import io.ethers.solana.types.AccountMeta
 import io.ethers.solana.types.SolanaAddress
+import io.ktor.websocket.ChannelOverflow
 
 interface Instruction {
     val programId: SolanaAddress
@@ -10,9 +11,8 @@ interface Instruction {
 }
 
 /** An instruction for any program; inputs and exposed byte arrays are copied. */
-open class BaseInstruction(override val programId: SolanaAddress, keys: List<AccountMeta>, data: ByteArray) : Instruction {
-    private val accountKeys = keys.toList()
-    private val payload = data.copyOf()
-    final override val keys: List<AccountMeta> get() = accountKeys.toList()
-    final override val data: ByteArray get() = payload.copyOf()
-}
+open class BaseInstruction(
+    override val programId: SolanaAddress,
+    override val keys: List<AccountMeta>,
+    override val data: ByteArray,
+) : Instruction

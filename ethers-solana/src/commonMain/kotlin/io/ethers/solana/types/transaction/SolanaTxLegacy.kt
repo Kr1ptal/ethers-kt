@@ -9,22 +9,18 @@ import kotlin.jvm.JvmStatic
 /** Immutable legacy transaction payload. Every account is inline; lookup tables are not supported. */
 class SolanaTxLegacy(
     override val header: MessageHeader,
-    accounts: List<SolanaAddress>,
+    override val accounts: List<SolanaAddress>,
     override val recentBlockhash: SolanaBlockhash,
-    instructions: List<CompiledInstruction>,
+    override val instructions: List<CompiledInstruction>,
 ) : SolanaTransactionUnsigned {
-    private val staticAccounts = accounts.toList()
-    private val compiledInstructions = instructions.toList()
-    override val accounts: List<SolanaAddress> get() = staticAccounts.toList()
-    override val instructions: List<CompiledInstruction> get() = compiledInstructions.toList()
     override val type: SolanaTxType get() = SolanaTxType.Legacy
 
     init {
-        validateMessage(header, staticAccounts, compiledInstructions, emptyList())
+        validateMessage(header, accounts, instructions, emptyList())
         validateLegacyEnvelopeSize(this)
     }
 
-    override fun withNewBlockhash(blockhash: SolanaBlockhash): SolanaTxLegacy = SolanaTxLegacy(header, staticAccounts, blockhash, compiledInstructions)
+    override fun withNewBlockhash(blockhash: SolanaBlockhash): SolanaTxLegacy = SolanaTxLegacy(header, accounts, blockhash, instructions)
 
     override fun serializeMessage(): ByteArray = SolanaMessageEncoder().also { it.writeMessageBody(this) }.toByteArray()
 

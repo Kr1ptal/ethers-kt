@@ -10,35 +10,30 @@ import kotlin.jvm.JvmStatic
 /** Immutable v0 transaction payload. Lookup table contents are supplied by the caller during compilation. */
 class SolanaTxV0 @JvmOverloads constructor(
     override val header: MessageHeader,
-    accounts: List<SolanaAddress>,
+    override val accounts: List<SolanaAddress>,
     override val recentBlockhash: SolanaBlockhash,
-    instructions: List<CompiledInstruction>,
-    addressLookupTables: List<CompiledAddressLookupTable> = emptyList(),
+    override val instructions: List<CompiledInstruction>,
+    val addressLookupTables: List<CompiledAddressLookupTable> = emptyList(),
 ) : SolanaTransactionUnsigned {
-    private val staticAccounts = accounts.toList()
-    private val compiledInstructions = instructions.toList()
-    private val lookups = addressLookupTables.toList()
-    override val accounts: List<SolanaAddress> get() = staticAccounts.toList()
-    override val instructions: List<CompiledInstruction> get() = compiledInstructions.toList()
-    val addressLookupTables: List<CompiledAddressLookupTable> get() = lookups.toList()
     override val type: SolanaTxType get() = SolanaTxType.V0
 
     init {
-        validateMessage(header, staticAccounts, compiledInstructions, lookups)
-        validateLegacyEnvelopeSize(this, lookups)
+        validateMessage(header, accounts, instructions, addressLookupTables)
+        validateLegacyEnvelopeSize(this, addressLookupTables)
     }
 
-    override fun withNewBlockhash(blockhash: SolanaBlockhash): SolanaTxV0 = SolanaTxV0(header, staticAccounts, blockhash, compiledInstructions, lookups)
+    override fun withNewBlockhash(blockhash: SolanaBlockhash): SolanaTxV0 = SolanaTxV0(header, accounts, blockhash, instructions, addressLookupTables)
 
     override fun serializeMessage(): ByteArray {
         val encoder = SolanaMessageEncoder().writeByte(128)
         encoder.writeMessageBody(this)
-        encoder.writeShortVecLength(lookups.size)
-        for (table in lookups) {
-            encoder.writeBytes(table.key.toByteArray()).writeShortVecLength(table.writableIndexes.size)
-            table.writableIndexes.forEach { encoder.writeByte(it) }
-            encoder.writeShortVecLength(table.readonlyIndexes.size)
-            table.readonlyIndexes.forEach { encoder.writeByte(it) }
+        encoder.writeShortVecLength(addressLookupTables.size)
+
+        for ((key, writableIndexes, readonlyIndexes) in addressLookupTables) {
+            encoder.writeBytes(key.toByteArray()).writeShortVecLength(writableIndexes.size)
+            writableIndexes.forEach { encoder.writeByte(it) }
+            encoder.writeShortVecLength(readonlyIndexes.size)
+            readonlyIndexes.forEach { encoder.writeByte(it) }
         }
         return encoder.toByteArray()
     }
