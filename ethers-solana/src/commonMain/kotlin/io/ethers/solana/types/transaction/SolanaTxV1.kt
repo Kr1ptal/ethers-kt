@@ -59,8 +59,14 @@ class SolanaTxV1(
             .writeByte(instructions.size).writeByte(accounts.size)
         accounts.forEach { encoder.writeBytes(it.toByteArray()) }
         config.priorityFee?.let { encoder.writeBytes(littleEndian(it, 8)) }
-        listOf(config.computeUnitLimit, config.loadedAccountsDataSizeLimit, config.heapSize).forEach {
-            if (it != null) encoder.writeBytes(littleEndian(bigIntegerOf(it), 4))
+        if (config.computeUnitLimit != null) {
+            encoder.writeBytes(littleEndian(bigIntegerOf(config.computeUnitLimit), 4))
+        }
+        if (config.loadedAccountsDataSizeLimit != null) {
+            encoder.writeBytes(littleEndian(bigIntegerOf(config.loadedAccountsDataSizeLimit), 4))
+        }
+        if (config.heapSize != null) {
+            encoder.writeBytes(littleEndian(bigIntegerOf(config.heapSize), 4))
         }
         instructions.forEach {
             encoder.writeByte(it.programIdIndex).writeByte(it.accounts.size).writeBytes(littleEndian(bigIntegerOf(it.data.size), 2))
