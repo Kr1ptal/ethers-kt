@@ -18,15 +18,21 @@ class JavaApiTest : FunSpec({
             import io.ethers.solana.types.transaction.TransactionMessage;
             import io.ethers.solana.types.transaction.SolanaTransaction;
             import io.ethers.solana.instruction.TransferInstruction;
+            import io.ethers.solana.utils.SolUnit;
             public class SolanaJavaExample {
                 public void transfer(SolanaProvider provider, byte[] seed, PublicKey recipient) {
                     var signer = KeypairSigner.fromSeed(seed);
                     var latest = provider.getLatestBlockhash().sendAwait().unwrap().getValue();
                     var message = TransactionMessage.compile(signer.getPublicKey(), latest.getBlockhash(),
-                        new TransferInstruction(signer.getPublicKey(), recipient, 1000L));
+                        new TransferInstruction(signer.getPublicKey(), recipient,
+                            SolUnit.SOL.toLamports("0.000001").toBigIntegerExact()));
                     var transaction = new SolanaTransaction(message).sign(signer);
                     var signature = provider.sendTransaction(transaction).sendAwait().unwrap();
                     var subscription = provider.subscribeSignature(signature).sendAsync();
+                    var sol = SolUnit.LAMPORT.toSol(1000L);
+                    var microLamports = SolUnit.MICRO_LAMPORT.fromLamports("0.5");
+                    var customUnit = new SolUnit(3);
+                    var converted = customUnit.convert(1.5, SolUnit.LAMPORT);
                 }
             }
         """.trimIndent()

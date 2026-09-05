@@ -94,6 +94,24 @@ lifecycle remains governed by the existing transport configuration.
 Default commitment is `FINALIZED`; RPC methods accepting commitment also support per-call overrides. No
 Ethereum chain-ID lookup is performed. Construction does not guarantee that an endpoint is reachable.
 
+## Unit conversion
+
+`SolUnit` follows `EthUnit`'s decimals-based API, with `MICRO_LAMPORT`, `LAMPORT`, and `SOL` constants.
+Each supports `to...`, `from...`, and `convert(amount, toUnit)` methods accepting `Int`, `Long`, `Double`,
+`String`, `BigInteger`, and `BigDecimal`, returning `BigDecimal`.
+
+```kotlin
+val lamports = SolUnit.SOL.toLamports("1.000000001").toBigIntegerExact()
+val sol = SolUnit.LAMPORT.toSol(lamports)
+val priorityPrice = SolUnit.MICRO_LAMPORT.fromLamports("0.5") // 500000 micro-lamports
+```
+
+Decimals are relative to a micro-lamport: `MICRO_LAMPORT = SolUnit(0)`, `LAMPORT = SolUnit(6)`, and
+`SOL = SolUnit(15)`. This preserves fractional-lamport priority-fee precision; decimal conversions truncate
+towards zero below one micro-lamport. Use strings or `BigDecimal` for precise decimal inputs, and
+`toBigIntegerExact()` when an API requires whole lamports. Unit conversion permits negative and arbitrarily
+large values; transaction and RPC APIs apply their own unsigned-amount validation.
+
 ## Ported capabilities
 
 Reference: [sol4k a166edd854a7198553fdafe9a5051a400d70b121](https://github.com/sol4k/sol4k/tree/a166edd854a7198553fdafe9a5051a400d70b121).

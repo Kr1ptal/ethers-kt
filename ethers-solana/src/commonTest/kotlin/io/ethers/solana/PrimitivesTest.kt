@@ -73,8 +73,8 @@ class PrimitivesTest : FunSpec({
         Kotlinx.DEFAULT.decodeFromString(U64Serializer, "18446744073709551615") shouldBe max
         shouldThrow<IllegalArgumentException> { Kotlinx.DEFAULT.decodeFromString(U64Serializer, "18446744073709551616") }
         shouldThrow<IllegalArgumentException> { Kotlinx.DEFAULT.decodeFromString(U64Serializer, "\"42\"") }
-        SolUnit.solToLamports("1.000000001") shouldBe bigIntegerOf(1000000001)
-        SolUnit.lamportsToSol(bigIntegerOf(1)).toPlainString() shouldBe "0.000000001"
-        shouldThrow<ArithmeticException> { SolUnit.solToLamports("0.0000000001") }
+        SolUnit.SOL.toLamports("1.000000001").toBigIntegerExact() shouldBe bigIntegerOf(1000000001)
+        SolUnit.LAMPORT.toSol(bigIntegerOf(1)).toPlainString() shouldBe "0.000000001"
+        shouldThrow<ArithmeticException> { SolUnit.SOL.toLamports("0.0000000001").toBigIntegerExact() }
     }
 })
