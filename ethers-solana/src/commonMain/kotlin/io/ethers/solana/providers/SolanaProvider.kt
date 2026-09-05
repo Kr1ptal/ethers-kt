@@ -44,7 +44,6 @@ class SolanaProvider @JvmOverloads constructor(
 
     @JvmOverloads
     fun subscribeProgram(program: SolanaAddress, filters: List<AccountFilter> = emptyList(), commitment: Commitment = this.defaultCommitment): RpcSubscribe<ContextValue<ProgramNotification>, RpcError> {
-        require(filters.size <= 4) { "At most four account filters are supported" }
         val config = buildJsonObject {
             put("commitment", commitment.toString())
             put("encoding", "base64")

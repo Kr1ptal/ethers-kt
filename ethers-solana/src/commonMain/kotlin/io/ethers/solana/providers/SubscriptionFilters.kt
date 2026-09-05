@@ -19,17 +19,8 @@ sealed class LogsFilter {
 }
 
 sealed class AccountFilter {
-    data class DataSize(val bytes: Long) : AccountFilter() {
-        init {
-            require(bytes >= 0)
-        }
-    }
-    data class Memcmp(val offset: Long, val base58: String) : AccountFilter() {
-        init {
-            require(offset >= 0)
-            require(io.ethers.crypto.Base58.decode(base58).size <= 128) { "Memcmp filter exceeds 128 bytes" }
-        }
-    }
+    data class DataSize(val bytes: Long) : AccountFilter()
+    data class Memcmp(val offset: Long, val base58: String) : AccountFilter()
     internal fun toJson(): JsonElement = when (this) {
         is DataSize -> buildJsonObject { put("dataSize", bytes) }
         is Memcmp -> buildJsonObject {

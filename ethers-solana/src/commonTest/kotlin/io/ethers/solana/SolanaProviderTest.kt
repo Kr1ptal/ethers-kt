@@ -229,8 +229,31 @@ class SolanaProviderTest : FunSpec({
         response = """[{"signature":"$signature","slot":42,"err":null,"memo":null,"blockTime":null,"confirmationStatus":"finalized"}]"""
         provider.getSignaturesForAddress(address, 10, Commitment.FINALIZED, before = signature).send().unwrap().single().isError shouldBe false
         assertRequest("getSignaturesForAddress", """["$address",{"limit":10,"commitment":"finalized","before":"$signature"}]""")
-        shouldThrow<IllegalArgumentException> { provider.getSignaturesForAddress(address, 0) }
-        shouldThrow<IllegalArgumentException> { provider.requestAirdrop(address, -1L) }
+    }
+
+    test("invalid RPC parameters are forwarded verbatim and node errors remain results") {
+        error = """{"code":-32602,"message":"invalid params","data":{"source":"node"}}"""
+        for (value in listOf(BigInteger("-1"), BigInteger("18446744073709551616"))) {
+            provider.requestAirdrop(address, value).send().unwrapError().code shouldBe -32602
+            assertRequest("requestAirdrop", """["$address",$value,{"commitment":"confirmed"}]""")
+            provider.getMinimumBalanceForRentExemption(value).send().unwrapError().code shouldBe -32602
+            assertRequest("getMinimumBalanceForRentExemption", """[$value,{"commitment":"confirmed"}]""")
+        }
+        for (limit in listOf(0, 1001)) {
+            provider.getSignaturesForAddress(address, limit, Commitment.PROCESSED).send().unwrapError().code shouldBe -32602
+            assertRequest("getSignaturesForAddress", """["$address",{"commitment":"processed","limit":$limit}]""")
+        }
+        for (version in listOf(-1, 256)) {
+            provider.getTransaction(signature, Commitment.PROCESSED, version).send().unwrapError().code shouldBe -32602
+            assertRequest("getTransaction", """["$signature",{"commitment":"processed","encoding":"json","maxSupportedTransactionVersion":$version}]""")
+        }
+        provider.getMultipleAccounts(List(101) { address }).send().unwrapError().code shouldBe -32602
+        assertRequest("getMultipleAccounts", """[${List(101) { "\"$address\"" }.joinToString(",", "[", "]")},{"commitment":"confirmed","encoding":"base64"}]""")
+        val result = provider.getRecentPrioritizationFees(List(129) { address }).send()
+        result.unwrapError().code shouldBe -32602
+        result.unwrapError().message shouldBe "invalid params"
+        result.unwrapError().data.toString() shouldBe """{"source":"node"}"""
+        assertRequest("getRecentPrioritizationFees", """[${List(129) { "\"$address\"" }.joinToString(",", "[", "]")}]""")
     }
 
     test("RPC errors retain structured data and HTTP does not support subscriptions") {
@@ -262,13 +285,14 @@ class SolanaProviderTest : FunSpec({
             provider.getFeeForMessage(state).send().unwrap().value shouldBe bigIntegerOf(5000)
             assertRequest("getFeeForMessage", """["${Base64.encode(tx.serializeMessage())}",{"commitment":"confirmed"}]""")
         }
-        val sent = requests.size
-        shouldThrow<IllegalArgumentException> { provider.sendTransaction(tx.serializeForSimulation()) }
-        shouldThrow<IllegalArgumentException> { provider.sendTransaction(partial) }
-        requests.size shouldBe sent
+        error = """{"code":-32003,"message":"Transaction signature verification failure"}"""
+        for (wire in listOf(tx.serializeForSimulation(), partial)) {
+            provider.sendTransaction(wire).send().isFailure() shouldBe true
+            assertRequest("sendTransaction", """["${Base64.encode(wire)}",{"encoding":"base64","preflightCommitment":"confirmed"}]""")
+        }
     }
 
-    test("submission accepts maximum-size valid transactions and rejects oversized raw envelopes") {
+    test("submission accepts maximum-size valid transactions") {
         val signer = KeypairSigner.fromSeed(ByteArray(32) { 1 })
         fun instruction(size: Int) = BaseInstruction(Programs.SYSTEM, emptyList(), ByteArray(size))
         for (size in listOf(1232, 1233, 4096)) {
@@ -294,13 +318,20 @@ class SolanaProviderTest : FunSpec({
                 response = "\"${signed.id}\""
                 provider.sendTransaction(signed).send().unwrap() shouldBe signed.id
                 provider.sendTransaction(signed.serialize()).send().unwrap() shouldBe signed.id
-                val before = requests.size
-                shouldThrow<IllegalArgumentException> { provider.sendTransaction(signed.serialize() + byteArrayOf(0)) }
-                requests.size shouldBe before
             }
         }
-        val maximum = SolanaTxV1.compile(signer.publicKey, blockhash, instruction(4096 - 174), SolanaTransactionConfig()).sign(signer)
-        shouldThrow<IllegalArgumentException> { provider.sendTransaction(maximum.serialize() + byteArrayOf(0)) }
+    }
+
+    test("raw submission forwards malformed unsupported and oversized bytes and preserves RPC errors") {
+        error = """{"code":-32602,"message":"invalid transaction"}"""
+        for (wire in listOf(byteArrayOf(), byteArrayOf(130.toByte(), 1), ByteArray(1233), ByteArray(4097))) {
+            val request = provider.sendTransaction(wire, Commitment.FINALIZED)
+            val result = request.send()
+            result.isFailure() shouldBe true
+            result.unwrapError().code shouldBe -32602
+            result.unwrapError().message shouldBe "invalid transaction"
+            assertRequest("sendTransaction", """["${Base64.encode(wire)}",{"encoding":"base64","preflightCommitment":"finalized"}]""")
+        }
     }
 
     test("v1 uses tail-signature envelopes for send/simulation and message-only bytes for fees") {
@@ -319,7 +350,6 @@ class SolanaProviderTest : FunSpec({
         response = contextual("5000")
         provider.getFeeForMessage(signed).send().unwrap().value shouldBe bigIntegerOf(5000)
         assertRequest("getFeeForMessage", """["${Base64.encode(tx.serializeMessage())}",{"commitment":"confirmed"}]""")
-        shouldThrow<IllegalArgumentException> { provider.sendTransaction(tx.serializeForSimulation()) }
         response = """{"slot":1,"blockTime":null,"version":1,"meta":null,"transaction":{"signatures":["${signed.id}"],"message":{"header":{"numRequiredSignatures":1,"numReadonlySignedAccounts":0,"numReadonlyUnsignedAccounts":0},"accountKeys":["${signer.publicKey}","$address"],"recentBlockhash":"$blockhash","instructions":[],"transactionConfig":{"priorityFee":null,"computeUnitLimit":20000,"loadedAccountsDataSizeLimit":65536,"heapSize":null}}}}"""
         val rpc = provider.getTransaction(signed.id).send().unwrap()!!
         rpc.type shouldBe SolanaTxType.V1
@@ -340,11 +370,6 @@ class SolanaProviderTest : FunSpec({
         assertRequest("getTransaction", """["$signature",{"commitment":"finalized","encoding":"json","maxSupportedTransactionVersion":0}]""")
         provider.getTransaction(signature, 1).send().unwrap() shouldBe null
         assertRequest("getTransaction", """["$signature",{"commitment":"confirmed","encoding":"json","maxSupportedTransactionVersion":1}]""")
-        val sent = requests.size
-        shouldThrow<IllegalArgumentException> { provider.getTransaction(signature, Commitment.PROCESSED) }
-        shouldThrow<IllegalArgumentException> { provider.getTransaction(signature, -1) }
-        shouldThrow<IllegalArgumentException> { provider.getTransaction(signature, 256) }
-        requests.size shouldBe sent
     }
 
     test("transaction history leaves node version errors intact") {
@@ -388,10 +413,12 @@ class SolanaProviderTest : FunSpec({
             response = contextual("1")
             built.getBalance(address).send().unwrap().value shouldBe bigIntegerOf(1)
             assertRequest("getBalance", """["$address",{"commitment":"processed"}]""")
-            val sent = requests.size
-            shouldThrow<IllegalArgumentException> { built.getTransaction(signature) }
-            shouldThrow<IllegalArgumentException> { built.getSignaturesForAddress(address) }
-            requests.size shouldBe sent
+            error = """{"code":-32602,"message":"Invalid commitment"}"""
+            built.getTransaction(signature).send().unwrapError().code shouldBe -32602
+            assertRequest("getTransaction", """["$signature",{"commitment":"processed","encoding":"json","maxSupportedTransactionVersion":255}]""")
+            built.getSignaturesForAddress(address).send().unwrapError().code shouldBe -32602
+            assertRequest("getSignaturesForAddress", """["$address",{"commitment":"processed","limit":1000}]""")
+            error = null
             response = "null"
             built.getTransaction(signature, commitment = Commitment.CONFIRMED).send().unwrap() shouldBe null
             assertRequest("getTransaction", """["$signature",{"commitment":"confirmed","encoding":"json","maxSupportedTransactionVersion":255}]""")

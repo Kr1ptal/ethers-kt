@@ -279,7 +279,7 @@ Decimals are relative to a micro-lamport: `MICRO_LAMPORT = SolUnit(0)`, `LAMPORT
 `SOL = SolUnit(15)`. This preserves fractional-lamport priority-fee precision; decimal conversions truncate
 towards zero below one micro-lamport. Use strings or `BigDecimal` for precise decimal inputs, and
 `toBigIntegerExact()` when an API requires whole lamports. Unit conversion permits negative and arbitrarily
-large values; transaction and RPC APIs apply their own unsigned-amount validation.
+large values; transaction instruction types validate unsigned amounts, while RPC calls defer range validation to the node.
 
 ## Ported capabilities
 
@@ -319,9 +319,12 @@ RPC coverage: `getAccountInfo`, `getBalance`, `getEpochInfo`, `getFeeForMessage`
 - Choose `SolanaTxLegacy.compile`, `SolanaTxV0.compile`, or `SolanaTxV1.compile` explicitly. Only v0 exposes lookup-table arguments;
   table contents are supplied by the caller. Automatic table fetching is outside this module's initial RPC coverage.
 - Transactions are immutable; signing builders mutate their signature collection. Message changes discard signatures.
-  `serialize` and submission require all signatures; partial import/export is explicit. Unknown versions, malformed
+  Signed transaction construction requires all signatures; partial import/export is explicit. Unknown versions, malformed
   lengths/indices, and invalid signatures are rejected by binary transaction decoders. RPC transaction reads
   are separate and preserve unsupported versions without binary decoding or signature verification.
+- RPC calls forward parameters without local validation. Raw transaction bytes, numeric ranges, history options,
+  and subscription filters are validated by the node; rejection is returned as an `RpcError`, not a local
+  argument exception. Typed transaction construction still enforces version-specific envelope sizes and signatures.
 - PDA seeds may be arbitrary bytes. Seed bounds and bump zero are handled. Compute-unit-limit instructions encode
   their payload as u32 (correcting the upstream u64 encoding).
 - Legacy/v0 offline fee estimation requires an explicit compute-unit limit when a nonzero unit price is set. V1

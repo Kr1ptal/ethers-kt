@@ -20,7 +20,6 @@ import io.ethers.solana.types.RpcContext
 import io.ethers.solana.types.SignatureNotification
 import io.ethers.solana.types.SolanaSignature
 import io.github.artificialpb.bignum.bigIntegerOf
-import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import kotlinx.serialization.json.JsonElement
@@ -47,8 +46,8 @@ class SubscriptionsTest : FunSpec({
             resolved.params.toList() shouldBe listOf("argument")
             resolved.isTerminal(Kotlinx.DEFAULT.parseToJsonElement(contextual("{\"err\":null}"))) shouldBe (name == "signature")
         }
-        shouldThrow<IllegalArgumentException> { SolanaSubscriptionDescriptor.resolve(emptyArray<Any>()) }
-        shouldThrow<IllegalArgumentException> { SolanaSubscriptionDescriptor.resolve(arrayOf("unknown")) }
+        SolanaSubscriptionDescriptor.resolve(emptyArray<Any>()).subscribeMethod shouldBe "Subscribe"
+        SolanaSubscriptionDescriptor.resolve(arrayOf("unknown")).subscribeMethod shouldBe "unknownSubscribe"
     }
 
     test("account and program subscriptions decode contextual data and filters") {
@@ -62,6 +61,13 @@ class SubscriptionsTest : FunSpec({
         provider.subscribeProgram(key, listOf(AccountFilter.DataSize(165), AccountFilter.Memcmp(0, key.toString()))).send().unwrap().take()!!.value.pubkey shouldBe key
         client.descriptor.subscribeMethod shouldBe "programSubscribe"
         client.params[1] shouldBe Kotlinx.DEFAULT.parseToJsonElement("""{"commitment":"finalized","encoding":"base64","filters":[{"dataSize":165},{"memcmp":{"offset":0,"bytes":"$key","encoding":"base58"}}]}""")
+    }
+
+    test("program subscription forwards excessive and invalid filters without local validation") {
+        client.event = contextual("""{"pubkey":"$key","account":$account}""")
+        val filters = List(5) { AccountFilter.DataSize(-1) } + AccountFilter.Memcmp(-1, "not base58!")
+        provider.subscribeProgram(key, filters).send().unwrap().close()
+        client.params[1] shouldBe Kotlinx.DEFAULT.parseToJsonElement("""{"commitment":"finalized","encoding":"base64","filters":[{"dataSize":-1},{"dataSize":-1},{"dataSize":-1},{"dataSize":-1},{"dataSize":-1},{"memcmp":{"offset":-1,"bytes":"not base58!","encoding":"base58"}}]}""")
     }
 
     test("subscription commitment overrides leave the provider default unchanged") {

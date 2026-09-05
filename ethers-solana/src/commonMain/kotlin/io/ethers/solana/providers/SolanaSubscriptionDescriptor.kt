@@ -7,15 +7,12 @@ import kotlinx.serialization.json.jsonObject
 /** Solana subscription routing for clients constructed outside [SolanaProvider.builder]. */
 object SolanaSubscriptionDescriptor : SubscriptionDescriptor {
     override fun resolve(params: Array<*>): SubscriptionDescriptor.Resolved {
-        val name = params.firstOrNull() as? String
-        require(name in setOf("account", "program", "logs", "signature", "slot", "root")) {
-            "Expected a Solana subscription name as the first parameter"
-        }
+        val name = params.firstOrNull()?.toString().orEmpty()
         return SubscriptionDescriptor.Resolved(
             "${name}Subscribe",
             "${name}Unsubscribe",
             "${name}Notification",
-            params.copyOfRange(1, params.size),
+            params.drop(1).toTypedArray(),
         ) { event ->
             name == "signature" && event.jsonObject.getValue("value") !is JsonPrimitive
         }
