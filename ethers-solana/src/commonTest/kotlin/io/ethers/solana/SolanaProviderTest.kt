@@ -21,6 +21,7 @@ import io.ethers.solana.types.SolanaNodeHealth
 import io.ethers.solana.types.SolanaNodeIdentity
 import io.ethers.solana.types.SolanaSignature
 import io.ethers.solana.types.transaction.SolanaTransactionConfig
+import io.ethers.solana.types.transaction.SolanaTxLegacy
 import io.ethers.solana.types.transaction.SolanaTxType
 import io.ethers.solana.types.transaction.SolanaTxV0
 import io.ethers.solana.types.transaction.SolanaTxV1
@@ -265,6 +266,39 @@ class SolanaProviderTest : FunSpec({
         shouldThrow<IllegalArgumentException> { provider.sendTransaction(tx.serializeForSimulation()) }
         shouldThrow<IllegalArgumentException> { provider.sendTransaction(partial) }
         requests.size shouldBe sent
+    }
+
+    test("submission enforces version-specific envelope size limits for typed and raw transactions") {
+        val signer = KeypairSigner.fromSeed(ByteArray(32) { 1 })
+        fun instruction(size: Int) = BaseInstruction(Programs.SYSTEM, emptyList(), ByteArray(size))
+        for (size in listOf(1232, 1233, 4096)) {
+            // 42 fixed + 64 account bytes + 4 instruction header + 64 signature.
+            val signed = SolanaTxV1.compile(signer.publicKey, blockhash, instruction(size - 174), SolanaTransactionConfig()).sign(signer)
+            signed.serialize().size shouldBe size
+            response = "\"${signed.id}\""
+            provider.sendTransaction(signed).send().unwrap() shouldBe signed.id
+            provider.sendTransaction(signed.serialize()).send().unwrap() shouldBe signed.id
+        }
+        for (version in listOf("legacy", "v0")) {
+            for (size in listOf(1232, 1233)) {
+                val dataSize = size - if (version == "legacy") 170 else 172
+                val tx = if (version == "legacy") SolanaTxLegacy.compile(signer.publicKey, blockhash, instruction(dataSize)) else SolanaTxV0.compile(signer.publicKey, blockhash, instruction(dataSize))
+                val signed = tx.sign(signer)
+                signed.serialize().size shouldBe size
+                response = "\"${signed.id}\""
+                if (size == 1232) {
+                    provider.sendTransaction(signed).send().unwrap() shouldBe signed.id
+                    provider.sendTransaction(signed.serialize()).send().unwrap() shouldBe signed.id
+                } else {
+                    val before = requests.size
+                    shouldThrow<IllegalArgumentException> { provider.sendTransaction(signed) }
+                    shouldThrow<IllegalArgumentException> { provider.sendTransaction(signed.serialize()) }
+                    requests.size shouldBe before
+                }
+            }
+        }
+        val maximum = SolanaTxV1.compile(signer.publicKey, blockhash, instruction(4096 - 174), SolanaTransactionConfig()).sign(signer)
+        shouldThrow<IllegalArgumentException> { provider.sendTransaction(maximum.serialize() + byteArrayOf(0)) }
     }
 
     test("v1 uses tail-signature envelopes for send/simulation and message-only bytes for fees") {
