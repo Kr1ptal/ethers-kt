@@ -1,0 +1,23 @@
+{
+  "requestedCounts": {
+    "legacy": 200,
+    "0": 200,
+    "1": 200
+  },
+  "capturedCounts": {
+    "legacy": 200,
+    "0": 200,
+    "1": 0
+  },
+  "status": "incomplete: live v1 samples not located",
+  "files": {
+    "mainnet-legacy.jsonl": {
+      "count": 200,
+      "sha256": "ae26de45d14b47ca92ca073db9b76c5cc27edd89f30da8ab4bbf78a6c8821d86"
+    },
+    "mainnet-0.jsonl": {
+      "count": 200,
+      "sha256": "33bcc6398858d678253c78b0f67cebea8bfc5cdfbb7e23fd8ea888ab6c7ad0b8"
+    }
+  }
+}

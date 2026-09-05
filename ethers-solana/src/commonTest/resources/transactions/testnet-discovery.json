@@ -1,0 +1,129 @@
+{
+  "endpoint": "https://api.testnet.solana.com",
+  "cluster": "testnet",
+  "genesisHash": "4uhcVJyU9pJkvQyS88uRDiswHXSCkY3zQawwpjk2NsNY",
+  "nodeVersion": {
+    "feature-set": 2409014235,
+    "solana-core": "4.3.0-beta.3"
+  },
+  "capturedAt": "2026-09-05T20:32:40.197810+00:00",
+  "commitment": "finalized",
+  "v1Feature": {
+    "context": {
+      "apiVersion": "4.3.0-beta.3",
+      "slot": 438825026
+    },
+    "value": {
+      "data": [
+        "AWBOEBoAAAAA",
+        "base64"
+      ],
+      "executable": false,
+      "lamports": 867621,
+      "owner": "Feature111111111111111111111111111111111111",
+      "rentEpoch": 18446744073709551615,
+      "space": 9
+    }
+  },
+  "scannedBlocks": [
+    {
+      "slot": 438824600,
+      "versions": {
+        "legacy": 476
+      }
+    },
+    {
+      "slot": 438824563,
+      "versions": {
+        "legacy": 481
+      }
+    },
+    {
+      "slot": 438824528,
+      "versions": {
+        "legacy": 483
+      }
+    },
+    {
+      "slot": 438824172,
+      "versions": {
+        "legacy": 604
+      }
+    },
+    {
+      "slot": 438824136,
+      "versions": {
+        "legacy": 475
+      }
+    },
+    {
+      "slot": 438824101,
+      "versions": {
+        "legacy": 471
+      }
+    },
+    {
+      "slot": 438823640,
+      "versions": {
+        "legacy": 482
+      }
+    },
+    {
+      "slot": 438823610,
+      "versions": {
+        "legacy": 547
+      }
+    },
+    {
+      "slot": 438823576,
+      "versions": {
+        "legacy": 518
+      }
+    },
+    {
+      "slot": 438823539,
+      "versions": {
+        "legacy": 513
+      }
+    },
+    {
+      "slot": 438822991,
+      "versions": {
+        "legacy": 521
+      }
+    },
+    {
+      "slot": 438822955,
+      "versions": {
+        "legacy": 473
+      }
+    },
+    {
+      "slot": 438822919,
+      "versions": {
+        "legacy": 453
+      }
+    },
+    {
+      "slot": 438804828,
+      "versions": {
+        "legacy": 551
+      }
+    },
+    {
+      "slot": 438804733,
+      "versions": {
+        "legacy": 295
+      }
+    },
+    {
+      "slot": 438616809,
+      "versions": {
+        "legacy": 479
+      }
+    }
+  ],
+  "counts": {
+    "1": 0
+  }
+}

@@ -1,0 +1,239 @@
+{
+  "endpoint": "https://api.devnet.solana.com",
+  "cluster": "devnet",
+  "genesisHash": "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
+  "nodeVersion": {
+    "feature-set": 2409014235,
+    "solana-core": "4.3.0-beta.3"
+  },
+  "capturedAt": "2026-09-05T20:34:31.386864+00:00",
+  "commitment": "finalized",
+  "v1Feature": {
+    "context": {
+      "apiVersion": "4.3.0-beta.3",
+      "slot": 493716742
+    },
+    "value": {
+      "data": [
+        "AQCmWh0AAAAA",
+        "base64"
+      ],
+      "executable": false,
+      "lamports": 867621,
+      "owner": "Feature111111111111111111111111111111111111",
+      "rentEpoch": 18446744073709551615,
+      "space": 9
+    }
+  },
+  "scannedBlocks": [
+    {
+      "slot": 493716754,
+      "versions": {
+        "legacy": 38,
+        "0": 1
+      }
+    },
+    {
+      "slot": 493716743,
+      "versions": {
+        "legacy": 90,
+        "0": 2
+      }
+    },
+    {
+      "slot": 493716731,
+      "versions": {
+        "legacy": 89,
+        "0": 3
+      }
+    },
+    {
+      "slot": 493716721,
+      "versions": {
+        "legacy": 35
+      }
+    },
+    {
+      "slot": 493716709,
+      "versions": {
+        "legacy": 14,
+        "0": 1
+      }
+    },
+    {
+      "slot": 493716697,
+      "versions": {
+        "legacy": 19,
+        "0": 1
+      }
+    },
+    {
+      "slot": 493716687,
+      "versions": {
+        "legacy": 25,
+        "0": 1
+      }
+    },
+    {
+      "slot": 493716677,
+      "versions": {
+        "legacy": 24,
+        "0": 1
+      }
+    },
+    {
+      "slot": 493716666,
+      "versions": {
+        "legacy": 28,
+        "0": 3
+      }
+    },
+    {
+      "slot": 493716654,
+      "versions": {
+        "legacy": 25,
+        "0": 2
+      }
+    },
+    {
+      "slot": 493716644,
+      "versions": {
+        "legacy": 33,
+        "0": 4
+      }
+    },
+    {
+      "slot": 493716629,
+      "versions": {
+        "legacy": 52,
+        "0": 1
+      }
+    },
+    {
+      "slot": 493716617,
+      "versions": {
+        "legacy": 61,
+        "0": 1
+      }
+    },
+    {
+      "slot": 493716607,
+      "versions": {
+        "legacy": 25,
+        "0": 2
+      }
+    },
+    {
+      "slot": 493716596,
+      "versions": {
+        "legacy": 28,
+        "0": 3
+      }
+    },
+    {
+      "slot": 493716582,
+      "versions": {
+        "legacy": 46
+      }
+    },
+    {
+      "slot": 493716572,
+      "versions": {
+        "legacy": 28,
+        "0": 2
+      }
+    },
+    {
+      "slot": 493716560,
+      "versions": {
+        "legacy": 41,
+        "0": 2
+      }
+    },
+    {
+      "slot": 493716548,
+      "versions": {
+        "legacy": 36
+      }
+    },
+    {
+      "slot": 493716536,
+      "versions": {
+        "legacy": 37,
+        "0": 2
+      }
+    },
+    {
+      "slot": 493716524,
+      "versions": {
+        "legacy": 25,
+        "0": 2
+      }
+    },
+    {
+      "slot": 493716510,
+      "versions": {
+        "legacy": 27,
+        "0": 1
+      }
+    },
+    {
+      "slot": 493716498,
+      "versions": {
+        "legacy": 25,
+        "0": 3
+      }
+    },
+    {
+      "slot": 493716488,
+      "versions": {
+        "legacy": 64,
+        "0": 6
+      }
+    },
+    {
+      "slot": 493716473,
+      "versions": {
+        "legacy": 15,
+        "0": 5
+      }
+    },
+    {
+      "slot": 493716463,
+      "versions": {
+        "legacy": 101,
+        "0": 1
+      }
+    },
+    {
+      "slot": 493716453,
+      "versions": {
+        "legacy": 59
+      }
+    },
+    {
+      "slot": 493716440,
+      "versions": {
+        "legacy": 78,
+        "0": 1
+      }
+    },
+    {
+      "slot": 493716429,
+      "versions": {
+        "legacy": 12,
+        "0": 1
+      }
+    },
+    {
+      "slot": 493716419,
+      "versions": {
+        "legacy": 67,
+        "0": 1
+      }
+    }
+  ],
+  "counts": {
+    "1": 0
+  }
+}

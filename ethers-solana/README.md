@@ -343,6 +343,12 @@ Common tests include RFC8032 signing, upstream PDA/transaction fixtures, an inde
 fixture, RPC wire shapes, and all subscription decoders. Provider tests cover numeric subscription IDs, reconnects,
 cancellation, and terminal events. Java API examples are compiled with `--release 11`.
 
+The committed [live transaction corpus](src/commonTest/resources/transactions/README.md) adds 200 legacy and
+200 v0 mainnet transactions with paired RPC JSON and binary bytes. Common tests verify signatures, exact
+binary roundtrips, reconstruction from RPC fields, lossless JSON values and metadata indices. The requested
+200 live v1 samples remain pending: bounded public testnet/devnet discovery found none. Constructed v1
+fixtures are tested separately and are not counted toward that live corpus.
+
 An optional local-validator test creates ephemeral test accounts and uses the local faucet. Start your own
 `solana-test-validator` and opt in (loopback endpoints only):
 

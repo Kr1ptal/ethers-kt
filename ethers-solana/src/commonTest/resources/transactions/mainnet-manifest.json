@@ -1,0 +1,87 @@
+{
+  "endpoint": "https://api.mainnet-beta.solana.com",
+  "cluster": "mainnet",
+  "genesisHash": "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d",
+  "nodeVersion": {
+    "feature-set": 565236538,
+    "solana-core": "4.2.2"
+  },
+  "capturedAt": "2026-09-05T20:28:47.124381+00:00",
+  "commitment": "finalized",
+  "scannedBlocks": [
+    {
+      "slot": 444610678,
+      "versions": {
+        "legacy": 810,
+        "0": 289
+      }
+    },
+    {
+      "slot": 444610641,
+      "versions": {
+        "legacy": 754,
+        "0": 353
+      }
+    },
+    {
+      "slot": 444610604,
+      "versions": {
+        "legacy": 831,
+        "0": 474
+      }
+    },
+    {
+      "slot": 444610567,
+      "versions": {
+        "legacy": 866,
+        "0": 281
+      }
+    },
+    {
+      "slot": 444610530,
+      "versions": {
+        "legacy": 882,
+        "0": 335
+      }
+    },
+    {
+      "slot": 444610493,
+      "versions": {
+        "0": 261,
+        "legacy": 755
+      }
+    },
+    {
+      "slot": 444610456,
+      "versions": {
+        "legacy": 882,
+        "0": 457
+      }
+    },
+    {
+      "slot": 444610419,
+      "versions": {
+        "legacy": 808,
+        "0": 338
+      }
+    },
+    {
+      "slot": 444610382,
+      "versions": {
+        "0": 281,
+        "legacy": 846
+      }
+    },
+    {
+      "slot": 444610345,
+      "versions": {
+        "0": 354,
+        "legacy": 832
+      }
+    }
+  ],
+  "counts": {
+    "legacy": 200,
+    "0": 200
+  }
+}
