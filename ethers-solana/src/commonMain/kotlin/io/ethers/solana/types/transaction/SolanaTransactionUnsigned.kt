@@ -3,7 +3,7 @@ package io.ethers.solana.types.transaction
 import io.ethers.solana.signers.SolanaSigner
 import kotlin.jvm.JvmStatic
 
-/** A compiled legacy or v0 payload with no signatures. */
+/** A compiled legacy, v0 or v1 payload with no signatures. */
 sealed interface SolanaTransactionUnsigned : SolanaTransaction {
     /** Sign with every required signer, failing if any signature is missing or invalid. */
     fun sign(vararg signers: SolanaSigner): SolanaTransactionSigned = signingBuilder().sign(*signers).build()

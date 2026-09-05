@@ -5,6 +5,7 @@ package io.ethers.solana.types
 
 import io.ethers.solana.types.transaction.CompiledAddressLookupTable
 import io.ethers.solana.types.transaction.MessageHeader
+import io.ethers.solana.types.transaction.SolanaTransactionConfig
 import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
@@ -18,6 +19,8 @@ data class SolanaRPCMessage(
     val recentBlockhash: SolanaBlockhash,
     val instructions: List<SolanaRPCInstruction>,
     val addressTableLookups: List<CompiledAddressLookupTable> = emptyList(),
+    /** Present for v1; absent for legacy/v0. Individual absent requests remain null. */
+    val transactionConfig: SolanaTransactionConfig? = null,
     @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
 )
 

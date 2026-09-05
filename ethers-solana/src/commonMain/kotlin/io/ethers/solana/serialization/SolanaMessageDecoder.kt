@@ -5,7 +5,7 @@ import com.ditchoom.buffer.Default
 import com.ditchoom.buffer.PlatformBuffer
 import io.github.artificialpb.bignum.BigInteger
 
-/** Bounded primitives for Solana's legacy/v0 wire format and fixed-width instruction values, not Borsh. */
+/** Bounded primitives for Solana transaction wire formats and fixed-width instruction values, not Borsh. */
 internal class SolanaMessageDecoder(bytes: ByteArray) {
     private val buffer: PlatformBuffer = BufferFactory.Default.wrap(bytes)
     val remaining: Int get() = buffer.remaining()

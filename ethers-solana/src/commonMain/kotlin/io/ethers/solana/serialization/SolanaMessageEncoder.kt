@@ -4,7 +4,7 @@ import com.ditchoom.buffer.BufferFactory
 import com.ditchoom.buffer.Default
 import com.ditchoom.buffer.PlatformBuffer
 
-/** Byte and compact-u16 primitives for Solana's legacy/v0 message and transaction wire format, not Borsh. */
+/** Byte and compact-u16 primitives for Solana transaction wire formats, not Borsh. */
 internal class SolanaMessageEncoder {
     private var bytes = ByteArray(128)
     private var buffer: PlatformBuffer = BufferFactory.Default.wrap(bytes)

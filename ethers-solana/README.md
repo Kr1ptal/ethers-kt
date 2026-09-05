@@ -63,7 +63,7 @@ try {
 
 ## Transaction types and signing
 
-`SolanaTransaction` is the common interface. `SolanaTxLegacy` and `SolanaTxV0` implement
+`SolanaTransaction` is the common interface. `SolanaTxLegacy`, `SolanaTxV0`, and `SolanaTxV1` implement
 `SolanaTransactionUnsigned`; only v0 accepts address lookup tables. `SolanaTransactionSigned` holds the
 unsigned payload in `tx` and delegates its common properties. There is no separate message hierarchy.
 
@@ -89,6 +89,39 @@ transaction and discards signatures; start a new builder for that payload.
   envelopes, while `SolanaTransactionSigned.Builder.deserializePartial()` imports a collection for further
   signing. The envelope decoders also have Base64 counterparts.
 
+### V1 transactions
+
+`SolanaTxV1` implements [SIMD-0385](https://github.com/solana-foundation/solana-improvement-documents/blob/main/proposals/0385-transaction-v1.md).
+It supports 4096-byte envelopes, at most 12 signatures, 64 inline accounts and 64 instructions, with
+no address lookup tables. The first envelope byte is `0x81`; signatures follow the message without a
+count prefix. Existing signing, partial-signature exchange, simulation, sending, and fee-query APIs work
+with v1 without separate overloads.
+
+```kotlin
+val config = SolanaTransactionConfig(
+    priorityFee = bigIntegerOf(5_000), // TOTAL lamports, not micro-lamports per compute unit
+    computeUnitLimit = 20_000,
+    loadedAccountsDataSizeLimit = 65_536,
+    heapSize = 65_536,
+)
+val unsigned = SolanaTxV1.compile(feePayer, blockhash, instructions, config)
+val signed = unsigned.sign(signer)
+val simulation = provider.simulateTransaction(signed).send().unwrap()
+```
+
+The config parameter is required to make resource requests explicit. A null field omits that request;
+zero is separately representable on the wire. Unset compute/data limits and priority fee mean zero, while
+unset heap size means 32 KiB. Heap requests must be multiples of 1 KiB within 32..256 KiB. ComputeBudget
+instructions are preserved but do not configure v1 transactions; set the inline config instead. Local
+fee estimates use its total priority fee; `getFeeForMessage` remains authoritative. `withConfig` creates
+a new unsigned payload requiring new signatures, just like changing the blockhash.
+
+Sending requires the target cluster's `enable_tx_v1` feature gate
+(`txv1aq4pp281K9um3tnPgkfX8UqtFT6wcVW3hNezGLL`) to be active. Check with
+`solana -u <cluster> feature status <feature-address>` before use. Support in this library does not imply
+cluster activation. Send/simulation RPC requests use base64, including envelopes larger than 1232 bytes.
+See the [Solana v1 integration guide](https://github.com/solana-foundation/solana-dev-skill/blob/main/skills/solana-dev/references/transactions-v1.md).
+
 ## Reading transactions from RPC
 
 Chain-level values and transaction/API families use explicit Solana names: `SolanaSignature`,
@@ -100,7 +133,7 @@ Protocol-specific components such as `AccountMeta`, `CompiledInstruction`, `Inne
 ```kotlin
 val transaction = provider.getTransaction(signature).send().unwrap() // SolanaRPCTransaction?
 if (transaction != null) {
-    val type = transaction.type // Legacy, V0, or Unsupported(version); never null
+    val type = transaction.type // Legacy, V0, V1, or Unsupported(version); never null
     val signatures = transaction.transaction.signatures // List<SolanaSignature>
     val message = transaction.transaction.message       // SolanaRPCMessage
     val accounts = message.accountKeys                  // List<SolanaAddress>
@@ -117,6 +150,10 @@ fields: account addresses, blockhash, header, instructions, and lookup tables. `
 return data, rewards, compute/cost units, and extensible errors (including instruction indices and custom codes).
 Instruction and return data are decoded to `SolanaBytes`. Compiled instruction `accounts` are integer indices.
 The provider requests compiled `json`, so these models do not contain parsed/binary/accounts payload variants.
+V1's `message.transactionConfig` is decoded as `SolanaTransactionConfig`, shared with the signable payload;
+it is null for legacy/v0. Its nullable fields represent omitted inline requests, not missing decoding support.
+Unknown config fields are retained in `otherFields` when reading; constructing a signable v1 payload rejects
+these fields rather than silently dropping requests whose binary encoding is not supported.
 Metadata amounts use `BigInteger`, signed reward changes use `Long`, and JSON token UI amounts use `BigDecimal`
 without introducing additional floating-point rounding. Prefer the integer token amount and decimals for arithmetic.
 
@@ -279,7 +316,7 @@ RPC coverage: `getAccountInfo`, `getBalance`, `getEpochInfo`, `getFeeForMessage`
   `Long` or floating point. Request quantities are decimal JSON numbers; token amounts retain their RPC string encoding.
 - Account data is explicitly requested as base64. Simulation `err` is retained as structured JSON in a successful
   RPC result, with nullable logs supported.
-- Choose `SolanaTxLegacy.compile` or `SolanaTxV0.compile` explicitly. Only v0 exposes lookup-table arguments;
+- Choose `SolanaTxLegacy.compile`, `SolanaTxV0.compile`, or `SolanaTxV1.compile` explicitly. Only v0 exposes lookup-table arguments;
   table contents are supplied by the caller. Automatic table fetching is outside this module's initial RPC coverage.
 - Transactions are immutable; signing builders mutate their signature collection. Message changes discard signatures.
   `serialize` and submission require all signatures; partial import/export is explicit. Unknown versions, malformed
@@ -287,7 +324,8 @@ RPC coverage: `getAccountInfo`, `getBalance`, `getEpochInfo`, `getFeeForMessage`
   are separate and preserve unsupported versions without binary decoding or signature verification.
 - PDA seeds may be arbitrary bytes. Seed bounds and bump zero are handled. Compute-unit-limit instructions encode
   their payload as u32 (correcting the upstream u64 encoding).
-- Offline fee estimation requires an explicit compute-unit limit when a nonzero unit price is set. Use
+- Legacy/v0 offline fee estimation requires an explicit compute-unit limit when a nonzero unit price is set. V1
+  instead uses the total lamport priority fee in its config. Use
   `getFeeForMessage` for a node-calculated fee that accounts for runtime defaults.
 - Token-2022 helpers cover the same checked-transfer capabilities as sol4k. Extensions requiring additional
   accounts/instructions must be constructed explicitly. Block, vote, and slot-update subscriptions are excluded.
@@ -312,5 +350,11 @@ An optional local-validator test creates ephemeral test accounts and uses the lo
 SOLANA_VALIDATOR_HTTP=http://127.0.0.1:8899 SOLANA_VALIDATOR_WS=ws://127.0.0.1:8900 \
   ./gradlew :ethers-solana:jvmKotest --rerun-tasks
 ```
+
+With a v1-enabled validator (Agave 4.2+), also set `SOLANA_VALIDATOR_V1=true` to run the v1 integration
+test. It simulates and submits a transaction larger than 1232 bytes, checks its fee, and reads back its
+typed inline config and recipient balance. This test requires only the loopback HTTP endpoint.
+Common v1 tests independently check the exact SIMD wire layout and an Ed25519 signature generated by
+Node crypto, all config masks, partial signatures, malformed inputs, and the 4096-byte envelope boundary.
 
 See [NOTICE](NOTICE) for upstream provenance and licensing.

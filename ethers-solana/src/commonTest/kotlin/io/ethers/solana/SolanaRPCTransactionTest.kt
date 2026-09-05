@@ -103,15 +103,18 @@ class SolanaRPCTransactionTest : FunSpec({
         )) {
             shouldThrow<IllegalArgumentException> { decode(JsonObject(legacy + ("version" to version))) }
         }
-        for (version in listOf(1, 127, 255)) {
+        for (version in listOf(2, 127, 255)) {
             val tx = decode(JsonObject(legacy + ("version" to JsonPrimitive(version))))
             tx.type shouldBe SolanaTxType.Unsupported(version)
             val message = tx.transaction.message
             message.header.requiredSignatures shouldBe 1
         }
         SolanaTxType.fromVersion(0) shouldBe SolanaTxType.V0
-        val versioned: SolanaTxType.Versioned = SolanaTxType.Unsupported(1)
-        versioned.version shouldBe 1
+        SolanaTxType.fromVersion(1) shouldBe SolanaTxType.V1
+        SolanaTxType.V1.isSupported shouldBe true
+        shouldThrow<IllegalArgumentException> { SolanaTxType.Unsupported(1) }
+        val versioned: SolanaTxType.Versioned = SolanaTxType.Unsupported(2)
+        versioned.version shouldBe 2
         versioned.isSupported shouldBe false
         shouldThrow<IllegalArgumentException> { SolanaTxType.fromVersion(-1) }
     }
@@ -151,8 +154,8 @@ class SolanaRPCTransactionTest : FunSpec({
         checkRequired(reward, listOf("pubkey", "lamports", "postBalance"), { Kotlinx.DEFAULT.decodeFromJsonElement<Reward>(it) })
     }
 
-    test("known fields are fully decoded for legacy, v0 and unsupported versions") {
-        for (version in listOf("\"legacy\"", "0", "1")) {
+    test("known fields are fully decoded for legacy, v0, v1 and unsupported versions") {
+        for (version in listOf("\"legacy\"", "0", "1", "2")) {
             val json = Kotlinx.DEFAULT.parseToJsonElement(
                 """{
                     "slot":9007199254740993,"blockTime":123,"version":$version,"extra":1,

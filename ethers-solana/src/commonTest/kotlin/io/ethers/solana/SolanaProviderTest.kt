@@ -20,8 +20,10 @@ import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.types.SolanaNodeHealth
 import io.ethers.solana.types.SolanaNodeIdentity
 import io.ethers.solana.types.SolanaSignature
+import io.ethers.solana.types.transaction.SolanaTransactionConfig
 import io.ethers.solana.types.transaction.SolanaTxType
 import io.ethers.solana.types.transaction.SolanaTxV0
+import io.ethers.solana.types.transaction.SolanaTxV1
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.throwables.shouldThrow
@@ -265,11 +267,34 @@ class SolanaProviderTest : FunSpec({
         requests.size shouldBe sent
     }
 
+    test("v1 uses tail-signature envelopes for send/simulation and message-only bytes for fees") {
+        val signer = KeypairSigner.fromSeed(ByteArray(32) { 1 })
+        val tx = SolanaTxV1.compile(signer.publicKey, blockhash, TransferInstruction(signer.publicKey, address, 1), SolanaTransactionConfig(computeUnitLimit = 20000, loadedAccountsDataSizeLimit = 65536))
+        val signed = tx.sign(signer)
+        response = "\"${signed.id}\""
+        provider.sendTransaction(signed).send().unwrap() shouldBe signed.id
+        assertRequest("sendTransaction", """["${signed.toBase64()}",{"encoding":"base64","preflightCommitment":"confirmed"}]""")
+        provider.sendTransaction(signed.serialize()).send().unwrap() shouldBe signed.id
+        response = contextual("""{"err":null,"logs":[]}""")
+        provider.simulateTransaction(tx).send().unwrap().value.err shouldBe null
+        assertRequest("simulateTransaction", """["${Base64.encode(tx.serializeForSimulation())}",{"commitment":"confirmed","encoding":"base64"}]""")
+        provider.simulateTransaction(signed).send().unwrap().value.err shouldBe null
+        assertRequest("simulateTransaction", """["${signed.toBase64()}",{"commitment":"confirmed","encoding":"base64"}]""")
+        response = contextual("5000")
+        provider.getFeeForMessage(signed).send().unwrap().value shouldBe bigIntegerOf(5000)
+        assertRequest("getFeeForMessage", """["${Base64.encode(tx.serializeMessage())}",{"commitment":"confirmed"}]""")
+        shouldThrow<IllegalArgumentException> { provider.sendTransaction(tx.serializeForSimulation()) }
+        response = """{"slot":1,"blockTime":null,"version":1,"meta":null,"transaction":{"signatures":["${signed.id}"],"message":{"header":{"numRequiredSignatures":1,"numReadonlySignedAccounts":0,"numReadonlyUnsignedAccounts":0},"accountKeys":["${signer.publicKey}","$address"],"recentBlockhash":"$blockhash","instructions":[],"transactionConfig":{"priorityFee":null,"computeUnitLimit":20000,"loadedAccountsDataSizeLimit":65536,"heapSize":null}}}}"""
+        val rpc = provider.getTransaction(signed.id).send().unwrap()!!
+        rpc.type shouldBe SolanaTxType.V1
+        rpc.transaction.message.transactionConfig shouldBe tx.config
+    }
+
     test("transaction history preserves unsupported versions and returns null for missing transactions") {
-        response = """{"slot":9007199254740993,"blockTime":null,"version":1,"transaction":{"signatures":["$signature"],"message":{"header":{"numRequiredSignatures":1,"numReadonlySignedAccounts":0,"numReadonlyUnsignedAccounts":0},"accountKeys":["$address"],"recentBlockhash":"$blockhash","instructions":[]},"futureMessage":true},"meta":{"err":null,"fee":0,"preBalances":[],"postBalances":[],"future":7},"extra":42}"""
+        response = """{"slot":9007199254740993,"blockTime":null,"version":2,"transaction":{"signatures":["$signature"],"message":{"header":{"numRequiredSignatures":1,"numReadonlySignedAccounts":0,"numReadonlyUnsignedAccounts":0},"accountKeys":["$address"],"recentBlockhash":"$blockhash","instructions":[]},"futureMessage":true},"meta":{"err":null,"fee":0,"preBalances":[],"postBalances":[],"future":7},"extra":42}"""
         val tx = provider.getTransaction(signature).send().unwrap()!!
         tx.slot shouldBe BigInteger("9007199254740993")
-        tx.type shouldBe SolanaTxType.Unsupported(1)
+        tx.type shouldBe SolanaTxType.Unsupported(2)
         tx.otherFields["extra"] shouldBe JsonPrimitive(42)
         tx.transaction.otherFields["futureMessage"] shouldBe JsonPrimitive(true)
         tx.meta!!.otherFields["future"] shouldBe JsonPrimitive(7)
@@ -295,9 +320,9 @@ class SolanaProviderTest : FunSpec({
     }
 
     test("transaction history returns typed fields even for unsupported versions") {
-        response = """{"slot":1,"blockTime":null,"version":1,"transaction":{"signatures":["$signature"],"message":{"header":{"numRequiredSignatures":1,"numReadonlySignedAccounts":0,"numReadonlyUnsignedAccounts":0},"accountKeys":["$address"],"recentBlockhash":"$blockhash","instructions":[]}},"meta":{"err":null,"fee":5000,"preBalances":[],"postBalances":[],"logMessages":["hello"]}}"""
+        response = """{"slot":1,"blockTime":null,"version":2,"transaction":{"signatures":["$signature"],"message":{"header":{"numRequiredSignatures":1,"numReadonlySignedAccounts":0,"numReadonlyUnsignedAccounts":0},"accountKeys":["$address"],"recentBlockhash":"$blockhash","instructions":[]}},"meta":{"err":null,"fee":5000,"preBalances":[],"postBalances":[],"logMessages":["hello"]}}"""
         val tx = provider.getTransaction(signature).send().unwrap()!!
-        tx.type shouldBe SolanaTxType.Unsupported(1)
+        tx.type shouldBe SolanaTxType.Unsupported(2)
         tx.transaction.signatures shouldBe listOf(signature)
         tx.transaction.message.accountKeys.single() shouldBe address
         tx.transaction.message.recentBlockhash shouldBe blockhash

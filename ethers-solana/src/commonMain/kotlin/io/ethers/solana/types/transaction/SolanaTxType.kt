@@ -27,15 +27,23 @@ sealed class SolanaTxType {
         override val version: Int get() = 0
     }
 
+    data object V1 : Versioned() {
+        override val version: Int get() = 1
+    }
+
     data class Unsupported(override val version: Int) : Versioned() {
         init {
-            require(version in 1..255) { "Unsupported versions must be in 1..255; version 0 is supported" }
+            require(version in 2..255) { "Unsupported versions must be in 2..255; versions 0 and 1 are supported" }
         }
     }
 
     companion object {
         @JvmStatic
-        fun fromVersion(version: Int): SolanaTxType = if (version == 0) V0 else Unsupported(version)
+        fun fromVersion(version: Int): SolanaTxType = when (version) {
+            0 -> V0
+            1 -> V1
+            else -> Unsupported(version)
+        }
     }
 }
 

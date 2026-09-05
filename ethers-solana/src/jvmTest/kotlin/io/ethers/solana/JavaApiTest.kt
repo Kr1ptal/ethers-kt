@@ -77,6 +77,8 @@ class JavaApiTest : FunSpec({
             import io.ethers.solana.types.SolanaNodeIdentity;
             import io.ethers.solana.types.SignatureNotification;
             import io.ethers.solana.types.transaction.SolanaTxV0;
+            import io.ethers.solana.types.transaction.SolanaTxV1;
+            import io.ethers.solana.types.transaction.SolanaTransactionConfig;
             import io.ethers.solana.types.transaction.SolanaTxLegacy;
             import io.ethers.solana.types.transaction.SolanaTransaction;
             import io.ethers.solana.types.transaction.SolanaTransactionUnsigned;
@@ -124,6 +126,14 @@ class JavaApiTest : FunSpec({
                     SolanaTransactionUnsigned refreshed = completed.withNewBlockhash(latest.getBlockhash());
                     var legacy = SolanaTxLegacy.compile(signer.getPublicKey(), latest.getBlockhash(),
                         new TransferInstruction(signer.getPublicKey(), recipient, 1L));
+                    var config = new SolanaTransactionConfig(java.math.BigInteger.valueOf(5000), 20000L, 65536L, 65536L);
+                    var v1 = SolanaTxV1.compile(signer.getPublicKey(), latest.getBlockhash(),
+                        new TransferInstruction(signer.getPublicKey(), recipient, 1L), config);
+                    SolanaTransactionSigned signedV1 = v1.sign(signer);
+                    provider.simulateTransaction(v1);
+                    provider.sendTransaction(signedV1);
+                    SolanaTransactionConfig inlineConfig = v1.getConfig();
+                    var reconfigured = v1.withConfig(new SolanaTransactionConfig());
                     var signature = provider.sendTransaction(transaction).sendAwait().unwrap();
                     var fetched = provider.getTransaction(signature).sendAwait().unwrap();
                     var fetchedVersion = provider.getTransaction(signature, 1).sendAwait().unwrap();
@@ -132,6 +142,7 @@ class JavaApiTest : FunSpec({
                         var otherFields = fetched.getOtherFields();
                         java.util.List<io.ethers.solana.types.SolanaSignature> signatures = fetched.getTransaction().getSignatures();
                         io.ethers.solana.types.SolanaRPCMessage rpcMessage = fetched.getTransaction().getMessage();
+                        SolanaTransactionConfig rpcConfig = rpcMessage.getTransactionConfig();
                         if (!rpcMessage.getInstructions().isEmpty()) {
                             io.ethers.solana.types.SolanaBytes data = rpcMessage.getInstructions().get(0).getData();
                             java.util.List<io.ethers.solana.types.SolanaAddress> accounts = rpcMessage.getAccountKeys();
@@ -140,7 +151,7 @@ class JavaApiTest : FunSpec({
                             java.math.BigInteger paidFee = fetched.getMeta().getFee();
                             java.util.List<io.ethers.solana.types.TokenBalance> balances = fetched.getMeta().getPostTokenBalances();
                         }
-                        var unsupported = io.ethers.solana.types.transaction.SolanaTxType.fromVersion(1);
+                        var unsupported = io.ethers.solana.types.transaction.SolanaTxType.fromVersion(2);
                     }
                     var subscription = provider.subscribeSignature(signature).sendAsync();
                     ContextValue<SignatureNotification> notification = provider.subscribeSignature(signature).sendAwait().unwrap().take();
