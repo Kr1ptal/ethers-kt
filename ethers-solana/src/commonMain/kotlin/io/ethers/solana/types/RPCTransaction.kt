@@ -1,53 +1,25 @@
+@file:OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+@file:kotlinx.serialization.UseSerializers(U64Serializer::class)
+
 package io.ethers.solana.types
 
 import io.ethers.solana.types.transaction.SolanaTxType
 import io.github.artificialpb.bignum.BigInteger
-import kotlinx.serialization.KSerializer
+import kotlinx.serialization.KeepGeneratedSerializer
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.descriptors.buildClassSerialDescriptor
-import kotlinx.serialization.encoding.Decoder
-import kotlinx.serialization.encoding.Encoder
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonEncoder
-import kotlinx.serialization.json.JsonNull
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.intOrNull
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.long
 
-/**
- * A getTransaction response, independent of the signable transaction hierarchy.
- * [raw] retains every field, including unknown nested fields and explicit nulls, without decoding the
- * binary message or verifying signatures. Known JSON fields are typed independently of transaction version.
- * Serialization reproduces this JSON, not a binary transaction envelope.
- * The RPC node must still support the requested version and have the transaction available.
- */
+/** A getTransaction response in json encoding; not a signable transaction. */
+@KeepGeneratedSerializer
 @Serializable(with = RPCTransactionSerializer::class)
-data class RPCTransaction(val raw: JsonObject) {
-    val slot: BigInteger = Json.decodeFromJsonElement(U64Serializer, raw.getValue("slot"))
-    val blockTime: Long? = raw["blockTime"]?.takeUnless { it == JsonNull }?.jsonPrimitive?.long
+data class RPCTransaction(
+    val slot: BigInteger,
+    val blockTime: Long?,
+    val transaction: RPCTransactionData,
+    val meta: RPCTransactionMeta?,
+    @SerialName("version") val type: SolanaTxType = SolanaTxType.Legacy,
+    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
+)
 
-    val transaction: RPCTransactionData = RPCTransactionData(raw.getValue("transaction"))
-    val meta: RPCTransactionMeta? = raw["meta"]?.takeUnless { it == JsonNull }?.let(::RPCTransactionMeta)
-
-    /** Null means the node omitted the version, returned null, or used an unrecognized representation. */
-    val type: SolanaTxType? = when (val version = raw["version"]) {
-        JsonPrimitive("legacy") -> SolanaTxType.Legacy
-        is JsonPrimitive -> if (version.isString) null else version.intOrNull?.takeIf { it >= 0 }?.let(SolanaTxType::fromVersion)
-        else -> null
-    }
-
-    val otherFields: Map<String, JsonElement> = raw.filterKeys { it !in KNOWN_FIELDS }
-}
-
-object RPCTransactionSerializer : KSerializer<RPCTransaction> {
-    override val descriptor = buildClassSerialDescriptor("SolanaRPCTransaction")
-    override fun deserialize(decoder: Decoder): RPCTransaction = RPCTransaction((decoder as JsonDecoder).decodeJsonElement().jsonObject)
-    override fun serialize(encoder: Encoder, value: RPCTransaction) = (encoder as JsonEncoder).encodeJsonElement(rpcExactJson(value.raw))
-}
-
-private val KNOWN_FIELDS = setOf("slot", "blockTime", "transaction", "meta", "version")
+object RPCTransactionSerializer : ExtensibleJsonSerializer<RPCTransaction>(RPCTransaction.generatedSerializer(), { it.otherFields })

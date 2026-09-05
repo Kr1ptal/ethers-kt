@@ -23,8 +23,6 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 
 class SubscriptionsTest : FunSpec({
     val key = Programs.SYSTEM
@@ -80,7 +78,7 @@ class SubscriptionsTest : FunSpec({
         client.descriptor.isTerminal(Kotlinx.DEFAULT.parseToJsonElement(client.event)) shouldBe false
         client.event = contextual("""{"err":{"InstructionError":[0,"InvalidArgument"]}}""")
         val status = provider.subscribeSignature(signature).send().unwrap().take() as SignatureNotification.Status
-        status.err shouldBe Kotlinx.DEFAULT.parseToJsonElement("""{"InstructionError":[0,"InvalidArgument"]}""")
+        status.err shouldBe io.ethers.solana.types.TransactionError.InstructionFailure(0, io.ethers.solana.types.InstructionError.Simple.INVALID_ARGUMENT)
         client.descriptor.isTerminal(Kotlinx.DEFAULT.parseToJsonElement(client.event)) shouldBe true
         client.descriptor.unsubscribeMethod shouldBe "signatureUnsubscribe"
     }

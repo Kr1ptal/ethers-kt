@@ -94,33 +94,43 @@ transaction and discards signatures; start a new builder for that payload.
 ```kotlin
 val transaction = provider.getTransaction(signature).send().unwrap() // RPCTransaction?
 if (transaction != null) {
-    val type = transaction.type // Legacy, V0, Unsupported(version), or null if unspecified/unrecognized
-    val signatures = transaction.transaction.signatures // List<Signature>?
-    val message = transaction.transaction.message       // RPCMessage?
-    val accounts = message?.accountKeys?.map { it.address }
-    val instructionData = message?.instructions?.firstOrNull()?.data // Bytes?
+    val type = transaction.type // Legacy, V0, or Unsupported(version); never null
+    val signatures = transaction.transaction.signatures // List<Signature>
+    val message = transaction.transaction.message       // RPCMessage
+    val accounts = message.accountKeys                  // List<SolanaAddress>
+    val instructionData = message.instructions.firstOrNull()?.data // Bytes?
     val fee = transaction.meta?.fee                     // BigInteger? (lamports)
-    val raw = transaction.raw   // complete response JSON, including all unknown nested fields
+    val extra = transaction.otherFields // fields introduced by newer validators
 }
 ```
 
 `RPCTransaction` is deliberately separate from the signable transaction hierarchy. Its `slot`, `blockTime`,
 and `type` are exposed directly. `transaction` is an `RPCTransactionData` with typed signatures and message
-fields: account addresses/privileges, blockhash, header, instructions, and lookup tables. `meta` is an
+fields: account addresses, blockhash, header, instructions, and lookup tables. `meta` is an
 `RPCTransactionMeta` with typed fees, balances, token balances, logs, inner instructions, loaded addresses,
 return data, rewards, compute/cost units, and extensible errors (including instruction indices and custom codes).
-Instruction and return data are decoded to `Bytes`; program-specific parsed instruction content remains JSON.
-Compiled instruction accounts use `accountIndices`; partially decoded instructions use `accounts` addresses.
+Instruction and return data are decoded to `Bytes`. Compiled instruction `accounts` are integer indices.
+The provider requests compiled `json`, so these models do not contain parsed/binary/accounts payload variants.
 Metadata amounts use `BigInteger`, signed reward changes use `Long`, and JSON token UI amounts use `BigDecimal`
 without introducing additional floating-point rounding. Prefer the integer token amount and decimals for arithmetic.
 
-Known fields are decoded even for unsupported versions. Nullable fields represent missing/null values or fields
-absent from an unknown layout, not fabricated zeros or empty collections. Every nested model retains `raw` and
-`otherFields`; root JSON serialization reproduces the complete original response, including explicit nulls.
-Unknown layouts and encodings remain raw while recognizable surrounding fields are still decoded. Malformed
-recognized values (such as invalid base58, signature lengths, or out-of-range quantities) are rejected; there is
-no binary message sanitization or cryptographic signature verification. Missing or unrecognized version
-representations are not silently classified as legacy. Unsupported versions remain readable but cannot be signed.
+Each concrete model has its own serializer and typed constructor properties. Shared `TokenAmount`,
+`TokenBalance`, `ReturnData`, `AccountInfo`, `InnerInstructions`, and `LoadedAddresses` are reused wherever
+their wire structures match. `TransactionError` and `InstructionError` model the runtime's named and
+parameterized variants; unknown future errors retain their JSON. `RewardType` retains unknown string values.
+
+Known fields are decoded even for unsupported numeric versions. Required fields are non-null and missing
+required values fail decoding. Nullable fields represent genuinely unavailable data, such as `blockTime`,
+`meta`, recording-dependent metadata, and token UI amounts. Missing legacy address-table lookups become
+an empty list. An omitted version means legacy, matching validator output; explicit null or malformed
+versions are rejected.
+
+Extensible response objects preserve unknown keys in `otherFields`. A shared serializer adapter delegates
+known properties to generated serializers and flattens unknown keys back into the wire object, retaining
+numeric precision. Serialization uses the model's current property values; defaults may normalize omitted
+versus explicit-null fields rather than reproduce the original JSON text. Unknown keys cannot override
+known properties. Malformed base58, signature lengths, and out-of-range quantities are rejected; reading
+does not perform binary message sanitization or cryptographic signature verification.
 
 `getTransaction` requests `json` encoding and defaults `maxSupportedTransactionVersion` to `255`, the full
 unsigned-byte range accepted by the [RPC configuration](https://github.com/anza-xyz/agave/blob/v3.1.8/rpc-client-types/src/config.rs).

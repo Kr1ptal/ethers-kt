@@ -28,10 +28,8 @@ import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.TextContent
 import io.ktor.http.headersOf
-import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.io.encoding.Base64
@@ -147,7 +145,7 @@ class SolanaProviderTest : FunSpec({
         response = contextual("""{"err":{"InstructionError":[0,"InvalidArgument"]},"logs":["failed"],"unitsConsumed":9007199254740993}""")
         val simulation = provider.simulateTransaction(transaction).send().unwrap().value
         simulation.isSuccess shouldBe false
-        simulation.err shouldBe Kotlinx.DEFAULT.parseToJsonElement("""{"InstructionError":[0,"InvalidArgument"]}""")
+        simulation.err shouldBe io.ethers.solana.types.TransactionError.InstructionFailure(0, io.ethers.solana.types.InstructionError.Simple.INVALID_ARGUMENT)
         assertRequest("simulateTransaction", """["${transaction.toBase64()}",{"commitment":"confirmed","encoding":"base64"}]""")
         response = contextual("""{"err":null,"logs":null}""")
         provider.simulateTransaction(transaction).send().unwrap().value.isSuccess shouldBe true
@@ -194,11 +192,13 @@ class SolanaProviderTest : FunSpec({
     }
 
     test("transaction history preserves unsupported versions and returns null for missing transactions") {
-        response = """{"slot":9007199254740993,"blockTime":null,"version":1,"transaction":{"futureMessage":true},"meta":{"future":7},"extra":42}"""
+        response = """{"slot":9007199254740993,"blockTime":null,"version":1,"transaction":{"signatures":["$signature"],"message":{"header":{"numRequiredSignatures":1,"numReadonlySignedAccounts":0,"numReadonlyUnsignedAccounts":0},"accountKeys":["$address"],"recentBlockhash":"$blockhash","instructions":[]},"futureMessage":true},"meta":{"err":null,"fee":0,"preBalances":[],"postBalances":[],"future":7},"extra":42}"""
         val tx = provider.getTransaction(signature).send().unwrap()!!
         tx.slot shouldBe BigInteger("9007199254740993")
         tx.type shouldBe SolanaTxType.Unsupported(1)
-        tx.raw shouldBe Kotlinx.DEFAULT.parseToJsonElement(response)
+        tx.otherFields["extra"] shouldBe JsonPrimitive(42)
+        tx.transaction.otherFields["futureMessage"] shouldBe JsonPrimitive(true)
+        tx.meta!!.otherFields["future"] shouldBe JsonPrimitive(7)
         assertRequest("getTransaction", """["$signature",{"commitment":"confirmed","encoding":"json","maxSupportedTransactionVersion":255}]""")
         response = "null"
         provider.getTransaction(signature, Commitment.FINALIZED, 0).send().unwrap() shouldBe null
@@ -221,11 +221,11 @@ class SolanaProviderTest : FunSpec({
     }
 
     test("transaction history returns typed fields even for unsupported versions") {
-        response = """{"slot":1,"version":1,"transaction":{"signatures":["$signature"],"message":{"accountKeys":["$address"],"recentBlockhash":"$blockhash"}},"meta":{"err":null,"fee":5000,"logMessages":["hello"]}}"""
+        response = """{"slot":1,"blockTime":null,"version":1,"transaction":{"signatures":["$signature"],"message":{"header":{"numRequiredSignatures":1,"numReadonlySignedAccounts":0,"numReadonlyUnsignedAccounts":0},"accountKeys":["$address"],"recentBlockhash":"$blockhash","instructions":[]}},"meta":{"err":null,"fee":5000,"preBalances":[],"postBalances":[],"logMessages":["hello"]}}"""
         val tx = provider.getTransaction(signature).send().unwrap()!!
         tx.type shouldBe SolanaTxType.Unsupported(1)
         tx.transaction.signatures shouldBe listOf(signature)
-        tx.transaction.message!!.accountKeys!!.single().address shouldBe address
+        tx.transaction.message.accountKeys.single() shouldBe address
         tx.transaction.message.recentBlockhash shouldBe blockhash
         tx.meta!!.fee shouldBe bigIntegerOf(5000)
         tx.meta.logMessages shouldBe listOf("hello")

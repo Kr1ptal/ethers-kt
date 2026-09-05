@@ -3,97 +3,152 @@ package io.ethers.solana
 import io.ethers.core.Kotlinx
 import io.ethers.crypto.Base58
 import io.ethers.solana.types.Blockhash
+import io.ethers.solana.types.InnerInstructions
+import io.ethers.solana.types.InstructionError
+import io.ethers.solana.types.LoadedAddresses
 import io.ethers.solana.types.Programs
+import io.ethers.solana.types.RPCInstruction
+import io.ethers.solana.types.RPCMessage
 import io.ethers.solana.types.RPCTransaction
+import io.ethers.solana.types.RPCTransactionData
+import io.ethers.solana.types.RPCTransactionMeta
+import io.ethers.solana.types.ReturnData
+import io.ethers.solana.types.Reward
+import io.ethers.solana.types.RewardType
 import io.ethers.solana.types.Signature
+import io.ethers.solana.types.TokenAmount
+import io.ethers.solana.types.TokenBalance
+import io.ethers.solana.types.transaction.CompiledAddressLookupTable
+import io.ethers.solana.types.transaction.MessageHeader
 import io.ethers.solana.types.transaction.SolanaTxType
 import io.github.artificialpb.bignum.BigDecimal
 import io.github.artificialpb.bignum.BigInteger
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.encodeToJsonElement
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 class RPCTransactionTest : FunSpec({
-    val signature = Signature(ByteArray(64)) // Deliberately not a valid transaction signature.
+    val signature = Signature(ByteArray(64)) // Decode format, but do not verify this invalid signature.
     val address = Programs.SYSTEM
     val blockhash = Blockhash(ByteArray(32) { 3 })
+    val fixtures = (
+        Kotlinx.DEFAULT.parseToJsonElement(liveRpcTransactions).jsonArray +
+            Kotlinx.DEFAULT.parseToJsonElement(liveRpcVersionResponses).jsonArray
+        ).associate {
+        it.jsonObject.getValue("id").jsonPrimitive.content to it.jsonObject.getValue("result").jsonObject
+    }
+    val legacy = fixtures.getValue("1")
+    fun decode(json: JsonElement): RPCTransaction = Kotlinx.DEFAULT.decodeFromJsonElement(json)
+    fun roundtrip(json: JsonElement) {
+        val tx = decode(json)
+        val encoded = Kotlinx.DEFAULT.encodeToJsonElement(tx)
+        Kotlinx.DEFAULT.encodeToJsonElement(decode(encoded)) shouldBe encoded
+        Kotlinx.DEFAULT.parseToJsonElement(Kotlinx.DEFAULT.encodeToString(tx)) shouldBe encoded
+    }
+    fun checkRequired(obj: JsonObject, keys: List<String>, parse: (JsonObject) -> Any) {
+        for (key in keys) {
+            shouldThrow<IllegalArgumentException> { parse(JsonObject(obj - key)) }
+            shouldThrow<IllegalArgumentException> { parse(JsonObject(obj + (key to JsonNull))) }
+        }
+    }
 
-    test("legacy, v0 and unsupported versions preserve raw payloads and metadata") {
-        for ((version, type) in listOf(
-            "\"legacy\"" to SolanaTxType.Legacy,
-            "0" to SolanaTxType.V0,
-            "1" to SolanaTxType.Unsupported(1),
-            "127" to SolanaTxType.Unsupported(127),
-            "255" to SolanaTxType.Unsupported(255),
+    test("captured mainnet legacy and v0 responses have non-null type and required fields") {
+        listOf("1", "3", "4").map(fixtures::getValue).forEach(::roundtrip)
+        val legacyTx = decode(legacy)
+        val legacyType: SolanaTxType = legacyTx.type
+        legacyType shouldBe SolanaTxType.Legacy
+        val transaction = legacyTx.transaction
+        transaction.signatures.single().toString() shouldBe "3AkXwBzV2XtehqncPowVrgKXre7DH8iTsuCU3eDDNqrsBEPKWS4Q5xYzrD3sD9GjWbyxaZJng76xFYg2nocAQ57R"
+        val message = transaction.message
+        message.header.requiredSignatures shouldBe 1
+        message.accountKeys.size shouldBe 24
+        message.addressTableLookups shouldBe emptyList()
+        (message.instructions.first()).programIdIndex shouldBe 14
+        val meta = legacyTx.meta!!
+        val fee: BigInteger = meta.fee
+        fee shouldBe BigInteger("5000")
+        meta.isSuccess shouldBe true
+        meta.preBalances.size shouldBe 24
+        meta.postTokenBalances!!.first().uiTokenAmount.decimals shouldBe 6
+        legacyTx.otherFields["transactionIndex"] shouldBe JsonPrimitive(1069)
+
+        val compiled = decode(fixtures.getValue("4"))
+        compiled.type shouldBe SolanaTxType.V0
+        val v0Message = compiled.transaction.message
+        v0Message.addressTableLookups.single().writableIndexes shouldBe listOf(11)
+        compiled.meta!!.loadedAddresses!!.writable.size shouldBe 1
+    }
+
+    test("observed legacy version omission maps to Legacy while explicit malformed versions fail") {
+        val omitted = fixtures.getValue("3")
+        omitted.containsKey("version") shouldBe false
+        decode(omitted).type shouldBe SolanaTxType.Legacy
+        for (version in listOf(
+            JsonNull,
+            JsonPrimitive("future"),
+            JsonPrimitive("0"),
+            JsonPrimitive(-1),
+            JsonPrimitive(256),
+            JsonObject(emptyMap()),
+            JsonPrimitive(0.5),
         )) {
-            // No binary decoder or signature verifier should run, even for a recognized version.
-            val json = Kotlinx.DEFAULT.parseToJsonElement(
-                """{"slot":18446744073709551615,"blockTime":-1,"version":$version,
-                    "transaction":{"signatures":["$signature"],"message":{"futureLayout":[1,{"new":true}]}},
-                    "meta":{"err":{"FutureError":[7]},"futureCounter":18446744073709551615},
-                    "futureField":{"nested":null}}""",
-            ).jsonObject
-            val tx = Kotlinx.DEFAULT.decodeFromJsonElement<RPCTransaction>(json)
-            tx.type shouldBe type
-            tx.slot shouldBe BigInteger("18446744073709551615")
-            tx.blockTime shouldBe -1L
-            tx.transaction.raw shouldBe json.getValue("transaction")
-            tx.transaction.signatures shouldBe listOf(signature)
-            tx.transaction.message!!.otherFields.keys shouldBe setOf("futureLayout")
-            tx.meta!!.raw shouldBe json.getValue("meta")
-            tx.meta.err!!.kind shouldBe "FutureError"
-            tx.otherFields shouldBe mapOf("futureField" to json.getValue("futureField"))
-            tx.raw shouldBe json
-            Kotlinx.DEFAULT.encodeToJsonElement(tx) shouldBe json
-            Kotlinx.DEFAULT.parseToJsonElement(Kotlinx.DEFAULT.encodeToString(tx)) shouldBe json
+            shouldThrow<IllegalArgumentException> { decode(JsonObject(legacy + ("version" to version))) }
         }
-    }
-
-    test("omitted, null and unrecognized versions are not silently classified as legacy") {
-        for (version in listOf("", ",\"version\":null", ",\"version\":\"future\"", ",\"version\":{\"future\":true}", ",\"version\":4294967296")) {
-            val json = Kotlinx.DEFAULT.parseToJsonElement("""{"slot":1,"transaction":{},"meta":null$version}""")
-            val tx = Kotlinx.DEFAULT.decodeFromJsonElement<RPCTransaction>(json)
-            tx.type shouldBe null
-            tx.meta shouldBe null
-            tx.blockTime shouldBe null
-            Kotlinx.DEFAULT.encodeToJsonElement(tx) shouldBe json
+        for (version in listOf(1, 127, 255)) {
+            val tx = decode(JsonObject(legacy + ("version" to JsonPrimitive(version))))
+            tx.type shouldBe SolanaTxType.Unsupported(version)
+            val message = tx.transaction.message
+            message.header.requiredSignatures shouldBe 1
         }
-    }
-
-    test("encoded and future transaction payload representations remain readable") {
-        for (payload in listOf("[\"AQID\",\"base64\"]", "\"opaque\"", "{\"newFormat\":true}")) {
-            val json = Kotlinx.DEFAULT.parseToJsonElement("""{"slot":1,"blockTime":null,"transaction":$payload,"version":1}""")
-            val tx = Kotlinx.DEFAULT.decodeFromJsonElement<RPCTransaction>(json)
-            tx.type shouldBe SolanaTxType.Unsupported(1)
-            tx.raw["blockTime"] shouldBe JsonNull
-            Kotlinx.DEFAULT.encodeToJsonElement(tx) shouldBe json
-        }
-    }
-
-    test("malformed slot quantities still fail instead of being treated as unsupported versions") {
-        for (slot in listOf("-1", "18446744073709551616", "\"1\"")) {
-            shouldThrow<IllegalArgumentException> {
-                Kotlinx.DEFAULT.decodeFromString<RPCTransaction>("""{"slot":$slot,"transaction":{},"version":1}""")
-            }
-        }
-    }
-
-    test("type support is independent of RPC readability") {
-        SolanaTxType.Legacy.version shouldBe null
-        SolanaTxType.Legacy.isSupported shouldBe true
         SolanaTxType.fromVersion(0) shouldBe SolanaTxType.V0
-        SolanaTxType.V0.isSupported shouldBe true
-        SolanaTxType.fromVersion(1) shouldBe SolanaTxType.Unsupported(1)
-        SolanaTxType.Unsupported(1).version shouldBe 1
-        SolanaTxType.Unsupported(1).isSupported shouldBe false
+        val versioned: SolanaTxType.Versioned = SolanaTxType.Unsupported(1)
+        versioned.version shouldBe 1
+        versioned.isSupported shouldBe false
         shouldThrow<IllegalArgumentException> { SolanaTxType.fromVersion(-1) }
-        shouldThrow<IllegalArgumentException> { SolanaTxType.Unsupported(0) }
+    }
+
+    test("required fields cannot be omitted or null in recognized response structures") {
+        checkRequired(legacy, listOf("slot", "transaction"), ::decode)
+        for (key in listOf("blockTime", "meta")) {
+            shouldThrow<IllegalArgumentException> { decode(JsonObject(legacy - key)) }
+        }
+        val payload = legacy.getValue("transaction").jsonObject
+        checkRequired(payload, listOf("signatures", "message")) { Kotlinx.DEFAULT.decodeFromJsonElement<RPCTransactionData>(it) }
+        val message = payload.getValue("message").jsonObject
+        checkRequired(message, listOf("header", "accountKeys", "recentBlockhash", "instructions"), { Kotlinx.DEFAULT.decodeFromJsonElement<RPCMessage>(it) })
+        checkRequired(
+            message.getValue("header").jsonObject,
+            listOf("numRequiredSignatures", "numReadonlySignedAccounts", "numReadonlyUnsignedAccounts"),
+            { Kotlinx.DEFAULT.decodeFromJsonElement<MessageHeader>(it) },
+        )
+        checkRequired(
+            message.getValue("instructions").jsonArray.first().jsonObject,
+            listOf("programIdIndex", "accounts", "data"),
+            { Kotlinx.DEFAULT.decodeFromJsonElement<RPCInstruction>(it) },
+        )
+        val meta = legacy.getValue("meta").jsonObject
+        checkRequired(meta, listOf("fee", "preBalances", "postBalances"), { Kotlinx.DEFAULT.decodeFromJsonElement<RPCTransactionMeta>(it) })
+        shouldThrow<IllegalArgumentException> { Kotlinx.DEFAULT.decodeFromJsonElement<RPCTransactionMeta>(JsonObject(meta - "err")) }
+        checkRequired(meta.getValue("loadedAddresses").jsonObject, listOf("writable", "readonly"), { Kotlinx.DEFAULT.decodeFromJsonElement<LoadedAddresses>(it) })
+        val token = meta.getValue("postTokenBalances").jsonArray.first().jsonObject
+        checkRequired(token, listOf("accountIndex", "mint", "uiTokenAmount"), { Kotlinx.DEFAULT.decodeFromJsonElement<TokenBalance>(it) })
+        checkRequired(token.getValue("uiTokenAmount").jsonObject, listOf("amount", "decimals", "uiAmountString"), { Kotlinx.DEFAULT.decodeFromJsonElement<TokenAmount>(it) })
+        checkRequired(meta.getValue("innerInstructions").jsonArray.first().jsonObject, listOf("index", "instructions"), { Kotlinx.DEFAULT.decodeFromJsonElement<InnerInstructions>(it) })
+        val lookup = fixtures.getValue("4").getValue("transaction").jsonObject.getValue("message").jsonObject.getValue("addressTableLookups").jsonArray.first().jsonObject
+        checkRequired(lookup, listOf("accountKey", "writableIndexes", "readonlyIndexes")) { Kotlinx.DEFAULT.decodeFromJsonElement<CompiledAddressLookupTable>(it) }
+        val returnData = Kotlinx.DEFAULT.parseToJsonElement("""{"programId":"$address","data":["AQID","base64"]}""").jsonObject
+        checkRequired(returnData, listOf("programId", "data"), { Kotlinx.DEFAULT.decodeFromJsonElement<ReturnData>(it) })
+        val reward = Kotlinx.DEFAULT.parseToJsonElement("""{"pubkey":"$address","lamports":-1,"postBalance":0}""").jsonObject
+        checkRequired(reward, listOf("pubkey", "lamports", "postBalance"), { Kotlinx.DEFAULT.decodeFromJsonElement<Reward>(it) })
     }
 
     test("known fields are fully decoded for legacy, v0 and unsupported versions") {
@@ -123,21 +178,20 @@ class RPCTransactionTest : FunSpec({
             )
             val tx = Kotlinx.DEFAULT.decodeFromJsonElement<RPCTransaction>(json)
             tx.transaction.signatures shouldBe listOf(signature)
-            val message = tx.transaction.message!!
-            message.header!!.numRequiredSignatures shouldBe 1
-            message.header.numReadonlySignedAccounts shouldBe 0
-            message.header.numReadonlyUnsignedAccounts shouldBe 1
-            message.accountKeys!!.single().address shouldBe address
-            message.accountKeys.single().signer shouldBe null
+            val message = tx.transaction.message
+            message.header.requiredSignatures shouldBe 1
+            message.header.readonlySignedAccounts shouldBe 0
+            message.header.readonlyUnsignedAccounts shouldBe 1
+            message.accountKeys.single() shouldBe address
+
             message.recentBlockhash shouldBe blockhash
-            val instruction = message.instructions!!.single()
+            val instruction = message.instructions.single()
             instruction.programIdIndex shouldBe 255 // No binary sanitization against the account list.
-            instruction.accountIndices shouldBe listOf(0, 128, 255)
-            instruction.accounts shouldBe null
-            instruction.data!!.toByteArray() shouldBe byteArrayOf(1, 2, 3)
+            instruction.accounts shouldBe listOf(0, 128, 255)
+            instruction.data.toByteArray() shouldBe byteArrayOf(1, 2, 3)
             instruction.stackHeight shouldBe 4294967295L
-            val lookup = message.addressTableLookups!!.single()
-            lookup.accountKey shouldBe address
+            val lookup = message.addressTableLookups.single()
+            lookup.key shouldBe address
             lookup.writableIndexes shouldBe listOf(128)
             lookup.readonlyIndexes shouldBe listOf(255)
             val meta = tx.meta!!
@@ -148,14 +202,14 @@ class RPCTransactionTest : FunSpec({
             meta.logMessages shouldBe listOf("Program log: hello")
             val inner = meta.innerInstructions!!.single()
             inner.index shouldBe 255
-            inner.instructions!!.single().data!!.size shouldBe 0
-            inner.instructions.single().stackHeight shouldBe null
+            (inner.instructions.single()).data.size shouldBe 0
+            (inner.instructions.single()).stackHeight shouldBe null
             val token = meta.preTokenBalances!!.single()
             token.accountIndex shouldBe 128
             token.mint shouldBe address
             token.owner shouldBe address
             token.programId shouldBe address
-            val amount = token.uiTokenAmount!!
+            val amount = token.uiTokenAmount
             amount.amount shouldBe BigInteger("18446744073709551615")
             amount.decimals shouldBe 9
             amount.uiAmount shouldBe BigDecimal("1.234567890123456789")
@@ -164,13 +218,12 @@ class RPCTransactionTest : FunSpec({
             meta.loadedAddresses!!.writable shouldBe listOf(address)
             meta.loadedAddresses.readonly shouldBe emptyList()
             meta.returnData!!.programId shouldBe address
-            meta.returnData.data!!.toByteArray() shouldBe byteArrayOf(1, 2, 3)
-            meta.returnData.encoding shouldBe "base64"
+            meta.returnData.data.toByteArray() shouldBe byteArrayOf(1, 2, 3)
             val reward = meta.rewards!!.single()
             reward.pubkey shouldBe address
             reward.lamports shouldBe Long.MIN_VALUE
             reward.postBalance shouldBe BigInteger("18446744073709551615")
-            reward.rewardType shouldBe "futureReward"
+            reward.rewardType shouldBe RewardType("futureReward")
             reward.commission shouldBe 255
             meta.computeUnitsConsumed shouldBe BigInteger("18446744073709551615")
             meta.costUnits shouldBe BigInteger("9007199254740993")
@@ -180,104 +233,57 @@ class RPCTransactionTest : FunSpec({
                 meta.loadedAddresses.otherFields, meta.returnData.otherFields, reward.otherFields, meta.otherFields,
             ).forEachIndexed { index, fields -> fields["extra"] shouldBe JsonPrimitive(index + 1) }
             meta.otherFields["status"] shouldBe JsonObject(mapOf("Ok" to JsonNull))
-            Kotlinx.DEFAULT.encodeToJsonElement(tx) shouldBe json
+            roundtrip(json)
+            Kotlinx.DEFAULT.encodeToJsonElement(tx).jsonObject.getValue("meta").jsonObject.getValue("preTokenBalances").jsonArray.first().jsonObject.getValue("uiTokenAmount").jsonObject.getValue("uiAmount").jsonPrimitive.content shouldBe "1.234567890123456789"
         }
     }
 
-    test("jsonParsed accounts, parsed instructions and partially decoded instructions retain their variants") {
-        val json = Kotlinx.DEFAULT.parseToJsonElement(
-            """{"slot":1,"version":1,"transaction":{"signatures":["$signature"],"message":{
-                "accountKeys":[{"pubkey":"$address","signer":true,"writable":false,"source":"futureSource","extra":1}],
-                "recentBlockhash":"$blockhash","instructions":[
-                    {"program":"spl-token","programId":"$address","parsed":{"type":"transfer","info":{"futureField":7}},"stackHeight":2},
-                    {"programId":"$address","accounts":["$address"],"data":"1","stackHeight":null},
-                    {"programId":"$address","accounts":[],"data":""},
-                    {"futureInstruction":true,"stackHeight":3}
-                ]}},"meta":{"err":{"InstructionError":[255,{"Custom":4294967295}]}}}""",
-        )
-        val tx = Kotlinx.DEFAULT.decodeFromJsonElement<RPCTransaction>(json)
-        val message = tx.transaction.message!!
-        message.header shouldBe null
-        val account = message.accountKeys!!.single()
-        account.address shouldBe address
-        account.signer shouldBe true
-        account.writable shouldBe false
-        account.source shouldBe "futureSource"
-        account.otherFields shouldBe mapOf("extra" to JsonPrimitive(1))
-        val instructions = message.instructions!!
-        instructions[0].program shouldBe "spl-token"
-        instructions[0].programId shouldBe address
-        instructions[0].parsed!!.jsonObject["type"] shouldBe JsonPrimitive("transfer")
-        instructions[0].data shouldBe null
-        instructions[0].stackHeight shouldBe 2L
-        instructions[1].accounts shouldBe listOf(address)
-        instructions[1].accountIndices shouldBe null
-        instructions[1].data!!.toByteArray() shouldBe byteArrayOf(0)
-        instructions[2].accounts shouldBe emptyList()
-        instructions[2].accountIndices shouldBe null
-        instructions[3].otherFields shouldBe mapOf("futureInstruction" to JsonPrimitive(true))
-        val err = tx.meta!!.err!!
-        tx.meta.isSuccess shouldBe false
-        err.kind shouldBe "InstructionError"
-        err.instructionIndex shouldBe 255
-        err.instructionError!!.kind shouldBe "Custom"
-        err.instructionError.customCode shouldBe 4294967295L
-        Kotlinx.DEFAULT.encodeToJsonElement(tx) shouldBe json
-    }
-
-    test("null and omitted metadata fields stay distinct from empty lists and zero quantities") {
-        val json = Kotlinx.DEFAULT.parseToJsonElement("""{"slot":1,"transaction":{},"meta":{"fee":0,"preBalances":[],"logMessages":null,"returnData":null}}""")
-        val tx = Kotlinx.DEFAULT.decodeFromJsonElement<RPCTransaction>(json)
-        val meta = tx.meta!!
-        meta.isSuccess shouldBe null
+    test("genuinely nullable and optional fields remain nullable") {
+        val nullMeta = JsonObject(legacy + mapOf("meta" to JsonNull, "blockTime" to JsonNull))
+        decode(nullMeta).meta shouldBe null
+        decode(nullMeta).blockTime shouldBe null
+        roundtrip(nullMeta)
+        val minimal = Kotlinx.DEFAULT.parseToJsonElement("""{"err":null,"fee":0,"preBalances":[],"postBalances":[],"logMessages":null}""").jsonObject
+        val meta = Kotlinx.DEFAULT.decodeFromJsonElement<RPCTransactionMeta>(minimal)
+        meta.isSuccess shouldBe true
         meta.fee shouldBe BigInteger("0")
         meta.preBalances shouldBe emptyList()
-        meta.postBalances shouldBe null
         meta.logMessages shouldBe null
+        meta.innerInstructions shouldBe null
+        meta.loadedAddresses shouldBe null
         meta.returnData shouldBe null
-        Kotlinx.DEFAULT.encodeToJsonElement(tx) shouldBe json
+        meta.computeUnitsConsumed shouldBe null
+        val token = Kotlinx.DEFAULT.decodeFromJsonElement<TokenBalance>(Kotlinx.DEFAULT.parseToJsonElement("""{"accountIndex":0,"mint":"$address","uiTokenAmount":{"amount":"0","decimals":9,"uiAmount":null,"uiAmountString":"0"}}""").jsonObject)
+        token.owner shouldBe null
+        token.programId shouldBe null
+        token.uiTokenAmount.uiAmount shouldBe null
     }
 
-    test("encoded payloads and unknown nested layouts do not require a known binary version") {
-        for ((encoding, encoded) in listOf("base64" to "AQID", "base58" to Base58.encode(byteArrayOf(1, 2, 3)))) {
-            val tx = Kotlinx.DEFAULT.decodeFromString<RPCTransaction>("""{"slot":1,"version":1,"transaction":["$encoded","$encoding"]}""")
-            tx.transaction.encoding shouldBe encoding
-            tx.transaction.data!!.toByteArray() shouldBe byteArrayOf(1, 2, 3)
-            tx.transaction.message shouldBe null
+    test("unrequested parsed and binary transaction encodings are rejected") {
+        shouldThrow<IllegalArgumentException> { decode(fixtures.getValue("2")) }
+        shouldThrow<IllegalArgumentException> {
+            decode(JsonObject(legacy + ("transaction" to Kotlinx.DEFAULT.parseToJsonElement("""["AQID","base64"]"""))))
         }
-        val unknown = Kotlinx.DEFAULT.parseToJsonElement("""{"slot":1,"version":1,"transaction":[{"future":true},"newEncoding"],"meta":{"fee":5,"returnData":{"programId":"$address","data":["opaque","future"]},"loadedAddresses":{"future":true}}}""")
-        val tx = Kotlinx.DEFAULT.decodeFromJsonElement<RPCTransaction>(unknown)
-        tx.transaction.data shouldBe null
-        tx.meta!!.fee shouldBe BigInteger("5")
-        tx.meta.returnData!!.programId shouldBe address
-        tx.meta.returnData.encoding shouldBe "future"
-        tx.meta.returnData.data shouldBe null
-        tx.meta.loadedAddresses!!.writable shouldBe null
-        tx.meta.loadedAddresses.otherFields shouldBe mapOf("future" to JsonPrimitive(true))
-        Kotlinx.DEFAULT.encodeToJsonElement(tx) shouldBe unknown
     }
 
-    test("malformed recognized fields fail instead of discarding typed data") {
-        for (payload in listOf(
-            """"transaction":{"signatures":["invalid"]}""",
-            """"transaction":{"message":{"accountKeys":["invalid"]}}""",
-            """"transaction":{"message":{"header":{"numRequiredSignatures":256}}}""",
-            """"transaction":{"message":{"instructions":[{"programIdIndex":1,"accounts":[-1]}]}}""",
-            """"transaction":{"message":{"instructions":[{"data":"0"}]}}""",
-            """"transaction":{},"meta":{"fee":-1}""",
-            """"transaction":{},"meta":{"postBalances":[18446744073709551616]}""",
-            """"transaction":{},"meta":{"rewards":[{"lamports":9223372036854775808}]}""",
-            """"transaction":{},"meta":{"preTokenBalances":[{"uiTokenAmount":{"amount":"-1"}}]}""",
-            """"transaction":{},"meta":{"err":{"InstructionError":[0,{"Custom":4294967296}]}}""",
-        )) {
-            shouldThrow<IllegalArgumentException> { Kotlinx.DEFAULT.decodeFromString<RPCTransaction>("""{"slot":1,"version":1,$payload}""") }
+    test("malformed quantities and signatures fail rather than falling back to null") {
+        for (slot in listOf("-1", "18446744073709551616", "\"" + "1" + "\"")) {
+            shouldThrow<IllegalArgumentException> { decode(JsonObject(legacy + ("slot" to Kotlinx.DEFAULT.parseToJsonElement(slot)))) }
         }
+        val payload = legacy.getValue("transaction").jsonObject
+        shouldThrow<IllegalArgumentException> { Kotlinx.DEFAULT.decodeFromJsonElement<RPCTransactionData>(JsonObject(payload + ("signatures" to Kotlinx.DEFAULT.parseToJsonElement("""["invalid"]""")))) }
+        shouldThrow<IllegalArgumentException> { Kotlinx.DEFAULT.decodeFromJsonElement<RPCInstruction>(Kotlinx.DEFAULT.parseToJsonElement("""{"programIdIndex":1,"accounts":[-1],"data":""}""")) }
+        shouldThrow<IllegalArgumentException> { Kotlinx.DEFAULT.decodeFromJsonElement<RPCInstruction>(Kotlinx.DEFAULT.parseToJsonElement("""{"programIdIndex":1,"accounts":[],"data":"0"}""")) }
+        shouldThrow<IllegalArgumentException> { Kotlinx.DEFAULT.decodeFromJsonElement<InstructionError>(Kotlinx.DEFAULT.parseToJsonElement("""{"Custom":4294967296}""")) }
     }
 
     test("JSON serialization preserves unknown numeric literals without floating point conversion") {
-        val json = Kotlinx.DEFAULT.parseToJsonElement("""{"slot":1,"transaction":{},"future":[1.234567890123456789,123456789012345678901234567890123456789,1e999,true,false,null,"1e999"]}""")
-        val tx = Kotlinx.DEFAULT.decodeFromJsonElement<RPCTransaction>(json)
-        Kotlinx.DEFAULT.encodeToJsonElement(tx) shouldBe json
-        Kotlinx.DEFAULT.parseToJsonElement(Kotlinx.DEFAULT.encodeToString(tx)) shouldBe json
+        val numbers = Kotlinx.DEFAULT.parseToJsonElement("""[1.234567890123456789,123456789012345678901234567890123456789,1e999,true,false,null,"1e999"]""")
+        val tx = decode(JsonObject(legacy + ("future" to numbers)))
+        tx.otherFields["future"] shouldBe numbers
+        Kotlinx.DEFAULT.encodeToJsonElement(tx).jsonObject["future"] shouldBe numbers
+        Kotlinx.DEFAULT.parseToJsonElement(Kotlinx.DEFAULT.encodeToString(tx)).jsonObject["future"] shouldBe numbers
+        val nested = tx.copy(transaction = tx.transaction.copy(message = tx.transaction.message.copy(otherFields = mapOf("future" to numbers))))
+        Kotlinx.DEFAULT.encodeToJsonElement(nested).jsonObject.getValue("transaction").jsonObject.getValue("message").jsonObject["future"] shouldBe numbers
     }
 })

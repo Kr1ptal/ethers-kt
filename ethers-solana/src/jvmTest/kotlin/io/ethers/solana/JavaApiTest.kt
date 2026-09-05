@@ -47,16 +47,16 @@ class JavaApiTest : FunSpec({
                     var fetchedVersion = provider.getTransaction(signature, 1).sendAwait().unwrap();
                     if (fetched != null) {
                         var type = fetched.getType();
-                        var raw = fetched.getRaw();
+                        var otherFields = fetched.getOtherFields();
                         java.util.List<io.ethers.solana.types.Signature> signatures = fetched.getTransaction().getSignatures();
                         io.ethers.solana.types.RPCMessage rpcMessage = fetched.getTransaction().getMessage();
-                        if (rpcMessage != null && rpcMessage.getInstructions() != null) {
+                        if (!rpcMessage.getInstructions().isEmpty()) {
                             io.ethers.core.types.Bytes data = rpcMessage.getInstructions().get(0).getData();
-                            java.util.List<io.ethers.solana.types.RPCAccountKey> accounts = rpcMessage.getAccountKeys();
+                            java.util.List<io.ethers.solana.types.SolanaAddress> accounts = rpcMessage.getAccountKeys();
                         }
                         if (fetched.getMeta() != null) {
                             java.math.BigInteger paidFee = fetched.getMeta().getFee();
-                            java.util.List<io.ethers.solana.types.RPCTokenBalance> balances = fetched.getMeta().getPostTokenBalances();
+                            java.util.List<io.ethers.solana.types.TokenBalance> balances = fetched.getMeta().getPostTokenBalances();
                         }
                         var unsupported = io.ethers.solana.types.transaction.SolanaTxType.fromVersion(1);
                     }

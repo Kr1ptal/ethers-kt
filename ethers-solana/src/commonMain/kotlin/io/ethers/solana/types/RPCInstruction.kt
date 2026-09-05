@@ -1,26 +1,22 @@
+@file:OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+@file:kotlinx.serialization.UseSerializers(U64Serializer::class)
+
 package io.ethers.solana.types
 
 import io.ethers.core.types.Bytes
-import io.ethers.crypto.Base58
-import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.KeepGeneratedSerializer
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonPrimitive
 
-/**
- * Compiled, partially decoded, or parsed instruction. Compiled instructions use [programIdIndex] and
- * [accountIndices]; partially decoded instructions use [programId] and [accounts]. Program-specific
- * parsed content remains JSON in [parsed]. Unknown instruction layouts keep [raw] and any recognizable fields.
- */
-data class RPCInstruction(val raw: JsonElement) {
-    private val fields = RPCFields(raw)
-    val programIdIndex: Int? = fields.u8("programIdIndex")
-    val programId: SolanaAddress? = fields.string("programId")?.let(::SolanaAddress)
-    val program: String? = fields.string("program")
-    private val rawAccounts = fields.value("accounts")
-    val accountIndices: List<Int>? = (rawAccounts as? JsonArray)?.takeIf { programIdIndex != null || (programId == null && it.all { item -> item is JsonPrimitive && !item.isString }) }?.map(::rpcU8)
-    val accounts: List<SolanaAddress>? = (rawAccounts as? JsonArray)?.takeIf { accountIndices == null && it.all { item -> item is JsonPrimitive && item.isString } }?.map(::rpcAddress)
-    val data: Bytes? = fields.string("data")?.let { Bytes(Base58.decode(it)) }
-    val parsed: JsonElement? = fields.value("parsed")
-    val stackHeight: Long? = fields.u32("stackHeight")
-    val otherFields: Map<String, JsonElement> = fields.otherFields()
-}
+/** Compiled instruction with optional RPC execution details. */
+@KeepGeneratedSerializer
+@Serializable(with = RPCInstructionSerializer::class)
+data class RPCInstruction(
+    @Serializable(with = U8Serializer::class) val programIdIndex: Int,
+    @Serializable(with = U8ListSerializer::class) val accounts: List<Int>,
+    @Serializable(with = Base58BytesSerializer::class) val data: Bytes,
+    @Serializable(with = U32Serializer::class) val stackHeight: Long? = null,
+    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
+)
+
+object RPCInstructionSerializer : ExtensibleJsonSerializer<RPCInstruction>(RPCInstruction.generatedSerializer(), { it.otherFields })

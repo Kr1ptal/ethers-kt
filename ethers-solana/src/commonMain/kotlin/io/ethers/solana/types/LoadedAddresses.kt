@@ -7,13 +7,13 @@ import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 
-/** Signatures and compiled message, including unsupported transaction versions. */
+/** Addresses resolved from lookup tables. */
 @KeepGeneratedSerializer
-@Serializable(with = RPCTransactionDataSerializer::class)
-data class RPCTransactionData(
-    val signatures: List<Signature>,
-    val message: RPCMessage,
+@Serializable(with = LoadedAddressesSerializer::class)
+data class LoadedAddresses(
+    val writable: List<SolanaAddress>,
+    val readonly: List<SolanaAddress>,
     @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
 )
 
-object RPCTransactionDataSerializer : ExtensibleJsonSerializer<RPCTransactionData>(RPCTransactionData.generatedSerializer(), { it.otherFields })
+object LoadedAddressesSerializer : ExtensibleJsonSerializer<LoadedAddresses>(LoadedAddresses.generatedSerializer(), { it.otherFields })

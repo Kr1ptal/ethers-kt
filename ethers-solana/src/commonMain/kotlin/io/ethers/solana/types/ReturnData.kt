@@ -3,17 +3,18 @@
 
 package io.ethers.solana.types
 
+import io.ethers.core.types.Bytes
 import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 
-/** Signatures and compiled message, including unsupported transaction versions. */
+/** Program return bytes, shared by metadata and simulation. */
 @KeepGeneratedSerializer
-@Serializable(with = RPCTransactionDataSerializer::class)
-data class RPCTransactionData(
-    val signatures: List<Signature>,
-    val message: RPCMessage,
+@Serializable(with = ReturnDataSerializer::class)
+data class ReturnData(
+    val programId: SolanaAddress,
+    @Serializable(with = Base64BytesSerializer::class) val data: Bytes,
     @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
 )
 
-object RPCTransactionDataSerializer : ExtensibleJsonSerializer<RPCTransactionData>(RPCTransactionData.generatedSerializer(), { it.otherFields })
+object ReturnDataSerializer : ExtensibleJsonSerializer<ReturnData>(ReturnData.generatedSerializer(), { it.otherFields })

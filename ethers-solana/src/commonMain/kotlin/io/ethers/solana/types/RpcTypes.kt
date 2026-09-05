@@ -1,11 +1,13 @@
 @file:kotlinx.serialization.UseSerializers(io.ethers.solana.types.U64Serializer::class)
+@file:OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
 
 package io.ethers.solana.types
 
 import io.ethers.solana.utils.requireU64
+import io.github.artificialpb.bignum.BigDecimal
 import io.github.artificialpb.bignum.BigInteger
-import io.github.artificialpb.bignum.bigIntegerOf
 import kotlinx.serialization.KSerializer
+import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.descriptors.PrimitiveKind
@@ -15,7 +17,7 @@ import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonEncoder
-import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.JsonUnquotedLiteral
 import kotlinx.serialization.json.jsonPrimitive
 
 /** Decimal JSON number, unlike ethers-core's hexadecimal Ethereum quantities. */
@@ -23,7 +25,7 @@ object U64Serializer : KSerializer<BigInteger> {
     override val descriptor = PrimitiveSerialDescriptor("SolanaU64", PrimitiveKind.LONG)
     override fun serialize(encoder: Encoder, value: BigInteger) {
         val checked = requireU64(value)
-        (encoder as JsonEncoder).encodeJsonElement(kotlinx.serialization.json.Json.parseToJsonElement(checked.toString()))
+        (encoder as JsonEncoder).encodeJsonElement(JsonUnquotedLiteral(checked.toString()))
     }
     override fun deserialize(decoder: Decoder): BigInteger {
         val primitive = (decoder as JsonDecoder).decodeJsonElement().jsonPrimitive
@@ -32,7 +34,7 @@ object U64Serializer : KSerializer<BigInteger> {
     }
 }
 
-object TokenAmountSerializer : KSerializer<BigInteger> {
+object TokenQuantitySerializer : KSerializer<BigInteger> {
     override val descriptor = PrimitiveSerialDescriptor("SolanaTokenAmount", PrimitiveKind.STRING)
     override fun serialize(encoder: Encoder, value: BigInteger) = encoder.encodeString(requireU64(value).toString())
     override fun deserialize(decoder: Decoder): BigInteger = requireU64(BigInteger(decoder.decodeString()))
@@ -58,37 +60,54 @@ enum class Commitment {
 @Serializable data class Version(@SerialName("solana-core") val solanaCore: String, @SerialName("feature-set") val featureSet: BigInteger? = null)
 enum class Health { OK, ERROR }
 
-/** Account data is decoded from the explicitly requested base64 encoding. */
-class AccountInfo(data: ByteArray, val executable: Boolean, val lamports: BigInteger, val owner: SolanaAddress, val rentEpoch: BigInteger, val space: BigInteger) {
-    private val payload = data.copyOf()
-    val data: ByteArray get() = payload.copyOf()
-    override fun equals(other: Any?): Boolean = other is AccountInfo && payload.contentEquals(other.payload) && executable == other.executable && lamports == other.lamports && owner == other.owner && rentEpoch == other.rentEpoch && space == other.space
-    override fun hashCode(): Int = listOf(payload.contentHashCode(), executable, lamports, owner, rentEpoch, space).hashCode()
-}
-
-@Serializable
+@KeepGeneratedSerializer
+@Serializable(with = TokenAmountSerializer::class)
 data class TokenAmount(
-    @Serializable(with = TokenAmountSerializer::class) val amount: BigInteger,
-    val decimals: Int,
+    @Serializable(with = TokenQuantitySerializer::class) val amount: BigInteger,
+    @Serializable(with = U8Serializer::class) val decimals: Int,
     val uiAmountString: String,
+    @Serializable(with = DecimalSerializer::class) val uiAmount: BigDecimal? = null,
+    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
 )
 
+object TokenAmountSerializer : ExtensibleJsonSerializer<TokenAmount>(TokenAmount.generatedSerializer(), { it.otherFields })
+
 @Serializable data class PrioritizationFee(val slot: BigInteger, val prioritizationFee: BigInteger)
-@Serializable data class TransactionSignature(val signature: Signature, val slot: BigInteger, val err: JsonElement? = null, val memo: String? = null, val blockTime: Long? = null, val confirmationStatus: Commitment? = null) {
+@Serializable data class TransactionSignature(val signature: Signature, val slot: BigInteger, val err: TransactionError?, val memo: String? = null, val blockTime: Long? = null, val confirmationStatus: Commitment? = null) {
     val isError: Boolean get() = err != null
 }
 
 /** A failed simulated transaction is a successful RPC response with a non-null [err]. */
-@Serializable data class TransactionSimulation(val err: JsonElement? = null, val logs: List<String>? = null, val unitsConsumed: BigInteger? = null, val returnData: JsonElement? = null, val accounts: JsonElement? = null) {
+@KeepGeneratedSerializer
+@Serializable(with = TransactionSimulationSerializer::class)
+data class TransactionSimulation(
+    val err: TransactionError?,
+    val logs: List<String>? = null,
+    val unitsConsumed: BigInteger? = null,
+    val returnData: ReturnData? = null,
+    val accounts: List<AccountInfo?>? = null,
+    val innerInstructions: List<InnerInstructions>? = null,
+    val replacementBlockhash: LatestBlockhash? = null,
+    @Serializable(with = U32Serializer::class) val loadedAccountsDataSize: Long? = null,
+    val fee: BigInteger? = null,
+    val preBalances: List<BigInteger>? = null,
+    val postBalances: List<BigInteger>? = null,
+    val preTokenBalances: List<TokenBalance>? = null,
+    val postTokenBalances: List<TokenBalance>? = null,
+    val loadedAddresses: LoadedAddresses? = null,
+    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
+) {
     val isSuccess: Boolean get() = err == null
 }
 
-@Serializable data class LogsNotification(val signature: Signature, val err: JsonElement? = null, val logs: List<String>)
-data class ProgramNotification(val pubkey: SolanaAddress, val account: AccountInfo)
+object TransactionSimulationSerializer : ExtensibleJsonSerializer<TransactionSimulation>(TransactionSimulation.generatedSerializer(), { it.otherFields })
+
+@Serializable data class LogsNotification(val signature: Signature, val err: TransactionError?, val logs: List<String>)
+@Serializable data class ProgramNotification(val pubkey: SolanaAddress, val account: AccountInfo)
 @Serializable data class SlotNotification(val parent: BigInteger, val root: BigInteger, val slot: BigInteger)
 
 sealed class SignatureNotification {
     abstract val context: RpcContext
     data class Received(override val context: RpcContext) : SignatureNotification()
-    data class Status(override val context: RpcContext, val err: JsonElement?) : SignatureNotification()
+    data class Status(override val context: RpcContext, val err: TransactionError?) : SignatureNotification()
 }

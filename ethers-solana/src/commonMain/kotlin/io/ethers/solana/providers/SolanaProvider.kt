@@ -29,11 +29,9 @@ import io.ethers.solana.types.transaction.SolanaTransactionSigned
 import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmStatic
@@ -68,8 +66,7 @@ class SolanaProvider @JvmOverloads constructor(
         }
         return subscribe("program", arrayOf(program.toString(), config)) { element ->
             decodeContext(element) { value ->
-                val obj = value.jsonObject
-                ProgramNotification(SolanaAddress(obj.getValue("pubkey").jsonPrimitive.content), requireNotNull(decodeAccount(obj.getValue("account"))))
+                decode<ProgramNotification>(value)
             }
         }
     }
@@ -92,7 +89,7 @@ class SolanaProvider @JvmOverloads constructor(
                 require(value.content == "receivedSignature") { "Unexpected signature notification" }
                 SignatureNotification.Received(context)
             } else {
-                SignatureNotification.Status(context, value.jsonObject.getValue("err").takeUnless { error -> error == JsonNull })
+                SignatureNotification.Status(context, decode<io.ethers.solana.types.TransactionError?>(value.jsonObject.getValue("err")))
             }
         }
     }

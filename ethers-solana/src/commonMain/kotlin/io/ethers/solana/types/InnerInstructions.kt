@@ -7,13 +7,13 @@ import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 
-/** Signatures and compiled message, including unsupported transaction versions. */
+/** Inner instructions shared by metadata and simulation. */
 @KeepGeneratedSerializer
-@Serializable(with = RPCTransactionDataSerializer::class)
-data class RPCTransactionData(
-    val signatures: List<Signature>,
-    val message: RPCMessage,
+@Serializable(with = InnerInstructionsSerializer::class)
+data class InnerInstructions(
+    @Serializable(with = U8Serializer::class) val index: Int,
+    val instructions: List<RPCInstruction>,
     @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
 )
 
-object RPCTransactionDataSerializer : ExtensibleJsonSerializer<RPCTransactionData>(RPCTransactionData.generatedSerializer(), { it.otherFields })
+object InnerInstructionsSerializer : ExtensibleJsonSerializer<InnerInstructions>(InnerInstructions.generatedSerializer(), { it.otherFields })
