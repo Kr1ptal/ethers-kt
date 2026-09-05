@@ -15,7 +15,7 @@ deferred. The module's Android library compiles, but API 24 device tests cannot 
 ## Kotlin
 
 ```kotlin
-import io.ethers.solana.instruction.TransferInstruction
+import io.ethers.solana.instruction.SystemProgram
 import io.ethers.solana.providers.SolanaCluster
 import io.ethers.solana.providers.SolanaProvider
 import io.ethers.solana.signers.KeypairSigner
@@ -30,7 +30,7 @@ suspend fun transfer(seed: ByteArray, recipient: SolanaAddress) {
         val latest = provider.getLatestBlockhash().send().unwrap().value
         val message = SolanaTxV0.compile(
             signer.publicKey, latest.blockhash,
-            TransferInstruction(signer.publicKey, recipient, 1_000L),
+            SystemProgram.transfer(signer.publicKey, recipient, 1_000L),
         )
         val transaction = message.sign(signer)
         val signature = provider.sendTransaction(transaction).send().unwrap()
@@ -52,7 +52,7 @@ var provider = SolanaProvider.builder(SolanaCluster.DEVNET).build().unwrap();
 try {
     var signer = KeypairSigner.fromSeed(seed);
     var latest = provider.getLatestBlockhash().sendAwait().unwrap().getValue();
-    var instruction = new TransferInstruction(signer.getPublicKey(), recipient, 1_000L);
+    var instruction = SystemProgram.transfer(signer.getPublicKey(), recipient, 1_000L);
     var message = SolanaTxV0.compile(signer.getPublicKey(), latest.getBlockhash(), instruction);
     var transaction = message.sign(signer);
     var signature = provider.sendTransaction(transaction).sendAwait().unwrap();
@@ -292,8 +292,8 @@ Reference: [sol4k a166edd854a7198553fdafe9a5051a400d70b121](https://github.com/s
 | Legacy/v0 messages and lookup tables | `SolanaTxLegacy`, `SolanaTxV0`, `AddressLookupTableAccount` |
 | Build, sign, import/export transactions | `SolanaTransactionUnsigned`, `SolanaTransactionSigned.Builder`, `SolanaTransactionSigned` |
 | Read transactions, including unsupported versions | `getTransaction`, `SolanaRPCTransaction`, `SolanaTxType.Unsupported` |
-| SOL, SPL, Token-2022, associated accounts, compute budget | Classes in `io.ethers.solana.instruction` |
-| Arbitrary program instructions | `BaseInstruction` |
+| SOL, SPL, Token-2022, associated accounts, compute budget | `SystemProgram`, `TokenProgram`, `Token2022Program`, `AssociatedTokenProgram`, `ComputeBudgetProgram` |
+| Arbitrary program instructions | `Instruction(programId, keys, data)` |
 | Unit conversion / fee estimation | `SolUnit`, `SolanaTransaction.estimateFee` |
 | All upstream public RPC methods | `SolanaApi` / `SolanaProvider` |
 | Additional WebSocket support | `subscribeAccount`, `subscribeProgram`, `subscribeLogs`, `subscribeSignature`, `subscribeSlot`, `subscribeRoot` |

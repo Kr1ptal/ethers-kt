@@ -2,8 +2,8 @@ package io.ethers.solana
 
 import io.ethers.core.FastHex
 import io.ethers.core.Kotlinx
-import io.ethers.solana.instruction.BaseInstruction
-import io.ethers.solana.instruction.TransferInstruction
+import io.ethers.solana.instruction.Instruction
+import io.ethers.solana.instruction.SystemProgram
 import io.ethers.solana.signers.KeypairSigner
 import io.ethers.solana.types.AccountMeta
 import io.ethers.solana.types.Programs
@@ -34,7 +34,7 @@ class SolanaTxV1Test : FunSpec({
     val blockhash = SolanaBlockhash(ByteArray(32))
     val empty = SolanaTransactionConfig()
     val config = SolanaTransactionConfig(bigIntegerOf(5000), 20000, 65536, 65536)
-    fun transfer(requests: SolanaTransactionConfig = config) = SolanaTxV1.compile(alice.publicKey, blockhash, TransferInstruction(alice.publicKey, bob.publicKey, 42), requests)
+    fun transfer(requests: SolanaTransactionConfig = config) = SolanaTxV1.compile(alice.publicKey, blockhash, SystemProgram.transfer(alice.publicKey, bob.publicKey, 42), requests)
     fun decode(bytes: ByteArray) = SolanaTransactionUnsigned.deserializeMessage(bytes) as SolanaTxV1
 
     test("SIMD-0385 golden layout and independent Node crypto Ed25519 signature") {
@@ -50,7 +50,7 @@ class SolanaTxV1Test : FunSpec({
         val tx = SolanaTxV1.compile(
             alice.publicKey,
             blockhash,
-            listOf(TransferInstruction(alice.publicKey, Programs.SYSTEM, 42), BaseInstruction(Programs.SYSTEM, emptyList(), FastHex.decode("aabbcc"))),
+            listOf(SystemProgram.transfer(alice.publicKey, Programs.SYSTEM, 42), Instruction(Programs.SYSTEM, emptyList(), FastHex.decode("aabbcc"))),
             config.copy(priorityFee = BigInteger("18446744073709551615")),
         )
         tx.serializeMessage() shouldBe expected
@@ -89,7 +89,7 @@ class SolanaTxV1Test : FunSpec({
     }
 
     test("inline priority fee is total lamports and ComputeBudget instructions are ignored") {
-        val tx = SolanaTxV1.compile(alice.publicKey, blockhash, BaseInstruction(Programs.COMPUTE_BUDGET, emptyList(), byteArrayOf()), config)
+        val tx = SolanaTxV1.compile(alice.publicKey, blockhash, Instruction(Programs.COMPUTE_BUDGET, emptyList(), byteArrayOf()), config)
         tx.estimateFee(bigIntegerOf(5000)) shouldBe bigIntegerOf(10000)
         tx.sign(alice).estimateFee(bigIntegerOf(5000)) shouldBe bigIntegerOf(10000)
         tx.withConfig(empty).estimateFee(bigIntegerOf(5000)) shouldBe bigIntegerOf(5000)
@@ -97,7 +97,7 @@ class SolanaTxV1Test : FunSpec({
     }
 
     test("partial signatures, unsigned simulations and config/blockhash replacement") {
-        val tx = SolanaTxV1.compile(alice.publicKey, blockhash, BaseInstruction(Programs.SYSTEM, listOf(AccountMeta.signer(bob.publicKey)), byteArrayOf(7)), config)
+        val tx = SolanaTxV1.compile(alice.publicKey, blockhash, Instruction(Programs.SYSTEM, listOf(AccountMeta.signer(bob.publicKey)), byteArrayOf(7)), config)
         val builder = tx.signingBuilder().sign(bob)
         builder.signatures.first() shouldBe null
         shouldThrow<IllegalArgumentException> { builder.build() }

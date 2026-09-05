@@ -2,17 +2,25 @@ package io.ethers.solana.instruction
 
 import io.ethers.solana.types.AccountMeta
 import io.ethers.solana.types.SolanaAddress
-import io.ktor.websocket.ChannelOverflow
+import io.ethers.solana.types.SolanaBytes
 
-interface Instruction {
-    val programId: SolanaAddress
-    val keys: List<AccountMeta>
-    val data: ByteArray
+/**
+ * A single program invocation.
+ *
+ * This is the only instruction type the transaction layer knows about: built-in instructions are
+ * factory functions on the program objects in this package (e.g. [SystemProgram.transfer]), and
+ * instructions for any other program are constructed directly.
+ *
+ * The type is final and its fields are read-only, so message compilation can read [data] as many
+ * times as it needs - to validate the encoded size and then to serialize - and see the same bytes.
+ * [keys] is not copied; pass an immutable list.
+ */
+data class Instruction(
+    val programId: SolanaAddress,
+    val keys: List<AccountMeta>,
+    val data: SolanaBytes,
+) {
+    /** Copies [data], so later mutations of the caller's array do not change this instruction. */
+    constructor(programId: SolanaAddress, keys: List<AccountMeta>, data: ByteArray) :
+        this(programId, keys, SolanaBytes.fromBytes(data))
 }
-
-/** An instruction for any program; inputs and exposed byte arrays are copied. */
-open class BaseInstruction(
-    override val programId: SolanaAddress,
-    override val keys: List<AccountMeta>,
-    override val data: ByteArray,
-) : Instruction

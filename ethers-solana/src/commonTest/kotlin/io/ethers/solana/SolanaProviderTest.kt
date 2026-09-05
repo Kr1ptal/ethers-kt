@@ -6,8 +6,8 @@ import io.ethers.providers.HttpClient
 import io.ethers.providers.RpcClientConfig
 import io.ethers.providers.RpcError
 import io.ethers.providers.SubscriptionDescriptor
-import io.ethers.solana.instruction.BaseInstruction
-import io.ethers.solana.instruction.TransferInstruction
+import io.ethers.solana.instruction.Instruction
+import io.ethers.solana.instruction.SystemProgram
 import io.ethers.solana.providers.SolanaProvider
 import io.ethers.solana.providers.middleware.SolanaApi
 import io.ethers.solana.signers.KeypairSigner
@@ -211,7 +211,7 @@ class SolanaProviderTest : FunSpec({
         provider.requestAirdrop(address, BigInteger("18446744073709551615")).send().unwrap() shouldBe signature
         assertRequest("requestAirdrop", """["$address",18446744073709551615,{"commitment":"confirmed"}]""")
         val signer = KeypairSigner.fromSeed(ByteArray(32))
-        val transaction = SolanaTxV0.compile(signer.publicKey, blockhash, TransferInstruction(signer.publicKey, address, 1L)).sign(signer)
+        val transaction = SolanaTxV0.compile(signer.publicKey, blockhash, SystemProgram.transfer(signer.publicKey, address, 1L)).sign(signer)
         provider.sendTransaction(transaction).send().unwrap() shouldBe signature
         assertRequest("sendTransaction", """["${transaction.toBase64()}",{"encoding":"base64","preflightCommitment":"confirmed"}]""")
         provider.sendTransaction(transaction, preflightCommitment = Commitment.FINALIZED).send().unwrap() shouldBe signature
@@ -269,7 +269,7 @@ class SolanaProviderTest : FunSpec({
     test("simulation accepts every signing state but raw submission rejects incomplete envelopes") {
         val alice = KeypairSigner.fromSeed(ByteArray(32) { 1 })
         val bob = KeypairSigner.fromSeed(ByteArray(32) { 2 })
-        val tx = SolanaTxV0.compile(alice.publicKey, blockhash, BaseInstruction(Programs.SYSTEM, listOf(AccountMeta.signer(alice.publicKey), AccountMeta.signer(bob.publicKey)), byteArrayOf()))
+        val tx = SolanaTxV0.compile(alice.publicKey, blockhash, Instruction(Programs.SYSTEM, listOf(AccountMeta.signer(alice.publicKey), AccountMeta.signer(bob.publicKey)), byteArrayOf()))
         val builder = tx.signingBuilder().sign(bob)
         val partial = builder.serializePartial()
         val signed = builder.sign(alice).build()
@@ -294,7 +294,7 @@ class SolanaProviderTest : FunSpec({
 
     test("submission accepts maximum-size valid transactions") {
         val signer = KeypairSigner.fromSeed(ByteArray(32) { 1 })
-        fun instruction(size: Int) = BaseInstruction(Programs.SYSTEM, emptyList(), ByteArray(size))
+        fun instruction(size: Int) = Instruction(Programs.SYSTEM, emptyList(), ByteArray(size))
         for (size in listOf(1232, 1233, 4096)) {
             // 42 fixed + 64 account bytes + 4 instruction header + 64 signature.
             val signed = SolanaTxV1.compile(signer.publicKey, blockhash, instruction(size - 174), SolanaTransactionConfig()).sign(signer)
@@ -336,7 +336,7 @@ class SolanaProviderTest : FunSpec({
 
     test("v1 uses tail-signature envelopes for send/simulation and message-only bytes for fees") {
         val signer = KeypairSigner.fromSeed(ByteArray(32) { 1 })
-        val tx = SolanaTxV1.compile(signer.publicKey, blockhash, TransferInstruction(signer.publicKey, address, 1), SolanaTransactionConfig(computeUnitLimit = 20000, loadedAccountsDataSizeLimit = 65536))
+        val tx = SolanaTxV1.compile(signer.publicKey, blockhash, SystemProgram.transfer(signer.publicKey, address, 1), SolanaTransactionConfig(computeUnitLimit = 20000, loadedAccountsDataSizeLimit = 65536))
         val signed = tx.sign(signer)
         response = "\"${signed.id}\""
         provider.sendTransaction(signed).send().unwrap() shouldBe signed.id

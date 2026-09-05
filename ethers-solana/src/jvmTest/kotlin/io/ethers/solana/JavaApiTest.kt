@@ -83,7 +83,7 @@ class JavaApiTest : FunSpec({
             import io.ethers.solana.types.transaction.SolanaTransaction;
             import io.ethers.solana.types.transaction.SolanaTransactionUnsigned;
             import io.ethers.solana.types.transaction.SolanaTransactionSigned;
-            import io.ethers.solana.instruction.TransferInstruction;
+            import io.ethers.solana.instruction.SystemProgram;
             import io.ethers.solana.utils.SolUnit;
             public class SolanaJavaExample {
                 public void transfer(SolanaProvider provider, byte[] seed, SolanaAddress recipient) {
@@ -113,7 +113,7 @@ class JavaApiTest : FunSpec({
                     var signer = KeypairSigner.fromSeed(seed);
                     var latest = provider.getLatestBlockhash().sendAwait().unwrap().getValue();
                     var message = SolanaTxV0.compile(signer.getPublicKey(), latest.getBlockhash(),
-                        new TransferInstruction(signer.getPublicKey(), recipient,
+                        SystemProgram.transfer(signer.getPublicKey(), recipient,
                             SolUnit.SOL.toLamports("0.000001").toBigIntegerExact()));
                     var transaction = message.sign(signer);
                     SolanaTransactionUnsigned unsigned = message;
@@ -125,10 +125,10 @@ class JavaApiTest : FunSpec({
                     var fee = provider.getFeeForMessage(common, provider.getDefaultCommitment());
                     SolanaTransactionUnsigned refreshed = completed.withNewBlockhash(latest.getBlockhash());
                     var legacy = SolanaTxLegacy.compile(signer.getPublicKey(), latest.getBlockhash(),
-                        new TransferInstruction(signer.getPublicKey(), recipient, 1L));
+                        SystemProgram.transfer(signer.getPublicKey(), recipient, 1L));
                     var config = new SolanaTransactionConfig(java.math.BigInteger.valueOf(5000), 20000L, 65536L, 65536L);
                     var v1 = SolanaTxV1.compile(signer.getPublicKey(), latest.getBlockhash(),
-                        new TransferInstruction(signer.getPublicKey(), recipient, 1L), config);
+                        SystemProgram.transfer(signer.getPublicKey(), recipient, 1L), config);
                     SolanaTransactionSigned signedV1 = v1.sign(signer);
                     provider.simulateTransaction(v1);
                     provider.sendTransaction(signedV1);

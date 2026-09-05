@@ -1,11 +1,10 @@
 package io.ethers.solana
 
 import io.ethers.core.FastHex
-import io.ethers.solana.instruction.BaseInstruction
-import io.ethers.solana.instruction.SetComputeUnitLimitInstruction
-import io.ethers.solana.instruction.SetComputeUnitPriceInstruction
-import io.ethers.solana.instruction.SplTransferInstruction
-import io.ethers.solana.instruction.TransferInstruction
+import io.ethers.solana.instruction.ComputeBudgetProgram
+import io.ethers.solana.instruction.Instruction
+import io.ethers.solana.instruction.SystemProgram
+import io.ethers.solana.instruction.TokenProgram
 import io.ethers.solana.signers.KeypairSigner
 import io.ethers.solana.signers.SolanaSigner
 import io.ethers.solana.types.AccountMeta
@@ -37,13 +36,13 @@ class TransactionTest : FunSpec({
         // solana transfer SYSTEM 0.000000042 --sign-only --dump-transaction-message;
         // RFC8032 vector 1 key is both sender and fee payer, with a zero blockhash.
         val signer = KeypairSigner.fromSeed(FastHex.decode("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60"))
-        val message = SolanaTxLegacy.compile(signer.publicKey, SolanaBlockhash(ByteArray(32)), TransferInstruction(signer.publicKey, Programs.SYSTEM, 42L))
+        val message = SolanaTxLegacy.compile(signer.publicKey, SolanaBlockhash(ByteArray(32)), SystemProgram.transfer(signer.publicKey, Programs.SYSTEM, 42L))
         Base64.encode(message.serializeMessage()) shouldBe "AQAAAtdamAGCsQq31Uv+08lkBzoO4XLz2qYjJa8CGmj3B1EaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEBAgABDAIAAAAqAAAAAAAAAA=="
         message.sign(signer).id.toString() shouldBe "634LhRk4qrhs1pFXm9mCE7it3Ha7hebHSrD1ySBpNoKHmkLMooaM6fgqNFZPa57TbLMCvCM7joA81XMpkqP5yueK"
     }
 
     test("legacy and v0 messages, signing and roundtrip") {
-        val instruction = TransferInstruction(alice.publicKey, bob.publicKey, 42L)
+        val instruction = SystemProgram.transfer(alice.publicKey, bob.publicKey, 42L)
         for (message in listOf(SolanaTxLegacy.compile(alice.publicKey, blockhash, instruction), SolanaTxV0.compile(alice.publicKey, blockhash, instruction))) {
             val transaction = message.sign(alice)
             transaction.tx shouldBe message
@@ -69,7 +68,7 @@ class TransactionTest : FunSpec({
     }
 
     test("partial and externally signed transactions preserve required signer order") {
-        val instruction = BaseInstruction(Programs.SYSTEM, listOf(AccountMeta.signer(alice.publicKey), AccountMeta.signer(bob.publicKey)), byteArrayOf(7))
+        val instruction = Instruction(Programs.SYSTEM, listOf(AccountMeta.signer(alice.publicKey), AccountMeta.signer(bob.publicKey)), byteArrayOf(7))
         for (original in listOf(SolanaTxLegacy.compile(alice.publicKey, blockhash, instruction), SolanaTxV0.compile(alice.publicKey, blockhash, instruction))) {
             val partial = original.signingBuilder()
             val emptySignatures = partial.signatures
@@ -104,7 +103,7 @@ class TransactionTest : FunSpec({
     }
 
     test("builder signing failures are atomic and signers receive independent message bytes") {
-        val instruction = BaseInstruction(Programs.SYSTEM, listOf(AccountMeta.signer(alice.publicKey), AccountMeta.signer(bob.publicKey)), byteArrayOf())
+        val instruction = Instruction(Programs.SYSTEM, listOf(AccountMeta.signer(alice.publicKey), AccountMeta.signer(bob.publicKey)), byteArrayOf())
         val tx = SolanaTxV0.compile(alice.publicKey, blockhash, instruction)
         val builder = tx.signingBuilder()
         val invalidBob = object : SolanaSigner {
@@ -128,7 +127,7 @@ class TransactionTest : FunSpec({
 
     test("lookup tables load writable then readonly accounts, keeping signers static") {
         val table = AddressLookupTableAccount(SolanaAddress(ByteArray(32) { 5 }), listOf(bob.publicKey, alice.publicKey))
-        val message = SolanaTxV0.compile(alice.publicKey, blockhash, TransferInstruction(alice.publicKey, bob.publicKey, 1), listOf(table))
+        val message = SolanaTxV0.compile(alice.publicKey, blockhash, SystemProgram.transfer(alice.publicKey, bob.publicKey, 1), listOf(table))
         message.accounts shouldBe listOf(alice.publicKey, Programs.SYSTEM)
         message.addressLookupTables.single().writableIndexes shouldBe listOf(0)
         message.instructions.single().accounts shouldBe listOf(0, 2)
@@ -149,7 +148,7 @@ class TransactionTest : FunSpec({
                 },
             )
         }
-        val instruction = BaseInstruction(Programs.SYSTEM, accounts.map(AccountMeta::writable), byteArrayOf())
+        val instruction = Instruction(Programs.SYSTEM, accounts.map(AccountMeta::writable), byteArrayOf())
         val message = SolanaTxV0.compile(alice.publicKey, blockhash, instruction, listOf(AddressLookupTableAccount(Programs.TOKEN, accounts)))
         message.instructions.single().accounts.any { it >= 128 } shouldBe true
         SolanaTransactionUnsigned.deserializeMessage(message.serializeMessage()).serializeMessage() shouldBe message.serializeMessage()
@@ -157,15 +156,15 @@ class TransactionTest : FunSpec({
     }
 
     test("compute budget encodings use u32 limit and u64 price") {
-        SetComputeUnitLimitInstruction(200000).data shouldBe FastHex.decode("02400d0300")
-        SetComputeUnitPriceInstruction(1000).data shouldBe FastHex.decode("03e803000000000000")
-        shouldThrow<IllegalArgumentException> { SetComputeUnitLimitInstruction(4294967296) }
-        shouldThrow<IllegalArgumentException> { TransferInstruction(alice.publicKey, bob.publicKey, -1L) }
-        SplTransferInstruction(alice.publicKey, bob.publicKey, Programs.TOKEN, alice.publicKey, BigInteger("18446744073709551615"), 9).data shouldBe FastHex.decode("0cffffffffffffffff09")
-        val message = SolanaTxV0.compile(alice.publicKey, blockhash, listOf(SetComputeUnitLimitInstruction(200000), SetComputeUnitPriceInstruction(1001), TransferInstruction(alice.publicKey, bob.publicKey, 42L)))
+        ComputeBudgetProgram.setComputeUnitLimit(200000).data.toByteArray() shouldBe FastHex.decode("02400d0300")
+        ComputeBudgetProgram.setComputeUnitPrice(1000).data.toByteArray() shouldBe FastHex.decode("03e803000000000000")
+        shouldThrow<IllegalArgumentException> { ComputeBudgetProgram.setComputeUnitLimit(4294967296) }
+        shouldThrow<IllegalArgumentException> { SystemProgram.transfer(alice.publicKey, bob.publicKey, -1L) }
+        TokenProgram.transferChecked(alice.publicKey, bob.publicKey, Programs.TOKEN, alice.publicKey, BigInteger("18446744073709551615"), 9).data.toByteArray() shouldBe FastHex.decode("0cffffffffffffffff09")
+        val message = SolanaTxV0.compile(alice.publicKey, blockhash, listOf(ComputeBudgetProgram.setComputeUnitLimit(200000), ComputeBudgetProgram.setComputeUnitPrice(1001), SystemProgram.transfer(alice.publicKey, bob.publicKey, 42L)))
         message.estimateFee(bigIntegerOf(5000)) shouldBe bigIntegerOf(5201)
         message.sign(alice).estimateFee(bigIntegerOf(5000)) shouldBe bigIntegerOf(5201)
-        val priceOnly = SolanaTxV0.compile(alice.publicKey, blockhash, listOf(SetComputeUnitPriceInstruction(1000), TransferInstruction(alice.publicKey, bob.publicKey, 42L)))
+        val priceOnly = SolanaTxV0.compile(alice.publicKey, blockhash, listOf(ComputeBudgetProgram.setComputeUnitPrice(1000), SystemProgram.transfer(alice.publicKey, bob.publicKey, 42L)))
         shouldThrow<IllegalArgumentException> { priceOnly.estimateFee(bigIntegerOf(5000)) }
     }
 
@@ -180,7 +179,7 @@ class TransactionTest : FunSpec({
     }
 
     test("signed envelopes reject corrupted, missing or mismatched signatures") {
-        val tx = SolanaTxLegacy.compile(alice.publicKey, blockhash, TransferInstruction(alice.publicKey, bob.publicKey, 1))
+        val tx = SolanaTxLegacy.compile(alice.publicKey, blockhash, SystemProgram.transfer(alice.publicKey, bob.publicKey, 1))
         val signed = tx.sign(alice)
         val corrupt = signed.serialize().also { it[1] = (it[1].toInt() xor 1).toByte() }
         shouldThrow<IllegalArgumentException> { SolanaTransaction.deserialize(corrupt) }
@@ -194,7 +193,7 @@ class TransactionTest : FunSpec({
     }
 
     test("compiled payload and signature collections are immutable") {
-        val instruction = TransferInstruction(alice.publicKey, bob.publicKey, 42)
+        val instruction = SystemProgram.transfer(alice.publicKey, bob.publicKey, 42)
         val compiled = SolanaTxLegacy.compile(alice.publicKey, blockhash, instruction)
         val accounts = compiled.accounts.toMutableList()
         val instructions = compiled.instructions.toMutableList()

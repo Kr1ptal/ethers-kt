@@ -1,7 +1,7 @@
 package io.ethers.solana
 
 import io.ethers.core.Kotlinx
-import io.ethers.solana.instruction.TransferInstruction
+import io.ethers.solana.instruction.SystemProgram
 import io.ethers.solana.providers.SolanaProvider
 import io.ethers.solana.signers.KeypairSigner
 import io.ethers.solana.types.Commitment
@@ -87,7 +87,7 @@ class LocalValidatorCorpusTest : FunSpec({
             repeat(200) { index ->
                 val active = signers.take(1 + index % 12)
                 val count = maxOf(active.size, listOf(1, 2, 8, 16, 32, 64)[index % 6])
-                val instructions = List(count) { n -> TransferInstruction(active[n % active.size].publicKey, recipients[n % recipients.size], 1000000L + index) }
+                val instructions = List(count) { n -> SystemProgram.transfer(active[n % active.size].publicKey, recipients[n % recipients.size], 1000000L + index) }
                 val config = SolanaTransactionConfig(
                     priorityFee = if (index % 3 == 0) null else bigIntegerOf(if (index % 3 == 1) 0 else 5000 + index),
                     computeUnitLimit = 20000L + index * 100,

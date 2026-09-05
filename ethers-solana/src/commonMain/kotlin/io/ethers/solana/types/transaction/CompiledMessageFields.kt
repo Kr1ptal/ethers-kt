@@ -1,6 +1,5 @@
 package io.ethers.solana.types.transaction
 
-import io.ethers.solana.instruction.BaseInstruction
 import io.ethers.solana.instruction.Instruction
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
@@ -20,9 +19,8 @@ internal fun compileMessage(
     instructions: List<Instruction>,
     lookupTables: List<AddressLookupTableAccount>,
 ): CompiledMessageFields {
-    val frozen = instructions.map { BaseInstruction(it.programId, it.keys, it.data) }
     val metas = linkedMapOf(feePayer to KeyMeta(signer = true, writable = true))
-    frozen.forEach { instruction ->
+    instructions.forEach { instruction ->
         metas.getOrPut(instruction.programId) { KeyMeta() }.invoked = true
         instruction.keys.forEach { account ->
             val meta = metas.getOrPut(account.publicKey) { KeyMeta() }
@@ -62,7 +60,7 @@ internal fun compileMessage(
     val all = static + writable.flatMapIndexed { table, indices -> indices.map { tableAddresses[table][it] } } + readonly.flatMapIndexed { table, indices -> indices.map { tableAddresses[table][it] } }
     require(all.size <= 256) { "Too many transaction accounts" }
     val index = all.withIndex().associate { it.value to it.index }
-    val compiled = frozen.map { CompiledInstruction(index.getValue(it.programId), it.keys.map { key -> index.getValue(key.publicKey) }, it.data) }
+    val compiled = instructions.map { CompiledInstruction(index.getValue(it.programId), it.keys.map { key -> index.getValue(key.publicKey) }, it.data.toByteArray()) }
     val lookups = lookupTables.indices.filter { writable[it].isNotEmpty() || readonly[it].isNotEmpty() }.map {
         CompiledAddressLookupTable(lookupTables[it].key, writable[it], readonly[it])
     }
