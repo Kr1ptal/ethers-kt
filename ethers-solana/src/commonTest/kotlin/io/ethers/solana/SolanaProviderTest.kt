@@ -59,7 +59,7 @@ class SolanaProviderTest : FunSpec({
                 respond("""{"jsonrpc":"2.0","id":${body.getValue("id")},$payload}""", status, headersOf("Content-Type", "application/json"))
             },
         )
-        provider = SolanaProvider(HttpClient("https://example.invalid", ktor), Commitment.CONFIRMED)
+        provider = SolanaProvider(HttpClient("https://example.invalid", ktor), defaultCommitment = Commitment.CONFIRMED)
     }
     afterEach {
         provider.close()
@@ -68,6 +68,18 @@ class SolanaProviderTest : FunSpec({
     fun assertRequest(method: String, expectedParams: String) {
         requests.last().getValue("method").jsonPrimitive.content shouldBe method
         requests.last().getValue("params") shouldBe Kotlinx.DEFAULT.parseToJsonElement(expectedParams)
+    }
+
+    test("request commitment overrides do not change the provider default or other requests") {
+        response = contextual("1")
+        val overridden = provider.getBalance(address, commitment = Commitment.FINALIZED)
+        val inherited = provider.getBalance(address)
+        provider.defaultCommitment shouldBe Commitment.CONFIRMED
+        overridden.send().unwrap() shouldBe bigIntegerOf(1)
+        assertRequest("getBalance", """["$address",{"commitment":"finalized"}]""")
+        inherited.send().unwrap() shouldBe bigIntegerOf(1)
+        assertRequest("getBalance", """["$address",{"commitment":"confirmed"}]""")
+        provider.defaultCommitment shouldBe Commitment.CONFIRMED
     }
 
     test("account queries preserve u64, context, missing accounts and binary data") {
@@ -142,6 +154,11 @@ class SolanaProviderTest : FunSpec({
         val transaction = SolanaTxV0.compile(signer.publicKey, blockhash, TransferInstruction(signer.publicKey, address, 1L)).sign(signer)
         provider.sendTransaction(transaction).send().unwrap() shouldBe signature
         assertRequest("sendTransaction", """["${transaction.toBase64()}",{"encoding":"base64","preflightCommitment":"confirmed"}]""")
+        provider.sendTransaction(transaction, preflightCommitment = Commitment.FINALIZED).send().unwrap() shouldBe signature
+        assertRequest("sendTransaction", """["${transaction.toBase64()}",{"encoding":"base64","preflightCommitment":"finalized"}]""")
+        provider.sendTransaction(transaction).send().unwrap() shouldBe signature
+        assertRequest("sendTransaction", """["${transaction.toBase64()}",{"encoding":"base64","preflightCommitment":"confirmed"}]""")
+        provider.defaultCommitment shouldBe Commitment.CONFIRMED
         response = contextual("""{"err":{"InstructionError":[0,"InvalidArgument"]},"logs":["failed"],"unitsConsumed":9007199254740993}""")
         val simulation = provider.simulateTransaction(transaction).send().unwrap().value
         simulation.isSuccess shouldBe false
@@ -236,9 +253,33 @@ class SolanaProviderTest : FunSpec({
         val config = RpcClientConfig().client(ktor)
         val built = SolanaProvider.builder("https://example.invalid").config(config).build().unwrap()
         config.subscriptionDescriptor shouldBe SubscriptionDescriptor.ETHEREUM
-        built.commitment shouldBe Commitment.FINALIZED
+        built.defaultCommitment shouldBe Commitment.FINALIZED
         requests.size shouldBe 0
         built.close()
         SolanaProvider.builder("ftp://example.invalid").build().isFailure() shouldBe true
+    }
+
+    test("builder defaults are copied and invalid per-method defaults are never silently substituted") {
+        val builder = SolanaProvider.builder("https://example.invalid")
+            .config(RpcClientConfig().client(ktor))
+            .defaultCommitment(Commitment.PROCESSED)
+        val built = builder.build().unwrap()
+        builder.defaultCommitment(Commitment.FINALIZED)
+        try {
+            built.defaultCommitment shouldBe Commitment.PROCESSED
+            response = contextual("1")
+            built.getBalance(address).send().unwrap() shouldBe bigIntegerOf(1)
+            assertRequest("getBalance", """["$address",{"commitment":"processed"}]""")
+            val sent = requests.size
+            shouldThrow<IllegalArgumentException> { built.getTransaction(signature) }
+            shouldThrow<IllegalArgumentException> { built.getSignaturesForAddress(address) }
+            requests.size shouldBe sent
+            response = "null"
+            built.getTransaction(signature, commitment = Commitment.CONFIRMED).send().unwrap() shouldBe null
+            assertRequest("getTransaction", """["$signature",{"commitment":"confirmed","encoding":"json","maxSupportedTransactionVersion":255}]""")
+            built.defaultCommitment shouldBe Commitment.PROCESSED
+        } finally {
+            built.close()
+        }
     }
 })

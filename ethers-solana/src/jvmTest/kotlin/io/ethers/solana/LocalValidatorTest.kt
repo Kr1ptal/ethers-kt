@@ -20,7 +20,7 @@ class LocalValidatorTest : FunSpec({
     test("local validator accepts a signed v0 transfer and emits signature status").config(enabled = http != null && ws != null) {
         require(URI(http!!).host in setOf("localhost", "127.0.0.1", "::1"))
         require(URI(ws!!).host in setOf("localhost", "127.0.0.1", "::1"))
-        val provider = SolanaProvider.builder(http).webSocketUrl(ws).commitment(Commitment.CONFIRMED).build().unwrap()
+        val provider = SolanaProvider.builder(http).webSocketUrl(ws).defaultCommitment(Commitment.CONFIRMED).build().unwrap()
         try {
             val sender = KeypairSigner.generate()
             val recipient = KeypairSigner.generate().publicKey

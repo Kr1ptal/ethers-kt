@@ -39,25 +39,26 @@ import kotlin.jvm.JvmStatic
 /**
  * Owns the supplied RPC clients; closing the provider closes each distinct client once.
  * Supplied WebSocket clients must use [SolanaSubscriptionDescriptor]; [builder] configures it automatically.
+ * [defaultCommitment] is immutable; each commitment-aware call can override it independently.
  */
 class SolanaProvider @JvmOverloads constructor(
     override val client: JsonRpcClient,
-    override val commitment: Commitment = Commitment.FINALIZED,
+    override val defaultCommitment: Commitment = Commitment.FINALIZED,
     private val subscriptionClient: JsonRpcClient = client,
 ) : SolanaApi, AutoCloseable {
     // Java-friendly conveniences for the main workflow; the full interface also accepts explicit commitment.
-    fun getLatestBlockhash(): RpcRequest<ContextValue<LatestBlockhash>, RpcError> = getLatestBlockhash(commitment)
-    fun getBalance(address: SolanaAddress): RpcRequest<BigInteger, RpcError> = getBalance(address, commitment)
-    fun getAccountInfo(address: SolanaAddress): RpcRequest<ContextValue<AccountInfo?>, RpcError> = getAccountInfo(address, commitment)
-    fun sendTransaction(transaction: SolanaTransactionSigned): RpcRequest<SolanaSignature, RpcError> = sendTransaction(transaction, commitment)
-    fun getTransaction(signature: SolanaSignature): RpcRequest<SolanaRPCTransaction?, RpcError> = getTransaction(signature, commitment)
-    fun getTransaction(signature: SolanaSignature, maxSupportedTransactionVersion: Int): RpcRequest<SolanaRPCTransaction?, RpcError> = getTransaction(signature, commitment, maxSupportedTransactionVersion)
+    fun getLatestBlockhash(): RpcRequest<ContextValue<LatestBlockhash>, RpcError> = getLatestBlockhash(defaultCommitment)
+    fun getBalance(address: SolanaAddress): RpcRequest<BigInteger, RpcError> = getBalance(address, defaultCommitment)
+    fun getAccountInfo(address: SolanaAddress): RpcRequest<ContextValue<AccountInfo?>, RpcError> = getAccountInfo(address, defaultCommitment)
+    fun sendTransaction(transaction: SolanaTransactionSigned): RpcRequest<SolanaSignature, RpcError> = sendTransaction(transaction, defaultCommitment)
+    fun getTransaction(signature: SolanaSignature): RpcRequest<SolanaRPCTransaction?, RpcError> = getTransaction(signature, defaultCommitment)
+    fun getTransaction(signature: SolanaSignature, maxSupportedTransactionVersion: Int): RpcRequest<SolanaRPCTransaction?, RpcError> = getTransaction(signature, defaultCommitment, maxSupportedTransactionVersion)
 
     @JvmOverloads
-    fun subscribeAccount(address: SolanaAddress, commitment: Commitment = this.commitment): RpcSubscribe<ContextValue<AccountInfo?>, RpcError> = subscribe("account", arrayOf(address.toString(), options(commitment, true))) { decodeContext(it, ::decodeAccount) }
+    fun subscribeAccount(address: SolanaAddress, commitment: Commitment = this.defaultCommitment): RpcSubscribe<ContextValue<AccountInfo?>, RpcError> = subscribe("account", arrayOf(address.toString(), options(commitment, true))) { decodeContext(it, ::decodeAccount) }
 
     @JvmOverloads
-    fun subscribeProgram(program: SolanaAddress, filters: List<AccountFilter> = emptyList(), commitment: Commitment = this.commitment): RpcSubscribe<ContextValue<ProgramNotification>, RpcError> {
+    fun subscribeProgram(program: SolanaAddress, filters: List<AccountFilter> = emptyList(), commitment: Commitment = this.defaultCommitment): RpcSubscribe<ContextValue<ProgramNotification>, RpcError> {
         require(filters.size <= 4) { "At most four account filters are supported" }
         val config = buildJsonObject {
             put("commitment", commitment.toString())
@@ -72,11 +73,11 @@ class SolanaProvider @JvmOverloads constructor(
     }
 
     @JvmOverloads
-    fun subscribeLogs(filter: LogsFilter = LogsFilter.All, commitment: Commitment = this.commitment): RpcSubscribe<ContextValue<LogsNotification>, RpcError> = subscribe("logs", arrayOf(filter.toJson(), options(commitment))) { decode(it) }
+    fun subscribeLogs(filter: LogsFilter = LogsFilter.All, commitment: Commitment = this.defaultCommitment): RpcSubscribe<ContextValue<LogsNotification>, RpcError> = subscribe("logs", arrayOf(filter.toJson(), options(commitment))) { decode(it) }
 
     /** The stream closes after its status event; received notifications are non-terminal. */
     @JvmOverloads
-    fun subscribeSignature(signature: SolanaSignature, commitment: Commitment = this.commitment, enableReceivedNotification: Boolean = false): RpcSubscribe<SignatureNotification, RpcError> {
+    fun subscribeSignature(signature: SolanaSignature, commitment: Commitment = this.defaultCommitment, enableReceivedNotification: Boolean = false): RpcSubscribe<SignatureNotification, RpcError> {
         val config = buildJsonObject {
             put("commitment", commitment.toString())
             put("enableReceivedNotification", enableReceivedNotification)
@@ -118,10 +119,12 @@ enum class SolanaCluster(val httpUrl: String, val webSocketUrl: String) {
 
 class SolanaProviderBuilder internal constructor(private val url: String) {
     private var config = RpcClientConfig()
-    private var commitment = Commitment.FINALIZED
+    private var defaultCommitment = Commitment.FINALIZED
     private var webSocketUrl: String? = null
     fun config(config: RpcClientConfig) = apply { this.config = config }
-    fun commitment(commitment: Commitment) = apply { this.commitment = commitment }
+
+    /** Set the fallback for subsequently built providers, without changing providers already built. */
+    fun defaultCommitment(defaultCommitment: Commitment) = apply { this.defaultCommitment = defaultCommitment }
     fun webSocketUrl(url: String) = apply { this.webSocketUrl = url }
 
     /** Constructs clients without issuing RPC calls or resolving an Ethereum chain id. */
@@ -140,7 +143,7 @@ class SolanaProviderBuilder internal constructor(private val url: String) {
         }
         val client = if (url.startsWith("http")) HttpClient(url, rpcConfig) else WsClient(url, rpcConfig)
         val subscriptions = if (ws == null || ws == url) client else WsClient(ws, rpcConfig)
-        return success(SolanaProvider(client, commitment, subscriptions))
+        return success(SolanaProvider(client, defaultCommitment, subscriptions))
     }
 }
 

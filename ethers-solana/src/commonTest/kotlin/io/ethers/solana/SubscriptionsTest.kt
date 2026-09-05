@@ -14,6 +14,7 @@ import io.ethers.solana.providers.AccountFilter
 import io.ethers.solana.providers.LogsFilter
 import io.ethers.solana.providers.SolanaProvider
 import io.ethers.solana.providers.SolanaSubscriptionDescriptor
+import io.ethers.solana.types.Commitment
 import io.ethers.solana.types.Programs
 import io.ethers.solana.types.SignatureNotification
 import io.ethers.solana.types.SolanaSignature
@@ -22,6 +23,7 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
 class SubscriptionsTest : FunSpec({
@@ -59,6 +61,36 @@ class SubscriptionsTest : FunSpec({
         provider.subscribeProgram(key, listOf(AccountFilter.DataSize(165), AccountFilter.Memcmp(0, key.toString()))).send().unwrap().take()!!.value.pubkey shouldBe key
         client.descriptor.subscribeMethod shouldBe "programSubscribe"
         client.params[1] shouldBe Kotlinx.DEFAULT.parseToJsonElement("""{"commitment":"finalized","encoding":"base64","filters":[{"dataSize":165},{"memcmp":{"offset":0,"bytes":"$key","encoding":"base58"}}]}""")
+    }
+
+    test("subscription commitment overrides leave the provider default unchanged") {
+        fun assertCommitment(expected: Commitment) {
+            (client.params[1] as JsonObject)["commitment"] shouldBe JsonPrimitive(expected.toString())
+            provider.defaultCommitment shouldBe Commitment.FINALIZED
+        }
+        client.event = contextual(account)
+        provider.subscribeAccount(key, commitment = Commitment.CONFIRMED).send().unwrap()
+        assertCommitment(Commitment.CONFIRMED)
+        provider.subscribeAccount(key).send().unwrap()
+        assertCommitment(Commitment.FINALIZED)
+
+        client.event = contextual("""{"pubkey":"$key","account":$account}""")
+        provider.subscribeProgram(key, commitment = Commitment.CONFIRMED).send().unwrap()
+        assertCommitment(Commitment.CONFIRMED)
+        provider.subscribeProgram(key).send().unwrap()
+        assertCommitment(Commitment.FINALIZED)
+
+        client.event = contextual("""{"signature":"$signature","err":null,"logs":[]}""")
+        provider.subscribeLogs(commitment = Commitment.CONFIRMED).send().unwrap()
+        assertCommitment(Commitment.CONFIRMED)
+        provider.subscribeLogs().send().unwrap()
+        assertCommitment(Commitment.FINALIZED)
+
+        client.event = contextual("""{"err":null}""")
+        provider.subscribeSignature(signature, commitment = Commitment.CONFIRMED).send().unwrap()
+        assertCommitment(Commitment.CONFIRMED)
+        provider.subscribeSignature(signature).send().unwrap()
+        assertCommitment(Commitment.FINALIZED)
     }
 
     test("logs support all, allWithVotes and single-account mentions") {

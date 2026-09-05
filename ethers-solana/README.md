@@ -172,7 +172,7 @@ For private endpoints, supply the WebSocket URL explicitly:
 ```kotlin
 val provider = SolanaProvider.builder("https://your-rpc.example")
     .webSocketUrl("wss://your-rpc.example")
-    .commitment(Commitment.CONFIRMED)
+    .defaultCommitment(Commitment.CONFIRMED)
     .config(RpcClientConfig().requestHeaders(mapOf("Authorization" to "Bearer ...")))
     .build().unwrap()
 val stream = provider.subscribeLogs(LogsFilter.Mentions(publicKey)).send().unwrap()
@@ -194,8 +194,21 @@ events; change this through `RpcClientConfig.resubscribeOnReconnect(false)`. HTT
 unsupported-method error for subscriptions. A provider owns its RPC clients, but the shared Ktor client's
 lifecycle remains governed by the existing transport configuration.
 
-Default commitment is `FINALIZED`; RPC methods accepting commitment also support per-call overrides. No
-Ethereum chain-ID lookup is performed. Construction does not guarantee that an endpoint is reachable.
+The immutable `defaultCommitment` defaults to `FINALIZED` and can be set in the constructor or builder.
+Commitment-aware RPC methods and subscriptions accept an optional, non-null `commitment` argument:
+
+```kotlin
+val provider = SolanaProvider(client, defaultCommitment = Commitment.CONFIRMED)
+provider.getBalance(address) // Uses the provider default
+provider.getBalance(address, commitment = Commitment.FINALIZED) // Only this request
+provider.subscribeAccount(address, commitment = Commitment.PROCESSED)
+```
+
+Overrides do not change the provider default or other requests. Method-specific restrictions still apply:
+for example, a `PROCESSED` default cannot be used for `getTransaction` without an explicit supported override.
+For submission, `preflightCommitment` controls preflight simulation, not confirmation waiting; it also
+defaults to `defaultCommitment`. No Ethereum chain-ID lookup is performed. Construction does not guarantee
+that an endpoint is reachable.
 
 ## Unit conversion
 

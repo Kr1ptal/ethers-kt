@@ -25,6 +25,9 @@ class JavaApiTest : FunSpec({
             import io.ethers.solana.utils.SolUnit;
             public class SolanaJavaExample {
                 public void transfer(SolanaProvider provider, byte[] seed, SolanaAddress recipient) {
+                    var builder = SolanaProvider.builder("https://example.invalid")
+                        .defaultCommitment(io.ethers.solana.types.Commitment.CONFIRMED);
+                    var defaultCommitment = provider.getDefaultCommitment();
                     var bytes = SolanaBytes.fromBytes(new byte[] {1, 2, 3});
                     var decoded58 = SolanaBytes.fromBase58(bytes.toBase58());
                     var decoded64 = SolanaBytes.fromBase64(bytes.toBase64());
@@ -49,9 +52,9 @@ class JavaApiTest : FunSpec({
                     SolanaTransactionSigned.Builder partial = unsigned.signingBuilder().sign(signer);
                     SolanaTransactionSigned completed = partial.build();
                     SolanaTransaction common = completed;
-                    var simulation = provider.simulateTransaction(unsigned, provider.getCommitment());
-                    var partialSimulation = provider.simulateTransaction(partial.serializePartial(), provider.getCommitment());
-                    var fee = provider.getFeeForMessage(common, provider.getCommitment());
+                    var simulation = provider.simulateTransaction(unsigned, provider.getDefaultCommitment());
+                    var partialSimulation = provider.simulateTransaction(partial.serializePartial(), provider.getDefaultCommitment());
+                    var fee = provider.getFeeForMessage(common, provider.getDefaultCommitment());
                     SolanaTransactionUnsigned refreshed = completed.withNewBlockhash(latest.getBlockhash());
                     var legacy = SolanaTxLegacy.compile(signer.getPublicKey(), latest.getBlockhash(),
                         new TransferInstruction(signer.getPublicKey(), recipient, 1L));
