@@ -22,7 +22,8 @@ import kotlinx.serialization.json.long
 /**
  * A getTransaction response, independent of the signable transaction hierarchy.
  * [raw] retains every field, including unknown nested fields and explicit nulls, without decoding the
- * message or verifying signatures. Serialization reproduces this JSON, not a binary transaction envelope.
+ * binary message or verifying signatures. Known JSON fields are typed independently of transaction version.
+ * Serialization reproduces this JSON, not a binary transaction envelope.
  * The RPC node must still support the requested version and have the transaction available.
  */
 @Serializable(with = RPCTransactionSerializer::class)
@@ -30,9 +31,8 @@ data class RPCTransaction(val raw: JsonObject) {
     val slot: BigInteger = Json.decodeFromJsonElement(U64Serializer, raw.getValue("slot"))
     val blockTime: Long? = raw["blockTime"]?.takeUnless { it == JsonNull }?.jsonPrimitive?.long
 
-    /** The full JSON or encoded transaction payload; its structure is deliberately not version-constrained. */
-    val transaction: JsonElement = raw.getValue("transaction")
-    val meta: JsonElement? = raw["meta"]?.takeUnless { it == JsonNull }
+    val transaction: RPCTransactionData = RPCTransactionData(raw.getValue("transaction"))
+    val meta: RPCTransactionMeta? = raw["meta"]?.takeUnless { it == JsonNull }?.let(::RPCTransactionMeta)
 
     /** Null means the node omitted the version, returned null, or used an unrecognized representation. */
     val type: SolanaTxType? = when (val version = raw["version"]) {
@@ -47,7 +47,7 @@ data class RPCTransaction(val raw: JsonObject) {
 object RPCTransactionSerializer : KSerializer<RPCTransaction> {
     override val descriptor = buildClassSerialDescriptor("SolanaRPCTransaction")
     override fun deserialize(decoder: Decoder): RPCTransaction = RPCTransaction((decoder as JsonDecoder).decodeJsonElement().jsonObject)
-    override fun serialize(encoder: Encoder, value: RPCTransaction) = (encoder as JsonEncoder).encodeJsonElement(value.raw)
+    override fun serialize(encoder: Encoder, value: RPCTransaction) = (encoder as JsonEncoder).encodeJsonElement(rpcExactJson(value.raw))
 }
 
 private val KNOWN_FIELDS = setOf("slot", "blockTime", "transaction", "meta", "version")

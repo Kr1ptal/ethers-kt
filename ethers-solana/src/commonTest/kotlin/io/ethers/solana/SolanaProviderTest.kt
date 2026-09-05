@@ -220,6 +220,18 @@ class SolanaProviderTest : FunSpec({
         result.unwrapError().data.toString() shouldBe """{"version":1}"""
     }
 
+    test("transaction history returns typed fields even for unsupported versions") {
+        response = """{"slot":1,"version":1,"transaction":{"signatures":["$signature"],"message":{"accountKeys":["$address"],"recentBlockhash":"$blockhash"}},"meta":{"err":null,"fee":5000,"logMessages":["hello"]}}"""
+        val tx = provider.getTransaction(signature).send().unwrap()!!
+        tx.type shouldBe SolanaTxType.Unsupported(1)
+        tx.transaction.signatures shouldBe listOf(signature)
+        tx.transaction.message!!.accountKeys!!.single().address shouldBe address
+        tx.transaction.message.recentBlockhash shouldBe blockhash
+        tx.meta!!.fee shouldBe bigIntegerOf(5000)
+        tx.meta.logMessages shouldBe listOf("hello")
+        tx.meta.isSuccess shouldBe true
+    }
+
     test("builder performs no RPC and uses finalized by default") {
         val config = RpcClientConfig().client(ktor)
         val built = SolanaProvider.builder("https://example.invalid").config(config).build().unwrap()

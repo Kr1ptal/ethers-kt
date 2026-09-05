@@ -48,6 +48,16 @@ class JavaApiTest : FunSpec({
                     if (fetched != null) {
                         var type = fetched.getType();
                         var raw = fetched.getRaw();
+                        java.util.List<io.ethers.solana.types.Signature> signatures = fetched.getTransaction().getSignatures();
+                        io.ethers.solana.types.RPCMessage rpcMessage = fetched.getTransaction().getMessage();
+                        if (rpcMessage != null && rpcMessage.getInstructions() != null) {
+                            io.ethers.core.types.Bytes data = rpcMessage.getInstructions().get(0).getData();
+                            java.util.List<io.ethers.solana.types.RPCAccountKey> accounts = rpcMessage.getAccountKeys();
+                        }
+                        if (fetched.getMeta() != null) {
+                            java.math.BigInteger paidFee = fetched.getMeta().getFee();
+                            java.util.List<io.ethers.solana.types.RPCTokenBalance> balances = fetched.getMeta().getPostTokenBalances();
+                        }
                         var unsupported = io.ethers.solana.types.transaction.SolanaTxType.fromVersion(1);
                     }
                     var subscription = provider.subscribeSignature(signature).sendAsync();

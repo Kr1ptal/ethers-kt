@@ -95,15 +95,32 @@ transaction and discards signatures; start a new builder for that payload.
 val transaction = provider.getTransaction(signature).send().unwrap() // RPCTransaction?
 if (transaction != null) {
     val type = transaction.type // Legacy, V0, Unsupported(version), or null if unspecified/unrecognized
+    val signatures = transaction.transaction.signatures // List<Signature>?
+    val message = transaction.transaction.message       // RPCMessage?
+    val accounts = message?.accountKeys?.map { it.address }
+    val instructionData = message?.instructions?.firstOrNull()?.data // Bytes?
+    val fee = transaction.meta?.fee                     // BigInteger? (lamports)
     val raw = transaction.raw   // complete response JSON, including all unknown nested fields
 }
 ```
 
 `RPCTransaction` is deliberately separate from the signable transaction hierarchy. Its `slot`, `blockTime`,
-and `type` are exposed directly; `transaction` and `meta` retain their JSON structures without requiring a
-known message layout or valid signatures. `otherFields` preserves additional top-level fields, and JSON
-serialization reproduces the complete `raw` response. Missing or unrecognized version representations are
-not silently classified as legacy. An unsupported version remains readable but cannot be built or signed.
+and `type` are exposed directly. `transaction` is an `RPCTransactionData` with typed signatures and message
+fields: account addresses/privileges, blockhash, header, instructions, and lookup tables. `meta` is an
+`RPCTransactionMeta` with typed fees, balances, token balances, logs, inner instructions, loaded addresses,
+return data, rewards, compute/cost units, and extensible errors (including instruction indices and custom codes).
+Instruction and return data are decoded to `Bytes`; program-specific parsed instruction content remains JSON.
+Compiled instruction accounts use `accountIndices`; partially decoded instructions use `accounts` addresses.
+Metadata amounts use `BigInteger`, signed reward changes use `Long`, and JSON token UI amounts use `BigDecimal`
+without introducing additional floating-point rounding. Prefer the integer token amount and decimals for arithmetic.
+
+Known fields are decoded even for unsupported versions. Nullable fields represent missing/null values or fields
+absent from an unknown layout, not fabricated zeros or empty collections. Every nested model retains `raw` and
+`otherFields`; root JSON serialization reproduces the complete original response, including explicit nulls.
+Unknown layouts and encodings remain raw while recognizable surrounding fields are still decoded. Malformed
+recognized values (such as invalid base58, signature lengths, or out-of-range quantities) are rejected; there is
+no binary message sanitization or cryptographic signature verification. Missing or unrecognized version
+representations are not silently classified as legacy. Unsupported versions remain readable but cannot be signed.
 
 `getTransaction` requests `json` encoding and defaults `maxSupportedTransactionVersion` to `255`, the full
 unsigned-byte range accepted by the [RPC configuration](https://github.com/anza-xyz/agave/blob/v3.1.8/rpc-client-types/src/config.rs).
