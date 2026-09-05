@@ -1,12 +1,12 @@
 package io.ethers.solana.types.transaction
 
+import io.ethers.solana.serialization.SolanaMessageDecoder
+import io.ethers.solana.serialization.SolanaMessageEncoder
 import io.ethers.solana.signers.SolanaSigner
 import io.ethers.solana.types.Blockhash
 import io.ethers.solana.types.Programs
 import io.ethers.solana.types.PublicKey
 import io.ethers.solana.types.Signature
-import io.ethers.solana.utils.BinaryReader
-import io.ethers.solana.utils.BinaryWriter
 import io.ethers.solana.utils.requireU64
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
@@ -40,9 +40,9 @@ class SolanaTransaction private constructor(val message: TransactionMessage, sig
     }
 
     fun serializePartial(): ByteArray {
-        val writer = BinaryWriter().length(signatureSlots.size)
-        signatureSlots.forEach { writer.bytes(it?.toByteArray() ?: ByteArray(64)) }
-        return writer.bytes(message.serialize()).toByteArray()
+        val encoder = SolanaMessageEncoder().writeShortVecLength(signatureSlots.size)
+        signatureSlots.forEach { encoder.writeBytes(it?.toByteArray() ?: ByteArray(64)) }
+        return encoder.writeBytes(message.serialize()).toByteArray()
     }
 
     fun toBase64(): String = Base64.encode(serialize())
@@ -56,15 +56,15 @@ class SolanaTransaction private constructor(val message: TransactionMessage, sig
         var units: BigInteger? = null
         var price = bigIntegerOf(0)
         message.instructions.filter { message.accounts[it.programIdIndex] == Programs.COMPUTE_BUDGET }.forEach {
-            val reader = BinaryReader(it.data)
-            when (reader.byte()) {
+            val decoder = SolanaMessageDecoder(it.data)
+            when (decoder.readByte()) {
                 2 -> {
-                    units = reader.unsigned(4)
-                    reader.requireDone()
+                    units = decoder.readUnsignedLittleEndian(4)
+                    decoder.requireDone()
                 }
                 3 -> {
-                    price = reader.unsigned(8)
-                    reader.requireDone()
+                    price = decoder.readUnsignedLittleEndian(8)
+                    decoder.requireDone()
                 }
             }
         }
@@ -77,14 +77,14 @@ class SolanaTransaction private constructor(val message: TransactionMessage, sig
         @JvmStatic
         @JvmOverloads
         fun deserialize(bytes: ByteArray, allowPartial: Boolean = false): SolanaTransaction {
-            val reader = BinaryReader(bytes)
-            val count = reader.length()
+            val decoder = SolanaMessageDecoder(bytes)
+            val count = decoder.readShortVecLength()
             require(count in 1..127) { "Invalid signature count" }
             val signatures = List(count) {
-                val signature = reader.bytes(64)
+                val signature = decoder.readBytes(64)
                 if (signature.all { it == 0.toByte() }) null else Signature(signature)
             }
-            val message = TransactionMessage.deserialize(reader.bytes(reader.remaining))
+            val message = TransactionMessage.deserialize(decoder.readBytes(decoder.remaining))
             require(message.header.requiredSignatures == count) { "Signature count does not match message" }
             require(allowPartial || signatures.all { it != null }) { "Missing required signatures" }
             val serializedMessage = message.serialize()

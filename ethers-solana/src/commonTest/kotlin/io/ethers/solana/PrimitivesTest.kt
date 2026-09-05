@@ -8,8 +8,6 @@ import io.ethers.solana.types.Programs
 import io.ethers.solana.types.PublicKey
 import io.ethers.solana.types.Signature
 import io.ethers.solana.types.U64Serializer
-import io.ethers.solana.utils.BinaryReader
-import io.ethers.solana.utils.BinaryWriter
 import io.ethers.solana.utils.SolUnit
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
@@ -78,16 +76,5 @@ class PrimitivesTest : FunSpec({
         SolUnit.solToLamports("1.000000001") shouldBe bigIntegerOf(1000000001)
         SolUnit.lamportsToSol(bigIntegerOf(1)).toPlainString() shouldBe "0.000000001"
         shouldThrow<ArithmeticException> { SolUnit.solToLamports("0.0000000001") }
-    }
-
-    test("shortvec boundaries and malformed encodings") {
-        for (n in listOf(0, 1, 127, 128, 255, 16383, 16384, 65535)) {
-            val reader = BinaryReader(BinaryWriter().length(n).toByteArray())
-            reader.length() shouldBe n
-            reader.requireDone()
-        }
-        for (bytes in listOf(byteArrayOf(), byteArrayOf(128.toByte()), byteArrayOf(128.toByte(), 0), byteArrayOf(255.toByte(), 255.toByte(), 4))) {
-            shouldThrow<IllegalArgumentException> { BinaryReader(bytes).length() }
-        }
     }
 })

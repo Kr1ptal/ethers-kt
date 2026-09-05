@@ -2,10 +2,10 @@ package io.ethers.solana.types.transaction
 
 import io.ethers.solana.instruction.BaseInstruction
 import io.ethers.solana.instruction.Instruction
+import io.ethers.solana.serialization.SolanaMessageDecoder
+import io.ethers.solana.serialization.SolanaMessageEncoder
 import io.ethers.solana.types.Blockhash
 import io.ethers.solana.types.PublicKey
-import io.ethers.solana.utils.BinaryReader
-import io.ethers.solana.utils.BinaryWriter
 import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmStatic
 
@@ -64,53 +64,53 @@ class TransactionMessage internal constructor(
     fun withNewBlockhash(blockhash: Blockhash): TransactionMessage = TransactionMessage(version, header, staticAccounts, blockhash, compiledInstructions, lookups)
 
     fun serialize(): ByteArray {
-        val writer = BinaryWriter()
-        if (version == MessageVersion.V0) writer.byte(128)
-        writer.byte(header.requiredSignatures).byte(header.readonlySignedAccounts).byte(header.readonlyUnsignedAccounts)
-        writer.length(staticAccounts.size)
-        staticAccounts.forEach { writer.bytes(it.toByteArray()) }
-        writer.bytes(recentBlockhash.toByteArray()).length(compiledInstructions.size)
+        val encoder = SolanaMessageEncoder()
+        if (version == MessageVersion.V0) encoder.writeByte(128)
+        encoder.writeByte(header.requiredSignatures).writeByte(header.readonlySignedAccounts).writeByte(header.readonlyUnsignedAccounts)
+        encoder.writeShortVecLength(staticAccounts.size)
+        staticAccounts.forEach { encoder.writeBytes(it.toByteArray()) }
+        encoder.writeBytes(recentBlockhash.toByteArray()).writeShortVecLength(compiledInstructions.size)
         compiledInstructions.forEach { instruction ->
-            writer.byte(instruction.programIdIndex).length(instruction.accounts.size)
-            instruction.accounts.forEach { writer.byte(it) }
-            writer.length(instruction.data.size).bytes(instruction.data)
+            encoder.writeByte(instruction.programIdIndex).writeShortVecLength(instruction.accounts.size)
+            instruction.accounts.forEach { encoder.writeByte(it) }
+            encoder.writeShortVecLength(instruction.data.size).writeBytes(instruction.data)
         }
         if (version == MessageVersion.V0) {
-            writer.length(lookups.size)
+            encoder.writeShortVecLength(lookups.size)
             lookups.forEach { table ->
-                writer.bytes(table.key.toByteArray()).length(table.writableIndexes.size)
-                table.writableIndexes.forEach { writer.byte(it) }
-                writer.length(table.readonlyIndexes.size)
-                table.readonlyIndexes.forEach { writer.byte(it) }
+                encoder.writeBytes(table.key.toByteArray()).writeShortVecLength(table.writableIndexes.size)
+                table.writableIndexes.forEach { encoder.writeByte(it) }
+                encoder.writeShortVecLength(table.readonlyIndexes.size)
+                table.readonlyIndexes.forEach { encoder.writeByte(it) }
             }
         }
-        return writer.toByteArray()
+        return encoder.toByteArray()
     }
 
     companion object {
         @JvmStatic
         fun deserialize(bytes: ByteArray): TransactionMessage {
-            val reader = BinaryReader(bytes)
-            val prefix = reader.byte()
+            val decoder = SolanaMessageDecoder(bytes)
+            val prefix = decoder.readByte()
             require(prefix < 128 || prefix == 128) { "Unsupported transaction message version" }
             val version = if (prefix == 128) MessageVersion.V0 else MessageVersion.LEGACY
-            val header = MessageHeader(if (version == MessageVersion.V0) reader.byte() else prefix, reader.byte(), reader.byte())
-            val count = reader.length()
+            val header = MessageHeader(if (version == MessageVersion.V0) decoder.readByte() else prefix, decoder.readByte(), decoder.readByte())
+            val count = decoder.readShortVecLength()
             require(count in 1..256) { "Invalid static account count" }
-            val accounts = List(count) { PublicKey(reader.bytes(32)) }
-            val blockhash = Blockhash(reader.bytes(32))
-            val instructions = List(reader.length()) {
-                val program = reader.byte()
-                val indices = List(reader.length()) { reader.byte() }
-                CompiledInstruction(program, indices, reader.bytes(reader.length()))
+            val accounts = List(count) { PublicKey(decoder.readBytes(32)) }
+            val blockhash = Blockhash(decoder.readBytes(32))
+            val instructions = List(decoder.readShortVecLength()) {
+                val program = decoder.readByte()
+                val indices = List(decoder.readShortVecLength()) { decoder.readByte() }
+                CompiledInstruction(program, indices, decoder.readBytes(decoder.readShortVecLength()))
             }
-            val lookups = if (version == MessageVersion.LEGACY) emptyList() else List(reader.length()) {
-                val key = PublicKey(reader.bytes(32))
-                val writable = List(reader.length()) { reader.byte() }
-                val readonly = List(reader.length()) { reader.byte() }
+            val lookups = if (version == MessageVersion.LEGACY) emptyList() else List(decoder.readShortVecLength()) {
+                val key = PublicKey(decoder.readBytes(32))
+                val writable = List(decoder.readShortVecLength()) { decoder.readByte() }
+                val readonly = List(decoder.readShortVecLength()) { decoder.readByte() }
                 CompiledAddressLookupTable(key, writable, readonly)
             }
-            reader.requireDone()
+            decoder.requireDone()
             return TransactionMessage(version, header, accounts, blockhash, instructions, lookups)
         }
 

@@ -17,6 +17,7 @@ kotlin {
         commonMain {
             dependencies {
                 api(project(":ethers-providers"))
+                implementation(libs.ditchoom.buffer)
                 implementation(libs.whyoleg.cryptography.core)
             }
         }
