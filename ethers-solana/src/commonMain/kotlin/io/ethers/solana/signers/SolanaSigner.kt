@@ -6,13 +6,14 @@ import io.ethers.core.failure
 import io.ethers.core.success
 import io.ethers.solana.types.Signature
 import io.ethers.solana.types.SolanaAddress
-import io.ethers.solana.types.transaction.SolanaTransaction
+import io.ethers.solana.types.transaction.SolanaTransactionSigned
+import io.ethers.solana.types.transaction.SolanaTransactionUnsigned
 
 /** Signs the exact message bytes with Ed25519, without an Ethereum prefix or prehash. */
 interface SolanaSigner {
     val publicKey: SolanaAddress
     fun signMessage(message: ByteArray): Signature
-    fun signTransaction(transaction: SolanaTransaction): SolanaTransaction = transaction.sign(this)
+    fun signTransaction(transaction: SolanaTransactionUnsigned): SolanaTransactionSigned = transaction.sign(this)
     fun trySignMessage(message: ByteArray): Result<Signature, SigningError> = try {
         success(signMessage(message))
     } catch (e: Exception) {

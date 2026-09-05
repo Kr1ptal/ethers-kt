@@ -6,16 +6,17 @@ import io.ethers.providers.HttpClient
 import io.ethers.providers.RpcClientConfig
 import io.ethers.providers.RpcError
 import io.ethers.providers.SubscriptionDescriptor
+import io.ethers.solana.instruction.BaseInstruction
 import io.ethers.solana.instruction.TransferInstruction
 import io.ethers.solana.providers.SolanaProvider
 import io.ethers.solana.signers.KeypairSigner
+import io.ethers.solana.types.AccountMeta
 import io.ethers.solana.types.Blockhash
 import io.ethers.solana.types.Commitment
 import io.ethers.solana.types.Health
 import io.ethers.solana.types.Programs
 import io.ethers.solana.types.Signature
-import io.ethers.solana.types.transaction.SolanaTransaction
-import io.ethers.solana.types.transaction.TransactionMessage
+import io.ethers.solana.types.transaction.SolanaTxV0
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.throwables.shouldThrow
@@ -139,7 +140,7 @@ class SolanaProviderTest : FunSpec({
         provider.requestAirdrop(address, BigInteger("18446744073709551615")).send().unwrap() shouldBe signature
         assertRequest("requestAirdrop", """["$address",18446744073709551615,{"commitment":"confirmed"}]""")
         val signer = KeypairSigner.fromSeed(ByteArray(32))
-        val transaction = SolanaTransaction(TransactionMessage.compile(signer.publicKey, blockhash, TransferInstruction(signer.publicKey, address, 1L))).sign(signer)
+        val transaction = SolanaTxV0.compile(signer.publicKey, blockhash, TransferInstruction(signer.publicKey, address, 1L)).sign(signer)
         provider.sendTransaction(transaction).send().unwrap() shouldBe signature
         assertRequest("sendTransaction", """["${transaction.toBase64()}",{"encoding":"base64","preflightCommitment":"confirmed"}]""")
         response = contextual("""{"err":{"InstructionError":[0,"InvalidArgument"]},"logs":["failed"],"unitsConsumed":9007199254740993}""")
@@ -164,6 +165,31 @@ class SolanaProviderTest : FunSpec({
         result.unwrapError().code shouldBe -32002
         result.unwrapError().data.toString() shouldBe """{"logs":["failed"]}"""
         provider.subscribeSlot().send().unwrapError().code shouldBe RpcError.CODE_METHOD_NOT_FOUND
+    }
+
+    test("simulation accepts every signing state but raw submission rejects incomplete envelopes") {
+        val alice = KeypairSigner.fromSeed(ByteArray(32) { 1 })
+        val bob = KeypairSigner.fromSeed(ByteArray(32) { 2 })
+        val tx = SolanaTxV0.compile(alice.publicKey, blockhash, BaseInstruction(Programs.SYSTEM, listOf(AccountMeta.signer(alice.publicKey), AccountMeta.signer(bob.publicKey)), byteArrayOf()))
+        val builder = tx.signingBuilder().sign(bob)
+        val partial = builder.serializePartial()
+        val signed = builder.sign(alice).build()
+        response = contextual("""{"err":null,"logs":null}""")
+        for (state in listOf(tx, signed)) {
+            provider.simulateTransaction(state).send().unwrap().value.isSuccess shouldBe true
+            assertRequest("simulateTransaction", """["${Base64.encode(state.serializeForSimulation())}",{"commitment":"confirmed","encoding":"base64"}]""")
+        }
+        provider.simulateTransaction(partial).send().unwrap().value.isSuccess shouldBe true
+        assertRequest("simulateTransaction", """["${Base64.encode(partial)}",{"commitment":"confirmed","encoding":"base64"}]""")
+        response = contextual("5000")
+        for (state in listOf(tx, signed)) {
+            provider.getFeeForMessage(state).send().unwrap().value shouldBe bigIntegerOf(5000)
+            assertRequest("getFeeForMessage", """["${Base64.encode(tx.serializeMessage())}",{"commitment":"confirmed"}]""")
+        }
+        val sent = requests.size
+        shouldThrow<IllegalArgumentException> { provider.sendTransaction(tx.serializeForSimulation()) }
+        shouldThrow<IllegalArgumentException> { provider.sendTransaction(partial) }
+        requests.size shouldBe sent
     }
 
     test("builder performs no RPC and uses finalized by default") {

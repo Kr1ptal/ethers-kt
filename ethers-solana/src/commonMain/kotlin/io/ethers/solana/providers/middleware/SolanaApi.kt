@@ -24,7 +24,7 @@ import io.ethers.solana.types.TransactionSignature
 import io.ethers.solana.types.TransactionSimulation
 import io.ethers.solana.types.Version
 import io.ethers.solana.types.transaction.SolanaTransaction
-import io.ethers.solana.types.transaction.TransactionMessage
+import io.ethers.solana.types.transaction.SolanaTransactionSigned
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
 import kotlinx.serialization.json.JsonElement
@@ -63,10 +63,10 @@ interface SolanaApi {
     fun requestAirdrop(address: SolanaAddress, lamports: BigInteger, commitment: Commitment = this.commitment): RpcRequest<Signature, RpcError> = rpc("requestAirdrop", address.toString(), u64(lamports), config(commitment)) { Signature(it.jsonPrimitive.content) }
     fun requestAirdrop(address: SolanaAddress, lamports: Long): RpcRequest<Signature, RpcError> = requestAirdrop(address, bigIntegerOf(lamports))
 
-    fun sendTransaction(transaction: SolanaTransaction, preflightCommitment: Commitment = this.commitment): RpcRequest<Signature, RpcError> = sendTransaction(transaction.serialize(), preflightCommitment)
+    fun sendTransaction(transaction: SolanaTransactionSigned, preflightCommitment: Commitment = this.commitment): RpcRequest<Signature, RpcError> = sendTransaction(transaction.serialize(), preflightCommitment)
     fun sendTransaction(transaction: ByteArray, preflightCommitment: Commitment = this.commitment): RpcRequest<Signature, RpcError> {
         // Validate raw inputs too: partial signing is an explicit offline/simulation operation.
-        SolanaTransaction.deserialize(transaction)
+        SolanaTransactionSigned.deserialize(transaction)
         require(transaction.size <= 1232) { "Transaction exceeds Solana's packet size" }
         return rpc(
             "sendTransaction",
@@ -77,9 +77,9 @@ interface SolanaApi {
             },
         ) { Signature(it.jsonPrimitive.content) }
     }
-    fun simulateTransaction(transaction: SolanaTransaction, commitment: Commitment = this.commitment): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = simulateTransaction(transaction.serializePartial(), commitment)
+    fun simulateTransaction(transaction: SolanaTransaction, commitment: Commitment = this.commitment): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = simulateTransaction(transaction.serializeForSimulation(), commitment)
     fun simulateTransaction(transaction: ByteArray, commitment: Commitment = this.commitment): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = rpc("simulateTransaction", Base64.encode(transaction), config(commitment, "base64")) { decode(it) }
-    fun getFeeForMessage(message: TransactionMessage, commitment: Commitment = this.commitment): RpcRequest<ContextValue<BigInteger?>, RpcError> = getFeeForMessage(message.serialize(), commitment)
+    fun getFeeForMessage(message: SolanaTransaction, commitment: Commitment = this.commitment): RpcRequest<ContextValue<BigInteger?>, RpcError> = getFeeForMessage(message.serializeMessage(), commitment)
     fun getFeeForMessage(message: ByteArray, commitment: Commitment = this.commitment): RpcRequest<ContextValue<BigInteger?>, RpcError> = rpc("getFeeForMessage", Base64.encode(message), config(commitment)) { decodeContext(it) { v -> if (v == JsonNull) null else decodeU64(v) } }
     fun getRecentPrioritizationFees(addresses: List<SolanaAddress> = emptyList()): RpcRequest<List<PrioritizationFee>, RpcError> {
         require(addresses.size <= 128) { "At most 128 account addresses are supported" }

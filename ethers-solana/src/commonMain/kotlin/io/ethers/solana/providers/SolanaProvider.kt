@@ -24,7 +24,7 @@ import io.ethers.solana.types.Signature
 import io.ethers.solana.types.SignatureNotification
 import io.ethers.solana.types.SlotNotification
 import io.ethers.solana.types.SolanaAddress
-import io.ethers.solana.types.transaction.SolanaTransaction
+import io.ethers.solana.types.transaction.SolanaTransactionSigned
 import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -50,7 +50,7 @@ class SolanaProvider @JvmOverloads constructor(
     fun getLatestBlockhash(): RpcRequest<ContextValue<LatestBlockhash>, RpcError> = getLatestBlockhash(commitment)
     fun getBalance(address: SolanaAddress): RpcRequest<BigInteger, RpcError> = getBalance(address, commitment)
     fun getAccountInfo(address: SolanaAddress): RpcRequest<ContextValue<AccountInfo?>, RpcError> = getAccountInfo(address, commitment)
-    fun sendTransaction(transaction: SolanaTransaction): RpcRequest<Signature, RpcError> = sendTransaction(transaction, commitment)
+    fun sendTransaction(transaction: SolanaTransactionSigned): RpcRequest<Signature, RpcError> = sendTransaction(transaction, commitment)
 
     @JvmOverloads
     fun subscribeAccount(address: SolanaAddress, commitment: Commitment = this.commitment): RpcSubscribe<ContextValue<AccountInfo?>, RpcError> = subscribe("account", arrayOf(address.toString(), options(commitment, true))) { decodeContext(it, ::decodeAccount) }

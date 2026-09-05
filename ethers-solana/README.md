@@ -20,8 +20,7 @@ import io.ethers.solana.providers.SolanaCluster
 import io.ethers.solana.providers.SolanaProvider
 import io.ethers.solana.signers.KeypairSigner
 import io.ethers.solana.types.SolanaAddress
-import io.ethers.solana.types.transaction.SolanaTransaction
-import io.ethers.solana.types.transaction.TransactionMessage
+import io.ethers.solana.types.transaction.SolanaTxV0
 
 // Run inside a coroutine. Supply your funded account's 32-byte seed and recipient.
 suspend fun transfer(seed: ByteArray, recipient: SolanaAddress) {
@@ -29,11 +28,11 @@ suspend fun transfer(seed: ByteArray, recipient: SolanaAddress) {
     try {
         val signer = KeypairSigner.fromSeed(seed)
         val latest = provider.getLatestBlockhash().send().unwrap().value
-        val message = TransactionMessage.compile(
+        val message = SolanaTxV0.compile(
             signer.publicKey, latest.blockhash,
             TransferInstruction(signer.publicKey, recipient, 1_000L),
         )
-        val transaction = SolanaTransaction(message).sign(signer)
+        val transaction = message.sign(signer)
         val signature = provider.sendTransaction(transaction).send().unwrap()
         println(signature)
     } finally {
@@ -54,13 +53,41 @@ try {
     var signer = KeypairSigner.fromSeed(seed);
     var latest = provider.getLatestBlockhash().sendAwait().unwrap().getValue();
     var instruction = new TransferInstruction(signer.getPublicKey(), recipient, 1_000L);
-    var message = TransactionMessage.compile(signer.getPublicKey(), latest.getBlockhash(), instruction);
-    var transaction = new SolanaTransaction(message).sign(signer);
+    var message = SolanaTxV0.compile(signer.getPublicKey(), latest.getBlockhash(), instruction);
+    var transaction = message.sign(signer);
     var signature = provider.sendTransaction(transaction).sendAwait().unwrap();
 } finally {
     provider.close();
 }
 ```
+
+## Transaction types and signing
+
+`SolanaTransaction` is the common interface. `SolanaTxLegacy` and `SolanaTxV0` implement
+`SolanaTransactionUnsigned`; only v0 accepts address lookup tables. `SolanaTransactionSigned` holds the
+unsigned payload in `tx` and delegates its common properties. There is no separate message hierarchy.
+
+```kotlin
+val unsigned = SolanaTxV0.compile(feePayer, blockhash, instructions)
+val builder = unsigned.signingBuilder().sign(alice) // SolanaTransactionSigned.Builder
+val signed = builder.sign(bob).build()              // requires every signature
+// Or collect external signatures with addSignature(address, signature), then call build().
+```
+
+`unsigned.sign(vararg signers)` requires all signers. The nested builder collects signatures for a fixed
+unsigned payload; it is mutable, not thread-safe, and is not a transaction itself. `build()` returns an immutable
+fully signed snapshot. Constructors and imports verify every supplied signature against its ordered signer slot.
+A signed transaction's `id` is its first signature. Replacing the message or blockhash returns an unsigned
+transaction and discards signatures; start a new builder for that payload.
+
+- `serializeMessage()` produces only the Ed25519 signing payload, on any transaction state.
+- `SolanaTransactionSigned.serialize()` produces a fully signed envelope accepted by typed `sendTransaction`.
+- `serializeForSimulation()` produces an unsigned or fully signed envelope, with zeros for unsigned slots.
+- `Builder.serializePartial()` explicitly exports an offline signature collection, also accepted by raw simulation.
+- `SolanaTransactionUnsigned.deserializeMessage()` parses message bytes; `SolanaTransaction.deserialize()`
+  parses an unsigned or fully signed envelope. `SolanaTransactionSigned.deserialize()` rejects incomplete
+  envelopes, while `SolanaTransactionSigned.Builder.deserializePartial()` imports a collection for further
+  signing. The envelope decoders also have Base64 counterparts.
 
 ## Subscriptions and configuration
 
@@ -120,8 +147,8 @@ Reference: [sol4k a166edd854a7198553fdafe9a5051a400d70b121](https://github.com/s
 | --- | --- |
 | Keys, detached signing, verification | `SolanaAddress`, `Signature`, `SolanaSigner`, `KeypairSigner` |
 | PDA / associated token address derivation | `SolanaAddress.createProgramAddress`, `findProgramAddress`, `findAssociatedTokenAddress` |
-| Legacy/v0 messages and lookup tables | `TransactionMessage.compile`, `MessageVersion`, `AddressLookupTableAccount` |
-| Build, sign, import/export transactions | Immutable `SolanaTransaction`; `serializePartial` for offline signing |
+| Legacy/v0 messages and lookup tables | `SolanaTxLegacy`, `SolanaTxV0`, `AddressLookupTableAccount` |
+| Build, sign, import/export transactions | `SolanaTransactionUnsigned`, `SolanaTransactionSigned.Builder`, `SolanaTransactionSigned` |
 | SOL, SPL, Token-2022, associated accounts, compute budget | Classes in `io.ethers.solana.instruction` |
 | Arbitrary program instructions | `BaseInstruction` |
 | Unit conversion / fee estimation | `SolUnit`, `SolanaTransaction.estimateFee` |
@@ -146,9 +173,9 @@ RPC coverage: `getAccountInfo`, `getBalance`, `getEpochInfo`, `getFeeForMessage`
   `Long` or floating point. Request quantities are decimal JSON numbers; token amounts retain their RPC string encoding.
 - Account data is explicitly requested as base64. Simulation `err` is retained as structured JSON in a successful
   RPC result, with nullable logs supported.
-- Messages default to v0. Choose `MessageVersion.LEGACY` explicitly when needed. Lookup-table addresses are supplied
-  by the caller; automatic table fetching is outside this module's initial RPC coverage.
-- Transactions are immutable: retain the value returned by `sign`/`addSignature`. Message changes discard signatures.
+- Choose `SolanaTxLegacy.compile` or `SolanaTxV0.compile` explicitly. Only v0 exposes lookup-table arguments;
+  table contents are supplied by the caller. Automatic table fetching is outside this module's initial RPC coverage.
+- Transactions are immutable; signing builders mutate their signature collection. Message changes discard signatures.
   `serialize` and submission require all signatures; partial import/export is explicit. Unknown versions, malformed
   lengths/indices, and invalid signatures are rejected.
 - PDA seeds may be arbitrary bytes. Seed bounds and bump zero are handled. Compute-unit-limit instructions encode

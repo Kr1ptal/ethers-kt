@@ -5,8 +5,7 @@ import io.ethers.solana.providers.SolanaProvider
 import io.ethers.solana.signers.KeypairSigner
 import io.ethers.solana.types.Commitment
 import io.ethers.solana.types.SignatureNotification
-import io.ethers.solana.types.transaction.SolanaTransaction
-import io.ethers.solana.types.transaction.TransactionMessage
+import io.ethers.solana.types.transaction.SolanaTxV0
 import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.nondeterministic.eventually
 import io.kotest.core.spec.style.FunSpec
@@ -28,8 +27,8 @@ class LocalValidatorTest : FunSpec({
             provider.requestAirdrop(sender.publicKey, 1000000000L).send().unwrap()
             eventually(30.seconds) { provider.getBalance(sender.publicKey).send().unwrap() shouldBe bigIntegerOf(1000000000L) }
             val latest = provider.getLatestBlockhash().send().unwrap().value
-            val message = TransactionMessage.compile(sender.publicKey, latest.blockhash, TransferInstruction(sender.publicKey, recipient, 1000000L))
-            val transaction = SolanaTransaction(message).sign(sender)
+            val message = SolanaTxV0.compile(sender.publicKey, latest.blockhash, TransferInstruction(sender.publicKey, recipient, 1000000L))
+            val transaction = message.sign(sender)
             provider.simulateTransaction(transaction).send().unwrap().value.isSuccess shouldBe true
             val signature = provider.sendTransaction(transaction).send().unwrap()
             val stream = provider.subscribeSignature(signature).send().unwrap()

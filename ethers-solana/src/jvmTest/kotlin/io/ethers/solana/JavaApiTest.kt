@@ -15,8 +15,11 @@ class JavaApiTest : FunSpec({
             import io.ethers.solana.providers.SolanaProvider;
             import io.ethers.solana.signers.KeypairSigner;
             import io.ethers.solana.types.SolanaAddress;
-            import io.ethers.solana.types.transaction.TransactionMessage;
+            import io.ethers.solana.types.transaction.SolanaTxV0;
+            import io.ethers.solana.types.transaction.SolanaTxLegacy;
             import io.ethers.solana.types.transaction.SolanaTransaction;
+            import io.ethers.solana.types.transaction.SolanaTransactionUnsigned;
+            import io.ethers.solana.types.transaction.SolanaTransactionSigned;
             import io.ethers.solana.instruction.TransferInstruction;
             import io.ethers.solana.utils.SolUnit;
             public class SolanaJavaExample {
@@ -25,10 +28,20 @@ class JavaApiTest : FunSpec({
                     var fromBase58 = new SolanaAddress(recipient.toBase58());
                     var signer = KeypairSigner.fromSeed(seed);
                     var latest = provider.getLatestBlockhash().sendAwait().unwrap().getValue();
-                    var message = TransactionMessage.compile(signer.getPublicKey(), latest.getBlockhash(),
+                    var message = SolanaTxV0.compile(signer.getPublicKey(), latest.getBlockhash(),
                         new TransferInstruction(signer.getPublicKey(), recipient,
                             SolUnit.SOL.toLamports("0.000001").toBigIntegerExact()));
-                    var transaction = new SolanaTransaction(message).sign(signer);
+                    var transaction = message.sign(signer);
+                    SolanaTransactionUnsigned unsigned = message;
+                    SolanaTransactionSigned.Builder partial = unsigned.signingBuilder().sign(signer);
+                    SolanaTransactionSigned completed = partial.build();
+                    SolanaTransaction common = completed;
+                    var simulation = provider.simulateTransaction(unsigned, provider.getCommitment());
+                    var partialSimulation = provider.simulateTransaction(partial.serializePartial(), provider.getCommitment());
+                    var fee = provider.getFeeForMessage(common, provider.getCommitment());
+                    SolanaTransactionUnsigned refreshed = completed.withNewBlockhash(latest.getBlockhash());
+                    var legacy = SolanaTxLegacy.compile(signer.getPublicKey(), latest.getBlockhash(),
+                        new TransferInstruction(signer.getPublicKey(), recipient, 1L));
                     var signature = provider.sendTransaction(transaction).sendAwait().unwrap();
                     var subscription = provider.subscribeSignature(signature).sendAsync();
                     var sol = SolUnit.LAMPORT.toSol(1000L);
@@ -38,20 +51,48 @@ class JavaApiTest : FunSpec({
                 }
             }
         """.trimIndent()
-        val file = object : SimpleJavaFileObject(URI.create("string:///SolanaJavaExample.java"), JavaFileObject.Kind.SOURCE) {
-            override fun getCharContent(ignoreEncodingErrors: Boolean): CharSequence = source
-        }
-        val diagnostics = DiagnosticCollector<JavaFileObject>()
-        val output = Files.createTempDirectory("ethers-solana-java-api").toFile()
-        try {
-            val compiler = ToolProvider.getSystemJavaCompiler()
-            compiler.getStandardFileManager(diagnostics, null, null).use { manager ->
-                val result = compiler.getTask(null, manager, diagnostics, listOf("--release", "11", "-proc:none", "-classpath", System.getProperty("java.class.path"), "-d", output.path), null, listOf(file)).call()
-                check(result) { diagnostics.diagnostics.joinToString("\n") }
-                result shouldBe true
-            }
-        } finally {
-            output.deleteRecursively()
+        val (result, diagnostics) = compileJava(source)
+        check(result) { diagnostics }
+    }
+
+    test("Java cannot submit incomplete typed transactions or attach lookups to legacy transactions") {
+        for (body in listOf(
+            "provider.sendTransaction(unsigned);",
+            "provider.sendTransaction(partial);",
+            "unsigned.serialize();",
+            "partial.serialize();",
+            "SolanaTransaction transaction = partial;",
+            "SolanaTxLegacy.compile(address, blockhash, instruction, java.util.Collections.emptyList());",
+        )) {
+            val source = """
+                import io.ethers.solana.providers.SolanaProvider;
+                import io.ethers.solana.types.transaction.*;
+                import io.ethers.solana.types.*;
+                import io.ethers.solana.instruction.Instruction;
+                public class SolanaJavaExample {
+                    public void invalid(SolanaProvider provider, SolanaTransactionUnsigned unsigned,
+                        SolanaTransactionSigned.Builder partial, SolanaAddress address, Blockhash blockhash,
+                        Instruction instruction) { $body }
+                }
+            """.trimIndent()
+            compileJava(source).first shouldBe false
         }
     }
 })
+
+private fun compileJava(source: String): Pair<Boolean, String> {
+    val file = object : SimpleJavaFileObject(URI.create("string:///SolanaJavaExample.java"), JavaFileObject.Kind.SOURCE) {
+        override fun getCharContent(ignoreEncodingErrors: Boolean): CharSequence = source
+    }
+    val diagnostics = DiagnosticCollector<JavaFileObject>()
+    val output = Files.createTempDirectory("ethers-solana-java-api").toFile()
+    try {
+        val compiler = ToolProvider.getSystemJavaCompiler()
+        compiler.getStandardFileManager(diagnostics, null, null).use { manager ->
+            val result = compiler.getTask(null, manager, diagnostics, listOf("--release", "11", "-proc:none", "-classpath", System.getProperty("java.class.path"), "-d", output.path), null, listOf(file)).call()
+            return result to diagnostics.diagnostics.joinToString("\n")
+        }
+    } finally {
+        output.deleteRecursively()
+    }
+}
