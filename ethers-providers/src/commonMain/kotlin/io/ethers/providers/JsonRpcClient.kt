@@ -28,6 +28,15 @@ import io.ktor.client.HttpClient as KtorHttpClient
 import kotlinx.serialization.json.JsonElement as KJsonElement
 
 interface JsonRpcClient : AutoCloseable {
+    /** Subscribe using protocol-specific methods. Existing custom clients can opt into this capability. */
+    suspend fun <T : Any> subscribe(
+        descriptor: SubscriptionDescriptor,
+        params: Array<*>,
+        resultDecoder: (KJsonElement) -> T,
+    ): Result<ChannelReceiver<T>, RpcError> = io.ethers.core.failure(
+        RpcError(RpcError.CODE_METHOD_NOT_FOUND, "Protocol-specific subscriptions are not supported by this client"),
+    )
+
     /**
      * Execute an RPC request without blocking the calling thread.
      *

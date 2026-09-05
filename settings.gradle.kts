@@ -13,6 +13,7 @@ include("ethers-crypto")
 include("logger")
 include("examples")
 include("ethers-ens")
+include("ethers-solana")
 
 pluginManagement {
     repositories {

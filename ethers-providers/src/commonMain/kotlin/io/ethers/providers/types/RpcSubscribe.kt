@@ -10,6 +10,7 @@ import io.ethers.core.isSuccess
 import io.ethers.core.success
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
+import io.ethers.providers.SubscriptionDescriptor
 import io.ethers.providers.decoderFor
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.JsonElement
@@ -179,13 +180,34 @@ class RpcSubscribeCall<T : Any>(
     private val params: Array<*>,
     private val resultDecoder: (JsonElement) -> T,
 ) : RpcSubscribe<T, RpcError> {
+    private var descriptor: SubscriptionDescriptor? = null
+
+    constructor(
+        client: JsonRpcClient,
+        descriptor: SubscriptionDescriptor,
+        params: Array<*>,
+        resultDecoder: (JsonElement) -> T,
+    ) : this(client, params, resultDecoder) {
+        this.descriptor = descriptor
+    }
+
+    constructor(
+        client: JsonRpcClient,
+        descriptor: SubscriptionDescriptor,
+        params: Array<*>,
+        resultSerializer: KSerializer<T>,
+    ) : this(client, descriptor, params, decoderFor(resultSerializer))
+
     constructor(
         client: JsonRpcClient,
         params: Array<*>,
         resultSerializer: KSerializer<T>,
     ) : this(client, params, decoderFor(resultSerializer))
 
-    override suspend fun send(): Result<ChannelReceiver<T>, RpcError> = client.subscribe(params, resultDecoder)
+    override suspend fun send(): Result<ChannelReceiver<T>, RpcError> {
+        val descriptor = descriptor
+        return if (descriptor == null) client.subscribe(params, resultDecoder) else client.subscribe(descriptor, params, resultDecoder)
+    }
 
     override fun toString(): String {
         return "RpcSubscribeCall(params=${params.contentToString()})"

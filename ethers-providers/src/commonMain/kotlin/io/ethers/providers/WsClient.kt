@@ -85,7 +85,7 @@ class WsClient(
     private val inFlightBatchRequests = HashMap<Long, Pair<PendingBatchRequest, HashMap<Long, Int>>>()
     private val inFlightSubscriptionRequests = HashMap<Long, PendingSubscriptionRequest<*>>()
     private val requestIdToSubscription = HashMap<Long, Subscription<*>>()
-    private val serverIdToSubscription = HashMap<String, Subscription<*>>()
+    private val serverIdToSubscription = HashMap<kotlinx.serialization.json.JsonPrimitive, Subscription<*>>()
 
     // Wakes the processor loop. Conflated: many signals collapse into one pending wakeup, and a signal raised
     // while the processor is busy is retained instead of being lost, which a condition variable would drop.
@@ -296,9 +296,19 @@ class WsClient(
 
                         // handle existing streams: either resubscribe or close them
                         if (resubscribeOnReconnect) {
-                            for ((id, sub) in requestIdToSubscription) {
+                            // Numeric IDs may be reused in a new session. Retire all old routes before
+                            // installing any new ones, and don't resurrect streams closed while offline.
+                            serverIdToSubscription.clear()
+                            val subscriptions = requestIdToSubscription.iterator()
+                            while (subscriptions.hasNext()) {
+                                val (id, sub) = subscriptions.next()
+                                if (sub.closed.value) {
+                                    subscriptions.remove()
+                                    continue
+                                }
                                 LOG.dbg { "Resubscribing stream with ID: $id" }
-                                wsSend(buildJsonRpcRequest("eth_subscribe", id, sub.params))
+                                sub.awaitingResubscribe = true
+                                wsSend(buildJsonRpcRequest(sub.descriptor.subscribeMethod, id, sub.params))
                             }
                         } else {
                             for ((id, sub) in requestIdToSubscription) {
@@ -357,8 +367,12 @@ class WsClient(
                     // fourth, process all subscription requests in the queue
                     while (pendingSendSubscriptionRequests.isNotEmpty()) {
                         val pending = pendingSendSubscriptionRequests.first()
+                        if (pending.response.isCancelled) {
+                            pendingSendSubscriptionRequests.removeFirst()
+                            continue
+                        }
                         val id = requestId++
-                        val req = buildJsonRpcRequest("eth_subscribe", id, pending.params)
+                        val req = buildJsonRpcRequest(pending.descriptor.subscribeMethod, id, pending.params)
                         LOG.trc { "Processing subscription request: $req" }
                         if (wsSend(req)) {
                             pendingSendSubscriptionRequests.removeFirst()
@@ -371,13 +385,17 @@ class WsClient(
 
                     // fifth, process all unsubscribe requests in the queue
                     while (unsubscribeQueue.poll().also { unsubscribeRequestId = it } != null) {
-                        val sub = requestIdToSubscription.remove(unsubscribeRequestId!!) ?: continue
+                        val sub = requestIdToSubscription[unsubscribeRequestId!!] ?: continue
+                        // Wait for the new ID if close races a reconnect handshake. The response handler
+                        // requeues this close, so we never unsubscribe an old ID in the new session.
+                        if (sub.awaitingResubscribe) continue
+                        requestIdToSubscription.remove(unsubscribeRequestId!!)
 
                         LOG.trc { "Unsubscribing from stream: ${sub.serverId}" }
                         serverIdToSubscription.remove(sub.serverId)
 
                         val id = requestId++
-                        val req = buildJsonRpcRequest("eth_unsubscribe", id, arrayOf(sub.serverId))
+                        val req = buildJsonRpcRequest(sub.descriptor.unsubscribeMethod, id, arrayOf(sub.serverId))
 
                         LOG.trc { "Processing unsubscribe request: $req" }
                         wsSend(req)
@@ -498,7 +516,7 @@ class WsClient(
 
         // DO NOT CHANGE ORDER OF THESE OPERATIONS
         when {
-            method != null && paramsEl != null -> handleNotification(paramsEl.jsonObject)
+            method != null && paramsEl != null -> handleNotification(method, paramsEl.jsonObject)
             id != -1L && error != null -> handleResponse(id, null, error)
             id != -1L && resultEl != null -> handleResponse(id, resultEl, null)
             else -> {
@@ -616,11 +634,16 @@ class WsClient(
         if (error != null) {
             request.response.complete(failure(error))
         } else {
+            val closed = atomic(false)
             val subscription = Subscription(
-                serverId = resultElement!!.jsonPrimitive.content,
+                requestId = id,
+                serverId = resultElement!!.jsonPrimitive,
+                descriptor = request.descriptor,
+                closed = closed,
                 params = request.params,
                 resultDecoder = request.resultDecoder,
                 stream = QueueChannel.spscUnbounded {
+                    closed.value = true
                     unsubscribeQueue.enqueue(id)
                     signalEvent()
                 },
@@ -629,7 +652,7 @@ class WsClient(
             requestIdToSubscription[id] = subscription
             serverIdToSubscription[subscription.serverId] = subscription
 
-            request.response.complete(success(subscription.stream))
+            if (!request.response.complete(success(subscription.stream))) subscription.stream.close()
         }
 
         LOG.trc { "Handled response for subscription request $id" }
@@ -644,20 +667,33 @@ class WsClient(
         if (error != null) {
             throw Exception("Error re-subscribing to stream: ${subscription.serverId}, error: $error")
         } else {
-            val newServerId = resultElement!!.jsonPrimitive.content
-            serverIdToSubscription.remove(subscription.serverId)
+            val newServerId = resultElement!!.jsonPrimitive
+            if (serverIdToSubscription[subscription.serverId] === subscription) serverIdToSubscription.remove(subscription.serverId)
             subscription.serverId = newServerId
+            subscription.awaitingResubscribe = false
             serverIdToSubscription[subscription.serverId] = subscription
+            if (subscription.closed.value) {
+                unsubscribeQueue.enqueue(id)
+                signalEvent()
+            }
         }
 
         LOG.trc { "Handled response for re-subscription request $id" }
     }
 
-    private fun handleNotification(paramsObj: kotlinx.serialization.json.JsonObject) {
-        val subscriptionId = paramsObj["subscription"]?.jsonPrimitive?.content ?: return
+    private fun handleNotification(method: String, paramsObj: kotlinx.serialization.json.JsonObject) {
+        val subscriptionId = paramsObj["subscription"]?.jsonPrimitive ?: return
         val resultEl = paramsObj["result"] ?: return
         val subscription = serverIdToSubscription[subscriptionId] ?: return
+        if (method != subscription.descriptor.notificationMethod || subscription.closed.value) return
         subscription.handleNotification(resultEl)
+        if (subscription.descriptor.isTerminal(resultEl)) {
+            // The server has already removed this one-shot subscription. Remove it before closing the
+            // stream so the close callback neither unsubscribes nor resurrects it on reconnect.
+            requestIdToSubscription.remove(subscription.requestId)
+            serverIdToSubscription.remove(subscriptionId)
+            subscription.stream.close()
+        }
     }
 
     /**
@@ -706,8 +742,16 @@ class WsClient(
     override suspend fun <T : Any> subscribe(
         params: Array<*>,
         resultDecoder: (KJsonElement) -> T,
+    ): Result<ChannelReceiver<T>, RpcError> = subscribe(SubscriptionDescriptor.ETHEREUM, params, resultDecoder)
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    override suspend fun <T : Any> subscribe(
+        descriptor: SubscriptionDescriptor,
+        params: Array<*>,
+        resultDecoder: (KJsonElement) -> T,
     ): Result<ChannelReceiver<T>, RpcError> {
         val request = PendingSubscriptionRequest(
+            descriptor,
             params,
             resultDecoder,
             CompletableDeferred(),
@@ -715,7 +759,15 @@ class WsClient(
 
         subscriptionQueue.enqueue(request)
         signalEvent()
-        return request.response.await()
+        return try {
+            request.response.await()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            request.response.cancel()
+            // Cancellation can race a successful response. A late response closes its stream above;
+            // an already-completed response must be closed here instead.
+            if (!request.response.isCancelled) request.response.getCompleted().onSuccess { it.close() }
+            throw e
+        }
     }
 
     private class PendingRequest<T>(
@@ -742,6 +794,7 @@ class WsClient(
     }
 
     private class PendingSubscriptionRequest<T : Any>(
+        val descriptor: SubscriptionDescriptor,
         val params: Array<*>,
         val resultDecoder: (KJsonElement) -> T,
         val response: CompletableDeferred<Result<ChannelReceiver<T>, RpcError>>,
@@ -778,11 +831,16 @@ class WsClient(
     }
 
     private class Subscription<T : Any>(
-        var serverId: String,
+        val requestId: Long,
+        var serverId: kotlinx.serialization.json.JsonPrimitive,
+        val descriptor: SubscriptionDescriptor,
+        val closed: kotlinx.atomicfu.AtomicBoolean,
         val params: Array<*>,
         val resultDecoder: (KJsonElement) -> T,
         val stream: Channel<T>,
     ) {
+        var awaitingResubscribe = false
+
         fun handleNotification(event: KJsonElement) {
             stream.offer(resultDecoder(event))
         }

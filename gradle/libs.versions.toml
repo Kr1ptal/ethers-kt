@@ -41,6 +41,8 @@ ethers-core = { module = "io.kriptal.ethers:ethers-core", version.ref = "ethers"
 ethers-crypto = { module = "io.kriptal.ethers:ethers-abi", version.ref = "ethers" }
 ethers-ens = { module = "io.kriptal.ethers:ethers-abi", version.ref = "ethers" }
 ethers-providers = { module = "io.kriptal.ethers:ethers-providers", version.ref = "ethers" }
+ethers-solana = { module = "io.kriptal.ethers:ethers-solana", version.ref = "ethers" }
+sol4k-tweetnacl = { module = "org.sol4k:tweetnacl", version = "0.1.6" }
 ethers-rlp = { module = "io.kriptal.ethers:ethers-signers", version.ref = "ethers" }
 ethers-signers = { module = "io.kriptal.ethers:ethers-signers", version.ref = "ethers" }
 

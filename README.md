@@ -1,7 +1,7 @@
 # <h1 align="center"> ethers-kt </h1>
 
 <p style="text-align: center;"> <b>ethers-kt</b> is an async, high-performance Kotlin Multiplatform library for
-interacting with EVM-based blockchains. It targets <b>JVM</b>, <b>Android</b>, <b>iOS</b> and <b>macOS</b>. </p>
+interacting with EVM-based blockchains and Solana. It targets <b>JVM</b>, <b>Android</b>, <b>iOS</b> and <b>macOS</b>. </p>
 
 ## Features:
 
@@ -14,6 +14,9 @@ interacting with EVM-based blockchains. It targets <b>JVM</b>, <b>Android</b>, <
   wrapping.
 
 - **Safe**: RPC calls return an error object in case of failure, instead of throwing an exception.
+
+- **Solana**: The separate [ethers-solana](ethers-solana/README.md) module provides Ed25519 signing, PDA derivation,
+  legacy/v0 transactions, SOL/SPL/Token-2022 instructions, JSON-RPC, and six WebSocket subscription streams.
 
 - **Smart contract bindings**:
     - Generate type-safe smart contract bindings from JSON-ABI files or from Foundry projects.
