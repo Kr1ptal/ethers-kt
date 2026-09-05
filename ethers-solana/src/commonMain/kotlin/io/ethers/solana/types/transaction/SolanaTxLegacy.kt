@@ -17,7 +17,7 @@ class SolanaTxLegacy(
     private val compiledInstructions = instructions.toList()
     override val accounts: List<SolanaAddress> get() = staticAccounts.toList()
     override val instructions: List<CompiledInstruction> get() = compiledInstructions.toList()
-    override val type: SolanaTxType get() = SolanaTxType.LEGACY
+    override val type: SolanaTxType get() = SolanaTxType.Legacy
 
     init {
         validateMessage(header, staticAccounts, compiledInstructions, emptyList())

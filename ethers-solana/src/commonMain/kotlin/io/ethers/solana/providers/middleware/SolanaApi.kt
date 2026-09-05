@@ -17,6 +17,7 @@ import io.ethers.solana.types.EpochInfo
 import io.ethers.solana.types.Health
 import io.ethers.solana.types.LatestBlockhash
 import io.ethers.solana.types.PrioritizationFee
+import io.ethers.solana.types.RPCTransaction
 import io.ethers.solana.types.Signature
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.TokenAmount
@@ -53,6 +54,22 @@ interface SolanaApi {
     fun getIdentity(): RpcRequest<SolanaAddress, RpcError> = rpc("getIdentity") { SolanaAddress(it.jsonObject.getValue("identity").jsonPrimitive.content) }
     fun getVersion(): RpcRequest<Version, RpcError> = rpc("getVersion") { decode(it) }
     fun getTransactionCount(commitment: Commitment = this.commitment): RpcRequest<BigInteger, RpcError> = rpc("getTransactionCount", config(commitment), decoder = ::decodeU64)
+
+    /**
+     * Read a confirmed transaction without requiring support for its message version. The default ceiling
+     * accepts the full RPC u8 version range, not just versions this library can sign. Missing transactions
+     * return null; server errors (including unsupported versions) remain [RpcError]s.
+     */
+    fun getTransaction(signature: Signature, commitment: Commitment = this.commitment, maxSupportedTransactionVersion: Int = 255): RpcRequest<RPCTransaction?, RpcError> {
+        require(commitment != Commitment.PROCESSED) { "Transaction history requires confirmed or finalized commitment" }
+        require(maxSupportedTransactionVersion in 0..255) { "Maximum transaction version must fit in an unsigned byte" }
+        val options = buildJsonObject {
+            put("commitment", commitment.toString())
+            put("encoding", "json")
+            put("maxSupportedTransactionVersion", maxSupportedTransactionVersion)
+        }
+        return rpc("getTransaction", signature.toString(), options) { if (it == JsonNull) null else decode<RPCTransaction>(it) }
+    }
     fun getAccountInfo(address: SolanaAddress, commitment: Commitment = this.commitment): RpcRequest<ContextValue<AccountInfo?>, RpcError> = rpc("getAccountInfo", address.toString(), config(commitment, "base64")) { decodeContext(it, ::decodeAccount) }
     fun getMultipleAccounts(addresses: List<SolanaAddress>, commitment: Commitment = this.commitment): RpcRequest<ContextValue<List<AccountInfo?>>, RpcError> {
         require(addresses.size <= 100) { "getMultipleAccounts accepts at most 100 addresses" }

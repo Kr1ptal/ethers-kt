@@ -16,6 +16,7 @@ import io.ethers.solana.types.Commitment
 import io.ethers.solana.types.Health
 import io.ethers.solana.types.Programs
 import io.ethers.solana.types.Signature
+import io.ethers.solana.types.transaction.SolanaTxType
 import io.ethers.solana.types.transaction.SolanaTxV0
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
@@ -190,6 +191,33 @@ class SolanaProviderTest : FunSpec({
         shouldThrow<IllegalArgumentException> { provider.sendTransaction(tx.serializeForSimulation()) }
         shouldThrow<IllegalArgumentException> { provider.sendTransaction(partial) }
         requests.size shouldBe sent
+    }
+
+    test("transaction history preserves unsupported versions and returns null for missing transactions") {
+        response = """{"slot":9007199254740993,"blockTime":null,"version":1,"transaction":{"futureMessage":true},"meta":{"future":7},"extra":42}"""
+        val tx = provider.getTransaction(signature).send().unwrap()!!
+        tx.slot shouldBe BigInteger("9007199254740993")
+        tx.type shouldBe SolanaTxType.Unsupported(1)
+        tx.raw shouldBe Kotlinx.DEFAULT.parseToJsonElement(response)
+        assertRequest("getTransaction", """["$signature",{"commitment":"confirmed","encoding":"json","maxSupportedTransactionVersion":255}]""")
+        response = "null"
+        provider.getTransaction(signature, Commitment.FINALIZED, 0).send().unwrap() shouldBe null
+        assertRequest("getTransaction", """["$signature",{"commitment":"finalized","encoding":"json","maxSupportedTransactionVersion":0}]""")
+        provider.getTransaction(signature, 1).send().unwrap() shouldBe null
+        assertRequest("getTransaction", """["$signature",{"commitment":"confirmed","encoding":"json","maxSupportedTransactionVersion":1}]""")
+        val sent = requests.size
+        shouldThrow<IllegalArgumentException> { provider.getTransaction(signature, Commitment.PROCESSED) }
+        shouldThrow<IllegalArgumentException> { provider.getTransaction(signature, -1) }
+        shouldThrow<IllegalArgumentException> { provider.getTransaction(signature, 256) }
+        requests.size shouldBe sent
+    }
+
+    test("transaction history leaves node version errors intact") {
+        error = """{"code":-32015,"message":"Transaction version is not supported by the requesting client","data":{"version":1}}"""
+        val result = provider.getTransaction(signature, 0).send()
+        result.isFailure() shouldBe true
+        result.unwrapError().code shouldBe -32015
+        result.unwrapError().data.toString() shouldBe """{"version":1}"""
     }
 
     test("builder performs no RPC and uses finalized by default") {

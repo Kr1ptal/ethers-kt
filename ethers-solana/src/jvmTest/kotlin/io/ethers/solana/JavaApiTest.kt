@@ -43,6 +43,13 @@ class JavaApiTest : FunSpec({
                     var legacy = SolanaTxLegacy.compile(signer.getPublicKey(), latest.getBlockhash(),
                         new TransferInstruction(signer.getPublicKey(), recipient, 1L));
                     var signature = provider.sendTransaction(transaction).sendAwait().unwrap();
+                    var fetched = provider.getTransaction(signature).sendAwait().unwrap();
+                    var fetchedVersion = provider.getTransaction(signature, 1).sendAwait().unwrap();
+                    if (fetched != null) {
+                        var type = fetched.getType();
+                        var raw = fetched.getRaw();
+                        var unsupported = io.ethers.solana.types.transaction.SolanaTxType.fromVersion(1);
+                    }
                     var subscription = provider.subscribeSignature(signature).sendAsync();
                     var sol = SolUnit.LAMPORT.toSol(1000L);
                     var microLamports = SolUnit.MICRO_LAMPORT.fromLamports("0.5");
@@ -62,6 +69,8 @@ class JavaApiTest : FunSpec({
             "unsigned.serialize();",
             "partial.serialize();",
             "SolanaTransaction transaction = partial;",
+            "provider.sendTransaction(rpc);",
+            "SolanaTransaction transaction = rpc;",
             "SolanaTxLegacy.compile(address, blockhash, instruction, java.util.Collections.emptyList());",
         )) {
             val source = """
@@ -72,7 +81,7 @@ class JavaApiTest : FunSpec({
                 public class SolanaJavaExample {
                     public void invalid(SolanaProvider provider, SolanaTransactionUnsigned unsigned,
                         SolanaTransactionSigned.Builder partial, SolanaAddress address, Blockhash blockhash,
-                        Instruction instruction) { $body }
+                        Instruction instruction, RPCTransaction rpc) { $body }
                 }
             """.trimIndent()
             compileJava(source).first shouldBe false

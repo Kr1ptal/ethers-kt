@@ -19,6 +19,7 @@ import io.ethers.solana.types.ContextValue
 import io.ethers.solana.types.LatestBlockhash
 import io.ethers.solana.types.LogsNotification
 import io.ethers.solana.types.ProgramNotification
+import io.ethers.solana.types.RPCTransaction
 import io.ethers.solana.types.RpcContext
 import io.ethers.solana.types.Signature
 import io.ethers.solana.types.SignatureNotification
@@ -51,6 +52,8 @@ class SolanaProvider @JvmOverloads constructor(
     fun getBalance(address: SolanaAddress): RpcRequest<BigInteger, RpcError> = getBalance(address, commitment)
     fun getAccountInfo(address: SolanaAddress): RpcRequest<ContextValue<AccountInfo?>, RpcError> = getAccountInfo(address, commitment)
     fun sendTransaction(transaction: SolanaTransactionSigned): RpcRequest<Signature, RpcError> = sendTransaction(transaction, commitment)
+    fun getTransaction(signature: Signature): RpcRequest<RPCTransaction?, RpcError> = getTransaction(signature, commitment)
+    fun getTransaction(signature: Signature, maxSupportedTransactionVersion: Int): RpcRequest<RPCTransaction?, RpcError> = getTransaction(signature, commitment, maxSupportedTransactionVersion)
 
     @JvmOverloads
     fun subscribeAccount(address: SolanaAddress, commitment: Commitment = this.commitment): RpcSubscribe<ContextValue<AccountInfo?>, RpcError> = subscribe("account", arrayOf(address.toString(), options(commitment, true))) { decodeContext(it, ::decodeAccount) }

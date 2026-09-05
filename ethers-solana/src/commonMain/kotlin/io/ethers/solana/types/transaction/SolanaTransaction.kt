@@ -10,8 +10,6 @@ import io.github.artificialpb.bignum.bigIntegerOf
 import kotlin.io.encoding.Base64
 import kotlin.jvm.JvmStatic
 
-enum class SolanaTxType { LEGACY, V0 }
-
 /** Common immutable properties of unsigned and fully signed Solana transactions. */
 sealed interface SolanaTransaction {
     val type: SolanaTxType

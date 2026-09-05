@@ -89,6 +89,29 @@ transaction and discards signatures; start a new builder for that payload.
   envelopes, while `SolanaTransactionSigned.Builder.deserializePartial()` imports a collection for further
   signing. The envelope decoders also have Base64 counterparts.
 
+## Reading transactions from RPC
+
+```kotlin
+val transaction = provider.getTransaction(signature).send().unwrap() // RPCTransaction?
+if (transaction != null) {
+    val type = transaction.type // Legacy, V0, Unsupported(version), or null if unspecified/unrecognized
+    val raw = transaction.raw   // complete response JSON, including all unknown nested fields
+}
+```
+
+`RPCTransaction` is deliberately separate from the signable transaction hierarchy. Its `slot`, `blockTime`,
+and `type` are exposed directly; `transaction` and `meta` retain their JSON structures without requiring a
+known message layout or valid signatures. `otherFields` preserves additional top-level fields, and JSON
+serialization reproduces the complete `raw` response. Missing or unrecognized version representations are
+not silently classified as legacy. An unsupported version remains readable but cannot be built or signed.
+
+`getTransaction` requests `json` encoding and defaults `maxSupportedTransactionVersion` to `255`, the full
+unsigned-byte range accepted by the [RPC configuration](https://github.com/anza-xyz/agave/blob/v3.1.8/rpc-client-types/src/config.rs).
+This is a read ceiling, not a claim that every version is signable. Pass a lower ceiling explicitly if needed.
+Only confirmed/finalized commitment is supported. A missing transaction returns null; RPC errors remain
+errors. Forward-compatible decoding cannot guarantee node support, history availability, or compatibility
+with future changes to the RPC envelope itself. See [Solana transaction versioning](https://solana.com/developers/cookbook/transactions/versions).
+
 ## Subscriptions and configuration
 
 For private endpoints, supply the WebSocket URL explicitly:
@@ -149,6 +172,7 @@ Reference: [sol4k a166edd854a7198553fdafe9a5051a400d70b121](https://github.com/s
 | PDA / associated token address derivation | `SolanaAddress.createProgramAddress`, `findProgramAddress`, `findAssociatedTokenAddress` |
 | Legacy/v0 messages and lookup tables | `SolanaTxLegacy`, `SolanaTxV0`, `AddressLookupTableAccount` |
 | Build, sign, import/export transactions | `SolanaTransactionUnsigned`, `SolanaTransactionSigned.Builder`, `SolanaTransactionSigned` |
+| Read transactions, including unsupported versions | `getTransaction`, `RPCTransaction`, `SolanaTxType.Unsupported` |
 | SOL, SPL, Token-2022, associated accounts, compute budget | Classes in `io.ethers.solana.instruction` |
 | Arbitrary program instructions | `BaseInstruction` |
 | Unit conversion / fee estimation | `SolUnit`, `SolanaTransaction.estimateFee` |
@@ -157,7 +181,7 @@ Reference: [sol4k a166edd854a7198553fdafe9a5051a400d70b121](https://github.com/s
 
 RPC coverage: `getAccountInfo`, `getBalance`, `getEpochInfo`, `getFeeForMessage`, `getHealth`, `getIdentity`,
 `getLatestBlockhash`, `getMinimumBalanceForRentExemption`, `getMultipleAccounts`, `getRecentPrioritizationFees`,
-`getSignaturesForAddress`, `getTokenAccountBalance`, `getTokenSupply`, `getTransactionCount`, `getVersion`,
+`getSignaturesForAddress`, `getTokenAccountBalance`, `getTokenSupply`, `getTransaction`, `getTransactionCount`, `getVersion`,
 `isBlockhashValid`, `requestAirdrop`, `sendTransaction`, and `simulateTransaction`.
 
 ## Migration notes
@@ -177,7 +201,8 @@ RPC coverage: `getAccountInfo`, `getBalance`, `getEpochInfo`, `getFeeForMessage`
   table contents are supplied by the caller. Automatic table fetching is outside this module's initial RPC coverage.
 - Transactions are immutable; signing builders mutate their signature collection. Message changes discard signatures.
   `serialize` and submission require all signatures; partial import/export is explicit. Unknown versions, malformed
-  lengths/indices, and invalid signatures are rejected.
+  lengths/indices, and invalid signatures are rejected by binary transaction decoders. RPC transaction reads
+  are separate and preserve unsupported versions without binary decoding or signature verification.
 - PDA seeds may be arbitrary bytes. Seed bounds and bump zero are handled. Compute-unit-limit instructions encode
   their payload as u32 (correcting the upstream u64 encoding).
 - Offline fee estimation requires an explicit compute-unit limit when a nonzero unit price is set. Use
