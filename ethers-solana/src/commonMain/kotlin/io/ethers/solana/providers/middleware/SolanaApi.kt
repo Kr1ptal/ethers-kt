@@ -17,8 +17,8 @@ import io.ethers.solana.types.EpochInfo
 import io.ethers.solana.types.Health
 import io.ethers.solana.types.LatestBlockhash
 import io.ethers.solana.types.PrioritizationFee
-import io.ethers.solana.types.PublicKey
 import io.ethers.solana.types.Signature
+import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.TokenAmount
 import io.ethers.solana.types.TransactionSignature
 import io.ethers.solana.types.TransactionSimulation
@@ -42,26 +42,26 @@ interface SolanaApi {
     val client: JsonRpcClient
     val commitment: Commitment
 
-    fun getBalance(address: PublicKey, commitment: Commitment = this.commitment): RpcRequest<BigInteger, RpcError> = getBalanceWithContext(address, commitment).map { it.value }
-    fun getBalanceWithContext(address: PublicKey, commitment: Commitment = this.commitment): RpcRequest<ContextValue<BigInteger>, RpcError> = rpc("getBalance", address.toString(), config(commitment)) { decodeContext(it, ::decodeU64) }
-    fun getTokenAccountBalance(address: PublicKey, commitment: Commitment = this.commitment): RpcRequest<ContextValue<TokenAmount>, RpcError> = rpc("getTokenAccountBalance", address.toString(), config(commitment)) { decode(it) }
-    fun getTokenSupply(mint: PublicKey, commitment: Commitment = this.commitment): RpcRequest<ContextValue<TokenAmount>, RpcError> = rpc("getTokenSupply", mint.toString(), config(commitment)) { decode(it) }
+    fun getBalance(address: SolanaAddress, commitment: Commitment = this.commitment): RpcRequest<BigInteger, RpcError> = getBalanceWithContext(address, commitment).map { it.value }
+    fun getBalanceWithContext(address: SolanaAddress, commitment: Commitment = this.commitment): RpcRequest<ContextValue<BigInteger>, RpcError> = rpc("getBalance", address.toString(), config(commitment)) { decodeContext(it, ::decodeU64) }
+    fun getTokenAccountBalance(address: SolanaAddress, commitment: Commitment = this.commitment): RpcRequest<ContextValue<TokenAmount>, RpcError> = rpc("getTokenAccountBalance", address.toString(), config(commitment)) { decode(it) }
+    fun getTokenSupply(mint: SolanaAddress, commitment: Commitment = this.commitment): RpcRequest<ContextValue<TokenAmount>, RpcError> = rpc("getTokenSupply", mint.toString(), config(commitment)) { decode(it) }
     fun getLatestBlockhash(commitment: Commitment = this.commitment): RpcRequest<ContextValue<LatestBlockhash>, RpcError> = rpc("getLatestBlockhash", config(commitment)) { decode(it) }
     fun isBlockhashValid(blockhash: Blockhash, commitment: Commitment = this.commitment): RpcRequest<ContextValue<Boolean>, RpcError> = rpc("isBlockhashValid", blockhash.toString(), config(commitment)) { decodeContext(it) { v -> v.jsonPrimitive.boolean } }
     fun getHealth(): RpcRequest<Health, RpcError> = rpc("getHealth") { if (it.jsonPrimitive.content == "ok") Health.OK else Health.ERROR }
     fun getEpochInfo(commitment: Commitment = this.commitment): RpcRequest<EpochInfo, RpcError> = rpc("getEpochInfo", config(commitment)) { decode(it) }
-    fun getIdentity(): RpcRequest<PublicKey, RpcError> = rpc("getIdentity") { PublicKey(it.jsonObject.getValue("identity").jsonPrimitive.content) }
+    fun getIdentity(): RpcRequest<SolanaAddress, RpcError> = rpc("getIdentity") { SolanaAddress(it.jsonObject.getValue("identity").jsonPrimitive.content) }
     fun getVersion(): RpcRequest<Version, RpcError> = rpc("getVersion") { decode(it) }
     fun getTransactionCount(commitment: Commitment = this.commitment): RpcRequest<BigInteger, RpcError> = rpc("getTransactionCount", config(commitment), decoder = ::decodeU64)
-    fun getAccountInfo(address: PublicKey, commitment: Commitment = this.commitment): RpcRequest<ContextValue<AccountInfo?>, RpcError> = rpc("getAccountInfo", address.toString(), config(commitment, "base64")) { decodeContext(it, ::decodeAccount) }
-    fun getMultipleAccounts(addresses: List<PublicKey>, commitment: Commitment = this.commitment): RpcRequest<ContextValue<List<AccountInfo?>>, RpcError> {
+    fun getAccountInfo(address: SolanaAddress, commitment: Commitment = this.commitment): RpcRequest<ContextValue<AccountInfo?>, RpcError> = rpc("getAccountInfo", address.toString(), config(commitment, "base64")) { decodeContext(it, ::decodeAccount) }
+    fun getMultipleAccounts(addresses: List<SolanaAddress>, commitment: Commitment = this.commitment): RpcRequest<ContextValue<List<AccountInfo?>>, RpcError> {
         require(addresses.size <= 100) { "getMultipleAccounts accepts at most 100 addresses" }
         return rpc("getMultipleAccounts", addresses.map { it.toString() }, config(commitment, "base64")) { decodeContext(it) { v -> v.jsonArray.map(::decodeAccount) } }
     }
     fun getMinimumBalanceForRentExemption(space: BigInteger, commitment: Commitment = this.commitment): RpcRequest<BigInteger, RpcError> = rpc("getMinimumBalanceForRentExemption", u64(space), config(commitment), decoder = ::decodeU64)
     fun getMinimumBalanceForRentExemption(space: Long): RpcRequest<BigInteger, RpcError> = getMinimumBalanceForRentExemption(bigIntegerOf(space))
-    fun requestAirdrop(address: PublicKey, lamports: BigInteger, commitment: Commitment = this.commitment): RpcRequest<Signature, RpcError> = rpc("requestAirdrop", address.toString(), u64(lamports), config(commitment)) { Signature(it.jsonPrimitive.content) }
-    fun requestAirdrop(address: PublicKey, lamports: Long): RpcRequest<Signature, RpcError> = requestAirdrop(address, bigIntegerOf(lamports))
+    fun requestAirdrop(address: SolanaAddress, lamports: BigInteger, commitment: Commitment = this.commitment): RpcRequest<Signature, RpcError> = rpc("requestAirdrop", address.toString(), u64(lamports), config(commitment)) { Signature(it.jsonPrimitive.content) }
+    fun requestAirdrop(address: SolanaAddress, lamports: Long): RpcRequest<Signature, RpcError> = requestAirdrop(address, bigIntegerOf(lamports))
 
     fun sendTransaction(transaction: SolanaTransaction, preflightCommitment: Commitment = this.commitment): RpcRequest<Signature, RpcError> = sendTransaction(transaction.serialize(), preflightCommitment)
     fun sendTransaction(transaction: ByteArray, preflightCommitment: Commitment = this.commitment): RpcRequest<Signature, RpcError> {
@@ -81,11 +81,11 @@ interface SolanaApi {
     fun simulateTransaction(transaction: ByteArray, commitment: Commitment = this.commitment): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = rpc("simulateTransaction", Base64.encode(transaction), config(commitment, "base64")) { decode(it) }
     fun getFeeForMessage(message: TransactionMessage, commitment: Commitment = this.commitment): RpcRequest<ContextValue<BigInteger?>, RpcError> = getFeeForMessage(message.serialize(), commitment)
     fun getFeeForMessage(message: ByteArray, commitment: Commitment = this.commitment): RpcRequest<ContextValue<BigInteger?>, RpcError> = rpc("getFeeForMessage", Base64.encode(message), config(commitment)) { decodeContext(it) { v -> if (v == JsonNull) null else decodeU64(v) } }
-    fun getRecentPrioritizationFees(addresses: List<PublicKey> = emptyList()): RpcRequest<List<PrioritizationFee>, RpcError> {
+    fun getRecentPrioritizationFees(addresses: List<SolanaAddress> = emptyList()): RpcRequest<List<PrioritizationFee>, RpcError> {
         require(addresses.size <= 128) { "At most 128 account addresses are supported" }
         return rpc("getRecentPrioritizationFees", addresses.map { it.toString() }) { decode(it) }
     }
-    fun getSignaturesForAddress(address: PublicKey, limit: Int = 1000, commitment: Commitment = this.commitment, before: Signature? = null, until: Signature? = null): RpcRequest<List<TransactionSignature>, RpcError> {
+    fun getSignaturesForAddress(address: SolanaAddress, limit: Int = 1000, commitment: Commitment = this.commitment, before: Signature? = null, until: Signature? = null): RpcRequest<List<TransactionSignature>, RpcError> {
         require(limit in 1..1000) { "Limit must be between 1 and 1000" }
         require(commitment != Commitment.PROCESSED) { "Signature history requires confirmed or finalized commitment" }
         val options = buildJsonObject {

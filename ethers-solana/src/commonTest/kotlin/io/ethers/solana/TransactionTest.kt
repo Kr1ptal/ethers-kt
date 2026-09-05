@@ -10,7 +10,7 @@ import io.ethers.solana.signers.KeypairSigner
 import io.ethers.solana.types.AccountMeta
 import io.ethers.solana.types.Blockhash
 import io.ethers.solana.types.Programs
-import io.ethers.solana.types.PublicKey
+import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.transaction.AddressLookupTableAccount
 import io.ethers.solana.types.transaction.MessageVersion
 import io.ethers.solana.types.transaction.SolanaTransaction
@@ -65,7 +65,7 @@ class TransactionTest : FunSpec({
     }
 
     test("lookup tables load writable then readonly accounts, keeping signers static") {
-        val table = AddressLookupTableAccount(PublicKey(ByteArray(32) { 5 }), listOf(bob.publicKey, alice.publicKey))
+        val table = AddressLookupTableAccount(SolanaAddress(ByteArray(32) { 5 }), listOf(bob.publicKey, alice.publicKey))
         val message = TransactionMessage.compile(alice.publicKey, blockhash, TransferInstruction(alice.publicKey, bob.publicKey, 1), listOf(table))
         message.accounts shouldBe listOf(alice.publicKey, Programs.SYSTEM)
         message.addressLookupTables.single().writableIndexes shouldBe listOf(0)
@@ -76,7 +76,7 @@ class TransactionTest : FunSpec({
 
     test("unsigned indices above 127 and invalid versions") {
         val accounts = (1..140).map { n ->
-            PublicKey(
+            SolanaAddress(
                 ByteArray(32).also {
                     it[0] = n.toByte()
                     it[1] = 8

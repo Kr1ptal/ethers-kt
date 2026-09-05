@@ -1,6 +1,6 @@
 package io.ethers.solana.providers
 
-import io.ethers.solana.types.PublicKey
+import io.ethers.solana.types.SolanaAddress
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
@@ -10,7 +10,7 @@ import kotlinx.serialization.json.put
 sealed class LogsFilter {
     data object All : LogsFilter()
     data object AllWithVotes : LogsFilter()
-    data class Mentions(val account: PublicKey) : LogsFilter()
+    data class Mentions(val account: SolanaAddress) : LogsFilter()
     internal fun toJson(): JsonElement = when (this) {
         All -> JsonPrimitive("all")
         AllWithVotes -> JsonPrimitive("allWithVotes")

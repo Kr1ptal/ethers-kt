@@ -5,8 +5,8 @@ import io.ethers.solana.serialization.SolanaMessageEncoder
 import io.ethers.solana.signers.SolanaSigner
 import io.ethers.solana.types.Blockhash
 import io.ethers.solana.types.Programs
-import io.ethers.solana.types.PublicKey
 import io.ethers.solana.types.Signature
+import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.utils.requireU64
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
@@ -23,7 +23,7 @@ class SolanaTransaction private constructor(val message: TransactionMessage, sig
 
     fun sign(signer: SolanaSigner): SolanaTransaction = addSignature(signer.publicKey, signer.signMessage(message.serialize()))
 
-    fun addSignature(signer: PublicKey, signature: Signature): SolanaTransaction {
+    fun addSignature(signer: SolanaAddress, signature: Signature): SolanaTransaction {
         val index = message.signers.indexOf(signer)
         require(index >= 0) { "Public key is not a required signer" }
         require(signer.verify(signature, message.serialize())) { "Invalid transaction signature" }

@@ -14,13 +14,15 @@ class JavaApiTest : FunSpec({
         val source = """
             import io.ethers.solana.providers.SolanaProvider;
             import io.ethers.solana.signers.KeypairSigner;
-            import io.ethers.solana.types.PublicKey;
+            import io.ethers.solana.types.SolanaAddress;
             import io.ethers.solana.types.transaction.TransactionMessage;
             import io.ethers.solana.types.transaction.SolanaTransaction;
             import io.ethers.solana.instruction.TransferInstruction;
             import io.ethers.solana.utils.SolUnit;
             public class SolanaJavaExample {
-                public void transfer(SolanaProvider provider, byte[] seed, PublicKey recipient) {
+                public void transfer(SolanaProvider provider, byte[] seed, SolanaAddress recipient) {
+                    var fromBytes = new SolanaAddress(recipient.toByteArray());
+                    var fromBase58 = new SolanaAddress(recipient.toBase58());
                     var signer = KeypairSigner.fromSeed(seed);
                     var latest = provider.getLatestBlockhash().sendAwait().unwrap().getValue();
                     var message = TransactionMessage.compile(signer.getPublicKey(), latest.getBlockhash(),

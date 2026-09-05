@@ -19,11 +19,11 @@ import io.ethers.solana.types.ContextValue
 import io.ethers.solana.types.LatestBlockhash
 import io.ethers.solana.types.LogsNotification
 import io.ethers.solana.types.ProgramNotification
-import io.ethers.solana.types.PublicKey
 import io.ethers.solana.types.RpcContext
 import io.ethers.solana.types.Signature
 import io.ethers.solana.types.SignatureNotification
 import io.ethers.solana.types.SlotNotification
+import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.transaction.SolanaTransaction
 import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.json.JsonArray
@@ -48,15 +48,15 @@ class SolanaProvider @JvmOverloads constructor(
 ) : SolanaApi, AutoCloseable {
     // Java-friendly conveniences for the main workflow; the full interface also accepts explicit commitment.
     fun getLatestBlockhash(): RpcRequest<ContextValue<LatestBlockhash>, RpcError> = getLatestBlockhash(commitment)
-    fun getBalance(address: PublicKey): RpcRequest<BigInteger, RpcError> = getBalance(address, commitment)
-    fun getAccountInfo(address: PublicKey): RpcRequest<ContextValue<AccountInfo?>, RpcError> = getAccountInfo(address, commitment)
+    fun getBalance(address: SolanaAddress): RpcRequest<BigInteger, RpcError> = getBalance(address, commitment)
+    fun getAccountInfo(address: SolanaAddress): RpcRequest<ContextValue<AccountInfo?>, RpcError> = getAccountInfo(address, commitment)
     fun sendTransaction(transaction: SolanaTransaction): RpcRequest<Signature, RpcError> = sendTransaction(transaction, commitment)
 
     @JvmOverloads
-    fun subscribeAccount(address: PublicKey, commitment: Commitment = this.commitment): RpcSubscribe<ContextValue<AccountInfo?>, RpcError> = subscribe("account", arrayOf(address.toString(), options(commitment, true))) { decodeContext(it, ::decodeAccount) }
+    fun subscribeAccount(address: SolanaAddress, commitment: Commitment = this.commitment): RpcSubscribe<ContextValue<AccountInfo?>, RpcError> = subscribe("account", arrayOf(address.toString(), options(commitment, true))) { decodeContext(it, ::decodeAccount) }
 
     @JvmOverloads
-    fun subscribeProgram(program: PublicKey, filters: List<AccountFilter> = emptyList(), commitment: Commitment = this.commitment): RpcSubscribe<ContextValue<ProgramNotification>, RpcError> {
+    fun subscribeProgram(program: SolanaAddress, filters: List<AccountFilter> = emptyList(), commitment: Commitment = this.commitment): RpcSubscribe<ContextValue<ProgramNotification>, RpcError> {
         require(filters.size <= 4) { "At most four account filters are supported" }
         val config = buildJsonObject {
             put("commitment", commitment.toString())
@@ -66,7 +66,7 @@ class SolanaProvider @JvmOverloads constructor(
         return subscribe("program", arrayOf(program.toString(), config)) { element ->
             decodeContext(element) { value ->
                 val obj = value.jsonObject
-                ProgramNotification(PublicKey(obj.getValue("pubkey").jsonPrimitive.content), requireNotNull(decodeAccount(obj.getValue("account"))))
+                ProgramNotification(SolanaAddress(obj.getValue("pubkey").jsonPrimitive.content), requireNotNull(decodeAccount(obj.getValue("account"))))
             }
         }
     }

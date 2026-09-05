@@ -9,9 +9,9 @@ import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmStatic
 
 /** A 32-byte Solana address, including off-curve program derived addresses. */
-@Serializable(with = PublicKeySerializer::class)
-class PublicKey(bytes: ByteArray) {
-    private val value = bytes.copyOf().also { require(it.size == 32) { "Public key must contain 32 bytes" } }
+@Serializable(with = SolanaAddressSerializer::class)
+class SolanaAddress(bytes: ByteArray) {
+    private val value = bytes.copyOf().also { require(it.size == 32) { "Solana address must contain 32 bytes" } }
 
     constructor(base58: String) : this(Base58.decode(base58))
 
@@ -23,11 +23,10 @@ class PublicKey(bytes: ByteArray) {
         // TweetNaCl's verifier accepts some non-canonical scalars that OpenSSL rejects. Enforce the
         // RFC8032 S < L condition before dispatching, so both platforms reject malleable signatures.
         val scalar = io.github.artificialpb.bignum.BigInteger(1, bytes.copyOfRange(32, 64).reversedArray())
-        if (scalar >= SCALAR_ORDER) return false
-        return Ed25519.verify(value, message, bytes)
+        return scalar < SCALAR_ORDER && Ed25519.verify(value, message, bytes)
     }
     override fun toString(): String = toBase58()
-    override fun equals(other: Any?): Boolean = other is PublicKey && value.contentEquals(other.value)
+    override fun equals(other: Any?): Boolean = other is SolanaAddress && value.contentEquals(other.value)
     override fun hashCode(): Int = value.contentHashCode()
 
     companion object {
@@ -35,14 +34,14 @@ class PublicKey(bytes: ByteArray) {
 
         /** Derive an address from at most 16 seeds of at most 32 bytes each. */
         @JvmStatic
-        fun createProgramAddress(seeds: List<ByteArray>, programId: PublicKey): PublicKey {
+        fun createProgramAddress(seeds: List<ByteArray>, programId: SolanaAddress): SolanaAddress {
             validateSeeds(seeds, 16)
             return derive(seeds, programId) ?: throw IllegalArgumentException("Seeds produce an on-curve address")
         }
 
         /** Find the highest valid bump, including zero. The bump occupies the sixteenth seed slot. */
         @JvmStatic
-        fun findProgramAddress(seeds: List<ByteArray>, programId: PublicKey): ProgramDerivedAddress {
+        fun findProgramAddress(seeds: List<ByteArray>, programId: SolanaAddress): ProgramDerivedAddress {
             validateSeeds(seeds, 15)
             for (bump in 255 downTo 0) {
                 val key = derive(seeds + listOf(byteArrayOf(bump.toByte())), programId)
@@ -53,7 +52,7 @@ class PublicKey(bytes: ByteArray) {
 
         @JvmStatic
         @JvmOverloads
-        fun findAssociatedTokenAddress(owner: PublicKey, mint: PublicKey, tokenProgram: PublicKey = Programs.TOKEN): ProgramDerivedAddress {
+        fun findAssociatedTokenAddress(owner: SolanaAddress, mint: SolanaAddress, tokenProgram: SolanaAddress = Programs.TOKEN): ProgramDerivedAddress {
             return findProgramAddress(listOf(owner.toByteArray(), tokenProgram.toByteArray(), mint.toByteArray()), Programs.ASSOCIATED_TOKEN)
         }
 
@@ -62,7 +61,7 @@ class PublicKey(bytes: ByteArray) {
             require(seeds.all { it.size <= 32 }) { "PDA seed exceeds 32 bytes" }
         }
 
-        private fun derive(seeds: List<ByteArray>, programId: PublicKey): PublicKey? {
+        private fun derive(seeds: List<ByteArray>, programId: SolanaAddress): SolanaAddress? {
             val suffix = "ProgramDerivedAddress".encodeToByteArray()
             val bytes = ByteArray(seeds.sumOf { it.size } + 32 + suffix.size)
             var offset = 0
@@ -73,9 +72,9 @@ class PublicKey(bytes: ByteArray) {
             programId.value.copyInto(bytes, offset)
             suffix.copyInto(bytes, offset + 32)
             val hash = Hashing.sha256(bytes)
-            return if (isEd25519Point(hash)) null else PublicKey(hash)
+            return if (isEd25519Point(hash)) null else SolanaAddress(hash)
         }
     }
 }
 
-data class ProgramDerivedAddress(val address: PublicKey, val bump: Int)
+data class ProgramDerivedAddress(val address: SolanaAddress, val bump: Int)

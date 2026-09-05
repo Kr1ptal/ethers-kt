@@ -19,12 +19,12 @@ import io.ethers.solana.instruction.TransferInstruction
 import io.ethers.solana.providers.SolanaCluster
 import io.ethers.solana.providers.SolanaProvider
 import io.ethers.solana.signers.KeypairSigner
-import io.ethers.solana.types.PublicKey
+import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.transaction.SolanaTransaction
 import io.ethers.solana.types.transaction.TransactionMessage
 
 // Run inside a coroutine. Supply your funded account's 32-byte seed and recipient.
-suspend fun transfer(seed: ByteArray, recipient: PublicKey) {
+suspend fun transfer(seed: ByteArray, recipient: SolanaAddress) {
     val provider = SolanaProvider.builder(SolanaCluster.DEVNET).build().unwrap()
     try {
         val signer = KeypairSigner.fromSeed(seed)
@@ -118,8 +118,8 @@ Reference: [sol4k a166edd854a7198553fdafe9a5051a400d70b121](https://github.com/s
 
 | Upstream capability | ethers-solana API |
 | --- | --- |
-| Keys, detached signing, verification | `PublicKey`, `Signature`, `SolanaSigner`, `KeypairSigner` |
-| PDA / associated token address derivation | `PublicKey.createProgramAddress`, `findProgramAddress`, `findAssociatedTokenAddress` |
+| Keys, detached signing, verification | `SolanaAddress`, `Signature`, `SolanaSigner`, `KeypairSigner` |
+| PDA / associated token address derivation | `SolanaAddress.createProgramAddress`, `findProgramAddress`, `findAssociatedTokenAddress` |
 | Legacy/v0 messages and lookup tables | `TransactionMessage.compile`, `MessageVersion`, `AddressLookupTableAccount` |
 | Build, sign, import/export transactions | Immutable `SolanaTransaction`; `serializePartial` for offline signing |
 | SOL, SPL, Token-2022, associated accounts, compute budget | Classes in `io.ethers.solana.instruction` |

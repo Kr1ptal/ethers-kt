@@ -13,6 +13,6 @@ abstract class Base58Serializer<T>(name: String, private val decode: (String) ->
     override fun deserialize(decoder: Decoder): T = decode(decoder.decodeString())
 }
 
-object PublicKeySerializer : Base58Serializer<PublicKey>("io.ethers.solana.PublicKey", ::PublicKey)
+object SolanaAddressSerializer : Base58Serializer<SolanaAddress>("io.ethers.solana.SolanaAddress", ::SolanaAddress)
 object SignatureSerializer : Base58Serializer<Signature>("io.ethers.solana.Signature", ::Signature)
 object BlockhashSerializer : Base58Serializer<Blockhash>("io.ethers.solana.Blockhash", ::Blockhash)

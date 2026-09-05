@@ -59,7 +59,7 @@ enum class Commitment {
 enum class Health { OK, ERROR }
 
 /** Account data is decoded from the explicitly requested base64 encoding. */
-class AccountInfo(data: ByteArray, val executable: Boolean, val lamports: BigInteger, val owner: PublicKey, val rentEpoch: BigInteger, val space: BigInteger) {
+class AccountInfo(data: ByteArray, val executable: Boolean, val lamports: BigInteger, val owner: SolanaAddress, val rentEpoch: BigInteger, val space: BigInteger) {
     private val payload = data.copyOf()
     val data: ByteArray get() = payload.copyOf()
     override fun equals(other: Any?): Boolean = other is AccountInfo && payload.contentEquals(other.payload) && executable == other.executable && lamports == other.lamports && owner == other.owner && rentEpoch == other.rentEpoch && space == other.space
@@ -84,7 +84,7 @@ data class TokenAmount(
 }
 
 @Serializable data class LogsNotification(val signature: Signature, val err: JsonElement? = null, val logs: List<String>)
-data class ProgramNotification(val pubkey: PublicKey, val account: AccountInfo)
+data class ProgramNotification(val pubkey: SolanaAddress, val account: AccountInfo)
 @Serializable data class SlotNotification(val parent: BigInteger, val root: BigInteger, val slot: BigInteger)
 
 sealed class SignatureNotification {

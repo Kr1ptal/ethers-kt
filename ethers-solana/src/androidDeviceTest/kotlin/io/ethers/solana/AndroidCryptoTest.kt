@@ -2,7 +2,7 @@ package io.ethers.solana
 
 import io.ethers.core.FastHex
 import io.ethers.solana.signers.KeypairSigner
-import io.ethers.solana.types.PublicKey
+import io.ethers.solana.types.SolanaAddress
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -19,7 +19,7 @@ class AndroidCryptoTest {
         assertTrue(signer.publicKey.verify(signature, byteArrayOf()))
         assertFalse(signer.publicKey.verify(signature, byteArrayOf(1)))
         assertEquals(signer.publicKey, KeypairSigner.fromSecretKey(signer.toSecretKey()).publicKey)
-        val owner = PublicKey("CYLdTZhP8d1GDGeeNapgPdUcPiux1U9B26315x38TtbQ")
-        assertEquals("3W9cYxjkWXUPAsfGJ1GNdFiZsGEwcoopwMz4S8eAkkXd", PublicKey.findAssociatedTokenAddress(owner, owner).address.toString())
+        val owner = SolanaAddress("CYLdTZhP8d1GDGeeNapgPdUcPiux1U9B26315x38TtbQ")
+        assertEquals("3W9cYxjkWXUPAsfGJ1GNdFiZsGEwcoopwMz4S8eAkkXd", SolanaAddress.findAssociatedTokenAddress(owner, owner).address.toString())
     }
 }

@@ -3,8 +3,8 @@ package io.ethers.solana.providers
 import io.ethers.core.Kotlinx
 import io.ethers.solana.types.AccountInfo
 import io.ethers.solana.types.ContextValue
-import io.ethers.solana.types.PublicKey
 import io.ethers.solana.types.RpcContext
+import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.U64Serializer
 import io.ethers.solana.utils.requireU64
 import io.github.artificialpb.bignum.BigInteger
@@ -33,5 +33,5 @@ internal fun decodeAccount(element: JsonElement): AccountInfo? {
     val data = obj.getValue("data").jsonArray
     require(data.size == 2 && data[1].jsonPrimitive.content == "base64") { "Expected base64 account data" }
     val bytes = Base64.decode(data[0].jsonPrimitive.content)
-    return AccountInfo(bytes, obj.getValue("executable").jsonPrimitive.boolean, decodeU64(obj.getValue("lamports")), PublicKey(obj.getValue("owner").jsonPrimitive.content), decodeU64(obj.getValue("rentEpoch")), obj["space"]?.takeUnless { it == JsonNull }?.let(::decodeU64) ?: bigIntegerOf(bytes.size))
+    return AccountInfo(bytes, obj.getValue("executable").jsonPrimitive.boolean, decodeU64(obj.getValue("lamports")), SolanaAddress(obj.getValue("owner").jsonPrimitive.content), decodeU64(obj.getValue("rentEpoch")), obj["space"]?.takeUnless { it == JsonNull }?.let(::decodeU64) ?: bigIntegerOf(bytes.size))
 }

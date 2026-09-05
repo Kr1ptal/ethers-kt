@@ -5,7 +5,7 @@ import io.ethers.solana.instruction.Instruction
 import io.ethers.solana.serialization.SolanaMessageDecoder
 import io.ethers.solana.serialization.SolanaMessageEncoder
 import io.ethers.solana.types.Blockhash
-import io.ethers.solana.types.PublicKey
+import io.ethers.solana.types.SolanaAddress
 import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmStatic
 
@@ -13,9 +13,9 @@ enum class MessageVersion { LEGACY, V0 }
 
 data class MessageHeader(val requiredSignatures: Int, val readonlySignedAccounts: Int, val readonlyUnsignedAccounts: Int)
 
-class AddressLookupTableAccount(val key: PublicKey, addresses: List<PublicKey>) {
+class AddressLookupTableAccount(val key: SolanaAddress, addresses: List<SolanaAddress>) {
     private val entries = addresses.toList().also { require(it.size <= 256) { "Lookup table exceeds 256 addresses" } }
-    val addresses: List<PublicKey> get() = entries.toList()
+    val addresses: List<SolanaAddress> get() = entries.toList()
 }
 
 class CompiledInstruction(val programIdIndex: Int, accounts: List<Int>, data: ByteArray) {
@@ -25,7 +25,7 @@ class CompiledInstruction(val programIdIndex: Int, accounts: List<Int>, data: By
     val data: ByteArray get() = payload.copyOf()
 }
 
-class CompiledAddressLookupTable(val key: PublicKey, writableIndexes: List<Int>, readonlyIndexes: List<Int>) {
+class CompiledAddressLookupTable(val key: SolanaAddress, writableIndexes: List<Int>, readonlyIndexes: List<Int>) {
     private val writable = writableIndexes.toList()
     private val readonly = readonlyIndexes.toList()
     val writableIndexes: List<Int> get() = writable.toList()
@@ -36,7 +36,7 @@ class CompiledAddressLookupTable(val key: PublicKey, writableIndexes: List<Int>,
 class TransactionMessage internal constructor(
     val version: MessageVersion,
     val header: MessageHeader,
-    accounts: List<PublicKey>,
+    accounts: List<SolanaAddress>,
     val recentBlockhash: Blockhash,
     instructions: List<CompiledInstruction>,
     addressLookupTables: List<CompiledAddressLookupTable>,
@@ -44,10 +44,10 @@ class TransactionMessage internal constructor(
     private val staticAccounts = accounts.toList()
     private val compiledInstructions = instructions.toList()
     private val lookups = addressLookupTables.toList()
-    val accounts: List<PublicKey> get() = staticAccounts.toList()
+    val accounts: List<SolanaAddress> get() = staticAccounts.toList()
     val instructions: List<CompiledInstruction> get() = compiledInstructions.toList()
     val addressLookupTables: List<CompiledAddressLookupTable> get() = lookups.toList()
-    val signers: List<PublicKey> get() = staticAccounts.take(header.requiredSignatures)
+    val signers: List<SolanaAddress> get() = staticAccounts.take(header.requiredSignatures)
 
     init {
         require(staticAccounts.size in 1..256 && staticAccounts.distinct().size == staticAccounts.size) { "Invalid static accounts" }
@@ -97,7 +97,7 @@ class TransactionMessage internal constructor(
             val header = MessageHeader(if (version == MessageVersion.V0) decoder.readByte() else prefix, decoder.readByte(), decoder.readByte())
             val count = decoder.readShortVecLength()
             require(count in 1..256) { "Invalid static account count" }
-            val accounts = List(count) { PublicKey(decoder.readBytes(32)) }
+            val accounts = List(count) { SolanaAddress(decoder.readBytes(32)) }
             val blockhash = Blockhash(decoder.readBytes(32))
             val instructions = List(decoder.readShortVecLength()) {
                 val program = decoder.readByte()
@@ -105,7 +105,7 @@ class TransactionMessage internal constructor(
                 CompiledInstruction(program, indices, decoder.readBytes(decoder.readShortVecLength()))
             }
             val lookups = if (version == MessageVersion.LEGACY) emptyList() else List(decoder.readShortVecLength()) {
-                val key = PublicKey(decoder.readBytes(32))
+                val key = SolanaAddress(decoder.readBytes(32))
                 val writable = List(decoder.readShortVecLength()) { decoder.readByte() }
                 val readonly = List(decoder.readShortVecLength()) { decoder.readByte() }
                 CompiledAddressLookupTable(key, writable, readonly)
@@ -116,12 +116,12 @@ class TransactionMessage internal constructor(
 
         @JvmStatic
         @JvmOverloads
-        fun compile(feePayer: PublicKey, blockhash: Blockhash, instruction: Instruction, lookupTables: List<AddressLookupTableAccount> = emptyList(), version: MessageVersion = MessageVersion.V0): TransactionMessage = compile(feePayer, blockhash, listOf(instruction), lookupTables, version)
+        fun compile(feePayer: SolanaAddress, blockhash: Blockhash, instruction: Instruction, lookupTables: List<AddressLookupTableAccount> = emptyList(), version: MessageVersion = MessageVersion.V0): TransactionMessage = compile(feePayer, blockhash, listOf(instruction), lookupTables, version)
 
         /** Preserves sol4k's deterministic signed-byte ordering within each account privilege group. */
         @JvmStatic
         @JvmOverloads
-        fun compile(feePayer: PublicKey, blockhash: Blockhash, instructions: List<Instruction>, lookupTables: List<AddressLookupTableAccount> = emptyList(), version: MessageVersion = MessageVersion.V0): TransactionMessage {
+        fun compile(feePayer: SolanaAddress, blockhash: Blockhash, instructions: List<Instruction>, lookupTables: List<AddressLookupTableAccount> = emptyList(), version: MessageVersion = MessageVersion.V0): TransactionMessage {
             require(version == MessageVersion.V0 || lookupTables.isEmpty()) { "Legacy messages cannot use lookup tables" }
             val frozen = instructions.map { BaseInstruction(it.programId, it.keys, it.data) }
             val metas = linkedMapOf(feePayer to KeyMeta(signer = true, writable = true))
@@ -139,9 +139,9 @@ class TransactionMessage internal constructor(
                 x.indices.firstOrNull { x[it] != y[it] }?.let { x[it].compareTo(y[it]) } ?: 0
             }
             val signedWritable = mutableListOf(feePayer)
-            val signedReadonly = mutableListOf<PublicKey>()
-            val unsignedWritable = mutableListOf<PublicKey>()
-            val unsignedReadonly = mutableListOf<PublicKey>()
+            val signedReadonly = mutableListOf<SolanaAddress>()
+            val unsignedWritable = mutableListOf<SolanaAddress>()
+            val unsignedReadonly = mutableListOf<SolanaAddress>()
             val writable = List(lookupTables.size) { mutableListOf<Int>() }
             val readonly = List(lookupTables.size) { mutableListOf<Int>() }
             val tableAddresses = lookupTables.map { it.addresses }
