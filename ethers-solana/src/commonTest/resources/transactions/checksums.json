@@ -7,9 +7,9 @@
   "capturedCounts": {
     "legacy": 320,
     "0": 320,
-    "1": 0
+    "1": 200
   },
-  "status": "incomplete: live v1 samples not located",
+  "status": "200 v1 fixtures from local validator; public-chain v1 capture remains pending",
   "files": {
     "mainnet-0.jsonl": {
       "count": 200,
@@ -42,6 +42,18 @@
     "mainnet-legacy.jsonl": {
       "count": 200,
       "sha256": "ae26de45d14b47ca92ca073db9b76c5cc27edd89f30da8ab4bbf78a6c8821d86"
+    },
+    "localnet-1.jsonl": {
+      "count": 200,
+      "sha256": "8e6b6a0acbfabdd2dd0d9e335bbbad9729c68f4b90b998fab759cbdd87f0f650"
     }
+  },
+  "publicChainCounts": {
+    "legacy": 320,
+    "0": 320,
+    "1": 0
+  },
+  "localValidatorCounts": {
+    "1": 200
   }
 }

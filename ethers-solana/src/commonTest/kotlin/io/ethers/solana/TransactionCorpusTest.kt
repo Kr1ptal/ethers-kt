@@ -1,7 +1,7 @@
 package io.ethers.solana
 
 import io.ethers.core.Kotlinx
-import io.ethers.solana.corpus.liveTransactionCorpus
+import io.ethers.solana.corpus.transactionCorpus
 import io.ethers.solana.types.SolanaRPCTransaction
 import io.ethers.solana.types.SolanaSignature
 import io.ethers.solana.types.transaction.CompiledInstruction
@@ -13,6 +13,7 @@ import io.ethers.solana.types.transaction.SolanaTxType
 import io.ethers.solana.types.transaction.SolanaTxV0
 import io.ethers.solana.types.transaction.SolanaTxV1
 import io.github.artificialpb.bignum.BigDecimal
+import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -27,17 +28,19 @@ import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
-class LiveTransactionCorpusTest : FunSpec({
-    val fixtures = liveTransactionCorpus().map { Kotlinx.DEFAULT.parseToJsonElement(it).jsonObject }
+class TransactionCorpusTest : FunSpec({
+    val fixtures = transactionCorpus().map { Kotlinx.DEFAULT.parseToJsonElement(it).jsonObject }
+    val liveFixtures = fixtures.filter { it.getValue("cluster").jsonPrimitive.content != "localnet" }
     val json = Json(Kotlinx.DEFAULT) { encodeDefaults = true }
 
     test("committed live corpus has 320 legacy and 320 v0 samples across historical periods; v1 capture is still pending") {
-        // See resources/transactions/README.md: do not substitute synthetic v1 fixtures here.
-        fixtures.size shouldBe 640
-        fixtures.map { it.getValue("signature") }.distinct().size shouldBe 640
-        fixtures.groupingBy { it.getValue("rpc").jsonObject.getValue("version").jsonPrimitive.content }.eachCount() shouldBe mapOf("legacy" to 320, "0" to 320)
-        fixtures.all { it.getValue("cluster").jsonPrimitive.content in setOf("mainnet", "testnet", "devnet") } shouldBe true
-        fixtures.map { it.getValue("blockhash") }.distinct().size.let { it >= 16 } shouldBe true
+        // Local-validator samples are deliberately excluded from public-chain counts.
+        liveFixtures.size shouldBe 640
+        fixtures.size shouldBe 840
+        fixtures.map { it.getValue("signature") }.distinct().size shouldBe 840
+        liveFixtures.groupingBy { it.getValue("rpc").jsonObject.getValue("version").jsonPrimitive.content }.eachCount() shouldBe mapOf("legacy" to 320, "0" to 320)
+        liveFixtures.all { it.getValue("cluster").jsonPrimitive.content in setOf("mainnet", "testnet", "devnet") } shouldBe true
+        liveFixtures.map { it.getValue("blockhash") }.distinct().size.let { it >= 16 } shouldBe true
         for (version in listOf("legacy", "0")) {
             val slots = fixtures.filter { it.getValue("rpc").jsonObject.getValue("version").jsonPrimitive.content == version }
                 .map { it.getValue("slot").jsonPrimitive.content.toLong() }
@@ -48,7 +51,7 @@ class LiveTransactionCorpusTest : FunSpec({
     }
 
     test("live corpus includes failures, multiple signers, CPI, return data, and v0 with and without lookups") {
-        val transactions = fixtures.map { json.decodeFromJsonElement<SolanaRPCTransaction>(it.getValue("rpc")) }
+        val transactions = liveFixtures.map { json.decodeFromJsonElement<SolanaRPCTransaction>(it.getValue("rpc")) }
         for (group in transactions.groupBy { it.type }.values) {
             group.any { it.meta?.err != null } shouldBe true
             group.any { it.transaction.signatures.size > 1 } shouldBe true
@@ -60,11 +63,27 @@ class LiveTransactionCorpusTest : FunSpec({
         v0.any { it.transaction.message.addressTableLookups.isEmpty() } shouldBe true
     }
 
+    test("200 local v1 fixtures cover signer and instruction counts, large envelopes and optional config") {
+        val local = fixtures.filter { it.getValue("cluster").jsonPrimitive.content == "localnet" }
+        local.size shouldBe 200
+        local.all { it.getValue("origin").jsonPrimitive.content == "generated-local-validator" } shouldBe true
+        val transactions = local.map { SolanaTransactionSigned.fromBase64(it.getValue("wire").jsonPrimitive.content) }
+        transactions.all { it.type == SolanaTxType.V1 } shouldBe true
+        transactions.map { it.signatures.size }.toSet() shouldBe (1..12).toSet()
+        transactions.any { it.instructions.size == 64 } shouldBe true
+        transactions.any { it.serialize().size > 3900 } shouldBe true
+        transactions.any { it.serialize().size <= 1232 } shouldBe true
+        val configs = transactions.map { (it.tx as SolanaTxV1).config }
+        configs.any { it.priorityFee == null } shouldBe true
+        configs.any { it.priorityFee?.toString() == "0" } shouldBe true
+        configs.map { it.heapSize }.toSet() shouldBe setOf(null, 32768L, 65536L, 262144L)
+    }
+
     for (fixture in fixtures) {
         val signature = fixture.getValue("signature").jsonPrimitive.content
         val rawRpc = fixture.getValue("rpc").jsonObject
         val version = rawRpc.getValue("version").jsonPrimitive.content
-        test("live $version $signature: wire, RPC, signatures, reconstruction and metadata") {
+        test("${fixture.getValue("cluster").jsonPrimitive.content} $version $signature: wire, RPC, signatures, reconstruction and metadata") {
             val rpc = json.decodeFromJsonElement<SolanaRPCTransaction>(rawRpc)
             val signed = SolanaTransactionSigned.fromBase64(fixture.getValue("wire").jsonPrimitive.content)
             val tx = signed.tx
@@ -96,6 +115,7 @@ class LiveTransactionCorpusTest : FunSpec({
                 signed.serialize().first() shouldBe 129.toByte()
                 message.addressTableLookups shouldBe emptyList()
                 tx.config shouldBe message.transactionConfig
+                rpc.meta!!.fee shouldBe tx.estimateFee(bigIntegerOf(5000))
             } else {
                 message.transactionConfig shouldBe null
             }

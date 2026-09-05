@@ -1,0 +1,30 @@
+{
+  "cluster": "localnet",
+  "origin": "generated-local-validator",
+  "endpoint": "http://127.0.0.1:18899",
+  "capturedAt": "2026-09-05T21:29:21.731454Z",
+  "genesisHash": "7Z5x6JEUWs6wicpZxwA6cKtkqTLa6gVsTvDuYhBHhNuM",
+  "nodeVersion": {
+    "feature-set": 565236538,
+    "solana-core": "4.2.2"
+  },
+  "v1Feature": {
+    "context": {
+      "apiVersion": "4.2.2",
+      "slot": 148
+    },
+    "value": {
+      "data": [
+        "AQAAAAAAAAAA",
+        "base64"
+      ],
+      "executable": false,
+      "lamports": 953520,
+      "owner": "Feature111111111111111111111111111111111111",
+      "rentEpoch": 0,
+      "space": 9
+    }
+  },
+  "commitment": "finalized",
+  "count": 200
+}

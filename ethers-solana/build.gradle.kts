@@ -55,7 +55,7 @@ abstract class GenerateSolanaCorpus : DefaultTask() {
             buildString {
                 appendLine("// Generated from committed corpus JSONL. Do not edit.")
                 appendLine("package io.ethers.solana.corpus")
-                appendLine("internal fun liveTransactionCorpus(): List<String> = buildList {")
+                appendLine("internal fun transactionCorpus(): List<String> = buildList {")
                 chunks.indices.forEach { appendLine("    addAll(SolanaCorpusChunk$it.records())") }
                 appendLine("}")
             },
