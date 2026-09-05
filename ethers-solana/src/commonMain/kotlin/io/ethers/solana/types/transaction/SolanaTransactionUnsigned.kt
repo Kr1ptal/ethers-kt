@@ -2,6 +2,7 @@ package io.ethers.solana.types.transaction
 
 import io.ethers.solana.signers.SolanaSigner
 import io.ethers.solana.types.SolanaBlockhash
+import io.ethers.solana.types.SolanaSignature
 import kotlin.jvm.JvmStatic
 
 /** A compiled legacy, v0 or v1 payload with no signatures. */
@@ -15,7 +16,16 @@ sealed interface SolanaTransactionUnsigned : SolanaTransaction {
     /** Start collecting signatures without requiring all signers to be available. */
     fun signingBuilder(): SolanaTransactionSigned.Builder = SolanaTransactionSigned.Builder(this)
 
-    override fun serializeForSimulation(): ByteArray = encodeTransactionEnvelope(this, List(header.requiredSignatures) { null })
+    /**
+     * Exact size of [serializeEnvelope], counting a slot for every required signature. Must stay in
+     * step with this type's [serializeEnvelope] and [serializeMessage].
+     */
+    fun envelopeSize(): Long
+
+    /** Full envelope for the given signature slots, zero-filling the missing ones. */
+    fun serializeEnvelope(signatures: List<SolanaSignature?>): ByteArray
+
+    override fun serializeForSimulation(): ByteArray = serializeEnvelope(List(header.requiredSignatures) { null })
 
     companion object {
         /** Decode message bytes, not a transaction envelope containing signatures. */

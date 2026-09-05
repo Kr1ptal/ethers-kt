@@ -16,6 +16,7 @@ import io.ethers.solana.types.transaction.SolanaTxV0
 import io.ethers.solana.types.transaction.SolanaTxV1
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
+import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.matchers.shouldBe
 import kotlin.random.Random
 
@@ -24,6 +25,27 @@ class TransactionBoundaryTest : FunSpec({
     val keys = listOf(signer.publicKey, Programs.SYSTEM)
     val hash = SolanaBlockhash(ByteArray(32) { 12 })
     val header = MessageHeader(1, 0, 1)
+
+    test("envelopeSize matches the serialized envelope for every version") {
+        val random = Random(7)
+        repeat(40) {
+            val instructions = List(random.nextInt(1, 5)) {
+                CompiledInstruction(1, List(random.nextInt(0, 5)) { random.nextInt(2) }, random.nextBytes(random.nextInt(0, 140)))
+            }
+            val lookups = listOf(CompiledAddressLookupTable(Programs.TOKEN, List(random.nextInt(0, 4)) { it }, List(random.nextInt(0, 4)) { it + 8 }))
+            val messages = listOf(
+                SolanaTxLegacy(header, keys, hash, instructions),
+                SolanaTxV0(header, keys, hash, instructions, emptyList()),
+                SolanaTxV0(header, keys, hash, instructions, lookups),
+                SolanaTxV1(header, keys, hash, instructions, SolanaTransactionConfig()),
+                SolanaTxV1(header, keys, hash, instructions, SolanaTransactionConfig(priorityFee = bigIntegerOf(7), computeUnitLimit = 1000)),
+            )
+            for (tx in messages) {
+                tx.envelopeSize() shouldBe tx.serializeForSimulation().size.toLong()
+                tx.envelopeSize() shouldBe tx.sign(signer).serialize().size.toLong()
+            }
+        }
+    }
 
     test("all compact-u16 values have canonical independently calculated bytes") {
         for (value in 0..65535) {

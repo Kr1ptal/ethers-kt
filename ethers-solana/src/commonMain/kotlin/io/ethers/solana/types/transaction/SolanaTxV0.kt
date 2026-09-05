@@ -1,9 +1,11 @@
 package io.ethers.solana.types.transaction
 
 import io.ethers.solana.instruction.Instruction
+import io.ethers.solana.serialization.SolanaMessageDecoder
 import io.ethers.solana.serialization.SolanaMessageEncoder
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
+import io.ethers.solana.types.SolanaSignature
 import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmStatic
 
@@ -19,7 +21,7 @@ class SolanaTxV0 @JvmOverloads constructor(
 
     init {
         validateMessage(header, accounts, instructions, addressLookupTables)
-        validateLegacyEnvelopeSize(this, addressLookupTables)
+        require(envelopeSize() <= MAX_TRANSACTION_SIZE) { "$type transaction exceeds $MAX_TRANSACTION_SIZE bytes" }
     }
 
     override fun withNewBlockhash(blockhash: SolanaBlockhash): SolanaTxV0 = SolanaTxV0(header, accounts, blockhash, instructions, addressLookupTables)
@@ -38,8 +40,24 @@ class SolanaTxV0 @JvmOverloads constructor(
         return encoder.toByteArray()
     }
 
+    override fun envelopeSize(): Long = legacyEnvelopeSize(this, addressLookupTables)
+
+    override fun serializeEnvelope(signatures: List<SolanaSignature?>): ByteArray = encodeSignaturesFirstEnvelope(this, signatures)
+
     companion object {
         const val MAX_TRANSACTION_SIZE: Int = SolanaTxLegacy.MAX_TRANSACTION_SIZE
+
+        /** The version prefix has already been read. */
+        internal fun decodeBody(decoder: SolanaMessageDecoder): SolanaTxV0 {
+            val body = decoder.readMessageBody(decoder.readByte())
+            val lookups = List(decoder.readShortVecLength()) {
+                val key = SolanaAddress(decoder.readBytes(32))
+                val writable = List(decoder.readShortVecLength()) { decoder.readByte() }
+                val readonly = List(decoder.readShortVecLength()) { decoder.readByte() }
+                CompiledAddressLookupTable(key, writable, readonly)
+            }
+            return SolanaTxV0(body.header, body.accounts, body.recentBlockhash, body.instructions, lookups)
+        }
 
         @JvmStatic
         @JvmOverloads

@@ -29,57 +29,54 @@ internal fun SolanaMessageEncoder.writeMessageBody(tx: SolanaTransactionUnsigned
     }
 }
 
-/** Include every required signature slot, even for unsigned or partially signed payloads. */
-internal fun validateLegacyEnvelopeSize(tx: SolanaTransactionUnsigned, lookups: List<CompiledAddressLookupTable>? = null) {
-    fun lengthSize(count: Int): Long {
-        require(count in 0..65535) { "Shortvec length out of range" }
-        return if (count < 128) 1L else if (count < 16384) 2L else 3L
+/** Header, accounts, blockhash and instructions, shared by the legacy and v0 message layouts. */
+internal class DecodedMessageBody(
+    val header: MessageHeader,
+    val accounts: List<SolanaAddress>,
+    val recentBlockhash: SolanaBlockhash,
+    val instructions: List<CompiledInstruction>,
+)
+
+/** The required-signature count has already been consumed, as legacy encodes it in place of a version byte. */
+internal fun SolanaMessageDecoder.readMessageBody(requiredSignatures: Int): DecodedMessageBody {
+    val header = MessageHeader(requiredSignatures, readByte(), readByte())
+    val count = readShortVecLength()
+    require(count in 1..256) { "Invalid static account count" }
+    val accounts = List(count) { SolanaAddress(readBytes(32)) }
+    val blockhash = SolanaBlockhash(readBytes(32))
+    val instructions = List(readShortVecLength()) {
+        val program = readByte()
+        val indices = List(readShortVecLength()) { readByte() }
+        CompiledInstruction(program, indices, readBytes(readShortVecLength()))
     }
-    val accounts = tx.accounts
-    val instructions = tx.instructions
-    var size = lengthSize(tx.header.requiredSignatures) + 64L * tx.header.requiredSignatures +
-        3L + lengthSize(accounts.size) + 32L * accounts.size + 32L + lengthSize(instructions.size)
-    size += instructions.sumOf { 1L + lengthSize(it.accounts.size) + it.accounts.size + lengthSize(it.data.size) + it.data.size }
-    if (lookups != null) {
-        size += 1L + lengthSize(lookups.size)
-        size += lookups.sumOf { 32L + lengthSize(it.writableIndexes.size) + it.writableIndexes.size + lengthSize(it.readonlyIndexes.size) + it.readonlyIndexes.size }
-    }
-    require(size <= SolanaTxLegacy.MAX_TRANSACTION_SIZE) { "${tx.type} transaction exceeds ${SolanaTxLegacy.MAX_TRANSACTION_SIZE} bytes" }
+    return DecodedMessageBody(header, accounts, blockhash, instructions)
 }
 
-internal fun decodeMessage(bytes: ByteArray): SolanaTransactionUnsigned {
-    val decoder = SolanaMessageDecoder(bytes)
-    val prefix = decoder.readByte()
-    if (prefix == 129) {
-        val tx = decoder.readV1Message()
-        decoder.requireDone()
-        return tx
+/** Canonical shortvec length prefix width, rejecting counts the wire format cannot represent. */
+internal fun shortVecSize(count: Int): Long {
+    require(count in 0..65535) { "Shortvec length out of range" }
+    return if (count < 128) 1L else if (count < 16384) 2L else 3L
+}
+
+/** Legacy and v0 envelope size, including every required signature slot. */
+internal fun legacyEnvelopeSize(tx: SolanaTransactionUnsigned, lookups: List<CompiledAddressLookupTable>?): Long {
+    val accounts = tx.accounts
+    val instructions = tx.instructions
+    var size = shortVecSize(tx.header.requiredSignatures) + 64L * tx.header.requiredSignatures +
+        3L + shortVecSize(accounts.size) + 32L * accounts.size + 32L + shortVecSize(instructions.size)
+    size += instructions.sumOf { 1L + shortVecSize(it.accounts.size) + it.accounts.size + shortVecSize(it.data.size) + it.data.size }
+    if (lookups != null) {
+        size += 1L + shortVecSize(lookups.size)
+        size += lookups.sumOf { 32L + shortVecSize(it.writableIndexes.size) + it.writableIndexes.size + shortVecSize(it.readonlyIndexes.size) + it.readonlyIndexes.size }
     }
-    require(prefix <= 128) { "Unsupported transaction message version" }
-    val versioned = prefix == 128
-    val header = MessageHeader(if (versioned) decoder.readByte() else prefix, decoder.readByte(), decoder.readByte())
-    val count = decoder.readShortVecLength()
-    require(count in 1..256) { "Invalid static account count" }
-    val accounts = List(count) { SolanaAddress(decoder.readBytes(32)) }
-    val blockhash = SolanaBlockhash(decoder.readBytes(32))
-    val instructions = List(decoder.readShortVecLength()) {
-        val program = decoder.readByte()
-        val indices = List(decoder.readShortVecLength()) { decoder.readByte() }
-        CompiledInstruction(program, indices, decoder.readBytes(decoder.readShortVecLength()))
-    }
-    val tx = if (versioned) {
-        val lookups = List(decoder.readShortVecLength()) {
-            val key = SolanaAddress(decoder.readBytes(32))
-            val writable = List(decoder.readShortVecLength()) { decoder.readByte() }
-            val readonly = List(decoder.readShortVecLength()) { decoder.readByte() }
-            CompiledAddressLookupTable(key, writable, readonly)
-        }
-        SolanaTxV0(header, accounts, blockhash, instructions, lookups)
-    } else {
-        SolanaTxLegacy(header, accounts, blockhash, instructions)
-    }
-    decoder.requireDone()
-    return tx
+    return size
+}
+
+/** Legacy and v0 envelopes put the signature vector before the message. */
+internal fun encodeSignaturesFirstEnvelope(tx: SolanaTransactionUnsigned, signatures: List<SolanaSignature?>): ByteArray {
+    val encoder = SolanaMessageEncoder().writeShortVecLength(signatures.size)
+    signatures.forEach { encoder.writeBytes(it?.toByteArray() ?: ByteArray(64)) }
+    return encoder.writeBytes(tx.serializeMessage()).toByteArray()
 }
 
 internal fun validateSignatures(tx: SolanaTransactionUnsigned, signatures: List<SolanaSignature?>) {
@@ -91,15 +88,11 @@ internal fun validateSignatures(tx: SolanaTransactionUnsigned, signatures: List<
     }
 }
 
-internal fun encodeTransactionEnvelope(tx: SolanaTransactionUnsigned, signatures: List<SolanaSignature?>): ByteArray {
-    if (tx is SolanaTxV1) {
-        val encoder = SolanaMessageEncoder().writeBytes(tx.serializeMessage())
-        signatures.forEach { encoder.writeBytes(it?.toByteArray() ?: ByteArray(64)) }
-        return encoder.toByteArray()
-    }
-    val encoder = SolanaMessageEncoder().writeShortVecLength(signatures.size)
-    signatures.forEach { encoder.writeBytes(it?.toByteArray() ?: ByteArray(64)) }
-    return encoder.writeBytes(tx.serializeMessage()).toByteArray()
+internal fun decodeMessage(bytes: ByteArray): SolanaTransactionUnsigned {
+    val decoder = SolanaMessageDecoder(bytes)
+    val tx = decoder.readVersionedMessage()
+    decoder.requireDone()
+    return tx
 }
 
 internal fun decodeTransactionEnvelope(bytes: ByteArray): Pair<SolanaTransactionUnsigned, List<SolanaSignature?>> {
@@ -107,7 +100,7 @@ internal fun decodeTransactionEnvelope(bytes: ByteArray): Pair<SolanaTransaction
     if (bytes.firstOrNull() == 129.toByte()) {
         require(bytes.size <= SolanaTxV1.MAX_TRANSACTION_SIZE) { "V1 transaction exceeds ${SolanaTxV1.MAX_TRANSACTION_SIZE} bytes" }
         decoder.readByte()
-        val tx = decoder.readV1Message()
+        val tx = SolanaTxV1.decodeBody(decoder)
         val signatures = List(tx.header.requiredSignatures) { decoder.readSignatureSlot() }
         decoder.requireDone()
         return tx to signatures
@@ -115,37 +108,35 @@ internal fun decodeTransactionEnvelope(bytes: ByteArray): Pair<SolanaTransaction
     val count = decoder.readShortVecLength()
     require(count in 1..127) { "Invalid signature count" }
     val signatures = List(count) { decoder.readSignatureSlot() }
-    val tx = decodeMessage(decoder.readBytes(decoder.remaining))
-    require(tx !is SolanaTxV1) { "V1 signatures must follow the message" }
+    val tx = decoder.readSignaturesFirstMessage()
+    decoder.requireDone()
     require(tx.header.requiredSignatures == count) { "Signature count does not match message" }
     return tx to signatures
+}
+
+/** Dispatch on the version prefix, delegating the body to the type that owns that layout. */
+private fun SolanaMessageDecoder.readVersionedMessage(): SolanaTransactionUnsigned {
+    val prefix = readByte()
+    return when {
+        prefix == 129 -> SolanaTxV1.decodeBody(this)
+        prefix == 128 -> SolanaTxV0.decodeBody(this)
+        prefix <= 127 -> SolanaTxLegacy.decodeBody(this, prefix)
+        else -> throw IllegalArgumentException("Unsupported transaction message version")
+    }
+}
+
+/** As [readVersionedMessage], but rejects v1, whose signatures follow the message instead of preceding it. */
+private fun SolanaMessageDecoder.readSignaturesFirstMessage(): SolanaTransactionUnsigned {
+    val prefix = readByte()
+    return when {
+        prefix == 128 -> SolanaTxV0.decodeBody(this)
+        prefix <= 127 -> SolanaTxLegacy.decodeBody(this, prefix)
+        prefix == 129 -> throw IllegalArgumentException("V1 signatures must follow the message")
+        else -> throw IllegalArgumentException("Unsupported transaction message version")
+    }
 }
 
 private fun SolanaMessageDecoder.readSignatureSlot(): SolanaSignature? {
     val signature = readBytes(64)
     return if (signature.all { it == 0.toByte() }) null else SolanaSignature(signature)
-}
-
-/** The version byte has already been consumed. Leaves trailing signature bytes for the envelope reader. */
-private fun SolanaMessageDecoder.readV1Message(): SolanaTxV1 {
-    val header = MessageHeader(readByte(), readByte(), readByte())
-    val mask = readUnsignedLittleEndian(4).toLong()
-    require(mask and 31L == mask) { "Unsupported v1 config mask" }
-    require(mask and 3L == 0L || mask and 3L == 3L) { "Both priority-fee config bits must be set" }
-    val blockhash = SolanaBlockhash(readBytes(32))
-    val instructionCount = readByte()
-    val accountCount = readByte()
-    require(instructionCount <= 64 && accountCount in 1..64 && header.requiredSignatures in 1..12) { "Invalid v1 counts" }
-    val accounts = List(accountCount) { SolanaAddress(readBytes(32)) }
-    val config = SolanaTransactionConfig(
-        priorityFee = if (mask and 3L != 0L) readUnsignedLittleEndian(8) else null,
-        computeUnitLimit = if (mask and 4L != 0L) readUnsignedLittleEndian(4).toLong() else null,
-        loadedAccountsDataSizeLimit = if (mask and 8L != 0L) readUnsignedLittleEndian(4).toLong() else null,
-        heapSize = if (mask and 16L != 0L) readUnsignedLittleEndian(4).toLong() else null,
-    )
-    val headers = List(instructionCount) { Triple(readByte(), readByte(), readUnsignedLittleEndian(2).toInt()) }
-    val instructions = headers.map { (program, count, size) ->
-        CompiledInstruction(program, List(count) { readByte() }, readBytes(size))
-    }
-    return SolanaTxV1(header, accounts, blockhash, instructions, config)
 }

@@ -22,7 +22,7 @@ class SolanaTransactionSigned(val tx: SolanaTransactionUnsigned, val signatures:
     /** Changing the blockhash discards every signature, returning an unsigned transaction. */
     fun withNewBlockhash(blockhash: SolanaBlockhash): SolanaTransactionUnsigned = tx.withNewBlockhash(blockhash)
 
-    fun serialize(): ByteArray = encodeTransactionEnvelope(tx, signatures)
+    fun serialize(): ByteArray = tx.serializeEnvelope(signatures)
     fun toBase64(): String = Base64.encode(serialize())
     override fun serializeForSimulation(): ByteArray = serialize()
 
@@ -69,7 +69,7 @@ class SolanaTransactionSigned(val tx: SolanaTransactionUnsigned, val signatures:
         fun build(): SolanaTransactionSigned = SolanaTransactionSigned(tx, signatures.map { requireNotNull(it) { "Missing required signatures" } })
 
         /** Full envelope with zeros for missing signatures, for offline exchange or simulation only. */
-        fun serializePartial(): ByteArray = encodeTransactionEnvelope(tx, signatures)
+        fun serializePartial(): ByteArray = tx.serializeEnvelope(signatures)
         fun toBase64Partial(): String = Base64.encode(serializePartial())
 
         companion object {
