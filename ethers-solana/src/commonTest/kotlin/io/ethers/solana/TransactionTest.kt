@@ -150,7 +150,7 @@ class TransactionTest : FunSpec({
             )
         }
         val instruction = BaseInstruction(Programs.SYSTEM, accounts.map(AccountMeta::writable), byteArrayOf())
-        val message = SolanaTxV0.compile(alice.publicKey, blockhash, instruction)
+        val message = SolanaTxV0.compile(alice.publicKey, blockhash, instruction, listOf(AddressLookupTableAccount(Programs.TOKEN, accounts)))
         message.instructions.single().accounts.any { it >= 128 } shouldBe true
         SolanaTransactionUnsigned.deserializeMessage(message.serializeMessage()).serializeMessage() shouldBe message.serializeMessage()
         shouldThrow<IllegalArgumentException> { SolanaTransactionUnsigned.deserializeMessage(message.serializeMessage().also { it[0] = 129.toByte() }) }

@@ -27,7 +27,6 @@ import io.ethers.solana.types.TransactionSignature
 import io.ethers.solana.types.TransactionSimulation
 import io.ethers.solana.types.transaction.SolanaTransaction
 import io.ethers.solana.types.transaction.SolanaTransactionSigned
-import io.ethers.solana.types.transaction.SolanaTxV1
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
 import kotlinx.serialization.json.JsonElement
@@ -108,9 +107,7 @@ interface SolanaApi {
     fun sendTransaction(transaction: ByteArray): RpcRequest<SolanaSignature, RpcError> = sendTransaction(transaction, defaultCommitment)
     fun sendTransaction(transaction: ByteArray, preflightCommitment: Commitment = this.defaultCommitment): RpcRequest<SolanaSignature, RpcError> {
         // Validate raw inputs too: partial signing is an explicit offline/simulation operation.
-        val decoded = SolanaTransactionSigned.deserialize(transaction)
-        val maxSize = if (decoded.tx is SolanaTxV1) SolanaTxV1.MAX_TRANSACTION_SIZE else 1232
-        require(transaction.size <= maxSize) { "Transaction exceeds $maxSize bytes for ${decoded.type}" }
+        SolanaTransactionSigned.deserialize(transaction)
         return rpc(
             "sendTransaction",
             Base64.encode(transaction),

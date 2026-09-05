@@ -25,6 +25,7 @@ class SolanaTxV0 @JvmOverloads constructor(
 
     init {
         validateMessage(header, staticAccounts, compiledInstructions, lookups)
+        validateLegacyEnvelopeSize(this, lookups)
     }
 
     override fun withNewBlockhash(blockhash: SolanaBlockhash): SolanaTxV0 = SolanaTxV0(header, staticAccounts, blockhash, compiledInstructions, lookups)
@@ -43,6 +44,8 @@ class SolanaTxV0 @JvmOverloads constructor(
     }
 
     companion object {
+        const val MAX_TRANSACTION_SIZE: Int = SolanaTxLegacy.MAX_TRANSACTION_SIZE
+
         @JvmStatic
         @JvmOverloads
         fun compile(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instruction: Instruction, lookupTables: List<AddressLookupTableAccount> = emptyList()): SolanaTxV0 = compile(feePayer, blockhash, listOf(instruction), lookupTables)

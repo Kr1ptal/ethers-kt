@@ -21,6 +21,7 @@ class SolanaTxLegacy(
 
     init {
         validateMessage(header, staticAccounts, compiledInstructions, emptyList())
+        validateLegacyEnvelopeSize(this)
     }
 
     override fun withNewBlockhash(blockhash: SolanaBlockhash): SolanaTxLegacy = SolanaTxLegacy(header, staticAccounts, blockhash, compiledInstructions)
@@ -28,6 +29,8 @@ class SolanaTxLegacy(
     override fun serializeMessage(): ByteArray = SolanaMessageEncoder().also { it.writeMessageBody(this) }.toByteArray()
 
     companion object {
+        const val MAX_TRANSACTION_SIZE: Int = 1232
+
         @JvmStatic
         fun compile(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instruction: Instruction): SolanaTxLegacy = compile(feePayer, blockhash, listOf(instruction))
 

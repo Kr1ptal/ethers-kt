@@ -56,9 +56,8 @@ class TransactionBoundaryTest : FunSpec({
         for (bytes in invalid) shouldThrow<IllegalArgumentException> { SolanaMessageDecoder(bytes).readShortVecLength() }
     }
 
-    test("legacy and v0 data lengths cross every compact-u16 boundary") {
-        // Wire-format limits, not a claim that oversized messages can be submitted to a validator.
-        for (size in listOf(0, 1, 127, 128, 129, 16383, 16384, 16385, 65535)) {
+    test("legacy and v0 data lengths cross the packet-reachable compact-u16 boundary") {
+        for (size in listOf(0, 1, 127, 128, 129)) {
             val instructions = listOf(CompiledInstruction(1, listOf(0), ByteArray(size) { it.toByte() }))
             for (tx in listOf(SolanaTxLegacy(header, keys, hash, instructions), SolanaTxV0(header, keys, hash, instructions, emptyList()))) {
                 val decoded = SolanaTransactionUnsigned.deserializeMessage(tx.serializeMessage())
@@ -66,8 +65,44 @@ class TransactionBoundaryTest : FunSpec({
                 decoded.serializeMessage() shouldBe tx.serializeMessage()
             }
         }
-        for (tx in listOf(SolanaTxLegacy(header, keys, hash, listOf(CompiledInstruction(1, emptyList(), ByteArray(65536)))), SolanaTxV0(header, keys, hash, listOf(CompiledInstruction(1, emptyList(), ByteArray(65536))), emptyList()))) {
-            shouldThrow<IllegalArgumentException> { tx.serializeMessage() }
+        for (size in listOf(16383, 16384, 16385, 65535, 65536)) {
+            val instructions = listOf(CompiledInstruction(1, emptyList(), ByteArray(size)))
+            shouldThrow<IllegalArgumentException> { SolanaTxLegacy(header, keys, hash, instructions) }
+            shouldThrow<IllegalArgumentException> { SolanaTxV0(header, keys, hash, instructions, emptyList()) }
+        }
+    }
+
+    test("construction and decoding reserve signature bytes at the legacy and v0 packet boundary") {
+        for (versioned in listOf(false, true)) {
+            for (signerCount in listOf(1, 2, 12)) {
+                val signers = List(signerCount) { KeypairSigner.fromSeed(ByteArray(32) { _ -> (it + 20).toByte() }) }
+                val accounts = signers.map { it.publicKey } + Programs.SYSTEM
+                val messageHeader = MessageHeader(signerCount, 0, 1)
+                fun construct(dataSize: Int): SolanaTransactionUnsigned {
+                    val instructions = listOf(CompiledInstruction(signerCount, emptyList(), ByteArray(dataSize)))
+                    return if (versioned) SolanaTxV0(messageHeader, accounts, hash, instructions) else SolanaTxLegacy(messageHeader, accounts, hash, instructions)
+                }
+                // Length-prefix width may increase when filling the remaining space.
+                val baseline = construct(0).serializeForSimulation().size
+                val available = 1232 - baseline
+                val dataSize = available - if (available >= 128) 1 else 0
+                val tx = construct(dataSize)
+                tx.serializeForSimulation().size shouldBe 1232
+                tx.signingBuilder().serializePartial().size shouldBe 1232
+                tx.sign(*signers.toTypedArray()).serialize().size shouldBe 1232
+                shouldThrow<IllegalArgumentException> { construct(dataSize + 1) }
+                // An otherwise well-formed unsigned message whose eventual envelope needs 1233 bytes.
+                val encoder = SolanaMessageEncoder()
+                if (versioned) encoder.writeByte(128)
+                encoder.writeByte(signerCount).writeByte(0).writeByte(1).writeShortVecLength(accounts.size)
+                accounts.forEach { encoder.writeBytes(it.toByteArray()) }
+                encoder.writeBytes(hash.toByteArray()).writeShortVecLength(1).writeByte(signerCount).writeShortVecLength(0)
+                    .writeShortVecLength(dataSize + 1).writeBytes(ByteArray(dataSize + 1))
+                if (versioned) encoder.writeShortVecLength(0)
+                shouldThrow<IllegalArgumentException> { SolanaTransactionUnsigned.deserializeMessage(encoder.toByteArray()) }
+                val envelope = SolanaMessageEncoder().writeShortVecLength(signerCount).writeBytes(ByteArray(signerCount * 64)).writeBytes(encoder.toByteArray()).toByteArray()
+                shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.Builder.deserializePartial(envelope) }
+            }
         }
     }
 

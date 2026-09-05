@@ -29,6 +29,24 @@ internal fun SolanaMessageEncoder.writeMessageBody(tx: SolanaTransactionUnsigned
     }
 }
 
+/** Include every required signature slot, even for unsigned or partially signed payloads. */
+internal fun validateLegacyEnvelopeSize(tx: SolanaTransactionUnsigned, lookups: List<CompiledAddressLookupTable>? = null) {
+    fun lengthSize(count: Int): Long {
+        require(count in 0..65535) { "Shortvec length out of range" }
+        return if (count < 128) 1L else if (count < 16384) 2L else 3L
+    }
+    val accounts = tx.accounts
+    val instructions = tx.instructions
+    var size = lengthSize(tx.header.requiredSignatures) + 64L * tx.header.requiredSignatures +
+        3L + lengthSize(accounts.size) + 32L * accounts.size + 32L + lengthSize(instructions.size)
+    size += instructions.sumOf { 1L + lengthSize(it.accounts.size) + it.accounts.size + lengthSize(it.data.size) + it.data.size }
+    if (lookups != null) {
+        size += 1L + lengthSize(lookups.size)
+        size += lookups.sumOf { 32L + lengthSize(it.writableIndexes.size) + it.writableIndexes.size + lengthSize(it.readonlyIndexes.size) + it.readonlyIndexes.size }
+    }
+    require(size <= SolanaTxLegacy.MAX_TRANSACTION_SIZE) { "${tx.type} transaction exceeds ${SolanaTxLegacy.MAX_TRANSACTION_SIZE} bytes" }
+}
+
 internal fun decodeMessage(bytes: ByteArray): SolanaTransactionUnsigned {
     val decoder = SolanaMessageDecoder(bytes)
     val prefix = decoder.readByte()

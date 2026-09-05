@@ -268,7 +268,7 @@ class SolanaProviderTest : FunSpec({
         requests.size shouldBe sent
     }
 
-    test("submission enforces version-specific envelope size limits for typed and raw transactions") {
+    test("submission accepts maximum-size valid transactions and rejects oversized raw envelopes") {
         val signer = KeypairSigner.fromSeed(ByteArray(32) { 1 })
         fun instruction(size: Int) = BaseInstruction(Programs.SYSTEM, emptyList(), ByteArray(size))
         for (size in listOf(1232, 1233, 4096)) {
@@ -282,19 +282,21 @@ class SolanaProviderTest : FunSpec({
         for (version in listOf("legacy", "v0")) {
             for (size in listOf(1232, 1233)) {
                 val dataSize = size - if (version == "legacy") 170 else 172
+                if (size > 1232) {
+                    shouldThrow<IllegalArgumentException> {
+                        if (version == "legacy") SolanaTxLegacy.compile(signer.publicKey, blockhash, instruction(dataSize)) else SolanaTxV0.compile(signer.publicKey, blockhash, instruction(dataSize))
+                    }
+                    continue
+                }
                 val tx = if (version == "legacy") SolanaTxLegacy.compile(signer.publicKey, blockhash, instruction(dataSize)) else SolanaTxV0.compile(signer.publicKey, blockhash, instruction(dataSize))
                 val signed = tx.sign(signer)
                 signed.serialize().size shouldBe size
                 response = "\"${signed.id}\""
-                if (size == 1232) {
-                    provider.sendTransaction(signed).send().unwrap() shouldBe signed.id
-                    provider.sendTransaction(signed.serialize()).send().unwrap() shouldBe signed.id
-                } else {
-                    val before = requests.size
-                    shouldThrow<IllegalArgumentException> { provider.sendTransaction(signed) }
-                    shouldThrow<IllegalArgumentException> { provider.sendTransaction(signed.serialize()) }
-                    requests.size shouldBe before
-                }
+                provider.sendTransaction(signed).send().unwrap() shouldBe signed.id
+                provider.sendTransaction(signed.serialize()).send().unwrap() shouldBe signed.id
+                val before = requests.size
+                shouldThrow<IllegalArgumentException> { provider.sendTransaction(signed.serialize() + byteArrayOf(0)) }
+                requests.size shouldBe before
             }
         }
         val maximum = SolanaTxV1.compile(signer.publicKey, blockhash, instruction(4096 - 174), SolanaTransactionConfig()).sign(signer)
