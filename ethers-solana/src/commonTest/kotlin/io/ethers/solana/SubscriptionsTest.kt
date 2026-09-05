@@ -15,8 +15,8 @@ import io.ethers.solana.providers.LogsFilter
 import io.ethers.solana.providers.SolanaProvider
 import io.ethers.solana.providers.SolanaSubscriptionDescriptor
 import io.ethers.solana.types.Programs
-import io.ethers.solana.types.Signature
 import io.ethers.solana.types.SignatureNotification
+import io.ethers.solana.types.SolanaSignature
 import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
@@ -26,7 +26,7 @@ import kotlinx.serialization.json.JsonPrimitive
 
 class SubscriptionsTest : FunSpec({
     val key = Programs.SYSTEM
-    val signature = Signature(ByteArray(64))
+    val signature = SolanaSignature(ByteArray(64))
     val account = """{"data":["AQID","base64"],"executable":false,"lamports":123,"owner":"$key","rentEpoch":42}"""
     fun contextual(value: String) = """{"context":{"slot":42},"value":$value}"""
     val client = SubscriptionClient()

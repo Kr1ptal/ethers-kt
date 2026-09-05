@@ -11,14 +11,14 @@ import kotlinx.serialization.json.JsonElement
 
 /** Compiled message in the provider's requested json encoding. */
 @KeepGeneratedSerializer
-@Serializable(with = RPCMessageSerializer::class)
-data class RPCMessage(
+@Serializable(with = SolanaRPCMessageSerializer::class)
+data class SolanaRPCMessage(
     val header: MessageHeader,
     val accountKeys: List<SolanaAddress>,
-    val recentBlockhash: Blockhash,
-    val instructions: List<RPCInstruction>,
+    val recentBlockhash: SolanaBlockhash,
+    val instructions: List<SolanaRPCInstruction>,
     val addressTableLookups: List<CompiledAddressLookupTable> = emptyList(),
     @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
 )
 
-object RPCMessageSerializer : ExtensibleJsonSerializer<RPCMessage>(RPCMessage.generatedSerializer(), { it.otherFields })
+object SolanaRPCMessageSerializer : ExtensibleJsonSerializer<SolanaRPCMessage>(SolanaRPCMessage.generatedSerializer(), { it.otherFields })

@@ -14,5 +14,5 @@ abstract class Base58Serializer<T>(name: String, private val decode: (String) ->
 }
 
 object SolanaAddressSerializer : Base58Serializer<SolanaAddress>("io.ethers.solana.SolanaAddress", ::SolanaAddress)
-object SignatureSerializer : Base58Serializer<Signature>("io.ethers.solana.Signature", ::Signature)
-object BlockhashSerializer : Base58Serializer<Blockhash>("io.ethers.solana.Blockhash", ::Blockhash)
+object SolanaSignatureSerializer : Base58Serializer<SolanaSignature>("io.ethers.solana.SolanaSignature", ::SolanaSignature)
+object SolanaBlockhashSerializer : Base58Serializer<SolanaBlockhash>("io.ethers.solana.SolanaBlockhash", ::SolanaBlockhash)

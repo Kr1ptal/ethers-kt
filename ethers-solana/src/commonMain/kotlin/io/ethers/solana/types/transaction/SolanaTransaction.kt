@@ -1,9 +1,9 @@
 package io.ethers.solana.types.transaction
 
 import io.ethers.solana.serialization.SolanaMessageDecoder
-import io.ethers.solana.types.Blockhash
 import io.ethers.solana.types.Programs
 import io.ethers.solana.types.SolanaAddress
+import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.utils.requireU64
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
@@ -15,7 +15,7 @@ sealed interface SolanaTransaction {
     val type: SolanaTxType
     val header: MessageHeader
     val accounts: List<SolanaAddress>
-    val recentBlockhash: Blockhash
+    val recentBlockhash: SolanaBlockhash
     val instructions: List<CompiledInstruction>
     val feePayer: SolanaAddress get() = accounts.first()
     val signers: List<SolanaAddress> get() = accounts.take(header.requiredSignatures)
@@ -27,7 +27,7 @@ sealed interface SolanaTransaction {
     fun serializeForSimulation(): ByteArray
 
     /** Changing the blockhash discards every signature, returning an unsigned transaction. */
-    fun withNewBlockhash(blockhash: Blockhash): SolanaTransactionUnsigned
+    fun withNewBlockhash(blockhash: SolanaBlockhash): SolanaTransactionUnsigned
 
     /** Replace the signed payload, discarding every signature. */
     fun withMessage(tx: SolanaTransactionUnsigned): SolanaTransactionUnsigned = tx

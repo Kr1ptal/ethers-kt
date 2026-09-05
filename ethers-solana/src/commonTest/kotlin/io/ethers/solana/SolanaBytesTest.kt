@@ -4,9 +4,9 @@ import io.ethers.core.Kotlinx
 import io.ethers.solana.types.Base58BytesSerializer
 import io.ethers.solana.types.Base64TupleBytesSerializer
 import io.ethers.solana.types.Programs
-import io.ethers.solana.types.RPCInstruction
 import io.ethers.solana.types.ReturnData
 import io.ethers.solana.types.SolanaBytes
+import io.ethers.solana.types.SolanaRPCInstruction
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -153,11 +153,11 @@ class SolanaBytesTest : FunSpec({
         json.decodeFromJsonElement(Base58BytesSerializer, base58) shouldBe bytes
         json.encodeToJsonElement(Base64TupleBytesSerializer, bytes) shouldBe base64
         json.decodeFromJsonElement(Base64TupleBytesSerializer, base64) shouldBe bytes
-        val instruction = RPCInstruction(0, emptyList(), bytes)
+        val instruction = SolanaRPCInstruction(0, emptyList(), bytes)
         val returned = ReturnData(Programs.SYSTEM, bytes)
         json.encodeToJsonElement(instruction).jsonObject["data"] shouldBe base58
         json.encodeToJsonElement(returned).jsonObject["data"] shouldBe base64
-        json.decodeFromString<RPCInstruction>(json.encodeToString(instruction)) shouldBe instruction
+        json.decodeFromString<SolanaRPCInstruction>(json.encodeToString(instruction)) shouldBe instruction
         json.decodeFromString<ReturnData>(json.encodeToString(returned)) shouldBe returned
         json.decodeFromString<ReturnData>(json.encodeToString(returned.copy(data = SolanaBytes.EMPTY))).data shouldBe SolanaBytes.EMPTY
         val copied = instruction.data.toByteArray()

@@ -3,10 +3,10 @@ package io.ethers.solana
 import io.ethers.core.FastHex
 import io.ethers.core.Kotlinx
 import io.ethers.solana.signers.KeypairSigner
-import io.ethers.solana.types.Blockhash
 import io.ethers.solana.types.Programs
-import io.ethers.solana.types.Signature
 import io.ethers.solana.types.SolanaAddress
+import io.ethers.solana.types.SolanaBlockhash
+import io.ethers.solana.types.SolanaSignature
 import io.ethers.solana.types.U64Serializer
 import io.ethers.solana.utils.SolUnit
 import io.github.artificialpb.bignum.BigInteger
@@ -28,7 +28,7 @@ class PrimitivesTest : FunSpec({
         val order = BigInteger("1000000000000000000000000000000014def9dea2f79cd65812631a5cf5d3ed", 16)
         val scalar = BigInteger(1, malleable.copyOfRange(32, 64).reversedArray()).add(order).toByteArray().reversedArray()
         scalar.copyInto(malleable, 32)
-        signer.publicKey.verify(Signature(malleable), byteArrayOf()) shouldBe false
+        signer.publicKey.verify(SolanaSignature(malleable), byteArrayOf()) shouldBe false
         KeypairSigner.fromSecretKey(signer.toSecretKey()).publicKey shouldBe signer.publicKey
         seed.fill(0)
         signer.signMessage(byteArrayOf()) shouldBe signature
@@ -48,8 +48,8 @@ class PrimitivesTest : FunSpec({
         key shouldBe Programs.SYSTEM
         SolanaAddress(key.toString()) shouldBe key
         shouldThrow<IllegalArgumentException> { SolanaAddress(ByteArray(31)) }
-        shouldThrow<IllegalArgumentException> { Signature(ByteArray(32)) }
-        shouldThrow<IllegalArgumentException> { Blockhash(ByteArray(64)) }
+        shouldThrow<IllegalArgumentException> { SolanaSignature(ByteArray(32)) }
+        shouldThrow<IllegalArgumentException> { SolanaBlockhash(ByteArray(64)) }
         shouldThrow<IllegalArgumentException> { SolanaAddress("0") }
     }
 

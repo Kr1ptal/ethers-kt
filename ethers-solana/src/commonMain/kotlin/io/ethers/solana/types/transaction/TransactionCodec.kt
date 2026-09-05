@@ -2,9 +2,9 @@ package io.ethers.solana.types.transaction
 
 import io.ethers.solana.serialization.SolanaMessageDecoder
 import io.ethers.solana.serialization.SolanaMessageEncoder
-import io.ethers.solana.types.Blockhash
-import io.ethers.solana.types.Signature
 import io.ethers.solana.types.SolanaAddress
+import io.ethers.solana.types.SolanaBlockhash
+import io.ethers.solana.types.SolanaSignature
 
 internal fun validateMessage(header: MessageHeader, accounts: List<SolanaAddress>, instructions: List<CompiledInstruction>, lookups: List<CompiledAddressLookupTable>) {
     require(accounts.size in 1..256 && accounts.distinct().size == accounts.size) { "Invalid static accounts" }
@@ -38,7 +38,7 @@ internal fun decodeMessage(bytes: ByteArray): SolanaTransactionUnsigned {
     val count = decoder.readShortVecLength()
     require(count in 1..256) { "Invalid static account count" }
     val accounts = List(count) { SolanaAddress(decoder.readBytes(32)) }
-    val blockhash = Blockhash(decoder.readBytes(32))
+    val blockhash = SolanaBlockhash(decoder.readBytes(32))
     val instructions = List(decoder.readShortVecLength()) {
         val program = decoder.readByte()
         val indices = List(decoder.readShortVecLength()) { decoder.readByte() }
@@ -59,7 +59,7 @@ internal fun decodeMessage(bytes: ByteArray): SolanaTransactionUnsigned {
     return tx
 }
 
-internal fun validateSignatures(tx: SolanaTransactionUnsigned, signatures: List<Signature?>) {
+internal fun validateSignatures(tx: SolanaTransactionUnsigned, signatures: List<SolanaSignature?>) {
     require(signatures.size == tx.header.requiredSignatures) { "Signature count does not match message" }
     val message = tx.serializeMessage()
     val signers = tx.signers
@@ -68,19 +68,19 @@ internal fun validateSignatures(tx: SolanaTransactionUnsigned, signatures: List<
     }
 }
 
-internal fun encodeTransactionEnvelope(tx: SolanaTransactionUnsigned, signatures: List<Signature?>): ByteArray {
+internal fun encodeTransactionEnvelope(tx: SolanaTransactionUnsigned, signatures: List<SolanaSignature?>): ByteArray {
     val encoder = SolanaMessageEncoder().writeShortVecLength(signatures.size)
     signatures.forEach { encoder.writeBytes(it?.toByteArray() ?: ByteArray(64)) }
     return encoder.writeBytes(tx.serializeMessage()).toByteArray()
 }
 
-internal fun decodeTransactionEnvelope(bytes: ByteArray): Pair<SolanaTransactionUnsigned, List<Signature?>> {
+internal fun decodeTransactionEnvelope(bytes: ByteArray): Pair<SolanaTransactionUnsigned, List<SolanaSignature?>> {
     val decoder = SolanaMessageDecoder(bytes)
     val count = decoder.readShortVecLength()
     require(count in 1..127) { "Invalid signature count" }
     val signatures = List(count) {
         val signature = decoder.readBytes(64)
-        if (signature.all { it == 0.toByte() }) null else Signature(signature)
+        if (signature.all { it == 0.toByte() }) null else SolanaSignature(signature)
     }
     val tx = decodeMessage(decoder.readBytes(decoder.remaining))
     require(tx.header.requiredSignatures == count) { "Signature count does not match message" }

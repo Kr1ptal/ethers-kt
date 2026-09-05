@@ -12,14 +12,14 @@ import kotlinx.serialization.json.JsonElement
 
 /** A getTransaction response in json encoding; not a signable transaction. */
 @KeepGeneratedSerializer
-@Serializable(with = RPCTransactionSerializer::class)
-data class RPCTransaction(
+@Serializable(with = SolanaRPCTransactionSerializer::class)
+data class SolanaRPCTransaction(
     val slot: BigInteger,
     val blockTime: Long?,
-    val transaction: RPCTransactionData,
-    val meta: RPCTransactionMeta?,
+    val transaction: SolanaRPCTransactionData,
+    val meta: SolanaRPCTransactionMeta?,
     @SerialName("version") val type: SolanaTxType = SolanaTxType.Legacy,
     @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
 )
 
-object RPCTransactionSerializer : ExtensibleJsonSerializer<RPCTransaction>(RPCTransaction.generatedSerializer(), { it.otherFields })
+object SolanaRPCTransactionSerializer : ExtensibleJsonSerializer<SolanaRPCTransaction>(SolanaRPCTransaction.generatedSerializer(), { it.otherFields })

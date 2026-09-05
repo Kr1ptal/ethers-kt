@@ -9,8 +9,8 @@ import kotlinx.serialization.json.JsonElement
 
 /** Compiled instruction with optional RPC execution details. */
 @KeepGeneratedSerializer
-@Serializable(with = RPCInstructionSerializer::class)
-data class RPCInstruction(
+@Serializable(with = SolanaRPCInstructionSerializer::class)
+data class SolanaRPCInstruction(
     @Serializable(with = U8Serializer::class) val programIdIndex: Int,
     @Serializable(with = U8ListSerializer::class) val accounts: List<Int>,
     @Serializable(with = Base58BytesSerializer::class) val data: SolanaBytes,
@@ -18,4 +18,4 @@ data class RPCInstruction(
     @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
 )
 
-object RPCInstructionSerializer : ExtensibleJsonSerializer<RPCInstruction>(RPCInstruction.generatedSerializer(), { it.otherFields })
+object SolanaRPCInstructionSerializer : ExtensibleJsonSerializer<SolanaRPCInstruction>(SolanaRPCInstruction.generatedSerializer(), { it.otherFields })

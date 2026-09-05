@@ -18,7 +18,7 @@ class SolanaAddress(bytes: ByteArray) {
     fun toByteArray(): ByteArray = value.copyOf()
     fun toBase58(): String = Base58.encode(value)
     fun isOnCurve(): Boolean = isEd25519Point(value)
-    fun verify(signature: Signature, message: ByteArray): Boolean {
+    fun verify(signature: SolanaSignature, message: ByteArray): Boolean {
         val bytes = signature.toByteArray()
         // TweetNaCl's verifier accepts some non-canonical scalars that OpenSSL rejects. Enforce the
         // RFC8032 S < L condition before dispatching, so both platforms reject malleable signatures.

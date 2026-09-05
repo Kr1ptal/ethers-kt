@@ -2,13 +2,13 @@ package io.ethers.solana.types.transaction
 
 import io.ethers.solana.instruction.BaseInstruction
 import io.ethers.solana.instruction.Instruction
-import io.ethers.solana.types.Blockhash
 import io.ethers.solana.types.SolanaAddress
+import io.ethers.solana.types.SolanaBlockhash
 
 internal class CompiledMessageFields(
     val header: MessageHeader,
     val accounts: List<SolanaAddress>,
-    val recentBlockhash: Blockhash,
+    val recentBlockhash: SolanaBlockhash,
     val instructions: List<CompiledInstruction>,
     val lookups: List<CompiledAddressLookupTable>,
 )
@@ -16,7 +16,7 @@ internal class CompiledMessageFields(
 /** Preserves sol4k's deterministic signed-byte ordering within each account privilege group. */
 internal fun compileMessage(
     feePayer: SolanaAddress,
-    blockhash: Blockhash,
+    blockhash: SolanaBlockhash,
     instructions: List<Instruction>,
     lookupTables: List<AddressLookupTableAccount>,
 ): CompiledMessageFields {

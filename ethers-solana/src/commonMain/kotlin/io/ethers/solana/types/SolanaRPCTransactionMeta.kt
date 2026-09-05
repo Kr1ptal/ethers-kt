@@ -10,8 +10,8 @@ import kotlinx.serialization.json.JsonElement
 
 /** Missing optional recording data remains null; required fee and balance fields never default. */
 @KeepGeneratedSerializer
-@Serializable(with = RPCTransactionMetaSerializer::class)
-data class RPCTransactionMeta(
+@Serializable(with = SolanaRPCTransactionMetaSerializer::class)
+data class SolanaRPCTransactionMeta(
     val err: TransactionError?,
     val fee: BigInteger,
     val preBalances: List<BigInteger>,
@@ -30,4 +30,4 @@ data class RPCTransactionMeta(
     val isSuccess: Boolean get() = err == null
 }
 
-object RPCTransactionMetaSerializer : ExtensibleJsonSerializer<RPCTransactionMeta>(RPCTransactionMeta.generatedSerializer(), { it.otherFields })
+object SolanaRPCTransactionMetaSerializer : ExtensibleJsonSerializer<SolanaRPCTransactionMeta>(SolanaRPCTransactionMeta.generatedSerializer(), { it.otherFields })

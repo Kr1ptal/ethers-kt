@@ -1,14 +1,14 @@
 package io.ethers.solana.signers
 
 import io.ethers.crypto.Hashing
-import io.ethers.solana.types.Signature
 import io.ethers.solana.types.SolanaAddress
+import io.ethers.solana.types.SolanaSignature
 import kotlin.jvm.JvmStatic
 
 class KeypairSigner private constructor(seed: ByteArray) : SolanaSigner {
     private val seed = seed.copyOf()
     override val publicKey = SolanaAddress(Ed25519.publicKey(this.seed))
-    override fun signMessage(message: ByteArray): Signature = Signature(Ed25519.sign(seed, message))
+    override fun signMessage(message: ByteArray): SolanaSignature = SolanaSignature(Ed25519.sign(seed, message))
 
     /** Export the Solana 64-byte seed + public key format. The returned array is independent. */
     fun toSecretKey(): ByteArray = seed + publicKey.toByteArray()

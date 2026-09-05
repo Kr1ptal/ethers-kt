@@ -19,12 +19,12 @@ import io.ethers.solana.types.ContextValue
 import io.ethers.solana.types.LatestBlockhash
 import io.ethers.solana.types.LogsNotification
 import io.ethers.solana.types.ProgramNotification
-import io.ethers.solana.types.RPCTransaction
 import io.ethers.solana.types.RpcContext
-import io.ethers.solana.types.Signature
 import io.ethers.solana.types.SignatureNotification
 import io.ethers.solana.types.SlotNotification
 import io.ethers.solana.types.SolanaAddress
+import io.ethers.solana.types.SolanaRPCTransaction
+import io.ethers.solana.types.SolanaSignature
 import io.ethers.solana.types.transaction.SolanaTransactionSigned
 import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.json.JsonArray
@@ -49,9 +49,9 @@ class SolanaProvider @JvmOverloads constructor(
     fun getLatestBlockhash(): RpcRequest<ContextValue<LatestBlockhash>, RpcError> = getLatestBlockhash(commitment)
     fun getBalance(address: SolanaAddress): RpcRequest<BigInteger, RpcError> = getBalance(address, commitment)
     fun getAccountInfo(address: SolanaAddress): RpcRequest<ContextValue<AccountInfo?>, RpcError> = getAccountInfo(address, commitment)
-    fun sendTransaction(transaction: SolanaTransactionSigned): RpcRequest<Signature, RpcError> = sendTransaction(transaction, commitment)
-    fun getTransaction(signature: Signature): RpcRequest<RPCTransaction?, RpcError> = getTransaction(signature, commitment)
-    fun getTransaction(signature: Signature, maxSupportedTransactionVersion: Int): RpcRequest<RPCTransaction?, RpcError> = getTransaction(signature, commitment, maxSupportedTransactionVersion)
+    fun sendTransaction(transaction: SolanaTransactionSigned): RpcRequest<SolanaSignature, RpcError> = sendTransaction(transaction, commitment)
+    fun getTransaction(signature: SolanaSignature): RpcRequest<SolanaRPCTransaction?, RpcError> = getTransaction(signature, commitment)
+    fun getTransaction(signature: SolanaSignature, maxSupportedTransactionVersion: Int): RpcRequest<SolanaRPCTransaction?, RpcError> = getTransaction(signature, commitment, maxSupportedTransactionVersion)
 
     @JvmOverloads
     fun subscribeAccount(address: SolanaAddress, commitment: Commitment = this.commitment): RpcSubscribe<ContextValue<AccountInfo?>, RpcError> = subscribe("account", arrayOf(address.toString(), options(commitment, true))) { decodeContext(it, ::decodeAccount) }
@@ -76,7 +76,7 @@ class SolanaProvider @JvmOverloads constructor(
 
     /** The stream closes after its status event; received notifications are non-terminal. */
     @JvmOverloads
-    fun subscribeSignature(signature: Signature, commitment: Commitment = this.commitment, enableReceivedNotification: Boolean = false): RpcSubscribe<SignatureNotification, RpcError> {
+    fun subscribeSignature(signature: SolanaSignature, commitment: Commitment = this.commitment, enableReceivedNotification: Boolean = false): RpcSubscribe<SignatureNotification, RpcError> {
         val config = buildJsonObject {
             put("commitment", commitment.toString())
             put("enableReceivedNotification", enableReceivedNotification)

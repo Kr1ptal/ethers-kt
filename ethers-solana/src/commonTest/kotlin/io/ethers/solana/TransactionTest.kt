@@ -9,10 +9,10 @@ import io.ethers.solana.instruction.TransferInstruction
 import io.ethers.solana.signers.KeypairSigner
 import io.ethers.solana.signers.SolanaSigner
 import io.ethers.solana.types.AccountMeta
-import io.ethers.solana.types.Blockhash
 import io.ethers.solana.types.Programs
-import io.ethers.solana.types.Signature
 import io.ethers.solana.types.SolanaAddress
+import io.ethers.solana.types.SolanaBlockhash
+import io.ethers.solana.types.SolanaSignature
 import io.ethers.solana.types.transaction.AddressLookupTableAccount
 import io.ethers.solana.types.transaction.CompiledAddressLookupTable
 import io.ethers.solana.types.transaction.MessageHeader
@@ -31,13 +31,13 @@ import kotlin.io.encoding.Base64
 class TransactionTest : FunSpec({
     val alice = KeypairSigner.fromSeed(ByteArray(32) { 1 })
     val bob = KeypairSigner.fromSeed(ByteArray(32) { 2 })
-    val blockhash = Blockhash(ByteArray(32) { 3 })
+    val blockhash = SolanaBlockhash(ByteArray(32) { 3 })
 
     test("message bytes and signature agree with the independent Solana CLI") {
         // solana transfer SYSTEM 0.000000042 --sign-only --dump-transaction-message;
         // RFC8032 vector 1 key is both sender and fee payer, with a zero blockhash.
         val signer = KeypairSigner.fromSeed(FastHex.decode("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60"))
-        val message = SolanaTxLegacy.compile(signer.publicKey, Blockhash(ByteArray(32)), TransferInstruction(signer.publicKey, Programs.SYSTEM, 42L))
+        val message = SolanaTxLegacy.compile(signer.publicKey, SolanaBlockhash(ByteArray(32)), TransferInstruction(signer.publicKey, Programs.SYSTEM, 42L))
         Base64.encode(message.serializeMessage()) shouldBe "AQAAAtdamAGCsQq31Uv+08lkBzoO4XLz2qYjJa8CGmj3B1EaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEBAgABDAIAAAAqAAAAAAAAAA=="
         message.sign(signer).id.toString() shouldBe "634LhRk4qrhs1pFXm9mCE7it3Ha7hebHSrD1ySBpNoKHmkLMooaM6fgqNFZPa57TbLMCvCM7joA81XMpkqP5yueK"
     }
@@ -57,7 +57,7 @@ class TransactionTest : FunSpec({
             unsigned::class shouldBe message::class
             unsigned.serializeMessage() shouldBe message.serializeMessage()
             message.instructions.single().data shouldBe FastHex.decode("020000002a00000000000000")
-            val changed = transaction.withNewBlockhash(Blockhash(ByteArray(32)))
+            val changed = transaction.withNewBlockhash(SolanaBlockhash(ByteArray(32)))
             changed::class shouldBe message::class
             changed.signingBuilder().missingSigners shouldBe listOf(alice.publicKey)
             shouldThrow<IllegalArgumentException> { changed.signingBuilder().addSignature(alice.publicKey, transaction.id) }
@@ -89,7 +89,7 @@ class TransactionTest : FunSpec({
             externallySigned.isFullySigned shouldBe true
             val snapshot = externallySigned.build()
             snapshot.serialize() shouldBe completed.serialize()
-            completed.withMessage(original.withNewBlockhash(Blockhash(ByteArray(32)))).signingBuilder().missingSigners shouldBe original.signers
+            completed.withMessage(original.withNewBlockhash(SolanaBlockhash(ByteArray(32)))).signingBuilder().missingSigners shouldBe original.signers
             shouldThrow<IllegalArgumentException> { partial.addSignature(alice.publicKey, alice.signMessage(byteArrayOf())) }
             partial.build().serialize() shouldBe completed.serialize()
             partial.clearSignatures()
@@ -109,19 +109,19 @@ class TransactionTest : FunSpec({
         val builder = tx.signingBuilder()
         val invalidBob = object : SolanaSigner {
             override val publicKey = bob.publicKey
-            override fun signMessage(message: ByteArray): Signature = bob.signMessage(byteArrayOf())
+            override fun signMessage(message: ByteArray): SolanaSignature = bob.signMessage(byteArrayOf())
         }
         shouldThrow<IllegalArgumentException> { builder.sign(alice, invalidBob) }
         builder.signatures shouldBe listOf(null, null)
         val throwingBob = object : SolanaSigner {
             override val publicKey = bob.publicKey
-            override fun signMessage(message: ByteArray): Signature = throw IllegalStateException("Signer unavailable")
+            override fun signMessage(message: ByteArray): SolanaSignature = throw IllegalStateException("Signer unavailable")
         }
         shouldThrow<IllegalStateException> { builder.sign(alice, throwingBob) }
         builder.signatures shouldBe listOf(null, null)
         val mutatingAlice = object : SolanaSigner {
             override val publicKey = alice.publicKey
-            override fun signMessage(message: ByteArray): Signature = alice.signMessage(message).also { message.fill(0) }
+            override fun signMessage(message: ByteArray): SolanaSignature = alice.signMessage(message).also { message.fill(0) }
         }
         builder.sign(mutatingAlice, bob).build().serialize() shouldBe tx.sign(alice, bob).serialize()
     }
@@ -137,7 +137,7 @@ class TransactionTest : FunSpec({
         decoded.addressLookupTables.single().writableIndexes shouldBe listOf(0)
         val signed = message.sign(alice)
         SolanaTransactionSigned.deserialize(signed.serialize()).serialize() shouldBe signed.serialize()
-        signed.withNewBlockhash(Blockhash(ByteArray(32)))::class shouldBe SolanaTxV0::class
+        signed.withNewBlockhash(SolanaBlockhash(ByteArray(32)))::class shouldBe SolanaTxV0::class
     }
 
     test("unsigned indices above 127 and invalid versions") {
@@ -186,7 +186,7 @@ class TransactionTest : FunSpec({
         shouldThrow<IllegalArgumentException> { SolanaTransaction.deserialize(corrupt) }
         shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.deserialize(corrupt) }
         shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.Builder.deserializePartial(corrupt) }
-        shouldThrow<IllegalArgumentException> { SolanaTransactionSigned(tx, listOf(Signature(ByteArray(64)))) }
+        shouldThrow<IllegalArgumentException> { SolanaTransactionSigned(tx, listOf(SolanaSignature(ByteArray(64)))) }
         shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.deserialize(tx.serializeForSimulation()) }
         shouldThrow<IllegalArgumentException> { SolanaTransaction.deserialize(byteArrayOf(0) + tx.serializeMessage()) }
         shouldThrow<IllegalArgumentException> { SolanaTransaction.deserialize(byteArrayOf(2) + ByteArray(128) + tx.serializeMessage()) }

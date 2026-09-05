@@ -2,20 +2,20 @@ package io.ethers.solana
 
 import io.ethers.core.Kotlinx
 import io.ethers.crypto.Base58
-import io.ethers.solana.types.Blockhash
 import io.ethers.solana.types.InnerInstructions
 import io.ethers.solana.types.InstructionError
 import io.ethers.solana.types.LoadedAddresses
 import io.ethers.solana.types.Programs
-import io.ethers.solana.types.RPCInstruction
-import io.ethers.solana.types.RPCMessage
-import io.ethers.solana.types.RPCTransaction
-import io.ethers.solana.types.RPCTransactionData
-import io.ethers.solana.types.RPCTransactionMeta
 import io.ethers.solana.types.ReturnData
 import io.ethers.solana.types.Reward
 import io.ethers.solana.types.RewardType
-import io.ethers.solana.types.Signature
+import io.ethers.solana.types.SolanaBlockhash
+import io.ethers.solana.types.SolanaRPCInstruction
+import io.ethers.solana.types.SolanaRPCMessage
+import io.ethers.solana.types.SolanaRPCTransaction
+import io.ethers.solana.types.SolanaRPCTransactionData
+import io.ethers.solana.types.SolanaRPCTransactionMeta
+import io.ethers.solana.types.SolanaSignature
 import io.ethers.solana.types.TokenAmount
 import io.ethers.solana.types.TokenBalance
 import io.ethers.solana.types.transaction.CompiledAddressLookupTable
@@ -36,10 +36,10 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
-class RPCTransactionTest : FunSpec({
-    val signature = Signature(ByteArray(64)) // Decode format, but do not verify this invalid signature.
+class SolanaRPCTransactionTest : FunSpec({
+    val signature = SolanaSignature(ByteArray(64)) // Decode format, but do not verify this invalid signature.
     val address = Programs.SYSTEM
-    val blockhash = Blockhash(ByteArray(32) { 3 })
+    val blockhash = SolanaBlockhash(ByteArray(32) { 3 })
     val fixtures = (
         Kotlinx.DEFAULT.parseToJsonElement(liveRpcTransactions).jsonArray +
             Kotlinx.DEFAULT.parseToJsonElement(liveRpcVersionResponses).jsonArray
@@ -47,7 +47,7 @@ class RPCTransactionTest : FunSpec({
         it.jsonObject.getValue("id").jsonPrimitive.content to it.jsonObject.getValue("result").jsonObject
     }
     val legacy = fixtures.getValue("1")
-    fun decode(json: JsonElement): RPCTransaction = Kotlinx.DEFAULT.decodeFromJsonElement(json)
+    fun decode(json: JsonElement): SolanaRPCTransaction = Kotlinx.DEFAULT.decodeFromJsonElement(json)
     fun roundtrip(json: JsonElement) {
         val tx = decode(json)
         val encoded = Kotlinx.DEFAULT.encodeToJsonElement(tx)
@@ -122,9 +122,9 @@ class RPCTransactionTest : FunSpec({
             shouldThrow<IllegalArgumentException> { decode(JsonObject(legacy - key)) }
         }
         val payload = legacy.getValue("transaction").jsonObject
-        checkRequired(payload, listOf("signatures", "message")) { Kotlinx.DEFAULT.decodeFromJsonElement<RPCTransactionData>(it) }
+        checkRequired(payload, listOf("signatures", "message")) { Kotlinx.DEFAULT.decodeFromJsonElement<SolanaRPCTransactionData>(it) }
         val message = payload.getValue("message").jsonObject
-        checkRequired(message, listOf("header", "accountKeys", "recentBlockhash", "instructions"), { Kotlinx.DEFAULT.decodeFromJsonElement<RPCMessage>(it) })
+        checkRequired(message, listOf("header", "accountKeys", "recentBlockhash", "instructions"), { Kotlinx.DEFAULT.decodeFromJsonElement<SolanaRPCMessage>(it) })
         checkRequired(
             message.getValue("header").jsonObject,
             listOf("numRequiredSignatures", "numReadonlySignedAccounts", "numReadonlyUnsignedAccounts"),
@@ -133,11 +133,11 @@ class RPCTransactionTest : FunSpec({
         checkRequired(
             message.getValue("instructions").jsonArray.first().jsonObject,
             listOf("programIdIndex", "accounts", "data"),
-            { Kotlinx.DEFAULT.decodeFromJsonElement<RPCInstruction>(it) },
+            { Kotlinx.DEFAULT.decodeFromJsonElement<SolanaRPCInstruction>(it) },
         )
         val meta = legacy.getValue("meta").jsonObject
-        checkRequired(meta, listOf("fee", "preBalances", "postBalances"), { Kotlinx.DEFAULT.decodeFromJsonElement<RPCTransactionMeta>(it) })
-        shouldThrow<IllegalArgumentException> { Kotlinx.DEFAULT.decodeFromJsonElement<RPCTransactionMeta>(JsonObject(meta - "err")) }
+        checkRequired(meta, listOf("fee", "preBalances", "postBalances"), { Kotlinx.DEFAULT.decodeFromJsonElement<SolanaRPCTransactionMeta>(it) })
+        shouldThrow<IllegalArgumentException> { Kotlinx.DEFAULT.decodeFromJsonElement<SolanaRPCTransactionMeta>(JsonObject(meta - "err")) }
         checkRequired(meta.getValue("loadedAddresses").jsonObject, listOf("writable", "readonly"), { Kotlinx.DEFAULT.decodeFromJsonElement<LoadedAddresses>(it) })
         val token = meta.getValue("postTokenBalances").jsonArray.first().jsonObject
         checkRequired(token, listOf("accountIndex", "mint", "uiTokenAmount"), { Kotlinx.DEFAULT.decodeFromJsonElement<TokenBalance>(it) })
@@ -176,7 +176,7 @@ class RPCTransactionTest : FunSpec({
                         "status":{"Ok":null},"extra":13}
                 }""",
             )
-            val tx = Kotlinx.DEFAULT.decodeFromJsonElement<RPCTransaction>(json)
+            val tx = Kotlinx.DEFAULT.decodeFromJsonElement<SolanaRPCTransaction>(json)
             tx.transaction.signatures shouldBe listOf(signature)
             val message = tx.transaction.message
             message.header.requiredSignatures shouldBe 1
@@ -244,7 +244,7 @@ class RPCTransactionTest : FunSpec({
         decode(nullMeta).blockTime shouldBe null
         roundtrip(nullMeta)
         val minimal = Kotlinx.DEFAULT.parseToJsonElement("""{"err":null,"fee":0,"preBalances":[],"postBalances":[],"logMessages":null}""").jsonObject
-        val meta = Kotlinx.DEFAULT.decodeFromJsonElement<RPCTransactionMeta>(minimal)
+        val meta = Kotlinx.DEFAULT.decodeFromJsonElement<SolanaRPCTransactionMeta>(minimal)
         meta.isSuccess shouldBe true
         meta.fee shouldBe BigInteger("0")
         meta.preBalances shouldBe emptyList()
@@ -271,9 +271,9 @@ class RPCTransactionTest : FunSpec({
             shouldThrow<IllegalArgumentException> { decode(JsonObject(legacy + ("slot" to Kotlinx.DEFAULT.parseToJsonElement(slot)))) }
         }
         val payload = legacy.getValue("transaction").jsonObject
-        shouldThrow<IllegalArgumentException> { Kotlinx.DEFAULT.decodeFromJsonElement<RPCTransactionData>(JsonObject(payload + ("signatures" to Kotlinx.DEFAULT.parseToJsonElement("""["invalid"]""")))) }
-        shouldThrow<IllegalArgumentException> { Kotlinx.DEFAULT.decodeFromJsonElement<RPCInstruction>(Kotlinx.DEFAULT.parseToJsonElement("""{"programIdIndex":1,"accounts":[-1],"data":""}""")) }
-        shouldThrow<IllegalArgumentException> { Kotlinx.DEFAULT.decodeFromJsonElement<RPCInstruction>(Kotlinx.DEFAULT.parseToJsonElement("""{"programIdIndex":1,"accounts":[],"data":"0"}""")) }
+        shouldThrow<IllegalArgumentException> { Kotlinx.DEFAULT.decodeFromJsonElement<SolanaRPCTransactionData>(JsonObject(payload + ("signatures" to Kotlinx.DEFAULT.parseToJsonElement("""["invalid"]""")))) }
+        shouldThrow<IllegalArgumentException> { Kotlinx.DEFAULT.decodeFromJsonElement<SolanaRPCInstruction>(Kotlinx.DEFAULT.parseToJsonElement("""{"programIdIndex":1,"accounts":[-1],"data":""}""")) }
+        shouldThrow<IllegalArgumentException> { Kotlinx.DEFAULT.decodeFromJsonElement<SolanaRPCInstruction>(Kotlinx.DEFAULT.parseToJsonElement("""{"programIdIndex":1,"accounts":[],"data":"0"}""")) }
         shouldThrow<IllegalArgumentException> { Kotlinx.DEFAULT.decodeFromJsonElement<InstructionError>(Kotlinx.DEFAULT.parseToJsonElement("""{"Custom":4294967296}""")) }
     }
 

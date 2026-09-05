@@ -55,10 +55,10 @@ enum class Commitment {
 
 @Serializable data class RpcContext(val slot: BigInteger, val apiVersion: String? = null)
 @Serializable data class ContextValue<T>(val context: RpcContext, val value: T)
-@Serializable data class LatestBlockhash(val blockhash: Blockhash, val lastValidBlockHeight: BigInteger)
+@Serializable data class LatestBlockhash(val blockhash: SolanaBlockhash, val lastValidBlockHeight: BigInteger)
 @Serializable data class EpochInfo(val absoluteSlot: BigInteger, val blockHeight: BigInteger, val epoch: BigInteger, val slotIndex: BigInteger, val slotsInEpoch: BigInteger, val transactionCount: BigInteger? = null)
-@Serializable data class Version(@SerialName("solana-core") val solanaCore: String, @SerialName("feature-set") val featureSet: BigInteger? = null)
-enum class Health { OK, ERROR }
+@Serializable data class SolanaNodeVersion(@SerialName("solana-core") val solanaCore: String, @SerialName("feature-set") val featureSet: BigInteger? = null)
+enum class SolanaNodeHealth { OK, ERROR }
 
 @KeepGeneratedSerializer
 @Serializable(with = TokenAmountSerializer::class)
@@ -73,7 +73,7 @@ data class TokenAmount(
 object TokenAmountSerializer : ExtensibleJsonSerializer<TokenAmount>(TokenAmount.generatedSerializer(), { it.otherFields })
 
 @Serializable data class PrioritizationFee(val slot: BigInteger, val prioritizationFee: BigInteger)
-@Serializable data class TransactionSignature(val signature: Signature, val slot: BigInteger, val err: TransactionError?, val memo: String? = null, val blockTime: Long? = null, val confirmationStatus: Commitment? = null) {
+@Serializable data class TransactionSignature(val signature: SolanaSignature, val slot: BigInteger, val err: TransactionError?, val memo: String? = null, val blockTime: Long? = null, val confirmationStatus: Commitment? = null) {
     val isError: Boolean get() = err != null
 }
 
@@ -102,7 +102,7 @@ data class TransactionSimulation(
 
 object TransactionSimulationSerializer : ExtensibleJsonSerializer<TransactionSimulation>(TransactionSimulation.generatedSerializer(), { it.otherFields })
 
-@Serializable data class LogsNotification(val signature: Signature, val err: TransactionError?, val logs: List<String>)
+@Serializable data class LogsNotification(val signature: SolanaSignature, val err: TransactionError?, val logs: List<String>)
 @Serializable data class ProgramNotification(val pubkey: SolanaAddress, val account: AccountInfo)
 @Serializable data class SlotNotification(val parent: BigInteger, val root: BigInteger, val slot: BigInteger)
 

@@ -11,11 +11,11 @@ import io.ethers.solana.instruction.TransferInstruction
 import io.ethers.solana.providers.SolanaProvider
 import io.ethers.solana.signers.KeypairSigner
 import io.ethers.solana.types.AccountMeta
-import io.ethers.solana.types.Blockhash
 import io.ethers.solana.types.Commitment
-import io.ethers.solana.types.Health
 import io.ethers.solana.types.Programs
-import io.ethers.solana.types.Signature
+import io.ethers.solana.types.SolanaBlockhash
+import io.ethers.solana.types.SolanaNodeHealth
+import io.ethers.solana.types.SolanaSignature
 import io.ethers.solana.types.transaction.SolanaTxType
 import io.ethers.solana.types.transaction.SolanaTxV0
 import io.github.artificialpb.bignum.BigInteger
@@ -37,8 +37,8 @@ import io.ktor.client.HttpClient as KtorHttpClient
 
 class SolanaProviderTest : FunSpec({
     val address = Programs.SYSTEM
-    val signature = Signature(ByteArray(64) { 1 })
-    val blockhash = Blockhash(ByteArray(32))
+    val signature = SolanaSignature(ByteArray(64) { 1 })
+    val blockhash = SolanaBlockhash(ByteArray(32))
     val account = """{"data":["AQID","base64"],"executable":false,"lamports":18446744073709551615,"owner":"$address","rentEpoch":18446744073709551615}"""
     fun contextual(value: String) = """{"context":{"slot":9007199254740993,"apiVersion":"3.0.0"},"value":$value}"""
     lateinit var provider: SolanaProvider
@@ -113,7 +113,7 @@ class SolanaProviderTest : FunSpec({
 
     test("cluster, rent and prioritization queries use decimal values") {
         response = "\"ok\""
-        provider.getHealth().send().unwrap() shouldBe Health.OK
+        provider.getHealth().send().unwrap() shouldBe SolanaNodeHealth.OK
         assertRequest("getHealth", "[]")
         response = """{"absoluteSlot":1,"blockHeight":2,"epoch":3,"slotIndex":4,"slotsInEpoch":5,"transactionCount":null}"""
         provider.getEpochInfo().send().unwrap().slotsInEpoch shouldBe bigIntegerOf(5)

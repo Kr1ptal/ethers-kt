@@ -1,19 +1,19 @@
 package io.ethers.solana.types.transaction
 
 import io.ethers.solana.signers.SolanaSigner
-import io.ethers.solana.types.Signature
 import io.ethers.solana.types.SolanaAddress
+import io.ethers.solana.types.SolanaSignature
 import kotlin.io.encoding.Base64
 import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmStatic
 
 /** A transaction with a verified signature for every required signer, in message account order. */
-class SolanaTransactionSigned(val tx: SolanaTransactionUnsigned, signatures: List<Signature>) : SolanaTransaction by tx {
+class SolanaTransactionSigned(val tx: SolanaTransactionUnsigned, signatures: List<SolanaSignature>) : SolanaTransaction by tx {
     private val signatureSlots = signatures.toList()
-    val signatures: List<Signature> get() = signatureSlots.toList()
+    val signatures: List<SolanaSignature> get() = signatureSlots.toList()
 
     /** Solana's transaction id is the fee payer's signature, not a hash of the envelope. */
-    val id: Signature get() = signatureSlots.first()
+    val id: SolanaSignature get() = signatureSlots.first()
 
     init {
         validateSignatures(tx, signatureSlots)
@@ -30,10 +30,10 @@ class SolanaTransactionSigned(val tx: SolanaTransactionUnsigned, signatures: Lis
      */
     class Builder @JvmOverloads constructor(
         val tx: SolanaTransactionUnsigned,
-        signatures: List<Signature?> = List(tx.header.requiredSignatures) { null },
+        signatures: List<SolanaSignature?> = List(tx.header.requiredSignatures) { null },
     ) {
         private var signatureSlots = signatures.toList()
-        val signatures: List<Signature?> get() = signatureSlots.toList()
+        val signatures: List<SolanaSignature?> get() = signatureSlots.toList()
         val isFullySigned: Boolean get() = signatureSlots.all { it != null }
         val missingSigners: List<SolanaAddress> get() = tx.signers.filterIndexed { index, _ -> signatureSlots[index] == null }
 
@@ -41,7 +41,7 @@ class SolanaTransactionSigned(val tx: SolanaTransactionUnsigned, signatures: Lis
             validateSignatures(tx, signatureSlots)
         }
 
-        fun addSignature(signer: SolanaAddress, signature: Signature): Builder = apply {
+        fun addSignature(signer: SolanaAddress, signature: SolanaSignature): Builder = apply {
             val index = tx.signers.indexOf(signer)
             require(index >= 0) { "Address is not a required signer" }
             val updated = signatureSlots.toMutableList().also { it[index] = signature }

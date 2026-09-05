@@ -2,8 +2,8 @@ package io.ethers.solana.types.transaction
 
 import io.ethers.solana.instruction.Instruction
 import io.ethers.solana.serialization.SolanaMessageEncoder
-import io.ethers.solana.types.Blockhash
 import io.ethers.solana.types.SolanaAddress
+import io.ethers.solana.types.SolanaBlockhash
 import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmStatic
 
@@ -11,7 +11,7 @@ import kotlin.jvm.JvmStatic
 class SolanaTxV0 @JvmOverloads constructor(
     override val header: MessageHeader,
     accounts: List<SolanaAddress>,
-    override val recentBlockhash: Blockhash,
+    override val recentBlockhash: SolanaBlockhash,
     instructions: List<CompiledInstruction>,
     addressLookupTables: List<CompiledAddressLookupTable> = emptyList(),
 ) : SolanaTransactionUnsigned {
@@ -27,7 +27,7 @@ class SolanaTxV0 @JvmOverloads constructor(
         validateMessage(header, staticAccounts, compiledInstructions, lookups)
     }
 
-    override fun withNewBlockhash(blockhash: Blockhash): SolanaTxV0 = SolanaTxV0(header, staticAccounts, blockhash, compiledInstructions, lookups)
+    override fun withNewBlockhash(blockhash: SolanaBlockhash): SolanaTxV0 = SolanaTxV0(header, staticAccounts, blockhash, compiledInstructions, lookups)
 
     override fun serializeMessage(): ByteArray {
         val encoder = SolanaMessageEncoder().writeByte(128)
@@ -45,11 +45,11 @@ class SolanaTxV0 @JvmOverloads constructor(
     companion object {
         @JvmStatic
         @JvmOverloads
-        fun compile(feePayer: SolanaAddress, blockhash: Blockhash, instruction: Instruction, lookupTables: List<AddressLookupTableAccount> = emptyList()): SolanaTxV0 = compile(feePayer, blockhash, listOf(instruction), lookupTables)
+        fun compile(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instruction: Instruction, lookupTables: List<AddressLookupTableAccount> = emptyList()): SolanaTxV0 = compile(feePayer, blockhash, listOf(instruction), lookupTables)
 
         @JvmStatic
         @JvmOverloads
-        fun compile(feePayer: SolanaAddress, blockhash: Blockhash, instructions: List<Instruction>, lookupTables: List<AddressLookupTableAccount> = emptyList()): SolanaTxV0 {
+        fun compile(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instructions: List<Instruction>, lookupTables: List<AddressLookupTableAccount> = emptyList()): SolanaTxV0 {
             val fields = compileMessage(feePayer, blockhash, instructions, lookupTables)
             return SolanaTxV0(fields.header, fields.accounts, fields.recentBlockhash, fields.instructions, fields.lookups)
         }

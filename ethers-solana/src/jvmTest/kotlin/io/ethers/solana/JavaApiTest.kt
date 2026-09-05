@@ -61,8 +61,8 @@ class JavaApiTest : FunSpec({
                     if (fetched != null) {
                         var type = fetched.getType();
                         var otherFields = fetched.getOtherFields();
-                        java.util.List<io.ethers.solana.types.Signature> signatures = fetched.getTransaction().getSignatures();
-                        io.ethers.solana.types.RPCMessage rpcMessage = fetched.getTransaction().getMessage();
+                        java.util.List<io.ethers.solana.types.SolanaSignature> signatures = fetched.getTransaction().getSignatures();
+                        io.ethers.solana.types.SolanaRPCMessage rpcMessage = fetched.getTransaction().getMessage();
                         if (!rpcMessage.getInstructions().isEmpty()) {
                             io.ethers.solana.types.SolanaBytes data = rpcMessage.getInstructions().get(0).getData();
                             java.util.List<io.ethers.solana.types.SolanaAddress> accounts = rpcMessage.getAccountKeys();
@@ -78,6 +78,42 @@ class JavaApiTest : FunSpec({
                     var microLamports = SolUnit.MICRO_LAMPORT.fromLamports("0.5");
                     var customUnit = new SolUnit(3);
                     var converted = customUnit.convert(1.5, SolUnit.LAMPORT);
+                }
+            }
+        """.trimIndent()
+        val (result, diagnostics) = compileJava(source)
+        check(result) { diagnostics }
+    }
+
+    test("Java can import EVM and Solana signatures and RPC transactions together") {
+        val source = """
+            import io.ethers.core.types.Signature;
+            import io.ethers.core.types.RPCTransaction;
+            import io.ethers.solana.providers.SolanaProvider;
+            import io.ethers.solana.types.SolanaSignature;
+            import io.ethers.solana.types.SolanaBlockhash;
+            import io.ethers.solana.types.SolanaRPCTransaction;
+            import io.ethers.solana.types.SolanaRPCTransactionData;
+            import io.ethers.solana.types.SolanaRPCTransactionMeta;
+            import io.ethers.solana.types.SolanaRPCMessage;
+            import io.ethers.solana.types.SolanaRPCInstruction;
+            import io.ethers.solana.types.SolanaNodeVersion;
+            import io.ethers.solana.types.SolanaNodeHealth;
+            public class SolanaJavaExample {
+                public void consume(Signature evmSignature, RPCTransaction evmTransaction,
+                    SolanaSignature solanaSignature, SolanaRPCTransaction solanaTransaction,
+                    SolanaProvider provider) {
+                    SolanaRPCTransactionData data = solanaTransaction.getTransaction();
+                    SolanaRPCMessage message = data.getMessage();
+                    SolanaBlockhash blockhash = message.getRecentBlockhash();
+                    java.util.List<SolanaSignature> signatures = data.getSignatures();
+                    java.util.List<SolanaRPCInstruction> instructions = message.getInstructions();
+                    SolanaRPCTransactionMeta meta = solanaTransaction.getMeta();
+                    SolanaNodeVersion version = provider.getVersion().sendAwait().unwrap();
+                    SolanaNodeHealth health = provider.getHealth().sendAwait().unwrap();
+                    SolanaSignature signature = provider.requestAirdrop(
+                        message.getAccountKeys().get(0), 1L).sendAwait().unwrap();
+                    SolanaRPCTransaction fetched = provider.getTransaction(solanaSignature).sendAwait().unwrap();
                 }
             }
         """.trimIndent()
@@ -106,8 +142,8 @@ class JavaApiTest : FunSpec({
                 import io.ethers.solana.instruction.Instruction;
                 public class SolanaJavaExample {
                     public void invalid(SolanaProvider provider, SolanaTransactionUnsigned unsigned,
-                        SolanaTransactionSigned.Builder partial, SolanaAddress address, Blockhash blockhash,
-                        Instruction instruction, RPCTransaction rpc) { $body }
+                        SolanaTransactionSigned.Builder partial, SolanaAddress address, SolanaBlockhash blockhash,
+                        Instruction instruction, SolanaRPCTransaction rpc) { $body }
                 }
             """.trimIndent()
             compileJava(source).first shouldBe false

@@ -91,12 +91,18 @@ transaction and discards signatures; start a new builder for that payload.
 
 ## Reading transactions from RPC
 
+Chain-level values and transaction/API families use explicit Solana names: `SolanaSignature`,
+`SolanaBlockhash`, and `SolanaRPCTransaction` (with its `SolanaRPC*` components). Node queries return
+`SolanaNodeVersion` and `SolanaNodeHealth`. These names coexist with EVM types without import aliases.
+Protocol-specific components such as `AccountMeta`, `CompiledInstruction`, `InnerInstructions`, and
+`LoadedAddresses` keep their shorter names.
+
 ```kotlin
-val transaction = provider.getTransaction(signature).send().unwrap() // RPCTransaction?
+val transaction = provider.getTransaction(signature).send().unwrap() // SolanaRPCTransaction?
 if (transaction != null) {
     val type = transaction.type // Legacy, V0, or Unsupported(version); never null
-    val signatures = transaction.transaction.signatures // List<Signature>
-    val message = transaction.transaction.message       // RPCMessage
+    val signatures = transaction.transaction.signatures // List<SolanaSignature>
+    val message = transaction.transaction.message       // SolanaRPCMessage
     val accounts = message.accountKeys                  // List<SolanaAddress>
     val instructionData = message.instructions.firstOrNull()?.data // SolanaBytes?
     val fee = transaction.meta?.fee                     // BigInteger? (lamports)
@@ -104,10 +110,10 @@ if (transaction != null) {
 }
 ```
 
-`RPCTransaction` is deliberately separate from the signable transaction hierarchy. Its `slot`, `blockTime`,
-and `type` are exposed directly. `transaction` is an `RPCTransactionData` with typed signatures and message
-fields: account addresses, blockhash, header, instructions, and lookup tables. `meta` is an
-`RPCTransactionMeta` with typed fees, balances, token balances, logs, inner instructions, loaded addresses,
+`SolanaRPCTransaction` is deliberately separate from the signable transaction hierarchy. Its `slot`, `blockTime`,
+and `type` are exposed directly. `transaction` is a `SolanaRPCTransactionData` with typed signatures and message
+fields: account addresses, blockhash, header, instructions, and lookup tables. `meta` is a
+`SolanaRPCTransactionMeta` with typed fees, balances, token balances, logs, inner instructions, loaded addresses,
 return data, rewards, compute/cost units, and extensible errors (including instruction indices and custom codes).
 Instruction and return data are decoded to `SolanaBytes`. Compiled instruction `accounts` are integer indices.
 The provider requests compiled `json`, so these models do not contain parsed/binary/accounts payload variants.
@@ -215,11 +221,11 @@ Reference: [sol4k a166edd854a7198553fdafe9a5051a400d70b121](https://github.com/s
 
 | Upstream capability | ethers-solana API |
 | --- | --- |
-| Keys, detached signing, verification | `SolanaAddress`, `Signature`, `SolanaSigner`, `KeypairSigner` |
+| Keys, detached signing, verification | `SolanaAddress`, `SolanaSignature`, `SolanaSigner`, `KeypairSigner` |
 | PDA / associated token address derivation | `SolanaAddress.createProgramAddress`, `findProgramAddress`, `findAssociatedTokenAddress` |
 | Legacy/v0 messages and lookup tables | `SolanaTxLegacy`, `SolanaTxV0`, `AddressLookupTableAccount` |
 | Build, sign, import/export transactions | `SolanaTransactionUnsigned`, `SolanaTransactionSigned.Builder`, `SolanaTransactionSigned` |
-| Read transactions, including unsupported versions | `getTransaction`, `RPCTransaction`, `SolanaTxType.Unsupported` |
+| Read transactions, including unsupported versions | `getTransaction`, `SolanaRPCTransaction`, `SolanaTxType.Unsupported` |
 | SOL, SPL, Token-2022, associated accounts, compute budget | Classes in `io.ethers.solana.instruction` |
 | Arbitrary program instructions | `BaseInstruction` |
 | Unit conversion / fee estimation | `SolUnit`, `SolanaTransaction.estimateFee` |

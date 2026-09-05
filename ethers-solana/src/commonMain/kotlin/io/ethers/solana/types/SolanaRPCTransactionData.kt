@@ -9,11 +9,11 @@ import kotlinx.serialization.json.JsonElement
 
 /** Signatures and compiled message, including unsupported transaction versions. */
 @KeepGeneratedSerializer
-@Serializable(with = RPCTransactionDataSerializer::class)
-data class RPCTransactionData(
-    val signatures: List<Signature>,
-    val message: RPCMessage,
+@Serializable(with = SolanaRPCTransactionDataSerializer::class)
+data class SolanaRPCTransactionData(
+    val signatures: List<SolanaSignature>,
+    val message: SolanaRPCMessage,
     @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
 )
 
-object RPCTransactionDataSerializer : ExtensibleJsonSerializer<RPCTransactionData>(RPCTransactionData.generatedSerializer(), { it.otherFields })
+object SolanaRPCTransactionDataSerializer : ExtensibleJsonSerializer<SolanaRPCTransactionData>(SolanaRPCTransactionData.generatedSerializer(), { it.otherFields })

@@ -12,7 +12,7 @@ import kotlinx.serialization.json.JsonElement
 @Serializable(with = InnerInstructionsSerializer::class)
 data class InnerInstructions(
     @Serializable(with = U8Serializer::class) val index: Int,
-    val instructions: List<RPCInstruction>,
+    val instructions: List<SolanaRPCInstruction>,
     @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
 )
 

@@ -5,8 +5,8 @@ import io.ethers.providers.RpcClientConfig
 import io.ethers.providers.SubscriptionDescriptor
 import io.ethers.solana.providers.SolanaProvider
 import io.ethers.solana.types.Programs
-import io.ethers.solana.types.Signature
 import io.ethers.solana.types.SignatureNotification
+import io.ethers.solana.types.SolanaSignature
 import io.kotest.assertions.nondeterministic.eventually
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -32,7 +32,7 @@ class SubscriptionConfigTest : FunSpec({
     for (separateWebSocket in listOf(false, true)) {
         test("builder configures all Solana streams with separate WebSocket = $separateWebSocket") {
             val key = Programs.SYSTEM
-            val signature = Signature(ByteArray(64))
+            val signature = SolanaSignature(ByteArray(64))
             val account = """{"data":["","base64"],"executable":false,"lamports":1,"owner":"$key","rentEpoch":0}"""
             fun contextual(value: String) = """{"context":{"slot":42},"value":$value}"""
             val events = mapOf(

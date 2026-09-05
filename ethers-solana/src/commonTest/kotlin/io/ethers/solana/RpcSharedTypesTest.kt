@@ -2,18 +2,18 @@ package io.ethers.solana
 
 import io.ethers.core.Kotlinx
 import io.ethers.solana.types.AccountInfo
-import io.ethers.solana.types.Blockhash
 import io.ethers.solana.types.InstructionError
 import io.ethers.solana.types.LogsNotification
 import io.ethers.solana.types.Programs
-import io.ethers.solana.types.RPCInstruction
-import io.ethers.solana.types.RPCMessage
-import io.ethers.solana.types.RPCTransaction
-import io.ethers.solana.types.RPCTransactionData
-import io.ethers.solana.types.RPCTransactionMeta
 import io.ethers.solana.types.ReturnData
-import io.ethers.solana.types.Signature
+import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.types.SolanaBytes
+import io.ethers.solana.types.SolanaRPCInstruction
+import io.ethers.solana.types.SolanaRPCMessage
+import io.ethers.solana.types.SolanaRPCTransaction
+import io.ethers.solana.types.SolanaRPCTransactionData
+import io.ethers.solana.types.SolanaRPCTransactionMeta
+import io.ethers.solana.types.SolanaSignature
 import io.ethers.solana.types.TokenAmount
 import io.ethers.solana.types.TransactionError
 import io.ethers.solana.types.TransactionSignature
@@ -34,32 +34,32 @@ import kotlinx.serialization.json.jsonObject
 
 class RpcSharedTypesTest : FunSpec({
     val address = Programs.SYSTEM
-    val signature = Signature(ByteArray(64))
-    val blockhash = Blockhash(ByteArray(32))
+    val signature = SolanaSignature(ByteArray(64))
+    val blockhash = SolanaBlockhash(ByteArray(32))
     val json = Kotlinx.DEFAULT
 
     test("concrete models can be constructed copied and serialized independently") {
-        val instruction = RPCInstruction(0, listOf(0), SolanaBytes.fromBytes(byteArrayOf(1, 2, 3)))
-        val message = RPCMessage(MessageHeader(1, 0, 0), listOf(address), blockhash, listOf(instruction))
-        val payload = RPCTransactionData(listOf(signature), message)
-        val meta = RPCTransactionMeta(null, bigIntegerOf(5000), listOf(bigIntegerOf(6000)), listOf(bigIntegerOf(1000)))
-        val tx = RPCTransaction(bigIntegerOf(42), null, payload, meta)
-        json.decodeFromString<RPCTransaction>(json.encodeToString(tx)) shouldBe tx
-        json.decodeFromString<RPCMessage>(json.encodeToString(message)) shouldBe message
-        json.decodeFromString<RPCInstruction>(json.encodeToString(instruction)) shouldBe instruction
+        val instruction = SolanaRPCInstruction(0, listOf(0), SolanaBytes.fromBytes(byteArrayOf(1, 2, 3)))
+        val message = SolanaRPCMessage(MessageHeader(1, 0, 0), listOf(address), blockhash, listOf(instruction))
+        val payload = SolanaRPCTransactionData(listOf(signature), message)
+        val meta = SolanaRPCTransactionMeta(null, bigIntegerOf(5000), listOf(bigIntegerOf(6000)), listOf(bigIntegerOf(1000)))
+        val tx = SolanaRPCTransaction(bigIntegerOf(42), null, payload, meta)
+        json.decodeFromString<SolanaRPCTransaction>(json.encodeToString(tx)) shouldBe tx
+        json.decodeFromString<SolanaRPCMessage>(json.encodeToString(message)) shouldBe message
+        json.decodeFromString<SolanaRPCInstruction>(json.encodeToString(instruction)) shouldBe instruction
         json.decodeFromString<MessageHeader>(json.encodeToString(message.header)) shouldBe message.header
-        json.decodeFromString<RPCTransactionMeta>(json.encodeToString(meta)) shouldBe meta
-        json.decodeFromString<RPCTransactionData>(json.encodeToString(payload)) shouldBe payload
+        json.decodeFromString<SolanaRPCTransactionMeta>(json.encodeToString(meta)) shouldBe meta
+        json.decodeFromString<SolanaRPCTransactionData>(json.encodeToString(payload)) shouldBe payload
         val updated = tx.copy(meta = meta.copy(fee = bigIntegerOf(123)))
         json.encodeToJsonElement(updated).jsonObject.getValue("meta").jsonObject["fee"] shouldBe JsonPrimitive(123)
         // Class serializers work with strict Json too, not just Kotlinx.DEFAULT's ignoreUnknownKeys.
         val extended = JsonObject(json.encodeToJsonElement(tx).jsonObject + ("future" to JsonPrimitive(true)))
-        Json.decodeFromJsonElement<RPCTransaction>(extended).otherFields["future"] shouldBe JsonPrimitive(true)
+        Json.decodeFromJsonElement<SolanaRPCTransaction>(extended).otherFields["future"] shouldBe JsonPrimitive(true)
     }
 
     test("otherFields is flattened without collisions or accidental interpretation of its wire name") {
         val fields = json.parseToJsonElement("""{"future":1.234567890123456789,"otherFields":{"opaque":true},"programIdIndex":0,"accounts":[],"data":""}""")
-        val instruction = json.decodeFromJsonElement<RPCInstruction>(fields)
+        val instruction = json.decodeFromJsonElement<SolanaRPCInstruction>(fields)
         instruction.otherFields.keys shouldBe setOf("future", "otherFields")
         json.encodeToJsonElement(instruction) shouldBe fields
         shouldThrow<IllegalArgumentException> {
@@ -181,7 +181,7 @@ class RpcSharedTypesTest : FunSpec({
         json.decodeFromString<TransactionSignature>("""{"signature":"$signature","slot":1,"err":$wire}""").err shouldBe expected
         json.decodeFromString<LogsNotification>("""{"signature":"$signature","logs":[],"err":$wire}""").err shouldBe expected
         json.decodeFromString<TransactionSimulation>("""{"err":$wire}""").err shouldBe expected
-        json.decodeFromString<RPCTransactionMeta>("""{"err":$wire,"fee":1,"preBalances":[],"postBalances":[]}""").err shouldBe expected
+        json.decodeFromString<SolanaRPCTransactionMeta>("""{"err":$wire,"fee":1,"preBalances":[],"postBalances":[]}""").err shouldBe expected
         shouldThrow<IllegalArgumentException> { json.decodeFromString<TransactionSimulation>("""{}""") }
         shouldThrow<IllegalArgumentException> { json.decodeFromString<LogsNotification>("""{"signature":"$signature","logs":[]}""") }
         json.decodeFromString<TransactionSimulation>("""{"err":null,"accounts":null}""").accounts shouldBe null
