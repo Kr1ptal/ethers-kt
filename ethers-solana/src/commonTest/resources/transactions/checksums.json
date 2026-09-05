@@ -1,23 +1,47 @@
 {
   "requestedCounts": {
-    "legacy": 200,
-    "0": 200,
+    "legacy": 320,
+    "0": 320,
     "1": 200
   },
   "capturedCounts": {
-    "legacy": 200,
-    "0": 200,
+    "legacy": 320,
+    "0": 320,
     "1": 0
   },
   "status": "incomplete: live v1 samples not located",
   "files": {
-    "mainnet-legacy.jsonl": {
-      "count": 200,
-      "sha256": "ae26de45d14b47ca92ca073db9b76c5cc27edd89f30da8ab4bbf78a6c8821d86"
-    },
     "mainnet-0.jsonl": {
       "count": 200,
       "sha256": "33bcc6398858d678253c78b0f67cebea8bfc5cdfbb7e23fd8ea888ab6c7ad0b8"
+    },
+    "mainnet-300m-0.jsonl": {
+      "count": 40,
+      "sha256": "4adefcfa86caba2b4c72aeda9765337123dc83154fbd42e6846d901eb7e15a62"
+    },
+    "mainnet-300m-legacy.jsonl": {
+      "count": 40,
+      "sha256": "41f6580561973053d410d99385e680f124b6ac5b12f29e439fb5b9374f34d11f"
+    },
+    "mainnet-400m-0.jsonl": {
+      "count": 40,
+      "sha256": "0b961f90a086a5a603b207f665ada9065df85749e15ec1a8b33307c2746cbb52"
+    },
+    "mainnet-400m-legacy.jsonl": {
+      "count": 40,
+      "sha256": "862a4c05585e3d52cfe43950fdde2de1807ad27d552ee290499b3638c5c2ce74"
+    },
+    "mainnet-440m-0.jsonl": {
+      "count": 40,
+      "sha256": "900751da4f7ff6fde9f381009914e5f82bf597183e9f61b5d7f3f5d710468fe1"
+    },
+    "mainnet-440m-legacy.jsonl": {
+      "count": 40,
+      "sha256": "94c98efe08ba791230b3a0c686de9d572c2b1ebe1d78aa21dc71268fe9c2336e"
+    },
+    "mainnet-legacy.jsonl": {
+      "count": 200,
+      "sha256": "ae26de45d14b47ca92ca073db9b76c5cc27edd89f30da8ab4bbf78a6c8821d86"
     }
   }
 }

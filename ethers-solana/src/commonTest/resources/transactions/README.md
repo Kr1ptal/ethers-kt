@@ -5,8 +5,8 @@ Android and Kotlin/Native; there are no live RPC requests during normal tests.
 
 ## Coverage and outstanding v1 capture
 
-The requested target is **200 legacy + 200 v0 + 200 v1**. The committed live corpus currently contains
-**200 legacy + 200 v0 (400 total)**. **The 200 live v1 samples are still missing.** No constructed,
+The original requested target was **200 legacy + 200 v0 + 200 v1**. The expanded live corpus contains
+**320 legacy + 320 v0 (640 total)**. **The 200 live v1 samples are still missing.** No constructed,
 locally submitted, or relabeled transactions have been substituted for them. `SolanaTxV1Test` separately
 covers constructed v1 fixtures; those are not counted as live samples.
 
@@ -19,24 +19,27 @@ cluster. A known live v1 signature/address or an indexed RPC source is needed to
 
 | Samples | Legacy | V0 |
 | --- | ---: | ---: |
-| Total | 200 | 200 |
-| Failed executions | 32 | 44 |
-| Multiple signatures | 29 | 29 |
-| Address lookup tables | 0 | 95 |
-| Inner instructions | 53 | 63 |
-| Return data | 3 | 9 |
-| Distinct top-level programs | 52 | 73 |
-| Largest wire envelope (bytes) | 1226 | 1227 |
+| Total | 320 | 320 |
+| Failed executions | 43 | 59 |
+| Multiple signatures | 45 | 49 |
+| Address lookup tables | 0 | 159 |
+| Inner instructions | 100 | 134 |
+| Return data | 9 | 11 |
+| Distinct top-level programs | 80 | 111 |
+| Largest wire envelope (bytes) | 1229 | 1230 |
 
-Both versions were sampled from ten mainnet blocks (slots 444610345..444610678). Within each block,
+The initial samples came from ten mainnet blocks (slots 444610345..444610678). The expansion adds
+40 transactions of each version from each of three historical windows ending at slots 300000000,
+400000000 and 440000000 (two blocks per window). The 16 blocks span 2024-11-07 through 2026-09-05 UTC.
+Tests enforce the per-version historical quotas, uniqueness and block diversity. Within each block,
 the collector groups candidates by programs, success/failure, signer count, lookups and CPI, then
 round-robins groups to avoid selecting only vote transactions. This is a regression corpus, not a
 statistically representative sample of chain activity.
 
 ## Files and fidelity
 
-- `mainnet-legacy.jsonl` and `mainnet-0.jsonl`: one transaction per line.
-- `mainnet-manifest.json`: public endpoint, genesis hash, RPC version, capture time and source blocks.
+- `mainnet-legacy.jsonl`, `mainnet-0.jsonl` and `mainnet-{300,400,440}m-{legacy,0}.jsonl`: one transaction per line.
+- `mainnet*-manifest.json`: public endpoint, genesis hash, RPC version at capture, capture time and source blocks.
 - `*-discovery.json`: unsuccessful v1 discovery observations; not transaction fixtures.
 - `checksums.json`: SHA-256 hashes of the JSONL files, counts and collection target.
 - `SHA256SUMS`: build-verified JSONL checksum inventory; unexpected files or modified bytes fail generation.
@@ -66,12 +69,25 @@ platform-specific resource loader. Generated sources live under `build/` and are
 
 ## Reproduction / extension
 
+`TransactionBoundaryTest` complements the live corpus with all 65,536 compact-u16 values checked
+against independently calculated bytes, malformed/overlong lengths, data-length transitions through
+65,535 bytes, loaded account index 255 and account-count overflow. Seeded legacy/v0/v1 messages
+exercise every message/envelope truncation point and a single-bit mutation at every signed-envelope
+byte. These are constructed codec tests, not additional live fixtures or proof that oversized legacy/v0
+messages are accepted by a validator. Existing v1 tests additionally cover config masks, integer maxima,
+signature/account/instruction limits and the 4,096-byte envelope boundary.
+
 Requires Python 3 with only the standard library. Capture into a fresh directory outside the repository:
 
 ```sh
 python3 ethers-solana/scripts/collect_transaction_corpus.py \
   --cluster mainnet --versions legacy 0 --count 200 --per-block 20 --max-blocks 30 \
   --output /private/tmp/solana-corpus-capture
+
+# Repeat with 400000000 and 440000000, using a fresh output directory for each window.
+python3 ethers-solana/scripts/collect_transaction_corpus.py \
+  --cluster mainnet --versions legacy 0 --count 40 --per-block 20 --max-blocks 5 \
+  --start-slot 300000000 --output /private/tmp/solana-corpus-300m
 
 python3 ethers-solana/scripts/collect_transaction_corpus.py \
   --cluster testnet --versions 1 --count 200 --per-block 200 --application-history \

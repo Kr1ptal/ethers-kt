@@ -1,0 +1,31 @@
+{
+  "endpoint": "https://api.mainnet-beta.solana.com",
+  "cluster": "mainnet",
+  "genesisHash": "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d",
+  "nodeVersion": {
+    "feature-set": 565236538,
+    "solana-core": "4.2.2"
+  },
+  "capturedAt": "2026-09-05T21:03:33.239195+00:00",
+  "commitment": "finalized",
+  "scannedBlocks": [
+    {
+      "slot": 440000000,
+      "versions": {
+        "legacy": 1092,
+        "0": 312
+      }
+    },
+    {
+      "slot": 439999963,
+      "versions": {
+        "0": 323,
+        "legacy": 827
+      }
+    }
+  ],
+  "counts": {
+    "legacy": 40,
+    "0": 40
+  }
+}

@@ -31,13 +31,20 @@ class LiveTransactionCorpusTest : FunSpec({
     val fixtures = liveTransactionCorpus().map { Kotlinx.DEFAULT.parseToJsonElement(it).jsonObject }
     val json = Json(Kotlinx.DEFAULT) { encodeDefaults = true }
 
-    test("committed live corpus has 200 legacy and 200 v0 samples; v1 capture is still pending") {
+    test("committed live corpus has 320 legacy and 320 v0 samples across historical periods; v1 capture is still pending") {
         // See resources/transactions/README.md: do not substitute synthetic v1 fixtures here.
-        fixtures.size shouldBe 400
-        fixtures.map { it.getValue("signature") }.distinct().size shouldBe 400
-        fixtures.groupingBy { it.getValue("rpc").jsonObject.getValue("version").jsonPrimitive.content }.eachCount() shouldBe mapOf("legacy" to 200, "0" to 200)
+        fixtures.size shouldBe 640
+        fixtures.map { it.getValue("signature") }.distinct().size shouldBe 640
+        fixtures.groupingBy { it.getValue("rpc").jsonObject.getValue("version").jsonPrimitive.content }.eachCount() shouldBe mapOf("legacy" to 320, "0" to 320)
         fixtures.all { it.getValue("cluster").jsonPrimitive.content in setOf("mainnet", "testnet", "devnet") } shouldBe true
-        fixtures.map { it.getValue("blockhash") }.distinct().size.let { it >= 10 } shouldBe true
+        fixtures.map { it.getValue("blockhash") }.distinct().size.let { it >= 16 } shouldBe true
+        for (version in listOf("legacy", "0")) {
+            val slots = fixtures.filter { it.getValue("rpc").jsonObject.getValue("version").jsonPrimitive.content == version }
+                .map { it.getValue("slot").jsonPrimitive.content.toLong() }
+            slots.count { it in 299_990_000L..300_000_000L } shouldBe 40
+            slots.count { it in 399_990_000L..400_000_000L } shouldBe 40
+            slots.count { it in 439_990_000L..440_000_000L } shouldBe 40
+        }
     }
 
     test("live corpus includes failures, multiple signers, CPI, return data, and v0 with and without lookups") {
