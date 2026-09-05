@@ -26,9 +26,6 @@ sealed interface SolanaTransaction {
     /** Full transaction envelope, using zero-filled slots for missing signatures. Not necessarily submit-ready. */
     fun serializeForSimulation(): ByteArray
 
-    /** Changing the blockhash discards every signature, returning an unsigned transaction. */
-    fun withNewBlockhash(blockhash: SolanaBlockhash): SolanaTransactionUnsigned
-
     /**
      * Estimate base + priority fee in lamports. A nonzero price requires an explicit compute-unit limit;
      * runtime defaults depend on the invoked programs. The node's getFeeForMessage is authoritative.

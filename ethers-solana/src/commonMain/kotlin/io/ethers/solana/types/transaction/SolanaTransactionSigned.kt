@@ -2,6 +2,7 @@ package io.ethers.solana.types.transaction
 
 import io.ethers.solana.signers.SolanaSigner
 import io.ethers.solana.types.SolanaAddress
+import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.types.SolanaSignature
 import kotlin.io.encoding.Base64
 import kotlin.jvm.JvmOverloads
@@ -17,6 +18,9 @@ class SolanaTransactionSigned(val tx: SolanaTransactionUnsigned, val signatures:
     init {
         validateSignatures(tx, signatures)
     }
+
+    /** Changing the blockhash discards every signature, returning an unsigned transaction. */
+    fun withNewBlockhash(blockhash: SolanaBlockhash): SolanaTransactionUnsigned = tx.withNewBlockhash(blockhash)
 
     fun serialize(): ByteArray = encodeTransactionEnvelope(tx, signatures)
     fun toBase64(): String = Base64.encode(serialize())
