@@ -194,6 +194,9 @@ events; change this through `RpcClientConfig.resubscribeOnReconnect(false)`. HTT
 unsupported-method error for subscriptions. A provider owns its RPC clients, but the shared Ktor client's
 lifecycle remains governed by the existing transport configuration.
 
+RPC convenience overloads live in `SolanaApi` and are inherited by `SolanaProvider`. Java callers can
+use the default-commitment overloads through either type, including custom `SolanaApi` implementations.
+
 The immutable `defaultCommitment` defaults to `FINALIZED` and can be set in the constructor or builder.
 Commitment-aware RPC methods and subscriptions accept an optional, non-null `commitment` argument:
 

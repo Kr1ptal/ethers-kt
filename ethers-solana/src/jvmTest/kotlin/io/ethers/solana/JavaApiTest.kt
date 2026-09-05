@@ -10,6 +10,62 @@ import javax.tools.SimpleJavaFileObject
 import javax.tools.ToolProvider
 
 class JavaApiTest : FunSpec({
+    test("Java RPC conveniences are available through both the API and provider") {
+        for (receiver in listOf("SolanaApi", "SolanaProvider")) {
+            val source = """
+                import io.ethers.solana.providers.SolanaProvider;
+                import io.ethers.solana.providers.middleware.SolanaApi;
+                import io.ethers.solana.types.*;
+                import io.ethers.solana.types.transaction.*;
+                import java.math.BigInteger;
+                import java.util.List;
+                public class SolanaJavaExample {
+                    public void calls($receiver api, SolanaAddress address, SolanaBlockhash blockhash,
+                        SolanaSignature signature, SolanaTransactionSigned signed) {
+                        Commitment commitment = Commitment.CONFIRMED;
+                        List<SolanaAddress> addresses = List.of(address);
+                        byte[] bytes = signed.serialize();
+                        api.getBalance(address);
+                        api.getTokenAccountBalance(address);
+                        api.getTokenSupply(address);
+                        api.getLatestBlockhash();
+                        api.isBlockhashValid(blockhash);
+                        api.getEpochInfo();
+                        api.getTransactionCount();
+                        api.getTransaction(signature);
+                        api.getTransaction(signature, commitment);
+                        api.getTransaction(signature, 1);
+                        api.getTransaction(signature, commitment, 1);
+                        api.getAccountInfo(address);
+                        api.getMultipleAccounts(addresses);
+                        api.getMinimumBalanceForRentExemption(BigInteger.ONE);
+                        api.getMinimumBalanceForRentExemption(1L);
+                        api.getMinimumBalanceForRentExemption(1L, commitment);
+                        api.requestAirdrop(address, BigInteger.ONE);
+                        api.requestAirdrop(address, 1L);
+                        api.requestAirdrop(address, 1L, commitment);
+                        api.sendTransaction(signed);
+                        api.sendTransaction(bytes);
+                        api.simulateTransaction(signed);
+                        api.simulateTransaction(bytes);
+                        api.getFeeForMessage(signed);
+                        api.getFeeForMessage(bytes);
+                        api.getRecentPrioritizationFees();
+                        api.getSignaturesForAddress(address);
+                        api.getSignaturesForAddress(address, 10);
+                        api.getSignaturesForAddress(address, commitment);
+                        api.getSignaturesForAddress(address, 10, commitment);
+                        api.getSignaturesForAddress(address, 10, commitment, signature);
+                        api.getSignaturesForAddress(address, 10, signature, null);
+                        api.getSignaturesForAddress(address, 10, commitment, signature, null);
+                    }
+                }
+            """.trimIndent()
+            val (result, diagnostics) = compileJava(source)
+            check(result) { diagnostics }
+        }
+    }
+
     test("Java 11 callers can build, sign and use inherited blocking and future APIs") {
         val source = """
             import io.ethers.solana.providers.SolanaProvider;

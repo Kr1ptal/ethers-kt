@@ -9,6 +9,7 @@ import io.ethers.providers.SubscriptionDescriptor
 import io.ethers.solana.instruction.BaseInstruction
 import io.ethers.solana.instruction.TransferInstruction
 import io.ethers.solana.providers.SolanaProvider
+import io.ethers.solana.providers.middleware.SolanaApi
 import io.ethers.solana.signers.KeypairSigner
 import io.ethers.solana.types.AccountMeta
 import io.ethers.solana.types.Commitment
@@ -71,6 +72,49 @@ class SolanaProviderTest : FunSpec({
     fun assertRequest(method: String, expectedParams: String) {
         requests.last().getValue("method").jsonPrimitive.content shouldBe method
         requests.last().getValue("params") shouldBe Kotlinx.DEFAULT.parseToJsonElement(expectedParams)
+    }
+
+    test("standalone API implementations inherit RPC conveniences and commitment forwarding") {
+        val api = object : SolanaApi {
+            override val client = provider.client
+            override val defaultCommitment = Commitment.CONFIRMED
+        }
+        response = contextual("1")
+        api.getBalance(address).send().unwrap().value shouldBe bigIntegerOf(1)
+        assertRequest("getBalance", """["$address",{"commitment":"confirmed"}]""")
+        response = "123"
+        api.getMinimumBalanceForRentExemption(165L).send().unwrap() shouldBe bigIntegerOf(123)
+        assertRequest("getMinimumBalanceForRentExemption", """[165,{"commitment":"confirmed"}]""")
+        api.getMinimumBalanceForRentExemption(165L, Commitment.FINALIZED).send().unwrap() shouldBe bigIntegerOf(123)
+        assertRequest("getMinimumBalanceForRentExemption", """[165,{"commitment":"finalized"}]""")
+        response = "\"$signature\""
+        api.requestAirdrop(address, 1L).send().unwrap() shouldBe signature
+        assertRequest("requestAirdrop", """["$address",1,{"commitment":"confirmed"}]""")
+        api.requestAirdrop(address, 1L, Commitment.FINALIZED).send().unwrap() shouldBe signature
+        assertRequest("requestAirdrop", """["$address",1,{"commitment":"finalized"}]""")
+        response = "null"
+        api.getTransaction(signature).send().unwrap() shouldBe null
+        assertRequest("getTransaction", """["$signature",{"commitment":"confirmed","encoding":"json","maxSupportedTransactionVersion":255}]""")
+        api.getTransaction(signature, Commitment.FINALIZED).send().unwrap() shouldBe null
+        assertRequest("getTransaction", """["$signature",{"commitment":"finalized","encoding":"json","maxSupportedTransactionVersion":255}]""")
+        api.getTransaction(signature, 1).send().unwrap() shouldBe null
+        assertRequest("getTransaction", """["$signature",{"commitment":"confirmed","encoding":"json","maxSupportedTransactionVersion":1}]""")
+        response = "[]"
+        api.getRecentPrioritizationFees().send().unwrap() shouldBe emptyList()
+        assertRequest("getRecentPrioritizationFees", "[[]]")
+        api.getSignaturesForAddress(address).send().unwrap() shouldBe emptyList()
+        assertRequest("getSignaturesForAddress", """["$address",{"limit":1000,"commitment":"confirmed"}]""")
+        api.getSignaturesForAddress(address, 10).send().unwrap() shouldBe emptyList()
+        assertRequest("getSignaturesForAddress", """["$address",{"limit":10,"commitment":"confirmed"}]""")
+        api.getSignaturesForAddress(address, Commitment.FINALIZED).send().unwrap() shouldBe emptyList()
+        assertRequest("getSignaturesForAddress", """["$address",{"limit":1000,"commitment":"finalized"}]""")
+        api.getSignaturesForAddress(address, 10, Commitment.FINALIZED).send().unwrap() shouldBe emptyList()
+        assertRequest("getSignaturesForAddress", """["$address",{"limit":10,"commitment":"finalized"}]""")
+        api.getSignaturesForAddress(address, 10, Commitment.FINALIZED, signature).send().unwrap() shouldBe emptyList()
+        assertRequest("getSignaturesForAddress", """["$address",{"limit":10,"commitment":"finalized","before":"$signature"}]""")
+        api.getSignaturesForAddress(address, 10, signature, signature).send().unwrap() shouldBe emptyList()
+        assertRequest("getSignaturesForAddress", """["$address",{"limit":10,"commitment":"confirmed","before":"$signature","until":"$signature"}]""")
+        api.defaultCommitment shouldBe Commitment.CONFIRMED
     }
 
     test("request commitment overrides do not change the provider default or other requests") {
