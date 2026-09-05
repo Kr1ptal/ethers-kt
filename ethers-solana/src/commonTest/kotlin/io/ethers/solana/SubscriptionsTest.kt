@@ -16,6 +16,7 @@ import io.ethers.solana.providers.SolanaProvider
 import io.ethers.solana.providers.SolanaSubscriptionDescriptor
 import io.ethers.solana.types.Commitment
 import io.ethers.solana.types.Programs
+import io.ethers.solana.types.RpcContext
 import io.ethers.solana.types.SignatureNotification
 import io.ethers.solana.types.SolanaSignature
 import io.github.artificialpb.bignum.bigIntegerOf
@@ -106,11 +107,14 @@ class SubscriptionsTest : FunSpec({
 
     test("signature received events are non-terminal and statuses are terminal") {
         client.event = contextual("\"receivedSignature\"")
-        provider.subscribeSignature(signature, enableReceivedNotification = true).send().unwrap().take()!!::class shouldBe SignatureNotification.Received::class
+        val received = provider.subscribeSignature(signature, enableReceivedNotification = true).send().unwrap().take()!!
+        received.context shouldBe RpcContext(bigIntegerOf(42))
+        received.value shouldBe SignatureNotification.Received
         client.descriptor.isTerminal(Kotlinx.DEFAULT.parseToJsonElement(client.event)) shouldBe false
         client.event = contextual("""{"err":{"InstructionError":[0,"InvalidArgument"]}}""")
-        val status = provider.subscribeSignature(signature).send().unwrap().take() as SignatureNotification.Status
-        status.err shouldBe io.ethers.solana.types.TransactionError.InstructionFailure(0, io.ethers.solana.types.InstructionError.Simple.INVALID_ARGUMENT)
+        val status = provider.subscribeSignature(signature).send().unwrap().take()!!
+        status.context shouldBe RpcContext(bigIntegerOf(42))
+        (status.value as SignatureNotification.Status).err shouldBe io.ethers.solana.types.TransactionError.InstructionFailure(0, io.ethers.solana.types.InstructionError.Simple.INVALID_ARGUMENT)
         client.descriptor.isTerminal(Kotlinx.DEFAULT.parseToJsonElement(client.event)) shouldBe true
         client.descriptor.unsubscribeMethod shouldBe "signatureUnsubscribe"
     }

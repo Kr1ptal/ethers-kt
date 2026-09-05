@@ -34,7 +34,7 @@ class LocalValidatorTest : FunSpec({
             val stream = provider.subscribeSignature(signature).send().unwrap()
             try {
                 eventually(30.seconds) { stream.isEmpty shouldBe false }
-                (stream.take() as SignatureNotification.Status).err shouldBe null
+                (stream.take()!!.value as SignatureNotification.Status).err shouldBe null
                 eventually(5.seconds) { stream.isClosed shouldBe true }
                 provider.getBalance(recipient).send().unwrap().value shouldBe bigIntegerOf(1000000)
             } finally {

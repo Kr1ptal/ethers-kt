@@ -17,7 +17,6 @@ import io.ethers.solana.types.Commitment
 import io.ethers.solana.types.ContextValue
 import io.ethers.solana.types.LogsNotification
 import io.ethers.solana.types.ProgramNotification
-import io.ethers.solana.types.RpcContext
 import io.ethers.solana.types.SignatureNotification
 import io.ethers.solana.types.SlotNotification
 import io.ethers.solana.types.SolanaAddress
@@ -25,9 +24,7 @@ import io.ethers.solana.types.SolanaSignature
 import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmStatic
@@ -65,22 +62,12 @@ class SolanaProvider @JvmOverloads constructor(
 
     /** The stream closes after its status event; received notifications are non-terminal. */
     @JvmOverloads
-    fun subscribeSignature(signature: SolanaSignature, commitment: Commitment = this.defaultCommitment, enableReceivedNotification: Boolean = false): RpcSubscribe<SignatureNotification, RpcError> {
+    fun subscribeSignature(signature: SolanaSignature, commitment: Commitment = this.defaultCommitment, enableReceivedNotification: Boolean = false): RpcSubscribe<ContextValue<SignatureNotification>, RpcError> {
         val config = buildJsonObject {
             put("commitment", commitment.toString())
             put("enableReceivedNotification", enableReceivedNotification)
         }
-        return subscribe("signature", arrayOf(signature.toString(), config)) {
-            val obj = it.jsonObject
-            val context = decode<RpcContext>(obj.getValue("context"))
-            val value = obj.getValue("value")
-            if (value is JsonPrimitive) {
-                require(value.content == "receivedSignature") { "Unexpected signature notification" }
-                SignatureNotification.Received(context)
-            } else {
-                SignatureNotification.Status(context, decode<io.ethers.solana.types.TransactionError?>(value.jsonObject.getValue("err")))
-            }
-        }
+        return subscribe("signature", arrayOf(signature.toString(), config)) { decode(it) }
     }
 
     fun subscribeSlot(): RpcSubscribe<SlotNotification, RpcError> = subscribe("slot", emptyArray<Any>()) { decode(it) }

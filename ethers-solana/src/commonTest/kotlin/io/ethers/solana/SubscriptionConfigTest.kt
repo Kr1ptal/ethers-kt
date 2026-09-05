@@ -98,8 +98,8 @@ class SubscriptionConfigTest : FunSpec({
                     signatureStream
                 }
                 eventually(5.seconds) { signatureStream.isClosed shouldBe true }
-                signatureStream.take()!!::class shouldBe SignatureNotification.Received::class
-                signatureStream.take()!!::class shouldBe SignatureNotification.Status::class
+                signatureStream.take()!!.value shouldBe SignatureNotification.Received
+                signatureStream.take()!!.value shouldBe SignatureNotification.Status(null)
 
                 val expectedParams = linkedMapOf(
                     "account" to """["$key",{"commitment":"finalized","encoding":"base64"}]""",

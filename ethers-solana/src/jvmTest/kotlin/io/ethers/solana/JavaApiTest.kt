@@ -75,6 +75,7 @@ class JavaApiTest : FunSpec({
             import io.ethers.solana.types.ContextValue;
             import io.ethers.solana.types.RpcContext;
             import io.ethers.solana.types.SolanaNodeIdentity;
+            import io.ethers.solana.types.SignatureNotification;
             import io.ethers.solana.types.transaction.SolanaTxV0;
             import io.ethers.solana.types.transaction.SolanaTxLegacy;
             import io.ethers.solana.types.transaction.SolanaTransaction;
@@ -142,6 +143,13 @@ class JavaApiTest : FunSpec({
                         var unsupported = io.ethers.solana.types.transaction.SolanaTxType.fromVersion(1);
                     }
                     var subscription = provider.subscribeSignature(signature).sendAsync();
+                    ContextValue<SignatureNotification> notification = provider.subscribeSignature(signature).sendAwait().unwrap().take();
+                    RpcContext notificationContext = notification.getContext();
+                    SignatureNotification notificationValue = notification.getValue();
+                    if (notificationValue instanceof SignatureNotification.Status) {
+                        var error = ((SignatureNotification.Status) notificationValue).getErr();
+                    }
+                    boolean received = notificationValue == SignatureNotification.Received.INSTANCE;
                     var sol = SolUnit.LAMPORT.toSol(1000L);
                     var microLamports = SolUnit.MICRO_LAMPORT.fromLamports("0.5");
                     var customUnit = new SolUnit(3);

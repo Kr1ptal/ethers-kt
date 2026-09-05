@@ -188,7 +188,9 @@ take the stream name first (for example, `arrayOf("slot")`); the descriptor conv
 RPC method and removes the name from the wire parameters. Ethereum remains the default for other clients.
 
 Streams cover accounts, program accounts (data-size/memcmp filters), logs, signatures, slots, and roots.
-Signature streams optionally deliver a `Received` event, then a `Status` event and close. Read queued events
+Signature streams return `ContextValue<SignatureNotification>`: `context` contains the slot and optional
+API version, while `value` is an optional `Received` event followed by a terminal `Status(err)` event.
+The stream closes after the status event. Read queued events
 even when a stream reports closed. Reconnects restore active subscriptions by default but do not replay missed
 events; change this through `RpcClientConfig.resubscribeOnReconnect(false)`. HTTP-only providers report an
 unsupported-method error for subscriptions. A provider owns its RPC clients, but the shared Ktor client's
