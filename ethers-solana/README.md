@@ -98,7 +98,7 @@ if (transaction != null) {
     val signatures = transaction.transaction.signatures // List<Signature>
     val message = transaction.transaction.message       // RPCMessage
     val accounts = message.accountKeys                  // List<SolanaAddress>
-    val instructionData = message.instructions.firstOrNull()?.data // Bytes?
+    val instructionData = message.instructions.firstOrNull()?.data // SolanaBytes?
     val fee = transaction.meta?.fee                     // BigInteger? (lamports)
     val extra = transaction.otherFields // fields introduced by newer validators
 }
@@ -109,7 +109,7 @@ and `type` are exposed directly. `transaction` is an `RPCTransactionData` with t
 fields: account addresses, blockhash, header, instructions, and lookup tables. `meta` is an
 `RPCTransactionMeta` with typed fees, balances, token balances, logs, inner instructions, loaded addresses,
 return data, rewards, compute/cost units, and extensible errors (including instruction indices and custom codes).
-Instruction and return data are decoded to `Bytes`. Compiled instruction `accounts` are integer indices.
+Instruction and return data are decoded to `SolanaBytes`. Compiled instruction `accounts` are integer indices.
 The provider requests compiled `json`, so these models do not contain parsed/binary/accounts payload variants.
 Metadata amounts use `BigInteger`, signed reward changes use `Long`, and JSON token UI amounts use `BigDecimal`
 without introducing additional floating-point rounding. Prefer the integer token amount and decimals for arithmetic.
@@ -138,6 +138,26 @@ This is a read ceiling, not a claim that every version is signable. Pass a lower
 Only confirmed/finalized commitment is supported. A missing transaction returns null; RPC errors remain
 errors. Forward-compatible decoding cannot guarantee node support, history availability, or compatibility
 with future changes to the RPC envelope itself. See [Solana transaction versioning](https://solana.com/developers/cookbook/transactions/versions).
+
+## Binary values
+
+`SolanaBytes` is an immutable binary value with content-based equality and hashing. Its factories and
+`toByteArray()` do not share mutable arrays with callers. Text encodings are always explicit:
+
+```kotlin
+val bytes = SolanaBytes.fromBytes(byteArrayOf(1, 2, 3))
+bytes.toBase58() // "Ldp"
+bytes.toBase64() // "AQID"
+bytes.toHex()    // "010203" (lowercase, no prefix)
+bytes.toString() // "SolanaBytes(size=3)" (diagnostic only)
+val decoded = SolanaBytes.fromBase58("Ldp")
+val slice = bytes.slice(0, 2) // end index is exclusive
+```
+
+`fromHex()` accepts an optional `0x`/`0X` prefix and rejects odd-length input. There is no default JSON
+serializer: `Base58BytesSerializer` encodes instruction data, while `Base64TupleBytesSerializer` encodes
+return/account data as `["AQID", "base64"]`. Existing byte-array transaction and cryptographic boundaries
+remain unchanged; use `toByteArray()` or `copyInto()` to pass bytes across those boundaries.
 
 ## Subscriptions and configuration
 

@@ -15,6 +15,7 @@ class JavaApiTest : FunSpec({
             import io.ethers.solana.providers.SolanaProvider;
             import io.ethers.solana.signers.KeypairSigner;
             import io.ethers.solana.types.SolanaAddress;
+            import io.ethers.solana.types.SolanaBytes;
             import io.ethers.solana.types.transaction.SolanaTxV0;
             import io.ethers.solana.types.transaction.SolanaTxLegacy;
             import io.ethers.solana.types.transaction.SolanaTransaction;
@@ -24,6 +25,18 @@ class JavaApiTest : FunSpec({
             import io.ethers.solana.utils.SolUnit;
             public class SolanaJavaExample {
                 public void transfer(SolanaProvider provider, byte[] seed, SolanaAddress recipient) {
+                    var bytes = SolanaBytes.fromBytes(new byte[] {1, 2, 3});
+                    var decoded58 = SolanaBytes.fromBase58(bytes.toBase58());
+                    var decoded64 = SolanaBytes.fromBase64(bytes.toBase64());
+                    var decodedHex = SolanaBytes.fromHex(bytes.toHex());
+                    SolanaBytes empty = SolanaBytes.EMPTY;
+                    int size = bytes.getSize();
+                    boolean isEmpty = bytes.isEmpty();
+                    byte first = bytes.get(0);
+                    var slice = bytes.slice(0, 1);
+                    bytes.copyInto(new byte[3]);
+                    bytes.copyInto(new byte[4], 1);
+                    byte[] copied = bytes.toByteArray();
                     var fromBytes = new SolanaAddress(recipient.toByteArray());
                     var fromBase58 = new SolanaAddress(recipient.toBase58());
                     var signer = KeypairSigner.fromSeed(seed);
@@ -51,7 +64,7 @@ class JavaApiTest : FunSpec({
                         java.util.List<io.ethers.solana.types.Signature> signatures = fetched.getTransaction().getSignatures();
                         io.ethers.solana.types.RPCMessage rpcMessage = fetched.getTransaction().getMessage();
                         if (!rpcMessage.getInstructions().isEmpty()) {
-                            io.ethers.core.types.Bytes data = rpcMessage.getInstructions().get(0).getData();
+                            io.ethers.solana.types.SolanaBytes data = rpcMessage.getInstructions().get(0).getData();
                             java.util.List<io.ethers.solana.types.SolanaAddress> accounts = rpcMessage.getAccountKeys();
                         }
                         if (fetched.getMeta() != null) {
@@ -80,6 +93,9 @@ class JavaApiTest : FunSpec({
             "partial.serialize();",
             "SolanaTransaction transaction = partial;",
             "provider.sendTransaction(rpc);",
+            "new SolanaBytes(new byte[] {1});",
+            "new SolanaBytes(\"Ldp\");",
+            "SolanaBytes.EMPTY.asByteArray();",
             "SolanaTransaction transaction = rpc;",
             "SolanaTxLegacy.compile(address, blockhash, instruction, java.util.Collections.emptyList());",
         )) {

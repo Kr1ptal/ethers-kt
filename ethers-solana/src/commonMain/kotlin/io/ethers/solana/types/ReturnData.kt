@@ -3,7 +3,6 @@
 
 package io.ethers.solana.types
 
-import io.ethers.core.types.Bytes
 import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
@@ -13,7 +12,7 @@ import kotlinx.serialization.json.JsonElement
 @Serializable(with = ReturnDataSerializer::class)
 data class ReturnData(
     val programId: SolanaAddress,
-    @Serializable(with = Base64BytesSerializer::class) val data: Bytes,
+    @Serializable(with = Base64TupleBytesSerializer::class) val data: SolanaBytes,
     @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
 )
 

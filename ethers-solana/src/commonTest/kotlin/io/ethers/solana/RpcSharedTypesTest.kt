@@ -1,7 +1,6 @@
 package io.ethers.solana
 
 import io.ethers.core.Kotlinx
-import io.ethers.core.types.Bytes
 import io.ethers.solana.types.AccountInfo
 import io.ethers.solana.types.Blockhash
 import io.ethers.solana.types.InstructionError
@@ -14,6 +13,7 @@ import io.ethers.solana.types.RPCTransactionData
 import io.ethers.solana.types.RPCTransactionMeta
 import io.ethers.solana.types.ReturnData
 import io.ethers.solana.types.Signature
+import io.ethers.solana.types.SolanaBytes
 import io.ethers.solana.types.TokenAmount
 import io.ethers.solana.types.TransactionError
 import io.ethers.solana.types.TransactionSignature
@@ -39,7 +39,7 @@ class RpcSharedTypesTest : FunSpec({
     val json = Kotlinx.DEFAULT
 
     test("concrete models can be constructed copied and serialized independently") {
-        val instruction = RPCInstruction(0, listOf(0), Bytes(byteArrayOf(1, 2, 3)))
+        val instruction = RPCInstruction(0, listOf(0), SolanaBytes.fromBytes(byteArrayOf(1, 2, 3)))
         val message = RPCMessage(MessageHeader(1, 0, 0), listOf(address), blockhash, listOf(instruction))
         val payload = RPCTransactionData(listOf(signature), message)
         val meta = RPCTransactionMeta(null, bigIntegerOf(5000), listOf(bigIntegerOf(6000)), listOf(bigIntegerOf(1000)))
@@ -92,7 +92,7 @@ class RpcSharedTypesTest : FunSpec({
         simulation.accounts!!.first() shouldBe json.decodeFromString<AccountInfo>(account)
         simulation.accounts[1] shouldBe null
         simulation.returnData shouldBe json.decodeFromString<ReturnData>(returned)
-        simulation.returnData!!.data shouldBe Bytes(byteArrayOf(1, 2, 3))
+        simulation.returnData!!.data shouldBe SolanaBytes.fromBytes(byteArrayOf(1, 2, 3))
         simulation.innerInstructions!!.single().instructions.single().data.size shouldBe 0
         simulation.replacementBlockhash!!.blockhash shouldBe blockhash
         simulation.loadedAccountsDataSize shouldBe 4294967295L

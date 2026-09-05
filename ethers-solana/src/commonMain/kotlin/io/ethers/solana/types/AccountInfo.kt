@@ -3,7 +3,6 @@
 
 package io.ethers.solana.types
 
-import io.ethers.core.types.Bytes
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
 import kotlinx.serialization.KSerializer
@@ -34,15 +33,15 @@ object AccountInfoSerializer : KSerializer<AccountInfo> {
     override val descriptor = AccountInfoFields.serializer().descriptor
     override fun deserialize(decoder: Decoder): AccountInfo {
         val fields = decoder.decodeSerializableValue(AccountInfoFields.serializer())
-        return AccountInfo(fields.data.asByteArray(), fields.executable, fields.lamports, fields.owner, fields.rentEpoch, fields.space, fields.otherFields)
+        return AccountInfo(fields.data.toByteArray(), fields.executable, fields.lamports, fields.owner, fields.rentEpoch, fields.space, fields.otherFields)
     }
-    override fun serialize(encoder: Encoder, value: AccountInfo) = encoder.encodeSerializableValue(AccountInfoFields.serializer(), AccountInfoFields(Bytes(value.data), value.executable, value.lamports, value.owner, value.rentEpoch, value.space, value.otherFields))
+    override fun serialize(encoder: Encoder, value: AccountInfo) = encoder.encodeSerializableValue(AccountInfoFields.serializer(), AccountInfoFields(SolanaBytes.fromBytes(value.data), value.executable, value.lamports, value.owner, value.rentEpoch, value.space, value.otherFields))
 }
 
 @KeepGeneratedSerializer
 @Serializable(with = AccountInfoFieldsSerializer::class)
 private data class AccountInfoFields(
-    @Serializable(with = Base64BytesSerializer::class) val data: Bytes,
+    @Serializable(with = Base64TupleBytesSerializer::class) val data: SolanaBytes,
     val executable: Boolean,
     val lamports: BigInteger,
     val owner: SolanaAddress,

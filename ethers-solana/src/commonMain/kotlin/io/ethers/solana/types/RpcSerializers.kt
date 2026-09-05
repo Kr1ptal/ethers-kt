@@ -2,8 +2,6 @@
 
 package io.ethers.solana.types
 
-import io.ethers.core.types.Bytes
-import io.ethers.crypto.Base58
 import io.github.artificialpb.bignum.BigDecimal
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.serializer
@@ -27,7 +25,6 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
-import kotlin.io.encoding.Base64
 
 /**
  * Adds forward-compatible fields to a generated object serializer without hand-decoding its properties.
@@ -89,21 +86,21 @@ internal fun exactJson(value: JsonElement): JsonElement = when (value) {
     is JsonPrimitive -> if (value.isString || value == JsonNull || value.content == "true" || value.content == "false") value else JsonUnquotedLiteral(value.content)
 }
 
-object Base58BytesSerializer : KSerializer<Bytes> {
+object Base58BytesSerializer : KSerializer<SolanaBytes> {
     override val descriptor = PrimitiveSerialDescriptor("SolanaBase58Bytes", PrimitiveKind.STRING)
-    override fun deserialize(decoder: Decoder): Bytes = Bytes(Base58.decode(decoder.decodeString()))
-    override fun serialize(encoder: Encoder, value: Bytes) = encoder.encodeString(Base58.encode(value.asByteArray()))
+    override fun deserialize(decoder: Decoder): SolanaBytes = SolanaBytes.fromBase58(decoder.decodeString())
+    override fun serialize(encoder: Encoder, value: SolanaBytes) = encoder.encodeString(value.toBase58())
 }
 
 /** Solana's [base64 data, encoding] tuple, shared by accounts and program return data. */
-object Base64BytesSerializer : KSerializer<Bytes> {
+object Base64TupleBytesSerializer : KSerializer<SolanaBytes> {
     override val descriptor = kotlinx.serialization.builtins.ListSerializer(String.serializer()).descriptor
-    override fun deserialize(decoder: Decoder): Bytes {
+    override fun deserialize(decoder: Decoder): SolanaBytes {
         val data = (decoder as JsonDecoder).decodeJsonElement().jsonArray
         require(data.size == 2 && data.all { it is JsonPrimitive && it.isString } && data[1].jsonPrimitive.content == "base64") { "Expected [data, base64]" }
-        return Bytes(Base64.decode(data[0].jsonPrimitive.content))
+        return SolanaBytes.fromBase64(data[0].jsonPrimitive.content)
     }
-    override fun serialize(encoder: Encoder, value: Bytes) = (encoder as JsonEncoder).encodeJsonElement(JsonArray(listOf(JsonPrimitive(Base64.encode(value.asByteArray())), JsonPrimitive("base64"))))
+    override fun serialize(encoder: Encoder, value: SolanaBytes) = (encoder as JsonEncoder).encodeJsonElement(JsonArray(listOf(JsonPrimitive(value.toBase64()), JsonPrimitive("base64"))))
 }
 
 object DecimalSerializer : KSerializer<BigDecimal> {
