@@ -88,7 +88,7 @@ class TransactionTest : FunSpec({
             externallySigned.isFullySigned shouldBe true
             val snapshot = externallySigned.build()
             snapshot.serialize() shouldBe completed.serialize()
-            completed.withMessage(original.withNewBlockhash(SolanaBlockhash(ByteArray(32)))).signingBuilder().missingSigners shouldBe original.signers
+            original.withNewBlockhash(SolanaBlockhash(ByteArray(32))).signingBuilder().missingSigners shouldBe original.signers
             shouldThrow<IllegalArgumentException> { partial.addSignature(alice.publicKey, alice.signMessage(byteArrayOf())) }
             partial.build().serialize() shouldBe completed.serialize()
             partial.clearSignatures()

@@ -29,9 +29,6 @@ sealed interface SolanaTransaction {
     /** Changing the blockhash discards every signature, returning an unsigned transaction. */
     fun withNewBlockhash(blockhash: SolanaBlockhash): SolanaTransactionUnsigned
 
-    /** Replace the signed payload, discarding every signature. */
-    fun withMessage(tx: SolanaTransactionUnsigned): SolanaTransactionUnsigned = tx
-
     /**
      * Estimate base + priority fee in lamports. A nonzero price requires an explicit compute-unit limit;
      * runtime defaults depend on the invoked programs. The node's getFeeForMessage is authoritative.
