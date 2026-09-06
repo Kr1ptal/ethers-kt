@@ -1,5 +1,6 @@
 package io.ethers.solana.types.transaction
 
+import io.ethers.core.Result
 import io.ethers.solana.signers.SolanaSigner
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
@@ -80,8 +81,16 @@ class SolanaTransactionSigned(val tx: SolanaTransactionUnsigned, val signatures:
                 return Builder(tx, signatures)
             }
 
+            /** As [deserializePartial], returning the reason the bytes could not be decoded instead of throwing. */
+            @JvmStatic
+            fun tryDeserializePartial(bytes: ByteArray): Result<Builder, SolanaTransactionError> = catchTransactionError { deserializePartial(bytes) }
+
             @JvmStatic
             fun fromBase64Partial(encoded: String): Builder = deserializePartial(Base64.decode(encoded))
+
+            /** As [fromBase64Partial], returning the reason the input could not be decoded instead of throwing. */
+            @JvmStatic
+            fun tryFromBase64Partial(encoded: String): Result<Builder, SolanaTransactionError> = catchTransactionError { fromBase64Partial(encoded) }
         }
     }
 
@@ -93,7 +102,15 @@ class SolanaTransactionSigned(val tx: SolanaTransactionUnsigned, val signatures:
             return SolanaTransactionSigned(tx, signatures.map { requireNotNull(it) { "Missing required signatures" } })
         }
 
+        /** As [deserialize], returning the reason the bytes could not be decoded instead of throwing. */
+        @JvmStatic
+        fun tryDeserialize(bytes: ByteArray): Result<SolanaTransactionSigned, SolanaTransactionError> = catchTransactionError { deserialize(bytes) }
+
         @JvmStatic
         fun fromBase64(encoded: String): SolanaTransactionSigned = deserialize(Base64.decode(encoded))
+
+        /** As [fromBase64], returning the reason the input could not be decoded instead of throwing. */
+        @JvmStatic
+        fun tryFromBase64(encoded: String): Result<SolanaTransactionSigned, SolanaTransactionError> = catchTransactionError { fromBase64(encoded) }
     }
 }

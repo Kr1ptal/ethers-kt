@@ -1,5 +1,6 @@
 package io.ethers.solana.types.transaction
 
+import io.ethers.core.Result
 import io.ethers.solana.instruction.Instruction
 import io.ethers.solana.serialization.SolanaMessageDecoder
 import io.ethers.solana.serialization.SolanaMessageEncoder
@@ -28,13 +29,26 @@ class SolanaTxV1(
 
     init {
         validateMessage(header, accounts, instructions, emptyList())
-        require(config.otherFields.isEmpty()) { "Cannot compile unknown transaction config fields" }
-        require(header.requiredSignatures <= 12) { "V1 supports at most 12 signatures" }
-        require(accounts.size <= 64) { "V1 supports at most 64 accounts" }
-        require(instructions.size <= 64) { "V1 supports at most 64 instructions" }
-        require(instructions.all { it.accounts.size <= 255 && it.data.size <= 65535 }) { "V1 instruction exceeds wire limits" }
-        require(config.heapSize == null || (config.heapSize in 32768L..262144L && config.heapSize % 1024L == 0L)) { "V1 heap size must be a multiple of 1 KiB in 32..256 KiB" }
-        require(envelopeSize() <= MAX_TRANSACTION_SIZE) { "V1 transaction exceeds $MAX_TRANSACTION_SIZE bytes" }
+        validate()?.let { throw it.toException() }
+    }
+
+    private fun validate(): SolanaTransactionError? {
+        if (config.otherFields.isNotEmpty()) {
+            return SolanaTransactionError.InvalidConfig("otherFields", "Cannot compile unknown transaction config fields")
+        }
+        if (header.requiredSignatures > 12) return SolanaTransactionError.InvalidSignerCount(header.requiredSignatures, 12)
+        if (accounts.size > 64) return SolanaTransactionError.TooManyAccounts(accounts.size, 64)
+        if (instructions.size > 64) return SolanaTransactionError.TooManyInstructions(instructions.size, 64)
+        instructions.forEachIndexed { index, instruction ->
+            if (instruction.accounts.size > 255 || instruction.data.size > 65535) {
+                return SolanaTransactionError.InstructionTooLarge(index, instruction.accounts.size, instruction.data.size)
+            }
+        }
+        val heapSize = config.heapSize
+        if (heapSize != null && (heapSize !in 32768L..262144L || heapSize % 1024L != 0L)) {
+            return SolanaTransactionError.InvalidConfig("heapSize", "V1 heap size must be a multiple of 1 KiB in 32..256 KiB")
+        }
+        return envelopeSizeError(this, MAX_TRANSACTION_SIZE)
     }
 
     override fun withNewBlockhash(blockhash: SolanaBlockhash): SolanaTxV1 = SolanaTxV1(header, accounts, blockhash, instructions, config)
@@ -87,12 +101,16 @@ class SolanaTxV1(
         internal fun decodeBody(decoder: SolanaMessageDecoder): SolanaTxV1 = with(decoder) {
             val header = MessageHeader(readByte(), readByte(), readByte())
             val mask = readUnsignedLittleEndian(4).toLong()
-            require(mask and 31L == mask) { "Unsupported v1 config mask" }
-            require(mask and 3L == 0L || mask and 3L == 3L) { "Both priority-fee config bits must be set" }
+            if (mask and 31L != mask) throw SolanaTransactionError.InvalidConfig("mask", "Unsupported v1 config mask").toException()
+            if (mask and 3L != 0L && mask and 3L != 3L) {
+                throw SolanaTransactionError.InvalidConfig("mask", "Both priority-fee config bits must be set").toException()
+            }
             val blockhash = SolanaBlockhash(readBytes(32))
             val instructionCount = readByte()
             val accountCount = readByte()
-            require(instructionCount <= 64 && accountCount in 1..64 && header.requiredSignatures in 1..12) { "Invalid v1 counts" }
+            if (instructionCount > 64) throw SolanaTransactionError.TooManyInstructions(instructionCount, 64).toException()
+            if (accountCount !in 1..64) throw SolanaTransactionError.TooManyAccounts(accountCount, 64).toException()
+            if (header.requiredSignatures !in 1..12) throw SolanaTransactionError.InvalidSignerCount(header.requiredSignatures, 12).toException()
             val accounts = List(accountCount) { SolanaAddress(readBytes(32)) }
             val config = SolanaTransactionConfig(
                 priorityFee = if (mask and 3L != 0L) readUnsignedLittleEndian(8) else null,
@@ -109,6 +127,14 @@ class SolanaTxV1(
 
         @JvmStatic
         fun compile(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instruction: Instruction, config: SolanaTransactionConfig): SolanaTxV1 = compile(feePayer, blockhash, listOf(instruction), config)
+
+        /** As [compile], returning the reason it could not be compiled instead of throwing. */
+        @JvmStatic
+        fun tryCompile(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instruction: Instruction, config: SolanaTransactionConfig): Result<SolanaTxV1, SolanaTransactionError> = tryCompile(feePayer, blockhash, listOf(instruction), config)
+
+        /** As [compile], returning the reason it could not be compiled instead of throwing. */
+        @JvmStatic
+        fun tryCompile(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instructions: List<Instruction>, config: SolanaTransactionConfig): Result<SolanaTxV1, SolanaTransactionError> = catchTransactionError { compile(feePayer, blockhash, instructions, config) }
 
         @JvmStatic
         fun compile(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instructions: List<Instruction>, config: SolanaTransactionConfig): SolanaTxV1 {

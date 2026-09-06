@@ -1,5 +1,6 @@
 package io.ethers.solana.types.transaction
 
+import io.ethers.core.Result
 import io.ethers.solana.instruction.Instruction
 import io.ethers.solana.serialization.SolanaMessageDecoder
 import io.ethers.solana.serialization.SolanaMessageEncoder
@@ -21,7 +22,7 @@ class SolanaTxV0 @JvmOverloads constructor(
 
     init {
         validateMessage(header, accounts, instructions, addressLookupTables)
-        require(envelopeSize() <= MAX_TRANSACTION_SIZE) { "$type transaction exceeds $MAX_TRANSACTION_SIZE bytes" }
+        envelopeSizeError(this, MAX_TRANSACTION_SIZE)?.let { throw it.toException() }
     }
 
     override fun withNewBlockhash(blockhash: SolanaBlockhash): SolanaTxV0 = SolanaTxV0(header, accounts, blockhash, instructions, addressLookupTables)
@@ -62,6 +63,16 @@ class SolanaTxV0 @JvmOverloads constructor(
         @JvmStatic
         @JvmOverloads
         fun compile(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instruction: Instruction, lookupTables: List<AddressLookupTableAccount> = emptyList()): SolanaTxV0 = compile(feePayer, blockhash, listOf(instruction), lookupTables)
+
+        /** As [compile], returning the reason it could not be compiled instead of throwing. */
+        @JvmStatic
+        @JvmOverloads
+        fun tryCompile(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instruction: Instruction, lookupTables: List<AddressLookupTableAccount> = emptyList()): Result<SolanaTxV0, SolanaTransactionError> = tryCompile(feePayer, blockhash, listOf(instruction), lookupTables)
+
+        /** As [compile], returning the reason it could not be compiled instead of throwing. */
+        @JvmStatic
+        @JvmOverloads
+        fun tryCompile(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instructions: List<Instruction>, lookupTables: List<AddressLookupTableAccount> = emptyList()): Result<SolanaTxV0, SolanaTransactionError> = catchTransactionError { compile(feePayer, blockhash, instructions, lookupTables) }
 
         @JvmStatic
         @JvmOverloads

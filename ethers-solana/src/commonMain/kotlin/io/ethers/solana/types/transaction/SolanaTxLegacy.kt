@@ -1,5 +1,6 @@
 package io.ethers.solana.types.transaction
 
+import io.ethers.core.Result
 import io.ethers.solana.instruction.Instruction
 import io.ethers.solana.serialization.SolanaMessageDecoder
 import io.ethers.solana.serialization.SolanaMessageEncoder
@@ -19,7 +20,7 @@ class SolanaTxLegacy(
 
     init {
         validateMessage(header, accounts, instructions, emptyList())
-        require(envelopeSize() <= MAX_TRANSACTION_SIZE) { "$type transaction exceeds $MAX_TRANSACTION_SIZE bytes" }
+        envelopeSizeError(this, MAX_TRANSACTION_SIZE)?.let { throw it.toException() }
     }
 
     override fun withNewBlockhash(blockhash: SolanaBlockhash): SolanaTxLegacy = SolanaTxLegacy(header, accounts, blockhash, instructions)
@@ -41,6 +42,14 @@ class SolanaTxLegacy(
 
         @JvmStatic
         fun compile(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instruction: Instruction): SolanaTxLegacy = compile(feePayer, blockhash, listOf(instruction))
+
+        /** As [compile], returning the reason it could not be compiled instead of throwing. */
+        @JvmStatic
+        fun tryCompile(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instruction: Instruction): Result<SolanaTxLegacy, SolanaTransactionError> = tryCompile(feePayer, blockhash, listOf(instruction))
+
+        /** As [compile], returning the reason it could not be compiled instead of throwing. */
+        @JvmStatic
+        fun tryCompile(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instructions: List<Instruction>): Result<SolanaTxLegacy, SolanaTransactionError> = catchTransactionError { compile(feePayer, blockhash, instructions) }
 
         @JvmStatic
         fun compile(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instructions: List<Instruction>): SolanaTxLegacy {

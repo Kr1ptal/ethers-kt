@@ -1,5 +1,6 @@
 package io.ethers.solana.types.transaction
 
+import io.ethers.core.Result
 import io.ethers.solana.signers.SolanaSigner
 import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.types.SolanaSignature
@@ -31,5 +32,9 @@ sealed interface SolanaTransactionUnsigned : SolanaTransaction {
         /** Decode message bytes, not a transaction envelope containing signatures. */
         @JvmStatic
         fun deserializeMessage(bytes: ByteArray): SolanaTransactionUnsigned = decodeMessage(bytes)
+
+        /** As [deserializeMessage], returning the reason the bytes could not be decoded instead of throwing. */
+        @JvmStatic
+        fun tryDeserializeMessage(bytes: ByteArray): Result<SolanaTransactionUnsigned, SolanaTransactionError> = catchTransactionError { decodeMessage(bytes) }
     }
 }

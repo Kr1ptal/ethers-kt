@@ -28,7 +28,7 @@ object MessageHeaderSerializer : ExtensibleJsonSerializer<MessageHeader>(Message
 
 data class AddressLookupTableAccount(val key: SolanaAddress, val addresses: List<SolanaAddress>) {
     init {
-        require(addresses.size <= 256) { "Lookup table exceeds 256 addresses" }
+        if (addresses.size > 256) throw SolanaTransactionError.LookupTableTooLarge(addresses.size).toException()
     }
 }
 

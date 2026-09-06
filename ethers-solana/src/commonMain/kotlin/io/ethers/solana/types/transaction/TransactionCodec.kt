@@ -1,20 +1,50 @@
 package io.ethers.solana.types.transaction
 
+import io.ethers.core.Result
 import io.ethers.solana.serialization.SolanaMessageDecoder
 import io.ethers.solana.serialization.SolanaMessageEncoder
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.types.SolanaSignature
 
-internal fun validateMessage(header: MessageHeader, accounts: List<SolanaAddress>, instructions: List<CompiledInstruction>, lookups: List<CompiledAddressLookupTable>) {
-    require(accounts.size in 1..256 && accounts.distinct().size == accounts.size) { "Invalid static accounts" }
-    require(header.requiredSignatures in 1..minOf(127, accounts.size)) { "Invalid required signature count" }
-    require(header.readonlySignedAccounts in 0 until header.requiredSignatures) { "Fee payer must be writable" }
-    require(header.readonlyUnsignedAccounts in 0..(accounts.size - header.requiredSignatures)) { "Invalid readonly account count" }
+/** Structural invariants shared by every message version, reported as a value rather than thrown. */
+internal fun messageError(
+    header: MessageHeader,
+    accounts: List<SolanaAddress>,
+    instructions: List<CompiledInstruction>,
+    lookups: List<CompiledAddressLookupTable>,
+): SolanaTransactionError? {
+    if (accounts.size !in 1..256) return SolanaTransactionError.InvalidAccountCount(accounts.size)
+    accounts.groupingBy { it }.eachCount().forEach { (address, count) ->
+        if (count > 1) return SolanaTransactionError.DuplicateAccount(address)
+    }
+    if (header.requiredSignatures !in 1..minOf(127, accounts.size)) {
+        return SolanaTransactionError.InvalidSignerCount(header.requiredSignatures, minOf(127, accounts.size))
+    }
+    if (header.readonlySignedAccounts !in 0 until header.requiredSignatures) return SolanaTransactionError.FeePayerNotWritable
+    if (header.readonlyUnsignedAccounts !in 0..(accounts.size - header.requiredSignatures)) {
+        return SolanaTransactionError.InvalidReadonlyAccountCount(header.readonlyUnsignedAccounts, accounts.size - header.requiredSignatures)
+    }
     val totalAccounts = accounts.size + lookups.sumOf { it.writableIndexes.size + it.readonlyIndexes.size }
-    require(totalAccounts <= 256) { "Too many transaction accounts" }
-    require(lookups.all { table -> (table.writableIndexes + table.readonlyIndexes).all { it in 0..255 } }) { "Lookup index out of range" }
-    require(instructions.all { it.programIdIndex in 1 until accounts.size && it.accounts.all { index -> index in 0 until totalAccounts } }) { "Instruction account index out of range" }
+    if (totalAccounts > 256) return SolanaTransactionError.TooManyAccounts(totalAccounts, 256)
+    lookups.forEachIndexed { table, lookup ->
+        (lookup.writableIndexes + lookup.readonlyIndexes).forEach {
+            if (it !in 0..255) return SolanaTransactionError.LookupIndexOutOfRange(table, it)
+        }
+    }
+    instructions.forEachIndexed { index, instruction ->
+        if (instruction.programIdIndex !in 1 until accounts.size) {
+            return SolanaTransactionError.AccountIndexOutOfRange(index, instruction.programIdIndex, accounts.size)
+        }
+        instruction.accounts.forEach {
+            if (it !in 0 until totalAccounts) return SolanaTransactionError.AccountIndexOutOfRange(index, it, totalAccounts)
+        }
+    }
+    return null
+}
+
+internal fun validateMessage(header: MessageHeader, accounts: List<SolanaAddress>, instructions: List<CompiledInstruction>, lookups: List<CompiledAddressLookupTable>) {
+    messageError(header, accounts, instructions, lookups)?.let { throw it.toException() }
 }
 
 internal fun SolanaMessageEncoder.writeMessageBody(tx: SolanaTransactionUnsigned) {
@@ -41,7 +71,7 @@ internal class DecodedMessageBody(
 internal fun SolanaMessageDecoder.readMessageBody(requiredSignatures: Int): DecodedMessageBody {
     val header = MessageHeader(requiredSignatures, readByte(), readByte())
     val count = readShortVecLength()
-    require(count in 1..256) { "Invalid static account count" }
+    if (count !in 1..256) throw SolanaTransactionError.InvalidAccountCount(count).toException()
     val accounts = List(count) { SolanaAddress(readBytes(32)) }
     val blockhash = SolanaBlockhash(readBytes(32))
     val instructions = List(readShortVecLength()) {
@@ -72,6 +102,12 @@ internal fun legacyEnvelopeSize(tx: SolanaTransactionUnsigned, lookups: List<Com
     return size
 }
 
+/** The envelope exceeds the version's wire limit, reported as a value rather than thrown. */
+internal fun envelopeSizeError(tx: SolanaTransactionUnsigned, max: Int): SolanaTransactionError? {
+    val size = tx.envelopeSize()
+    return if (size > max) SolanaTransactionError.EnvelopeTooLarge(tx.type, size, max) else null
+}
+
 /** Legacy and v0 envelopes put the signature vector before the message. */
 internal fun encodeSignaturesFirstEnvelope(tx: SolanaTransactionUnsigned, signatures: List<SolanaSignature?>): ByteArray {
     val encoder = SolanaMessageEncoder().writeShortVecLength(signatures.size)
@@ -79,13 +115,22 @@ internal fun encodeSignaturesFirstEnvelope(tx: SolanaTransactionUnsigned, signat
     return encoder.writeBytes(tx.serializeMessage()).toByteArray()
 }
 
-internal fun validateSignatures(tx: SolanaTransactionUnsigned, signatures: List<SolanaSignature?>) {
-    require(signatures.size == tx.header.requiredSignatures) { "Signature count does not match message" }
+internal fun signatureError(tx: SolanaTransactionUnsigned, signatures: List<SolanaSignature?>): SolanaTransactionError? {
+    if (signatures.size != tx.header.requiredSignatures) {
+        return SolanaTransactionError.SignatureCountMismatch(signatures.size, tx.header.requiredSignatures)
+    }
     val message = tx.serializeMessage()
     val signers = tx.signers
     signatures.forEachIndexed { index, signature ->
-        require(signature == null || signers[index].verify(signature, message)) { "Invalid transaction signature" }
+        if (signature != null && !signers[index].verify(signature, message)) {
+            return SolanaTransactionError.InvalidSignature(index, signers[index])
+        }
     }
+    return null
+}
+
+internal fun validateSignatures(tx: SolanaTransactionUnsigned, signatures: List<SolanaSignature?>) {
+    signatureError(tx, signatures)?.let { throw it.toException() }
 }
 
 internal fun decodeMessage(bytes: ByteArray): SolanaTransactionUnsigned {
@@ -98,7 +143,9 @@ internal fun decodeMessage(bytes: ByteArray): SolanaTransactionUnsigned {
 internal fun decodeTransactionEnvelope(bytes: ByteArray): Pair<SolanaTransactionUnsigned, List<SolanaSignature?>> {
     val decoder = SolanaMessageDecoder(bytes)
     if (bytes.firstOrNull() == 129.toByte()) {
-        require(bytes.size <= SolanaTxV1.MAX_TRANSACTION_SIZE) { "V1 transaction exceeds ${SolanaTxV1.MAX_TRANSACTION_SIZE} bytes" }
+        if (bytes.size > SolanaTxV1.MAX_TRANSACTION_SIZE) {
+            throw SolanaTransactionError.EnvelopeTooLarge(SolanaTxType.V1, bytes.size.toLong(), SolanaTxV1.MAX_TRANSACTION_SIZE).toException()
+        }
         decoder.readByte()
         val tx = SolanaTxV1.decodeBody(decoder)
         val signatures = List(tx.header.requiredSignatures) { decoder.readSignatureSlot() }
@@ -106,11 +153,13 @@ internal fun decodeTransactionEnvelope(bytes: ByteArray): Pair<SolanaTransaction
         return tx to signatures
     }
     val count = decoder.readShortVecLength()
-    require(count in 1..127) { "Invalid signature count" }
+    if (count !in 1..127) throw SolanaTransactionError.InvalidSignerCount(count, 127).toException()
     val signatures = List(count) { decoder.readSignatureSlot() }
     val tx = decoder.readSignaturesFirstMessage()
     decoder.requireDone()
-    require(tx.header.requiredSignatures == count) { "Signature count does not match message" }
+    if (tx.header.requiredSignatures != count) {
+        throw SolanaTransactionError.SignatureCountMismatch(count, tx.header.requiredSignatures).toException()
+    }
     return tx to signatures
 }
 
@@ -121,7 +170,7 @@ private fun SolanaMessageDecoder.readVersionedMessage(): SolanaTransactionUnsign
         prefix == 129 -> SolanaTxV1.decodeBody(this)
         prefix == 128 -> SolanaTxV0.decodeBody(this)
         prefix <= 127 -> SolanaTxLegacy.decodeBody(this, prefix)
-        else -> throw IllegalArgumentException("Unsupported transaction message version")
+        else -> throw SolanaTransactionError.UnsupportedMessageVersion(prefix).toException()
     }
 }
 
@@ -131,12 +180,28 @@ private fun SolanaMessageDecoder.readSignaturesFirstMessage(): SolanaTransaction
     return when {
         prefix == 128 -> SolanaTxV0.decodeBody(this)
         prefix <= 127 -> SolanaTxLegacy.decodeBody(this, prefix)
-        prefix == 129 -> throw IllegalArgumentException("V1 signatures must follow the message")
-        else -> throw IllegalArgumentException("Unsupported transaction message version")
+        prefix == 129 -> throw SolanaTransactionError.V1SignaturesMustFollowMessage.toException()
+        else -> throw SolanaTransactionError.UnsupportedMessageVersion(prefix).toException()
     }
 }
 
 private fun SolanaMessageDecoder.readSignatureSlot(): SolanaSignature? {
     val signature = readBytes(64)
     return if (signature.all { it == 0.toByte() }) null else SolanaSignature(signature)
+}
+
+/**
+ * Run a construction or decoding step, returning its typed failure as a value.
+ *
+ * The wire decoder reports truncated and non-canonical input by throwing, so anything that is not
+ * already a [SolanaTransactionException] is surfaced as [SolanaTransactionError.MalformedMessage].
+ */
+internal inline fun <T> catchTransactionError(block: () -> T): Result<T, SolanaTransactionError> = try {
+    Result.success(block())
+} catch (e: SolanaTransactionException) {
+    Result.failure(e.error)
+} catch (e: IllegalArgumentException) {
+    Result.failure(SolanaTransactionError.MalformedMessage(e.message ?: "Malformed transaction bytes", e))
+} catch (e: IndexOutOfBoundsException) {
+    Result.failure(SolanaTransactionError.MalformedMessage(e.message ?: "Malformed transaction bytes", e))
 }

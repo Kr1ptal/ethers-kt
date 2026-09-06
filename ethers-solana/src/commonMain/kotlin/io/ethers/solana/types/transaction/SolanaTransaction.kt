@@ -1,5 +1,6 @@
 package io.ethers.solana.types.transaction
 
+import io.ethers.core.Result
 import io.ethers.solana.serialization.SolanaMessageDecoder
 import io.ethers.solana.types.Programs
 import io.ethers.solana.types.SolanaAddress
@@ -63,11 +64,19 @@ sealed interface SolanaTransaction {
             return when {
                 signatures.all { it == null } -> tx
                 signatures.all { it != null } -> SolanaTransactionSigned(tx, signatures.map { requireNotNull(it) })
-                else -> throw IllegalArgumentException("Import partial signatures with SolanaTransactionSigned.Builder.deserializePartial")
+                else -> throw SolanaTransactionError.PartiallySigned(signatures.count { it == null }, signatures.size).toException()
             }
         }
 
+        /** As [deserialize], returning the reason the bytes could not be decoded instead of throwing. */
+        @JvmStatic
+        fun tryDeserialize(bytes: ByteArray): Result<SolanaTransaction, SolanaTransactionError> = catchTransactionError { deserialize(bytes) }
+
         @JvmStatic
         fun fromBase64(encoded: String): SolanaTransaction = deserialize(Base64.decode(encoded))
+
+        /** As [fromBase64], returning the reason the input could not be decoded instead of throwing. */
+        @JvmStatic
+        fun tryFromBase64(encoded: String): Result<SolanaTransaction, SolanaTransactionError> = catchTransactionError { fromBase64(encoded) }
     }
 }

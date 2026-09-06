@@ -14,9 +14,9 @@ import io.ethers.solana.types.transaction.SolanaTransactionUnsigned
 import io.ethers.solana.types.transaction.SolanaTxLegacy
 import io.ethers.solana.types.transaction.SolanaTxV0
 import io.ethers.solana.types.transaction.SolanaTxV1
+import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
-import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.matchers.shouldBe
 import kotlin.random.Random
 
