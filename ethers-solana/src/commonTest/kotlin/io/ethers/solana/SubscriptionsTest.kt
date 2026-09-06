@@ -52,7 +52,7 @@ class SubscriptionsTest : FunSpec({
 
     test("account and program subscriptions decode contextual data and filters") {
         client.event = contextual(account)
-        provider.subscribeAccount(key).send().unwrap().take()!!.value!!.data shouldBe byteArrayOf(1, 2, 3)
+        provider.subscribeAccount(key).send().unwrap().take()!!.value!!.data.toByteArray() shouldBe byteArrayOf(1, 2, 3)
         client.descriptor.subscribeMethod shouldBe "accountSubscribe"
         client.descriptor.unsubscribeMethod shouldBe "accountUnsubscribe"
         client.params[0] shouldBe key.toString()

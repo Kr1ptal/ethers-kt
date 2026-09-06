@@ -108,9 +108,9 @@ class RpcSharedTypesTest : FunSpec({
         val withoutSpace = JsonObject(json.parseToJsonElement(account).jsonObject - "space")
         json.decodeFromJsonElement<AccountInfo>(withoutSpace).space shouldBe bigIntegerOf(3)
         val decodedAccount = simulation.accounts.first()!!
-        val bytes = decodedAccount.data
-        bytes[0] = 9
-        decodedAccount.data shouldBe byteArrayOf(1, 2, 3)
+        // account data is immutable, so a copy taken from it cannot change the account
+        decodedAccount.data.toByteArray().also { it[0] = 9 }
+        decodedAccount.data.toByteArray() shouldBe byteArrayOf(1, 2, 3)
         for (invalid in listOf("""["AQID","base58"]""", """["AQID"]""", """["!","base64"]""", "null")) {
             shouldThrow<IllegalArgumentException> { json.decodeFromString<ReturnData>("""{"programId":"$address","data":$invalid}""") }
         }

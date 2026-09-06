@@ -14,8 +14,8 @@ import kotlinx.serialization.json.JsonElement
 
 /** Account data in the requested base64 encoding, shared by queries, subscriptions and simulation. */
 @Serializable(with = AccountInfoSerializer::class)
-class AccountInfo(
-    data: ByteArray,
+data class AccountInfo(
+    val data: SolanaBytes,
     val executable: Boolean,
     val lamports: BigInteger,
     val owner: SolanaAddress,
@@ -23,19 +23,25 @@ class AccountInfo(
     val space: BigInteger,
     @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
 ) {
-    private val payload = data.copyOf()
-    val data: ByteArray get() = payload.copyOf()
-    override fun equals(other: Any?): Boolean = other is AccountInfo && payload.contentEquals(other.payload) && executable == other.executable && lamports == other.lamports && owner == other.owner && rentEpoch == other.rentEpoch && space == other.space && otherFields == other.otherFields
-    override fun hashCode(): Int = listOf(payload.contentHashCode(), executable, lamports, owner, rentEpoch, space, otherFields).hashCode()
+    /** Takes ownership of [data] rather than copying it, so do not mutate the array afterwards. */
+    constructor(
+        data: ByteArray,
+        executable: Boolean,
+        lamports: BigInteger,
+        owner: SolanaAddress,
+        rentEpoch: BigInteger,
+        space: BigInteger,
+        otherFields: Map<String, JsonElement> = emptyMap(),
+    ) : this(SolanaBytes.fromBytes(data), executable, lamports, owner, rentEpoch, space, otherFields)
 }
 
 object AccountInfoSerializer : KSerializer<AccountInfo> {
     override val descriptor = AccountInfoFields.serializer().descriptor
     override fun deserialize(decoder: Decoder): AccountInfo {
         val fields = decoder.decodeSerializableValue(AccountInfoFields.serializer())
-        return AccountInfo(fields.data.toByteArray(), fields.executable, fields.lamports, fields.owner, fields.rentEpoch, fields.space, fields.otherFields)
+        return AccountInfo(fields.data, fields.executable, fields.lamports, fields.owner, fields.rentEpoch, fields.space, fields.otherFields)
     }
-    override fun serialize(encoder: Encoder, value: AccountInfo) = encoder.encodeSerializableValue(AccountInfoFields.serializer(), AccountInfoFields(SolanaBytes.fromBytes(value.data), value.executable, value.lamports, value.owner, value.rentEpoch, value.space, value.otherFields))
+    override fun serialize(encoder: Encoder, value: AccountInfo) = encoder.encodeSerializableValue(AccountInfoFields.serializer(), AccountInfoFields(value.data, value.executable, value.lamports, value.owner, value.rentEpoch, value.space, value.otherFields))
 }
 
 @KeepGeneratedSerializer

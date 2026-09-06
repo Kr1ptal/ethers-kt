@@ -117,7 +117,7 @@ interface SolanaApi {
      */
     fun getAddressLookupTable(address: SolanaAddress, commitment: Commitment = this.defaultCommitment): RpcRequest<ContextValue<AddressLookupTableAccount?>, RpcError> {
         return getAccountInfo(address, commitment).map { response ->
-            ContextValue(response.context, response.value?.let { AddressLookupTableAccount.decode(address, it.data) })
+            ContextValue(response.context, response.value?.let { AddressLookupTableAccount.decode(address, it.data.asByteArray()) })
         }
     }
 

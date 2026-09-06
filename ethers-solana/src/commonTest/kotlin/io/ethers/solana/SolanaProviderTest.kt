@@ -148,7 +148,7 @@ class SolanaProviderTest : FunSpec({
     test("account queries preserve u64, context, missing accounts and binary data") {
         response = contextual(account)
         val info = provider.getAccountInfo(address).send().unwrap().value!!
-        info.data shouldBe byteArrayOf(1, 2, 3)
+        info.data.toByteArray() shouldBe byteArrayOf(1, 2, 3)
         info.space shouldBe bigIntegerOf(3)
         info.lamports shouldBe BigInteger("18446744073709551615")
         assertRequest("getAccountInfo", """["$address",{"commitment":"confirmed","encoding":"base64"}]""")
