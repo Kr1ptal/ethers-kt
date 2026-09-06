@@ -13,6 +13,41 @@ internal class CompiledMessageFields(
     val lookups: List<CompiledAddressLookupTable>,
 )
 
+/**
+ * Choose which of [lookupTables] to compile against, so a v0 message is never larger for having been
+ * given a table it does not need.
+ *
+ * Moving an account out of the inline list saves its 32 address bytes and costs one index byte, a net
+ * 31; naming a table costs its 32 key bytes plus two vector lengths, a net 34. A table therefore only
+ * pays for itself once it covers two accounts this transaction can move, which rules out the accounts
+ * that must stay inline: the fee payer, every other signer, and every invoked program.
+ *
+ * Tables are taken greedily by how many not-yet-covered accounts they hold, so overlapping tables
+ * concentrate into as few as possible. Ties keep the earlier of the supplied tables, so the choice is
+ * deterministic and follows the caller's own ordering.
+ */
+private fun selectLookupTables(movable: List<SolanaAddress>, lookupTables: List<AddressLookupTableAccount>): List<Int> {
+    if (lookupTables.isEmpty() || movable.isEmpty()) return emptyList()
+
+    val remaining = movable.toMutableSet()
+    val selected = mutableListOf<Int>()
+    while (true) {
+        var best = -1
+        var bestCovered = 1 // a table covering a single account would cost three bytes more than it saves
+        lookupTables.forEachIndexed { index, table ->
+            if (index in selected) return@forEachIndexed
+            val covered = remaining.count { it in table.addresses }
+            if (covered > bestCovered) {
+                best = index
+                bestCovered = covered
+            }
+        }
+        if (best < 0) return selected
+        selected.add(best)
+        remaining.removeAll { it in lookupTables[best].addresses }
+    }
+}
+
 /** Preserves sol4k's deterministic signed-byte ordering within each account privilege group. */
 internal fun compileMessage(
     feePayer: SolanaAddress,
@@ -34,6 +69,12 @@ internal fun compileMessage(
         val y = b.asByteArray()
         x.indices.firstOrNull { x[it] != y[it] }?.let { x[it].compareTo(y[it]) } ?: 0
     }
+    val movable = sorted.filter {
+        val meta = metas.getValue(it)
+        !meta.signer && !meta.invoked
+    }
+    val selected = selectLookupTables(movable, lookupTables)
+
     val signedWritable = mutableListOf(feePayer)
     val signedReadonly = mutableListOf<SolanaAddress>()
     val unsignedWritable = mutableListOf<SolanaAddress>()
@@ -44,7 +85,7 @@ internal fun compileMessage(
     for (key in sorted) {
         val meta = metas.getValue(key)
         if (!meta.signer && !meta.invoked) {
-            val table = tableAddresses.indexOfFirst { key in it }
+            val table = selected.firstOrNull { key in tableAddresses[it] } ?: -1
             if (table >= 0) {
                 (if (meta.writable) writable[table] else readonly[table]).add(tableAddresses[table].indexOf(key))
                 continue

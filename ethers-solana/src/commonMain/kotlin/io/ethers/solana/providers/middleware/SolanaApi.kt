@@ -25,6 +25,7 @@ import io.ethers.solana.types.SolanaSignature
 import io.ethers.solana.types.TokenAmount
 import io.ethers.solana.types.TransactionSignature
 import io.ethers.solana.types.TransactionSimulation
+import io.ethers.solana.types.transaction.AddressLookupTableAccount
 import io.ethers.solana.types.transaction.SolanaTransaction
 import io.ethers.solana.types.transaction.SolanaTransactionSigned
 import io.github.artificialpb.bignum.BigInteger
@@ -91,6 +92,18 @@ interface SolanaApi {
     fun getMultipleAccounts(addresses: List<SolanaAddress>, commitment: Commitment = this.defaultCommitment): RpcRequest<ContextValue<List<AccountInfo?>>, RpcError> {
         return rpc("getMultipleAccounts", addresses.map { it.toString() }, config(commitment, "base64")) { decodeContext(it) { v -> v.jsonArray.map(::decodeAccount) } }
     }
+    fun getAddressLookupTable(address: SolanaAddress): RpcRequest<ContextValue<AddressLookupTableAccount?>, RpcError> = getAddressLookupTable(address, defaultCommitment)
+
+    /**
+     * Fetch and decode a lookup table, for compiling v0 transactions against it. Null when no account
+     * exists; an account that is not a lookup table fails the request.
+     */
+    fun getAddressLookupTable(address: SolanaAddress, commitment: Commitment = this.defaultCommitment): RpcRequest<ContextValue<AddressLookupTableAccount?>, RpcError> {
+        return getAccountInfo(address, commitment).map { response ->
+            ContextValue(response.context, response.value?.let { AddressLookupTableAccount.decode(address, it.data) })
+        }
+    }
+
     fun getMinimumBalanceForRentExemption(space: BigInteger): RpcRequest<BigInteger, RpcError> = getMinimumBalanceForRentExemption(space, defaultCommitment)
     fun getMinimumBalanceForRentExemption(space: BigInteger, commitment: Commitment = this.defaultCommitment): RpcRequest<BigInteger, RpcError> = rpc("getMinimumBalanceForRentExemption", rpcInteger(space), config(commitment), decoder = ::decodeU64)
     fun getMinimumBalanceForRentExemption(space: Long): RpcRequest<BigInteger, RpcError> = getMinimumBalanceForRentExemption(space, defaultCommitment)

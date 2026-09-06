@@ -127,11 +127,18 @@ class TransactionTest : FunSpec({
     }
 
     test("lookup tables load writable then readonly accounts, keeping signers static") {
-        val table = AddressLookupTableAccount(SolanaAddress(ByteArray(32) { 5 }), listOf(bob.publicKey, alice.publicKey))
-        val message = SolanaTxV0.compile(alice.publicKey, blockhash, SystemProgram.transfer(alice.publicKey, bob.publicKey, 1), listOf(table))
+        // the table must cover two movable accounts, or naming it would cost more than it saves
+        val carol = KeypairSigner.fromSeed(ByteArray(32) { 9 }).publicKey
+        val table = AddressLookupTableAccount(SolanaAddress(ByteArray(32) { 5 }), listOf(bob.publicKey, carol, alice.publicKey))
+        val instructions = listOf(
+            SystemProgram.transfer(alice.publicKey, bob.publicKey, 1),
+            Instruction(Programs.SYSTEM, listOf(AccountMeta(carol)), byteArrayOf(1)),
+        )
+        val message = SolanaTxV0.compile(alice.publicKey, blockhash, instructions, listOf(table))
         message.accounts shouldBe listOf(alice.publicKey, Programs.SYSTEM)
         message.addressLookupTables.single().writableIndexes shouldBe listOf(0)
-        message.instructions.single().accounts shouldBe listOf(0, 2)
+        message.addressLookupTables.single().readonlyIndexes shouldBe listOf(1)
+        message.instructions.first().accounts shouldBe listOf(0, 2)
         val decoded = SolanaTransactionUnsigned.deserializeMessage(message.serializeMessage()) as SolanaTxV0
         decoded.serializeMessage() shouldBe message.serializeMessage()
         decoded.addressLookupTables.single().writableIndexes shouldBe listOf(0)
