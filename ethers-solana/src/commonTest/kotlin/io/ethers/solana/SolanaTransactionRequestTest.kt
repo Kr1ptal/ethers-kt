@@ -5,11 +5,15 @@ import io.ethers.solana.instruction.ComputeBudgetProgram
 import io.ethers.solana.instruction.Instruction
 import io.ethers.solana.instruction.SystemProgram
 import io.ethers.solana.signers.KeypairSigner
+import io.ethers.solana.types.AccountMeta
 import io.ethers.solana.types.Programs
+import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
+import io.ethers.solana.types.transaction.AddressLookupTableAccount
 import io.ethers.solana.types.transaction.SolanaTransactionError
 import io.ethers.solana.types.transaction.SolanaTransactionRequest
 import io.ethers.solana.types.transaction.SolanaTxLegacy
+import io.ethers.solana.types.transaction.SolanaTxType
 import io.ethers.solana.types.transaction.SolanaTxV0
 import io.ethers.solana.types.transaction.SolanaTxV1
 import io.github.artificialpb.bignum.bigIntegerOf
@@ -182,6 +186,69 @@ class SolanaTransactionRequestTest : FunSpec({
         }.compileV1()
         tx.instructions.size shouldBe 2
         tx.config.computeUnitLimit shouldBe null
+    }
+
+    test("tryCompile picks legacy when no table earns its place, and v0 when one does") {
+        val movable = List(2) { SolanaAddress(ByteArray(32) { _ -> (it + 10).toByte() }) }
+        fun withAccounts(accounts: List<SolanaAddress>) = SolanaTransactionRequest {
+            feePayer(alice.publicKey)
+            blockhash(blockhash)
+            instruction(Instruction(Programs.SYSTEM, accounts.map { AccountMeta.writable(it) }, byteArrayOf(1)))
+        }
+
+        // no tables at all, and a table covering only one account, both stay legacy
+        withAccounts(movable).compile().type shouldBe SolanaTxType.Legacy
+        val single = AddressLookupTableAccount(SolanaAddress(ByteArray(32) { 90 }), movable.take(1))
+        withAccounts(movable).compile(listOf(single)).type shouldBe SolanaTxType.Legacy
+
+        val both = AddressLookupTableAccount(SolanaAddress(ByteArray(32) { 91 }), movable)
+        val v0 = withAccounts(movable).compile(listOf(both))
+        v0.type shouldBe SolanaTxType.V0
+        // and the chosen encoding is the smaller one
+        (v0.envelopeSize() < withAccounts(movable).compile().envelopeSize()) shouldBe true
+
+        // v1 is never chosen for you
+        withAccounts(movable).compile(listOf(both)).type shouldBe SolanaTxType.V0
+    }
+
+    test("priorityFee takes precedence over computeUnitPrice on every version") {
+        fun request() = SolanaTransactionRequest {
+            feePayer(alice.publicKey)
+            blockhash(blockhash)
+            instruction(transfer)
+            computeUnitLimit(200_000)
+            computeUnitPrice(1)
+            priorityFee(500)
+        }
+
+        // v1 carries the exact total, ignoring the per-unit price
+        request().compileV1().config.priorityFee shouldBe bigIntegerOf(500)
+
+        // legacy and v0 can only price per unit, so the total is converted, rounding up
+        val v0 = request().compileV0()
+        val price = v0.instructions.map { it.data.toHex() }.single { it.startsWith("03") }
+        // ceil(500 * 1_000_000 / 200_000) = 2500 micro-lamports per unit
+        price shouldBe "03c409000000000000"
+        // which the runtime charges back as at least the requested total
+        v0.estimateFee(bigIntegerOf(0)) shouldBe bigIntegerOf(500)
+    }
+
+    test("a priority fee needs a limit on legacy and v0, but not on v1") {
+        fun request() = SolanaTransactionRequest {
+            feePayer(alice.publicKey)
+            blockhash(blockhash)
+            instruction(transfer)
+            priorityFee(500)
+        }
+        request().compileV1().config.priorityFee shouldBe bigIntegerOf(500)
+
+        val error = request().tryCompileV0().unwrapError()
+        error.shouldBeInstanceOf<SolanaTransactionError.InvalidMessage>()
+        error.reason shouldBe SolanaTransactionError.Reason.CONFIG
+
+        // a limit carried by an instruction is enough
+        val withInstructionLimit = request().apply { instruction(ComputeBudgetProgram.setComputeUnitLimit(200_000)) }
+        withInstructionLimit.tryCompileV0().isFailure() shouldBe false
     }
 
     test("a v1 price with no limit cannot become a priority fee") {

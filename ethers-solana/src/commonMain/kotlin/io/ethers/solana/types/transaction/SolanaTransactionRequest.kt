@@ -1,6 +1,7 @@
 package io.ethers.solana.types.transaction
 
 import io.ethers.core.Result
+import io.ethers.core.unwrapOrReturn
 import io.ethers.solana.instruction.ComputeBudgetProgram
 import io.ethers.solana.instruction.Instruction
 import io.ethers.solana.serialization.SolanaMessageDecoder
@@ -44,6 +45,7 @@ class SolanaTransactionRequest() {
         this.instructions = other.instructions
         this.computeUnitLimit = other.computeUnitLimit
         this.computeUnitPrice = other.computeUnitPrice
+        this.priorityFee = other.priorityFee
         this.loadedAccountsDataSizeLimit = other.loadedAccountsDataSizeLimit
         this.heapSize = other.heapSize
     }
@@ -73,6 +75,19 @@ class SolanaTransactionRequest() {
             field = value
         }
 
+    /**
+     * Total priority fee in lamports, taking strict precedence over [computeUnitPrice].
+     *
+     * V1 carries this exact total. Legacy and v0 can only price per compute unit, so the total is
+     * turned into `ceil(priorityFee * 1_000_000 / computeUnitLimit)` micro-lamports, which the runtime
+     * charges back at no less than the requested total; stating it there needs a compute unit limit.
+     */
+    var priorityFee: BigInteger? = null
+        @JvmSynthetic set(value) {
+            value?.let(::requireU64)
+            field = value
+        }
+
     /** Combined size of the accounts the transaction may load, encoded per version. */
     var loadedAccountsDataSizeLimit: Long? = null
         @JvmSynthetic set(value) {
@@ -94,8 +109,37 @@ class SolanaTransactionRequest() {
     fun computeUnitLimit(computeUnitLimit: Long?) = apply { this.computeUnitLimit = computeUnitLimit }
     fun computeUnitPrice(computeUnitPrice: BigInteger?) = apply { this.computeUnitPrice = computeUnitPrice }
     fun computeUnitPrice(computeUnitPrice: Long) = apply { this.computeUnitPrice = bigIntegerOf(computeUnitPrice) }
+    fun priorityFee(priorityFee: BigInteger?) = apply { this.priorityFee = priorityFee }
+    fun priorityFee(priorityFee: Long) = apply { this.priorityFee = bigIntegerOf(priorityFee) }
     fun loadedAccountsDataSizeLimit(loadedAccountsDataSizeLimit: Long?) = apply { this.loadedAccountsDataSizeLimit = loadedAccountsDataSizeLimit }
     fun heapSize(heapSize: Long?) = apply { this.heapSize = heapSize }
+
+    /**
+     * Compile to whichever of legacy and v0 encodes this request in fewer bytes, the counterpart of
+     * `CallRequest.toUnsignedTransactionOrNull` choosing a transaction type from the fields that are set.
+     *
+     * V0 is chosen exactly when a lookup table earns its place, since an empty table list costs two
+     * bytes more than legacy and a table is only ever selected when it pays for itself. V1 is never
+     * chosen for you: its envelope is larger, but it needs SIMD-0385 activation on the target cluster,
+     * which is the caller's to know - ask for it with [tryCompileV1].
+     */
+    @JvmOverloads
+    fun tryCompile(lookupTables: List<AddressLookupTableAccount> = emptyList()): Result<SolanaTransactionUnsigned, SolanaTransactionError> {
+        val payer = feePayer ?: return Result.failure(SolanaTransactionError.MissingFeePayer)
+        val hash = blockhash ?: return Result.failure(SolanaTransactionError.MissingBlockhash)
+        val instructions = withComputeBudgetInstructions().unwrapOrReturn { return Result.failure(it) }
+        // decide from the tables the compiler actually used, so a message that fits legacy but not an
+        // empty-table v0 is not rejected by compiling v0 first
+        return compileMessage(payer, hash, instructions, lookupTables).andThen { fields ->
+            when {
+                fields.lookups.isEmpty() -> SolanaTxLegacy.tryCreate(fields.header, fields.accounts, fields.recentBlockhash, fields.instructions)
+                else -> SolanaTxV0.tryCreate(fields.header, fields.accounts, fields.recentBlockhash, fields.instructions, fields.lookups)
+            }
+        }
+    }
+
+    @JvmOverloads
+    fun compile(lookupTables: List<AddressLookupTableAccount> = emptyList()): SolanaTransactionUnsigned = tryCompile(lookupTables).unwrap()
 
     /**
      * Compile a legacy message. [computeUnitLimit] and [computeUnitPrice] replace any ComputeBudget
@@ -104,7 +148,8 @@ class SolanaTransactionRequest() {
     fun tryCompileLegacy(): Result<SolanaTxLegacy, SolanaTransactionError> {
         val payer = feePayer ?: return Result.failure(SolanaTransactionError.MissingFeePayer)
         val hash = blockhash ?: return Result.failure(SolanaTransactionError.MissingBlockhash)
-        return SolanaTxLegacy.tryCompile(payer, hash, withComputeBudgetInstructions())
+        val instructions = withComputeBudgetInstructions().unwrapOrReturn { return Result.failure(it) }
+        return SolanaTxLegacy.tryCompile(payer, hash, instructions)
     }
 
     fun compileLegacy(): SolanaTxLegacy = tryCompileLegacy().unwrap()
@@ -117,7 +162,8 @@ class SolanaTransactionRequest() {
     fun tryCompileV0(lookupTables: List<AddressLookupTableAccount> = emptyList()): Result<SolanaTxV0, SolanaTransactionError> {
         val payer = feePayer ?: return Result.failure(SolanaTransactionError.MissingFeePayer)
         val hash = blockhash ?: return Result.failure(SolanaTransactionError.MissingBlockhash)
-        return SolanaTxV0.tryCompile(payer, hash, withComputeBudgetInstructions(), lookupTables)
+        val instructions = withComputeBudgetInstructions().unwrapOrReturn { return Result.failure(it) }
+        return SolanaTxV0.tryCompile(payer, hash, instructions, lookupTables)
     }
 
     @JvmOverloads
@@ -135,7 +181,9 @@ class SolanaTransactionRequest() {
         val translated = ComputeBudgetSettings.decode(instructions)
         val limit = computeUnitLimit ?: translated.computeUnitLimit
         val price = computeUnitPrice ?: translated.computeUnitPrice
+        val explicit = priorityFee
         val priorityFee = when {
+            explicit != null -> explicit
             price == null || price.signum() == 0 -> null
             limit == null -> return Result.failure(
                 SolanaTransactionError.InvalidMessage(
@@ -159,12 +207,12 @@ class SolanaTransactionRequest() {
     fun compileV1(): SolanaTxV1 = tryCompileV1().unwrap()
 
     /** Legacy and v0 encoding: the fields win over an instruction setting the same value. */
-    private fun withComputeBudgetInstructions(): List<Instruction> {
+    private fun withComputeBudgetInstructions(): Result<List<Instruction>, SolanaTransactionError> {
         val limit = computeUnitLimit
-        val price = computeUnitPrice
+        val price = perUnitPrice(limit).unwrapOrReturn { return Result.failure(it) }
         val dataSize = loadedAccountsDataSizeLimit
         val heap = heapSize
-        if (limit == null && price == null && dataSize == null && heap == null) return instructions
+        if (limit == null && price == null && dataSize == null && heap == null) return Result.success(instructions)
 
         val kept = instructions.filterNot {
             when (ComputeBudgetSettings.discriminant(it)) {
@@ -181,7 +229,25 @@ class SolanaTransactionRequest() {
         if (limit != null) prefix.add(ComputeBudgetProgram.setComputeUnitLimit(limit))
         if (price != null) prefix.add(ComputeBudgetProgram.setComputeUnitPrice(price))
         if (dataSize != null) prefix.add(ComputeBudgetProgram.setLoadedAccountsDataSizeLimit(dataSize))
-        return prefix + kept
+        return Result.success(prefix + kept)
+    }
+
+    /**
+     * The micro-lamports-per-unit price legacy and v0 encode, honouring [priorityFee] over
+     * [computeUnitPrice]. Rounds up, so the runtime never charges less than the requested total.
+     */
+    private fun perUnitPrice(limit: Long?): Result<BigInteger?, SolanaTransactionError> {
+        val total = priorityFee ?: return Result.success(computeUnitPrice)
+        val units = limit ?: ComputeBudgetSettings.decode(instructions).computeUnitLimit
+            ?: return Result.failure(
+                SolanaTransactionError.InvalidMessage(
+                    SolanaTransactionError.Reason.CONFIG,
+                    "A priority fee needs a compute unit limit to become a per-unit price",
+                ),
+            )
+        if (units == 0L) return Result.success(bigIntegerOf(0))
+        val scaled = total.multiply(bigIntegerOf(1000000)).add(bigIntegerOf(units - 1))
+        return Result.success(scaled.divide(bigIntegerOf(units)))
     }
 
     companion object {
