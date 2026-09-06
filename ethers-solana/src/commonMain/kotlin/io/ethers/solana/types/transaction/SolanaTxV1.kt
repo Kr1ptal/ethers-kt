@@ -107,19 +107,29 @@ class SolanaTxV1 private constructor(
         ): SolanaTransactionError? {
             messageError(header, accounts, instructions, emptyList())?.let { return it }
             if (config.otherFields.isNotEmpty()) {
-                return SolanaTransactionError.InvalidConfig("otherFields", "Cannot compile unknown transaction config fields")
+                return SolanaTransactionError.InvalidMessage(SolanaTransactionError.Reason.CONFIG, "Cannot compile unknown transaction config fields")
             }
-            if (header.requiredSignatures > 12) return SolanaTransactionError.InvalidSignerCount(header.requiredSignatures, 12)
-            if (accounts.size > 64) return SolanaTransactionError.TooManyAccounts(accounts.size, 64)
-            if (instructions.size > 64) return SolanaTransactionError.TooManyInstructions(instructions.size, 64)
+            if (header.requiredSignatures > 12) {
+                return SolanaTransactionError.CountOutOfRange(SolanaTransactionError.Limit.SIGNERS, header.requiredSignatures, 1..12)
+            }
+            if (accounts.size > 64) return SolanaTransactionError.CountOutOfRange(SolanaTransactionError.Limit.ACCOUNTS, accounts.size, 1..64)
+            if (instructions.size > 64) {
+                return SolanaTransactionError.CountOutOfRange(SolanaTransactionError.Limit.INSTRUCTIONS, instructions.size, 0..64)
+            }
             instructions.forEachIndexed { index, instruction ->
-                if (instruction.accounts.size > 255 || instruction.data.size > 65535) {
-                    return SolanaTransactionError.InstructionTooLarge(index, instruction.accounts.size, instruction.data.size)
+                if (instruction.accounts.size > 255) {
+                    return SolanaTransactionError.CountOutOfRange(SolanaTransactionError.Limit.INSTRUCTION_ACCOUNTS, instruction.accounts.size, 0..255, index)
+                }
+                if (instruction.data.size > 65535) {
+                    return SolanaTransactionError.CountOutOfRange(SolanaTransactionError.Limit.INSTRUCTION_DATA, instruction.data.size, 0..65535, index)
                 }
             }
             val heapSize = config.heapSize
             if (heapSize != null && (heapSize !in 32768L..262144L || heapSize % 1024L != 0L)) {
-                return SolanaTransactionError.InvalidConfig("heapSize", "V1 heap size must be a multiple of 1 KiB in 32..256 KiB")
+                return SolanaTransactionError.InvalidMessage(
+                    SolanaTransactionError.Reason.CONFIG,
+                    "V1 heap size must be a multiple of 1 KiB in 32..256 KiB, got $heapSize",
+                )
             }
             return envelopeSizeError(SolanaTxType.V1, envelopeSize(header, accounts, instructions, config), MAX_TRANSACTION_SIZE)
         }
@@ -141,16 +151,24 @@ class SolanaTxV1 private constructor(
         internal fun decodeBody(decoder: SolanaMessageDecoder): SolanaTxV1 = with(decoder) {
             val header = MessageHeader(readByte(), readByte(), readByte())
             val mask = readUnsignedLittleEndian(4).toLong()
-            if (mask and 31L != mask) throw SolanaTransactionError.InvalidConfig("mask", "Unsupported v1 config mask").toException()
+            if (mask and 31L != mask) {
+                throw SolanaTransactionError.InvalidMessage(SolanaTransactionError.Reason.CONFIG, "Unsupported v1 config mask $mask").toException()
+            }
             if (mask and 3L != 0L && mask and 3L != 3L) {
-                throw SolanaTransactionError.InvalidConfig("mask", "Both priority-fee config bits must be set").toException()
+                throw SolanaTransactionError.InvalidMessage(SolanaTransactionError.Reason.CONFIG, "Both priority-fee config bits must be set").toException()
             }
             val blockhash = SolanaBlockhash(readBytes(32))
             val instructionCount = readByte()
             val accountCount = readByte()
-            if (instructionCount > 64) throw SolanaTransactionError.TooManyInstructions(instructionCount, 64).toException()
-            if (accountCount !in 1..64) throw SolanaTransactionError.TooManyAccounts(accountCount, 64).toException()
-            if (header.requiredSignatures !in 1..12) throw SolanaTransactionError.InvalidSignerCount(header.requiredSignatures, 12).toException()
+            if (instructionCount > 64) {
+                throw SolanaTransactionError.CountOutOfRange(SolanaTransactionError.Limit.INSTRUCTIONS, instructionCount, 0..64).toException()
+            }
+            if (accountCount !in 1..64) {
+                throw SolanaTransactionError.CountOutOfRange(SolanaTransactionError.Limit.ACCOUNTS, accountCount, 1..64).toException()
+            }
+            if (header.requiredSignatures !in 1..12) {
+                throw SolanaTransactionError.CountOutOfRange(SolanaTransactionError.Limit.SIGNERS, header.requiredSignatures, 1..12).toException()
+            }
             val accounts = List(accountCount) { SolanaAddress(readBytes(32)) }
             val config = SolanaTransactionConfig(
                 priorityFee = if (mask and 3L != 0L) readUnsignedLittleEndian(8) else null,

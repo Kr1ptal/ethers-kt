@@ -59,7 +59,7 @@ internal fun compileMessage(
     }
     val static = signedWritable + signedReadonly + unsignedWritable + unsignedReadonly
     val all = static + writable.flatMapIndexed { table, indices -> indices.map { tableAddresses[table][it] } } + readonly.flatMapIndexed { table, indices -> indices.map { tableAddresses[table][it] } }
-    if (all.size > 256) return Result.failure(SolanaTransactionError.TooManyAccounts(all.size, 256))
+    if (all.size > 256) return Result.failure(SolanaTransactionError.CountOutOfRange(SolanaTransactionError.Limit.ACCOUNTS, all.size, 1..256))
     val index = all.withIndex().associate { it.value to it.index }
     val compiled = instructions.map { CompiledInstruction(index.getValue(it.programId), it.keys.map { key -> index.getValue(key.publicKey) }, it.data.toByteArray()) }
     val lookups = lookupTables.indices.filter { writable[it].isNotEmpty() || readonly[it].isNotEmpty() }.map {

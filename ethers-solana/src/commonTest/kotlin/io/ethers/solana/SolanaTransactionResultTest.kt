@@ -57,11 +57,11 @@ class SolanaTransactionResultTest : FunSpec({
     test("v1 limits are reported as their own cases") {
         val many = List(65) { Instruction(Programs.SYSTEM, emptyList(), byteArrayOf(1)) }
         SolanaTxV1.tryCompile(alice.publicKey, blockhash, many, config).unwrapError() shouldBe
-            SolanaTransactionError.TooManyInstructions(65, 64)
+            SolanaTransactionError.CountOutOfRange(SolanaTransactionError.Limit.INSTRUCTIONS, 65, 0..64)
 
         val heap = SolanaTxV1.tryCompile(alice.publicKey, blockhash, transfer, SolanaTransactionConfig(heapSize = 1000)).unwrapError()
-        heap.shouldBeInstanceOf<SolanaTransactionError.InvalidConfig>()
-        heap.field shouldBe "heapSize"
+        heap.shouldBeInstanceOf<SolanaTransactionError.InvalidMessage>()
+        heap.reason shouldBe SolanaTransactionError.Reason.CONFIG
     }
 
     test("structural failures name the offending account or index") {
@@ -69,14 +69,15 @@ class SolanaTransactionResultTest : FunSpec({
         val duplicate = shouldThrow<SolanaTransactionException> {
             SolanaTxLegacy(compiled.header, compiled.accounts + compiled.accounts.first(), blockhash, compiled.instructions)
         }.error
-        duplicate shouldBe SolanaTransactionError.DuplicateAccount(compiled.accounts.first())
+        duplicate.shouldBeInstanceOf<SolanaTransactionError.InvalidMessage>()
+        duplicate.reason shouldBe SolanaTransactionError.Reason.DUPLICATE_ACCOUNT
 
         val outOfRange = SolanaTxV0.tryCompile(alice.publicKey, blockhash, transfer).unwrap()
         val error = shouldThrow<SolanaTransactionException> {
             SolanaTxV0(outOfRange.header, outOfRange.accounts, blockhash, listOf(CompiledInstruction(1, listOf(9), byteArrayOf())))
         }.error
-        error.shouldBeInstanceOf<SolanaTransactionError.AccountIndexOutOfRange>()
-        error.accountIndex shouldBe 9
+        error.shouldBeInstanceOf<SolanaTransactionError.InvalidMessage>()
+        error.reason shouldBe SolanaTransactionError.Reason.ACCOUNT_INDEX
     }
 
     test("the throwing path stays an IllegalArgumentException that carries the typed error") {
@@ -84,8 +85,10 @@ class SolanaTransactionResultTest : FunSpec({
             SolanaTxLegacy(MessageHeader(1, 0, 0), listOf(alice.publicKey, alice.publicKey), blockhash, emptyList())
         }
         thrown.shouldBeInstanceOf<SolanaTransactionException>()
-        thrown.error shouldBe SolanaTransactionError.DuplicateAccount(alice.publicKey)
-        thrown.message shouldBe "DuplicateAccount(address=${alice.publicKey})"
+        val error = thrown.error
+        error.shouldBeInstanceOf<SolanaTransactionError.InvalidMessage>()
+        error.reason shouldBe SolanaTransactionError.Reason.DUPLICATE_ACCOUNT
+        thrown.message shouldBe error.message
     }
 
     test("decoding reports truncation, unsupported versions and partial signatures") {
@@ -96,12 +99,12 @@ class SolanaTransactionResultTest : FunSpec({
         SolanaTransactionSigned.tryFromBase64(signed.toBase64()).unwrap().serialize() shouldBe wire
 
         SolanaTransactionSigned.tryDeserialize(wire.copyOf(wire.size - 1)).unwrapError()
-            .shouldBeInstanceOf<SolanaTransactionError.MalformedMessage>()
+            .shouldBeInstanceOf<SolanaTransactionError.MalformedBytes>()
         SolanaTransactionUnsigned.tryDeserializeMessage(byteArrayOf()).unwrapError()
-            .shouldBeInstanceOf<SolanaTransactionError.MalformedMessage>()
+            .shouldBeInstanceOf<SolanaTransactionError.MalformedBytes>()
 
         val unsupported = SolanaTransactionUnsigned.tryDeserializeMessage(byteArrayOf(200.toByte(), 0, 0)).unwrapError()
-        unsupported shouldBe SolanaTransactionError.UnsupportedMessageVersion(200)
+        unsupported shouldBe SolanaTransactionError.UnsupportedVersion(200)
 
         val twoSigners = SolanaTxLegacy.compile(
             alice.publicKey,
@@ -117,7 +120,8 @@ class SolanaTransactionResultTest : FunSpec({
         val v1 = SolanaTxV1.compile(alice.publicKey, blockhash, transfer, config)
         val message = v1.serializeMessage()
         val envelope = byteArrayOf(1) + ByteArray(64) + message
-        SolanaTransactionSigned.tryDeserialize(envelope).unwrapError() shouldBe SolanaTransactionError.V1SignaturesMustFollowMessage
+        SolanaTransactionSigned.tryDeserialize(envelope).unwrapError() shouldBe
+            SolanaTransactionError.MalformedBytes("V1 signatures must follow the message")
     }
 
     test("the throwing and safe paths report the identical error value") {
@@ -138,7 +142,7 @@ class SolanaTransactionResultTest : FunSpec({
 
         // decoding still maps the wire decoder's own failures, which do carry the original throwable
         SolanaTransactionUnsigned.tryDeserializeMessage(byteArrayOf(1, 0)).unwrapError()
-            .shouldBeInstanceOf<SolanaTransactionError.MalformedMessage>().cause shouldNotBe null
+            .shouldBeInstanceOf<SolanaTransactionError.MalformedBytes>().cause shouldNotBe null
     }
 
     test("tryCreate validates the same fields as the constructor") {
@@ -147,7 +151,8 @@ class SolanaTransactionResultTest : FunSpec({
             compiled.serializeMessage()
         SolanaTxV1.tryCreate(compiled.header, compiled.accounts, blockhash, compiled.instructions, config).unwrap().type shouldBe SolanaTxType.V1
         SolanaTxLegacy.tryCreate(compiled.header, compiled.accounts + compiled.accounts.first(), blockhash, compiled.instructions)
-            .unwrapError() shouldBe SolanaTransactionError.DuplicateAccount(compiled.accounts.first())
+            .unwrapError().shouldBeInstanceOf<SolanaTransactionError.InvalidMessage>()
+            .reason shouldBe SolanaTransactionError.Reason.DUPLICATE_ACCOUNT
     }
 
     test("errors convert to exceptions that keep the error reachable") {

@@ -6,72 +6,84 @@ import io.ethers.solana.types.SolanaAddress
 /**
  * A reason a Solana transaction could not be constructed or decoded.
  *
- * Every case is a plain value carrying the numbers that caused it, so a caller can react to the
- * specific failure instead of parsing a message. [EnvelopeTooLarge] is the one most worth branching
- * on: the usual responses are to split the instructions across transactions, move accounts into a
- * lookup table, or compile as v1.
+ * The cases a caller can act on are distinct types: [EnvelopeTooLarge] is answered by splitting the
+ * instructions, moving accounts into a lookup table, or compiling as v1; [PartiallySigned] by
+ * importing through `SolanaTransactionSigned.Builder.deserializePartial`; [InvalidSignature] by
+ * collecting that signature again; [UnsupportedVersion] by reading the transaction as a
+ * `SolanaRPCTransaction`. The remaining failures mean the message is malformed, so they are grouped
+ * into [CountOutOfRange] and [InvalidMessage], each tagged with which check failed.
  *
  * The validating constructors and factories throw [SolanaTransactionException], which keeps the
- * error reachable from the catch block; the `try` factories return it as a value instead.
+ * error reachable from the catch block; the `try` factories return it as a value instead, without
+ * building an exception at all.
  */
 sealed class SolanaTransactionError : ThrowableError {
     /** Thrown form of this error. Remains an [IllegalArgumentException], as these are argument failures. */
     override fun toException(): SolanaTransactionException = SolanaTransactionException(this)
 
-    // --- message structure ---
+    /**
+     * A count fell outside the range the wire format or the message version allows.
+     * [instructionIndex] is set only for the per-instruction limits.
+     */
+    data class CountOutOfRange(
+        val limit: Limit,
+        val count: Int,
+        val allowed: IntRange,
+        val instructionIndex: Int? = null,
+    ) : SolanaTransactionError()
 
-    /** A message must carry at least one and at most 256 inline accounts. */
-    data class InvalidAccountCount(val count: Int) : SolanaTransactionError()
+    /** Which count [CountOutOfRange] refers to. */
+    enum class Limit {
+        /** Inline accounts, or inline plus every address loaded from a lookup table. */
+        ACCOUNTS,
+        INSTRUCTIONS,
 
-    /** Inline accounts are a set; the same address must not appear twice. */
-    data class DuplicateAccount(val address: SolanaAddress) : SolanaTransactionError()
+        /** Required signatures, from the message header or the envelope's signature vector. */
+        SIGNERS,
+        READONLY_ACCOUNTS,
 
-    /** Inline accounts plus every address loaded from a lookup table, against the version's ceiling. */
-    data class TooManyAccounts(val count: Int, val max: Int) : SolanaTransactionError()
+        /** Addresses held by a single lookup table. */
+        LOOKUP_TABLE,
 
-    data class TooManyInstructions(val count: Int, val max: Int) : SolanaTransactionError()
+        /** Accounts referenced by one instruction. */
+        INSTRUCTION_ACCOUNTS,
 
-    /** Required signatures must be at least one and fit both the account list and the version's ceiling. */
-    data class InvalidSignerCount(val count: Int, val max: Int) : SolanaTransactionError()
+        /** Data bytes carried by one instruction. */
+        INSTRUCTION_DATA,
+    }
 
-    /** The fee payer is the first account and pays, so it can never be readonly. */
-    data object FeePayerNotWritable : SolanaTransactionError()
+    /** The message's own parts do not agree with each other. */
+    data class InvalidMessage(val reason: Reason, override val message: String) : SolanaTransactionError()
 
-    data class InvalidReadonlyAccountCount(val count: Int, val max: Int) : SolanaTransactionError()
+    /** Which consistency check [InvalidMessage] failed. */
+    enum class Reason {
+        /** The same address appears twice in the inline account list. */
+        DUPLICATE_ACCOUNT,
 
-    /** An instruction referenced a program or account slot outside the resolved account list. */
-    data class AccountIndexOutOfRange(val instructionIndex: Int, val accountIndex: Int, val accountCount: Int) : SolanaTransactionError()
+        /** The fee payer is the first account and pays, so it can never be readonly. */
+        FEE_PAYER_READONLY,
 
-    /** A lookup table entry referenced an address slot outside the addressable 0..255 range. */
-    data class LookupIndexOutOfRange(val tableIndex: Int, val accountIndex: Int) : SolanaTransactionError()
+        /** An instruction referenced a program or account slot outside the resolved account list. */
+        ACCOUNT_INDEX,
 
-    /** A single lookup table can hold at most 256 addresses. */
-    data class LookupTableTooLarge(val size: Int) : SolanaTransactionError()
+        /** A lookup table referenced an address slot outside the addressable 0..255 range. */
+        LOOKUP_INDEX,
 
-    // --- wire limits ---
+        /** A v1 inline config value the wire format cannot represent, or that this library cannot compile. */
+        CONFIG,
+
+        /** The signature vector does not match the count the message header requires. */
+        SIGNATURE_COUNT,
+    }
 
     /** The serialized envelope, including a slot for every required signature, exceeds the version's limit. */
     data class EnvelopeTooLarge(val type: SolanaTxType, val size: Long, val max: Int) : SolanaTransactionError()
 
-    /** A v1 instruction exceeds the 255-account or 65535-byte fields that encode it. */
-    data class InstructionTooLarge(val instructionIndex: Int, val accountCount: Int, val dataSize: Int) : SolanaTransactionError()
-
-    /** A v1 inline config value the wire format cannot represent, or that this library cannot compile. */
-    data class InvalidConfig(val field: String, override val message: String) : SolanaTransactionError()
-
-    // --- decoding ---
+    /** Truncated, overlong or otherwise unreadable bytes, as reported by the wire decoder. */
+    data class MalformedBytes(override val message: String, override val cause: Throwable? = null) : SolanaTransactionError()
 
     /** A message version this library cannot construct or sign. */
-    data class UnsupportedMessageVersion(val version: Int) : SolanaTransactionError()
-
-    /** V1 places its signatures after the message, so it cannot appear in a signatures-first envelope. */
-    data object V1SignaturesMustFollowMessage : SolanaTransactionError()
-
-    /** Truncated, overlong or otherwise unreadable bytes, as reported by the wire decoder. */
-    data class MalformedMessage(override val message: String, override val cause: Throwable?) : SolanaTransactionError()
-
-    /** The envelope's signature vector does not match the count the message header requires. */
-    data class SignatureCountMismatch(val actual: Int, val expected: Int) : SolanaTransactionError()
+    data class UnsupportedVersion(val version: Int) : SolanaTransactionError()
 
     /** A populated signature slot does not verify against the message and its signer. */
     data class InvalidSignature(val index: Int, val signer: SolanaAddress) : SolanaTransactionError()
