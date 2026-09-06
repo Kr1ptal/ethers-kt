@@ -5,8 +5,25 @@ import kotlinx.serialization.Serializable
 
 @Serializable(with = SolanaBlockhashSerializer::class)
 class SolanaBlockhash(bytes: ByteArray) {
-    private val value = bytes.copyOf().also { require(it.size == 32) { "Blockhash must contain 32 bytes" } }
+    /** Takes ownership of [bytes] rather than copying, so do not mutate the array afterwards. */
+    private val value = bytes.also { require(it.size == 32) { "Blockhash must contain 32 bytes" } }
     constructor(base58: String) : this(Base58.decode(base58))
+
+    /**
+     * Return the internal byte array.
+     *
+     * If you need to modify the array, use [toByteArray] instead, which returns a new copy.
+     *
+     * IMPORTANT: Do not modify the returned array, it will lead to undefined behavior.
+     */
+    fun asByteArray(): ByteArray = value
+
+    /**
+     * Return a copy of the internal byte array.
+     *
+     * If you do not need to modify the array, use [asByteArray] instead, which returns the internal
+     * array without copying.
+     */
     fun toByteArray(): ByteArray = value.copyOf()
     fun toBase58(): String = Base58.encode(value)
     override fun toString(): String = toBase58()

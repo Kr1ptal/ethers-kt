@@ -30,8 +30,8 @@ internal fun compileMessage(
         }
     }
     val sorted = metas.keys.filter { it != feePayer }.sortedWith { a, b ->
-        val x = a.toByteArray()
-        val y = b.toByteArray()
+        val x = a.asByteArray()
+        val y = b.asByteArray()
         x.indices.firstOrNull { x[it] != y[it] }?.let { x[it].compareTo(y[it]) } ?: 0
     }
     val signedWritable = mutableListOf(feePayer)

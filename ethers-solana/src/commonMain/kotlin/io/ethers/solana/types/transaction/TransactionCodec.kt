@@ -71,8 +71,8 @@ internal fun messageError(
 internal fun SolanaMessageEncoder.writeMessageBody(tx: SolanaTransactionUnsigned) {
     writeByte(tx.header.requiredSignatures).writeByte(tx.header.readonlySignedAccounts).writeByte(tx.header.readonlyUnsignedAccounts)
     writeShortVecLength(tx.accounts.size)
-    tx.accounts.forEach { writeBytes(it.toByteArray()) }
-    writeBytes(tx.recentBlockhash.toByteArray()).writeShortVecLength(tx.instructions.size)
+    tx.accounts.forEach { writeBytes(it.asByteArray()) }
+    writeBytes(tx.recentBlockhash.asByteArray()).writeShortVecLength(tx.instructions.size)
     tx.instructions.forEach { instruction ->
         writeByte(instruction.programIdIndex).writeShortVecLength(instruction.accounts.size)
         instruction.accounts.forEach { writeByte(it) }
@@ -135,7 +135,7 @@ internal fun envelopeSizeError(type: SolanaTxType, size: Long, max: Int): Solana
 /** Legacy and v0 envelopes put the signature vector before the message. */
 internal fun encodeSignaturesFirstEnvelope(tx: SolanaTransactionUnsigned, signatures: List<SolanaSignature?>): ByteArray {
     val encoder = SolanaMessageEncoder().writeShortVecLength(signatures.size)
-    signatures.forEach { encoder.writeBytes(it?.toByteArray() ?: ByteArray(64)) }
+    signatures.forEach { encoder.writeBytes(it?.asByteArray() ?: ByteArray(64)) }
     return encoder.writeBytes(tx.serializeMessage()).toByteArray()
 }
 

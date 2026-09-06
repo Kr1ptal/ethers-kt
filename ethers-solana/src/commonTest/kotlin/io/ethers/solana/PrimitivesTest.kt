@@ -14,6 +14,7 @@ import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeSameInstanceAs
 
 class PrimitivesTest : FunSpec({
     test("RFC 8032 Ed25519 vector 1 on every platform") {
@@ -39,11 +40,13 @@ class PrimitivesTest : FunSpec({
         shouldThrow<IllegalArgumentException> { KeypairSigner.fromSecretKey(ByteArray(32)) }
     }
 
-    test("base58 types validate length and isolate byte arrays") {
+    test("base58 types adopt their bytes, validate length, and copy on toByteArray") {
         val source = ByteArray(32)
         val key = SolanaAddress(source)
-        source[0] = 1
+        // the array is adopted, not copied
+        key.asByteArray() shouldBeSameInstanceAs source
         key.toString() shouldBe "11111111111111111111111111111111"
+        // toByteArray hands back a copy, so writing to it cannot change the address
         key.toByteArray().fill(2)
         key shouldBe Programs.SYSTEM
         SolanaAddress(key.toString()) shouldBe key

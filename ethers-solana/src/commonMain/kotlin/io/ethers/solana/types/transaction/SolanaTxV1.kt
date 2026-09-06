@@ -58,16 +58,16 @@ class SolanaTxV1 private constructor(
     /** V1 puts the signature slots after the message, unlike the legacy and v0 envelopes. */
     override fun serializeEnvelope(signatures: List<SolanaSignature?>): ByteArray {
         val encoder = SolanaMessageEncoder().writeBytes(serializeMessage())
-        signatures.forEach { encoder.writeBytes(it?.toByteArray() ?: ByteArray(64)) }
+        signatures.forEach { encoder.writeBytes(it?.asByteArray() ?: ByteArray(64)) }
         return encoder.toByteArray()
     }
 
     override fun serializeMessage(): ByteArray {
         val encoder = SolanaMessageEncoder().writeByte(129)
             .writeByte(header.requiredSignatures).writeByte(header.readonlySignedAccounts).writeByte(header.readonlyUnsignedAccounts)
-            .writeBytes(littleEndian(bigIntegerOf(config.mask), 4)).writeBytes(recentBlockhash.toByteArray())
+            .writeBytes(littleEndian(bigIntegerOf(config.mask), 4)).writeBytes(recentBlockhash.asByteArray())
             .writeByte(instructions.size).writeByte(accounts.size)
-        accounts.forEach { encoder.writeBytes(it.toByteArray()) }
+        accounts.forEach { encoder.writeBytes(it.asByteArray()) }
         config.priorityFee?.let { encoder.writeBytes(littleEndian(it, 8)) }
         if (config.computeUnitLimit != null) {
             encoder.writeBytes(littleEndian(bigIntegerOf(config.computeUnitLimit), 4))

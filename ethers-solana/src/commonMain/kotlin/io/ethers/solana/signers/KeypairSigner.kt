@@ -23,7 +23,7 @@ class KeypairSigner private constructor(seed: ByteArray) : SolanaSigner {
         @JvmStatic fun fromSecretKey(secretKey: ByteArray): KeypairSigner {
             require(secretKey.size == 64) { "Secret key must contain a 32-byte seed and 32-byte public key" }
             val signer = fromSeed(secretKey.copyOfRange(0, 32))
-            require(signer.publicKey.toByteArray().contentEquals(secretKey.copyOfRange(32, 64))) { "Secret key public half does not match its seed" }
+            require(signer.publicKey.asByteArray().contentEquals(secretKey.copyOfRange(32, 64))) { "Secret key public half does not match its seed" }
             return signer
         }
     }

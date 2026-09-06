@@ -51,7 +51,7 @@ class SolanaTxV0 private constructor(
         encoder.writeShortVecLength(addressLookupTables.size)
 
         for ((key, writableIndexes, readonlyIndexes) in addressLookupTables) {
-            encoder.writeBytes(key.toByteArray()).writeShortVecLength(writableIndexes.size)
+            encoder.writeBytes(key.asByteArray()).writeShortVecLength(writableIndexes.size)
             writableIndexes.forEach { encoder.writeByte(it) }
             encoder.writeShortVecLength(readonlyIndexes.size)
             readonlyIndexes.forEach { encoder.writeByte(it) }
