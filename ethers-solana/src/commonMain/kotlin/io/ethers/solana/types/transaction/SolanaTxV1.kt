@@ -18,37 +18,30 @@ import kotlin.jvm.JvmStatic
  * Requires v1 activation on the target cluster. Set compute and loaded-account limits explicitly;
  * omitted limits are zero. Address lookup tables are not supported.
  */
-class SolanaTxV1(
+class SolanaTxV1 private constructor(
     override val header: MessageHeader,
     override val accounts: List<SolanaAddress>,
     override val recentBlockhash: SolanaBlockhash,
     override val instructions: List<CompiledInstruction>,
     val config: SolanaTransactionConfig,
+    validated: Boolean,
 ) : SolanaTransactionUnsigned {
     override val type: SolanaTxType get() = SolanaTxType.V1
 
-    init {
-        validateMessage(header, accounts, instructions, emptyList())
-        validate()?.let { throw it.toException() }
-    }
+    /**
+     * Validate the fields, throwing [SolanaTransactionException] if they do not describe a legal
+     * message. [tryCreate] reports the same failure as a value, without building an exception.
+     */
+    constructor(
+        header: MessageHeader,
+        accounts: List<SolanaAddress>,
+        recentBlockhash: SolanaBlockhash,
+        instructions: List<CompiledInstruction>,
+        config: SolanaTransactionConfig,
+    ) : this(header, accounts, recentBlockhash, instructions, config, false)
 
-    private fun validate(): SolanaTransactionError? {
-        if (config.otherFields.isNotEmpty()) {
-            return SolanaTransactionError.InvalidConfig("otherFields", "Cannot compile unknown transaction config fields")
-        }
-        if (header.requiredSignatures > 12) return SolanaTransactionError.InvalidSignerCount(header.requiredSignatures, 12)
-        if (accounts.size > 64) return SolanaTransactionError.TooManyAccounts(accounts.size, 64)
-        if (instructions.size > 64) return SolanaTransactionError.TooManyInstructions(instructions.size, 64)
-        instructions.forEachIndexed { index, instruction ->
-            if (instruction.accounts.size > 255 || instruction.data.size > 65535) {
-                return SolanaTransactionError.InstructionTooLarge(index, instruction.accounts.size, instruction.data.size)
-            }
-        }
-        val heapSize = config.heapSize
-        if (heapSize != null && (heapSize !in 32768L..262144L || heapSize % 1024L != 0L)) {
-            return SolanaTransactionError.InvalidConfig("heapSize", "V1 heap size must be a multiple of 1 KiB in 32..256 KiB")
-        }
-        return envelopeSizeError(this, MAX_TRANSACTION_SIZE)
+    init {
+        if (!validated) validate(header, accounts, instructions, config)?.let { throw it.toException() }
     }
 
     override fun withNewBlockhash(blockhash: SolanaBlockhash): SolanaTxV1 = SolanaTxV1(header, accounts, blockhash, instructions, config)
@@ -56,8 +49,7 @@ class SolanaTxV1(
     /** Replace inline requests; signatures must be collected again for the new payload. */
     fun withConfig(config: SolanaTransactionConfig): SolanaTxV1 = SolanaTxV1(header, accounts, recentBlockhash, instructions, config)
 
-    override fun envelopeSize(): Long = 42L + accounts.size * 32L + config.wireSize +
-        instructions.sumOf { 4L + it.accounts.size + it.data.size } + header.requiredSignatures * 64L
+    override fun envelopeSize(): Long = envelopeSize(header, accounts, instructions, config)
 
     /** V1 puts the signature slots after the message, unlike the legacy and v0 envelopes. */
     override fun serializeEnvelope(signatures: List<SolanaSignature?>): ByteArray {
@@ -97,6 +89,54 @@ class SolanaTxV1(
     companion object {
         const val MAX_TRANSACTION_SIZE: Int = 4096
 
+        /** Envelope size from the raw fields, so it can run before a transaction is constructed. */
+        internal fun envelopeSize(
+            header: MessageHeader,
+            accounts: List<SolanaAddress>,
+            instructions: List<CompiledInstruction>,
+            config: SolanaTransactionConfig,
+        ): Long = 42L + accounts.size * 32L + config.wireSize +
+            instructions.sumOf { 4L + it.accounts.size + it.data.size } + header.requiredSignatures * 64L
+
+        /** Every reason these fields cannot form a v1 message, or null if they can. */
+        internal fun validate(
+            header: MessageHeader,
+            accounts: List<SolanaAddress>,
+            instructions: List<CompiledInstruction>,
+            config: SolanaTransactionConfig,
+        ): SolanaTransactionError? {
+            messageError(header, accounts, instructions, emptyList())?.let { return it }
+            if (config.otherFields.isNotEmpty()) {
+                return SolanaTransactionError.InvalidConfig("otherFields", "Cannot compile unknown transaction config fields")
+            }
+            if (header.requiredSignatures > 12) return SolanaTransactionError.InvalidSignerCount(header.requiredSignatures, 12)
+            if (accounts.size > 64) return SolanaTransactionError.TooManyAccounts(accounts.size, 64)
+            if (instructions.size > 64) return SolanaTransactionError.TooManyInstructions(instructions.size, 64)
+            instructions.forEachIndexed { index, instruction ->
+                if (instruction.accounts.size > 255 || instruction.data.size > 65535) {
+                    return SolanaTransactionError.InstructionTooLarge(index, instruction.accounts.size, instruction.data.size)
+                }
+            }
+            val heapSize = config.heapSize
+            if (heapSize != null && (heapSize !in 32768L..262144L || heapSize % 1024L != 0L)) {
+                return SolanaTransactionError.InvalidConfig("heapSize", "V1 heap size must be a multiple of 1 KiB in 32..256 KiB")
+            }
+            return envelopeSizeError(SolanaTxType.V1, envelopeSize(header, accounts, instructions, config), MAX_TRANSACTION_SIZE)
+        }
+
+        /** As the constructor, reporting the reason the fields are invalid instead of throwing. */
+        @JvmStatic
+        fun tryCreate(
+            header: MessageHeader,
+            accounts: List<SolanaAddress>,
+            recentBlockhash: SolanaBlockhash,
+            instructions: List<CompiledInstruction>,
+            config: SolanaTransactionConfig,
+        ): Result<SolanaTxV1, SolanaTransactionError> {
+            validate(header, accounts, instructions, config)?.let { return Result.failure(it) }
+            return Result.success(SolanaTxV1(header, accounts, recentBlockhash, instructions, config, validated = true))
+        }
+
         /** The version prefix has already been read. Leaves any trailing signature bytes for the envelope reader. */
         internal fun decodeBody(decoder: SolanaMessageDecoder): SolanaTxV1 = with(decoder) {
             val header = MessageHeader(readByte(), readByte(), readByte())
@@ -134,12 +174,10 @@ class SolanaTxV1(
 
         /** As [compile], returning the reason it could not be compiled instead of throwing. */
         @JvmStatic
-        fun tryCompile(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instructions: List<Instruction>, config: SolanaTransactionConfig): Result<SolanaTxV1, SolanaTransactionError> = catchTransactionError { compile(feePayer, blockhash, instructions, config) }
+        fun tryCompile(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instructions: List<Instruction>, config: SolanaTransactionConfig): Result<SolanaTxV1, SolanaTransactionError> = compileMessage(feePayer, blockhash, instructions, emptyList())
+            .andThen { tryCreate(it.header, it.accounts, it.recentBlockhash, it.instructions, config) }
 
         @JvmStatic
-        fun compile(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instructions: List<Instruction>, config: SolanaTransactionConfig): SolanaTxV1 {
-            val fields = compileMessage(feePayer, blockhash, instructions, emptyList())
-            return SolanaTxV1(fields.header, fields.accounts, fields.recentBlockhash, fields.instructions, config)
-        }
+        fun compile(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instructions: List<Instruction>, config: SolanaTransactionConfig): SolanaTxV1 = tryCompile(feePayer, blockhash, instructions, config).unwrap()
     }
 }

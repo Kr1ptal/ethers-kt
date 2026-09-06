@@ -43,10 +43,6 @@ internal fun messageError(
     return null
 }
 
-internal fun validateMessage(header: MessageHeader, accounts: List<SolanaAddress>, instructions: List<CompiledInstruction>, lookups: List<CompiledAddressLookupTable>) {
-    messageError(header, accounts, instructions, lookups)?.let { throw it.toException() }
-}
-
 internal fun SolanaMessageEncoder.writeMessageBody(tx: SolanaTransactionUnsigned) {
     writeByte(tx.header.requiredSignatures).writeByte(tx.header.readonlySignedAccounts).writeByte(tx.header.readonlyUnsignedAccounts)
     writeShortVecLength(tx.accounts.size)
@@ -88,11 +84,17 @@ internal fun shortVecSize(count: Int): Long {
     return if (count < 128) 1L else if (count < 16384) 2L else 3L
 }
 
-/** Legacy and v0 envelope size, including every required signature slot. */
-internal fun legacyEnvelopeSize(tx: SolanaTransactionUnsigned, lookups: List<CompiledAddressLookupTable>?): Long {
-    val accounts = tx.accounts
-    val instructions = tx.instructions
-    var size = shortVecSize(tx.header.requiredSignatures) + 64L * tx.header.requiredSignatures +
+/**
+ * Legacy and v0 envelope size, including every required signature slot. Takes the raw fields rather
+ * than a transaction so that it can run before one is constructed.
+ */
+internal fun legacyEnvelopeSize(
+    header: MessageHeader,
+    accounts: List<SolanaAddress>,
+    instructions: List<CompiledInstruction>,
+    lookups: List<CompiledAddressLookupTable>?,
+): Long {
+    var size = shortVecSize(header.requiredSignatures) + 64L * header.requiredSignatures +
         3L + shortVecSize(accounts.size) + 32L * accounts.size + 32L + shortVecSize(instructions.size)
     size += instructions.sumOf { 1L + shortVecSize(it.accounts.size) + it.accounts.size + shortVecSize(it.data.size) + it.data.size }
     if (lookups != null) {
@@ -102,11 +104,8 @@ internal fun legacyEnvelopeSize(tx: SolanaTransactionUnsigned, lookups: List<Com
     return size
 }
 
-/** The envelope exceeds the version's wire limit, reported as a value rather than thrown. */
-internal fun envelopeSizeError(tx: SolanaTransactionUnsigned, max: Int): SolanaTransactionError? {
-    val size = tx.envelopeSize()
-    return if (size > max) SolanaTransactionError.EnvelopeTooLarge(tx.type, size, max) else null
-}
+/** The envelope exceeds the version's wire limit. */
+internal fun envelopeSizeError(type: SolanaTxType, size: Long, max: Int): SolanaTransactionError? = if (size > max) SolanaTransactionError.EnvelopeTooLarge(type, size, max) else null
 
 /** Legacy and v0 envelopes put the signature vector before the message. */
 internal fun encodeSignaturesFirstEnvelope(tx: SolanaTransactionUnsigned, signatures: List<SolanaSignature?>): ByteArray {

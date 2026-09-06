@@ -1,5 +1,6 @@
 package io.ethers.solana.types.transaction
 
+import io.ethers.core.Result
 import io.ethers.solana.instruction.Instruction
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
@@ -18,7 +19,7 @@ internal fun compileMessage(
     blockhash: SolanaBlockhash,
     instructions: List<Instruction>,
     lookupTables: List<AddressLookupTableAccount>,
-): CompiledMessageFields {
+): Result<CompiledMessageFields, SolanaTransactionError> {
     val metas = linkedMapOf(feePayer to KeyMeta(signer = true, writable = true))
     instructions.forEach { instruction ->
         metas.getOrPut(instruction.programId) { KeyMeta() }.invoked = true
@@ -58,13 +59,15 @@ internal fun compileMessage(
     }
     val static = signedWritable + signedReadonly + unsignedWritable + unsignedReadonly
     val all = static + writable.flatMapIndexed { table, indices -> indices.map { tableAddresses[table][it] } } + readonly.flatMapIndexed { table, indices -> indices.map { tableAddresses[table][it] } }
-    if (all.size > 256) throw SolanaTransactionError.TooManyAccounts(all.size, 256).toException()
+    if (all.size > 256) return Result.failure(SolanaTransactionError.TooManyAccounts(all.size, 256))
     val index = all.withIndex().associate { it.value to it.index }
     val compiled = instructions.map { CompiledInstruction(index.getValue(it.programId), it.keys.map { key -> index.getValue(key.publicKey) }, it.data.toByteArray()) }
     val lookups = lookupTables.indices.filter { writable[it].isNotEmpty() || readonly[it].isNotEmpty() }.map {
         CompiledAddressLookupTable(lookupTables[it].key, writable[it], readonly[it])
     }
-    return CompiledMessageFields(MessageHeader(signedWritable.size + signedReadonly.size, signedReadonly.size, unsignedReadonly.size), static, blockhash, compiled, lookups)
+    return Result.success(
+        CompiledMessageFields(MessageHeader(signedWritable.size + signedReadonly.size, signedReadonly.size, unsignedReadonly.size), static, blockhash, compiled, lookups),
+    )
 }
 
 private class KeyMeta(var signer: Boolean = false, var writable: Boolean = false, var invoked: Boolean = false)

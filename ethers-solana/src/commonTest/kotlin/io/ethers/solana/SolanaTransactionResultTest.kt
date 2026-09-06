@@ -22,6 +22,7 @@ import io.ethers.solana.types.transaction.SolanaTxV1
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 
 class SolanaTransactionResultTest : FunSpec({
@@ -117,6 +118,36 @@ class SolanaTransactionResultTest : FunSpec({
         val message = v1.serializeMessage()
         val envelope = byteArrayOf(1) + ByteArray(64) + message
         SolanaTransactionSigned.tryDeserialize(envelope).unwrapError() shouldBe SolanaTransactionError.V1SignaturesMustFollowMessage
+    }
+
+    test("the throwing and safe paths report the identical error value") {
+        val big = List(40) { Instruction(Programs.SYSTEM, listOf(AccountMeta.writable(bob.publicKey)), ByteArray(60)) }
+        shouldThrow<SolanaTransactionException> { SolanaTxLegacy.compile(alice.publicKey, blockhash, big) }.error shouldBe
+            SolanaTxLegacy.tryCompile(alice.publicKey, blockhash, big).unwrapError()
+
+        val heap = SolanaTransactionConfig(heapSize = 1000)
+        shouldThrow<SolanaTransactionException> { SolanaTxV1.compile(alice.publicKey, blockhash, transfer, heap) }.error shouldBe
+            SolanaTxV1.tryCompile(alice.publicKey, blockhash, transfer, heap).unwrapError()
+    }
+
+    test("construction failures carry no exception cause, unlike decoding failures") {
+        val big = List(40) { Instruction(Programs.SYSTEM, listOf(AccountMeta.writable(bob.publicKey)), ByteArray(60)) }
+        SolanaTxLegacy.tryCompile(alice.publicKey, blockhash, big).unwrapError().cause shouldBe null
+        SolanaTxLegacy.tryCreate(MessageHeader(1, 0, 0), listOf(alice.publicKey, alice.publicKey), blockhash, emptyList())
+            .unwrapError().cause shouldBe null
+
+        // decoding still maps the wire decoder's own failures, which do carry the original throwable
+        SolanaTransactionUnsigned.tryDeserializeMessage(byteArrayOf(1, 0)).unwrapError()
+            .shouldBeInstanceOf<SolanaTransactionError.MalformedMessage>().cause shouldNotBe null
+    }
+
+    test("tryCreate validates the same fields as the constructor") {
+        val compiled = SolanaTxV0.compile(alice.publicKey, blockhash, transfer)
+        SolanaTxV0.tryCreate(compiled.header, compiled.accounts, blockhash, compiled.instructions).unwrap().serializeMessage() shouldBe
+            compiled.serializeMessage()
+        SolanaTxV1.tryCreate(compiled.header, compiled.accounts, blockhash, compiled.instructions, config).unwrap().type shouldBe SolanaTxType.V1
+        SolanaTxLegacy.tryCreate(compiled.header, compiled.accounts + compiled.accounts.first(), blockhash, compiled.instructions)
+            .unwrapError() shouldBe SolanaTransactionError.DuplicateAccount(compiled.accounts.first())
     }
 
     test("errors convert to exceptions that keep the error reachable") {

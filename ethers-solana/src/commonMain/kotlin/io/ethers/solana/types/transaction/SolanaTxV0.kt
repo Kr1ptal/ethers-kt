@@ -11,18 +11,31 @@ import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmStatic
 
 /** Immutable v0 transaction payload. Lookup table contents are supplied by the caller during compilation. */
-class SolanaTxV0 @JvmOverloads constructor(
+class SolanaTxV0 private constructor(
     override val header: MessageHeader,
     override val accounts: List<SolanaAddress>,
     override val recentBlockhash: SolanaBlockhash,
     override val instructions: List<CompiledInstruction>,
-    val addressLookupTables: List<CompiledAddressLookupTable> = emptyList(),
+    val addressLookupTables: List<CompiledAddressLookupTable>,
+    validated: Boolean,
 ) : SolanaTransactionUnsigned {
     override val type: SolanaTxType get() = SolanaTxType.V0
 
+    /**
+     * Validate the fields, throwing [SolanaTransactionException] if they do not describe a legal
+     * message. [tryCreate] reports the same failure as a value, without building an exception.
+     */
+    @JvmOverloads
+    constructor(
+        header: MessageHeader,
+        accounts: List<SolanaAddress>,
+        recentBlockhash: SolanaBlockhash,
+        instructions: List<CompiledInstruction>,
+        addressLookupTables: List<CompiledAddressLookupTable> = emptyList(),
+    ) : this(header, accounts, recentBlockhash, instructions, addressLookupTables, false)
+
     init {
-        validateMessage(header, accounts, instructions, addressLookupTables)
-        envelopeSizeError(this, MAX_TRANSACTION_SIZE)?.let { throw it.toException() }
+        if (!validated) validate(header, accounts, instructions, addressLookupTables)?.let { throw it.toException() }
     }
 
     override fun withNewBlockhash(blockhash: SolanaBlockhash): SolanaTxV0 = SolanaTxV0(header, accounts, blockhash, instructions, addressLookupTables)
@@ -41,12 +54,35 @@ class SolanaTxV0 @JvmOverloads constructor(
         return encoder.toByteArray()
     }
 
-    override fun envelopeSize(): Long = legacyEnvelopeSize(this, addressLookupTables)
+    override fun envelopeSize(): Long = legacyEnvelopeSize(header, accounts, instructions, addressLookupTables)
 
     override fun serializeEnvelope(signatures: List<SolanaSignature?>): ByteArray = encodeSignaturesFirstEnvelope(this, signatures)
 
     companion object {
         const val MAX_TRANSACTION_SIZE: Int = SolanaTxLegacy.MAX_TRANSACTION_SIZE
+
+        /** Every reason these fields cannot form a v0 message, or null if they can. */
+        internal fun validate(
+            header: MessageHeader,
+            accounts: List<SolanaAddress>,
+            instructions: List<CompiledInstruction>,
+            lookups: List<CompiledAddressLookupTable>,
+        ): SolanaTransactionError? = messageError(header, accounts, instructions, lookups)
+            ?: envelopeSizeError(SolanaTxType.V0, legacyEnvelopeSize(header, accounts, instructions, lookups), MAX_TRANSACTION_SIZE)
+
+        /** As the constructor, reporting the reason the fields are invalid instead of throwing. */
+        @JvmStatic
+        @JvmOverloads
+        fun tryCreate(
+            header: MessageHeader,
+            accounts: List<SolanaAddress>,
+            recentBlockhash: SolanaBlockhash,
+            instructions: List<CompiledInstruction>,
+            addressLookupTables: List<CompiledAddressLookupTable> = emptyList(),
+        ): Result<SolanaTxV0, SolanaTransactionError> {
+            validate(header, accounts, instructions, addressLookupTables)?.let { return Result.failure(it) }
+            return Result.success(SolanaTxV0(header, accounts, recentBlockhash, instructions, addressLookupTables, validated = true))
+        }
 
         /** The version prefix has already been read. */
         internal fun decodeBody(decoder: SolanaMessageDecoder): SolanaTxV0 {
@@ -72,13 +108,11 @@ class SolanaTxV0 @JvmOverloads constructor(
         /** As [compile], returning the reason it could not be compiled instead of throwing. */
         @JvmStatic
         @JvmOverloads
-        fun tryCompile(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instructions: List<Instruction>, lookupTables: List<AddressLookupTableAccount> = emptyList()): Result<SolanaTxV0, SolanaTransactionError> = catchTransactionError { compile(feePayer, blockhash, instructions, lookupTables) }
+        fun tryCompile(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instructions: List<Instruction>, lookupTables: List<AddressLookupTableAccount> = emptyList()): Result<SolanaTxV0, SolanaTransactionError> = compileMessage(feePayer, blockhash, instructions, lookupTables)
+            .andThen { tryCreate(it.header, it.accounts, it.recentBlockhash, it.instructions, it.lookups) }
 
         @JvmStatic
         @JvmOverloads
-        fun compile(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instructions: List<Instruction>, lookupTables: List<AddressLookupTableAccount> = emptyList()): SolanaTxV0 {
-            val fields = compileMessage(feePayer, blockhash, instructions, lookupTables)
-            return SolanaTxV0(fields.header, fields.accounts, fields.recentBlockhash, fields.instructions, fields.lookups)
-        }
+        fun compile(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instructions: List<Instruction>, lookupTables: List<AddressLookupTableAccount> = emptyList()): SolanaTxV0 = tryCompile(feePayer, blockhash, instructions, lookupTables).unwrap()
     }
 }
