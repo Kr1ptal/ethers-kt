@@ -56,6 +56,39 @@ class LookupTableTest : FunSpec({
         tx.addressLookupTables.single().writableIndexes.size shouldBe 4
     }
 
+    test("two narrow tables are chosen over one wide table that straddles them") {
+        val a = address(10)
+        val b = address(11)
+        val c = address(12)
+        val d = address(13)
+        val straddling = AddressLookupTableAccount(address(90), listOf(a, b))
+        val onlyC = AddressLookupTableAccount(address(91), listOf(c))
+        val onlyD = AddressLookupTableAccount(address(92), listOf(d))
+        val ad = AddressLookupTableAccount(address(93), listOf(a, d))
+        val bc = AddressLookupTableAccount(address(94), listOf(b, c))
+
+        val request = request(listOf(a, b, c, d))
+        val tx = request.compileV0(listOf(straddling, onlyC, onlyD, ad, bc))
+
+        // taking the widest table first would strand c and d in tables that no longer pay for
+        // themselves; the two narrower tables partition all four accounts instead
+        tx.addressLookupTables.map { it.key }.toSet() shouldBe setOf(ad.key, bc.key)
+        tx.addressLookupTables.sumOf { it.writableIndexes.size + it.readonlyIndexes.size } shouldBe 4
+        tx.accounts shouldBe listOf(alice.publicKey, Programs.SYSTEM)
+        tx.envelopeSize() shouldBe request.compileV0(listOf(ad, bc)).envelopeSize()
+    }
+
+    test("a wide table still wins when it covers everything the narrow ones do") {
+        val accounts = List(4) { address(it + 10) }
+        val partial = AddressLookupTableAccount(address(90), accounts.take(2))
+        val other = AddressLookupTableAccount(address(91), accounts.drop(2))
+        val full = AddressLookupTableAccount(address(92), accounts)
+
+        // one table naming all four beats two naming two each, by a table's worth of bytes
+        val tx = request(accounts).compileV0(listOf(partial, other, full))
+        tx.addressLookupTables.map { it.key } shouldBe listOf(full.key)
+    }
+
     test("selection is deterministic and follows the caller's ordering on ties") {
         val accounts = List(2) { address(it + 10) }
         val first = AddressLookupTableAccount(address(90), accounts)

@@ -13,38 +13,75 @@ internal class CompiledMessageFields(
     val lookups: List<CompiledAddressLookupTable>,
 )
 
+/** Bytes saved by moving one account out of the inline list: its 32-byte key, less a one-byte index. */
+private const val SAVED_PER_ACCOUNT = 31
+
+/** Bytes spent naming one table: its 32-byte key, plus a length for each of its two index vectors. */
+private const val COST_PER_TABLE = 34
+
+/** Beyond this many tables, searching every subset stops being free, so fall back to a greedy pick. */
+private const val EXHAUSTIVE_TABLE_LIMIT = 12
+
 /**
  * Choose which of [lookupTables] to compile against, so a v0 message is never larger for having been
  * given a table it does not need.
  *
- * Moving an account out of the inline list saves its 32 address bytes and costs one index byte, a net
- * 31; naming a table costs its 32 key bytes plus two vector lengths, a net 34. A table therefore only
- * pays for itself once it covers two accounts this transaction can move, which rules out the accounts
- * that must stay inline: the fee payer, every other signer, and every invoked program.
+ * Moving an account out of the inline list saves [SAVED_PER_ACCOUNT] bytes and naming a table costs
+ * [COST_PER_TABLE], so a table only pays for itself once it holds two accounts this transaction can
+ * move. Only accounts that may leave the inline list count: not the fee payer, any other signer, or
+ * any invoked program.
  *
- * Tables are taken greedily by how many not-yet-covered accounts they hold, so overlapping tables
- * concentrate into as few as possible. Ties keep the earlier of the supplied tables, so the choice is
- * deterministic and follows the caller's own ordering.
+ * Picking tables one at a time by how many accounts they hold is not enough, because the widest table
+ * can straddle two narrower ones that together cover more: given `(a b)`, `(a d)` and `(b c)`, taking
+ * `(a b)` first strands `c` and `d` in tables that no longer pay for themselves, while `(a d)` and
+ * `(b c)` move all four. Every subset is therefore scored, up to [EXHAUSTIVE_TABLE_LIMIT] tables;
+ * beyond that the count is far past what a transaction can afford to name, and the greedy pick is used
+ * instead. Ties keep the earlier of the supplied tables, so the choice is deterministic and follows
+ * the caller's own ordering.
+ *
+ * The two constants hold while the vectors stay under 128 entries, where every length is a single
+ * byte; past that a chosen set can be a byte or two off the true optimum.
  */
 private fun selectLookupTables(movable: List<SolanaAddress>, lookupTables: List<AddressLookupTableAccount>): List<Int> {
     if (lookupTables.isEmpty() || movable.isEmpty()) return emptyList()
 
-    val remaining = movable.toMutableSet()
+    val coverage = lookupTables.map { table -> movable.filterTo(mutableSetOf()) { it in table.addresses } }
+    if (lookupTables.size > EXHAUSTIVE_TABLE_LIMIT) return greedySelection(coverage)
+
+    var best = emptyList<Int>()
+    var bestSaving = 0
+    for (subset in 1 until (1 shl lookupTables.size)) {
+        val selected = lookupTables.indices.filter { subset shr it and 1 == 1 }
+        val covered = mutableSetOf<SolanaAddress>()
+        selected.forEach { covered.addAll(coverage[it]) }
+        val saving = covered.size * SAVED_PER_ACCOUNT - selected.size * COST_PER_TABLE
+        // a strict improvement only, so the earliest subset wins any tie
+        if (saving > bestSaving) {
+            best = selected
+            bestSaving = saving
+        }
+    }
+    return best
+}
+
+/** Repeatedly take the table holding the most accounts no chosen table holds yet. */
+private fun greedySelection(coverage: List<Set<SolanaAddress>>): List<Int> {
+    val remaining = coverage.flatten().toMutableSet()
     val selected = mutableListOf<Int>()
     while (true) {
         var best = -1
-        var bestCovered = 1 // a table covering a single account would cost three bytes more than it saves
-        lookupTables.forEachIndexed { index, table ->
+        var bestCovered = COST_PER_TABLE / SAVED_PER_ACCOUNT // a table below the break-even costs more than it saves
+        coverage.forEachIndexed { index, covered ->
             if (index in selected) return@forEachIndexed
-            val covered = remaining.count { it in table.addresses }
-            if (covered > bestCovered) {
+            val marginal = remaining.count { it in covered }
+            if (marginal > bestCovered) {
                 best = index
-                bestCovered = covered
+                bestCovered = marginal
             }
         }
         if (best < 0) return selected
         selected.add(best)
-        remaining.removeAll { it in lookupTables[best].addresses }
+        remaining.removeAll(coverage[best])
     }
 }
 
