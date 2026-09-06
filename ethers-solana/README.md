@@ -294,6 +294,8 @@ Reference: [sol4k a166edd854a7198553fdafe9a5051a400d70b121](https://github.com/s
 | Read transactions, including unsupported versions | `getTransaction`, `SolanaRPCTransaction`, `SolanaTxType.Unsupported` |
 | SOL, SPL, Token-2022, associated accounts, compute budget | `SystemProgram`, `TokenProgram`, `Token2022Program`, `AssociatedTokenProgram`, `ComputeBudgetProgram` |
 | Arbitrary program instructions | `Instruction(programId, keys, data)` |
+| Build a transaction across versions | `SolanaTransactionRequest`, `compileLegacy`/`compileV0`/`compileV1` |
+| Rebuild a transaction from an RPC response | `SolanaRPCMessage.toTransaction`, `SolanaRPCTransaction.toSignedTransaction` |
 | Compile or decode without throwing | `tryCompile`, `tryDeserialize`, `tryDeserializeMessage`, `SolanaTransactionError` |
 | Unit conversion / fee estimation | `SolUnit`, `SolanaTransaction.estimateFee` |
 | All upstream public RPC methods | `SolanaApi` / `SolanaProvider` |

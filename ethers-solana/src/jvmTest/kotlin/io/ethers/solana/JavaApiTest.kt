@@ -83,6 +83,7 @@ class JavaApiTest : FunSpec({
             import io.ethers.solana.types.transaction.SolanaTransaction;
             import io.ethers.solana.types.transaction.SolanaTransactionUnsigned;
             import io.ethers.solana.types.transaction.SolanaTransactionSigned;
+            import io.ethers.solana.types.transaction.SolanaTransactionRequest;
             import io.ethers.solana.instruction.SystemProgram;
             import io.ethers.solana.utils.SolUnit;
             public class SolanaJavaExample {
@@ -131,6 +132,21 @@ class JavaApiTest : FunSpec({
                     var config = new SolanaTransactionConfig(java.math.BigInteger.valueOf(5000), 20000L, 65536L, 65536L);
                     var v1 = SolanaTxV1.compile(signer.getPublicKey(), latest.getBlockhash(),
                         SystemProgram.transfer(signer.getPublicKey(), recipient, 1L), config);
+                    var rpcTx = provider.getTransaction(completed.getId()).sendAwait().unwrap();
+                    var rebuiltUnsigned = rpcTx.toUnsignedTransaction();
+                    var rebuiltSigned = rpcTx.toSignedTransaction();
+                    var rebuiltMessage = rpcTx.getTransaction().getMessage().toTransaction(rpcTx.getType());
+                    var request = new SolanaTransactionRequest()
+                        .feePayer(signer.getPublicKey())
+                        .blockhash(latest.getBlockhash())
+                        .instruction(SystemProgram.transfer(signer.getPublicKey(), recipient, 1L))
+                        .computeUnitLimit(200_000L)
+                        .computeUnitPrice(1_000L);
+                    SolanaTxV0 requestedV0 = request.compileV0();
+                    SolanaTxV0 withTables = request.compileV0(java.util.Collections.emptyList());
+                    SolanaTxV1 requestedV1 = request.compileV1();
+                    SolanaTxLegacy requestedLegacy = request.compileLegacy();
+                    var requestedResult = request.tryCompileV0();
                     SolanaTransactionSigned signedV1 = v1.sign(signer);
                     provider.simulateTransaction(v1);
                     provider.sendTransaction(signedV1);

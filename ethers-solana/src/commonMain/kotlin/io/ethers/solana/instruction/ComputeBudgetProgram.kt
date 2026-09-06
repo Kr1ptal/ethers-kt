@@ -15,6 +15,14 @@ object ComputeBudgetProgram {
     @JvmStatic
     fun setComputeUnitLimit(units: Long): Instruction = Instruction(ID, emptyList(), byteArrayOf(2) + littleEndian(bigIntegerOf(units), 4))
 
+    /** Request [bytes] of heap space, a multiple of 1 KiB in 32..256 KiB. */
+    @JvmStatic
+    fun requestHeapFrame(bytes: Long): Instruction = Instruction(ID, emptyList(), byteArrayOf(1) + littleEndian(bigIntegerOf(bytes), 4))
+
+    /** Cap the combined size of the accounts the transaction loads at [bytes]. */
+    @JvmStatic
+    fun setLoadedAccountsDataSizeLimit(bytes: Long): Instruction = Instruction(ID, emptyList(), byteArrayOf(4) + littleEndian(bigIntegerOf(bytes), 4))
+
     /** Bid [microLamports] per compute unit as a prioritization fee. */
     @JvmStatic
     fun setComputeUnitPrice(microLamports: BigInteger): Instruction = Instruction(ID, emptyList(), byteArrayOf(3) + littleEndian(requireU64(microLamports), 8))

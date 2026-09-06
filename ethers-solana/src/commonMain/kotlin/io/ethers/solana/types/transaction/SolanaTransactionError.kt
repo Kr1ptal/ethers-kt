@@ -88,6 +88,12 @@ sealed class SolanaTransactionError : ThrowableError {
     /** A populated signature slot does not verify against the message and its signer. */
     data class InvalidSignature(val index: Int, val signer: SolanaAddress) : SolanaTransactionError()
 
+    /** A request cannot be compiled without a fee payer, which is always the first account. */
+    data object MissingFeePayer : SolanaTransactionError()
+
+    /** A request cannot be compiled without a recent blockhash. */
+    data object MissingBlockhash : SolanaTransactionError()
+
     /** Some, but not all, signature slots are filled. Import these with `Builder.deserializePartial`. */
     data class PartiallySigned(val missing: Int, val required: Int) : SolanaTransactionError()
 }

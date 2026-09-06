@@ -98,15 +98,10 @@ class TransactionCorpusTest : FunSpec({
 
             // Reconstruct from independent RPC JSON fields, never from the binary decoder's fields.
             val message = rpc.transaction.message
-            val instructions = message.instructions.map { CompiledInstruction(it.programIdIndex, it.accounts, it.data.toByteArray()) }
-            val reconstructed = when (rpc.type) {
-                SolanaTxType.Legacy -> SolanaTxLegacy(message.header, message.accountKeys, message.recentBlockhash, instructions)
-                SolanaTxType.V0 -> SolanaTxV0(message.header, message.accountKeys, message.recentBlockhash, instructions, message.addressTableLookups)
-                SolanaTxType.V1 -> SolanaTxV1(message.header, message.accountKeys, message.recentBlockhash, instructions, requireNotNull(message.transactionConfig))
-                is SolanaTxType.Unsupported -> error("Unexpected corpus version")
-            }
+            val reconstructed = message.toTransaction(rpc.type).unwrap()
             reconstructed.serializeMessage() shouldBe signed.serializeMessage()
-            SolanaTransactionSigned(reconstructed, rpc.transaction.signatures).serialize() shouldBe signed.serialize()
+            rpc.toUnsignedTransaction().unwrap().serializeMessage() shouldBe signed.serializeMessage()
+            rpc.toSignedTransaction().unwrap().serialize() shouldBe signed.serialize()
             signed.accounts shouldBe message.accountKeys
             signed.header shouldBe message.header
             signed.recentBlockhash shouldBe message.recentBlockhash
@@ -143,9 +138,9 @@ class TransactionCorpusTest : FunSpec({
                 val accountCount = message.accountKeys.size + writableCount + readonlyCount
                 meta.preBalances.size shouldBe accountCount
                 meta.postBalances.size shouldBe accountCount
-                instructions.all { ix -> ix.programIdIndex in 0 until accountCount && ix.accounts.all { it in 0 until accountCount } } shouldBe true
+                message.instructions.all { ix -> ix.programIdIndex in 0 until accountCount && ix.accounts.all { it in 0 until accountCount } } shouldBe true
                 meta.innerInstructions?.forEach { group ->
-                    (group.index in instructions.indices) shouldBe true
+                    (group.index in message.instructions.indices) shouldBe true
                     group.instructions.forEach { ix ->
                         (ix.programIdIndex in 0 until accountCount) shouldBe true
                         ix.accounts.all { it in 0 until accountCount } shouldBe true
