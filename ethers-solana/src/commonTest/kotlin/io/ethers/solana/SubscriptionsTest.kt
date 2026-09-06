@@ -120,7 +120,7 @@ class SubscriptionsTest : FunSpec({
         client.event = contextual("""{"err":{"InstructionError":[0,"InvalidArgument"]}}""")
         val status = provider.subscribeSignature(signature).send().unwrap().take()!!
         status.context shouldBe RpcContext(bigIntegerOf(42))
-        (status.value as SignatureNotification.Status).err shouldBe io.ethers.solana.types.TransactionError.InstructionFailure(0, io.ethers.solana.types.InstructionError.Simple.INVALID_ARGUMENT)
+        (status.value as SignatureNotification.Status).err shouldBe io.ethers.solana.types.TransactionError.InstructionFailure(0, io.ethers.solana.types.InstructionError.InvalidArgument)
         client.descriptor.isTerminal(Kotlinx.DEFAULT.parseToJsonElement(client.event)) shouldBe true
         client.descriptor.unsubscribeMethod shouldBe "signatureUnsubscribe"
     }

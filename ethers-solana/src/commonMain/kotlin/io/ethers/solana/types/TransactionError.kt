@@ -22,81 +22,43 @@ import kotlinx.serialization.json.jsonArray
 /** Runtime errors shared by history, simulation and signature/log notifications. */
 @Serializable(with = TransactionErrorSerializer::class)
 sealed interface TransactionError {
-    @Serializable
-    enum class Simple(val wireName: String) : TransactionError {
-        @SerialName("AccountInUse")
-        ACCOUNT_IN_USE("AccountInUse"),
-        @SerialName("AccountLoadedTwice")
-        ACCOUNT_LOADED_TWICE("AccountLoadedTwice"),
-        @SerialName("AccountNotFound")
-        ACCOUNT_NOT_FOUND("AccountNotFound"),
-        @SerialName("ProgramAccountNotFound")
-        PROGRAM_ACCOUNT_NOT_FOUND("ProgramAccountNotFound"),
-        @SerialName("InsufficientFundsForFee")
-        INSUFFICIENT_FUNDS_FOR_FEE("InsufficientFundsForFee"),
-        @SerialName("InvalidAccountForFee")
-        INVALID_ACCOUNT_FOR_FEE("InvalidAccountForFee"),
-        @SerialName("AlreadyProcessed")
-        ALREADY_PROCESSED("AlreadyProcessed"),
-        @SerialName("BlockhashNotFound")
-        BLOCKHASH_NOT_FOUND("BlockhashNotFound"),
-        @SerialName("CallChainTooDeep")
-        CALL_CHAIN_TOO_DEEP("CallChainTooDeep"),
-        @SerialName("MissingSignatureForFee")
-        MISSING_SIGNATURE_FOR_FEE("MissingSignatureForFee"),
-        @SerialName("InvalidAccountIndex")
-        INVALID_ACCOUNT_INDEX("InvalidAccountIndex"),
-        @SerialName("SignatureFailure")
-        SIGNATURE_FAILURE("SignatureFailure"),
-        @SerialName("InvalidProgramForExecution")
-        INVALID_PROGRAM_FOR_EXECUTION("InvalidProgramForExecution"),
-        @SerialName("SanitizeFailure")
-        SANITIZE_FAILURE("SanitizeFailure"),
-        @SerialName("ClusterMaintenance")
-        CLUSTER_MAINTENANCE("ClusterMaintenance"),
-        @SerialName("AccountBorrowOutstanding")
-        ACCOUNT_BORROW_OUTSTANDING("AccountBorrowOutstanding"),
-        @SerialName("WouldExceedMaxBlockCostLimit")
-        WOULD_EXCEED_MAX_BLOCK_COST_LIMIT("WouldExceedMaxBlockCostLimit"),
-        @SerialName("UnsupportedVersion")
-        UNSUPPORTED_VERSION("UnsupportedVersion"),
-        @SerialName("InvalidWritableAccount")
-        INVALID_WRITABLE_ACCOUNT("InvalidWritableAccount"),
-        @SerialName("WouldExceedMaxAccountCostLimit")
-        WOULD_EXCEED_MAX_ACCOUNT_COST_LIMIT("WouldExceedMaxAccountCostLimit"),
-        @SerialName("WouldExceedAccountDataBlockLimit")
-        WOULD_EXCEED_ACCOUNT_DATA_BLOCK_LIMIT("WouldExceedAccountDataBlockLimit"),
-        @SerialName("TooManyAccountLocks")
-        TOO_MANY_ACCOUNT_LOCKS("TooManyAccountLocks"),
-        @SerialName("AddressLookupTableNotFound")
-        ADDRESS_LOOKUP_TABLE_NOT_FOUND("AddressLookupTableNotFound"),
-        @SerialName("InvalidAddressLookupTableOwner")
-        INVALID_ADDRESS_LOOKUP_TABLE_OWNER("InvalidAddressLookupTableOwner"),
-        @SerialName("InvalidAddressLookupTableData")
-        INVALID_ADDRESS_LOOKUP_TABLE_DATA("InvalidAddressLookupTableData"),
-        @SerialName("InvalidAddressLookupTableIndex")
-        INVALID_ADDRESS_LOOKUP_TABLE_INDEX("InvalidAddressLookupTableIndex"),
-        @SerialName("InvalidRentPayingAccount")
-        INVALID_RENT_PAYING_ACCOUNT("InvalidRentPayingAccount"),
-        @SerialName("WouldExceedMaxVoteCostLimit")
-        WOULD_EXCEED_MAX_VOTE_COST_LIMIT("WouldExceedMaxVoteCostLimit"),
-        @SerialName("WouldExceedAccountDataTotalLimit")
-        WOULD_EXCEED_ACCOUNT_DATA_TOTAL_LIMIT("WouldExceedAccountDataTotalLimit"),
-        @SerialName("MaxLoadedAccountsDataSizeExceeded")
-        MAX_LOADED_ACCOUNTS_DATA_SIZE_EXCEEDED("MaxLoadedAccountsDataSizeExceeded"),
-        @SerialName("InvalidLoadedAccountsDataSizeLimit")
-        INVALID_LOADED_ACCOUNTS_DATA_SIZE_LIMIT("InvalidLoadedAccountsDataSizeLimit"),
-        @SerialName("ResanitizationNeeded")
-        RESANITIZATION_NEEDED("ResanitizationNeeded"),
-        @SerialName("UnbalancedTransaction")
-        UNBALANCED_TRANSACTION("UnbalancedTransaction"),
-        @SerialName("ProgramCacheHitMaxLimit")
-        PROGRAM_CACHE_HIT_MAX_LIMIT("ProgramCacheHitMaxLimit"),
-        @SerialName("CommitCancelled")
-        COMMIT_CANCELLED("CommitCancelled"),
-        @SerialName("BailOut")
-        BAIL_OUT("BailOut"),
-    }
+    // Payload-free variants, named exactly as the protocol's Rust enum declares them.
+    data object AccountInUse : TransactionError
+    data object AccountLoadedTwice : TransactionError
+    data object AccountNotFound : TransactionError
+    data object ProgramAccountNotFound : TransactionError
+    data object InsufficientFundsForFee : TransactionError
+    data object InvalidAccountForFee : TransactionError
+    data object AlreadyProcessed : TransactionError
+    data object BlockhashNotFound : TransactionError
+    data object CallChainTooDeep : TransactionError
+    data object MissingSignatureForFee : TransactionError
+    data object InvalidAccountIndex : TransactionError
+    data object SignatureFailure : TransactionError
+    data object InvalidProgramForExecution : TransactionError
+    data object SanitizeFailure : TransactionError
+    data object ClusterMaintenance : TransactionError
+    data object AccountBorrowOutstanding : TransactionError
+    data object WouldExceedMaxBlockCostLimit : TransactionError
+    data object UnsupportedVersion : TransactionError
+    data object InvalidWritableAccount : TransactionError
+    data object WouldExceedMaxAccountCostLimit : TransactionError
+    data object WouldExceedAccountDataBlockLimit : TransactionError
+    data object TooManyAccountLocks : TransactionError
+    data object AddressLookupTableNotFound : TransactionError
+    data object InvalidAddressLookupTableOwner : TransactionError
+    data object InvalidAddressLookupTableData : TransactionError
+    data object InvalidAddressLookupTableIndex : TransactionError
+    data object InvalidRentPayingAccount : TransactionError
+    data object WouldExceedMaxVoteCostLimit : TransactionError
+    data object WouldExceedAccountDataTotalLimit : TransactionError
+    data object MaxLoadedAccountsDataSizeExceeded : TransactionError
+    data object InvalidLoadedAccountsDataSizeLimit : TransactionError
+    data object ResanitizationNeeded : TransactionError
+    data object UnbalancedTransaction : TransactionError
+    data object ProgramCacheHitMaxLimit : TransactionError
+    data object CommitCancelled : TransactionError
+    data object BailOut : TransactionError
 
     @Serializable(with = InstructionFailureSerializer::class)
     data class InstructionFailure(val instructionIndex: Int, val instructionError: InstructionError) : TransactionError
@@ -120,6 +82,58 @@ sealed interface TransactionError {
 
     @Serializable(with = UnknownTransactionErrorSerializer::class)
     data class Unknown(val raw: JsonElement) : TransactionError
+
+    companion object {
+        /** Every variant the wire encodes as a bare name, in the order the protocol declares them. */
+        private val WIRE_NAMES: Map<TransactionError, String> = linkedMapOf(
+            AccountInUse to "AccountInUse",
+            AccountLoadedTwice to "AccountLoadedTwice",
+            AccountNotFound to "AccountNotFound",
+            ProgramAccountNotFound to "ProgramAccountNotFound",
+            InsufficientFundsForFee to "InsufficientFundsForFee",
+            InvalidAccountForFee to "InvalidAccountForFee",
+            AlreadyProcessed to "AlreadyProcessed",
+            BlockhashNotFound to "BlockhashNotFound",
+            CallChainTooDeep to "CallChainTooDeep",
+            MissingSignatureForFee to "MissingSignatureForFee",
+            InvalidAccountIndex to "InvalidAccountIndex",
+            SignatureFailure to "SignatureFailure",
+            InvalidProgramForExecution to "InvalidProgramForExecution",
+            SanitizeFailure to "SanitizeFailure",
+            ClusterMaintenance to "ClusterMaintenance",
+            AccountBorrowOutstanding to "AccountBorrowOutstanding",
+            WouldExceedMaxBlockCostLimit to "WouldExceedMaxBlockCostLimit",
+            UnsupportedVersion to "UnsupportedVersion",
+            InvalidWritableAccount to "InvalidWritableAccount",
+            WouldExceedMaxAccountCostLimit to "WouldExceedMaxAccountCostLimit",
+            WouldExceedAccountDataBlockLimit to "WouldExceedAccountDataBlockLimit",
+            TooManyAccountLocks to "TooManyAccountLocks",
+            AddressLookupTableNotFound to "AddressLookupTableNotFound",
+            InvalidAddressLookupTableOwner to "InvalidAddressLookupTableOwner",
+            InvalidAddressLookupTableData to "InvalidAddressLookupTableData",
+            InvalidAddressLookupTableIndex to "InvalidAddressLookupTableIndex",
+            InvalidRentPayingAccount to "InvalidRentPayingAccount",
+            WouldExceedMaxVoteCostLimit to "WouldExceedMaxVoteCostLimit",
+            WouldExceedAccountDataTotalLimit to "WouldExceedAccountDataTotalLimit",
+            MaxLoadedAccountsDataSizeExceeded to "MaxLoadedAccountsDataSizeExceeded",
+            InvalidLoadedAccountsDataSizeLimit to "InvalidLoadedAccountsDataSizeLimit",
+            ResanitizationNeeded to "ResanitizationNeeded",
+            UnbalancedTransaction to "UnbalancedTransaction",
+            ProgramCacheHitMaxLimit to "ProgramCacheHitMaxLimit",
+            CommitCancelled to "CommitCancelled",
+            BailOut to "BailOut",
+        )
+        private val BY_WIRE_NAME: Map<String, TransactionError> = WIRE_NAMES.entries.associate { it.value to it.key }
+
+        /** Variants carrying no payload, which is every one the wire writes as a bare name. */
+        val PAYLOAD_FREE: List<TransactionError> = WIRE_NAMES.keys.toList()
+
+        /** The bare name the wire uses for [error], or null when it carries a payload. */
+        fun wireNameOf(error: TransactionError): String? = WIRE_NAMES[error]
+
+        /** The variant [wireName] names, or null when the protocol has added one this library predates. */
+        fun fromWireName(wireName: String): TransactionError? = BY_WIRE_NAME[wireName]
+    }
 }
 
 object TransactionErrorSerializer : KSerializer<TransactionError> {
@@ -128,7 +142,7 @@ object TransactionErrorSerializer : KSerializer<TransactionError> {
         val input = decoder as JsonDecoder
         val value = input.decodeJsonElement()
         if (value is JsonPrimitive && value.isString) {
-            return TransactionError.Simple.entries.firstOrNull { it.wireName == value.content } ?: TransactionError.Unknown(value)
+            return TransactionError.fromWireName(value.content) ?: TransactionError.Unknown(value)
         }
         if (value !is JsonObject || value.size != 1) return TransactionError.Unknown(value)
         return when (value.keys.single()) {
@@ -142,12 +156,14 @@ object TransactionErrorSerializer : KSerializer<TransactionError> {
 
     override fun serialize(encoder: Encoder, value: TransactionError) {
         when (value) {
-            is TransactionError.Simple -> encoder.encodeSerializableValue(TransactionError.Simple.serializer(), value)
             is TransactionError.InstructionFailure -> encoder.encodeSerializableValue(InstructionFailureSerializer, value)
             is TransactionError.DuplicateInstruction -> encoder.encodeSerializableValue(DuplicateInstructionSerializer, value)
             is TransactionError.InsufficientFundsForRent -> encoder.encodeSerializableValue(InsufficientFundsForRentSerializer, value)
             is TransactionError.ProgramExecutionTemporarilyRestricted -> encoder.encodeSerializableValue(ProgramExecutionTemporarilyRestrictedSerializer, value)
             is TransactionError.Unknown -> encoder.encodeSerializableValue(UnknownTransactionErrorSerializer, value)
+            else -> (encoder as JsonEncoder).encodeJsonElement(
+                JsonPrimitive(requireNotNull(TransactionError.wireNameOf(value)) { "Unnamed transaction error $value" }),
+            )
         }
     }
 }

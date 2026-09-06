@@ -222,7 +222,7 @@ class SolanaProviderTest : FunSpec({
         response = contextual("""{"err":{"InstructionError":[0,"InvalidArgument"]},"logs":["failed"],"unitsConsumed":9007199254740993}""")
         val simulation = provider.simulateTransaction(transaction).send().unwrap().value
         simulation.isSuccess shouldBe false
-        simulation.err shouldBe io.ethers.solana.types.TransactionError.InstructionFailure(0, io.ethers.solana.types.InstructionError.Simple.INVALID_ARGUMENT)
+        simulation.err shouldBe io.ethers.solana.types.TransactionError.InstructionFailure(0, io.ethers.solana.types.InstructionError.InvalidArgument)
         assertRequest("simulateTransaction", """["${transaction.toBase64()}",{"commitment":"confirmed","encoding":"base64"}]""")
         response = contextual("""{"err":null,"logs":null}""")
         provider.simulateTransaction(transaction).send().unwrap().value.isSuccess shouldBe true

@@ -8,6 +8,7 @@ import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonEncoder
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.decodeFromJsonElement
@@ -15,128 +16,145 @@ import kotlinx.serialization.json.decodeFromJsonElement
 /** The instruction-error wire enum; unknown future variants remain lossless. */
 @Serializable(with = InstructionErrorSerializer::class)
 sealed interface InstructionError {
-    @Serializable
-    enum class Simple(val wireName: String) : InstructionError {
-        @SerialName("GenericError")
-        GENERIC_ERROR("GenericError"),
-        @SerialName("InvalidArgument")
-        INVALID_ARGUMENT("InvalidArgument"),
-        @SerialName("InvalidInstructionData")
-        INVALID_INSTRUCTION_DATA("InvalidInstructionData"),
-        @SerialName("InvalidAccountData")
-        INVALID_ACCOUNT_DATA("InvalidAccountData"),
-        @SerialName("AccountDataTooSmall")
-        ACCOUNT_DATA_TOO_SMALL("AccountDataTooSmall"),
-        @SerialName("InsufficientFunds")
-        INSUFFICIENT_FUNDS("InsufficientFunds"),
-        @SerialName("IncorrectProgramId")
-        INCORRECT_PROGRAM_ID("IncorrectProgramId"),
-        @SerialName("MissingRequiredSignature")
-        MISSING_REQUIRED_SIGNATURE("MissingRequiredSignature"),
-        @SerialName("AccountAlreadyInitialized")
-        ACCOUNT_ALREADY_INITIALIZED("AccountAlreadyInitialized"),
-        @SerialName("UninitializedAccount")
-        UNINITIALIZED_ACCOUNT("UninitializedAccount"),
-        @SerialName("UnbalancedInstruction")
-        UNBALANCED_INSTRUCTION("UnbalancedInstruction"),
-        @SerialName("ModifiedProgramId")
-        MODIFIED_PROGRAM_ID("ModifiedProgramId"),
-        @SerialName("ExternalAccountLamportSpend")
-        EXTERNAL_ACCOUNT_LAMPORT_SPEND("ExternalAccountLamportSpend"),
-        @SerialName("ExternalAccountDataModified")
-        EXTERNAL_ACCOUNT_DATA_MODIFIED("ExternalAccountDataModified"),
-        @SerialName("ReadonlyLamportChange")
-        READONLY_LAMPORT_CHANGE("ReadonlyLamportChange"),
-        @SerialName("ReadonlyDataModified")
-        READONLY_DATA_MODIFIED("ReadonlyDataModified"),
-        @SerialName("DuplicateAccountIndex")
-        DUPLICATE_ACCOUNT_INDEX("DuplicateAccountIndex"),
-        @SerialName("ExecutableModified")
-        EXECUTABLE_MODIFIED("ExecutableModified"),
-        @SerialName("RentEpochModified")
-        RENT_EPOCH_MODIFIED("RentEpochModified"),
-        @SerialName("NotEnoughAccountKeys")
-        NOT_ENOUGH_ACCOUNT_KEYS("NotEnoughAccountKeys"),
-        @SerialName("AccountDataSizeChanged")
-        ACCOUNT_DATA_SIZE_CHANGED("AccountDataSizeChanged"),
-        @SerialName("AccountNotExecutable")
-        ACCOUNT_NOT_EXECUTABLE("AccountNotExecutable"),
-        @SerialName("AccountBorrowFailed")
-        ACCOUNT_BORROW_FAILED("AccountBorrowFailed"),
-        @SerialName("AccountBorrowOutstanding")
-        ACCOUNT_BORROW_OUTSTANDING("AccountBorrowOutstanding"),
-        @SerialName("DuplicateAccountOutOfSync")
-        DUPLICATE_ACCOUNT_OUT_OF_SYNC("DuplicateAccountOutOfSync"),
-        @SerialName("InvalidError")
-        INVALID_ERROR("InvalidError"),
-        @SerialName("ExecutableDataModified")
-        EXECUTABLE_DATA_MODIFIED("ExecutableDataModified"),
-        @SerialName("ExecutableLamportChange")
-        EXECUTABLE_LAMPORT_CHANGE("ExecutableLamportChange"),
-        @SerialName("ExecutableAccountNotRentExempt")
-        EXECUTABLE_ACCOUNT_NOT_RENT_EXEMPT("ExecutableAccountNotRentExempt"),
-        @SerialName("UnsupportedProgramId")
-        UNSUPPORTED_PROGRAM_ID("UnsupportedProgramId"),
-        @SerialName("CallDepth")
-        CALL_DEPTH("CallDepth"),
-        @SerialName("MissingAccount")
-        MISSING_ACCOUNT("MissingAccount"),
-        @SerialName("ReentrancyNotAllowed")
-        REENTRANCY_NOT_ALLOWED("ReentrancyNotAllowed"),
-        @SerialName("MaxSeedLengthExceeded")
-        MAX_SEED_LENGTH_EXCEEDED("MaxSeedLengthExceeded"),
-        @SerialName("InvalidSeeds")
-        INVALID_SEEDS("InvalidSeeds"),
-        @SerialName("InvalidRealloc")
-        INVALID_REALLOC("InvalidRealloc"),
-        @SerialName("ComputationalBudgetExceeded")
-        COMPUTATIONAL_BUDGET_EXCEEDED("ComputationalBudgetExceeded"),
-        @SerialName("PrivilegeEscalation")
-        PRIVILEGE_ESCALATION("PrivilegeEscalation"),
-        @SerialName("ProgramEnvironmentSetupFailure")
-        PROGRAM_ENVIRONMENT_SETUP_FAILURE("ProgramEnvironmentSetupFailure"),
-        @SerialName("ProgramFailedToComplete")
-        PROGRAM_FAILED_TO_COMPLETE("ProgramFailedToComplete"),
-        @SerialName("ProgramFailedToCompile")
-        PROGRAM_FAILED_TO_COMPILE("ProgramFailedToCompile"),
-        @SerialName("Immutable")
-        IMMUTABLE("Immutable"),
-        @SerialName("IncorrectAuthority")
-        INCORRECT_AUTHORITY("IncorrectAuthority"),
-        @SerialName("BorshIoError")
-        BORSH_IO_ERROR("BorshIoError"),
-        @SerialName("AccountNotRentExempt")
-        ACCOUNT_NOT_RENT_EXEMPT("AccountNotRentExempt"),
-        @SerialName("InvalidAccountOwner")
-        INVALID_ACCOUNT_OWNER("InvalidAccountOwner"),
-        @SerialName("ArithmeticOverflow")
-        ARITHMETIC_OVERFLOW("ArithmeticOverflow"),
-        @SerialName("UnsupportedSysvar")
-        UNSUPPORTED_SYSVAR("UnsupportedSysvar"),
-        @SerialName("IllegalOwner")
-        ILLEGAL_OWNER("IllegalOwner"),
-        @SerialName("MaxAccountsDataAllocationsExceeded")
-        MAX_ACCOUNTS_DATA_ALLOCATIONS_EXCEEDED("MaxAccountsDataAllocationsExceeded"),
-        @SerialName("MaxAccountsExceeded")
-        MAX_ACCOUNTS_EXCEEDED("MaxAccountsExceeded"),
-        @SerialName("MaxInstructionTraceLengthExceeded")
-        MAX_INSTRUCTION_TRACE_LENGTH_EXCEEDED("MaxInstructionTraceLengthExceeded"),
-        @SerialName("BuiltinProgramsMustConsumeComputeUnits")
-        BUILTIN_PROGRAMS_MUST_CONSUME_COMPUTE_UNITS("BuiltinProgramsMustConsumeComputeUnits"),
-        @SerialName("BailOut")
-        BAIL_OUT("BailOut"),
-    }
+    // Payload-free variants, named exactly as the protocol's Rust enum declares them.
+    data object GenericError : InstructionError
+    data object InvalidArgument : InstructionError
+    data object InvalidInstructionData : InstructionError
+    data object InvalidAccountData : InstructionError
+    data object AccountDataTooSmall : InstructionError
+    data object InsufficientFunds : InstructionError
+    data object IncorrectProgramId : InstructionError
+    data object MissingRequiredSignature : InstructionError
+    data object AccountAlreadyInitialized : InstructionError
+    data object UninitializedAccount : InstructionError
+    data object UnbalancedInstruction : InstructionError
+    data object ModifiedProgramId : InstructionError
+    data object ExternalAccountLamportSpend : InstructionError
+    data object ExternalAccountDataModified : InstructionError
+    data object ReadonlyLamportChange : InstructionError
+    data object ReadonlyDataModified : InstructionError
+    data object DuplicateAccountIndex : InstructionError
+    data object ExecutableModified : InstructionError
+    data object RentEpochModified : InstructionError
+    data object NotEnoughAccountKeys : InstructionError
+    data object AccountDataSizeChanged : InstructionError
+    data object AccountNotExecutable : InstructionError
+    data object AccountBorrowFailed : InstructionError
+    data object AccountBorrowOutstanding : InstructionError
+    data object DuplicateAccountOutOfSync : InstructionError
+    data object InvalidError : InstructionError
+    data object ExecutableDataModified : InstructionError
+    data object ExecutableLamportChange : InstructionError
+    data object ExecutableAccountNotRentExempt : InstructionError
+    data object UnsupportedProgramId : InstructionError
+    data object CallDepth : InstructionError
+    data object MissingAccount : InstructionError
+    data object ReentrancyNotAllowed : InstructionError
+    data object MaxSeedLengthExceeded : InstructionError
+    data object InvalidSeeds : InstructionError
+    data object InvalidRealloc : InstructionError
+    data object ComputationalBudgetExceeded : InstructionError
+    data object PrivilegeEscalation : InstructionError
+    data object ProgramEnvironmentSetupFailure : InstructionError
+    data object ProgramFailedToComplete : InstructionError
+    data object ProgramFailedToCompile : InstructionError
+    data object Immutable : InstructionError
+    data object IncorrectAuthority : InstructionError
+    data object AccountNotRentExempt : InstructionError
+    data object InvalidAccountOwner : InstructionError
+    data object ArithmeticOverflow : InstructionError
+    data object UnsupportedSysvar : InstructionError
+    data object IllegalOwner : InstructionError
+    data object MaxAccountsDataAllocationsExceeded : InstructionError
+    data object MaxAccountsExceeded : InstructionError
+    data object MaxInstructionTraceLengthExceeded : InstructionError
+    data object BuiltinProgramsMustConsumeComputeUnits : InstructionError
+    data object BailOut : InstructionError
 
     @Serializable(with = CustomInstructionErrorSerializer::class)
     data class Custom(val code: Long) : InstructionError
 
-    /** Older validators include a message; newer ones emit the simple BorshIoError variant. */
+    /**
+     * One protocol variant with two encodings: older validators tag it with a message, newer ones
+     * emit the bare name, which reads back as a null [message].
+     */
     @Serializable(with = BorshIoErrorSerializer::class)
-    data class BorshIoError(val message: String) : InstructionError
+    data class BorshIoError(val message: String? = null) : InstructionError
 
     @Serializable(with = UnknownInstructionErrorSerializer::class)
     data class Unknown(val raw: JsonElement) : InstructionError
+
+    companion object {
+        /** Every variant the wire encodes as a bare name, in the order the protocol declares them. */
+        private val WIRE_NAMES: Map<InstructionError, String> = linkedMapOf(
+            GenericError to "GenericError",
+            InvalidArgument to "InvalidArgument",
+            InvalidInstructionData to "InvalidInstructionData",
+            InvalidAccountData to "InvalidAccountData",
+            AccountDataTooSmall to "AccountDataTooSmall",
+            InsufficientFunds to "InsufficientFunds",
+            IncorrectProgramId to "IncorrectProgramId",
+            MissingRequiredSignature to "MissingRequiredSignature",
+            AccountAlreadyInitialized to "AccountAlreadyInitialized",
+            UninitializedAccount to "UninitializedAccount",
+            UnbalancedInstruction to "UnbalancedInstruction",
+            ModifiedProgramId to "ModifiedProgramId",
+            ExternalAccountLamportSpend to "ExternalAccountLamportSpend",
+            ExternalAccountDataModified to "ExternalAccountDataModified",
+            ReadonlyLamportChange to "ReadonlyLamportChange",
+            ReadonlyDataModified to "ReadonlyDataModified",
+            DuplicateAccountIndex to "DuplicateAccountIndex",
+            ExecutableModified to "ExecutableModified",
+            RentEpochModified to "RentEpochModified",
+            NotEnoughAccountKeys to "NotEnoughAccountKeys",
+            AccountDataSizeChanged to "AccountDataSizeChanged",
+            AccountNotExecutable to "AccountNotExecutable",
+            AccountBorrowFailed to "AccountBorrowFailed",
+            AccountBorrowOutstanding to "AccountBorrowOutstanding",
+            DuplicateAccountOutOfSync to "DuplicateAccountOutOfSync",
+            InvalidError to "InvalidError",
+            ExecutableDataModified to "ExecutableDataModified",
+            ExecutableLamportChange to "ExecutableLamportChange",
+            ExecutableAccountNotRentExempt to "ExecutableAccountNotRentExempt",
+            UnsupportedProgramId to "UnsupportedProgramId",
+            CallDepth to "CallDepth",
+            MissingAccount to "MissingAccount",
+            ReentrancyNotAllowed to "ReentrancyNotAllowed",
+            MaxSeedLengthExceeded to "MaxSeedLengthExceeded",
+            InvalidSeeds to "InvalidSeeds",
+            InvalidRealloc to "InvalidRealloc",
+            ComputationalBudgetExceeded to "ComputationalBudgetExceeded",
+            PrivilegeEscalation to "PrivilegeEscalation",
+            ProgramEnvironmentSetupFailure to "ProgramEnvironmentSetupFailure",
+            ProgramFailedToComplete to "ProgramFailedToComplete",
+            ProgramFailedToCompile to "ProgramFailedToCompile",
+            Immutable to "Immutable",
+            IncorrectAuthority to "IncorrectAuthority",
+            AccountNotRentExempt to "AccountNotRentExempt",
+            InvalidAccountOwner to "InvalidAccountOwner",
+            ArithmeticOverflow to "ArithmeticOverflow",
+            UnsupportedSysvar to "UnsupportedSysvar",
+            IllegalOwner to "IllegalOwner",
+            MaxAccountsDataAllocationsExceeded to "MaxAccountsDataAllocationsExceeded",
+            MaxAccountsExceeded to "MaxAccountsExceeded",
+            MaxInstructionTraceLengthExceeded to "MaxInstructionTraceLengthExceeded",
+            BuiltinProgramsMustConsumeComputeUnits to "BuiltinProgramsMustConsumeComputeUnits",
+            BailOut to "BailOut",
+        )
+        private val BY_WIRE_NAME: Map<String, InstructionError> = WIRE_NAMES.entries.associate { it.value to it.key }
+
+        /** Variants carrying no payload, which is every one the wire writes as a bare name. */
+        val PAYLOAD_FREE: List<InstructionError> = WIRE_NAMES.keys.toList()
+
+        /** The bare name the wire uses for [error], or null when it carries a payload. */
+        fun wireNameOf(error: InstructionError): String? = WIRE_NAMES[error]
+
+        /** The variant [wireName] names, or null when the protocol has added one this library predates. */
+        fun fromWireName(wireName: String): InstructionError? = BY_WIRE_NAME[wireName]
+    }
 }
+
+private const val BORSH_IO_ERROR = "BorshIoError"
 
 object InstructionErrorSerializer : KSerializer<InstructionError> {
     override val descriptor = JsonElement.serializer().descriptor
@@ -144,7 +162,8 @@ object InstructionErrorSerializer : KSerializer<InstructionError> {
         val input = decoder as JsonDecoder
         val value = input.decodeJsonElement()
         if (value is JsonPrimitive && value.isString) {
-            return InstructionError.Simple.entries.firstOrNull { it.wireName == value.content } ?: InstructionError.Unknown(value)
+            if (value.content == BORSH_IO_ERROR) return InstructionError.BorshIoError()
+            return InstructionError.fromWireName(value.content) ?: InstructionError.Unknown(value)
         }
         if (value !is JsonObject || value.size != 1) return InstructionError.Unknown(value)
         return when (value.keys.single()) {
@@ -155,14 +174,19 @@ object InstructionErrorSerializer : KSerializer<InstructionError> {
     }
     override fun serialize(encoder: Encoder, value: InstructionError) {
         when (value) {
-            is InstructionError.Simple -> encoder.encodeSerializableValue(InstructionError.Simple.serializer(), value)
             is InstructionError.Custom -> encoder.encodeSerializableValue(CustomInstructionErrorSerializer, value)
-            is InstructionError.BorshIoError -> encoder.encodeSerializableValue(BorshIoErrorSerializer, value)
+            is InstructionError.BorshIoError -> when (value.message) {
+                null -> (encoder as JsonEncoder).encodeJsonElement(JsonPrimitive(BORSH_IO_ERROR))
+                else -> encoder.encodeSerializableValue(BorshIoErrorSerializer, value)
+            }
             is InstructionError.Unknown -> encoder.encodeSerializableValue(UnknownInstructionErrorSerializer, value)
+            else -> (encoder as JsonEncoder).encodeJsonElement(
+                JsonPrimitive(requireNotNull(InstructionError.wireNameOf(value)) { "Unnamed instruction error $value" }),
+            )
         }
     }
 }
 
 object CustomInstructionErrorSerializer : TaggedJsonSerializer<InstructionError.Custom>("Custom", MappedSerializer(U32Serializer, InstructionError::Custom, { it.code }))
-object BorshIoErrorSerializer : TaggedJsonSerializer<InstructionError.BorshIoError>("BorshIoError", MappedSerializer(String.serializer(), InstructionError::BorshIoError, { it.message }))
+object BorshIoErrorSerializer : TaggedJsonSerializer<InstructionError.BorshIoError>("BorshIoError", MappedSerializer(String.serializer(), InstructionError::BorshIoError, { requireNotNull(it.message) }))
 object UnknownInstructionErrorSerializer : MappedSerializer<JsonElement, InstructionError.Unknown>(ExactJsonSerializer, InstructionError::Unknown, { it.raw })

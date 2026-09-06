@@ -20,7 +20,7 @@ class SignatureNotificationTest : FunSpec({
             "\"receivedSignature\"" to SignatureNotification.Received,
             """{"err":null}""" to SignatureNotification.Status(null),
             """{"err":{"InstructionError":[0,"InvalidArgument"]}}""" to SignatureNotification.Status(
-                TransactionError.InstructionFailure(0, InstructionError.Simple.INVALID_ARGUMENT),
+                TransactionError.InstructionFailure(0, InstructionError.InvalidArgument),
             ),
         )
         for ((payload, expected) in payloads) {

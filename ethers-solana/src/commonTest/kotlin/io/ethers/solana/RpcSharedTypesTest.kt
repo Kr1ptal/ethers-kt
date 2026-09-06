@@ -117,18 +117,19 @@ class RpcSharedTypesTest : FunSpec({
     }
 
     test("all known simple runtime errors roundtrip with their wire names") {
-        for (error in TransactionError.Simple.entries) {
-            val encoded = JsonPrimitive(error.wireName)
+        for (error in TransactionError.PAYLOAD_FREE) {
+            val encoded = JsonPrimitive(TransactionError.wireNameOf(error))
             json.decodeFromJsonElement<TransactionError>(encoded) shouldBe error
             json.encodeToJsonElement<TransactionError>(error) shouldBe encoded
-            json.encodeToJsonElement(error) shouldBe encoded
         }
-        for (error in InstructionError.Simple.entries) {
-            val encoded = JsonPrimitive(error.wireName)
+        for (error in InstructionError.PAYLOAD_FREE) {
+            val encoded = JsonPrimitive(InstructionError.wireNameOf(error))
             json.decodeFromJsonElement<InstructionError>(encoded) shouldBe error
             json.encodeToJsonElement<InstructionError>(error) shouldBe encoded
-            json.encodeToJsonElement(error) shouldBe encoded
         }
+        // one protocol variant, two encodings: newer validators emit the bare name
+        json.decodeFromJsonElement<InstructionError>(JsonPrimitive("BorshIoError")) shouldBe InstructionError.BorshIoError()
+        json.encodeToJsonElement<InstructionError>(InstructionError.BorshIoError()) shouldBe JsonPrimitive("BorshIoError")
     }
 
     test("parameterized runtime errors have typed payloads and independent serializers") {
@@ -177,7 +178,7 @@ class RpcSharedTypesTest : FunSpec({
 
     test("history metadata logs and simulation share the same typed error") {
         val wire = """{"InstructionError":[0,"InvalidArgument"]}"""
-        val expected = TransactionError.InstructionFailure(0, InstructionError.Simple.INVALID_ARGUMENT)
+        val expected = TransactionError.InstructionFailure(0, InstructionError.InvalidArgument)
         json.decodeFromString<TransactionSignature>("""{"signature":"$signature","slot":1,"err":$wire}""").err shouldBe expected
         json.decodeFromString<LogsNotification>("""{"signature":"$signature","logs":[],"err":$wire}""").err shouldBe expected
         json.decodeFromString<TransactionSimulation>("""{"err":$wire}""").err shouldBe expected
