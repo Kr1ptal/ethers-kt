@@ -45,7 +45,7 @@ class SolanaTxLegacy private constructor(
 
     override fun envelopeSize(): Long = legacyEnvelopeSize(header, accounts, instructions, null)
 
-    override fun serializeEnvelope(signatures: List<SolanaSignature?>): ByteArray = encodeSignaturesFirstEnvelope(this, signatures)
+    override fun encodeEnvelope(signatures: List<SolanaSignature?>): ByteArray = encodeSignaturesFirstEnvelope(this, signatures)
 
     companion object {
         const val MAX_TRANSACTION_SIZE: Int = 1232

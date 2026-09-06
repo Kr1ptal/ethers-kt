@@ -56,7 +56,7 @@ class SolanaTxV1 private constructor(
     override fun envelopeSize(): Long = envelopeSize(header, accounts, instructions, config)
 
     /** V1 puts the signature slots after the message, unlike the legacy and v0 envelopes. */
-    override fun serializeEnvelope(signatures: List<SolanaSignature?>): ByteArray {
+    override fun encodeEnvelope(signatures: List<SolanaSignature?>): ByteArray {
         val encoder = SolanaMessageEncoder().writeBytes(serializeMessage())
         signatures.forEach { encoder.writeBytes(it?.asByteArray() ?: ByteArray(64)) }
         return encoder.toByteArray()

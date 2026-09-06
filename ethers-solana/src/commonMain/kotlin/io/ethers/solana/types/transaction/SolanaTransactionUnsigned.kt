@@ -18,15 +18,22 @@ sealed interface SolanaTransactionUnsigned : SolanaTransaction {
     fun signingBuilder(): SolanaTransactionSigned.Builder = SolanaTransactionSigned.Builder(this)
 
     /**
-     * Exact size of [serializeEnvelope], counting a slot for every required signature. Must stay in
-     * step with this type's [serializeEnvelope] and [serializeMessage].
+     * Exact size of [encodeEnvelope], counting a slot for every required signature. Must stay in
+     * step with this type's [encodeEnvelope] and [serializeMessage].
      */
     fun envelopeSize(): Long
 
-    /** Full envelope for the given signature slots, zero-filling the missing ones. */
-    fun serializeEnvelope(signatures: List<SolanaSignature?>): ByteArray
+    /**
+     * Encode the full envelope for the given signature slots, zero-filling the missing ones.
+     *
+     * This is the per-version encoding primitive the `serialize` functions are built on: legacy and
+     * v0 place the signature vector before the message, v1 after it. Prefer
+     * [SolanaTransactionSigned.serialize], [SolanaTransactionSigned.Builder.serializePartial] or
+     * [serializeForSimulation], which supply the signatures they already hold.
+     */
+    fun encodeEnvelope(signatures: List<SolanaSignature?>): ByteArray
 
-    override fun serializeForSimulation(): ByteArray = serializeEnvelope(List(header.requiredSignatures) { null })
+    override fun serializeForSimulation(): ByteArray = encodeEnvelope(List(header.requiredSignatures) { null })
 
     companion object {
         /** Decode message bytes, not a transaction envelope containing signatures. */
