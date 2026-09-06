@@ -1,9 +1,15 @@
 package io.ethers.solana.providers.middleware
 
+import io.ethers.core.Result
+import io.ethers.core.failure
+import io.ethers.core.isFailure
+import io.ethers.core.success
+import io.ethers.core.unwrapOrReturn
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import io.ethers.providers.types.RpcCall
 import io.ethers.providers.types.RpcRequest
+import io.ethers.providers.types.SuppliedRpcRequest
 import io.ethers.solana.providers.decode
 import io.ethers.solana.providers.decodeAccount
 import io.ethers.solana.providers.decodeContext
@@ -22,21 +28,32 @@ import io.ethers.solana.types.SolanaNodeIdentity
 import io.ethers.solana.types.SolanaNodeVersion
 import io.ethers.solana.types.SolanaRPCTransaction
 import io.ethers.solana.types.SolanaSignature
+import io.ethers.solana.types.SolanaSimulationConfig
 import io.ethers.solana.types.TokenAmount
 import io.ethers.solana.types.TransactionSignature
 import io.ethers.solana.types.TransactionSimulation
 import io.ethers.solana.types.transaction.AddressLookupTableAccount
 import io.ethers.solana.types.transaction.SolanaTransaction
+import io.ethers.solana.types.transaction.SolanaTransactionError
+import io.ethers.solana.types.transaction.SolanaTransactionRequest
 import io.ethers.solana.types.transaction.SolanaTransactionSigned
+import io.ethers.solana.types.transaction.SolanaTransactionUnsigned
+import io.ethers.solana.types.transaction.SolanaTxType
+import io.ethers.solana.utils.U32_MAX
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.add
 import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.putJsonObject
 import kotlin.io.encoding.Base64
 
 /**
@@ -132,6 +149,134 @@ interface SolanaApi {
     fun simulateTransaction(transaction: SolanaTransaction, commitment: Commitment = this.defaultCommitment): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = simulateTransaction(transaction.serializeForSimulation(), commitment)
     fun simulateTransaction(transaction: ByteArray): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = simulateTransaction(transaction, defaultCommitment)
     fun simulateTransaction(transaction: ByteArray, commitment: Commitment = this.defaultCommitment): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = rpc("simulateTransaction", Base64.encode(transaction), config(commitment, "base64")) { decode(it) }
+    fun simulateTransaction(transaction: SolanaTransaction, options: SolanaSimulationConfig): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = simulateTransaction(transaction, options, defaultCommitment)
+
+    /** Simulate with explicit options; see [SolanaSimulationConfig]. */
+    fun simulateTransaction(
+        transaction: SolanaTransaction,
+        options: SolanaSimulationConfig,
+        commitment: Commitment = this.defaultCommitment,
+    ): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = rpc("simulateTransaction", Base64.encode(transaction.serializeForSimulation()), simulationConfig(commitment, options)) { decode(it) }
+
+    fun simulateTransaction(request: SolanaTransactionRequest): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = simulateTransaction(request, emptyList(), defaultCommitment)
+
+    /**
+     * Simulate a request whose version is chosen for it, as [SolanaTransactionRequest.tryCompile] does.
+     * Signatures and a live blockhash are not needed: the node ignores the former and substitutes the latter.
+     */
+    fun simulateTransaction(
+        request: SolanaTransactionRequest,
+        lookupTables: List<AddressLookupTableAccount>,
+        commitment: Commitment = this.defaultCommitment,
+    ): RpcRequest<ContextValue<TransactionSimulation>, RpcError> {
+        val tx = request.forSimulation().tryCompile(lookupTables).unwrapOrReturn { return failedRequest(it) }
+        return simulateTransaction(tx, SolanaSimulationConfig.READ_ONLY, commitment)
+    }
+
+    fun simulateTransaction(request: SolanaTransactionRequest, type: SolanaTxType): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = simulateTransaction(request, type, emptyList(), defaultCommitment)
+
+    /** Simulate a request compiled to an explicitly chosen version. */
+    fun simulateTransaction(
+        request: SolanaTransactionRequest,
+        type: SolanaTxType,
+        lookupTables: List<AddressLookupTableAccount> = emptyList(),
+        commitment: Commitment = this.defaultCommitment,
+    ): RpcRequest<ContextValue<TransactionSimulation>, RpcError> {
+        val tx = request.compileForSimulation(type, lookupTables).unwrapOrReturn { return failedRequest(it) }
+        return simulateTransaction(tx, SolanaSimulationConfig.READ_ONLY, commitment)
+    }
+
+    fun fillTransaction(request: SolanaTransactionRequest): RpcRequest<SolanaTransactionUnsigned, RpcError> = fillTransaction(request, emptyList(), defaultCommitment, DEFAULT_COMPUTE_UNIT_MARGIN_PERCENT)
+
+    /** Complete [request] and compile it to whichever of legacy and v0 is smaller. */
+    fun fillTransaction(
+        request: SolanaTransactionRequest,
+        lookupTables: List<AddressLookupTableAccount>,
+        commitment: Commitment = this.defaultCommitment,
+        computeUnitMarginPercent: Int = DEFAULT_COMPUTE_UNIT_MARGIN_PERCENT,
+    ): RpcRequest<SolanaTransactionUnsigned, RpcError> = fill(request, null, lookupTables, commitment, computeUnitMarginPercent)
+
+    fun fillTransaction(request: SolanaTransactionRequest, type: SolanaTxType): RpcRequest<SolanaTransactionUnsigned, RpcError> = fillTransaction(request, type, emptyList(), defaultCommitment, DEFAULT_COMPUTE_UNIT_MARGIN_PERCENT)
+
+    fun fillTransaction(
+        request: SolanaTransactionRequest,
+        type: SolanaTxType,
+        lookupTables: List<AddressLookupTableAccount>,
+    ): RpcRequest<SolanaTransactionUnsigned, RpcError> = fillTransaction(request, type, lookupTables, defaultCommitment, DEFAULT_COMPUTE_UNIT_MARGIN_PERCENT)
+
+    /**
+     * Complete [request] and compile it, the counterpart of an EVM `fillTransaction`.
+     *
+     * Only absent values are filled, so anything already set is honoured: a blockhash from
+     * `getLatestBlockhash`, a compute unit price from the median of `getRecentPrioritizationFees` for
+     * the accounts this transaction writes, and a compute unit limit from simulating it, raised by
+     * [computeUnitMarginPercent] so a slightly costlier execution still fits.
+     */
+    fun fillTransaction(
+        request: SolanaTransactionRequest,
+        type: SolanaTxType,
+        lookupTables: List<AddressLookupTableAccount> = emptyList(),
+        commitment: Commitment = this.defaultCommitment,
+        computeUnitMarginPercent: Int = DEFAULT_COMPUTE_UNIT_MARGIN_PERCENT,
+    ): RpcRequest<SolanaTransactionUnsigned, RpcError> = fill(request, type, lookupTables, commitment, computeUnitMarginPercent)
+
+    /** A null [type] lets [SolanaTransactionRequest.tryCompile] choose between legacy and v0. */
+    private fun fill(
+        request: SolanaTransactionRequest,
+        type: SolanaTxType?,
+        lookupTables: List<AddressLookupTableAccount>,
+        commitment: Commitment,
+        computeUnitMarginPercent: Int,
+    ): RpcRequest<SolanaTransactionUnsigned, RpcError> = SuppliedRpcRequest {
+        val filled = SolanaTransactionRequest(request)
+
+        // the blockhash and the fee samples do not depend on each other
+        val fetched = coroutineScope {
+            val blockhash = if (filled.blockhash == null) async { getLatestBlockhash(commitment).send() } else null
+            val fees = if (filled.computeUnitPrice == null && filled.priorityFee == null) async { getRecentPrioritizationFees(filled.writableAccounts()).send() } else null
+            val blockhashResult = blockhash?.await()
+            val feesResult = fees?.await()
+            when {
+                blockhashResult != null && blockhashResult.isFailure() -> failure(blockhashResult.unwrapError())
+                feesResult != null && feesResult.isFailure() -> failure(feesResult.unwrapError())
+                else -> {
+                    blockhashResult?.let { filled.blockhash(it.unwrap().value.blockhash) }
+                    success(feesResult?.let { medianPrioritizationFee(it.unwrap()) })
+                }
+            }
+        }
+        val price = fetched.unwrapOrReturn { return@SuppliedRpcRequest failure(it) }
+
+        // the limit is estimated before the price is applied, because a v1 price needs a limit to
+        // become a priority fee, and simulating is what tells us the limit
+        if (filled.computeUnitLimit == null) {
+            val simulation = simulateFor(filled, type, lookupTables, commitment).send()
+                .unwrapOrReturn { return@SuppliedRpcRequest failure(it) }
+                .value
+            val simulationError = simulation.err
+            if (simulationError != null) {
+                return@SuppliedRpcRequest failure(RpcError(SIMULATION_FAILED, "Transaction simulation failed: $simulationError"))
+            }
+            val consumed = simulation.unitsConsumed
+                ?: return@SuppliedRpcRequest failure(RpcError(SIMULATION_FAILED, "Node did not report consumed compute units"))
+            val withMargin = consumed.multiply(bigIntegerOf(100L + computeUnitMarginPercent)).divide(bigIntegerOf(100))
+            filled.computeUnitLimit(withMargin.min(bigIntegerOf(U32_MAX)).toLong())
+        }
+        price?.let { filled.computeUnitPrice(it) }
+
+        filled.compileFor(type, lookupTables).mapError { it.toRpcError() }
+    }
+
+    private fun simulateFor(
+        request: SolanaTransactionRequest,
+        type: SolanaTxType?,
+        lookupTables: List<AddressLookupTableAccount>,
+        commitment: Commitment,
+    ): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = when (type) {
+        null -> simulateTransaction(request, lookupTables, commitment)
+        else -> simulateTransaction(request, type, lookupTables, commitment)
+    }
+
     fun getFeeForMessage(message: SolanaTransaction): RpcRequest<ContextValue<BigInteger?>, RpcError> = getFeeForMessage(message, defaultCommitment)
     fun getFeeForMessage(message: SolanaTransaction, commitment: Commitment = this.defaultCommitment): RpcRequest<ContextValue<BigInteger?>, RpcError> = getFeeForMessage(message.serializeMessage(), commitment)
     fun getFeeForMessage(message: ByteArray): RpcRequest<ContextValue<BigInteger?>, RpcError> = getFeeForMessage(message, defaultCommitment)
@@ -154,6 +299,64 @@ interface SolanaApi {
             until?.let { put("until", it.toString()) }
         }
         return rpc("getSignaturesForAddress", address.toString(), options) { decode(it) }
+    }
+}
+
+/** JSON-RPC "invalid params": the caller's request cannot form a transaction, so nothing was sent. */
+private const val INVALID_PARAMS = -32602
+
+/** No JSON-RPC code covers a transaction that ran and failed, so reuse the server-error range. */
+private const val SIMULATION_FAILED = -32000
+
+private const val DEFAULT_COMPUTE_UNIT_MARGIN_PERCENT = 10
+
+/** Keep the typed cause reachable while satisfying the RPC error type these requests report. */
+private fun SolanaTransactionError.toRpcError() = RpcError(INVALID_PARAMS, message ?: toString(), cause = toException())
+
+private fun <T> failedRequest(error: SolanaTransactionError): RpcRequest<T, RpcError> = SuppliedRpcRequest { failure(error.toRpcError()) }
+
+/** Simulating needs a compiled transaction, and a blockhash the node will replace anyway. */
+private fun SolanaTransactionRequest.compileForSimulation(type: SolanaTxType, lookupTables: List<AddressLookupTableAccount>): Result<SolanaTransactionUnsigned, SolanaTransactionError> = forSimulation().compileFor(type, lookupTables)
+
+/**
+ * Fill in a placeholder blockhash so a request that has none can still be serialized.
+ *
+ * A compiled message always carries a 32-byte blockhash field, so there is no way to produce bytes
+ * without one. The value is never executed against: [SolanaSimulationConfig.READ_ONLY] asks the node
+ * to substitute its own blockhash first.
+ */
+internal fun SolanaTransactionRequest.forSimulation(): SolanaTransactionRequest = if (blockhash != null) this else SolanaTransactionRequest(this).blockhash(SolanaBlockhash(ByteArray(32)))
+
+private fun SolanaTransactionRequest.compileFor(type: SolanaTxType?, lookupTables: List<AddressLookupTableAccount>): Result<SolanaTransactionUnsigned, SolanaTransactionError> = when (type) {
+    null -> tryCompile(lookupTables)
+    SolanaTxType.Legacy -> tryCompileLegacy()
+    SolanaTxType.V0 -> tryCompileV0(lookupTables)
+    SolanaTxType.V1 -> tryCompileV1()
+    is SolanaTxType.Unsupported -> failure(SolanaTransactionError.UnsupportedVersion(type.version))
+}
+
+/** Accounts the transaction writes, which is the locality getRecentPrioritizationFees prices. */
+private fun SolanaTransactionRequest.writableAccounts(): List<SolanaAddress> = instructions.flatMap { instruction -> instruction.keys.filter { it.writable }.map { it.publicKey } }.distinct()
+
+/** The median is steadier than the mean against the occasional very high recent fee. */
+private fun medianPrioritizationFee(fees: List<PrioritizationFee>): BigInteger {
+    if (fees.isEmpty()) return bigIntegerOf(0)
+    val sorted = fees.map { it.prioritizationFee }.sorted()
+    return sorted[sorted.size / 2]
+}
+
+private fun simulationConfig(commitment: Commitment, config: SolanaSimulationConfig) = buildJsonObject {
+    put("commitment", commitment.toString())
+    put("encoding", "base64")
+    if (config.sigVerify) put("sigVerify", true)
+    if (config.replaceRecentBlockhash) put("replaceRecentBlockhash", true)
+    if (config.innerInstructions) put("innerInstructions", true)
+    config.minContextSlot?.let { put("minContextSlot", rpcInteger(it)) }
+    if (config.accounts.isNotEmpty()) {
+        putJsonObject("accounts") {
+            put("encoding", "base64")
+            putJsonArray("addresses") { config.accounts.forEach { add(it.toString()) } }
+        }
     }
 }
 
