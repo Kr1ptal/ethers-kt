@@ -2,6 +2,7 @@
 
 package io.ethers.solana.types
 
+import io.ethers.solana.utils.U32_MAX
 import io.github.artificialpb.bignum.BigDecimal
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.serializer
@@ -131,10 +132,10 @@ object U32Serializer : KSerializer<Long> {
     override fun deserialize(decoder: Decoder): Long {
         val value = (decoder as JsonDecoder).decodeJsonElement().jsonPrimitive
         require(!value.isString) { "Expected an unsigned 32-bit number" }
-        return value.long.also { require(it in 0..4294967295L) { "Expected an unsigned 32-bit number" } }
+        return value.long.also { require(it in 0..U32_MAX) { "Expected an unsigned 32-bit number" } }
     }
     override fun serialize(encoder: Encoder, value: Long) {
-        require(value in 0..4294967295L) { "Expected an unsigned 32-bit number" }
+        require(value in 0..U32_MAX) { "Expected an unsigned 32-bit number" }
         encoder.encodeLong(value)
     }
 }

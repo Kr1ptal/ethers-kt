@@ -6,6 +6,7 @@ package io.ethers.solana.types.transaction
 import io.ethers.solana.types.ExtensibleJsonSerializer
 import io.ethers.solana.types.OtherFieldsSerializer
 import io.ethers.solana.types.U32Serializer
+import io.ethers.solana.utils.U32_MAX
 import io.ethers.solana.utils.requireU64
 import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.KeepGeneratedSerializer
@@ -32,7 +33,7 @@ data class SolanaTransactionConfig @JvmOverloads constructor(
     init {
         priorityFee?.let(::requireU64)
         listOf(computeUnitLimit, loadedAccountsDataSizeLimit, heapSize).forEach {
-            require(it == null || it in 0..4294967295L) { "Config value must fit an unsigned 32-bit integer" }
+            require(it == null || it in 0..U32_MAX) { "Config value must fit an unsigned 32-bit integer" }
         }
     }
 

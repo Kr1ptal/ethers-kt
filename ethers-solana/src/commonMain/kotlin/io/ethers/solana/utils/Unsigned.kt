@@ -3,6 +3,8 @@ package io.ethers.solana.utils
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
 
+internal const val U32_MAX = 4294967295L
+
 internal val U64_MAX = BigInteger("18446744073709551615")
 internal fun requireU64(value: BigInteger): BigInteger {
     require(value.signum() >= 0 && value <= U64_MAX) { "Value must fit an unsigned 64-bit integer" }
