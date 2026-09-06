@@ -97,6 +97,8 @@ class JavaApiTest : FunSpec({
                     SolanaNodeIdentity identity = provider.getIdentity().sendAwait().unwrap();
                     SolanaAddress nodeAddress = identity.getIdentity();
                     var bytes = SolanaBytes.fromBytes(new byte[] {1, 2, 3});
+                    byte[] backing = bytes.asByteArray();
+                    byte[] copy = bytes.toByteArray();
                     var decoded58 = SolanaBytes.fromBase58(bytes.toBase58());
                     var decoded64 = SolanaBytes.fromBase64(bytes.toBase64());
                     var decodedHex = SolanaBytes.fromHex(bytes.toHex());
@@ -218,7 +220,6 @@ class JavaApiTest : FunSpec({
             "provider.sendTransaction(rpc);",
             "new SolanaBytes(new byte[] {1});",
             "new SolanaBytes(\"Ldp\");",
-            "SolanaBytes.EMPTY.asByteArray();",
             "SolanaTransaction transaction = rpc;",
             "SolanaTxLegacy.compile(address, blockhash, instruction, java.util.Collections.emptyList());",
         )) {

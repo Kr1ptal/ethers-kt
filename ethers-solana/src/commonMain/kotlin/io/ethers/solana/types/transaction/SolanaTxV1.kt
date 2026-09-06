@@ -83,7 +83,7 @@ class SolanaTxV1 private constructor(
         }
         instructions.forEach {
             it.accounts.forEach(encoder::writeByte)
-            encoder.writeBytes(it.data.backing)
+            encoder.writeBytes(it.data.asByteArray())
         }
         return encoder.toByteArray()
     }
@@ -182,7 +182,7 @@ class SolanaTxV1 private constructor(
             )
             val headers = List(instructionCount) { Triple(readByte(), readByte(), readUnsignedLittleEndian(2).toInt()) }
             val instructions = headers.map { (program, count, size) ->
-                CompiledInstruction(program, List(count) { readByte() }, SolanaBytes.wrap(readBytes(size)))
+                CompiledInstruction(program, List(count) { readByte() }, SolanaBytes.fromBytes(readBytes(size)))
             }
             SolanaTxV1(header, accounts, blockhash, instructions, config)
         }

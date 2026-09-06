@@ -8,7 +8,11 @@ import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmStatic
 
 /**
- * Immutable binary data with explicit text encodings.
+ * Variable size byte array with explicit text encodings.
+ *
+ * The backing array is never copied on the way in or out of [asByteArray], so a value is only as
+ * immutable as its callers: do not mutate an array handed to [fromBytes] or returned by
+ * [asByteArray]. Use [toByteArray] when you need one you can write to.
  *
  * No default JSON serializer is provided: the containing field determines its wire encoding.
  * This type carries no address, instruction, or transaction semantics.
@@ -30,11 +34,22 @@ class SolanaBytes private constructor(private val value: ByteArray) {
         return SolanaBytes(value.copyOfRange(fromIndex, toIndex))
     }
 
-    /** Return an independent copy. Mutable backing storage is never exposed. */
-    fun toByteArray(): ByteArray = value.copyOf()
+    /**
+     * Return the internal byte array.
+     *
+     * If you need to modify the array, use [toByteArray] instead, which returns a new copy.
+     *
+     * IMPORTANT: Do not modify the returned array, it will lead to undefined behavior.
+     */
+    fun asByteArray(): ByteArray = value
 
-    /** Backing storage, for in-module readers that write it straight out. Never mutate it. */
-    internal val backing: ByteArray get() = value
+    /**
+     * Return a copy of the internal byte array.
+     *
+     * If you do not need to modify the array, use [asByteArray] instead, which returns the internal
+     * array without copying.
+     */
+    fun toByteArray(): ByteArray = value.copyOf()
 
     /** Copy all bytes, validating the destination range before writing anything. */
     @JvmOverloads
@@ -61,15 +76,14 @@ class SolanaBytes private constructor(private val value: ByteArray) {
         @JvmField
         val EMPTY = SolanaBytes(ByteArray(0))
 
-        /** Copy caller-owned bytes so subsequent mutations cannot change this value. */
-        @JvmStatic
-        fun fromBytes(bytes: ByteArray): SolanaBytes = if (bytes.isEmpty()) EMPTY else SolanaBytes(bytes.copyOf())
-
         /**
-         * Take ownership of [bytes] without copying. Only for arrays this module has just produced
-         * and does not retain, such as a freshly decoded instruction payload.
+         * Take ownership of [bytes] without copying it.
+         *
+         * IMPORTANT: Do not modify [bytes] afterwards, it will lead to undefined behavior. Pass
+         * `bytes.copyOf()` if the caller keeps writing to the array.
          */
-        internal fun wrap(bytes: ByteArray): SolanaBytes = if (bytes.isEmpty()) EMPTY else SolanaBytes(bytes)
+        @JvmStatic
+        fun fromBytes(bytes: ByteArray): SolanaBytes = if (bytes.isEmpty()) EMPTY else SolanaBytes(bytes)
 
         @JvmStatic
         fun fromBase58(value: String): SolanaBytes = if (value.isEmpty()) EMPTY else SolanaBytes(Base58.decode(value))

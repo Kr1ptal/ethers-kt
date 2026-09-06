@@ -40,7 +40,7 @@ data class AddressLookupTableAccount(val key: SolanaAddress, val addresses: List
 data class CompiledInstruction(val programIdIndex: Int, val accounts: List<Int>, val data: SolanaBytes) {
     /** Takes ownership of [data] rather than copying it, so do not mutate the array afterwards. */
     constructor(programIdIndex: Int, accounts: List<Int>, data: ByteArray) :
-        this(programIdIndex, accounts, SolanaBytes.wrap(data))
+        this(programIdIndex, accounts, SolanaBytes.fromBytes(data))
 }
 
 @Serializable(with = CompiledAddressLookupTableSerializer::class)

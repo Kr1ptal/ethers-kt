@@ -20,7 +20,7 @@ data class Instruction(
     val keys: List<AccountMeta>,
     val data: SolanaBytes,
 ) {
-    /** Copies [data], so later mutations of the caller's array do not change this instruction. */
+    /** Takes ownership of [data] rather than copying it, so do not mutate the array afterwards. */
     constructor(programId: SolanaAddress, keys: List<AccountMeta>, data: ByteArray) :
         this(programId, keys, SolanaBytes.fromBytes(data))
 }

@@ -76,7 +76,7 @@ internal fun SolanaMessageEncoder.writeMessageBody(tx: SolanaTransactionUnsigned
     tx.instructions.forEach { instruction ->
         writeByte(instruction.programIdIndex).writeShortVecLength(instruction.accounts.size)
         instruction.accounts.forEach { writeByte(it) }
-        writeShortVecLength(instruction.data.size).writeBytes(instruction.data.backing)
+        writeShortVecLength(instruction.data.size).writeBytes(instruction.data.asByteArray())
     }
 }
 
@@ -98,7 +98,7 @@ internal fun SolanaMessageDecoder.readMessageBody(requiredSignatures: Int): Deco
     val instructions = List(readShortVecLength()) {
         val program = readByte()
         val indices = List(readShortVecLength()) { readByte() }
-        CompiledInstruction(program, indices, SolanaBytes.wrap(readBytes(readShortVecLength())))
+        CompiledInstruction(program, indices, SolanaBytes.fromBytes(readBytes(readShortVecLength())))
     }
     return DecodedMessageBody(header, accounts, blockhash, instructions)
 }

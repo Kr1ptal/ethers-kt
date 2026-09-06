@@ -10,6 +10,8 @@ import io.ethers.solana.types.SolanaRPCInstruction
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeSameInstanceAs
+import io.kotest.matchers.types.shouldNotBeSameInstanceAs
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.decodeFromJsonElement
@@ -17,13 +19,18 @@ import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.jsonObject
 
 class SolanaBytesTest : FunSpec({
-    test("construction and array conversion never expose mutable backing storage") {
+    test("fromBytes takes ownership, asByteArray exposes it, toByteArray copies") {
         val input = byteArrayOf(1, 2, 3)
         val bytes = SolanaBytes.fromBytes(input)
         val originalHash = bytes.hashCode()
         val keyed = mapOf(bytes to "value")
-        input[0] = 9
+
+        // the array is adopted, not copied
+        bytes.asByteArray() shouldBeSameInstanceAs input
+
+        // toByteArray hands back a copy, so writing to it cannot change the value
         val output = bytes.toByteArray()
+        output shouldNotBeSameInstanceAs input
         output[1] = 9
         bytes.toByteArray() shouldBe byteArrayOf(1, 2, 3)
         bytes.hashCode() shouldBe originalHash
