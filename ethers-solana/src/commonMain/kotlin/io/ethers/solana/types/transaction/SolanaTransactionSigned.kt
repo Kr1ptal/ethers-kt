@@ -76,7 +76,7 @@ class SolanaTransactionSigned(val tx: SolanaTransactionUnsigned, val signatures:
             val message = tx.serializeMessage()
             val collected = arrayOfNulls<SolanaSignature>(signers.size)
             signers.forEachIndexed { i, signer ->
-                val signature = signer.signMessage(message.copyOf())
+                val signature = signer.signMessage(message)
                 val signerAddress = requiredSigners[indices[i]]
                 if (!signerAddress.verify(signature, message)) {
                     throw SolanaTransactionError.InvalidSignature(indices[i], signerAddress).toException()

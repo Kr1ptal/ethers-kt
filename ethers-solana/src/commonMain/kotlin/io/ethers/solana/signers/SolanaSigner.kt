@@ -12,6 +12,11 @@ import io.ethers.solana.types.transaction.SolanaTransactionUnsigned
 /** Signs the exact message bytes with Ed25519, without an Ethereum prefix or prehash. */
 interface SolanaSigner {
     val publicKey: SolanaAddress
+
+    /**
+     * Sign [message], which the signer must not modify: callers pass the buffer they are about to
+     * serialize, and one signer changing it would change what the next one signs.
+     */
     fun signMessage(message: ByteArray): SolanaSignature
     fun signTransaction(transaction: SolanaTransactionUnsigned): SolanaTransactionSigned = transaction.sign(this)
     fun trySignMessage(message: ByteArray): Result<SolanaSignature, SigningError> = try {

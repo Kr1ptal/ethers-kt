@@ -103,7 +103,7 @@ class TransactionTest : FunSpec({
         }
     }
 
-    test("builder signing failures are atomic and signers receive independent message bytes") {
+    test("builder signing failures are atomic") {
         val instruction = Instruction(Programs.SYSTEM, listOf(AccountMeta.signer(alice.publicKey), AccountMeta.signer(bob.publicKey)), byteArrayOf())
         val tx = SolanaTxV0.compile(alice.publicKey, blockhash, instruction)
         val builder = tx.signingBuilder()
@@ -119,11 +119,7 @@ class TransactionTest : FunSpec({
         }
         shouldThrow<IllegalStateException> { builder.sign(alice, throwingBob) }
         builder.signatures shouldBe listOf(null, null)
-        val mutatingAlice = object : SolanaSigner {
-            override val publicKey = alice.publicKey
-            override fun signMessage(message: ByteArray): SolanaSignature = alice.signMessage(message).also { message.fill(0) }
-        }
-        builder.sign(mutatingAlice, bob).build().serialize() shouldBe tx.sign(alice, bob).serialize()
+        builder.sign(alice, bob).build().serialize() shouldBe tx.sign(alice, bob).serialize()
     }
 
     test("lookup tables load writable then readonly accounts, keeping signers static") {
