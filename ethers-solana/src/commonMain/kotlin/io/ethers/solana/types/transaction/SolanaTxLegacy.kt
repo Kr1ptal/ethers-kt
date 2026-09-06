@@ -9,7 +9,12 @@ import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.types.SolanaSignature
 import kotlin.jvm.JvmStatic
 
-/** Immutable legacy transaction payload. Every account is inline; lookup tables are not supported. */
+/**
+ * Legacy transaction payload. Every account is inline; lookup tables are not supported.
+ *
+ * The constructor keeps the lists it is given rather than copying them, so pass immutable lists;
+ * mutating them afterwards changes the transaction and invalidates its validated state.
+ */
 class SolanaTxLegacy private constructor(
     override val header: MessageHeader,
     override val accounts: List<SolanaAddress>,

@@ -33,6 +33,9 @@ class SolanaBytes private constructor(private val value: ByteArray) {
     /** Return an independent copy. Mutable backing storage is never exposed. */
     fun toByteArray(): ByteArray = value.copyOf()
 
+    /** Backing storage, for in-module readers that write it straight out. Never mutate it. */
+    internal val backing: ByteArray get() = value
+
     /** Copy all bytes, validating the destination range before writing anything. */
     @JvmOverloads
     fun copyInto(destination: ByteArray, destinationOffset: Int = 0) {
@@ -61,6 +64,12 @@ class SolanaBytes private constructor(private val value: ByteArray) {
         /** Copy caller-owned bytes so subsequent mutations cannot change this value. */
         @JvmStatic
         fun fromBytes(bytes: ByteArray): SolanaBytes = if (bytes.isEmpty()) EMPTY else SolanaBytes(bytes.copyOf())
+
+        /**
+         * Take ownership of [bytes] without copying. Only for arrays this module has just produced
+         * and does not retain, such as a freshly decoded instruction payload.
+         */
+        internal fun wrap(bytes: ByteArray): SolanaBytes = if (bytes.isEmpty()) EMPTY else SolanaBytes(bytes)
 
         @JvmStatic
         fun fromBase58(value: String): SolanaBytes = if (value.isEmpty()) EMPTY else SolanaBytes(Base58.decode(value))

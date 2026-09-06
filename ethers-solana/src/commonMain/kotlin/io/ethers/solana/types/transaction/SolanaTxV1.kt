@@ -6,6 +6,7 @@ import io.ethers.solana.serialization.SolanaMessageDecoder
 import io.ethers.solana.serialization.SolanaMessageEncoder
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
+import io.ethers.solana.types.SolanaBytes
 import io.ethers.solana.types.SolanaSignature
 import io.ethers.solana.utils.littleEndian
 import io.ethers.solana.utils.requireU64
@@ -17,6 +18,9 @@ import kotlin.jvm.JvmStatic
  * Immutable SIMD-0385 v1 payload: inline accounts/config, followed by signatures in the envelope.
  * Requires v1 activation on the target cluster. Set compute and loaded-account limits explicitly;
  * omitted limits are zero. Address lookup tables are not supported.
+ *
+ * The constructor keeps the lists it is given rather than copying them, so pass immutable lists;
+ * mutating them afterwards changes the transaction and invalidates its validated state.
  */
 class SolanaTxV1 private constructor(
     override val header: MessageHeader,
@@ -79,7 +83,7 @@ class SolanaTxV1 private constructor(
         }
         instructions.forEach {
             it.accounts.forEach(encoder::writeByte)
-            encoder.writeBytes(it.data)
+            encoder.writeBytes(it.data.backing)
         }
         return encoder.toByteArray()
     }
@@ -178,7 +182,7 @@ class SolanaTxV1 private constructor(
             )
             val headers = List(instructionCount) { Triple(readByte(), readByte(), readUnsignedLittleEndian(2).toInt()) }
             val instructions = headers.map { (program, count, size) ->
-                CompiledInstruction(program, List(count) { readByte() }, readBytes(size))
+                CompiledInstruction(program, List(count) { readByte() }, SolanaBytes.wrap(readBytes(size)))
             }
             SolanaTxV1(header, accounts, blockhash, instructions, config)
         }

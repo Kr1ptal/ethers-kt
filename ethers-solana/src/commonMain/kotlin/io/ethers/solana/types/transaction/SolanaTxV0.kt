@@ -10,7 +10,12 @@ import io.ethers.solana.types.SolanaSignature
 import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmStatic
 
-/** Immutable v0 transaction payload. Lookup table contents are supplied by the caller during compilation. */
+/**
+ * V0 transaction payload. Lookup table contents are supplied by the caller during compilation.
+ *
+ * The constructor keeps the lists it is given rather than copying them, so pass immutable lists;
+ * mutating them afterwards changes the transaction and invalidates its validated state.
+ */
 class SolanaTxV0 private constructor(
     override val header: MessageHeader,
     override val accounts: List<SolanaAddress>,

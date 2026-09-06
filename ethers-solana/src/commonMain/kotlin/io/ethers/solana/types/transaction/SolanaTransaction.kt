@@ -36,7 +36,7 @@ sealed interface SolanaTransaction {
         var units: BigInteger? = null
         var price = bigIntegerOf(0)
         instructions.filter { accounts[it.programIdIndex] == Programs.COMPUTE_BUDGET }.forEach {
-            val decoder = SolanaMessageDecoder(it.data)
+            val decoder = SolanaMessageDecoder(it.data.backing)
             when (decoder.readByte()) {
                 2 -> {
                     units = decoder.readUnsignedLittleEndian(4)

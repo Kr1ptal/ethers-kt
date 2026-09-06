@@ -5,6 +5,7 @@ import io.ethers.solana.serialization.SolanaMessageDecoder
 import io.ethers.solana.serialization.SolanaMessageEncoder
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
+import io.ethers.solana.types.SolanaBytes
 import io.ethers.solana.types.SolanaSignature
 
 /** Structural invariants shared by every message version, reported as a value rather than thrown. */
@@ -75,7 +76,7 @@ internal fun SolanaMessageEncoder.writeMessageBody(tx: SolanaTransactionUnsigned
     tx.instructions.forEach { instruction ->
         writeByte(instruction.programIdIndex).writeShortVecLength(instruction.accounts.size)
         instruction.accounts.forEach { writeByte(it) }
-        writeShortVecLength(instruction.data.size).writeBytes(instruction.data)
+        writeShortVecLength(instruction.data.size).writeBytes(instruction.data.backing)
     }
 }
 
@@ -97,7 +98,7 @@ internal fun SolanaMessageDecoder.readMessageBody(requiredSignatures: Int): Deco
     val instructions = List(readShortVecLength()) {
         val program = readByte()
         val indices = List(readShortVecLength()) { readByte() }
-        CompiledInstruction(program, indices, readBytes(readShortVecLength()))
+        CompiledInstruction(program, indices, SolanaBytes.wrap(readBytes(readShortVecLength())))
     }
     return DecodedMessageBody(header, accounts, blockhash, instructions)
 }

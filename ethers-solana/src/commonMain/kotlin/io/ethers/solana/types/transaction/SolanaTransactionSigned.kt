@@ -9,7 +9,11 @@ import kotlin.io.encoding.Base64
 import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmStatic
 
-/** A transaction with a verified signature for every required signer, in message account order. */
+/**
+ * A transaction with a verified signature for every required signer, in message account order.
+ *
+ * [signatures] is kept as given rather than copied, so pass an immutable list.
+ */
 class SolanaTransactionSigned(val tx: SolanaTransactionUnsigned, val signatures: List<SolanaSignature>) :
     SolanaTransaction by tx {
 
@@ -28,9 +32,12 @@ class SolanaTransactionSigned(val tx: SolanaTransactionUnsigned, val signatures:
     override fun serializeForSimulation(): ByteArray = serialize()
 
     /**
-     * Mutable signature collector bound to an immutable unsigned payload. Not thread-safe.
+     * Mutable signature collector bound to an unsigned payload. Not thread-safe.
      * Every supplied signature is verified; [build] additionally requires all signer slots to be filled.
-     * Built transactions and exported signature lists are independent snapshots.
+     *
+     * [signatures] is the collector's own list, not a snapshot: it reflects later [sign] and
+     * [addSignature] calls. Take a copy if you need a stable view. [build] does produce an
+     * independent transaction.
      */
     class Builder @JvmOverloads constructor(
         val tx: SolanaTransactionUnsigned,
@@ -46,14 +53,20 @@ class SolanaTransactionSigned(val tx: SolanaTransactionUnsigned, val signatures:
             validateSignatures(tx, this.signatures)
         }
 
+        /** A rejected signature leaves the builder's previous signatures intact. */
         fun addSignature(signer: SolanaAddress, signature: SolanaSignature): Builder = apply {
             val index = tx.signers.indexOf(signer)
             require(index >= 0) { "Address is not a required signer" }
+            if (!signer.verify(signature, tx.serializeMessage())) {
+                throw SolanaTransactionError.InvalidSignature(index, signer).toException()
+            }
             signatures[index] = signature
-            validateSignatures(tx, signatures)
         }
 
-        /** Collect signatures atomically: a failure leaves the builder's previous signatures intact. */
+        /**
+         * Collect signatures atomically: a failure leaves the builder's previous signatures intact.
+         * Each signature is verified as it is produced, so nothing is written until all of them hold.
+         */
         fun sign(vararg signers: SolanaSigner): Builder = apply {
             val requiredSigners = tx.signers
             val indices = signers.map { signer ->
@@ -61,11 +74,22 @@ class SolanaTransactionSigned(val tx: SolanaTransactionUnsigned, val signatures:
                     .also { require(it >= 0) { "Address is not a required signer" } }
             }
             val message = tx.serializeMessage()
-            signers.forEachIndexed { i, signer -> signatures[indices[i]] = signer.signMessage(message.copyOf()) }
-            validateSignatures(tx, signatures)
+            val collected = arrayOfNulls<SolanaSignature>(signers.size)
+            signers.forEachIndexed { i, signer ->
+                val signature = signer.signMessage(message.copyOf())
+                val signerAddress = requiredSigners[indices[i]]
+                if (!signerAddress.verify(signature, message)) {
+                    throw SolanaTransactionError.InvalidSignature(indices[i], signerAddress).toException()
+                }
+                collected[i] = signature
+            }
+            collected.forEachIndexed { i, signature -> signatures[indices[i]] = signature }
         }
 
-        fun clearSignatures(): Builder = apply { this@Builder.signatures.clear() }
+        /** Reset every slot to empty, keeping one slot per required signer. */
+        fun clearSignatures(): Builder = apply {
+            this@Builder.signatures.indices.forEach { this@Builder.signatures[it] = null }
+        }
 
         fun build(): SolanaTransactionSigned = SolanaTransactionSigned(tx, signatures.map { requireNotNull(it) { "Missing required signatures" } })
 

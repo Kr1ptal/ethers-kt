@@ -55,7 +55,7 @@ class TransactionTest : FunSpec({
             val unsigned = SolanaTransaction.deserialize(message.serializeForSimulation())
             unsigned::class shouldBe message::class
             unsigned.serializeMessage() shouldBe message.serializeMessage()
-            message.instructions.single().data shouldBe FastHex.decode("020000002a00000000000000")
+            message.instructions.single().data.toByteArray() shouldBe FastHex.decode("020000002a00000000000000")
             val changed = transaction.withNewBlockhash(SolanaBlockhash(ByteArray(32)))
             changed::class shouldBe message::class
             changed.signingBuilder().missingSigners shouldBe listOf(alice.publicKey)
@@ -71,9 +71,10 @@ class TransactionTest : FunSpec({
         val instruction = Instruction(Programs.SYSTEM, listOf(AccountMeta.signer(alice.publicKey), AccountMeta.signer(bob.publicKey)), byteArrayOf(7))
         for (original in listOf(SolanaTxLegacy.compile(alice.publicKey, blockhash, instruction), SolanaTxV0.compile(alice.publicKey, blockhash, instruction))) {
             val partial = original.signingBuilder()
-            val emptySignatures = partial.signatures
+            val liveSignatures = partial.signatures
             partial.sign(bob)
-            emptySignatures shouldBe listOf(null, null)
+            // the builder's list is a live view of its slots, not a snapshot
+            liveSignatures shouldBe partial.signatures
             partial.signatures[0] shouldBe null
             partial.missingSigners shouldBe listOf(alice.publicKey)
             partial.isFullySigned shouldBe false
@@ -192,21 +193,19 @@ class TransactionTest : FunSpec({
         shouldThrow<IllegalArgumentException> { SolanaTransaction.deserialize(signed.serialize() + byteArrayOf(0)) }
     }
 
-    test("compiled payload and signature collections are immutable") {
+    test("serialized payloads and instruction data cannot be mutated through the transaction") {
         val instruction = SystemProgram.transfer(alice.publicKey, bob.publicKey, 42)
-        val compiled = SolanaTxLegacy.compile(alice.publicKey, blockhash, instruction)
-        val accounts = compiled.accounts.toMutableList()
-        val instructions = compiled.instructions.toMutableList()
-        val tx = SolanaTxLegacy(compiled.header, accounts, blockhash, instructions)
+        val tx = SolanaTxLegacy.compile(alice.publicKey, blockhash, instruction)
         val bytes = tx.serializeMessage()
-        accounts.clear()
-        instructions.clear()
+
+        // every call hands back a fresh array, so writing to one cannot affect the transaction
         tx.serializeMessage()[0] = 0
-        tx.instructions.first().data.fill(0)
         tx.serializeMessage() shouldBe bytes
-        val signatures = mutableListOf(alice.signMessage(bytes))
-        val signed = SolanaTransactionSigned(tx, signatures)
-        signatures.clear()
+        // instruction data is SolanaBytes, so it exposes no mutable storage at all
+        tx.instructions.first().data.toByteArray().fill(0)
+        tx.serializeMessage() shouldBe bytes
+
+        val signed = SolanaTransactionSigned(tx, listOf(alice.signMessage(bytes)))
         signed.signatures.size shouldBe 1
         alice.signTransaction(tx).serialize() shouldBe signed.serialize()
         tx.signingBuilder().sign(alice).build().serialize() shouldBe signed.serialize()

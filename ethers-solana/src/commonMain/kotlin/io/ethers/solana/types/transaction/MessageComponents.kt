@@ -5,6 +5,7 @@ package io.ethers.solana.types.transaction
 import io.ethers.solana.types.ExtensibleJsonSerializer
 import io.ethers.solana.types.OtherFieldsSerializer
 import io.ethers.solana.types.SolanaAddress
+import io.ethers.solana.types.SolanaBytes
 import io.ethers.solana.types.U8ListSerializer
 import io.ethers.solana.types.U8Serializer
 import kotlinx.serialization.KSerializer
@@ -32,26 +33,14 @@ data class AddressLookupTableAccount(val key: SolanaAddress, val addresses: List
     }
 }
 
-data class CompiledInstruction(val programIdIndex: Int, val accounts: List<Int>, val data: ByteArray) {
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (other == null || this::class != other::class) return false
-
-        other as CompiledInstruction
-
-        if (programIdIndex != other.programIdIndex) return false
-        if (accounts != other.accounts) return false
-        if (!data.contentEquals(other.data)) return false
-
-        return true
-    }
-
-    override fun hashCode(): Int {
-        var result = programIdIndex
-        result = 31 * result + accounts.hashCode()
-        result = 31 * result + data.contentHashCode()
-        return result
-    }
+/**
+ * An instruction as it appears in a compiled message, with accounts as indices into the message's
+ * account list. [accounts] is not copied; pass an immutable list.
+ */
+data class CompiledInstruction(val programIdIndex: Int, val accounts: List<Int>, val data: SolanaBytes) {
+    /** Takes ownership of [data] rather than copying it, so do not mutate the array afterwards. */
+    constructor(programIdIndex: Int, accounts: List<Int>, data: ByteArray) :
+        this(programIdIndex, accounts, SolanaBytes.wrap(data))
 }
 
 @Serializable(with = CompiledAddressLookupTableSerializer::class)
