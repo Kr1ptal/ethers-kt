@@ -6,6 +6,7 @@ package io.ethers.solana.types
 import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
+import io.ethers.core.json.JsonElement as RawJson
 
 /** Addresses resolved from lookup tables. */
 @KeepGeneratedSerializer
@@ -13,7 +14,7 @@ import kotlinx.serialization.json.JsonElement
 data class LoadedAddresses(
     val writable: List<SolanaAddress>,
     val readonly: List<SolanaAddress>,
-    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
+    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, RawJson> = emptyMap(),
 )
 
 object LoadedAddressesSerializer : ExtensibleJsonSerializer<LoadedAddresses>(LoadedAddresses.generatedSerializer(), { it.otherFields })

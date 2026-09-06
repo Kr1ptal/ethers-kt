@@ -22,16 +22,18 @@ import kotlinx.serialization.json.JsonElement
 import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmStatic
 
-@KeepGeneratedSerializer
-@Serializable(with = MessageHeaderSerializer::class)
+/**
+ * The three counts that split a message's accounts into signers and readonly accounts.
+ *
+ * Unknown JSON fields are not retained, unlike the RPC response types: this mirrors three bytes of the
+ * message binary format, which cannot gain a field without changing that format.
+ */
+@Serializable
 data class MessageHeader(
     @SerialName("numRequiredSignatures") @Serializable(with = U8Serializer::class) val requiredSignatures: Int,
     @SerialName("numReadonlySignedAccounts") @Serializable(with = U8Serializer::class) val readonlySignedAccounts: Int,
     @SerialName("numReadonlyUnsignedAccounts") @Serializable(with = U8Serializer::class) val readonlyUnsignedAccounts: Int,
-    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
 )
-
-object MessageHeaderSerializer : ExtensibleJsonSerializer<MessageHeader>(MessageHeader.generatedSerializer(), { it.otherFields })
 
 /**
  * An address lookup table's contents, as needed to compile a v0 message against it.
@@ -97,30 +99,15 @@ data class CompiledInstruction(val programIdIndex: Int, val accounts: List<Int>,
         this(programIdIndex, accounts, SolanaBytes.fromBytes(data))
 }
 
-@Serializable(with = CompiledAddressLookupTableSerializer::class)
+/**
+ * The addresses one lookup table contributes to a message, as indices into that table.
+ *
+ * Unknown JSON fields are not retained, unlike the RPC response types: this mirrors a fixed structure
+ * of the message binary format, which cannot gain a field without changing that format.
+ */
+@Serializable
 data class CompiledAddressLookupTable(
-    val key: SolanaAddress,
-    val writableIndexes: List<Int>,
-    val readonlyIndexes: List<Int>,
-    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
-)
-
-object CompiledAddressLookupTableSerializer : KSerializer<CompiledAddressLookupTable> {
-    override val descriptor = LookupTableFields.serializer().descriptor
-    override fun deserialize(decoder: Decoder): CompiledAddressLookupTable {
-        val fields = decoder.decodeSerializableValue(LookupTableFields.serializer())
-        return CompiledAddressLookupTable(fields.accountKey, fields.writableIndexes, fields.readonlyIndexes, fields.otherFields)
-    }
-    override fun serialize(encoder: Encoder, value: CompiledAddressLookupTable) = encoder.encodeSerializableValue(LookupTableFields.serializer(), LookupTableFields(value.key, value.writableIndexes, value.readonlyIndexes, value.otherFields))
-}
-
-@KeepGeneratedSerializer
-@Serializable(with = LookupTableFieldsSerializer::class)
-private data class LookupTableFields(
-    val accountKey: SolanaAddress,
+    @SerialName("accountKey") val key: SolanaAddress,
     @Serializable(with = U8ListSerializer::class) val writableIndexes: List<Int>,
     @Serializable(with = U8ListSerializer::class) val readonlyIndexes: List<Int>,
-    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
 )
-
-private object LookupTableFieldsSerializer : ExtensibleJsonSerializer<LookupTableFields>(LookupTableFields.generatedSerializer(), { it.otherFields })

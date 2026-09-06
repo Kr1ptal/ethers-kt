@@ -26,6 +26,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
+import io.ethers.core.json.JsonElement as RawJson
 
 /**
  * Adds forward-compatible fields to a generated object serializer without hand-decoding its properties.
@@ -33,25 +34,62 @@ import kotlinx.serialization.json.long
  */
 abstract class ExtensibleJsonSerializer<T>(
     private val delegate: KSerializer<T>,
-    private val otherFields: (T) -> Map<String, JsonElement>,
+    private val otherFields: (T) -> Map<String, RawJson>,
 ) : KSerializer<T> {
     override val descriptor = delegate.descriptor
-    private val knownFields = (0 until descriptor.elementsCount).map { descriptor.getElementName(it) }.toSet() - "otherFields"
+    private val knownFields = (0 until descriptor.elementsCount).map { descriptor.getElementName(it) }.toSet() - OTHER_FIELDS
 
     override fun deserialize(decoder: Decoder): T {
         val input = decoder as JsonDecoder
         val obj = input.decodeJsonElement().jsonObject
-        val fields = obj.filterKeys { it in knownFields } +
-            ("otherFields" to JsonObject(obj.filterKeys { it !in knownFields }))
+
+        // split in one pass, allocating the unknown map only for responses that carry unknown fields,
+        // which is none of them until the cluster is upgraded past this library
+        val fields = LinkedHashMap<String, JsonElement>(obj.size + 1)
+        var unknown: MutableMap<String, JsonElement>? = null
+        for ((key, element) in obj) {
+            if (key in knownFields) {
+                fields[key] = element
+            } else {
+                var extras = unknown
+                if (extras == null) {
+                    extras = LinkedHashMap()
+                    unknown = extras
+                }
+                extras[key] = element
+            }
+        }
+        fields[OTHER_FIELDS] = unknown?.let(::JsonObject) ?: EMPTY_OTHER_FIELDS
         return input.json.decodeFromJsonElement(delegate, JsonObject(fields))
     }
 
     override fun serialize(encoder: Encoder, value: T) {
         val output = encoder as JsonEncoder
         val extras = otherFields(value)
-        require(extras.keys.none { it in knownFields }) { "Unknown fields cannot override known RPC properties" }
-        val fields = output.json.encodeToJsonElement(delegate, value).jsonObject - "otherFields"
-        output.encodeJsonElement(exactJson(JsonObject(extras + fields)))
+        val encoded = output.json.encodeToJsonElement(delegate, value).jsonObject
+
+        // an empty map is the property's default, which the encoder omits, so there is nothing to
+        // strip and nothing to merge
+        if (extras.isEmpty() && !encoded.containsKey(OTHER_FIELDS)) {
+            output.encodeJsonElement(encoded)
+            return
+        }
+
+        val fields = LinkedHashMap<String, JsonElement>(encoded.size + extras.size)
+        for ((key, element) in extras) {
+            require(key !in knownFields) { "Unknown fields cannot override known RPC properties" }
+            // the unknown value is text already, so it is written back exactly as it arrived
+            fields[key] = if (element.toString() == "null") JsonNull else JsonUnquotedLiteral(element.toString())
+        }
+        for ((key, element) in encoded) {
+            if (key != OTHER_FIELDS) fields[key] = element
+        }
+        output.encodeJsonElement(JsonObject(fields))
+    }
+
+    private companion object {
+        const val OTHER_FIELDS = "otherFields"
+        val EMPTY_OTHER_FIELDS = JsonObject(emptyMap())
     }
 }
 
@@ -71,21 +109,24 @@ open class MappedSerializer<W, T>(private val wire: KSerializer<W>, private val 
     override fun serialize(encoder: Encoder, value: T) = encoder.encodeSerializableValue(wire, toWire(value))
 }
 
-object ExactJsonSerializer : KSerializer<JsonElement> {
-    override val descriptor = JsonElement.serializer().descriptor
-    override fun deserialize(decoder: Decoder): JsonElement = (decoder as JsonDecoder).decodeJsonElement()
-    override fun serialize(encoder: Encoder, value: JsonElement) = (encoder as JsonEncoder).encodeJsonElement(exactJson(value))
+/**
+ * A JSON value this library does not model, kept as the text it arrived as.
+ *
+ * Holding the raw text rather than a parsed tree is what keeps unknown numbers intact: re-encoding a
+ * parsed literal routes it through Long or Double, which rounds long decimals and rejects values
+ * outside Double's range. This is the same representation the EVM types use for their unknown fields.
+ */
+object RawJsonSerializer : KSerializer<RawJson> {
+    override val descriptor = PrimitiveSerialDescriptor("SolanaRawJson", PrimitiveKind.STRING)
+    override fun deserialize(decoder: Decoder): RawJson = RawJson((decoder as JsonDecoder).decodeJsonElement().toString())
+    override fun serialize(encoder: Encoder, value: RawJson) {
+        val json = value.toString()
+        (encoder as JsonEncoder).encodeJsonElement(if (json == "null") JsonNull else JsonUnquotedLiteral(json))
+    }
 }
 
-object OtherFieldsSerializer : KSerializer<Map<String, JsonElement>> by kotlinx.serialization.builtins.MapSerializer(String.serializer(), ExactJsonSerializer)
+object OtherFieldsSerializer : KSerializer<Map<String, RawJson>> by kotlinx.serialization.builtins.MapSerializer(String.serializer(), RawJsonSerializer)
 object U8ListSerializer : KSerializer<List<Int>> by kotlinx.serialization.builtins.ListSerializer(U8Serializer)
-
-/** Preserve decimal literals in unknown fields without passing them through Double. */
-internal fun exactJson(value: JsonElement): JsonElement = when (value) {
-    is JsonObject -> JsonObject(value.mapValues { exactJson(it.value) })
-    is JsonArray -> JsonArray(value.map(::exactJson))
-    is JsonPrimitive -> if (value.isString || value == JsonNull || value.content == "true" || value.content == "false") value else JsonUnquotedLiteral(value.content)
-}
 
 object Base58BytesSerializer : KSerializer<SolanaBytes> {
     override val descriptor = PrimitiveSerialDescriptor("SolanaBase58Bytes", PrimitiveKind.STRING)

@@ -17,6 +17,7 @@ import io.ethers.solana.types.transaction.SolanaTxV1
 import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
+import io.ethers.core.json.JsonElement as RawJson
 
 /** Compiled message in the provider's requested json encoding. */
 @KeepGeneratedSerializer
@@ -29,7 +30,7 @@ data class SolanaRPCMessage(
     val addressTableLookups: List<CompiledAddressLookupTable> = emptyList(),
     /** Present for v1; absent for legacy/v0. Individual absent requests remain null. */
     val transactionConfig: SolanaTransactionConfig? = null,
-    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
+    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, RawJson> = emptyMap(),
 ) {
     /**
      * Rebuild the signable message this response describes.

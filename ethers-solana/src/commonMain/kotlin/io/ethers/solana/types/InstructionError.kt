@@ -12,6 +12,7 @@ import kotlinx.serialization.json.JsonEncoder
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.decodeFromJsonElement
+import io.ethers.core.json.JsonElement as RawJson
 
 /** The instruction-error wire enum; unknown future variants remain lossless. */
 @Serializable(with = InstructionErrorSerializer::class)
@@ -82,7 +83,7 @@ sealed interface InstructionError {
     data class BorshIoError(val message: String? = null) : InstructionError
 
     @Serializable(with = UnknownInstructionErrorSerializer::class)
-    data class Unknown(val raw: JsonElement) : InstructionError
+    data class Unknown(val raw: RawJson) : InstructionError
 
     companion object {
         /** Every variant the wire encodes as a bare name, in the order the protocol declares them. */
@@ -163,13 +164,13 @@ object InstructionErrorSerializer : KSerializer<InstructionError> {
         val value = input.decodeJsonElement()
         if (value is JsonPrimitive && value.isString) {
             if (value.content == BORSH_IO_ERROR) return InstructionError.BorshIoError()
-            return InstructionError.fromWireName(value.content) ?: InstructionError.Unknown(value)
+            return InstructionError.fromWireName(value.content) ?: InstructionError.Unknown(RawJson(value.toString()))
         }
-        if (value !is JsonObject || value.size != 1) return InstructionError.Unknown(value)
+        if (value !is JsonObject || value.size != 1) return InstructionError.Unknown(RawJson(value.toString()))
         return when (value.keys.single()) {
             "Custom" -> input.json.decodeFromJsonElement(CustomInstructionErrorSerializer, value)
             "BorshIoError" -> input.json.decodeFromJsonElement(BorshIoErrorSerializer, value)
-            else -> InstructionError.Unknown(value)
+            else -> InstructionError.Unknown(RawJson(value.toString()))
         }
     }
     override fun serialize(encoder: Encoder, value: InstructionError) {
@@ -189,4 +190,4 @@ object InstructionErrorSerializer : KSerializer<InstructionError> {
 
 object CustomInstructionErrorSerializer : TaggedJsonSerializer<InstructionError.Custom>("Custom", MappedSerializer(U32Serializer, InstructionError::Custom, { it.code }))
 object BorshIoErrorSerializer : TaggedJsonSerializer<InstructionError.BorshIoError>("BorshIoError", MappedSerializer(String.serializer(), InstructionError::BorshIoError, { requireNotNull(it.message) }))
-object UnknownInstructionErrorSerializer : MappedSerializer<JsonElement, InstructionError.Unknown>(ExactJsonSerializer, InstructionError::Unknown, { it.raw })
+object UnknownInstructionErrorSerializer : MappedSerializer<RawJson, InstructionError.Unknown>(RawJsonSerializer, InstructionError::Unknown, { it.raw })

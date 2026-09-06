@@ -6,6 +6,7 @@ package io.ethers.solana.types
 import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
+import io.ethers.core.json.JsonElement as RawJson
 
 /** Inner instructions shared by metadata and simulation. */
 @KeepGeneratedSerializer
@@ -13,7 +14,7 @@ import kotlinx.serialization.json.JsonElement
 data class InnerInstructions(
     @Serializable(with = U8Serializer::class) val index: Int,
     val instructions: List<SolanaRPCInstruction>,
-    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
+    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, RawJson> = emptyMap(),
 )
 
 object InnerInstructionsSerializer : ExtensibleJsonSerializer<InnerInstructions>(InnerInstructions.generatedSerializer(), { it.otherFields })

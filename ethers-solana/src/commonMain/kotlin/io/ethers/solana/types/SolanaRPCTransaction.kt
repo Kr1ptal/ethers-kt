@@ -15,6 +15,7 @@ import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
+import io.ethers.core.json.JsonElement as RawJson
 
 /** A getTransaction response in json encoding; not a signable transaction. */
 @KeepGeneratedSerializer
@@ -25,7 +26,7 @@ data class SolanaRPCTransaction(
     val transaction: SolanaRPCTransactionData,
     val meta: SolanaRPCTransactionMeta?,
     @SerialName("version") val type: SolanaTxType = SolanaTxType.Legacy,
-    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
+    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, RawJson> = emptyMap(),
 ) {
     /** Rebuild the signable message, discarding the signatures this response carries. */
     fun toUnsignedTransaction(): Result<SolanaTransactionUnsigned, SolanaTransactionError> = transaction.message.toTransaction(type)

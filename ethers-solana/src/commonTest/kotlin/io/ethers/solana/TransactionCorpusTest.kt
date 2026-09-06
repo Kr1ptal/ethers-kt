@@ -125,9 +125,11 @@ class TransactionCorpusTest : FunSpec({
             shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.deserialize(signed.serialize().dropLast(1).toByteArray()) }
             shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.deserialize(signed.serialize() + byteArrayOf(0)) }
 
-            val encoded = json.encodeToJsonElement(rpc)
+            // unknown fields are re-emitted as the text they arrived as, so the wire string is what
+            // carries their structure; parse it back before comparing trees
+            val encoded = json.parseToJsonElement(json.encodeToString(rpc))
             assertCorpusJsonPreserved(rawRpc, encoded)
-            json.encodeToJsonElement(json.decodeFromJsonElement<SolanaRPCTransaction>(encoded)) shouldBe encoded
+            json.parseToJsonElement(json.encodeToString(json.decodeFromJsonElement<SolanaRPCTransaction>(encoded))) shouldBe encoded
 
             rpc.meta?.let { meta ->
                 val loaded = meta.loadedAddresses

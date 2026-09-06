@@ -18,6 +18,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.jsonArray
+import io.ethers.core.json.JsonElement as RawJson
 
 /** Runtime errors shared by history, simulation and signature/log notifications. */
 @Serializable(with = TransactionErrorSerializer::class)
@@ -70,18 +71,18 @@ sealed interface TransactionError {
     @Serializable(with = InsufficientFundsForRentSerializer::class)
     data class InsufficientFundsForRent(
         @SerialName("account_index") @Serializable(with = U8Serializer::class) val accountIndex: Int,
-        @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
+        @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, RawJson> = emptyMap(),
     ) : TransactionError
 
     @KeepGeneratedSerializer
     @Serializable(with = ProgramExecutionTemporarilyRestrictedSerializer::class)
     data class ProgramExecutionTemporarilyRestricted(
         @SerialName("account_index") @Serializable(with = U8Serializer::class) val accountIndex: Int,
-        @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
+        @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, RawJson> = emptyMap(),
     ) : TransactionError
 
     @Serializable(with = UnknownTransactionErrorSerializer::class)
-    data class Unknown(val raw: JsonElement) : TransactionError
+    data class Unknown(val raw: RawJson) : TransactionError
 
     companion object {
         /** Every variant the wire encodes as a bare name, in the order the protocol declares them. */
@@ -142,15 +143,15 @@ object TransactionErrorSerializer : KSerializer<TransactionError> {
         val input = decoder as JsonDecoder
         val value = input.decodeJsonElement()
         if (value is JsonPrimitive && value.isString) {
-            return TransactionError.fromWireName(value.content) ?: TransactionError.Unknown(value)
+            return TransactionError.fromWireName(value.content) ?: TransactionError.Unknown(RawJson(value.toString()))
         }
-        if (value !is JsonObject || value.size != 1) return TransactionError.Unknown(value)
+        if (value !is JsonObject || value.size != 1) return TransactionError.Unknown(RawJson(value.toString()))
         return when (value.keys.single()) {
             "InstructionError" -> input.json.decodeFromJsonElement(InstructionFailureSerializer, value)
             "DuplicateInstruction" -> input.json.decodeFromJsonElement(DuplicateInstructionSerializer, value)
             "InsufficientFundsForRent" -> input.json.decodeFromJsonElement(InsufficientFundsForRentSerializer, value)
             "ProgramExecutionTemporarilyRestricted" -> input.json.decodeFromJsonElement(ProgramExecutionTemporarilyRestrictedSerializer, value)
-            else -> TransactionError.Unknown(value)
+            else -> TransactionError.Unknown(RawJson(value.toString()))
         }
     }
 
@@ -189,4 +190,4 @@ object InsufficientFundsForRentSerializer : TaggedJsonSerializer<TransactionErro
 object ProgramExecutionTemporarilyRestrictedSerializer : TaggedJsonSerializer<TransactionError.ProgramExecutionTemporarilyRestricted>("ProgramExecutionTemporarilyRestricted", RestrictedErrorFieldsSerializer)
 private object RentErrorFieldsSerializer : ExtensibleJsonSerializer<TransactionError.InsufficientFundsForRent>(TransactionError.InsufficientFundsForRent.generatedSerializer(), { it.otherFields })
 private object RestrictedErrorFieldsSerializer : ExtensibleJsonSerializer<TransactionError.ProgramExecutionTemporarilyRestricted>(TransactionError.ProgramExecutionTemporarilyRestricted.generatedSerializer(), { it.otherFields })
-object UnknownTransactionErrorSerializer : MappedSerializer<JsonElement, TransactionError.Unknown>(ExactJsonSerializer, TransactionError::Unknown, { it.raw })
+object UnknownTransactionErrorSerializer : MappedSerializer<RawJson, TransactionError.Unknown>(RawJsonSerializer, TransactionError::Unknown, { it.raw })

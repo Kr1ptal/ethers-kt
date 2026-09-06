@@ -22,6 +22,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.JsonUnquotedLiteral
 import kotlinx.serialization.json.jsonPrimitive
+import io.ethers.core.json.JsonElement as RawJson
 
 /** Decimal JSON number, unlike ethers-core's hexadecimal Ethereum quantities. */
 object U64Serializer : KSerializer<BigInteger> {
@@ -71,7 +72,7 @@ data class TokenAmount(
     @Serializable(with = U8Serializer::class) val decimals: Int,
     val uiAmountString: String,
     @Serializable(with = DecimalSerializer::class) val uiAmount: BigDecimal? = null,
-    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
+    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, RawJson> = emptyMap(),
 )
 
 object TokenAmountSerializer : ExtensibleJsonSerializer<TokenAmount>(TokenAmount.generatedSerializer(), { it.otherFields })
@@ -99,7 +100,7 @@ data class TransactionSimulation(
     val preTokenBalances: List<TokenBalance>? = null,
     val postTokenBalances: List<TokenBalance>? = null,
     val loadedAddresses: LoadedAddresses? = null,
-    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
+    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, RawJson> = emptyMap(),
 ) {
     val isSuccess: Boolean get() = err == null
 }

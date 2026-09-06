@@ -7,6 +7,7 @@ import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
+import io.ethers.core.json.JsonElement as RawJson
 
 /** An account reward; lamports is a signed delta. */
 @KeepGeneratedSerializer
@@ -17,7 +18,7 @@ data class Reward(
     val postBalance: BigInteger,
     val rewardType: RewardType? = null,
     @Serializable(with = U8Serializer::class) val commission: Int? = null,
-    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
+    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, RawJson> = emptyMap(),
 )
 
 object RewardSerializer : ExtensibleJsonSerializer<Reward>(Reward.generatedSerializer(), { it.otherFields })
