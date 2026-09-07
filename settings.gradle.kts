@@ -1,7 +1,9 @@
 rootProject.name = "ethers-kt"
 
 include("ethers-bom")
+include("ethers-common")
 include("ethers-core")
+include("ethers-rpc")
 include("ethers-providers")
 include("ethers-rlp")
 include("ethers-signers")

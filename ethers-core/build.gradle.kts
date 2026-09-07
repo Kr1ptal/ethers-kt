@@ -9,6 +9,7 @@ kotlin {
     sourceSets {
         commonMain {
             dependencies {
+                api(project(":ethers-common"))
                 api(project(":ethers-rlp"))
                 api(project(":ethers-crypto"))
 

@@ -1,12 +1,12 @@
 package io.ethers.solana
 
-import io.ethers.core.utils.EthUnit
 import io.ethers.solana.utils.SolUnit
 import io.ethers.solana.utils.SolUnit.Companion.LAMPORT
 import io.ethers.solana.utils.SolUnit.Companion.MICRO_LAMPORT
 import io.ethers.solana.utils.SolUnit.Companion.SOL
 import io.github.artificialpb.bignum.BigDecimal
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.RoundingMode
 import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
@@ -119,19 +119,19 @@ class SolUnitTest : FunSpec({
         assertAmounts("-1000000000", SOL.toLamports(-1))
     }
 
-    test("custom units match EthUnit conversion behavior") {
+    test("every conversion overload rescales by the decimal difference, truncating the remainder") {
         for (fromDecimals in 0..18) {
             for (toDecimals in 0..18) {
                 val from = SolUnit(fromDecimals)
                 val to = SolUnit(toDecimals)
-                val ethFrom = EthUnit(fromDecimals)
-                val ethTo = EthUnit(toDecimals)
+                fun expected(amount: BigDecimal) = amount.movePointRight(fromDecimals - toDecimals).setScale(toDecimals, RoundingMode.DOWN)
+
                 for (text in listOf("0", "-0.0000019", "123456789.123456789012345678", "-42.9")) {
-                    from.convert(text, to) shouldBeEqualComparingTo ethFrom.convert(text, ethTo)
-                    from.convert(BigDecimal(text), to) shouldBeEqualComparingTo ethFrom.convert(BigDecimal(text), ethTo)
+                    from.convert(text, to) shouldBeEqualComparingTo expected(BigDecimal(text))
+                    from.convert(BigDecimal(text), to) shouldBeEqualComparingTo expected(BigDecimal(text))
                 }
                 for (integer in listOf(bigIntegerOf(-42), BigInteger("18446744073709551615"))) {
-                    from.convert(integer, to) shouldBeEqualComparingTo ethFrom.convert(integer, ethTo)
+                    from.convert(integer, to) shouldBeEqualComparingTo expected(BigDecimal(integer.toString()))
                 }
             }
         }

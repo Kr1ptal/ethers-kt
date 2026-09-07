@@ -1,5 +1,6 @@
 plugins {
     `project-conventions`
+    kotlin("plugin.serialization") version libs.versions.kotlin.get()
     `maven-publish-conventions`
 }
 
@@ -13,9 +14,7 @@ kotlin {
                 api(libs.ktor.client.websockets)
                 api(libs.channelskt.core)
 
-                api(project(":ethers-rpc"))
-                api(project(":ethers-core"))
-                api(project(":ethers-signers"))
+                api(project(":ethers-common"))
                 api(libs.bignumkt)
 
                 implementation(project(":logger"))
@@ -39,8 +38,6 @@ kotlin {
 
         val commonTest by getting {
             dependencies {
-                // embedded server for the mock JSON-RPC endpoint. Replaces okhttp's MockWebServer, which is
-                // JVM-only and kept these suites out of commonTest.
                 implementation(libs.ktor.server.cio)
                 implementation(libs.ktor.server.websockets)
             }

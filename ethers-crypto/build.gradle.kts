@@ -35,6 +35,8 @@ kotlin {
     sourceSets {
         commonMain {
             dependencies {
+                api(project(":ethers-common"))
+
                 api(libs.bignumkt)
                 implementation(libs.kotlincrypto.hash.sha3)
                 implementation(libs.whyoleg.cryptography.core)

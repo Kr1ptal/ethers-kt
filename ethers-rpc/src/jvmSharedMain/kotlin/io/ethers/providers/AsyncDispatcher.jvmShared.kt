@@ -13,7 +13,7 @@ import java.util.concurrent.Executors
  * Shared by the JVM and Android targets. Android has no virtual threads, so the lookup below fails there and the
  * dispatcher falls back to [Dispatchers.IO] - the same result the dedicated Android actual used to return.
  */
-internal actual val asyncDispatcher: CoroutineDispatcher by lazy {
+actual val asyncDispatcher: CoroutineDispatcher by lazy {
     virtualThreadExecutorOrNull()?.asCoroutineDispatcher() ?: Dispatchers.IO
 }
 

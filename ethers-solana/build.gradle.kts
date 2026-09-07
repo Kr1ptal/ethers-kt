@@ -78,7 +78,7 @@ kotlin {
     sourceSets {
         commonMain {
             dependencies {
-                api(project(":ethers-providers"))
+                api(project(":ethers-rpc"))
                 implementation(libs.ditchoom.buffer)
                 implementation(libs.whyoleg.cryptography.core)
             }

@@ -3,7 +3,6 @@ package io.ethers.providers
 import io.ethers.core.Kotlinx
 import io.ethers.core.isFailure
 import io.ethers.core.isSuccess
-import io.ethers.core.types.Address
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.nondeterministic.eventually
@@ -13,6 +12,12 @@ import io.kotest.matchers.shouldNotBe
 import io.ktor.client.plugins.websocket.WebSockets
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -35,6 +40,16 @@ import kotlinx.serialization.json.JsonElement as KJsonElement
 // holds, so a generous budget costs nothing when things are fast, it only bounds how long a genuine failure takes
 // to surface.
 private val RECONNECT_WINDOW = 5.seconds
+
+/** Stands in for any domain type that reaches the transport with a serializer of its own. */
+@Serializable(with = SerializableValueSerializer::class)
+data class SerializableValue(val value: String)
+
+object SerializableValueSerializer : KSerializer<SerializableValue> {
+    override val descriptor = PrimitiveSerialDescriptor("SerializableValue", PrimitiveKind.STRING)
+    override fun deserialize(decoder: Decoder) = SerializableValue(decoder.decodeString())
+    override fun serialize(encoder: Encoder, value: SerializableValue) = encoder.encodeString(value.value)
+}
 
 class WsClientTest : FunSpec({
     @Suppress("MoveLambdaOutsideParentheses")
@@ -64,8 +79,8 @@ class WsClientTest : FunSpec({
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0x1234567"}""")
 
             val callMap = mapOf(
-                "from" to Address("0x1111111111111111111111111111111111111111"),
-                "to" to Address("0x2222222222222222222222222222222222222222"),
+                "from" to SerializableValue("0x1111111111111111111111111111111111111111"),
+                "to" to SerializableValue("0x2222222222222222222222222222222222222222"),
                 "value" to bigIntegerOf(1),
                 "data" to byteArrayOf(0xde.toByte(), 0xad.toByte(), 0xbe.toByte(), 0xef.toByte()),
                 "gas" to 21000L,

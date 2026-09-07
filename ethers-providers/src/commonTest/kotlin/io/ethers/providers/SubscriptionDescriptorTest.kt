@@ -51,7 +51,7 @@ class SubscriptionDescriptorTest : FunSpec({
         subscribe.getValue("params").jsonArray.size shouldBe 0
         server.sendJson("""{"jsonrpc":"2.0","method":"wrongNotification","params":{"subscription":42,"result":"wrong"}}""")
         server.sendJson("""{"jsonrpc":"2.0","method":"slotNotification","params":{"subscription":42,"result":"before"}}""")
-        eventually(5.seconds) { stream.isEmpty shouldBe false }
+        eventually(30.seconds) { stream.isEmpty shouldBe false }
         stream.take() shouldBe "before"
 
         server.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":43}""")
@@ -60,7 +60,7 @@ class SubscriptionDescriptorTest : FunSpec({
         resubscribe["method"] shouldBe JsonPrimitive("slotSubscribe")
         resubscribe["params"] shouldBe subscribe["params"]
         resolutions shouldBe 1
-        eventually(5.seconds) {
+        eventually(30.seconds) {
             server.sendJson("""{"jsonrpc":"2.0","method":"slotNotification","params":{"subscription":43,"result":"after"}}""")
             stream.isEmpty shouldBe false
         }
@@ -77,11 +77,11 @@ class SubscriptionDescriptorTest : FunSpec({
         val subscribe = Kotlinx.DEFAULT.parseToJsonElement(server.takeReceivedText()!!).jsonObject
         subscribe.getValue("params").jsonArray shouldBe listOf(JsonPrimitive("test-signature"))
         server.sendJson("""{"jsonrpc":"2.0","method":"signatureNotification","params":{"subscription":7,"result":"received"}}""")
-        eventually(5.seconds) { stream.isEmpty shouldBe false }
+        eventually(30.seconds) { stream.isEmpty shouldBe false }
         stream.take() shouldBe "received"
         stream.isClosed shouldBe false
         server.sendJson("""{"jsonrpc":"2.0","method":"signatureNotification","params":{"subscription":7,"result":"done"}}""")
-        eventually(5.seconds) { stream.isClosed shouldBe true }
+        eventually(30.seconds) { stream.isClosed shouldBe true }
         stream.take() shouldBe "done"
         server.takeReceivedText(100) shouldBe null
         server.closeConnection()

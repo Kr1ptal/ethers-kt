@@ -10,5 +10,5 @@ import kotlinx.coroutines.Dispatchers
  * The distinction matters less here than on the JVM: the Darwin engine is backed by NSURLSession, which completes
  * requests on its own queues rather than by blocking the calling thread.
  */
-internal actual val asyncDispatcher: CoroutineDispatcher
+actual val asyncDispatcher: CoroutineDispatcher
     get() = Dispatchers.Default

@@ -3,7 +3,7 @@ package io.ethers.providers
 import io.ethers.core.Kotlinx
 import io.ethers.core.isFailure
 import io.ethers.core.isSuccess
-import io.ethers.core.types.Address
+import io.ethers.providers.SerializableValue
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.core.spec.style.FunSpec
@@ -110,8 +110,8 @@ private fun httpSpecificTests() = funSpec {
             server.enqueueJson(SUCCESSFUL_RESPONSE)
 
             val callMap = mapOf(
-                "from" to Address("0x1111111111111111111111111111111111111111"),
-                "to" to Address("0x2222222222222222222222222222222222222222"),
+                "from" to SerializableValue("0x1111111111111111111111111111111111111111"),
+                "to" to SerializableValue("0x2222222222222222222222222222222222222222"),
                 "value" to bigIntegerOf(1),
                 "data" to byteArrayOf(0xde.toByte(), 0xad.toByte(), 0xbe.toByte(), 0xef.toByte()),
                 "gas" to 21000L,
@@ -173,10 +173,10 @@ private fun httpSpecificTests() = funSpec {
         test("request(KSerializer<T>) with @Serializable type still uses its KSerializer") {
             server.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0x1111111111111111111111111111111111111111"}""")
 
-            val result = client.request("eth_coinbase", emptyArray<Any>(), Address.serializer())
+            val result = client.request("eth_coinbase", emptyArray<Any>(), SerializableValue.serializer())
 
             result.isSuccess() shouldBe true
-            result.unwrap() shouldBe Address("0x1111111111111111111111111111111111111111")
+            result.unwrap() shouldBe SerializableValue("0x1111111111111111111111111111111111111111")
         }
 
         test("unique request IDs are generated") {
