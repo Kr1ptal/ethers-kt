@@ -33,7 +33,7 @@ import io.ethers.solana.types.TokenAmount
 import io.ethers.solana.types.TransactionSignature
 import io.ethers.solana.types.TransactionSimulation
 import io.ethers.solana.types.transaction.AddressLookupTableAccount
-import io.ethers.solana.types.transaction.SolanaTransaction
+import io.ethers.solana.types.transaction.SolanaTransactionCompiled
 import io.ethers.solana.types.transaction.SolanaTransactionError
 import io.ethers.solana.types.transaction.SolanaTransactionRequest
 import io.ethers.solana.types.transaction.SolanaTransactionSigned
@@ -145,15 +145,15 @@ interface SolanaApi {
             },
         ) { SolanaSignature(it.jsonPrimitive.content) }
     }
-    fun simulateTransaction(transaction: SolanaTransaction): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = simulateTransaction(transaction, defaultCommitment)
-    fun simulateTransaction(transaction: SolanaTransaction, commitment: Commitment = this.defaultCommitment): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = simulateTransaction(transaction.serializeForSimulation(), commitment)
+    fun simulateTransaction(transaction: SolanaTransactionCompiled): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = simulateTransaction(transaction, defaultCommitment)
+    fun simulateTransaction(transaction: SolanaTransactionCompiled, commitment: Commitment = this.defaultCommitment): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = simulateTransaction(transaction.serializeForSimulation(), commitment)
     fun simulateTransaction(transaction: ByteArray): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = simulateTransaction(transaction, defaultCommitment)
     fun simulateTransaction(transaction: ByteArray, commitment: Commitment = this.defaultCommitment): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = rpc("simulateTransaction", Base64.encode(transaction), config(commitment, "base64")) { decode(it) }
-    fun simulateTransaction(transaction: SolanaTransaction, options: SolanaSimulationConfig): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = simulateTransaction(transaction, options, defaultCommitment)
+    fun simulateTransaction(transaction: SolanaTransactionCompiled, options: SolanaSimulationConfig): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = simulateTransaction(transaction, options, defaultCommitment)
 
     /** Simulate with explicit options; see [SolanaSimulationConfig]. */
     fun simulateTransaction(
-        transaction: SolanaTransaction,
+        transaction: SolanaTransactionCompiled,
         options: SolanaSimulationConfig,
         commitment: Commitment = this.defaultCommitment,
     ): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = rpc("simulateTransaction", Base64.encode(transaction.serializeForSimulation()), simulationConfig(commitment, options)) { decode(it) }
@@ -277,8 +277,8 @@ interface SolanaApi {
         else -> simulateTransaction(request, type, lookupTables, commitment)
     }
 
-    fun getFeeForMessage(message: SolanaTransaction): RpcRequest<ContextValue<BigInteger?>, RpcError> = getFeeForMessage(message, defaultCommitment)
-    fun getFeeForMessage(message: SolanaTransaction, commitment: Commitment = this.defaultCommitment): RpcRequest<ContextValue<BigInteger?>, RpcError> = getFeeForMessage(message.serializeMessage(), commitment)
+    fun getFeeForMessage(message: SolanaTransactionCompiled): RpcRequest<ContextValue<BigInteger?>, RpcError> = getFeeForMessage(message, defaultCommitment)
+    fun getFeeForMessage(message: SolanaTransactionCompiled, commitment: Commitment = this.defaultCommitment): RpcRequest<ContextValue<BigInteger?>, RpcError> = getFeeForMessage(message.serializeMessage(), commitment)
     fun getFeeForMessage(message: ByteArray): RpcRequest<ContextValue<BigInteger?>, RpcError> = getFeeForMessage(message, defaultCommitment)
     fun getFeeForMessage(message: ByteArray, commitment: Commitment = this.defaultCommitment): RpcRequest<ContextValue<BigInteger?>, RpcError> = rpc("getFeeForMessage", Base64.encode(message), config(commitment)) { decodeContext(it) { v -> if (v == JsonNull) null else decodeU64(v) } }
     fun getRecentPrioritizationFees(): RpcRequest<List<PrioritizationFee>, RpcError> = getRecentPrioritizationFees(emptyList())

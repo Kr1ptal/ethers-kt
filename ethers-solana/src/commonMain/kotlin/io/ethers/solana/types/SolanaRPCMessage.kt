@@ -5,8 +5,8 @@ package io.ethers.solana.types
 
 import io.ethers.core.Result
 import io.ethers.solana.types.transaction.CompiledAddressLookupTable
-import io.ethers.solana.types.transaction.CompiledInstruction
 import io.ethers.solana.types.transaction.MessageHeader
+import io.ethers.solana.types.transaction.MessageInstruction
 import io.ethers.solana.types.transaction.SolanaTransactionConfig
 import io.ethers.solana.types.transaction.SolanaTransactionError
 import io.ethers.solana.types.transaction.SolanaTransactionUnsigned
@@ -39,7 +39,7 @@ data class SolanaRPCMessage(
      * came from a legacy or a v0 transaction. A v1 message must carry its inline config.
      */
     fun toTransaction(type: SolanaTxType): Result<SolanaTransactionUnsigned, SolanaTransactionError> {
-        val compiled = instructions.map { CompiledInstruction(it.programIdIndex, it.accounts, it.data) }
+        val compiled = instructions.map { MessageInstruction(it.programIdIndex, it.accounts, it.data) }
         return when (type) {
             SolanaTxType.Legacy -> SolanaTxLegacy.tryCreate(header, accountKeys, recentBlockhash, compiled)
             SolanaTxType.V0 -> SolanaTxV0.tryCreate(header, accountKeys, recentBlockhash, compiled, addressTableLookups)

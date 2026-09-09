@@ -14,7 +14,7 @@ import io.github.artificialpb.bignum.bigIntegerOf
 internal fun messageError(
     header: MessageHeader,
     accounts: List<SolanaAddress>,
-    instructions: List<CompiledInstruction>,
+    instructions: List<MessageInstruction>,
     lookups: List<CompiledAddressLookupTable>,
 ): SolanaTransactionError? {
     if (accounts.size !in 1..256) return SolanaTransactionError.CountOutOfRange(SolanaTransactionError.Limit.ACCOUNTS, accounts.size, 1..256)
@@ -87,7 +87,7 @@ internal class DecodedMessageBody(
     val header: MessageHeader,
     val accounts: List<SolanaAddress>,
     val recentBlockhash: SolanaBlockhash,
-    val instructions: List<CompiledInstruction>,
+    val instructions: List<MessageInstruction>,
 )
 
 /** The required-signature count has already been consumed, as legacy encodes it in place of a version byte. */
@@ -100,7 +100,7 @@ internal fun SolanaMessageDecoder.readMessageBody(requiredSignatures: Int): Deco
     val instructions = List(readShortVecLength()) {
         val program = readByte()
         val indices = List(readShortVecLength()) { readByte() }
-        CompiledInstruction(program, indices, SolanaBytes.fromBytes(readBytes(readShortVecLength())))
+        MessageInstruction(program, indices, SolanaBytes.fromBytes(readBytes(readShortVecLength())))
     }
     return DecodedMessageBody(header, accounts, blockhash, instructions)
 }
@@ -118,7 +118,7 @@ internal fun shortVecSize(count: Int): Long {
 internal fun legacyEnvelopeSize(
     header: MessageHeader,
     accounts: List<SolanaAddress>,
-    instructions: List<CompiledInstruction>,
+    instructions: List<MessageInstruction>,
     lookups: List<CompiledAddressLookupTable>?,
 ): Long {
     var size = shortVecSize(header.requiredSignatures) + 64L * header.requiredSignatures +

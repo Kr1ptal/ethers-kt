@@ -127,7 +127,7 @@ See the [Solana v1 integration guide](https://github.com/solana-foundation/solan
 Chain-level values and transaction/API families use explicit Solana names: `SolanaSignature`,
 `SolanaBlockhash`, and `SolanaRPCTransaction` (with its `SolanaRPC*` components). Node queries return
 `SolanaNodeVersion` and `SolanaNodeHealth`. These names coexist with EVM types without import aliases.
-Protocol-specific components such as `AccountMeta`, `CompiledInstruction`, `InnerInstructions`, and
+Protocol-specific components such as `AccountMeta`, `MessageInstruction`, `InnerInstructions`, and
 `LoadedAddresses` keep their shorter names.
 
 ```kotlin
@@ -301,6 +301,7 @@ Reference: [sol4k a166edd854a7198553fdafe9a5051a400d70b121](https://github.com/s
 | Compile or decode without throwing | `tryCompile`, `tryDeserialize`, `tryDeserializeMessage`, `SolanaTransactionError` |
 | Unit conversion / fee estimation | `SolUnit`, `SolanaTransaction.estimateFee` |
 | Read a transaction's compute budget, any version | `computeUnitLimit`, `computeUnitPrice`, `priorityFee`, `heapSize`, `loadedAccountsDataSizeLimit` |
+| Read any transaction the same way, built or fetched | `SolanaTransaction`, implemented by `SolanaTransactionCompiled` and `SolanaRPCTransaction` |
 | All upstream public RPC methods | `SolanaApi` / `SolanaProvider` |
 | Additional WebSocket support | `subscribeAccount`, `subscribeProgram`, `subscribeLogs`, `subscribeSignature`, `subscribeSlot`, `subscribeRoot` |
 

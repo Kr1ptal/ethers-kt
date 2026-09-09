@@ -20,7 +20,7 @@ class SolanaTxLegacy private constructor(
     override val header: MessageHeader,
     override val accounts: List<SolanaAddress>,
     override val recentBlockhash: SolanaBlockhash,
-    override val instructions: List<CompiledInstruction>,
+    override val instructions: List<MessageInstruction>,
     validated: Boolean,
 ) : SolanaTransactionUnsigned {
     override val type: SolanaTxType get() = SolanaTxType.Legacy
@@ -41,7 +41,7 @@ class SolanaTxLegacy private constructor(
         header: MessageHeader,
         accounts: List<SolanaAddress>,
         recentBlockhash: SolanaBlockhash,
-        instructions: List<CompiledInstruction>,
+        instructions: List<MessageInstruction>,
     ) : this(header, accounts, recentBlockhash, instructions, false)
 
     init {
@@ -60,7 +60,7 @@ class SolanaTxLegacy private constructor(
         const val MAX_TRANSACTION_SIZE: Int = 1232
 
         /** Every reason these fields cannot form a legacy message, or null if they can. */
-        internal fun validate(header: MessageHeader, accounts: List<SolanaAddress>, instructions: List<CompiledInstruction>): SolanaTransactionError? = messageError(header, accounts, instructions, emptyList())
+        internal fun validate(header: MessageHeader, accounts: List<SolanaAddress>, instructions: List<MessageInstruction>): SolanaTransactionError? = messageError(header, accounts, instructions, emptyList())
             ?: envelopeSizeError(SolanaTxType.Legacy, legacyEnvelopeSize(header, accounts, instructions, null), MAX_TRANSACTION_SIZE)
 
         /** As the constructor, reporting the reason the fields are invalid instead of throwing. */
@@ -69,7 +69,7 @@ class SolanaTxLegacy private constructor(
             header: MessageHeader,
             accounts: List<SolanaAddress>,
             recentBlockhash: SolanaBlockhash,
-            instructions: List<CompiledInstruction>,
+            instructions: List<MessageInstruction>,
         ): Result<SolanaTxLegacy, SolanaTransactionError> {
             validate(header, accounts, instructions)?.let { return Result.failure(it) }
             return Result.success(SolanaTxLegacy(header, accounts, recentBlockhash, instructions, validated = true))

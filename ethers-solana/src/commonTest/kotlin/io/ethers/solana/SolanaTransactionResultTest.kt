@@ -7,9 +7,9 @@ import io.ethers.solana.signers.KeypairSigner
 import io.ethers.solana.types.AccountMeta
 import io.ethers.solana.types.Programs
 import io.ethers.solana.types.SolanaBlockhash
-import io.ethers.solana.types.transaction.CompiledInstruction
 import io.ethers.solana.types.transaction.MessageHeader
-import io.ethers.solana.types.transaction.SolanaTransaction
+import io.ethers.solana.types.transaction.MessageInstruction
+import io.ethers.solana.types.transaction.SolanaTransactionCompiled
 import io.ethers.solana.types.transaction.SolanaTransactionConfig
 import io.ethers.solana.types.transaction.SolanaTransactionError
 import io.ethers.solana.types.transaction.SolanaTransactionException
@@ -74,7 +74,7 @@ class SolanaTransactionResultTest : FunSpec({
 
         val outOfRange = SolanaTxV0.tryCompile(alice.publicKey, blockhash, transfer).unwrap()
         val error = shouldThrow<SolanaTransactionException> {
-            SolanaTxV0(outOfRange.header, outOfRange.accounts, blockhash, listOf(CompiledInstruction(1, listOf(9), byteArrayOf())))
+            SolanaTxV0(outOfRange.header, outOfRange.accounts, blockhash, listOf(MessageInstruction(1, listOf(9), byteArrayOf())))
         }.error
         error.shouldBeInstanceOf<SolanaTransactionError.InvalidMessage>()
         error.reason shouldBe SolanaTransactionError.Reason.ACCOUNT_INDEX
@@ -95,7 +95,7 @@ class SolanaTransactionResultTest : FunSpec({
         val signed = SolanaTxLegacy.compile(alice.publicKey, blockhash, transfer).sign(alice)
         val wire = signed.serialize()
         SolanaTransactionSigned.tryDeserialize(wire).unwrap().serialize() shouldBe wire
-        SolanaTransaction.tryDeserialize(wire).isSuccess() shouldBe true
+        SolanaTransactionCompiled.tryDeserialize(wire).isSuccess() shouldBe true
         SolanaTransactionSigned.tryFromBase64(signed.toBase64()).unwrap().serialize() shouldBe wire
 
         SolanaTransactionSigned.tryDeserialize(wire.copyOf(wire.size - 1)).unwrapError()
@@ -112,7 +112,7 @@ class SolanaTransactionResultTest : FunSpec({
             Instruction(Programs.SYSTEM, listOf(AccountMeta.signer(alice.publicKey), AccountMeta.signer(bob.publicKey)), byteArrayOf(7)),
         )
         val partial = twoSigners.signingBuilder().sign(alice).serializePartial()
-        SolanaTransaction.tryDeserialize(partial).unwrapError() shouldBe SolanaTransactionError.PartiallySigned(1, 2)
+        SolanaTransactionCompiled.tryDeserialize(partial).unwrapError() shouldBe SolanaTransactionError.PartiallySigned(1, 2)
         SolanaTransactionSigned.Builder.tryDeserializePartial(partial).unwrap().missingSigners shouldBe listOf(bob.publicKey)
     }
 

@@ -3,6 +3,7 @@
 
 package io.ethers.solana.types
 
+import io.ethers.solana.types.transaction.CompiledInstruction
 import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
@@ -12,11 +13,11 @@ import io.ethers.core.json.JsonElement as RawJson
 @KeepGeneratedSerializer
 @Serializable(with = SolanaRPCInstructionSerializer::class)
 data class SolanaRPCInstruction(
-    @Serializable(with = U8Serializer::class) val programIdIndex: Int,
-    @Serializable(with = U8ListSerializer::class) val accounts: List<Int>,
-    @Serializable(with = Base58BytesSerializer::class) val data: SolanaBytes,
+    @Serializable(with = U8Serializer::class) override val programIdIndex: Int,
+    @Serializable(with = U8ListSerializer::class) override val accounts: List<Int>,
+    @Serializable(with = Base58BytesSerializer::class) override val data: SolanaBytes,
     @Serializable(with = U32Serializer::class) val stackHeight: Long? = null,
     @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, RawJson> = emptyMap(),
-)
+) : CompiledInstruction
 
 object SolanaRPCInstructionSerializer : ExtensibleJsonSerializer<SolanaRPCInstruction>(SolanaRPCInstruction.generatedSerializer(), { it.otherFields })

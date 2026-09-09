@@ -90,10 +90,27 @@ data class AddressLookupTableAccount @JvmOverloads constructor(
 }
 
 /**
- * An instruction as it appears in a compiled message, with accounts as indices into the message's
- * account list. [accounts] is not copied; pass an immutable list.
+ * An instruction inside a compiled message, naming its program and accounts by index into the
+ * message's account list rather than by address.
+ *
+ * Implemented by [MessageInstruction] for messages this library compiled and by SolanaRPCInstruction
+ * for a node's response, which carries execution details on top. Code that reads either takes this.
  */
-data class CompiledInstruction(val programIdIndex: Int, val accounts: List<Int>, val data: SolanaBytes) {
+interface CompiledInstruction {
+    /** Index into the message's account list naming the program this instruction invokes. */
+    val programIdIndex: Int
+
+    /** Indices into the message's account list, inline accounts first and loaded ones after. */
+    val accounts: List<Int>
+
+    val data: SolanaBytes
+}
+
+/**
+ * A [CompiledInstruction] in a message this library compiled. [accounts] is not copied; pass an
+ * immutable list.
+ */
+data class MessageInstruction(override val programIdIndex: Int, override val accounts: List<Int>, override val data: SolanaBytes) : CompiledInstruction {
     /** Takes ownership of [data] rather than copying it, so do not mutate the array afterwards. */
     constructor(programIdIndex: Int, accounts: List<Int>, data: ByteArray) :
         this(programIdIndex, accounts, SolanaBytes.fromBytes(data))

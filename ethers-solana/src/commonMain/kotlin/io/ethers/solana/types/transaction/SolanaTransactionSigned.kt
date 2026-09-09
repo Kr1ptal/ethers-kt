@@ -15,7 +15,7 @@ import kotlin.jvm.JvmStatic
  * [signatures] is kept as given rather than copied, so pass an immutable list.
  */
 class SolanaTransactionSigned(val tx: SolanaTransactionUnsigned, val signatures: List<SolanaSignature>) :
-    SolanaTransaction by tx {
+    SolanaTransactionCompiled by tx {
 
     /** Solana's transaction id is the fee payer's signature, not a hash of the envelope. */
     val id: SolanaSignature get() = signatures.first()

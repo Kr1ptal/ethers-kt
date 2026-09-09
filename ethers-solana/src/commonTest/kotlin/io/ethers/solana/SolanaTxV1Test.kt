@@ -10,9 +10,9 @@ import io.ethers.solana.types.Programs
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.types.SolanaRPCTransaction
-import io.ethers.solana.types.transaction.CompiledInstruction
 import io.ethers.solana.types.transaction.MessageHeader
-import io.ethers.solana.types.transaction.SolanaTransaction
+import io.ethers.solana.types.transaction.MessageInstruction
+import io.ethers.solana.types.transaction.SolanaTransactionCompiled
 import io.ethers.solana.types.transaction.SolanaTransactionConfig
 import io.ethers.solana.types.transaction.SolanaTransactionSigned
 import io.ethers.solana.types.transaction.SolanaTransactionUnsigned
@@ -74,7 +74,7 @@ class SolanaTxV1Test : FunSpec({
             )
             val tx = transfer(requests)
             decode(tx.serializeMessage()).config shouldBe requests
-            SolanaTransaction.deserialize(tx.serializeForSimulation()).serializeMessage() shouldBe tx.serializeMessage()
+            SolanaTransactionCompiled.deserialize(tx.serializeForSimulation()).serializeMessage() shouldBe tx.serializeMessage()
         }
         val zeros = SolanaTransactionConfig(bigIntegerOf(0), 0, 0)
         decode(transfer(zeros).serializeMessage()).config shouldBe zeros
@@ -102,14 +102,14 @@ class SolanaTxV1Test : FunSpec({
         val builder = tx.signingBuilder().sign(bob)
         builder.signatures.first() shouldBe null
         shouldThrow<IllegalArgumentException> { builder.build() }
-        shouldThrow<IllegalArgumentException> { SolanaTransaction.deserialize(builder.serializePartial()) }
+        shouldThrow<IllegalArgumentException> { SolanaTransactionCompiled.deserialize(builder.serializePartial()) }
         val imported = SolanaTransactionSigned.Builder.fromBase64Partial(builder.toBase64Partial())
         imported.missingSigners shouldBe listOf(alice.publicKey)
         val signed = imported.sign(alice).build()
         signed.serialize() shouldBe tx.sign(bob, alice).serialize()
         signed.serialize().takeLast(128).toByteArray() shouldBe signed.signatures.flatMap { it.toByteArray().toList() }.toByteArray()
         signed.serializeForSimulation() shouldBe signed.serialize()
-        SolanaTransaction.deserialize(tx.serializeForSimulation())::class shouldBe SolanaTxV1::class
+        SolanaTransactionCompiled.deserialize(tx.serializeForSimulation())::class shouldBe SolanaTxV1::class
         shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.deserialize(tx.serializeForSimulation()) }
         val changed = signed.withNewBlockhash(SolanaBlockhash(ByteArray(32) { 1 })) as SolanaTxV1
         changed.config shouldBe config
@@ -138,14 +138,14 @@ class SolanaTxV1Test : FunSpec({
             shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.deserialize(signed.copyOf(length)) }
         }
         shouldThrow<IllegalArgumentException> { decode(message + byteArrayOf(0)) }
-        shouldThrow<IllegalArgumentException> { SolanaTransaction.deserialize(signed + byteArrayOf(0)) }
-        shouldThrow<IllegalArgumentException> { SolanaTransaction.deserialize(signed.copyOf().also { it[it.lastIndex] = (it.last().toInt() xor 1).toByte() }) }
-        shouldThrow<IllegalArgumentException> { SolanaTransaction.deserialize(byteArrayOf(1) + ByteArray(64) + message) }
+        shouldThrow<IllegalArgumentException> { SolanaTransactionCompiled.deserialize(signed + byteArrayOf(0)) }
+        shouldThrow<IllegalArgumentException> { SolanaTransactionCompiled.deserialize(signed.copyOf().also { it[it.lastIndex] = (it.last().toInt() xor 1).toByte() }) }
+        shouldThrow<IllegalArgumentException> { SolanaTransactionCompiled.deserialize(byteArrayOf(1) + ByteArray(64) + message) }
         shouldThrow<IllegalArgumentException> { decode(message.copyOf().also { it[0] = 130.toByte() }) }
     }
 
     test("v1 size boundary includes trailing signatures and instruction data lengths are u16") {
-        fun sized(size: Int) = SolanaTxV1(MessageHeader(1, 0, 1), listOf(alice.publicKey, Programs.SYSTEM), blockhash, listOf(CompiledInstruction(1, emptyList(), ByteArray(size) { 7 })), empty)
+        fun sized(size: Int) = SolanaTxV1(MessageHeader(1, 0, 1), listOf(alice.publicKey, Programs.SYSTEM), blockhash, listOf(MessageInstruction(1, emptyList(), ByteArray(size) { 7 })), empty)
         // 42 fixed + 64 addresses + 4 instruction header + 64 signature = 174.
         val tx = sized(4096 - 174)
         tx.serializeForSimulation().size shouldBe 4096
@@ -158,7 +158,7 @@ class SolanaTxV1Test : FunSpec({
 
     test("v1 counts, heap boundaries and account privileges are validated") {
         val accounts = (1..65).map { SolanaAddress(ByteArray(32) { _ -> it.toByte() }) }
-        fun construct(header: MessageHeader = MessageHeader(1, 0, 0), keys: List<SolanaAddress> = accounts.take(2), instructions: List<CompiledInstruction> = emptyList(), requests: SolanaTransactionConfig = empty) = SolanaTxV1(header, keys, blockhash, instructions, requests)
+        fun construct(header: MessageHeader = MessageHeader(1, 0, 0), keys: List<SolanaAddress> = accounts.take(2), instructions: List<MessageInstruction> = emptyList(), requests: SolanaTransactionConfig = empty) = SolanaTxV1(header, keys, blockhash, instructions, requests)
         construct(keys = accounts.take(64)).accounts.size shouldBe 64
         shouldThrow<IllegalArgumentException> { construct(keys = accounts) }
         construct(header = MessageHeader(12, 11, 0), keys = accounts.take(12)).header.requiredSignatures shouldBe 12
@@ -166,11 +166,11 @@ class SolanaTxV1Test : FunSpec({
         shouldThrow<IllegalArgumentException> { construct(keys = listOf(alice.publicKey, alice.publicKey)) }
         shouldThrow<IllegalArgumentException> { construct(header = MessageHeader(1, 1, 0)) }
         shouldThrow<IllegalArgumentException> { construct(header = MessageHeader(1, 0, 2)) }
-        val instruction = CompiledInstruction(1, List(255) { 0 }, byteArrayOf())
+        val instruction = MessageInstruction(1, List(255) { 0 }, byteArrayOf())
         construct(instructions = listOf(instruction)).instructions.single().accounts.size shouldBe 255
-        construct(instructions = List(64) { CompiledInstruction(1, emptyList(), byteArrayOf()) }).instructions.size shouldBe 64
-        shouldThrow<IllegalArgumentException> { construct(instructions = List(65) { CompiledInstruction(1, emptyList(), byteArrayOf()) }) }
-        for (invalid in listOf(CompiledInstruction(0, emptyList(), byteArrayOf()), CompiledInstruction(2, emptyList(), byteArrayOf()), CompiledInstruction(1, listOf(2), byteArrayOf()), CompiledInstruction(1, List(256) { 0 }, byteArrayOf()))) {
+        construct(instructions = List(64) { MessageInstruction(1, emptyList(), byteArrayOf()) }).instructions.size shouldBe 64
+        shouldThrow<IllegalArgumentException> { construct(instructions = List(65) { MessageInstruction(1, emptyList(), byteArrayOf()) }) }
+        for (invalid in listOf(MessageInstruction(0, emptyList(), byteArrayOf()), MessageInstruction(2, emptyList(), byteArrayOf()), MessageInstruction(1, listOf(2), byteArrayOf()), MessageInstruction(1, List(256) { 0 }, byteArrayOf()))) {
             shouldThrow<IllegalArgumentException> { construct(instructions = listOf(invalid)) }
         }
         for (heap in listOf(0L, 32767L, 32769L, 263168L)) {

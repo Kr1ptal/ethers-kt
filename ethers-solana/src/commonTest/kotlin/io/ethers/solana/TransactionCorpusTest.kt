@@ -4,8 +4,8 @@ import io.ethers.core.Kotlinx
 import io.ethers.solana.corpus.transactionCorpus
 import io.ethers.solana.types.SolanaRPCTransaction
 import io.ethers.solana.types.SolanaSignature
-import io.ethers.solana.types.transaction.CompiledInstruction
-import io.ethers.solana.types.transaction.SolanaTransaction
+import io.ethers.solana.types.transaction.MessageInstruction
+import io.ethers.solana.types.transaction.SolanaTransactionCompiled
 import io.ethers.solana.types.transaction.SolanaTransactionSigned
 import io.ethers.solana.types.transaction.SolanaTransactionUnsigned
 import io.ethers.solana.types.transaction.SolanaTxLegacy
@@ -92,7 +92,7 @@ class TransactionCorpusTest : FunSpec({
             signed.type shouldBe rpc.type
             signed.signatures shouldBe rpc.transaction.signatures
             signed.toBase64() shouldBe fixture.getValue("wire").jsonPrimitive.content
-            SolanaTransaction.deserialize(signed.serialize()).serializeForSimulation() shouldBe signed.serialize()
+            SolanaTransactionCompiled.deserialize(signed.serialize()).serializeForSimulation() shouldBe signed.serialize()
             val decodedMessage = SolanaTransactionUnsigned.deserializeMessage(signed.serializeMessage())
             decodedMessage.serializeMessage() shouldBe signed.serializeMessage()
 

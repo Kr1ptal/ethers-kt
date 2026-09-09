@@ -15,7 +15,7 @@ import io.ethers.solana.types.SolanaSignature
 import io.ethers.solana.types.transaction.AddressLookupTableAccount
 import io.ethers.solana.types.transaction.CompiledAddressLookupTable
 import io.ethers.solana.types.transaction.MessageHeader
-import io.ethers.solana.types.transaction.SolanaTransaction
+import io.ethers.solana.types.transaction.SolanaTransactionCompiled
 import io.ethers.solana.types.transaction.SolanaTransactionSigned
 import io.ethers.solana.types.transaction.SolanaTransactionUnsigned
 import io.ethers.solana.types.transaction.SolanaTxLegacy
@@ -51,8 +51,8 @@ class TransactionTest : FunSpec({
             transaction.id shouldBe transaction.signatures.first()
             SolanaTransactionSigned.deserialize(transaction.serialize()).serialize() shouldBe transaction.serialize()
             SolanaTransactionUnsigned.deserializeMessage(message.serializeMessage())::class shouldBe message::class
-            SolanaTransaction.deserialize(transaction.serialize())::class shouldBe SolanaTransactionSigned::class
-            val unsigned = SolanaTransaction.deserialize(message.serializeForSimulation())
+            SolanaTransactionCompiled.deserialize(transaction.serialize())::class shouldBe SolanaTransactionSigned::class
+            val unsigned = SolanaTransactionCompiled.deserialize(message.serializeForSimulation())
             unsigned::class shouldBe message::class
             unsigned.serializeMessage() shouldBe message.serializeMessage()
             message.instructions.single().data.toByteArray() shouldBe FastHex.decode("020000002a00000000000000")
@@ -81,7 +81,7 @@ class TransactionTest : FunSpec({
             shouldThrow<IllegalArgumentException> { original.sign(alice) }
             shouldThrow<IllegalArgumentException> { partial.build() }
             shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.deserialize(partial.serializePartial()) }
-            shouldThrow<IllegalArgumentException> { SolanaTransaction.deserialize(partial.serializePartial()) }
+            shouldThrow<IllegalArgumentException> { SolanaTransactionCompiled.deserialize(partial.serializePartial()) }
             val completed = SolanaTransactionSigned.Builder.deserializePartial(partial.serializePartial()).sign(alice).build()
             completed.serialize() shouldBe original.sign(alice, bob).serialize()
             original.sign(bob, alice).serialize() shouldBe completed.serialize()
@@ -177,7 +177,7 @@ class TransactionTest : FunSpec({
             val builder = SolanaTransactionSigned.Builder.fromBase64Partial(encoded)
             builder.toBase64Partial() shouldBe encoded
             if (builder.isFullySigned) {
-                SolanaTransaction.fromBase64(encoded).serializeForSimulation() shouldBe builder.build().serialize()
+                SolanaTransactionCompiled.fromBase64(encoded).serializeForSimulation() shouldBe builder.build().serialize()
             }
         }
     }
@@ -186,14 +186,14 @@ class TransactionTest : FunSpec({
         val tx = SolanaTxLegacy.compile(alice.publicKey, blockhash, SystemProgram.transfer(alice.publicKey, bob.publicKey, 1))
         val signed = tx.sign(alice)
         val corrupt = signed.serialize().also { it[1] = (it[1].toInt() xor 1).toByte() }
-        shouldThrow<IllegalArgumentException> { SolanaTransaction.deserialize(corrupt) }
+        shouldThrow<IllegalArgumentException> { SolanaTransactionCompiled.deserialize(corrupt) }
         shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.deserialize(corrupt) }
         shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.Builder.deserializePartial(corrupt) }
         shouldThrow<IllegalArgumentException> { SolanaTransactionSigned(tx, listOf(SolanaSignature(ByteArray(64)))) }
         shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.deserialize(tx.serializeForSimulation()) }
-        shouldThrow<IllegalArgumentException> { SolanaTransaction.deserialize(byteArrayOf(0) + tx.serializeMessage()) }
-        shouldThrow<IllegalArgumentException> { SolanaTransaction.deserialize(byteArrayOf(2) + ByteArray(128) + tx.serializeMessage()) }
-        shouldThrow<IllegalArgumentException> { SolanaTransaction.deserialize(signed.serialize() + byteArrayOf(0)) }
+        shouldThrow<IllegalArgumentException> { SolanaTransactionCompiled.deserialize(byteArrayOf(0) + tx.serializeMessage()) }
+        shouldThrow<IllegalArgumentException> { SolanaTransactionCompiled.deserialize(byteArrayOf(2) + ByteArray(128) + tx.serializeMessage()) }
+        shouldThrow<IllegalArgumentException> { SolanaTransactionCompiled.deserialize(signed.serialize() + byteArrayOf(0)) }
     }
 
     test("serialized payloads and instruction data cannot be mutated through the transaction") {

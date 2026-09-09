@@ -26,7 +26,7 @@ class SolanaTxV1 private constructor(
     override val header: MessageHeader,
     override val accounts: List<SolanaAddress>,
     override val recentBlockhash: SolanaBlockhash,
-    override val instructions: List<CompiledInstruction>,
+    override val instructions: List<MessageInstruction>,
     val config: SolanaTransactionConfig,
     validated: Boolean,
 ) : SolanaTransactionUnsigned {
@@ -47,7 +47,7 @@ class SolanaTxV1 private constructor(
         header: MessageHeader,
         accounts: List<SolanaAddress>,
         recentBlockhash: SolanaBlockhash,
-        instructions: List<CompiledInstruction>,
+        instructions: List<MessageInstruction>,
         config: SolanaTransactionConfig,
     ) : this(header, accounts, recentBlockhash, instructions, config, false)
 
@@ -102,7 +102,7 @@ class SolanaTxV1 private constructor(
         internal fun envelopeSize(
             header: MessageHeader,
             accounts: List<SolanaAddress>,
-            instructions: List<CompiledInstruction>,
+            instructions: List<MessageInstruction>,
             config: SolanaTransactionConfig,
         ): Long = 42L + accounts.size * 32L + config.wireSize +
             instructions.sumOf { 4L + it.accounts.size + it.data.size } + header.requiredSignatures * 64L
@@ -111,7 +111,7 @@ class SolanaTxV1 private constructor(
         internal fun validate(
             header: MessageHeader,
             accounts: List<SolanaAddress>,
-            instructions: List<CompiledInstruction>,
+            instructions: List<MessageInstruction>,
             config: SolanaTransactionConfig,
         ): SolanaTransactionError? {
             messageError(header, accounts, instructions, emptyList())?.let { return it }
@@ -149,7 +149,7 @@ class SolanaTxV1 private constructor(
             header: MessageHeader,
             accounts: List<SolanaAddress>,
             recentBlockhash: SolanaBlockhash,
-            instructions: List<CompiledInstruction>,
+            instructions: List<MessageInstruction>,
             config: SolanaTransactionConfig,
         ): Result<SolanaTxV1, SolanaTransactionError> {
             validate(header, accounts, instructions, config)?.let { return Result.failure(it) }
@@ -187,7 +187,7 @@ class SolanaTxV1 private constructor(
             )
             val headers = List(instructionCount) { Triple(readByte(), readByte(), readUnsignedLittleEndian(2).toInt()) }
             val instructions = headers.map { (program, count, size) ->
-                CompiledInstruction(program, List(count) { readByte() }, SolanaBytes.fromBytes(readBytes(size)))
+                MessageInstruction(program, List(count) { readByte() }, SolanaBytes.fromBytes(readBytes(size)))
             }
             SolanaTxV1(header, accounts, blockhash, instructions, config)
         }

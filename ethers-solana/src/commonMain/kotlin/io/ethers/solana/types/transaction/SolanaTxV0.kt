@@ -21,7 +21,7 @@ class SolanaTxV0 private constructor(
     override val header: MessageHeader,
     override val accounts: List<SolanaAddress>,
     override val recentBlockhash: SolanaBlockhash,
-    override val instructions: List<CompiledInstruction>,
+    override val instructions: List<MessageInstruction>,
     val addressLookupTables: List<CompiledAddressLookupTable>,
     validated: Boolean,
 ) : SolanaTransactionUnsigned {
@@ -44,7 +44,7 @@ class SolanaTxV0 private constructor(
         header: MessageHeader,
         accounts: List<SolanaAddress>,
         recentBlockhash: SolanaBlockhash,
-        instructions: List<CompiledInstruction>,
+        instructions: List<MessageInstruction>,
         addressLookupTables: List<CompiledAddressLookupTable> = emptyList(),
     ) : this(header, accounts, recentBlockhash, instructions, addressLookupTables, false)
 
@@ -79,7 +79,7 @@ class SolanaTxV0 private constructor(
         internal fun validate(
             header: MessageHeader,
             accounts: List<SolanaAddress>,
-            instructions: List<CompiledInstruction>,
+            instructions: List<MessageInstruction>,
             lookups: List<CompiledAddressLookupTable>,
         ): SolanaTransactionError? = messageError(header, accounts, instructions, lookups)
             ?: envelopeSizeError(SolanaTxType.V0, legacyEnvelopeSize(header, accounts, instructions, lookups), MAX_TRANSACTION_SIZE)
@@ -91,7 +91,7 @@ class SolanaTxV0 private constructor(
             header: MessageHeader,
             accounts: List<SolanaAddress>,
             recentBlockhash: SolanaBlockhash,
-            instructions: List<CompiledInstruction>,
+            instructions: List<MessageInstruction>,
             addressLookupTables: List<CompiledAddressLookupTable> = emptyList(),
         ): Result<SolanaTxV0, SolanaTransactionError> {
             validate(header, accounts, instructions, addressLookupTables)?.let { return Result.failure(it) }

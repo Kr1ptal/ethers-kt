@@ -9,7 +9,13 @@ import io.ethers.solana.types.AccountMeta
 import io.ethers.solana.types.Programs
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
+import io.ethers.solana.types.SolanaRPCInstruction
+import io.ethers.solana.types.SolanaRPCMessage
+import io.ethers.solana.types.SolanaRPCTransaction
+import io.ethers.solana.types.SolanaRPCTransactionData
 import io.ethers.solana.types.transaction.AddressLookupTableAccount
+import io.ethers.solana.types.transaction.MessageHeader
+import io.ethers.solana.types.transaction.SolanaTransaction
 import io.ethers.solana.types.transaction.SolanaTransactionError
 import io.ethers.solana.types.transaction.SolanaTransactionRequest
 import io.ethers.solana.types.transaction.SolanaTxLegacy
@@ -328,6 +334,69 @@ class SolanaTransactionRequestTest : FunSpec({
         }.compileV0()
         free.priorityFee shouldBe bigIntegerOf(0)
         free.estimateFee(bigIntegerOf(5000)) shouldBe bigIntegerOf(5000)
+    }
+
+    test("an RPC response reads as a transaction view, whatever version it holds") {
+        val compiled = SolanaTransactionRequest {
+            feePayer(alice.publicKey)
+            blockhash(blockhash)
+            instruction(transfer)
+            computeUnitLimit(200_000)
+            computeUnitPrice(1_000)
+            heapSize(65536)
+        }.compileV0()
+
+        val rpc = SolanaRPCTransaction(
+            slot = bigIntegerOf(1),
+            blockTime = null,
+            transaction = SolanaRPCTransactionData(
+                signatures = emptyList(),
+                message = SolanaRPCMessage(
+                    header = compiled.header,
+                    accountKeys = compiled.accounts,
+                    recentBlockhash = compiled.recentBlockhash,
+                    instructions = compiled.instructions.map { SolanaRPCInstruction(it.programIdIndex, it.accounts, it.data) },
+                ),
+            ),
+            meta = null,
+            type = SolanaTxType.V0,
+        )
+
+        // the same reads work whether the transaction was built here or returned by a node
+        val views = listOf<SolanaTransaction>(compiled, rpc)
+        for (view in views) {
+            view.feePayer shouldBe alice.publicKey
+            view.signers shouldBe listOf(alice.publicKey)
+            view.computeUnitLimit shouldBe 200_000
+            view.computeUnitPrice shouldBe bigIntegerOf(1_000)
+            view.priorityFee shouldBe bigIntegerOf(200)
+            view.heapSize shouldBe 65536
+            view.estimateFee(bigIntegerOf(5000)) shouldBe bigIntegerOf(5200)
+        }
+        rpc.instructions.map { it.programIdIndex } shouldBe compiled.instructions.map { it.programIdIndex }
+    }
+
+    test("a version this library cannot construct reports no compute budget rather than guessing") {
+        val unsupported = SolanaRPCTransaction(
+            slot = bigIntegerOf(1),
+            blockTime = null,
+            transaction = SolanaRPCTransactionData(
+                signatures = emptyList(),
+                message = SolanaRPCMessage(
+                    header = MessageHeader(1, 0, 1),
+                    accountKeys = listOf(alice.publicKey, Programs.COMPUTE_BUDGET),
+                    recentBlockhash = blockhash,
+                    // would decode as a compute unit limit in a legacy message
+                    instructions = listOf(SolanaRPCInstruction(1, emptyList(), ComputeBudgetProgram.setComputeUnitLimit(200_000).data)),
+                ),
+            ),
+            meta = null,
+            type = SolanaTxType.Unsupported(3),
+        )
+        unsupported.computeUnitLimit shouldBe null
+        unsupported.priorityFee shouldBe null
+        unsupported.heapSize shouldBe null
+        unsupported.feePayer shouldBe alice.publicKey
     }
 
     test("a v1 price with no limit cannot become a priority fee") {

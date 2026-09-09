@@ -6,8 +6,8 @@ import io.ethers.solana.signers.KeypairSigner
 import io.ethers.solana.types.Programs
 import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.types.transaction.CompiledAddressLookupTable
-import io.ethers.solana.types.transaction.CompiledInstruction
 import io.ethers.solana.types.transaction.MessageHeader
+import io.ethers.solana.types.transaction.MessageInstruction
 import io.ethers.solana.types.transaction.SolanaTransactionConfig
 import io.ethers.solana.types.transaction.SolanaTransactionSigned
 import io.ethers.solana.types.transaction.SolanaTransactionUnsigned
@@ -30,7 +30,7 @@ class TransactionBoundaryTest : FunSpec({
         val random = Random(7)
         repeat(40) {
             val instructions = List(random.nextInt(1, 5)) {
-                CompiledInstruction(1, List(random.nextInt(0, 5)) { random.nextInt(2) }, random.nextBytes(random.nextInt(0, 140)))
+                MessageInstruction(1, List(random.nextInt(0, 5)) { random.nextInt(2) }, random.nextBytes(random.nextInt(0, 140)))
             }
             val lookups = listOf(CompiledAddressLookupTable(Programs.TOKEN, List(random.nextInt(0, 4)) { it }, List(random.nextInt(0, 4)) { it + 8 }))
             val messages = listOf(
@@ -80,7 +80,7 @@ class TransactionBoundaryTest : FunSpec({
 
     test("legacy and v0 data lengths cross the packet-reachable compact-u16 boundary") {
         for (size in listOf(0, 1, 127, 128, 129)) {
-            val instructions = listOf(CompiledInstruction(1, listOf(0), ByteArray(size) { it.toByte() }))
+            val instructions = listOf(MessageInstruction(1, listOf(0), ByteArray(size) { it.toByte() }))
             for (tx in listOf(SolanaTxLegacy(header, keys, hash, instructions), SolanaTxV0(header, keys, hash, instructions, emptyList()))) {
                 val decoded = SolanaTransactionUnsigned.deserializeMessage(tx.serializeMessage())
                 decoded.instructions.single().data shouldBe instructions.single().data
@@ -88,7 +88,7 @@ class TransactionBoundaryTest : FunSpec({
             }
         }
         for (size in listOf(16383, 16384, 16385, 65535, 65536)) {
-            val instructions = listOf(CompiledInstruction(1, emptyList(), ByteArray(size)))
+            val instructions = listOf(MessageInstruction(1, emptyList(), ByteArray(size)))
             shouldThrow<IllegalArgumentException> { SolanaTxLegacy(header, keys, hash, instructions) }
             shouldThrow<IllegalArgumentException> { SolanaTxV0(header, keys, hash, instructions, emptyList()) }
         }
@@ -101,7 +101,7 @@ class TransactionBoundaryTest : FunSpec({
                 val accounts = signers.map { it.publicKey } + Programs.SYSTEM
                 val messageHeader = MessageHeader(signerCount, 0, 1)
                 fun construct(dataSize: Int): SolanaTransactionUnsigned {
-                    val instructions = listOf(CompiledInstruction(signerCount, emptyList(), ByteArray(dataSize)))
+                    val instructions = listOf(MessageInstruction(signerCount, emptyList(), ByteArray(dataSize)))
                     return if (versioned) SolanaTxV0(messageHeader, accounts, hash, instructions) else SolanaTxLegacy(messageHeader, accounts, hash, instructions)
                 }
                 // Length-prefix width may increase when filling the remaining space.
@@ -130,7 +130,7 @@ class TransactionBoundaryTest : FunSpec({
 
     test("v0 loaded account indices reach 255 but reject a 257th account") {
         val lookup = CompiledAddressLookupTable(Programs.TOKEN, (0..126).toList(), (127..253).toList())
-        val tx = SolanaTxV0(header, keys, hash, listOf(CompiledInstruction(1, listOf(0, 127, 128, 255), byteArrayOf())), listOf(lookup))
+        val tx = SolanaTxV0(header, keys, hash, listOf(MessageInstruction(1, listOf(0, 127, 128, 255), byteArrayOf())), listOf(lookup))
         val decoded = SolanaTransactionUnsigned.deserializeMessage(tx.serializeMessage()) as SolanaTxV0
         decoded.instructions.single().accounts shouldBe listOf(0, 127, 128, 255)
         decoded.serializeMessage() shouldBe tx.serializeMessage()
@@ -143,7 +143,7 @@ class TransactionBoundaryTest : FunSpec({
         val random = Random(0x501A)
         repeat(8) {
             val instructions = List(random.nextInt(1, 5)) {
-                CompiledInstruction(1, List(random.nextInt(0, 5)) { random.nextInt(2) }, random.nextBytes(random.nextInt(0, 140)))
+                MessageInstruction(1, List(random.nextInt(0, 5)) { random.nextInt(2) }, random.nextBytes(random.nextInt(0, 140)))
             }
             val messages = listOf(
                 SolanaTxLegacy(header, keys, hash, instructions),

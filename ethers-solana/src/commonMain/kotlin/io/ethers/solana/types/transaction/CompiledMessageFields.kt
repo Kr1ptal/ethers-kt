@@ -9,7 +9,7 @@ internal class CompiledMessageFields(
     val header: MessageHeader,
     val accounts: List<SolanaAddress>,
     val recentBlockhash: SolanaBlockhash,
-    val instructions: List<CompiledInstruction>,
+    val instructions: List<MessageInstruction>,
     val lookups: List<CompiledAddressLookupTable>,
 )
 
@@ -139,7 +139,7 @@ internal fun compileMessage(
     val all = static + writable.flatMapIndexed { table, indices -> indices.map { tableAddresses[table][it] } } + readonly.flatMapIndexed { table, indices -> indices.map { tableAddresses[table][it] } }
     if (all.size > 256) return Result.failure(SolanaTransactionError.CountOutOfRange(SolanaTransactionError.Limit.ACCOUNTS, all.size, 1..256))
     val index = all.withIndex().associate { it.value to it.index }
-    val compiled = instructions.map { CompiledInstruction(index.getValue(it.programId), it.keys.map { key -> index.getValue(key.publicKey) }, it.data) }
+    val compiled = instructions.map { MessageInstruction(index.getValue(it.programId), it.keys.map { key -> index.getValue(key.publicKey) }, it.data) }
     val lookups = lookupTables.indices.filter { writable[it].isNotEmpty() || readonly[it].isNotEmpty() }.map {
         CompiledAddressLookupTable(lookupTables[it].key, writable[it], readonly[it])
     }
