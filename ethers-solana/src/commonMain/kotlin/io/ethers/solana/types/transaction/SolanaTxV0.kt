@@ -7,6 +7,7 @@ import io.ethers.solana.serialization.SolanaMessageEncoder
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.types.SolanaSignature
+import io.github.artificialpb.bignum.BigInteger
 import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmStatic
 
@@ -25,6 +26,14 @@ class SolanaTxV0 private constructor(
     validated: Boolean,
 ) : SolanaTransactionUnsigned {
     override val type: SolanaTxType get() = SolanaTxType.V0
+
+    // decoded once: reading the settings back means scanning and parsing the instructions
+    private val computeBudget by lazy { decodeComputeBudget(accounts, instructions) }
+    override val computeUnitLimit: Long? get() = computeBudget.computeUnitLimit
+    override val computeUnitPrice: BigInteger? get() = computeBudget.computeUnitPrice
+    override val priorityFee: BigInteger? get() = computeBudget.priorityFee
+    override val loadedAccountsDataSizeLimit: Long? get() = computeBudget.loadedAccountsDataSizeLimit
+    override val heapSize: Long? get() = computeBudget.heapSize
 
     /**
      * Validate the fields, throwing [SolanaTransactionException] if they do not describe a legal

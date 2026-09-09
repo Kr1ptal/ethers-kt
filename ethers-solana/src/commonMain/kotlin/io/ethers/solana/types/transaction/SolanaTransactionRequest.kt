@@ -8,6 +8,7 @@ import io.ethers.solana.serialization.SolanaMessageDecoder
 import io.ethers.solana.types.Programs
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
+import io.ethers.solana.types.SolanaBytes
 import io.ethers.solana.utils.U32_MAX
 import io.ethers.solana.utils.requireU64
 import io.github.artificialpb.bignum.BigInteger
@@ -278,14 +279,17 @@ internal class ComputeBudgetSettings(
         const val SET_LOADED_ACCOUNTS_DATA_SIZE_LIMIT = 4
 
         /** The ComputeBudget discriminant this instruction carries, or -1 if it is not a decodable one. */
-        fun discriminant(instruction: Instruction): Int {
-            if (instruction.programId != Programs.COMPUTE_BUDGET || instruction.data.isEmpty) return -1
-            val expected = when (instruction.data[0].toInt()) {
+        fun discriminant(instruction: Instruction): Int = discriminant(instruction.programId, instruction.data)
+
+        /** As above, for an instruction whose program has already been resolved from an account list. */
+        fun discriminant(programId: SolanaAddress, data: SolanaBytes): Int {
+            if (programId != Programs.COMPUTE_BUDGET || data.isEmpty) return -1
+            val expected = when (data[0].toInt()) {
                 REQUEST_HEAP_FRAME, SET_UNIT_LIMIT, SET_LOADED_ACCOUNTS_DATA_SIZE_LIMIT -> 5
                 SET_UNIT_PRICE -> 9
                 else -> return -1
             }
-            return if (instruction.data.size == expected) instruction.data[0].toInt() else -1
+            return if (data.size == expected) data[0].toInt() else -1
         }
 
         fun decode(instructions: List<Instruction>): ComputeBudgetSettings {

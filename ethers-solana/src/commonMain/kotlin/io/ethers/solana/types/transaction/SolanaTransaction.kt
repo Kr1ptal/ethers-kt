@@ -1,8 +1,6 @@
 package io.ethers.solana.types.transaction
 
 import io.ethers.core.Result
-import io.ethers.solana.serialization.SolanaMessageDecoder
-import io.ethers.solana.types.Programs
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.utils.requireU64
@@ -21,6 +19,36 @@ sealed interface SolanaTransaction {
     val feePayer: SolanaAddress get() = accounts.first()
     val signers: List<SolanaAddress> get() = accounts.take(header.requiredSignatures)
 
+    /**
+     * Compute units this message may consume, or null when it leaves the runtime's default in place.
+     *
+     * Legacy and v0 state the ComputeBudget settings as instructions and v1 states them inline, so
+     * these read the same either way. None of them is required: most messages set none.
+     */
+    val computeUnitLimit: Long?
+
+    /**
+     * Micro-lamports per compute unit, as legacy and v0 state priority.
+     *
+     * Null on v1, which states a total instead: a total is not exactly representable as an integer
+     * price, so v1 reports [priorityFee] rather than a rounded price that would not reproduce it.
+     */
+    val computeUnitPrice: BigInteger?
+
+    /**
+     * Total priority fee in lamports, which v1 states directly and legacy and v0 only imply.
+     *
+     * Null when no priority is stated, and when a nonzero price has no compute unit limit to
+     * multiply, since the runtime would apply a default limit this library cannot predict.
+     */
+    val priorityFee: BigInteger?
+
+    /** Combined size of the accounts this message may load, or null for the runtime's default. */
+    val loadedAccountsDataSizeLimit: Long?
+
+    /** Heap space this message may use, or null for the runtime's default of 32 KiB. */
+    val heapSize: Long?
+
     /** The exact message bytes signed by Ed25519, without the signature envelope. */
     fun serializeMessage(): ByteArray
 
@@ -33,24 +61,10 @@ sealed interface SolanaTransaction {
      */
     fun estimateFee(lamportsPerSignature: BigInteger): BigInteger {
         requireU64(lamportsPerSignature)
-        var units: BigInteger? = null
-        var price = bigIntegerOf(0)
-        instructions.filter { accounts[it.programIdIndex] == Programs.COMPUTE_BUDGET }.forEach {
-            val decoder = SolanaMessageDecoder(it.data.asByteArray())
-            when (decoder.readByte()) {
-                2 -> {
-                    units = decoder.readUnsignedLittleEndian(4)
-                    decoder.requireDone()
-                }
-                3 -> {
-                    price = decoder.readUnsignedLittleEndian(8)
-                    decoder.requireDone()
-                }
-            }
-        }
-        require(price.signum() == 0 || units != null) { "Specify a compute-unit limit or query getFeeForMessage" }
-        val priority = (units ?: bigIntegerOf(0)).multiply(price).add(bigIntegerOf(999999)).divide(bigIntegerOf(1000000))
-        return lamportsPerSignature.multiply(bigIntegerOf(header.requiredSignatures)).add(priority)
+        val priority = priorityFee
+        val price = computeUnitPrice
+        require(priority != null || price == null || price.signum() == 0) { "Specify a compute-unit limit or query getFeeForMessage" }
+        return lamportsPerSignature.multiply(bigIntegerOf(header.requiredSignatures)).add(priority ?: bigIntegerOf(0))
     }
 
     companion object {

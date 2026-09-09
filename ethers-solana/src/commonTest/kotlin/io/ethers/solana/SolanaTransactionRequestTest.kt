@@ -17,6 +17,7 @@ import io.ethers.solana.types.transaction.SolanaTxType
 import io.ethers.solana.types.transaction.SolanaTxV0
 import io.ethers.solana.types.transaction.SolanaTxV1
 import io.github.artificialpb.bignum.bigIntegerOf
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -249,6 +250,84 @@ class SolanaTransactionRequestTest : FunSpec({
         // a limit carried by an instruction is enough
         val withInstructionLimit = request().apply { instruction(ComputeBudgetProgram.setComputeUnitLimit(200_000)) }
         withInstructionLimit.tryCompileV0().isFailure() shouldBe false
+    }
+
+    test("every version reports its compute budget through the same accessors") {
+        fun request() = SolanaTransactionRequest {
+            feePayer(alice.publicKey)
+            blockhash(blockhash)
+            instruction(transfer)
+            computeUnitLimit(200_000)
+            computeUnitPrice(1_000)
+            heapSize(65536)
+            loadedAccountsDataSizeLimit(131072)
+        }
+
+        val v0 = request().compileV0()
+        val v1 = request().compileV1()
+        val legacy = request().compileLegacy()
+
+        for (tx in listOf(legacy, v0, v1)) {
+            tx.computeUnitLimit shouldBe 200_000
+            tx.heapSize shouldBe 65536
+            tx.loadedAccountsDataSizeLimit shouldBe 131072
+            // 200000 units at 1000 micro-lamports rounds up to 200 lamports, however it is encoded
+            tx.priorityFee shouldBe bigIntegerOf(200)
+        }
+
+        // legacy and v0 state a per-unit price; v1 states the total instead
+        legacy.computeUnitPrice shouldBe bigIntegerOf(1_000)
+        v0.computeUnitPrice shouldBe bigIntegerOf(1_000)
+        v1.computeUnitPrice shouldBe null
+    }
+
+    test("a message that sets nothing reports nothing, and a v1 message ignores ComputeBudget instructions") {
+        val bare = SolanaTransactionRequest {
+            feePayer(alice.publicKey)
+            blockhash(blockhash)
+            instruction(transfer)
+        }.compileV0()
+        bare.computeUnitLimit shouldBe null
+        bare.computeUnitPrice shouldBe null
+        bare.priorityFee shouldBe null
+        bare.heapSize shouldBe null
+        bare.loadedAccountsDataSizeLimit shouldBe null
+        bare.estimateFee(bigIntegerOf(5000)) shouldBe bigIntegerOf(5000)
+
+        // an instruction the compiler could not translate stays in a v1 message, but does not configure it
+        val opaque = SolanaTransactionRequest {
+            feePayer(alice.publicKey)
+            blockhash(blockhash)
+            instruction(Instruction(Programs.COMPUTE_BUDGET, emptyList(), byteArrayOf(9, 9)))
+            instruction(transfer)
+        }.compileV1()
+        opaque.accounts.contains(Programs.COMPUTE_BUDGET) shouldBe true
+        opaque.computeUnitLimit shouldBe null
+        opaque.priorityFee shouldBe null
+    }
+
+    test("a stated price with no limit has no determinable total") {
+        val tx = SolanaTransactionRequest {
+            feePayer(alice.publicKey)
+            blockhash(blockhash)
+            instruction(ComputeBudgetProgram.setComputeUnitPrice(1_000))
+            instruction(transfer)
+        }.compileV0()
+
+        tx.computeUnitPrice shouldBe bigIntegerOf(1_000)
+        // the runtime would apply a default limit, which this library cannot predict
+        tx.priorityFee shouldBe null
+        shouldThrow<IllegalArgumentException> { tx.estimateFee(bigIntegerOf(5000)) }
+
+        // a price of zero costs nothing, limit or not
+        val free = SolanaTransactionRequest {
+            feePayer(alice.publicKey)
+            blockhash(blockhash)
+            instruction(ComputeBudgetProgram.setComputeUnitPrice(0))
+            instruction(transfer)
+        }.compileV0()
+        free.priorityFee shouldBe bigIntegerOf(0)
+        free.estimateFee(bigIntegerOf(5000)) shouldBe bigIntegerOf(5000)
     }
 
     test("a v1 price with no limit cannot become a priority fee") {

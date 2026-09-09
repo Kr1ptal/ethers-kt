@@ -32,6 +32,13 @@ class SolanaTxV1 private constructor(
 ) : SolanaTransactionUnsigned {
     override val type: SolanaTxType get() = SolanaTxType.V1
 
+    // ComputeBudget instructions do not configure v1, so only the inline config is reported
+    override val computeUnitLimit: Long? get() = config.computeUnitLimit
+    override val computeUnitPrice: BigInteger? get() = null
+    override val priorityFee: BigInteger? get() = config.priorityFee
+    override val loadedAccountsDataSizeLimit: Long? get() = config.loadedAccountsDataSizeLimit
+    override val heapSize: Long? get() = config.heapSize
+
     /**
      * Validate the fields, throwing [SolanaTransactionException] if they do not describe a legal
      * message. [tryCreate] reports the same failure as a value, without building an exception.
@@ -87,8 +94,6 @@ class SolanaTxV1 private constructor(
         }
         return encoder.toByteArray()
     }
-
-    override fun estimateFee(lamportsPerSignature: BigInteger): BigInteger = requireU64(lamportsPerSignature).multiply(bigIntegerOf(header.requiredSignatures)).add(config.priorityFee ?: bigIntegerOf(0))
 
     companion object {
         const val MAX_TRANSACTION_SIZE: Int = 4096
