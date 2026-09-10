@@ -41,7 +41,7 @@ class SolanaTxV1 private constructor(
 
     /**
      * Validate the fields, throwing [SolanaTransactionException] if they do not describe a legal
-     * message. [tryCreate] reports the same failure as a value, without building an exception.
+     * message. [create] reports the same failure as a value, without building an exception.
      */
     constructor(
         header: MessageHeader,
@@ -143,9 +143,9 @@ class SolanaTxV1 private constructor(
             return envelopeSizeError(SolanaTxType.V1, envelopeSize(header, accounts, instructions, config), MAX_TRANSACTION_SIZE)
         }
 
-        /** As the constructor, reporting the reason the fields are invalid instead of throwing. */
+        /** As the constructor, reporting the reason the fields are invalid as a value rather than throwing. */
         @JvmStatic
-        fun tryCreate(
+        fun create(
             header: MessageHeader,
             accounts: List<SolanaAddress>,
             recentBlockhash: SolanaBlockhash,
@@ -157,54 +157,49 @@ class SolanaTxV1 private constructor(
         }
 
         /** The version prefix has already been read. Leaves any trailing signature bytes for the envelope reader. */
-        internal fun decodeBody(decoder: SolanaMessageDecoder): SolanaTxV1 = with(decoder) {
+        internal fun decodeBody(decoder: SolanaMessageDecoder): Result<SolanaTxV1, SolanaTransactionError> = with(decoder) {
             val header = MessageHeader(readByte(), readByte(), readByte())
             val mask = readUnsignedLittleEndian(4).toLong()
+            if (failed) return Result.failure(malformed())
             if (mask and 31L != mask) {
-                throw SolanaTransactionError.InvalidMessage(SolanaTransactionError.Reason.CONFIG, "Unsupported v1 config mask $mask").toException()
+                return Result.failure(SolanaTransactionError.InvalidMessage(SolanaTransactionError.Reason.CONFIG, "Unsupported v1 config mask $mask"))
             }
             if (mask and 3L != 0L && mask and 3L != 3L) {
-                throw SolanaTransactionError.InvalidMessage(SolanaTransactionError.Reason.CONFIG, "Both priority-fee config bits must be set").toException()
+                return Result.failure(SolanaTransactionError.InvalidMessage(SolanaTransactionError.Reason.CONFIG, "Both priority-fee config bits must be set"))
             }
             val blockhash = SolanaBlockhash(readBytes(32))
             val instructionCount = readByte()
             val accountCount = readByte()
+            if (failed) return Result.failure(malformed())
             if (instructionCount > 64) {
-                throw SolanaTransactionError.CountOutOfRange(SolanaTransactionError.Limit.INSTRUCTIONS, instructionCount, 0..64).toException()
+                return Result.failure(SolanaTransactionError.CountOutOfRange(SolanaTransactionError.Limit.INSTRUCTIONS, instructionCount, 0..64))
             }
             if (accountCount !in 1..64) {
-                throw SolanaTransactionError.CountOutOfRange(SolanaTransactionError.Limit.ACCOUNTS, accountCount, 1..64).toException()
+                return Result.failure(SolanaTransactionError.CountOutOfRange(SolanaTransactionError.Limit.ACCOUNTS, accountCount, 1..64))
             }
             if (header.requiredSignatures !in 1..12) {
-                throw SolanaTransactionError.CountOutOfRange(SolanaTransactionError.Limit.SIGNERS, header.requiredSignatures, 1..12).toException()
+                return Result.failure(SolanaTransactionError.CountOutOfRange(SolanaTransactionError.Limit.SIGNERS, header.requiredSignatures, 1..12))
             }
-            val accounts = List(accountCount) { SolanaAddress(readBytes(32)) }
+            val accounts = readList(accountCount) { SolanaAddress(readBytes(32)) }
             val config = SolanaTransactionConfig(
                 priorityFee = if (mask and 3L != 0L) readUnsignedLittleEndian(8) else null,
                 computeUnitLimit = if (mask and 4L != 0L) readUnsignedLittleEndian(4).toLong() else null,
                 loadedAccountsDataSizeLimit = if (mask and 8L != 0L) readUnsignedLittleEndian(4).toLong() else null,
                 heapSize = if (mask and 16L != 0L) readUnsignedLittleEndian(4).toLong() else null,
             )
-            val headers = List(instructionCount) { Triple(readByte(), readByte(), readUnsignedLittleEndian(2).toInt()) }
+            val headers = readList(instructionCount) { Triple(readByte(), readByte(), readUnsignedLittleEndian(2).toInt()) }
             val instructions = headers.map { (program, count, size) ->
-                MessageInstruction(program, List(count) { readByte() }, SolanaBytes.fromBytes(readBytes(size)))
+                MessageInstruction(program, readList(count) { readByte() }, SolanaBytes.fromBytes(readBytes(size)))
             }
-            SolanaTxV1(header, accounts, blockhash, instructions, config)
+            if (failed) return Result.failure(malformed())
+            return create(header, accounts, blockhash, instructions, config)
         }
 
         @JvmStatic
-        fun compile(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instruction: Instruction, config: SolanaTransactionConfig): SolanaTxV1 = compile(feePayer, blockhash, listOf(instruction), config)
-
-        /** As [compile], returning the reason it could not be compiled instead of throwing. */
-        @JvmStatic
-        fun tryCompile(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instruction: Instruction, config: SolanaTransactionConfig): Result<SolanaTxV1, SolanaTransactionError> = tryCompile(feePayer, blockhash, listOf(instruction), config)
-
-        /** As [compile], returning the reason it could not be compiled instead of throwing. */
-        @JvmStatic
-        fun tryCompile(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instructions: List<Instruction>, config: SolanaTransactionConfig): Result<SolanaTxV1, SolanaTransactionError> = compileMessage(feePayer, blockhash, instructions, emptyList())
-            .andThen { tryCreate(it.header, it.accounts, it.recentBlockhash, it.instructions, config) }
+        fun compile(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instruction: Instruction, config: SolanaTransactionConfig): Result<SolanaTxV1, SolanaTransactionError> = compile(feePayer, blockhash, listOf(instruction), config)
 
         @JvmStatic
-        fun compile(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instructions: List<Instruction>, config: SolanaTransactionConfig): SolanaTxV1 = tryCompile(feePayer, blockhash, instructions, config).unwrap()
+        fun compile(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instructions: List<Instruction>, config: SolanaTransactionConfig): Result<SolanaTxV1, SolanaTransactionError> = compileMessage(feePayer, blockhash, instructions, emptyList())
+            .andThen { create(it.header, it.accounts, it.recentBlockhash, it.instructions, config) }
     }
 }

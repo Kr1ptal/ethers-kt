@@ -41,14 +41,14 @@ data class SolanaRPCMessage(
     fun toTransaction(type: SolanaTxType): Result<SolanaTransactionUnsigned, SolanaTransactionError> {
         val compiled = instructions.map { MessageInstruction(it.programIdIndex, it.accounts, it.data) }
         return when (type) {
-            SolanaTxType.Legacy -> SolanaTxLegacy.tryCreate(header, accountKeys, recentBlockhash, compiled)
-            SolanaTxType.V0 -> SolanaTxV0.tryCreate(header, accountKeys, recentBlockhash, compiled, addressTableLookups)
+            SolanaTxType.Legacy -> SolanaTxLegacy.create(header, accountKeys, recentBlockhash, compiled)
+            SolanaTxType.V0 -> SolanaTxV0.create(header, accountKeys, recentBlockhash, compiled, addressTableLookups)
             SolanaTxType.V1 -> {
                 val config = transactionConfig
                     ?: return Result.failure(
                         SolanaTransactionError.InvalidMessage(SolanaTransactionError.Reason.CONFIG, "A v1 message must carry its inline config"),
                     )
-                SolanaTxV1.tryCreate(header, accountKeys, recentBlockhash, compiled, config)
+                SolanaTxV1.create(header, accountKeys, recentBlockhash, compiled, config)
             }
 
             is SolanaTxType.Unsupported -> Result.failure(SolanaTransactionError.UnsupportedVersion(type.version))

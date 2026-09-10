@@ -35,8 +35,8 @@ class SolanaTxV1Test : FunSpec({
     val blockhash = SolanaBlockhash(ByteArray(32))
     val empty = SolanaTransactionConfig()
     val config = SolanaTransactionConfig(bigIntegerOf(5000), 20000, 65536, 65536)
-    fun transfer(requests: SolanaTransactionConfig = config) = SolanaTxV1.compile(alice.publicKey, blockhash, SystemProgram.transfer(alice.publicKey, bob.publicKey, 42), requests)
-    fun decode(bytes: ByteArray) = SolanaTransactionUnsigned.deserializeMessage(bytes) as SolanaTxV1
+    fun transfer(requests: SolanaTransactionConfig = config) = SolanaTxV1.compile(alice.publicKey, blockhash, SystemProgram.transfer(alice.publicKey, bob.publicKey, 42), requests).unwrap()
+    fun decode(bytes: ByteArray) = SolanaTransactionUnsigned.deserializeMessage(bytes).unwrap() as SolanaTxV1
 
     test("SIMD-0385 golden layout and independent Node crypto Ed25519 signature") {
         // Explicit layout checked against solana-message 4.5.0 versions/v1/message.rs SchemaWrite.
@@ -53,13 +53,13 @@ class SolanaTxV1Test : FunSpec({
             blockhash,
             listOf(SystemProgram.transfer(alice.publicKey, Programs.SYSTEM, 42), Instruction(Programs.SYSTEM, emptyList(), FastHex.decode("aabbcc"))),
             config.copy(priorityFee = BigInteger("18446744073709551615")),
-        )
+        ).unwrap()
         tx.serializeMessage() shouldBe expected
         decode(expected).serializeMessage() shouldBe expected
         val signed = tx.sign(alice)
         signed.id.toByteArray() shouldBe FastHex.decode("cc7a3989600e8a7b6cf4c4a917e46b6887f7151b393f4672b354f018c10e9a66f1d22955779cfe3502534d6cf74b7c94b83704a924886ac5355b3e349620c605")
         signed.serialize() shouldBe expected + signed.id.toByteArray()
-        SolanaTransactionSigned.fromBase64(signed.toBase64()).serialize() shouldBe signed.serialize()
+        SolanaTransactionSigned.fromBase64(signed.toBase64()).unwrap().serialize() shouldBe signed.serialize()
         signed.type shouldBe SolanaTxType.V1
         signed.tx::class shouldBe SolanaTxV1::class
     }
@@ -74,7 +74,7 @@ class SolanaTxV1Test : FunSpec({
             )
             val tx = transfer(requests)
             decode(tx.serializeMessage()).config shouldBe requests
-            SolanaTransactionCompiled.deserialize(tx.serializeForSimulation()).serializeMessage() shouldBe tx.serializeMessage()
+            SolanaTransactionCompiled.deserialize(tx.serializeForSimulation()).unwrap().serializeMessage() shouldBe tx.serializeMessage()
         }
         val zeros = SolanaTransactionConfig(bigIntegerOf(0), 0, 0)
         decode(transfer(zeros).serializeMessage()).config shouldBe zeros
@@ -90,7 +90,7 @@ class SolanaTxV1Test : FunSpec({
     }
 
     test("inline priority fee is total lamports and ComputeBudget instructions are ignored") {
-        val tx = SolanaTxV1.compile(alice.publicKey, blockhash, Instruction(Programs.COMPUTE_BUDGET, emptyList(), byteArrayOf()), config)
+        val tx = SolanaTxV1.compile(alice.publicKey, blockhash, Instruction(Programs.COMPUTE_BUDGET, emptyList(), byteArrayOf()), config).unwrap()
         tx.estimateFee(bigIntegerOf(5000)) shouldBe bigIntegerOf(10000)
         tx.sign(alice).estimateFee(bigIntegerOf(5000)) shouldBe bigIntegerOf(10000)
         tx.withConfig(empty).estimateFee(bigIntegerOf(5000)) shouldBe bigIntegerOf(5000)
@@ -98,19 +98,19 @@ class SolanaTxV1Test : FunSpec({
     }
 
     test("partial signatures, unsigned simulations and config/blockhash replacement") {
-        val tx = SolanaTxV1.compile(alice.publicKey, blockhash, Instruction(Programs.SYSTEM, listOf(AccountMeta.signer(bob.publicKey)), byteArrayOf(7)), config)
+        val tx = SolanaTxV1.compile(alice.publicKey, blockhash, Instruction(Programs.SYSTEM, listOf(AccountMeta.signer(bob.publicKey)), byteArrayOf(7)), config).unwrap()
         val builder = tx.signingBuilder().sign(bob)
         builder.signatures.first() shouldBe null
         shouldThrow<IllegalArgumentException> { builder.build() }
-        shouldThrow<IllegalArgumentException> { SolanaTransactionCompiled.deserialize(builder.serializePartial()) }
-        val imported = SolanaTransactionSigned.Builder.fromBase64Partial(builder.toBase64Partial())
+        shouldThrow<IllegalArgumentException> { SolanaTransactionCompiled.deserialize(builder.serializePartial()).unwrap() }
+        val imported = SolanaTransactionSigned.Builder.fromBase64Partial(builder.toBase64Partial()).unwrap()
         imported.missingSigners shouldBe listOf(alice.publicKey)
         val signed = imported.sign(alice).build()
         signed.serialize() shouldBe tx.sign(bob, alice).serialize()
         signed.serialize().takeLast(128).toByteArray() shouldBe signed.signatures.flatMap { it.toByteArray().toList() }.toByteArray()
         signed.serializeForSimulation() shouldBe signed.serialize()
-        SolanaTransactionCompiled.deserialize(tx.serializeForSimulation())::class shouldBe SolanaTxV1::class
-        shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.deserialize(tx.serializeForSimulation()) }
+        SolanaTransactionCompiled.deserialize(tx.serializeForSimulation()).unwrap()::class shouldBe SolanaTxV1::class
+        shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.deserialize(tx.serializeForSimulation()).unwrap() }
         val changed = signed.withNewBlockhash(SolanaBlockhash(ByteArray(32) { 1 })) as SolanaTxV1
         changed.config shouldBe config
         changed.signingBuilder().missingSigners shouldBe tx.signers
@@ -135,12 +135,12 @@ class SolanaTxV1Test : FunSpec({
         }
         val signed = tx.sign(alice).serialize()
         for (length in signed.indices) {
-            shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.deserialize(signed.copyOf(length)) }
+            shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.deserialize(signed.copyOf(length)).unwrap() }
         }
         shouldThrow<IllegalArgumentException> { decode(message + byteArrayOf(0)) }
-        shouldThrow<IllegalArgumentException> { SolanaTransactionCompiled.deserialize(signed + byteArrayOf(0)) }
-        shouldThrow<IllegalArgumentException> { SolanaTransactionCompiled.deserialize(signed.copyOf().also { it[it.lastIndex] = (it.last().toInt() xor 1).toByte() }) }
-        shouldThrow<IllegalArgumentException> { SolanaTransactionCompiled.deserialize(byteArrayOf(1) + ByteArray(64) + message) }
+        shouldThrow<IllegalArgumentException> { SolanaTransactionCompiled.deserialize(signed + byteArrayOf(0)).unwrap() }
+        shouldThrow<IllegalArgumentException> { SolanaTransactionCompiled.deserialize(signed.copyOf().also { it[it.lastIndex] = (it.last().toInt() xor 1).toByte() }).unwrap() }
+        shouldThrow<IllegalArgumentException> { SolanaTransactionCompiled.deserialize(byteArrayOf(1) + ByteArray(64) + message).unwrap() }
         shouldThrow<IllegalArgumentException> { decode(message.copyOf().also { it[0] = 130.toByte() }) }
     }
 
@@ -151,7 +151,7 @@ class SolanaTxV1Test : FunSpec({
         tx.serializeForSimulation().size shouldBe 4096
         decode(tx.serializeMessage()).serializeMessage() shouldBe tx.serializeMessage()
         val signed = tx.sign(alice)
-        SolanaTransactionSigned.deserialize(signed.serialize()).serialize() shouldBe signed.serialize()
+        SolanaTransactionSigned.deserialize(signed.serialize()).unwrap().serialize() shouldBe signed.serialize()
         shouldThrow<IllegalArgumentException> { sized(4096 - 173) }
         shouldThrow<IllegalArgumentException> { sized(65536) }
     }

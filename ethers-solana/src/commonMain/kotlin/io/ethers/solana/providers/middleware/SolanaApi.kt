@@ -118,7 +118,7 @@ interface SolanaApi {
      */
     fun getAddressLookupTable(address: SolanaAddress, commitment: Commitment = this.defaultCommitment): RpcRequest<ContextValue<AddressLookupTableAccount?>, RpcError> {
         return getAccountInfo(address, commitment).map { response ->
-            ContextValue(response.context, response.value?.let { AddressLookupTableAccount.decode(address, it.data.asByteArray()) })
+            ContextValue(response.context, response.value?.let { AddressLookupTableAccount.decode(address, it.data.asByteArray()).unwrap() })
         }
     }
 
@@ -134,7 +134,7 @@ interface SolanaApi {
      * transaction decoded from bytes, or a response without metadata, costs a `getMultipleAccounts`.
      */
     fun decompileTransaction(transaction: SolanaTransaction, commitment: Commitment = this.defaultCommitment): RpcRequest<SolanaTransactionRequest, RpcError> = SuppliedRpcRequest {
-        when (val direct = transaction.tryToRequest()) {
+        when (val direct = transaction.toRequest()) {
             is Result.Success -> success(direct.value)
             is Result.Failure -> {
                 val keys = transaction.addressLookupTables.map { it.key }
@@ -150,11 +150,11 @@ interface SolanaApi {
                         val data = accounts[index]
                             ?: return@SuppliedRpcRequest failure(RpcError(INVALID_PARAMS, "Lookup table $key does not exist, so this transaction cannot be resolved"))
                         tables.add(
-                            AddressLookupTableAccount.tryDecode(key, data.data.asByteArray())
+                            AddressLookupTableAccount.decode(key, data.data.asByteArray())
                                 .unwrapOrReturn { return@SuppliedRpcRequest failure(it.toRpcError()) },
                         )
                     }
-                    transaction.tryToRequest(tables).mapError { it.toRpcError() }
+                    transaction.toRequest(tables).mapError { it.toRpcError() }
                 }
             }
         }
@@ -200,7 +200,7 @@ interface SolanaApi {
     fun simulateTransaction(request: SolanaTransactionRequest): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = simulateTransaction(request, emptyList(), defaultCommitment)
 
     /**
-     * Simulate a request whose version is chosen for it, as [SolanaTransactionRequest.tryCompile] does.
+     * Simulate a request whose version is chosen for it, as [SolanaTransactionRequest.compile] does.
      * Signatures and a live blockhash are not needed: the node ignores the former and substitutes the latter.
      */
     fun simulateTransaction(
@@ -208,7 +208,7 @@ interface SolanaApi {
         lookupTables: List<AddressLookupTableAccount>,
         commitment: Commitment = this.defaultCommitment,
     ): RpcRequest<ContextValue<TransactionSimulation>, RpcError> {
-        val tx = request.forSimulation().tryCompile(lookupTables).unwrapOrReturn { return failedRequest(it) }
+        val tx = request.forSimulation().compile(lookupTables).unwrapOrReturn { return failedRequest(it) }
         return simulateTransaction(tx, SolanaSimulationConfig.READ_ONLY, commitment)
     }
 
@@ -259,7 +259,7 @@ interface SolanaApi {
         computeUnitMarginPercent: Int = DEFAULT_COMPUTE_UNIT_MARGIN_PERCENT,
     ): RpcRequest<SolanaTransactionUnsigned, RpcError> = fill(request, type, lookupTables, commitment, computeUnitMarginPercent)
 
-    /** A null [type] lets [SolanaTransactionRequest.tryCompile] choose between legacy and v0. */
+    /** A null [type] lets [SolanaTransactionRequest.compile] choose between legacy and v0. */
     private fun fill(
         request: SolanaTransactionRequest,
         type: SolanaTxType?,
@@ -367,10 +367,10 @@ private fun SolanaTransactionRequest.compileForSimulation(type: SolanaTxType, lo
 internal fun SolanaTransactionRequest.forSimulation(): SolanaTransactionRequest = if (blockhash != null) this else SolanaTransactionRequest(this).blockhash(SolanaBlockhash(ByteArray(32)))
 
 private fun SolanaTransactionRequest.compileFor(type: SolanaTxType?, lookupTables: List<AddressLookupTableAccount>): Result<SolanaTransactionUnsigned, SolanaTransactionError> = when (type) {
-    null -> tryCompile(lookupTables)
-    SolanaTxType.Legacy -> tryCompileLegacy()
-    SolanaTxType.V0 -> tryCompileV0(lookupTables)
-    SolanaTxType.V1 -> tryCompileV1()
+    null -> compile(lookupTables)
+    SolanaTxType.Legacy -> compileLegacy()
+    SolanaTxType.V0 -> compileV0(lookupTables)
+    SolanaTxType.V1 -> compileV1()
     is SolanaTxType.Unsupported -> failure(SolanaTransactionError.UnsupportedVersion(type.version))
 }
 

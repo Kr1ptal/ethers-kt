@@ -95,7 +95,7 @@ class LocalValidatorCorpusTest : FunSpec({
                     heapSize = listOf(null, 32768L, 65536L, 262144L)[(index / 3) % 4],
                 )
                 val latest = provider.getLatestBlockhash().send().unwrap().value
-                val tx = SolanaTxV1.compile(active.first().publicKey, latest.blockhash, instructions, config).sign(*active.toTypedArray())
+                val tx = SolanaTxV1.compile(active.first().publicKey, latest.blockhash, instructions, config).unwrap().sign(*active.toTypedArray())
                 provider.simulateTransaction(tx).send().unwrap().value.isSuccess shouldBe true
                 provider.sendTransaction(tx).send().unwrap() shouldBe tx.id
                 submitted += tx

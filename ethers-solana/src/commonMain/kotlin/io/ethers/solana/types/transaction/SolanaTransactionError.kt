@@ -13,9 +13,11 @@ import io.ethers.solana.types.SolanaAddress
  * `SolanaRPCTransaction`. The remaining failures mean the message is malformed, so they are grouped
  * into [CountOutOfRange] and [InvalidMessage], each tagged with which check failed.
  *
- * The validating constructors and factories throw [SolanaTransactionException], which keeps the
- * error reachable from the catch block; the `try` factories return it as a value instead, without
- * building an exception at all.
+ * Every factory that can fail returns one of these as a value: compiling, decoding and resolving a
+ * message never throw, and the wire decoders record malformed input rather than raising it, so
+ * rejecting untrusted bytes costs no stack trace. [toException] builds one on demand, which is what
+ * `unwrap` does, and the validating constructors still throw [SolanaTransactionException] for callers
+ * who prefer that.
  */
 sealed class SolanaTransactionError : ThrowableError {
     /** Thrown form of this error. Remains an [IllegalArgumentException], as these are argument failures. */

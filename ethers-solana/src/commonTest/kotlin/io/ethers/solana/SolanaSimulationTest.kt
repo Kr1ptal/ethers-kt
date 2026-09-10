@@ -76,7 +76,7 @@ class SolanaSimulationTest : FunSpec({
 
     test("simulation options reach the node and mutually exclusive ones are rejected") {
         responses["simulateTransaction"] = simulation()
-        val tx = request().apply { blockhash(blockhash) }.compileV0()
+        val tx = request().apply { blockhash(blockhash) }.compileV0().unwrap()
         val options = SolanaSimulationConfig(
             innerInstructions = true,
             accounts = listOf(alice.publicKey, Programs.SYSTEM),

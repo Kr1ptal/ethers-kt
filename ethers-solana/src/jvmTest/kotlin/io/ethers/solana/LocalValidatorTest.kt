@@ -30,7 +30,7 @@ class LocalValidatorTest : FunSpec({
             eventually(30.seconds) { provider.getBalance(sender.publicKey).send().unwrap().value shouldBe bigIntegerOf(1000000000L) }
             val latest = provider.getLatestBlockhash().send().unwrap().value
             val config = SolanaTransactionConfig(bigIntegerOf(5000), 200000, 65536)
-            val tx = SolanaTxV1.compile(sender.publicKey, latest.blockhash, List(64) { SystemProgram.transfer(sender.publicKey, recipient, 20000L) }, config).sign(sender)
+            val tx = SolanaTxV1.compile(sender.publicKey, latest.blockhash, List(64) { SystemProgram.transfer(sender.publicKey, recipient, 20000L) }, config).unwrap().sign(sender)
             (tx.serialize().size > 1232) shouldBe true
             provider.getFeeForMessage(tx).send().unwrap().value shouldBe bigIntegerOf(10000)
             provider.simulateTransaction(tx).send().unwrap().value.isSuccess shouldBe true
@@ -56,7 +56,7 @@ class LocalValidatorTest : FunSpec({
             provider.requestAirdrop(sender.publicKey, 1000000000L).send().unwrap()
             eventually(30.seconds) { provider.getBalance(sender.publicKey).send().unwrap().value shouldBe bigIntegerOf(1000000000L) }
             val latest = provider.getLatestBlockhash().send().unwrap().value
-            val message = SolanaTxV0.compile(sender.publicKey, latest.blockhash, SystemProgram.transfer(sender.publicKey, recipient, 1000000L))
+            val message = SolanaTxV0.compile(sender.publicKey, latest.blockhash, SystemProgram.transfer(sender.publicKey, recipient, 1000000L)).unwrap()
             val transaction = message.sign(sender)
             provider.simulateTransaction(transaction).send().unwrap().value.isSuccess shouldBe true
             val signature = provider.sendTransaction(transaction).send().unwrap()

@@ -50,24 +50,24 @@ class TransactionDecompilerTest : FunSpec({
 
     test("a legacy transaction round-trips to identical bytes") {
         val original = requestOf(alice.publicKey, blockhash, listOf(SystemProgram.transfer(alice.publicKey, bob.publicKey, 42L), readIndexed()))
-            .compileLegacy()
+            .compileLegacy().unwrap()
 
-        original.toRequest().compileLegacy().serializeMessage() shouldBe original.serializeMessage()
+        original.toRequest().unwrap().compileLegacy().unwrap().serializeMessage() shouldBe original.serializeMessage()
     }
 
     test("a v0 transaction round-trips to identical bytes when given its tables") {
-        val original = requestOf(alice.publicKey, blockhash, listOf(readIndexed())).compileV0(listOf(table))
+        val original = requestOf(alice.publicKey, blockhash, listOf(readIndexed())).compileV0(listOf(table)).unwrap()
         original.addressLookupTables.size shouldBe 1
 
-        val recompiled = original.toRequest(listOf(table)).compileV0(listOf(table))
+        val recompiled = original.toRequest(listOf(table)).unwrap().compileV0(listOf(table)).unwrap()
         recompiled.serializeMessage() shouldBe original.serializeMessage()
     }
 
     test("every account keeps its signer and writable flags through the round trip") {
         val instruction = readIndexed()
-        val original = requestOf(alice.publicKey, blockhash, listOf(instruction)).compileV0(listOf(table))
+        val original = requestOf(alice.publicKey, blockhash, listOf(instruction)).compileV0(listOf(table)).unwrap()
 
-        val recovered = original.toRequest(listOf(table)).instructions.single()
+        val recovered = original.toRequest(listOf(table)).unwrap().instructions.single()
         recovered.programId shouldBe instruction.programId
         recovered.data shouldBe instruction.data
         // the compiler may reorder accounts, so compare as sets of (address, signer, writable)
@@ -83,30 +83,30 @@ class TransactionDecompilerTest : FunSpec({
                 SystemProgram.transfer(alice.publicKey, bob.publicKey, 42L),
                 ComputeBudgetProgram.setComputeUnitPrice(bigIntegerOf(5_000)),
             ),
-        ).compileLegacy()
+        ).compileLegacy().unwrap()
 
-        val request = original.toRequest()
+        val request = original.toRequest().unwrap()
         request.instructions.size shouldBe 3
         // the settings stay encoded as instructions, so the request does not restate them
         request.computeUnitLimit shouldBe null
         request.computeUnitPrice shouldBe null
-        request.compileLegacy().serializeMessage() shouldBe original.serializeMessage()
+        request.compileLegacy().unwrap().serializeMessage() shouldBe original.serializeMessage()
     }
 
     test("a v1 transaction carries its inline config onto the request") {
         val config = SolanaTransactionConfig(priorityFee = bigIntegerOf(1_000), computeUnitLimit = 200_000, loadedAccountsDataSizeLimit = 64_000, heapSize = 65_536)
-        val original = SolanaTxV1.compile(alice.publicKey, blockhash, listOf(SystemProgram.transfer(alice.publicKey, bob.publicKey, 42L)), config)
+        val original = SolanaTxV1.compile(alice.publicKey, blockhash, listOf(SystemProgram.transfer(alice.publicKey, bob.publicKey, 42L)), config).unwrap()
 
-        val request = original.toRequest()
+        val request = original.toRequest().unwrap()
         request.computeUnitLimit shouldBe 200_000
         request.priorityFee shouldBe bigIntegerOf(1_000)
         request.loadedAccountsDataSizeLimit shouldBe 64_000
         request.heapSize shouldBe 65_536
-        request.compileV1().serializeMessage() shouldBe original.serializeMessage()
+        request.compileV1().unwrap().serializeMessage() shouldBe original.serializeMessage()
     }
 
     test("a node's resolved addresses are preferred over the tables on hand") {
-        val original = requestOf(alice.publicKey, blockhash, listOf(readIndexed())).compileV0(listOf(table))
+        val original = requestOf(alice.publicKey, blockhash, listOf(readIndexed())).compileV0(listOf(table)).unwrap()
         val lookup = original.addressLookupTables.single()
 
         // the same table, since extended with different addresses: what the node resolved must win
@@ -117,30 +117,30 @@ class TransactionDecompilerTest : FunSpec({
         )
 
         val rpc = rpcTransaction(original.header, original.accounts, blockhash, original.instructions.map { SolanaRPCInstruction(it.programIdIndex, it.accounts, it.data) }, SolanaTxType.V0, lookups = listOf(lookup), loaded = loaded)
-        rpc.toRequest(listOf(stale)).compileV0(listOf(table)).serializeMessage() shouldBe original.serializeMessage()
+        rpc.toRequest(listOf(stale)).unwrap().compileV0(listOf(table)).unwrap().serializeMessage() shouldBe original.serializeMessage()
     }
 
     test("a v0 message without its tables reports the table it cannot resolve") {
-        val original = requestOf(alice.publicKey, blockhash, listOf(readIndexed())).compileV0(listOf(table))
+        val original = requestOf(alice.publicKey, blockhash, listOf(readIndexed())).compileV0(listOf(table)).unwrap()
 
-        val error = original.tryToRequest().unwrapError()
+        val error = original.toRequest().unwrapError()
         error shouldBe SolanaTransactionError.InvalidMessage(
             SolanaTransactionError.Reason.UNKNOWN_LOOKUP_TABLE,
             "Message loads addresses from lookup table ${table.key}, whose contents were not supplied",
         )
-        shouldThrow<SolanaTransactionException> { original.toRequest() }
+        shouldThrow<SolanaTransactionException> { original.toRequest().unwrap() }
     }
 
     test("a lookup slot the table does not hold is reported") {
-        val original = requestOf(alice.publicKey, blockhash, listOf(readIndexed())).compileV0(listOf(table))
+        val original = requestOf(alice.publicKey, blockhash, listOf(readIndexed())).compileV0(listOf(table)).unwrap()
         val truncated = AddressLookupTableAccount(table.key, movable.take(1))
 
-        val error = original.tryToRequest(listOf(truncated)).unwrapError()
+        val error = original.toRequest(listOf(truncated)).unwrapError()
         error.shouldBeInvalidMessage(SolanaTransactionError.Reason.LOOKUP_INDEX)
     }
 
     test("resolved addresses that do not match the message's lookups are rejected") {
-        val original = requestOf(alice.publicKey, blockhash, listOf(readIndexed())).compileV0(listOf(table))
+        val original = requestOf(alice.publicKey, blockhash, listOf(readIndexed())).compileV0(listOf(table)).unwrap()
         val lookup = original.addressLookupTables.single()
         val rpc = rpcTransaction(
             original.header,
@@ -152,7 +152,7 @@ class TransactionDecompilerTest : FunSpec({
             loaded = LoadedAddresses(writable = emptyList(), readonly = emptyList()),
         )
 
-        rpc.tryToRequest().unwrapError().shouldBeInvalidMessage(SolanaTransactionError.Reason.LOOKUP_INDEX)
+        rpc.toRequest().unwrapError().shouldBeInvalidMessage(SolanaTransactionError.Reason.LOOKUP_INDEX)
     }
 
     test("an instruction pointing past the resolved accounts is reported") {
@@ -164,7 +164,7 @@ class TransactionDecompilerTest : FunSpec({
             SolanaTxType.Legacy,
         )
 
-        rpc.tryToRequest().unwrapError().shouldBeInvalidMessage(SolanaTransactionError.Reason.ACCOUNT_INDEX)
+        rpc.toRequest().unwrapError().shouldBeInvalidMessage(SolanaTransactionError.Reason.ACCOUNT_INDEX)
     }
 
     test("a version this library cannot compile is reported rather than guessed") {
@@ -176,14 +176,14 @@ class TransactionDecompilerTest : FunSpec({
             SolanaTxType.Unsupported(3),
         )
 
-        rpc.tryToRequest().unwrapError() shouldBe SolanaTransactionError.UnsupportedVersion(3)
+        rpc.toRequest().unwrapError() shouldBe SolanaTransactionError.UnsupportedVersion(3)
     }
 
     test("resolving accounts tags every slot with the flags its position implies") {
         val instruction = readIndexed()
-        val tx = requestOf(alice.publicKey, blockhash, listOf(instruction)).compileV0(listOf(table))
+        val tx = requestOf(alice.publicKey, blockhash, listOf(instruction)).compileV0(listOf(table)).unwrap()
 
-        val resolved = tx.resolveAccounts(listOf(table))
+        val resolved = tx.resolveAccounts(listOf(table)).unwrap()
         resolved.size shouldBe tx.accounts.size + table.addresses.size
         resolved[0] shouldBe AccountMeta.signerAndWritable(alice.publicKey)
         // the header counts signatures over the inline accounts only, so a loaded address never signs
@@ -197,35 +197,35 @@ class TransactionDecompilerTest : FunSpec({
     }
 
     test("resolving accounts reports the same failures as decompiling") {
-        val tx = requestOf(alice.publicKey, blockhash, listOf(readIndexed())).compileV0(listOf(table))
+        val tx = requestOf(alice.publicKey, blockhash, listOf(readIndexed())).compileV0(listOf(table)).unwrap()
 
-        tx.tryResolveAccounts().unwrapError().shouldBeInvalidMessage(SolanaTransactionError.Reason.UNKNOWN_LOOKUP_TABLE)
-        shouldThrow<SolanaTransactionException> { tx.resolveAccounts() }
+        tx.resolveAccounts().unwrapError().shouldBeInvalidMessage(SolanaTransactionError.Reason.UNKNOWN_LOOKUP_TABLE)
+        shouldThrow<SolanaTransactionException> { tx.resolveAccounts().unwrap() }
 
         val unsupported = rpcTransaction(MessageHeader(1, 0, 1), listOf(alice.publicKey, Programs.SYSTEM), blockhash, listOf(SolanaRPCInstruction(1, listOf(0), SolanaBytes.EMPTY)), SolanaTxType.Unsupported(3))
-        unsupported.tryResolveAccounts().unwrapError() shouldBe SolanaTransactionError.UnsupportedVersion(3)
+        unsupported.resolveAccounts().unwrapError() shouldBe SolanaTransactionError.UnsupportedVersion(3)
     }
 
     test("a node's resolved addresses win when resolving accounts too") {
-        val original = requestOf(alice.publicKey, blockhash, listOf(readIndexed())).compileV0(listOf(table))
+        val original = requestOf(alice.publicKey, blockhash, listOf(readIndexed())).compileV0(listOf(table)).unwrap()
         val lookup = original.addressLookupTables.single()
         val stale = AddressLookupTableAccount(table.key, List(movable.size) { SolanaAddress(ByteArray(32) { _ -> 55 }) })
         val loaded = LoadedAddresses(lookup.writableIndexes.map { movable[it] }, lookup.readonlyIndexes.map { movable[it] })
 
         val rpc = rpcTransaction(original.header, original.accounts, blockhash, original.instructions.map { SolanaRPCInstruction(it.programIdIndex, it.accounts, it.data) }, SolanaTxType.V0, lookups = listOf(lookup), loaded = loaded)
-        rpc.resolveAccounts(listOf(stale)) shouldBe original.resolveAccounts(listOf(table))
+        rpc.resolveAccounts(listOf(stale)).unwrap() shouldBe original.resolveAccounts(listOf(table)).unwrap()
     }
 
     test("a fetched transaction can be re-priced and recompiled") {
-        val original = requestOf(alice.publicKey, blockhash, listOf(SystemProgram.transfer(alice.publicKey, bob.publicKey, 42L))).compileLegacy()
+        val original = requestOf(alice.publicKey, blockhash, listOf(SystemProgram.transfer(alice.publicKey, bob.publicKey, 42L))).compileLegacy().unwrap()
         val rpc = rpcTransaction(original.header, original.accounts, blockhash, original.instructions.map { SolanaRPCInstruction(it.programIdIndex, it.accounts, it.data) }, SolanaTxType.Legacy)
 
         val fresh = SolanaBlockhash(ByteArray(32) { 4 })
-        val repriced = rpc.toRequest()
+        val repriced = rpc.toRequest().unwrap()
             .blockhash(fresh)
             .computeUnitLimit(200_000)
             .computeUnitPrice(bigIntegerOf(1_000))
-            .compileLegacy()
+            .compileLegacy().unwrap()
 
         repriced.recentBlockhash shouldBe fresh
         repriced.computeUnitLimit shouldBe 200_000

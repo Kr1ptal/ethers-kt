@@ -35,7 +35,7 @@ class SolanaTxLegacy private constructor(
 
     /**
      * Validate the fields, throwing [SolanaTransactionException] if they do not describe a legal
-     * message. [tryCreate] reports the same failure as a value, without building an exception.
+     * message. [create] reports the same failure as a value, without building an exception.
      */
     constructor(
         header: MessageHeader,
@@ -63,9 +63,9 @@ class SolanaTxLegacy private constructor(
         internal fun validate(header: MessageHeader, accounts: List<SolanaAddress>, instructions: List<MessageInstruction>): SolanaTransactionError? = messageError(header, accounts, instructions, emptyList())
             ?: envelopeSizeError(SolanaTxType.Legacy, legacyEnvelopeSize(header, accounts, instructions, null), MAX_TRANSACTION_SIZE)
 
-        /** As the constructor, reporting the reason the fields are invalid instead of throwing. */
+        /** As the constructor, reporting the reason the fields are invalid as a value rather than throwing. */
         @JvmStatic
-        fun tryCreate(
+        fun create(
             header: MessageHeader,
             accounts: List<SolanaAddress>,
             recentBlockhash: SolanaBlockhash,
@@ -76,24 +76,14 @@ class SolanaTxLegacy private constructor(
         }
 
         /** The required-signature count stands in for a version byte and has already been read. */
-        internal fun decodeBody(decoder: SolanaMessageDecoder, requiredSignatures: Int): SolanaTxLegacy {
-            val body = decoder.readMessageBody(requiredSignatures)
-            return SolanaTxLegacy(body.header, body.accounts, body.recentBlockhash, body.instructions)
-        }
+        internal fun decodeBody(decoder: SolanaMessageDecoder, requiredSignatures: Int): Result<SolanaTxLegacy, SolanaTransactionError> = decoder.readMessageBody(requiredSignatures)
+            .andThen { create(it.header, it.accounts, it.recentBlockhash, it.instructions) }
 
         @JvmStatic
-        fun compile(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instruction: Instruction): SolanaTxLegacy = compile(feePayer, blockhash, listOf(instruction))
-
-        /** As [compile], returning the reason it could not be compiled instead of throwing. */
-        @JvmStatic
-        fun tryCompile(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instruction: Instruction): Result<SolanaTxLegacy, SolanaTransactionError> = tryCompile(feePayer, blockhash, listOf(instruction))
-
-        /** As [compile], returning the reason it could not be compiled instead of throwing. */
-        @JvmStatic
-        fun tryCompile(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instructions: List<Instruction>): Result<SolanaTxLegacy, SolanaTransactionError> = compileMessage(feePayer, blockhash, instructions, emptyList())
-            .andThen { tryCreate(it.header, it.accounts, it.recentBlockhash, it.instructions) }
+        fun compile(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instruction: Instruction): Result<SolanaTxLegacy, SolanaTransactionError> = compile(feePayer, blockhash, listOf(instruction))
 
         @JvmStatic
-        fun compile(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instructions: List<Instruction>): SolanaTxLegacy = tryCompile(feePayer, blockhash, instructions).unwrap()
+        fun compile(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instructions: List<Instruction>): Result<SolanaTxLegacy, SolanaTransactionError> = compileMessage(feePayer, blockhash, instructions, emptyList())
+            .andThen { create(it.header, it.accounts, it.recentBlockhash, it.instructions) }
     }
 }

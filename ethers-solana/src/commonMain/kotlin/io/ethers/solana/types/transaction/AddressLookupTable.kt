@@ -39,7 +39,7 @@ data class AddressLookupTableAccount @JvmOverloads constructor(
          * [deactivationSlot].
          */
         @JvmStatic
-        fun tryDecode(key: SolanaAddress, data: ByteArray): Result<AddressLookupTableAccount, SolanaTransactionError> {
+        fun decode(key: SolanaAddress, data: ByteArray): Result<AddressLookupTableAccount, SolanaTransactionError> {
             if (data.size < META_SIZE || (data.size - META_SIZE) % 32 != 0) {
                 return Result.failure(
                     SolanaTransactionError.MalformedBytes("A lookup table account holds $META_SIZE header bytes and whole addresses, got ${data.size}"),
@@ -59,9 +59,6 @@ data class AddressLookupTableAccount @JvmOverloads constructor(
                 AddressLookupTableAccount(key, addresses, deactivationSlot.takeIf { it != U64_MAX }, authority),
             )
         }
-
-        @JvmStatic
-        fun decode(key: SolanaAddress, data: ByteArray): AddressLookupTableAccount = tryDecode(key, data).unwrap()
     }
 }
 

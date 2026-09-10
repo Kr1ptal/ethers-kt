@@ -7,6 +7,7 @@ import io.github.artificialpb.bignum.BigInteger
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 
 class SolanaMessageCodecTest : FunSpec({
     test("shortvec boundary values use canonical compact-u16 bytes") {
@@ -38,10 +39,12 @@ class SolanaMessageCodecTest : FunSpec({
     }
 
     test("shortvec rejects truncated, overlong and overflowing encodings") {
+        // malformed input is recorded rather than thrown, so decoding untrusted bytes costs no stack trace
         for (hex in listOf("", "80", "8080", "8000", "8100", "808000", "ffff00", "808004", "ffff04", "808080", "ffffff", "80808000")) {
-            shouldThrow<IllegalArgumentException> {
-                SolanaMessageDecoder(FastHex.decode(hex)).readShortVecLength()
-            }
+            val decoder = SolanaMessageDecoder(FastHex.decode(hex))
+            decoder.readShortVecLength() shouldBe 0
+            decoder.failed shouldBe true
+            decoder.error shouldNotBe null
         }
         val encoder = SolanaMessageEncoder().writeByte(42)
         for (value in listOf(-1, 65536, Int.MAX_VALUE)) {
@@ -79,17 +82,25 @@ class SolanaMessageCodecTest : FunSpec({
         source[1] = 0
         copied shouldBe byteArrayOf(127, 128.toByte())
         decoder.remaining shouldBe 2
-        shouldThrow<IllegalArgumentException> { decoder.requireDone() }
-        for (count in listOf(-1, 3, Int.MAX_VALUE)) {
-            shouldThrow<IllegalArgumentException> { decoder.readBytes(count) }
-            decoder.remaining shouldBe 2
-        }
-        decoder.readByte() shouldBe 255
-        decoder.readByte() shouldBe 42
-        decoder.readBytes(0) shouldBe byteArrayOf()
         decoder.requireDone()
-        shouldThrow<IllegalArgumentException> { decoder.readByte() }
-        shouldThrow<IllegalArgumentException> { decoder.readBytes(1) }
+        decoder.failed shouldBe true
+
+        // the first failure sticks: later reads reveal nothing and consume nothing
+        val bounded = SolanaMessageDecoder(byteArrayOf(1, 2))
+        for (count in listOf(-1, 3, Int.MAX_VALUE)) {
+            val fresh = SolanaMessageDecoder(byteArrayOf(1, 2))
+            fresh.readBytes(count).size shouldBe if (count in 0..SolanaMessageDecoder.MAX_ZERO_FILL) count else 0
+            fresh.failed shouldBe true
+            fresh.remaining shouldBe 2
+        }
+        bounded.readByte() shouldBe 1
+        bounded.readByte() shouldBe 2
+        bounded.readBytes(0) shouldBe byteArrayOf()
+        bounded.requireDone()
+        bounded.failed shouldBe false
+        bounded.readByte() shouldBe 0
+        bounded.failed shouldBe true
+        bounded.error shouldBe "Truncated binary payload"
         SolanaMessageDecoder(byteArrayOf()).requireDone()
     }
 
@@ -100,6 +111,7 @@ class SolanaMessageCodecTest : FunSpec({
         decoder.readUnsignedLittleEndian(8) shouldBe BigInteger("578437695752307201")
         decoder.readUnsignedLittleEndian(8) shouldBe BigInteger("18446744073709551615")
         decoder.requireDone()
-        shouldThrow<IllegalArgumentException> { decoder.readUnsignedLittleEndian(4) }
+        decoder.readUnsignedLittleEndian(4) shouldBe BigInteger("0")
+        decoder.failed shouldBe true
     }
 })

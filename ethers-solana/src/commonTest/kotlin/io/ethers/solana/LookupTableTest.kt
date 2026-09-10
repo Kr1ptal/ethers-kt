@@ -36,11 +36,11 @@ class LookupTableTest : FunSpec({
         val covering2 = AddressLookupTableAccount(address(91), accounts)
 
         // one account: naming the table would cost three bytes more than it saves, so it is skipped
-        val skipped = request(accounts).compileV0(listOf(covering1))
+        val skipped = request(accounts).compileV0(listOf(covering1)).unwrap()
         skipped.addressLookupTables shouldBe emptyList()
-        skipped.envelopeSize() shouldBe request(accounts).compileV0().envelopeSize()
+        skipped.envelopeSize() shouldBe request(accounts).compileV0().unwrap().envelopeSize()
 
-        val used = request(accounts).compileV0(listOf(covering2))
+        val used = request(accounts).compileV0(listOf(covering2)).unwrap()
         used.addressLookupTables.single().writableIndexes shouldBe listOf(0, 1)
         (used.envelopeSize() < skipped.envelopeSize()) shouldBe true
     }
@@ -50,7 +50,7 @@ class LookupTableTest : FunSpec({
         val partial = AddressLookupTableAccount(address(90), accounts.take(2))
         val full = AddressLookupTableAccount(address(91), accounts)
 
-        val tx = request(accounts).compileV0(listOf(partial, full))
+        val tx = request(accounts).compileV0(listOf(partial, full)).unwrap()
         // the wider table covers everything, so the narrower one is never named
         tx.addressLookupTables.map { it.key } shouldBe listOf(full.key)
         tx.addressLookupTables.single().writableIndexes.size shouldBe 4
@@ -68,14 +68,14 @@ class LookupTableTest : FunSpec({
         val bc = AddressLookupTableAccount(address(94), listOf(b, c))
 
         val request = request(listOf(a, b, c, d))
-        val tx = request.compileV0(listOf(straddling, onlyC, onlyD, ad, bc))
+        val tx = request.compileV0(listOf(straddling, onlyC, onlyD, ad, bc)).unwrap()
 
         // taking the widest table first would strand c and d in tables that no longer pay for
         // themselves; the two narrower tables partition all four accounts instead
         tx.addressLookupTables.map { it.key }.toSet() shouldBe setOf(ad.key, bc.key)
         tx.addressLookupTables.sumOf { it.writableIndexes.size + it.readonlyIndexes.size } shouldBe 4
         tx.accounts shouldBe listOf(alice.publicKey, Programs.SYSTEM)
-        tx.envelopeSize() shouldBe request.compileV0(listOf(ad, bc)).envelopeSize()
+        tx.envelopeSize() shouldBe request.compileV0(listOf(ad, bc)).unwrap().envelopeSize()
     }
 
     test("a wide table still wins when it covers everything the narrow ones do") {
@@ -85,7 +85,7 @@ class LookupTableTest : FunSpec({
         val full = AddressLookupTableAccount(address(92), accounts)
 
         // one table naming all four beats two naming two each, by a table's worth of bytes
-        val tx = request(accounts).compileV0(listOf(partial, other, full))
+        val tx = request(accounts).compileV0(listOf(partial, other, full)).unwrap()
         tx.addressLookupTables.map { it.key } shouldBe listOf(full.key)
     }
 
@@ -94,20 +94,20 @@ class LookupTableTest : FunSpec({
         val first = AddressLookupTableAccount(address(90), accounts)
         val second = AddressLookupTableAccount(address(91), accounts)
 
-        request(accounts).compileV0(listOf(first, second)).addressLookupTables.single().key shouldBe first.key
-        request(accounts).compileV0(listOf(second, first)).addressLookupTables.single().key shouldBe second.key
-        repeat(5) { request(accounts).compileV0(listOf(first, second)).serializeMessage() shouldBe request(accounts).compileV0(listOf(first, second)).serializeMessage() }
+        request(accounts).compileV0(listOf(first, second)).unwrap().addressLookupTables.single().key shouldBe first.key
+        request(accounts).compileV0(listOf(second, first)).unwrap().addressLookupTables.single().key shouldBe second.key
+        repeat(5) { request(accounts).compileV0(listOf(first, second)).unwrap().serializeMessage() shouldBe request(accounts).compileV0(listOf(first, second)).unwrap().serializeMessage() }
     }
 
     test("a transaction too large for legacy fits as v0 once its accounts move into a table") {
         val accounts = List(36) { address(it + 10) }
         val oversized = request(accounts)
-        oversized.tryCompileLegacy().unwrapError().shouldBeInstanceOf<SolanaTransactionError.EnvelopeTooLarge>()
+        oversized.compileLegacy().unwrapError().shouldBeInstanceOf<SolanaTransactionError.EnvelopeTooLarge>()
         // without a table v0 is no better, since the accounts still sit inline
-        oversized.tryCompileV0().isFailure() shouldBe true
+        oversized.compileV0().isFailure() shouldBe true
 
         val table = AddressLookupTableAccount(address(90), accounts)
-        val fitted = oversized.compileV0(listOf(table))
+        val fitted = oversized.compileV0(listOf(table)).unwrap()
         (fitted.envelopeSize() <= SolanaTxLegacy.MAX_TRANSACTION_SIZE) shouldBe true
         fitted.accounts shouldBe listOf(alice.publicKey, Programs.SYSTEM)
     }
@@ -119,8 +119,8 @@ class LookupTableTest : FunSpec({
             val tables = List(random.nextInt(0, 4)) { table ->
                 AddressLookupTableAccount(address(90 + table), accounts.shuffled(random).take(random.nextInt(0, accounts.size + 1)))
             }
-            val withTables = request(accounts).compileV0(tables).envelopeSize()
-            val without = request(accounts).compileV0().envelopeSize()
+            val withTables = request(accounts).compileV0(tables).unwrap().envelopeSize()
+            val without = request(accounts).compileV0().unwrap().envelopeSize()
             (withTables <= without) shouldBe true
         }
     }
@@ -135,26 +135,26 @@ class LookupTableTest : FunSpec({
         }
 
         val never = ByteArray(8) { -1 } // u64::MAX
-        val decoded = AddressLookupTableAccount.decode(key, encode(1, never, alice.publicKey))
+        val decoded = AddressLookupTableAccount.decode(key, encode(1, never, alice.publicKey)).unwrap()
         decoded.addresses shouldBe addresses
         decoded.authority shouldBe alice.publicKey
         decoded.deactivationSlot shouldBe null
 
-        val deactivated = AddressLookupTableAccount.decode(key, encode(1, byteArrayOf(7, 0, 0, 0, 0, 0, 0, 0), null))
+        val deactivated = AddressLookupTableAccount.decode(key, encode(1, byteArrayOf(7, 0, 0, 0, 0, 0, 0, 0), null)).unwrap()
         deactivated.deactivationSlot shouldBe bigIntegerOf(7)
         deactivated.authority shouldBe null
         U64_MAX shouldBe io.github.artificialpb.bignum.BigInteger("18446744073709551615")
 
-        AddressLookupTableAccount.tryDecode(key, encode(2, never, null)).unwrapError()
+        AddressLookupTableAccount.decode(key, encode(2, never, null)).unwrapError()
             .shouldBeInstanceOf<SolanaTransactionError.MalformedBytes>()
-        AddressLookupTableAccount.tryDecode(key, encode(1, never, null).dropLast(1).toByteArray()).unwrapError()
+        AddressLookupTableAccount.decode(key, encode(1, never, null).dropLast(1).toByteArray()).unwrapError()
             .shouldBeInstanceOf<SolanaTransactionError.MalformedBytes>()
-        AddressLookupTableAccount.tryDecode(key, ByteArray(10)).unwrapError()
+        AddressLookupTableAccount.decode(key, ByteArray(10)).unwrapError()
             .shouldBeInstanceOf<SolanaTransactionError.MalformedBytes>()
 
         // a decoded table compiles like a hand-built one
         val built = AddressLookupTableAccount(key, addresses)
-        request(addresses.take(2)).compileV0(listOf(decoded)).serializeMessage() shouldBe
-            request(addresses.take(2)).compileV0(listOf(built)).serializeMessage()
+        request(addresses.take(2)).compileV0(listOf(decoded)).unwrap().serializeMessage() shouldBe
+            request(addresses.take(2)).compileV0(listOf(built)).unwrap().serializeMessage()
     }
 })

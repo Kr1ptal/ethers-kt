@@ -18,7 +18,7 @@ import io.ethers.solana.types.SolanaAddress
  * accurate of the two for a historical transaction, since a lookup table's contents can change after
  * the transaction was included.
  */
-internal fun resolveAccounts(
+internal fun resolveAccountMetas(
     tx: SolanaTransaction,
     tables: List<AddressLookupTableAccount>,
     loaded: LoadedAddresses?,
@@ -67,14 +67,14 @@ internal fun resolveAccounts(
 
 /**
  * Turn a compiled message back into the request that produces it, resolving every account index into
- * an address through [resolveAccounts].
+ * an address through [resolveAccountMetas].
  */
 internal fun decompile(
     tx: SolanaTransaction,
     tables: List<AddressLookupTableAccount>,
     loaded: LoadedAddresses?,
 ): Result<SolanaTransactionRequest, SolanaTransactionError> {
-    val accounts = resolveAccounts(tx, tables, loaded).unwrapOrReturn { return Result.failure(it) }
+    val accounts = resolveAccountMetas(tx, tables, loaded).unwrapOrReturn { return Result.failure(it) }
 
     val instructions = ArrayList<Instruction>(tx.instructions.size)
     for (compiled in tx.instructions) {

@@ -124,14 +124,14 @@ class SolanaTransactionRequest() {
      * lookup tables and this always compiles legacy, so it is safe against a wallet or an RPC that
      * accepts nothing else: v0 can only appear once you have asked for it by passing tables. V1 is
      * never chosen for you: its envelope is larger, but it needs SIMD-0385 activation on the target
-     * cluster, which is the caller's to know - ask for it with [tryCompileV1].
+     * cluster, which is the caller's to know - ask for it with [compileV1].
      *
      * Other Solana clients make the version an explicit choice with no automatic path at all, and the
-     * per-version [tryCompileLegacy], [tryCompileV0] and [tryCompileV1] are that choice here, each
+     * per-version [compileLegacy], [compileV0] and [compileV1] are that choice here, each
      * returning its own type.
      */
     @JvmOverloads
-    fun tryCompile(lookupTables: List<AddressLookupTableAccount> = emptyList()): Result<SolanaTransactionUnsigned, SolanaTransactionError> {
+    fun compile(lookupTables: List<AddressLookupTableAccount> = emptyList()): Result<SolanaTransactionUnsigned, SolanaTransactionError> {
         val payer = feePayer ?: return Result.failure(SolanaTransactionError.MissingFeePayer)
         val hash = blockhash ?: return Result.failure(SolanaTransactionError.MissingBlockhash)
         val instructions = withComputeBudgetInstructions().unwrapOrReturn { return Result.failure(it) }
@@ -139,49 +139,41 @@ class SolanaTransactionRequest() {
         // empty-table v0 is not rejected by compiling v0 first
         return compileMessage(payer, hash, instructions, lookupTables).andThen { fields ->
             when {
-                fields.lookups.isEmpty() -> SolanaTxLegacy.tryCreate(fields.header, fields.accounts, fields.recentBlockhash, fields.instructions)
-                else -> SolanaTxV0.tryCreate(fields.header, fields.accounts, fields.recentBlockhash, fields.instructions, fields.lookups)
+                fields.lookups.isEmpty() -> SolanaTxLegacy.create(fields.header, fields.accounts, fields.recentBlockhash, fields.instructions)
+                else -> SolanaTxV0.create(fields.header, fields.accounts, fields.recentBlockhash, fields.instructions, fields.lookups)
             }
         }
     }
-
-    @JvmOverloads
-    fun compile(lookupTables: List<AddressLookupTableAccount> = emptyList()): SolanaTransactionUnsigned = tryCompile(lookupTables).unwrap()
 
     /**
      * Compile a legacy message. [computeUnitLimit] and [computeUnitPrice] replace any ComputeBudget
      * instruction that sets the same value, and are prepended otherwise.
      */
-    fun tryCompileLegacy(): Result<SolanaTxLegacy, SolanaTransactionError> {
+    fun compileLegacy(): Result<SolanaTxLegacy, SolanaTransactionError> {
         val payer = feePayer ?: return Result.failure(SolanaTransactionError.MissingFeePayer)
         val hash = blockhash ?: return Result.failure(SolanaTransactionError.MissingBlockhash)
         val instructions = withComputeBudgetInstructions().unwrapOrReturn { return Result.failure(it) }
-        return SolanaTxLegacy.tryCompile(payer, hash, instructions)
+        return SolanaTxLegacy.compile(payer, hash, instructions)
     }
-
-    fun compileLegacy(): SolanaTxLegacy = tryCompileLegacy().unwrap()
 
     /**
      * Compile a v0 message, moving accounts covered by [lookupTables] out of the inline account list.
-     * Compute budget is encoded as for [tryCompileLegacy].
+     * Compute budget is encoded as for [compileLegacy].
      */
     @JvmOverloads
-    fun tryCompileV0(lookupTables: List<AddressLookupTableAccount> = emptyList()): Result<SolanaTxV0, SolanaTransactionError> {
+    fun compileV0(lookupTables: List<AddressLookupTableAccount> = emptyList()): Result<SolanaTxV0, SolanaTransactionError> {
         val payer = feePayer ?: return Result.failure(SolanaTransactionError.MissingFeePayer)
         val hash = blockhash ?: return Result.failure(SolanaTransactionError.MissingBlockhash)
         val instructions = withComputeBudgetInstructions().unwrapOrReturn { return Result.failure(it) }
-        return SolanaTxV0.tryCompile(payer, hash, instructions, lookupTables)
+        return SolanaTxV0.compile(payer, hash, instructions, lookupTables)
     }
-
-    @JvmOverloads
-    fun compileV0(lookupTables: List<AddressLookupTableAccount> = emptyList()): SolanaTxV0 = tryCompileV0(lookupTables).unwrap()
 
     /**
      * Compile a v1 message. ComputeBudget instructions do not configure v1, so recognised ones are
      * translated into the inline config and dropped; whatever this library cannot decode is left in
      * place rather than silently discarded.
      */
-    fun tryCompileV1(): Result<SolanaTxV1, SolanaTransactionError> {
+    fun compileV1(): Result<SolanaTxV1, SolanaTransactionError> {
         val payer = feePayer ?: return Result.failure(SolanaTransactionError.MissingFeePayer)
         val hash = blockhash ?: return Result.failure(SolanaTransactionError.MissingBlockhash)
 
@@ -208,10 +200,8 @@ class SolanaTransactionRequest() {
             loadedAccountsDataSizeLimit = loadedAccountsDataSizeLimit ?: translated.loadedAccountsDataSizeLimit,
             heapSize = heapSize ?: translated.heapSize,
         )
-        return SolanaTxV1.tryCompile(payer, hash, translated.remaining, config)
+        return SolanaTxV1.compile(payer, hash, translated.remaining, config)
     }
-
-    fun compileV1(): SolanaTxV1 = tryCompileV1().unwrap()
 
     /** Legacy and v0 encoding: the fields win over an instruction setting the same value. */
     private fun withComputeBudgetInstructions(): Result<List<Instruction>, SolanaTransactionError> {

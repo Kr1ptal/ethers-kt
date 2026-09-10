@@ -18,9 +18,23 @@ interface SolanaSigner {
      * serialize, and one signer changing it would change what the next one signs.
      */
     fun signMessage(message: ByteArray): SolanaSignature
+
     fun signTransaction(transaction: SolanaTransactionUnsigned): SolanaTransactionSigned = transaction.sign(this)
+
+    /**
+     * Safe alternative to [signMessage], reporting a signer that could not produce a signature as a
+     * value. Mirrors the EVM `Signer`, where signing is the one place a `try` prefixed twin remains:
+     * a signer is an external device or key store, so its failures are not the caller's to prevent.
+     */
     fun trySignMessage(message: ByteArray): Result<SolanaSignature, SigningError> = try {
         success(signMessage(message))
+    } catch (e: Exception) {
+        failure(SigningError(e))
+    }
+
+    /** Safe alternative to [signTransaction]. */
+    fun trySignTransaction(transaction: SolanaTransactionUnsigned): Result<SolanaTransactionSigned, SigningError> = try {
+        success(signTransaction(transaction))
     } catch (e: Exception) {
         failure(SigningError(e))
     }

@@ -75,14 +75,18 @@ class TransactionBoundaryTest : FunSpec({
             byteArrayOf(255.toByte(), 255.toByte(), 4),
             byteArrayOf(128.toByte(), 128.toByte(), 128.toByte(), 0),
         )
-        for (bytes in invalid) shouldThrow<IllegalArgumentException> { SolanaMessageDecoder(bytes).readShortVecLength() }
+        for (bytes in invalid) {
+            val decoder = SolanaMessageDecoder(bytes)
+            decoder.readShortVecLength() shouldBe 0
+            decoder.failed shouldBe true
+        }
     }
 
     test("legacy and v0 data lengths cross the packet-reachable compact-u16 boundary") {
         for (size in listOf(0, 1, 127, 128, 129)) {
             val instructions = listOf(MessageInstruction(1, listOf(0), ByteArray(size) { it.toByte() }))
             for (tx in listOf(SolanaTxLegacy(header, keys, hash, instructions), SolanaTxV0(header, keys, hash, instructions, emptyList()))) {
-                val decoded = SolanaTransactionUnsigned.deserializeMessage(tx.serializeMessage())
+                val decoded = SolanaTransactionUnsigned.deserializeMessage(tx.serializeMessage()).unwrap()
                 decoded.instructions.single().data shouldBe instructions.single().data
                 decoded.serializeMessage() shouldBe tx.serializeMessage()
             }
@@ -121,9 +125,9 @@ class TransactionBoundaryTest : FunSpec({
                 encoder.writeBytes(hash.toByteArray()).writeShortVecLength(1).writeByte(signerCount).writeShortVecLength(0)
                     .writeShortVecLength(dataSize + 1).writeBytes(ByteArray(dataSize + 1))
                 if (versioned) encoder.writeShortVecLength(0)
-                shouldThrow<IllegalArgumentException> { SolanaTransactionUnsigned.deserializeMessage(encoder.toByteArray()) }
+                shouldThrow<IllegalArgumentException> { SolanaTransactionUnsigned.deserializeMessage(encoder.toByteArray()).unwrap() }
                 val envelope = SolanaMessageEncoder().writeShortVecLength(signerCount).writeBytes(ByteArray(signerCount * 64)).writeBytes(encoder.toByteArray()).toByteArray()
-                shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.Builder.deserializePartial(envelope) }
+                shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.Builder.deserializePartial(envelope).unwrap() }
             }
         }
     }
@@ -131,7 +135,7 @@ class TransactionBoundaryTest : FunSpec({
     test("v0 loaded account indices reach 255 but reject a 257th account") {
         val lookup = CompiledAddressLookupTable(Programs.TOKEN, (0..126).toList(), (127..253).toList())
         val tx = SolanaTxV0(header, keys, hash, listOf(MessageInstruction(1, listOf(0, 127, 128, 255), byteArrayOf())), listOf(lookup))
-        val decoded = SolanaTransactionUnsigned.deserializeMessage(tx.serializeMessage()) as SolanaTxV0
+        val decoded = SolanaTransactionUnsigned.deserializeMessage(tx.serializeMessage()).unwrap() as SolanaTxV0
         decoded.instructions.single().accounts shouldBe listOf(0, 127, 128, 255)
         decoded.serializeMessage() shouldBe tx.serializeMessage()
         shouldThrow<IllegalArgumentException> {
@@ -152,20 +156,20 @@ class TransactionBoundaryTest : FunSpec({
             )
             for (tx in messages) {
                 val message = tx.serializeMessage()
-                SolanaTransactionUnsigned.deserializeMessage(message).serializeMessage() shouldBe message
+                SolanaTransactionUnsigned.deserializeMessage(message).unwrap().serializeMessage() shouldBe message
                 for (end in message.indices) {
-                    shouldThrow<IllegalArgumentException> { SolanaTransactionUnsigned.deserializeMessage(message.copyOf(end)) }
+                    shouldThrow<IllegalArgumentException> { SolanaTransactionUnsigned.deserializeMessage(message.copyOf(end)).unwrap() }
                 }
                 val wire = tx.sign(signer).serialize()
-                SolanaTransactionSigned.deserialize(wire).serialize() shouldBe wire
+                SolanaTransactionSigned.deserialize(wire).unwrap().serialize() shouldBe wire
                 for (end in wire.indices) {
-                    shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.deserialize(wire.copyOf(end)) }
+                    shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.deserialize(wire.copyOf(end)).unwrap() }
                 }
                 for (index in wire.indices) {
                     val mutated = wire.copyOf().also { it[index] = (it[index].toInt() xor 1).toByte() }
-                    shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.deserialize(mutated) }
+                    shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.deserialize(mutated).unwrap() }
                 }
-                shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.deserialize(wire + byteArrayOf(0)) }
+                shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.deserialize(wire + byteArrayOf(0)).unwrap() }
             }
         }
     }

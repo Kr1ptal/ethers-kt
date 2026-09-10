@@ -38,10 +38,6 @@ sealed interface SolanaTransactionUnsigned : SolanaTransactionCompiled {
     companion object {
         /** Decode message bytes, not a transaction envelope containing signatures. */
         @JvmStatic
-        fun deserializeMessage(bytes: ByteArray): SolanaTransactionUnsigned = decodeMessage(bytes)
-
-        /** As [deserializeMessage], returning the reason the bytes could not be decoded instead of throwing. */
-        @JvmStatic
-        fun tryDeserializeMessage(bytes: ByteArray): Result<SolanaTransactionUnsigned, SolanaTransactionError> = catchTransactionError { decodeMessage(bytes) }
+        fun deserializeMessage(bytes: ByteArray): Result<SolanaTransactionUnsigned, SolanaTransactionError> = decodeMessage(bytes)
     }
 }

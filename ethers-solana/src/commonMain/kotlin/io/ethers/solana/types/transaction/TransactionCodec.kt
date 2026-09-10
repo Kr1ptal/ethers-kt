@@ -1,12 +1,14 @@
 package io.ethers.solana.types.transaction
 
 import io.ethers.core.Result
+import io.ethers.core.unwrapOrReturn
 import io.ethers.solana.serialization.SolanaMessageDecoder
 import io.ethers.solana.serialization.SolanaMessageEncoder
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.types.SolanaBytes
 import io.ethers.solana.types.SolanaSignature
+import kotlin.io.encoding.Base64
 
 internal fun SolanaMessageEncoder.writeMessageBody(tx: SolanaTransactionUnsigned) {
     writeByte(tx.header.requiredSignatures).writeByte(tx.header.readonlySignedAccounts).writeByte(tx.header.readonlyUnsignedAccounts)
@@ -29,18 +31,20 @@ internal class DecodedMessageBody(
 )
 
 /** The required-signature count has already been consumed, as legacy encodes it in place of a version byte. */
-internal fun SolanaMessageDecoder.readMessageBody(requiredSignatures: Int): DecodedMessageBody {
+internal fun SolanaMessageDecoder.readMessageBody(requiredSignatures: Int): Result<DecodedMessageBody, SolanaTransactionError> {
     val header = MessageHeader(requiredSignatures, readByte(), readByte())
     val count = readShortVecLength()
-    if (count !in 1..256) throw SolanaTransactionError.CountOutOfRange(SolanaTransactionError.Limit.ACCOUNTS, count, 1..256).toException()
-    val accounts = List(count) { SolanaAddress(readBytes(32)) }
+    if (failed) return Result.failure(malformed())
+    if (count !in 1..256) return Result.failure(SolanaTransactionError.CountOutOfRange(SolanaTransactionError.Limit.ACCOUNTS, count, 1..256))
+    val accounts = readList(count) { SolanaAddress(readBytes(32)) }
     val blockhash = SolanaBlockhash(readBytes(32))
-    val instructions = List(readShortVecLength()) {
+    val instructions = readList(readShortVecLength()) {
         val program = readByte()
-        val indices = List(readShortVecLength()) { readByte() }
+        val indices = readList(readShortVecLength()) { readByte() }
         MessageInstruction(program, indices, SolanaBytes.fromBytes(readBytes(readShortVecLength())))
     }
-    return DecodedMessageBody(header, accounts, blockhash, instructions)
+    if (failed) return Result.failure(malformed())
+    return Result.success(DecodedMessageBody(header, accounts, blockhash, instructions))
 }
 
 /** Canonical shortvec length prefix width, rejecting counts the wire format cannot represent. */
@@ -79,58 +83,69 @@ internal fun encodeSignaturesFirstEnvelope(tx: SolanaTransactionUnsigned, signat
     return encoder.writeBytes(tx.serializeMessage()).toByteArray()
 }
 
-internal fun decodeMessage(bytes: ByteArray): SolanaTransactionUnsigned {
+/** Map a decoder that stopped on malformed input into the error it recorded. */
+internal fun SolanaMessageDecoder.malformed(): SolanaTransactionError.MalformedBytes = SolanaTransactionError.MalformedBytes(error ?: "Malformed transaction bytes")
+
+internal fun decodeMessage(bytes: ByteArray): Result<SolanaTransactionUnsigned, SolanaTransactionError> {
     val decoder = SolanaMessageDecoder(bytes)
-    val tx = decoder.readVersionedMessage()
+    val tx = decoder.readVersionedMessage().unwrapOrReturn { return Result.failure(it) }
     decoder.requireDone()
-    return tx
+    if (decoder.failed) return Result.failure(decoder.malformed())
+    return Result.success(tx)
 }
 
-internal fun decodeTransactionEnvelope(bytes: ByteArray): Pair<SolanaTransactionUnsigned, List<SolanaSignature?>> {
+internal fun decodeTransactionEnvelope(bytes: ByteArray): Result<Pair<SolanaTransactionUnsigned, List<SolanaSignature?>>, SolanaTransactionError> {
     val decoder = SolanaMessageDecoder(bytes)
     if (bytes.firstOrNull() == 129.toByte()) {
         if (bytes.size > SolanaTxV1.MAX_TRANSACTION_SIZE) {
-            throw SolanaTransactionError.EnvelopeTooLarge(SolanaTxType.V1, bytes.size.toLong(), SolanaTxV1.MAX_TRANSACTION_SIZE).toException()
+            return Result.failure(SolanaTransactionError.EnvelopeTooLarge(SolanaTxType.V1, bytes.size.toLong(), SolanaTxV1.MAX_TRANSACTION_SIZE))
         }
         decoder.readByte()
-        val tx = SolanaTxV1.decodeBody(decoder)
-        val signatures = List(tx.header.requiredSignatures) { decoder.readSignatureSlot() }
+        val tx = SolanaTxV1.decodeBody(decoder).unwrapOrReturn { return Result.failure(it) }
+        val signatures = decoder.readList(tx.header.requiredSignatures) { decoder.readSignatureSlot() }
         decoder.requireDone()
-        return tx to signatures
+        if (decoder.failed) return Result.failure(decoder.malformed())
+        return Result.success(tx to signatures)
     }
     val count = decoder.readShortVecLength()
-    if (count !in 1..127) throw SolanaTransactionError.CountOutOfRange(SolanaTransactionError.Limit.SIGNERS, count, 1..127).toException()
-    val signatures = List(count) { decoder.readSignatureSlot() }
-    val tx = decoder.readSignaturesFirstMessage()
+    if (decoder.failed) return Result.failure(decoder.malformed())
+    if (count !in 1..127) return Result.failure(SolanaTransactionError.CountOutOfRange(SolanaTransactionError.Limit.SIGNERS, count, 1..127))
+    val signatures = decoder.readList(count) { decoder.readSignatureSlot() }
+    val tx = decoder.readSignaturesFirstMessage().unwrapOrReturn { return Result.failure(it) }
     decoder.requireDone()
+    if (decoder.failed) return Result.failure(decoder.malformed())
     if (tx.header.requiredSignatures != count) {
-        throw SolanaTransactionError.InvalidMessage(
-            SolanaTransactionError.Reason.SIGNATURE_COUNT,
-            "Envelope carries $count signatures, but the message requires ${tx.header.requiredSignatures}",
-        ).toException()
+        return Result.failure(
+            SolanaTransactionError.InvalidMessage(
+                SolanaTransactionError.Reason.SIGNATURE_COUNT,
+                "Envelope carries $count signatures, but the message requires ${tx.header.requiredSignatures}",
+            ),
+        )
     }
-    return tx to signatures
+    return Result.success(tx to signatures)
 }
 
 /** Dispatch on the version prefix, delegating the body to the type that owns that layout. */
-private fun SolanaMessageDecoder.readVersionedMessage(): SolanaTransactionUnsigned {
+private fun SolanaMessageDecoder.readVersionedMessage(): Result<SolanaTransactionUnsigned, SolanaTransactionError> {
     val prefix = readByte()
+    if (failed) return Result.failure(malformed())
     return when {
         prefix == 129 -> SolanaTxV1.decodeBody(this)
         prefix == 128 -> SolanaTxV0.decodeBody(this)
         prefix <= 127 -> SolanaTxLegacy.decodeBody(this, prefix)
-        else -> throw SolanaTransactionError.UnsupportedVersion(prefix).toException()
+        else -> Result.failure(SolanaTransactionError.UnsupportedVersion(prefix))
     }
 }
 
 /** As [readVersionedMessage], but rejects v1, whose signatures follow the message instead of preceding it. */
-private fun SolanaMessageDecoder.readSignaturesFirstMessage(): SolanaTransactionUnsigned {
+private fun SolanaMessageDecoder.readSignaturesFirstMessage(): Result<SolanaTransactionUnsigned, SolanaTransactionError> {
     val prefix = readByte()
+    if (failed) return Result.failure(malformed())
     return when {
         prefix == 128 -> SolanaTxV0.decodeBody(this)
         prefix <= 127 -> SolanaTxLegacy.decodeBody(this, prefix)
-        prefix == 129 -> throw SolanaTransactionError.MalformedBytes("V1 signatures must follow the message").toException()
-        else -> throw SolanaTransactionError.UnsupportedVersion(prefix).toException()
+        prefix == 129 -> Result.failure(SolanaTransactionError.MalformedBytes("V1 signatures must follow the message"))
+        else -> Result.failure(SolanaTransactionError.UnsupportedVersion(prefix))
     }
 }
 
@@ -140,17 +155,11 @@ private fun SolanaMessageDecoder.readSignatureSlot(): SolanaSignature? {
 }
 
 /**
- * Run a construction or decoding step, returning its typed failure as a value.
- *
- * The wire decoder reports truncated and non-canonical input by throwing, so anything that is not
- * already a [SolanaTransactionException] is surfaced as [SolanaTransactionError.MalformedBytes].
+ * Base64 is the only step of decoding an envelope that reports failure by throwing, since it belongs
+ * to the standard library. Isolating it here keeps the wire decoders themselves exception-free.
  */
-internal inline fun <T> catchTransactionError(block: () -> T): Result<T, SolanaTransactionError> = try {
-    Result.success(block())
-} catch (e: SolanaTransactionException) {
-    Result.failure(e.error)
+internal fun decodeBase64(encoded: String): Result<ByteArray, SolanaTransactionError> = try {
+    Result.success(Base64.decode(encoded))
 } catch (e: IllegalArgumentException) {
-    Result.failure(SolanaTransactionError.MalformedBytes(e.message ?: "Malformed transaction bytes", e))
-} catch (e: IndexOutOfBoundsException) {
-    Result.failure(SolanaTransactionError.MalformedBytes(e.message ?: "Malformed transaction bytes", e))
+    Result.failure(SolanaTransactionError.MalformedBytes(e.message ?: "Malformed base64 payload", e))
 }

@@ -31,7 +31,7 @@ suspend fun transfer(seed: ByteArray, recipient: SolanaAddress) {
         val message = SolanaTxV0.compile(
             signer.publicKey, latest.blockhash,
             SystemProgram.transfer(signer.publicKey, recipient, 1_000L),
-        )
+        ).unwrap()
         val transaction = message.sign(signer)
         val signature = provider.sendTransaction(transaction).send().unwrap()
         println(signature)
@@ -41,7 +41,10 @@ suspend fun transfer(seed: ByteArray, recipient: SolanaAddress) {
 }
 ```
 
-`send()` suspends and returns `io.ethers.core.Result`; `unwrap()` explicitly opts into throwing on failure.
+`send()` suspends and returns `io.ethers.core.Result`; `unwrap()` explicitly opts into throwing on failure. The
+same holds for anything that can fail to build or decode: `compile`, `create`, `deserialize`, `decode`,
+`toRequest`, `resolveAccounts` and `signMessage` all return a `Result` rather than throwing, so the
+failure is a value you can inspect without paying for a stack trace.
 JVM/Android also expose inherited `sendAwait()` and `sendAsync()` members. Constructors and invalid local
 transaction inputs fail immediately with `IllegalArgumentException`.
 
@@ -53,7 +56,7 @@ try {
     var signer = KeypairSigner.fromSeed(seed);
     var latest = provider.getLatestBlockhash().sendAwait().unwrap().getValue();
     var instruction = SystemProgram.transfer(signer.getPublicKey(), recipient, 1_000L);
-    var message = SolanaTxV0.compile(signer.getPublicKey(), latest.getBlockhash(), instruction);
+    var message = SolanaTxV0.compile(signer.getPublicKey(), latest.getBlockhash(), instruction).unwrap();
     var transaction = message.sign(signer);
     var signature = provider.sendTransaction(transaction).sendAwait().unwrap();
 } finally {
@@ -68,7 +71,7 @@ try {
 unsigned payload in `tx` and delegates its common properties. There is no separate message hierarchy.
 
 ```kotlin
-val unsigned = SolanaTxV0.compile(feePayer, blockhash, instructions)
+val unsigned = SolanaTxV0.compile(feePayer, blockhash, instructions).unwrap()
 val builder = unsigned.signingBuilder().sign(alice) // SolanaTransactionSigned.Builder
 val signed = builder.sign(bob).build()              // requires every signature
 // Or collect external signatures with addSignature(address, signature), then call build().
@@ -84,7 +87,7 @@ transaction and discards signatures; start a new builder for that payload.
 - `SolanaTransactionSigned.serialize()` produces a fully signed envelope accepted by typed `sendTransaction`.
 - `serializeForSimulation()` produces an unsigned or fully signed envelope, with zeros for unsigned slots.
 - `Builder.serializePartial()` explicitly exports an offline signature collection, also accepted by raw simulation.
-- `SolanaTransactionUnsigned.deserializeMessage()` parses message bytes; `SolanaTransaction.deserialize()`
+- `SolanaTransactionUnsigned.deserializeMessage()` parses message bytes; `SolanaTransactionCompiled.deserialize()`
   parses an unsigned or fully signed envelope. `SolanaTransactionSigned.deserialize()` rejects incomplete
   envelopes, while `SolanaTransactionSigned.Builder.deserializePartial()` imports a collection for further
   signing. The envelope decoders also have Base64 counterparts.
@@ -104,7 +107,7 @@ val config = SolanaTransactionConfig(
     loadedAccountsDataSizeLimit = 65_536,
     heapSize = 65_536,
 )
-val unsigned = SolanaTxV1.compile(feePayer, blockhash, instructions, config)
+val unsigned = SolanaTxV1.compile(feePayer, blockhash, instructions, config).unwrap()
 val signed = unsigned.sign(signer)
 val simulation = provider.simulateTransaction(signed).send().unwrap()
 ```
@@ -298,12 +301,12 @@ Reference: [sol4k a166edd854a7198553fdafe9a5051a400d70b121](https://github.com/s
 | Shrink a v0 transaction with lookup tables | `getAddressLookupTable`, `AddressLookupTableAccount.decode`, automatic table selection in `compileV0` |
 | Simulate with options, or fill and compile a request | `simulateTransaction(request, ...)`, `SolanaSimulationConfig`, `fillTransaction` |
 | Rebuild a transaction from an RPC response | `SolanaRPCMessage.toTransaction`, `SolanaRPCTransaction.toSignedTransaction` |
-| Compile or decode without throwing | `tryCompile`, `tryDeserialize`, `tryDeserializeMessage`, `SolanaTransactionError` |
+| Compile or decode without throwing | `compile`, `deserialize`, `deserializeMessage` — every one returns `Result<_, SolanaTransactionError>` |
 | Unit conversion / fee estimation | `SolUnit`, `SolanaTransaction.estimateFee` |
 | Read a transaction's compute budget, any version | `computeUnitLimit`, `computeUnitPrice`, `priorityFee`, `heapSize`, `loadedAccountsDataSizeLimit` |
 | Read any transaction the same way, built or fetched | `SolanaTransaction`, implemented by `SolanaTransactionCompiled` and `SolanaRPCTransaction` |
-| Turn any transaction back into an editable request | `SolanaTransaction.toRequest`, `tryToRequest`, `SolanaApi.decompileTransaction` |
-| Resolve a transaction's account indices to addresses and flags | `SolanaTransaction.resolveAccounts`, `tryResolveAccounts` |
+| Turn any transaction back into an editable request | `SolanaTransaction.toRequest`, `SolanaApi.decompileTransaction` |
+| Resolve a transaction's account indices to addresses and flags | `SolanaTransaction.resolveAccounts` |
 | All upstream public RPC methods | `SolanaApi` / `SolanaProvider` |
 | Additional WebSocket support | `subscribeAccount`, `subscribeProgram`, `subscribeLogs`, `subscribeSignature`, `subscribeSlot`, `subscribeRoot` |
 

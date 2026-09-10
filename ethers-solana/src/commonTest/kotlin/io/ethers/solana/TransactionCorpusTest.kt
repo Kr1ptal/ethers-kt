@@ -71,7 +71,7 @@ class TransactionCorpusTest : FunSpec({
         val local = fixtures.filter { it.getValue("cluster").jsonPrimitive.content == "localnet" }
         local.size shouldBe 200
         local.all { it.getValue("origin").jsonPrimitive.content == "generated-local-validator" } shouldBe true
-        val transactions = local.map { SolanaTransactionSigned.fromBase64(it.getValue("wire").jsonPrimitive.content) }
+        val transactions = local.map { SolanaTransactionSigned.fromBase64(it.getValue("wire").jsonPrimitive.content).unwrap() }
         transactions.all { it.type == SolanaTxType.V1 } shouldBe true
         transactions.map { it.signatures.size }.toSet() shouldBe (1..12).toSet()
         transactions.any { it.instructions.size == 64 } shouldBe true
@@ -89,15 +89,15 @@ class TransactionCorpusTest : FunSpec({
         val version = rawRpc.getValue("version").jsonPrimitive.content
         test("${fixture.getValue("cluster").jsonPrimitive.content} $version $signature: wire, RPC, signatures, reconstruction and metadata") {
             val rpc = json.decodeFromJsonElement<SolanaRPCTransaction>(rawRpc)
-            val signed = SolanaTransactionSigned.fromBase64(fixture.getValue("wire").jsonPrimitive.content)
+            val signed = SolanaTransactionSigned.fromBase64(fixture.getValue("wire").jsonPrimitive.content).unwrap()
             val tx = signed.tx
             rpc.slot.toString() shouldBe fixture.getValue("slot").jsonPrimitive.content
             signed.id.toString() shouldBe signature
             signed.type shouldBe rpc.type
             signed.signatures shouldBe rpc.transaction.signatures
             signed.toBase64() shouldBe fixture.getValue("wire").jsonPrimitive.content
-            SolanaTransactionCompiled.deserialize(signed.serialize()).serializeForSimulation() shouldBe signed.serialize()
-            val decodedMessage = SolanaTransactionUnsigned.deserializeMessage(signed.serializeMessage())
+            SolanaTransactionCompiled.deserialize(signed.serialize()).unwrap().serializeForSimulation() shouldBe signed.serialize()
+            val decodedMessage = SolanaTransactionUnsigned.deserializeMessage(signed.serializeMessage()).unwrap()
             decodedMessage.serializeMessage() shouldBe signed.serializeMessage()
 
             // Reconstruct from independent RPC JSON fields, never from the binary decoder's fields.
@@ -124,7 +124,7 @@ class TransactionCorpusTest : FunSpec({
             // Bytes are not compared, since these were compiled elsewhere and may order accounts
             // differently within a header group than this library's canonical sort.
             if (rpc.addressLookupTables.isEmpty() || rpc.meta?.loadedAddresses != null) {
-                val recovered = rpc.toRequest()
+                val recovered = rpc.toRequest().unwrap()
                 recovered.feePayer shouldBe signed.feePayer
                 recovered.blockhash shouldBe signed.recentBlockhash
                 recovered.instructions.size shouldBe signed.instructions.size
@@ -133,22 +133,22 @@ class TransactionCorpusTest : FunSpec({
                 // accounts back out of the inline list and still fit the envelope
                 val tables = rebuildLookupTables(rpc.addressLookupTables, rpc.meta?.loadedAddresses)
                 val recompiled = when (rpc.type) {
-                    SolanaTxType.Legacy -> recovered.compileLegacy()
-                    SolanaTxType.V1 -> recovered.compileV1()
-                    else -> recovered.compileV0(tables)
+                    SolanaTxType.Legacy -> recovered.compileLegacy().unwrap()
+                    SolanaTxType.V1 -> recovered.compileV1().unwrap()
+                    else -> recovered.compileV0(tables).unwrap()
                 }
-                recompiled.toRequest(tables).instructions shouldBe recovered.instructions
+                recompiled.toRequest(tables).unwrap().instructions shouldBe recovered.instructions
             }
 
             // Validate every signature through import, preserve partial slots, and reject corruption.
             val partial = SolanaTransactionSigned.Builder(tx, signed.signatures.mapIndexed { i, value -> if (i == 0) null else value })
-            val imported = SolanaTransactionSigned.Builder.deserializePartial(partial.serializePartial())
+            val imported = SolanaTransactionSigned.Builder.deserializePartial(partial.serializePartial()).unwrap()
             imported.missingSigners shouldBe listOf(signed.feePayer)
             imported.addSignature(signed.feePayer, signed.id).build().serialize() shouldBe signed.serialize()
             val badSignature = signed.id.toByteArray().also { it[0] = (it[0].toInt() xor 1).toByte() }
             shouldThrow<IllegalArgumentException> { SolanaTransactionSigned(tx, listOf(SolanaSignature(badSignature)) + signed.signatures.drop(1)) }
-            shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.deserialize(signed.serialize().dropLast(1).toByteArray()) }
-            shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.deserialize(signed.serialize() + byteArrayOf(0)) }
+            shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.deserialize(signed.serialize().dropLast(1).toByteArray()).unwrap() }
+            shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.deserialize(signed.serialize() + byteArrayOf(0)).unwrap() }
 
             // unknown fields are re-emitted as the text they arrived as, so the wire string is what
             // carries their structure; parse it back before comparing trees

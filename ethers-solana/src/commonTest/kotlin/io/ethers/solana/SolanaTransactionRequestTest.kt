@@ -41,12 +41,12 @@ class SolanaTransactionRequestTest : FunSpec({
     }
 
     test("a request compiles to the same message as the version's own compile") {
-        request().compileLegacy().serializeMessage() shouldBe
-            SolanaTxLegacy.compile(alice.publicKey, blockhash, transfer).serializeMessage()
-        request().compileV0().serializeMessage() shouldBe
-            SolanaTxV0.compile(alice.publicKey, blockhash, transfer).serializeMessage()
-        request().compileV1().serializeMessage() shouldBe
-            SolanaTxV1.compile(alice.publicKey, blockhash, transfer, io.ethers.solana.types.transaction.SolanaTransactionConfig()).serializeMessage()
+        request().compileLegacy().unwrap().serializeMessage() shouldBe
+            SolanaTxLegacy.compile(alice.publicKey, blockhash, transfer).unwrap().serializeMessage()
+        request().compileV0().unwrap().serializeMessage() shouldBe
+            SolanaTxV0.compile(alice.publicKey, blockhash, transfer).unwrap().serializeMessage()
+        request().compileV1().unwrap().serializeMessage() shouldBe
+            SolanaTxV1.compile(alice.publicKey, blockhash, transfer, io.ethers.solana.types.transaction.SolanaTransactionConfig()).unwrap().serializeMessage()
     }
 
     test("the DSL, chained setters and copy constructor agree") {
@@ -54,8 +54,8 @@ class SolanaTransactionRequestTest : FunSpec({
             .feePayer(alice.publicKey)
             .blockhash(blockhash)
             .instruction(transfer)
-        chained.compileV0().serializeMessage() shouldBe request().compileV0().serializeMessage()
-        SolanaTransactionRequest(chained).compileV0().serializeMessage() shouldBe chained.compileV0().serializeMessage()
+        chained.compileV0().unwrap().serializeMessage() shouldBe request().compileV0().unwrap().serializeMessage()
+        SolanaTransactionRequest(chained).compileV0().unwrap().serializeMessage() shouldBe chained.compileV0().unwrap().serializeMessage()
 
         val many = SolanaTransactionRequest {
             feePayer(alice.publicKey)
@@ -67,18 +67,18 @@ class SolanaTransactionRequestTest : FunSpec({
     }
 
     test("a request without a fee payer or blockhash names the missing field") {
-        SolanaTransactionRequest { blockhash(blockhash) }.tryCompileV0().unwrapError() shouldBe
+        SolanaTransactionRequest { blockhash(blockhash) }.compileV0().unwrapError() shouldBe
             SolanaTransactionError.MissingFeePayer
-        SolanaTransactionRequest { feePayer(alice.publicKey) }.tryCompileV1().unwrapError() shouldBe
+        SolanaTransactionRequest { feePayer(alice.publicKey) }.compileV1().unwrapError() shouldBe
             SolanaTransactionError.MissingBlockhash
-        SolanaTransactionRequest { }.tryCompileLegacy().isFailure() shouldBe true
+        SolanaTransactionRequest { }.compileLegacy().isFailure() shouldBe true
     }
 
     test("legacy and v0 encode compute budget as prepended ComputeBudget instructions") {
         val tx = request().apply {
             computeUnitLimit(200_000)
             computeUnitPrice(1_000)
-        }.compileV0()
+        }.compileV0().unwrap()
 
         val budget = tx.instructions.filter { tx.accounts[it.programIdIndex] == Programs.COMPUTE_BUDGET }
         budget.map { it.data.toHex() } shouldBe listOf("02400d0300", "03e803000000000000")
@@ -94,7 +94,7 @@ class SolanaTransactionRequestTest : FunSpec({
             instruction(ComputeBudgetProgram.setComputeUnitPrice(7))
             instruction(transfer)
             computeUnitLimit(200_000)
-        }.compileV0()
+        }.compileV0().unwrap()
 
         val budget = withBoth.instructions
             .filter { withBoth.accounts[it.programIdIndex] == Programs.COMPUTE_BUDGET }
@@ -109,7 +109,7 @@ class SolanaTransactionRequestTest : FunSpec({
             blockhash(blockhash)
             instruction(ComputeBudgetProgram.setComputeUnitLimit(1))
             instruction(transfer)
-        }.compileV0()
+        }.compileV0().unwrap()
         tx.instructions.first().data.toHex() shouldBe "0201000000"
     }
 
@@ -120,7 +120,7 @@ class SolanaTransactionRequestTest : FunSpec({
             instruction(ComputeBudgetProgram.setComputeUnitLimit(200_000))
             instruction(ComputeBudgetProgram.setComputeUnitPrice(1_000))
             instruction(transfer)
-        }.compileV1()
+        }.compileV1().unwrap()
 
         tx.config.computeUnitLimit shouldBe 200_000
         // 200000 units * 1000 micro-lamports, rounded up to whole lamports
@@ -138,7 +138,7 @@ class SolanaTransactionRequestTest : FunSpec({
             instruction(ComputeBudgetProgram.requestHeapFrame(65536))
             instruction(transfer)
             computeUnitLimit(300_000)
-        }.compileV1()
+        }.compileV1().unwrap()
 
         tx.config.computeUnitLimit shouldBe 300_000
         tx.config.loadedAccountsDataSizeLimit shouldBe 65536
@@ -153,7 +153,7 @@ class SolanaTransactionRequestTest : FunSpec({
             instruction(transfer)
             heapSize(65536)
             loadedAccountsDataSizeLimit(131072)
-        }.compileV1()
+        }.compileV1().unwrap()
         v1.config.heapSize shouldBe 65536
         v1.config.loadedAccountsDataSizeLimit shouldBe 131072
         v1.accounts.none { it == Programs.COMPUTE_BUDGET } shouldBe true
@@ -165,7 +165,7 @@ class SolanaTransactionRequestTest : FunSpec({
             instruction(transfer)
             heapSize(65536)
             loadedAccountsDataSizeLimit(131072)
-        }.compileV0()
+        }.compileV0().unwrap()
         v0.instructions.take(2).map { it.data.toHex() } shouldBe listOf("0100000100", "0400000200")
     }
 
@@ -177,8 +177,8 @@ class SolanaTransactionRequestTest : FunSpec({
             instruction(transfer)
             heapSize(65536)
         }
-        request().compileV1().config.heapSize shouldBe 65536
-        val v0 = request().compileV0()
+        request().compileV1().unwrap().config.heapSize shouldBe 65536
+        val v0 = request().compileV0().unwrap()
         v0.instructions.filter { v0.accounts[it.programIdIndex] == Programs.COMPUTE_BUDGET }
             .map { it.data.toHex() } shouldBe listOf("0100000100")
     }
@@ -190,12 +190,12 @@ class SolanaTransactionRequestTest : FunSpec({
             blockhash(blockhash)
             instruction(opaque)
             instruction(transfer)
-        }.compileV1()
+        }.compileV1().unwrap()
         tx.instructions.size shouldBe 2
         tx.config.computeUnitLimit shouldBe null
     }
 
-    test("tryCompile never reaches v0 without being given tables, whatever the request holds") {
+    test("compile never reaches v0 without being given tables, whatever the request holds") {
         // the documented guarantee: v0 can only appear once the caller has asked for it by passing
         // tables, so an auto-compiled message is safe against a wallet or RPC that takes legacy only
         var compiled = 0
@@ -209,7 +209,7 @@ class SolanaTransactionRequestTest : FunSpec({
                 computeUnitPrice(bigIntegerOf(5_000))
             }
             // either it compiles as legacy or it does not compile at all; it is never silently v0
-            request.tryCompile().unwrapOrNull()?.let {
+            request.compile().unwrapOrNull()?.let {
                 it.type shouldBe SolanaTxType.Legacy
                 compiled++
             }
@@ -218,7 +218,7 @@ class SolanaTransactionRequestTest : FunSpec({
         (compiled >= 3) shouldBe true
     }
 
-    test("tryCompile picks legacy when no table earns its place, and v0 when one does") {
+    test("compile picks legacy when no table earns its place, and v0 when one does") {
         val movable = List(2) { SolanaAddress(ByteArray(32) { _ -> (it + 10).toByte() }) }
         fun withAccounts(accounts: List<SolanaAddress>) = SolanaTransactionRequest {
             feePayer(alice.publicKey)
@@ -227,18 +227,18 @@ class SolanaTransactionRequestTest : FunSpec({
         }
 
         // no tables at all, and a table covering only one account, both stay legacy
-        withAccounts(movable).compile().type shouldBe SolanaTxType.Legacy
+        withAccounts(movable).compile().unwrap().type shouldBe SolanaTxType.Legacy
         val single = AddressLookupTableAccount(SolanaAddress(ByteArray(32) { 90 }), movable.take(1))
-        withAccounts(movable).compile(listOf(single)).type shouldBe SolanaTxType.Legacy
+        withAccounts(movable).compile(listOf(single)).unwrap().type shouldBe SolanaTxType.Legacy
 
         val both = AddressLookupTableAccount(SolanaAddress(ByteArray(32) { 91 }), movable)
-        val v0 = withAccounts(movable).compile(listOf(both))
+        val v0 = withAccounts(movable).compile(listOf(both)).unwrap()
         v0.type shouldBe SolanaTxType.V0
         // and the chosen encoding is the smaller one
-        (v0.envelopeSize() < withAccounts(movable).compile().envelopeSize()) shouldBe true
+        (v0.envelopeSize() < withAccounts(movable).compile().unwrap().envelopeSize()) shouldBe true
 
         // v1 is never chosen for you
-        withAccounts(movable).compile(listOf(both)).type shouldBe SolanaTxType.V0
+        withAccounts(movable).compile(listOf(both)).unwrap().type shouldBe SolanaTxType.V0
     }
 
     test("priorityFee takes precedence over computeUnitPrice on every version") {
@@ -252,10 +252,10 @@ class SolanaTransactionRequestTest : FunSpec({
         }
 
         // v1 carries the exact total, ignoring the per-unit price
-        request().compileV1().config.priorityFee shouldBe bigIntegerOf(500)
+        request().compileV1().unwrap().config.priorityFee shouldBe bigIntegerOf(500)
 
         // legacy and v0 can only price per unit, so the total is converted, rounding up
-        val v0 = request().compileV0()
+        val v0 = request().compileV0().unwrap()
         val price = v0.instructions.map { it.data.toHex() }.single { it.startsWith("03") }
         // ceil(500 * 1_000_000 / 200_000) = 2500 micro-lamports per unit
         price shouldBe "03c409000000000000"
@@ -270,15 +270,15 @@ class SolanaTransactionRequestTest : FunSpec({
             instruction(transfer)
             priorityFee(500)
         }
-        request().compileV1().config.priorityFee shouldBe bigIntegerOf(500)
+        request().compileV1().unwrap().config.priorityFee shouldBe bigIntegerOf(500)
 
-        val error = request().tryCompileV0().unwrapError()
+        val error = request().compileV0().unwrapError()
         error.shouldBeInstanceOf<SolanaTransactionError.InvalidMessage>()
         error.reason shouldBe SolanaTransactionError.Reason.CONFIG
 
         // a limit carried by an instruction is enough
         val withInstructionLimit = request().apply { instruction(ComputeBudgetProgram.setComputeUnitLimit(200_000)) }
-        withInstructionLimit.tryCompileV0().isFailure() shouldBe false
+        withInstructionLimit.compileV0().isFailure() shouldBe false
     }
 
     test("every version reports its compute budget through the same accessors") {
@@ -292,9 +292,9 @@ class SolanaTransactionRequestTest : FunSpec({
             loadedAccountsDataSizeLimit(131072)
         }
 
-        val v0 = request().compileV0()
-        val v1 = request().compileV1()
-        val legacy = request().compileLegacy()
+        val v0 = request().compileV0().unwrap()
+        val v1 = request().compileV1().unwrap()
+        val legacy = request().compileLegacy().unwrap()
 
         for (tx in listOf(legacy, v0, v1)) {
             tx.computeUnitLimit shouldBe 200_000
@@ -315,7 +315,7 @@ class SolanaTransactionRequestTest : FunSpec({
             feePayer(alice.publicKey)
             blockhash(blockhash)
             instruction(transfer)
-        }.compileV0()
+        }.compileV0().unwrap()
         bare.computeUnitLimit shouldBe null
         bare.computeUnitPrice shouldBe null
         bare.priorityFee shouldBe null
@@ -329,7 +329,7 @@ class SolanaTransactionRequestTest : FunSpec({
             blockhash(blockhash)
             instruction(Instruction(Programs.COMPUTE_BUDGET, emptyList(), byteArrayOf(9, 9)))
             instruction(transfer)
-        }.compileV1()
+        }.compileV1().unwrap()
         opaque.accounts.contains(Programs.COMPUTE_BUDGET) shouldBe true
         opaque.computeUnitLimit shouldBe null
         opaque.priorityFee shouldBe null
@@ -341,7 +341,7 @@ class SolanaTransactionRequestTest : FunSpec({
             blockhash(blockhash)
             instruction(ComputeBudgetProgram.setComputeUnitPrice(1_000))
             instruction(transfer)
-        }.compileV0()
+        }.compileV0().unwrap()
 
         tx.computeUnitPrice shouldBe bigIntegerOf(1_000)
         // the runtime would apply a default limit, which this library cannot predict
@@ -354,7 +354,7 @@ class SolanaTransactionRequestTest : FunSpec({
             blockhash(blockhash)
             instruction(ComputeBudgetProgram.setComputeUnitPrice(0))
             instruction(transfer)
-        }.compileV0()
+        }.compileV0().unwrap()
         free.priorityFee shouldBe bigIntegerOf(0)
         free.estimateFee(bigIntegerOf(5000)) shouldBe bigIntegerOf(5000)
     }
@@ -367,7 +367,7 @@ class SolanaTransactionRequestTest : FunSpec({
             computeUnitLimit(200_000)
             computeUnitPrice(1_000)
             heapSize(65536)
-        }.compileV0()
+        }.compileV0().unwrap()
 
         val rpc = SolanaRPCTransaction(
             slot = bigIntegerOf(1),
@@ -428,7 +428,7 @@ class SolanaTransactionRequestTest : FunSpec({
             blockhash(blockhash)
             instruction(transfer)
             computeUnitPrice(1_000)
-        }.tryCompileV1().unwrapError()
+        }.compileV1().unwrapError()
         error.shouldBeInstanceOf<SolanaTransactionError.InvalidMessage>()
         error.reason shouldBe SolanaTransactionError.Reason.CONFIG
     }

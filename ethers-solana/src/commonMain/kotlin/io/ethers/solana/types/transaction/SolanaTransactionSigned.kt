@@ -1,6 +1,8 @@
 package io.ethers.solana.types.transaction
 
 import io.ethers.core.Result
+import io.ethers.core.andThen
+import io.ethers.core.unwrapOrReturn
 import io.ethers.solana.signers.SolanaSigner
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
@@ -100,41 +102,28 @@ class SolanaTransactionSigned(val tx: SolanaTransactionUnsigned, val signatures:
         companion object {
             /** Import an envelope, verifying populated slots and retaining missing ones for further signing. */
             @JvmStatic
-            fun deserializePartial(bytes: ByteArray): Builder {
-                val (tx, signatures) = decodeTransactionEnvelope(bytes)
-                return Builder(tx, signatures)
-            }
+            fun deserializePartial(bytes: ByteArray): Result<Builder, SolanaTransactionError> = decodeTransactionEnvelope(bytes).map { (tx, signatures) -> Builder(tx, signatures) }
 
-            /** As [deserializePartial], returning the reason the bytes could not be decoded instead of throwing. */
+            /** As [deserializePartial], from a base64 envelope. */
             @JvmStatic
-            fun tryDeserializePartial(bytes: ByteArray): Result<Builder, SolanaTransactionError> = catchTransactionError { deserializePartial(bytes) }
-
-            @JvmStatic
-            fun fromBase64Partial(encoded: String): Builder = deserializePartial(Base64.decode(encoded))
-
-            /** As [fromBase64Partial], returning the reason the input could not be decoded instead of throwing. */
-            @JvmStatic
-            fun tryFromBase64Partial(encoded: String): Result<Builder, SolanaTransactionError> = catchTransactionError { fromBase64Partial(encoded) }
+            fun fromBase64Partial(encoded: String): Result<Builder, SolanaTransactionError> = decodeBase64(encoded).andThen { deserializePartial(it) }
         }
     }
 
     companion object {
         /** Reject incomplete envelopes as well as invalid signatures or malformed messages. */
         @JvmStatic
-        fun deserialize(bytes: ByteArray): SolanaTransactionSigned {
-            val (tx, signatures) = decodeTransactionEnvelope(bytes)
-            return SolanaTransactionSigned(tx, signatures.map { requireNotNull(it) { "Missing required signatures" } })
+        fun deserialize(bytes: ByteArray): Result<SolanaTransactionSigned, SolanaTransactionError> {
+            val (tx, signatures) = decodeTransactionEnvelope(bytes).unwrapOrReturn { return Result.failure(it) }
+            val missing = signatures.count { it == null }
+            if (missing > 0) return Result.failure(SolanaTransactionError.PartiallySigned(missing, signatures.size))
+            // checked as a value, so the validating constructor below can never be the one to report it
+            signatureError(tx, signatures)?.let { return Result.failure(it) }
+            return Result.success(SolanaTransactionSigned(tx, signatures.map { requireNotNull(it) }))
         }
 
-        /** As [deserialize], returning the reason the bytes could not be decoded instead of throwing. */
+        /** As [deserialize], from a base64 envelope. */
         @JvmStatic
-        fun tryDeserialize(bytes: ByteArray): Result<SolanaTransactionSigned, SolanaTransactionError> = catchTransactionError { deserialize(bytes) }
-
-        @JvmStatic
-        fun fromBase64(encoded: String): SolanaTransactionSigned = deserialize(Base64.decode(encoded))
-
-        /** As [fromBase64], returning the reason the input could not be decoded instead of throwing. */
-        @JvmStatic
-        fun tryFromBase64(encoded: String): Result<SolanaTransactionSigned, SolanaTransactionError> = catchTransactionError { fromBase64(encoded) }
+        fun fromBase64(encoded: String): Result<SolanaTransactionSigned, SolanaTransactionError> = decodeBase64(encoded).andThen { deserialize(it) }
     }
 }

@@ -18,7 +18,7 @@ import io.ethers.solana.types.transaction.SolanaTransactionUnsigned
 import io.ethers.solana.types.transaction.SolanaTxType
 import io.ethers.solana.types.transaction.decodeComputeBudget
 import io.ethers.solana.types.transaction.decompile
-import io.ethers.solana.types.transaction.resolveAccounts
+import io.ethers.solana.types.transaction.resolveAccountMetas
 import io.ethers.solana.types.transaction.signatureError
 import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.KeepGeneratedSerializer
@@ -82,10 +82,10 @@ data class SolanaRPCTransaction(
      * addresses. The `loadedAddresses` this response carries are what the runtime actually used, so
      * when they are present this needs no tables at all.
      */
-    override fun tryToRequest(tables: List<AddressLookupTableAccount>): Result<SolanaTransactionRequest, SolanaTransactionError> = decompile(this, tables, meta?.loadedAddresses)
+    override fun toRequest(tables: List<AddressLookupTableAccount>): Result<SolanaTransactionRequest, SolanaTransactionError> = decompile(this, tables, meta?.loadedAddresses)
 
-    /** As [tryToRequest], the addresses the node resolved take precedence over the supplied [tables]. */
-    override fun tryResolveAccounts(tables: List<AddressLookupTableAccount>): Result<List<AccountMeta>, SolanaTransactionError> = resolveAccounts(this, tables, meta?.loadedAddresses)
+    /** As [toRequest], the addresses the node resolved take precedence over the supplied [tables]. */
+    override fun resolveAccounts(tables: List<AddressLookupTableAccount>): Result<List<AccountMeta>, SolanaTransactionError> = resolveAccountMetas(this, tables, meta?.loadedAddresses)
 
     /** Rebuild the signable message, discarding the signatures this response carries. */
     fun toUnsignedTransaction(): Result<SolanaTransactionUnsigned, SolanaTransactionError> = transaction.message.toTransaction(type)

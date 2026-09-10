@@ -1,6 +1,8 @@
 package io.ethers.solana.types.transaction
 
 import io.ethers.core.Result
+import io.ethers.core.andThen
+import io.ethers.core.unwrapOrReturn
 import io.github.artificialpb.bignum.BigInteger
 import kotlin.io.encoding.Base64
 import kotlin.jvm.JvmStatic
@@ -28,24 +30,17 @@ sealed interface SolanaTransactionCompiled : SolanaTransaction {
          * [SolanaTransactionSigned.Builder.deserializePartial] so they are not silently discarded.
          */
         @JvmStatic
-        fun deserialize(bytes: ByteArray): SolanaTransactionCompiled {
-            val (tx, signatures) = decodeTransactionEnvelope(bytes)
+        fun deserialize(bytes: ByteArray): Result<SolanaTransactionCompiled, SolanaTransactionError> {
+            val (tx, signatures) = decodeTransactionEnvelope(bytes).unwrapOrReturn { return Result.failure(it) }
             return when {
-                signatures.all { it == null } -> tx
-                signatures.all { it != null } -> SolanaTransactionSigned(tx, signatures.map { requireNotNull(it) })
-                else -> throw SolanaTransactionError.PartiallySigned(signatures.count { it == null }, signatures.size).toException()
+                signatures.all { it == null } -> Result.success(tx)
+                signatures.all { it != null } -> Result.success(SolanaTransactionSigned(tx, signatures.map { requireNotNull(it) }))
+                else -> Result.failure(SolanaTransactionError.PartiallySigned(signatures.count { it == null }, signatures.size))
             }
         }
 
-        /** As [deserialize], returning the reason the bytes could not be decoded instead of throwing. */
+        /** As [deserialize], from a base64 envelope. */
         @JvmStatic
-        fun tryDeserialize(bytes: ByteArray): Result<SolanaTransactionCompiled, SolanaTransactionError> = catchTransactionError { deserialize(bytes) }
-
-        @JvmStatic
-        fun fromBase64(encoded: String): SolanaTransactionCompiled = deserialize(Base64.decode(encoded))
-
-        /** As [fromBase64], returning the reason the input could not be decoded instead of throwing. */
-        @JvmStatic
-        fun tryFromBase64(encoded: String): Result<SolanaTransactionCompiled, SolanaTransactionError> = catchTransactionError { fromBase64(encoded) }
+        fun fromBase64(encoded: String): Result<SolanaTransactionCompiled, SolanaTransactionError> = decodeBase64(encoded).andThen { deserialize(it) }
     }
 }

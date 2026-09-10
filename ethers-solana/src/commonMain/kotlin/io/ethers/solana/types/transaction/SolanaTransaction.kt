@@ -70,19 +70,11 @@ interface SolanaTransaction {
      * This is the read-side counterpart of [toRequest]: it answers who signs, what is written and
      * which program an index names, without rebuilding an editable request to do it.
      *
-     * Throws [SolanaTransactionException] when the message cannot be resolved; [tryResolveAccounts]
-     * reports the same failure as a value.
      */
-    fun resolveAccounts(): List<AccountMeta> = tryResolveAccounts().unwrap()
+    fun resolveAccounts(): Result<List<AccountMeta>, SolanaTransactionError> = resolveAccounts(emptyList())
 
     /** As [resolveAccounts], resolving loaded addresses against the supplied lookup tables. */
-    fun resolveAccounts(tables: List<AddressLookupTableAccount>): List<AccountMeta> = tryResolveAccounts(tables).unwrap()
-
-    /** As [resolveAccounts], returning the reason the message could not be resolved instead of throwing. */
-    fun tryResolveAccounts(): Result<List<AccountMeta>, SolanaTransactionError> = tryResolveAccounts(emptyList())
-
-    /** As [resolveAccounts], returning the reason the message could not be resolved instead of throwing. */
-    fun tryResolveAccounts(tables: List<AddressLookupTableAccount>): Result<List<AccountMeta>, SolanaTransactionError> = resolveAccounts(this, tables, null)
+    fun resolveAccounts(tables: List<AddressLookupTableAccount>): Result<List<AccountMeta>, SolanaTransactionError> = resolveAccountMetas(this, tables, null)
 
     /**
      * Recover the request that compiles to this transaction, so a transaction that was built
@@ -93,19 +85,11 @@ interface SolanaTransaction {
      * orders accounts canonically, so a message compiled by another library, or against a different
      * set of tables, comes back with the same meaning but not the same bytes.
      *
-     * Throws [SolanaTransactionException] when the message cannot be resolved; [tryToRequest] reports
-     * the same failure as a value.
      */
-    fun toRequest(): SolanaTransactionRequest = tryToRequest().unwrap()
+    fun toRequest(): Result<SolanaTransactionRequest, SolanaTransactionError> = toRequest(emptyList())
 
     /** As [toRequest], resolving loaded addresses against the supplied lookup tables. */
-    fun toRequest(tables: List<AddressLookupTableAccount>): SolanaTransactionRequest = tryToRequest(tables).unwrap()
-
-    /** As [toRequest], returning the reason the message could not be resolved instead of throwing. */
-    fun tryToRequest(): Result<SolanaTransactionRequest, SolanaTransactionError> = tryToRequest(emptyList())
-
-    /** As [toRequest], returning the reason the message could not be resolved instead of throwing. */
-    fun tryToRequest(tables: List<AddressLookupTableAccount>): Result<SolanaTransactionRequest, SolanaTransactionError> = decompile(this, tables, null)
+    fun toRequest(tables: List<AddressLookupTableAccount>): Result<SolanaTransactionRequest, SolanaTransactionError> = decompile(this, tables, null)
 
     /**
      * Estimate base + priority fee in lamports. A nonzero price requires an explicit compute-unit limit;
