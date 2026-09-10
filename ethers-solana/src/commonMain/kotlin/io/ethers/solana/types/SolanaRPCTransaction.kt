@@ -5,15 +5,20 @@ package io.ethers.solana.types
 
 import io.ethers.core.Result
 import io.ethers.core.unwrapOrReturn
+import io.ethers.solana.types.transaction.AddressLookupTableAccount
+import io.ethers.solana.types.transaction.CompiledAddressLookupTable
 import io.ethers.solana.types.transaction.CompiledInstruction
 import io.ethers.solana.types.transaction.ComputeBudgetValues
 import io.ethers.solana.types.transaction.MessageHeader
 import io.ethers.solana.types.transaction.SolanaTransaction
 import io.ethers.solana.types.transaction.SolanaTransactionError
+import io.ethers.solana.types.transaction.SolanaTransactionRequest
 import io.ethers.solana.types.transaction.SolanaTransactionSigned
 import io.ethers.solana.types.transaction.SolanaTransactionUnsigned
 import io.ethers.solana.types.transaction.SolanaTxType
 import io.ethers.solana.types.transaction.decodeComputeBudget
+import io.ethers.solana.types.transaction.decompile
+import io.ethers.solana.types.transaction.resolveAccounts
 import io.ethers.solana.types.transaction.signatureError
 import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.KeepGeneratedSerializer
@@ -37,6 +42,7 @@ data class SolanaRPCTransaction(
     override val accounts: List<SolanaAddress> get() = transaction.message.accountKeys
     override val recentBlockhash: SolanaBlockhash get() = transaction.message.recentBlockhash
     override val instructions: List<CompiledInstruction> get() = transaction.message.instructions
+    override val addressLookupTables: List<CompiledAddressLookupTable> get() = transaction.message.addressTableLookups
 
     /**
      * Decoded once, and only for the versions whose encoding is known.
@@ -66,6 +72,20 @@ data class SolanaRPCTransaction(
         }
     override val loadedAccountsDataSizeLimit: Long? get() = computeBudget.loadedAccountsDataSizeLimit
     override val heapSize: Long? get() = computeBudget.heapSize
+
+    /**
+     * Recover the request that compiles to this transaction, preferring the addresses the node
+     * already resolved over any supplied [tables].
+     *
+     * A lookup table's contents can change after a transaction is included, so re-reading a table
+     * that has since been extended or closed would resolve a historical message to the wrong
+     * addresses. The `loadedAddresses` this response carries are what the runtime actually used, so
+     * when they are present this needs no tables at all.
+     */
+    override fun tryToRequest(tables: List<AddressLookupTableAccount>): Result<SolanaTransactionRequest, SolanaTransactionError> = decompile(this, tables, meta?.loadedAddresses)
+
+    /** As [tryToRequest], the addresses the node resolved take precedence over the supplied [tables]. */
+    override fun tryResolveAccounts(tables: List<AddressLookupTableAccount>): Result<List<AccountMeta>, SolanaTransactionError> = resolveAccounts(this, tables, meta?.loadedAddresses)
 
     /** Rebuild the signable message, discarding the signatures this response carries. */
     fun toUnsignedTransaction(): Result<SolanaTransactionUnsigned, SolanaTransactionError> = transaction.message.toTransaction(type)

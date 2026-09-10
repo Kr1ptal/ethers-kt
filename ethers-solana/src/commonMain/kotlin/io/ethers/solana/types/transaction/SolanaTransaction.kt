@@ -1,5 +1,7 @@
 package io.ethers.solana.types.transaction
 
+import io.ethers.core.Result
+import io.ethers.solana.types.AccountMeta
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.utils.requireU64
@@ -51,6 +53,59 @@ interface SolanaTransaction {
 
     /** Heap space this message may use, or null for the runtime's default of 32 KiB. */
     val heapSize: Long?
+
+    /**
+     * Lookup tables this message loads addresses from, empty for the versions that cannot.
+     *
+     * These name a table and the slots taken from it, not the addresses themselves: resolving those
+     * needs the table's contents, which [toRequest] takes as an argument.
+     */
+    val addressLookupTables: List<CompiledAddressLookupTable> get() = emptyList()
+
+    /**
+     * Every account this message names, resolved to an address and tagged with the signer and
+     * writable flags its slot implies, in index order: `resolvedAccounts()[i]` is what index `i` in a
+     * compiled instruction refers to.
+     *
+     * This is the read-side counterpart of [toRequest]: it answers who signs, what is written and
+     * which program an index names, without rebuilding an editable request to do it.
+     *
+     * Throws [SolanaTransactionException] when the message cannot be resolved; [tryResolveAccounts]
+     * reports the same failure as a value.
+     */
+    fun resolveAccounts(): List<AccountMeta> = tryResolveAccounts().unwrap()
+
+    /** As [resolveAccounts], resolving loaded addresses against the supplied lookup tables. */
+    fun resolveAccounts(tables: List<AddressLookupTableAccount>): List<AccountMeta> = tryResolveAccounts(tables).unwrap()
+
+    /** As [resolveAccounts], returning the reason the message could not be resolved instead of throwing. */
+    fun tryResolveAccounts(): Result<List<AccountMeta>, SolanaTransactionError> = tryResolveAccounts(emptyList())
+
+    /** As [resolveAccounts], returning the reason the message could not be resolved instead of throwing. */
+    fun tryResolveAccounts(tables: List<AddressLookupTableAccount>): Result<List<AccountMeta>, SolanaTransactionError> = resolveAccounts(this, tables, null)
+
+    /**
+     * Recover the request that compiles to this transaction, so a transaction that was built
+     * elsewhere or read back from a node can be re-priced, re-blockhashed, extended, simulated or
+     * filled. Signatures are not carried across, since a request is unsigned by definition.
+     *
+     * The inverse is semantic, not byte-for-byte: compiling the result picks lookup tables afresh and
+     * orders accounts canonically, so a message compiled by another library, or against a different
+     * set of tables, comes back with the same meaning but not the same bytes.
+     *
+     * Throws [SolanaTransactionException] when the message cannot be resolved; [tryToRequest] reports
+     * the same failure as a value.
+     */
+    fun toRequest(): SolanaTransactionRequest = tryToRequest().unwrap()
+
+    /** As [toRequest], resolving loaded addresses against the supplied lookup tables. */
+    fun toRequest(tables: List<AddressLookupTableAccount>): SolanaTransactionRequest = tryToRequest(tables).unwrap()
+
+    /** As [toRequest], returning the reason the message could not be resolved instead of throwing. */
+    fun tryToRequest(): Result<SolanaTransactionRequest, SolanaTransactionError> = tryToRequest(emptyList())
+
+    /** As [toRequest], returning the reason the message could not be resolved instead of throwing. */
+    fun tryToRequest(tables: List<AddressLookupTableAccount>): Result<SolanaTransactionRequest, SolanaTransactionError> = decompile(this, tables, null)
 
     /**
      * Estimate base + priority fee in lamports. A nonzero price requires an explicit compute-unit limit;

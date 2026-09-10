@@ -22,7 +22,7 @@ class SolanaTxV0 private constructor(
     override val accounts: List<SolanaAddress>,
     override val recentBlockhash: SolanaBlockhash,
     override val instructions: List<MessageInstruction>,
-    val addressLookupTables: List<CompiledAddressLookupTable>,
+    override val addressLookupTables: List<CompiledAddressLookupTable>,
     validated: Boolean,
 ) : SolanaTransactionUnsigned {
     override val type: SolanaTxType get() = SolanaTxType.V0

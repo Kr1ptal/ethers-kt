@@ -16,11 +16,14 @@ import io.ethers.solana.types.Commitment
 import io.ethers.solana.types.ContextValue
 import io.ethers.solana.types.Programs
 import io.ethers.solana.types.RpcContext
+import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.types.SolanaNodeHealth
 import io.ethers.solana.types.SolanaNodeIdentity
 import io.ethers.solana.types.SolanaSignature
+import io.ethers.solana.types.transaction.AddressLookupTableAccount
 import io.ethers.solana.types.transaction.SolanaTransactionConfig
+import io.ethers.solana.types.transaction.SolanaTransactionRequest
 import io.ethers.solana.types.transaction.SolanaTxLegacy
 import io.ethers.solana.types.transaction.SolanaTxType
 import io.ethers.solana.types.transaction.SolanaTxV0
@@ -427,5 +430,39 @@ class SolanaProviderTest : FunSpec({
         } finally {
             built.close()
         }
+    }
+
+    test("decompiling a transaction fetches only the lookup tables it actually needs") {
+        val movable = List(6) { SolanaAddress(ByteArray(32) { i -> if (i == 0) (100 + it).toByte() else 7 }) }
+        val tableKey = SolanaAddress(ByteArray(32) { 77 })
+        val table = AddressLookupTableAccount(tableKey, movable)
+        val program = SolanaAddress(ByteArray(32) { 42 })
+        val payer = KeypairSigner.fromSeed(ByteArray(32) { 1 })
+        val instruction = Instruction(program, movable.mapIndexed { i, a -> AccountMeta(a, writable = i % 2 == 0) }, byteArrayOf(1))
+        val request = SolanaTransactionRequest()
+            .feePayer(payer.publicKey)
+            .blockhash(blockhash)
+            .instruction(instruction)
+
+        // a legacy message loads no addresses, so no request is made at all
+        val legacy = request.compileLegacy()
+        requests.clear()
+        provider.decompileTransaction(legacy).send().unwrap().instructions shouldBe listOf(instruction)
+        requests.size shouldBe 0
+
+        // a v0 message drawn on a table costs exactly one getMultipleAccounts
+        val v0 = request.compileV0(listOf(table))
+        v0.addressLookupTables.size shouldBe 1
+        val header = ByteArray(4).also { it[0] = 1 } + ByteArray(8) { -1 } + ByteArray(9) + ByteArray(33) + ByteArray(2)
+        val encoded = Base64.encode(header + movable.fold(ByteArray(0)) { acc, it -> acc + it.asByteArray() })
+        response = contextual("""[{"data":["$encoded","base64"],"executable":false,"lamports":1,"owner":"$address","rentEpoch":0}]""")
+        provider.decompileTransaction(v0).send().unwrap().instructions shouldBe listOf(instruction)
+        requests.size shouldBe 1
+        assertRequest("getMultipleAccounts", """[["$tableKey"],{"commitment":"confirmed","encoding":"base64"}]""")
+
+        // a table that no longer exists is reported rather than silently resolving to nothing
+        response = contextual("[null]")
+        provider.decompileTransaction(v0).send().unwrapError().message shouldBe
+            "Lookup table $tableKey does not exist, so this transaction cannot be resolved"
     }
 })

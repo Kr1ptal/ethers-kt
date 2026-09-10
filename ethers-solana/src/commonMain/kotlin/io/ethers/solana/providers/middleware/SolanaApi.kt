@@ -33,6 +33,7 @@ import io.ethers.solana.types.TokenAmount
 import io.ethers.solana.types.TransactionSignature
 import io.ethers.solana.types.TransactionSimulation
 import io.ethers.solana.types.transaction.AddressLookupTableAccount
+import io.ethers.solana.types.transaction.SolanaTransaction
 import io.ethers.solana.types.transaction.SolanaTransactionCompiled
 import io.ethers.solana.types.transaction.SolanaTransactionError
 import io.ethers.solana.types.transaction.SolanaTransactionRequest
@@ -118,6 +119,44 @@ interface SolanaApi {
     fun getAddressLookupTable(address: SolanaAddress, commitment: Commitment = this.defaultCommitment): RpcRequest<ContextValue<AddressLookupTableAccount?>, RpcError> {
         return getAccountInfo(address, commitment).map { response ->
             ContextValue(response.context, response.value?.let { AddressLookupTableAccount.decode(address, it.data.asByteArray()) })
+        }
+    }
+
+    fun decompileTransaction(transaction: SolanaTransaction): RpcRequest<SolanaTransactionRequest, RpcError> = decompileTransaction(transaction, defaultCommitment)
+
+    /**
+     * Resolve a transaction back into an editable [SolanaTransactionRequest], fetching whatever lookup
+     * tables it draws on.
+     *
+     * Nothing is fetched when the message needs no help: a legacy or v1 message loads no addresses,
+     * and a `getTransaction` response carries the ones the node already resolved, which are preferred
+     * over anything fetched here because a table's contents can change after inclusion. Only a
+     * transaction decoded from bytes, or a response without metadata, costs a `getMultipleAccounts`.
+     */
+    fun decompileTransaction(transaction: SolanaTransaction, commitment: Commitment = this.defaultCommitment): RpcRequest<SolanaTransactionRequest, RpcError> = SuppliedRpcRequest {
+        when (val direct = transaction.tryToRequest()) {
+            is Result.Success -> success(direct.value)
+            is Result.Failure -> {
+                val keys = transaction.addressLookupTables.map { it.key }
+                // a failure with nothing to look up is not one fetching can fix
+                if (keys.isEmpty()) {
+                    failure(direct.error.toRpcError())
+                } else {
+                    val accounts = getMultipleAccounts(keys, commitment).send()
+                        .unwrapOrReturn { return@SuppliedRpcRequest failure(it) }
+                        .value
+                    val tables = ArrayList<AddressLookupTableAccount>(keys.size)
+                    keys.forEachIndexed { index, key ->
+                        val data = accounts[index]
+                            ?: return@SuppliedRpcRequest failure(RpcError(INVALID_PARAMS, "Lookup table $key does not exist, so this transaction cannot be resolved"))
+                        tables.add(
+                            AddressLookupTableAccount.tryDecode(key, data.data.asByteArray())
+                                .unwrapOrReturn { return@SuppliedRpcRequest failure(it.toRpcError()) },
+                        )
+                    }
+                    transaction.tryToRequest(tables).mapError { it.toRpcError() }
+                }
+            }
         }
     }
 

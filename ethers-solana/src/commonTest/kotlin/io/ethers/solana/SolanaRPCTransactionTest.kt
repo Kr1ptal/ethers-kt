@@ -231,16 +231,19 @@ class SolanaRPCTransactionTest : FunSpec({
             reward.commission shouldBe 255
             meta.computeUnitsConsumed shouldBe BigInteger("18446744073709551615")
             meta.costUnits shouldBe BigInteger("9007199254740993")
-            // the fixture numbers its extra fields in wire order; the header and the lookup table mirror
-            // fixed parts of the message format, so theirs are dropped rather than retained
+            // the fixture numbers its extra fields in wire order; the header, the lookup table and the
+            // addresses it resolves to mirror fixed parts of the message format, so theirs are dropped
             listOf(
                 1 to tx.otherFields, 2 to tx.transaction.otherFields, 4 to message.otherFields,
                 5 to instruction.otherFields, 7 to inner.otherFields, 8 to token.otherFields, 9 to amount.otherFields,
-                10 to meta.loadedAddresses.otherFields, 11 to meta.returnData.otherFields, 12 to reward.otherFields,
+                11 to meta.returnData.otherFields, 12 to reward.otherFields,
                 13 to meta.otherFields,
             ).forEach { (expected, fields) -> fields["extra"] shouldBe RawJson(expected.toString()) }
-            Kotlinx.DEFAULT.encodeToJsonElement(message.header).jsonObject.containsKey("extra") shouldBe false
-            Kotlinx.DEFAULT.encodeToJsonElement(lookup).jsonObject.containsKey("extra") shouldBe false
+            listOf(
+                Kotlinx.DEFAULT.encodeToJsonElement(message.header),
+                Kotlinx.DEFAULT.encodeToJsonElement(lookup),
+                Kotlinx.DEFAULT.encodeToJsonElement(meta.loadedAddresses!!),
+            ).forEach { it.jsonObject.containsKey("extra") shouldBe false }
             meta.otherFields["status"] shouldBe RawJson("""{"Ok":null}""")
             roundtrip(json)
             Kotlinx.DEFAULT.parseToJsonElement(Kotlinx.DEFAULT.encodeToString(tx)).jsonObject.getValue("meta").jsonObject.getValue("preTokenBalances").jsonArray.first().jsonObject.getValue("uiTokenAmount").jsonObject.getValue("uiAmount").jsonPrimitive.content shouldBe "1.234567890123456789"

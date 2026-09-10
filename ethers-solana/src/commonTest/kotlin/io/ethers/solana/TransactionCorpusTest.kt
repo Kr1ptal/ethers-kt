@@ -2,8 +2,12 @@ package io.ethers.solana
 
 import io.ethers.core.Kotlinx
 import io.ethers.solana.corpus.transactionCorpus
+import io.ethers.solana.types.LoadedAddresses
+import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaRPCTransaction
 import io.ethers.solana.types.SolanaSignature
+import io.ethers.solana.types.transaction.AddressLookupTableAccount
+import io.ethers.solana.types.transaction.CompiledAddressLookupTable
 import io.ethers.solana.types.transaction.MessageInstruction
 import io.ethers.solana.types.transaction.SolanaTransactionCompiled
 import io.ethers.solana.types.transaction.SolanaTransactionSigned
@@ -115,6 +119,27 @@ class TransactionCorpusTest : FunSpec({
                 message.transactionConfig shouldBe null
             }
 
+            // Resolving the message back to addresses is a true inverse: recompiling the recovered
+            // request and resolving that again yields the same instructions, accounts and flags.
+            // Bytes are not compared, since these were compiled elsewhere and may order accounts
+            // differently within a header group than this library's canonical sort.
+            if (rpc.addressLookupTables.isEmpty() || rpc.meta?.loadedAddresses != null) {
+                val recovered = rpc.toRequest()
+                recovered.feePayer shouldBe signed.feePayer
+                recovered.blockhash shouldBe signed.recentBlockhash
+                recovered.instructions.size shouldBe signed.instructions.size
+
+                // rebuild the tables this message drew on, so the recompiled v0 can move the same
+                // accounts back out of the inline list and still fit the envelope
+                val tables = rebuildLookupTables(rpc.addressLookupTables, rpc.meta?.loadedAddresses)
+                val recompiled = when (rpc.type) {
+                    SolanaTxType.Legacy -> recovered.compileLegacy()
+                    SolanaTxType.V1 -> recovered.compileV1()
+                    else -> recovered.compileV0(tables)
+                }
+                recompiled.toRequest(tables).instructions shouldBe recovered.instructions
+            }
+
             // Validate every signature through import, preserve partial slots, and reject corruption.
             val partial = SolanaTransactionSigned.Builder(tx, signed.signatures.mapIndexed { i, value -> if (i == 0) null else value })
             val imported = SolanaTransactionSigned.Builder.deserializePartial(partial.serializePartial())
@@ -172,5 +197,25 @@ private fun assertCorpusJsonPreserved(original: JsonElement, encoded: JsonElemen
                 BigDecimal(original.content).compareTo(BigDecimal(other.content)) shouldBe 0
             }
         }
+    }
+}
+
+/**
+ * Reconstruct the lookup tables a message drew on, from the slots it names and the addresses the node
+ * resolved for them. Slots the message does not name are filled with addresses derived from the table
+ * key, which are never referenced but keep the resolved ones at their original indexes.
+ */
+private fun rebuildLookupTables(lookups: List<CompiledAddressLookupTable>, loaded: LoadedAddresses?): List<AddressLookupTableAccount> {
+    if (loaded == null) return emptyList()
+    var writable = 0
+    var readonly = 0
+    return lookups.map { lookup ->
+        val slots = lookup.writableIndexes.map { it to loaded.writable[writable++] } + lookup.readonlyIndexes.map { it to loaded.readonly[readonly++] }
+        val size = (slots.maxOfOrNull { it.first } ?: -1) + 1
+        val addresses = MutableList(size) { index ->
+            SolanaAddress(lookup.key.asByteArray().copyOf().also { it[0] = index.toByte() })
+        }
+        slots.forEach { (index, address) -> addresses[index] = address }
+        AddressLookupTableAccount(lookup.key, addresses)
     }
 }

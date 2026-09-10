@@ -302,6 +302,8 @@ Reference: [sol4k a166edd854a7198553fdafe9a5051a400d70b121](https://github.com/s
 | Unit conversion / fee estimation | `SolUnit`, `SolanaTransaction.estimateFee` |
 | Read a transaction's compute budget, any version | `computeUnitLimit`, `computeUnitPrice`, `priorityFee`, `heapSize`, `loadedAccountsDataSizeLimit` |
 | Read any transaction the same way, built or fetched | `SolanaTransaction`, implemented by `SolanaTransactionCompiled` and `SolanaRPCTransaction` |
+| Turn any transaction back into an editable request | `SolanaTransaction.toRequest`, `tryToRequest`, `SolanaApi.decompileTransaction` |
+| Resolve a transaction's account indices to addresses and flags | `SolanaTransaction.resolveAccounts`, `tryResolveAccounts` |
 | All upstream public RPC methods | `SolanaApi` / `SolanaProvider` |
 | Additional WebSocket support | `subscribeAccount`, `subscribeProgram`, `subscribeLogs`, `subscribeSignature`, `subscribeSlot`, `subscribeRoot` |
 

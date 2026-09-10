@@ -66,8 +66,14 @@ sealed class SolanaTransactionError : ThrowableError {
         /** An instruction referenced a program or account slot outside the resolved account list. */
         ACCOUNT_INDEX,
 
-        /** A lookup table referenced an address slot outside the addressable 0..255 range. */
+        /**
+         * A lookup table referenced an address slot outside the addressable 0..255 range, or, when
+         * resolving a compiled message back to addresses, one the table does not hold.
+         */
         LOOKUP_INDEX,
+
+        /** A message loads addresses from a lookup table whose contents were not supplied. */
+        UNKNOWN_LOOKUP_TABLE,
 
         /** A v1 inline config value the wire format cannot represent, or that this library cannot compile. */
         CONFIG,
