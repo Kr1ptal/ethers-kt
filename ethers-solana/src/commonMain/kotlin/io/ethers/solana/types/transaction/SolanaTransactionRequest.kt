@@ -120,9 +120,15 @@ class SolanaTransactionRequest() {
      * `CallRequest.toUnsignedTransactionOrNull` choosing a transaction type from the fields that are set.
      *
      * V0 is chosen exactly when a lookup table earns its place, since an empty table list costs two
-     * bytes more than legacy and a table is only ever selected when it pays for itself. V1 is never
-     * chosen for you: its envelope is larger, but it needs SIMD-0385 activation on the target cluster,
-     * which is the caller's to know - ask for it with [tryCompileV1].
+     * bytes more than legacy and a table is only ever selected when it pays for itself. Supply no
+     * lookup tables and this always compiles legacy, so it is safe against a wallet or an RPC that
+     * accepts nothing else: v0 can only appear once you have asked for it by passing tables. V1 is
+     * never chosen for you: its envelope is larger, but it needs SIMD-0385 activation on the target
+     * cluster, which is the caller's to know - ask for it with [tryCompileV1].
+     *
+     * Other Solana clients make the version an explicit choice with no automatic path at all, and the
+     * per-version [tryCompileLegacy], [tryCompileV0] and [tryCompileV1] are that choice here, each
+     * returning its own type.
      */
     @JvmOverloads
     fun tryCompile(lookupTables: List<AddressLookupTableAccount> = emptyList()): Result<SolanaTransactionUnsigned, SolanaTransactionError> {
@@ -217,10 +223,10 @@ class SolanaTransactionRequest() {
 
         val kept = instructions.filterNot {
             when (ComputeBudgetSettings.discriminant(it)) {
-                ComputeBudgetSettings.REQUEST_HEAP_FRAME -> heap != null
-                ComputeBudgetSettings.SET_UNIT_LIMIT -> limit != null
-                ComputeBudgetSettings.SET_UNIT_PRICE -> price != null
-                ComputeBudgetSettings.SET_LOADED_ACCOUNTS_DATA_SIZE_LIMIT -> dataSize != null
+                ComputeBudgetProgram.REQUEST_HEAP_FRAME -> heap != null
+                ComputeBudgetProgram.SET_COMPUTE_UNIT_LIMIT -> limit != null
+                ComputeBudgetProgram.SET_COMPUTE_UNIT_PRICE -> price != null
+                ComputeBudgetProgram.SET_LOADED_ACCOUNTS_DATA_SIZE_LIMIT -> dataSize != null
                 else -> false
             }
         }
@@ -255,62 +261,6 @@ class SolanaTransactionRequest() {
         @JvmSynthetic
         inline operator fun invoke(builder: SolanaTransactionRequest.() -> Unit): SolanaTransactionRequest {
             return SolanaTransactionRequest().apply(builder)
-        }
-    }
-}
-
-/**
- * ComputeBudget settings recovered from a request's instructions, with those instructions removed.
- *
- * Only the four documented ComputeBudget instructions are recognised. Anything else the program
- * accepts stays in [remaining], since translating what we cannot decode would change the message.
- */
-internal class ComputeBudgetSettings(
-    val remaining: List<Instruction>,
-    val computeUnitLimit: Long?,
-    val computeUnitPrice: BigInteger?,
-    val loadedAccountsDataSizeLimit: Long?,
-    val heapSize: Long?,
-) {
-    companion object {
-        const val REQUEST_HEAP_FRAME = 1
-        const val SET_UNIT_LIMIT = 2
-        const val SET_UNIT_PRICE = 3
-        const val SET_LOADED_ACCOUNTS_DATA_SIZE_LIMIT = 4
-
-        /** The ComputeBudget discriminant this instruction carries, or -1 if it is not a decodable one. */
-        fun discriminant(instruction: Instruction): Int = discriminant(instruction.programId, instruction.data)
-
-        /** As above, for an instruction whose program has already been resolved from an account list. */
-        fun discriminant(programId: SolanaAddress, data: SolanaBytes): Int {
-            if (programId != Programs.COMPUTE_BUDGET || data.isEmpty) return -1
-            val expected = when (data[0].toInt()) {
-                REQUEST_HEAP_FRAME, SET_UNIT_LIMIT, SET_LOADED_ACCOUNTS_DATA_SIZE_LIMIT -> 5
-                SET_UNIT_PRICE -> 9
-                else -> return -1
-            }
-            return if (data.size == expected) data[0].toInt() else -1
-        }
-
-        fun decode(instructions: List<Instruction>): ComputeBudgetSettings {
-            var limit: Long? = null
-            var price: BigInteger? = null
-            var dataSize: Long? = null
-            var heap: Long? = null
-            val remaining = instructions.filter { instruction ->
-                val discriminant = discriminant(instruction)
-                if (discriminant < 0) return@filter true
-                val decoder = SolanaMessageDecoder(instruction.data.asByteArray())
-                decoder.readByte()
-                when (discriminant) {
-                    REQUEST_HEAP_FRAME -> heap = decoder.readUnsignedLittleEndian(4).toLong()
-                    SET_UNIT_LIMIT -> limit = decoder.readUnsignedLittleEndian(4).toLong()
-                    SET_UNIT_PRICE -> price = decoder.readUnsignedLittleEndian(8)
-                    SET_LOADED_ACCOUNTS_DATA_SIZE_LIMIT -> dataSize = decoder.readUnsignedLittleEndian(4).toLong()
-                }
-                false
-            }
-            return ComputeBudgetSettings(remaining, limit, price, dataSize, heap)
         }
     }
 }

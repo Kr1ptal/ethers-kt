@@ -5,14 +5,6 @@ import io.ethers.solana.instruction.Instruction
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
 
-internal class CompiledMessageFields(
-    val header: MessageHeader,
-    val accounts: List<SolanaAddress>,
-    val recentBlockhash: SolanaBlockhash,
-    val instructions: List<MessageInstruction>,
-    val lookups: List<CompiledAddressLookupTable>,
-)
-
 /** Bytes saved by moving one account out of the inline list: its 32-byte key, less a one-byte index. */
 private const val SAVED_PER_ACCOUNT = 31
 

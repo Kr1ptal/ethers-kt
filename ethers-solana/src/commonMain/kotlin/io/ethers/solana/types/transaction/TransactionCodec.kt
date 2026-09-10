@@ -7,68 +7,6 @@ import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.types.SolanaBytes
 import io.ethers.solana.types.SolanaSignature
-import io.github.artificialpb.bignum.BigInteger
-import io.github.artificialpb.bignum.bigIntegerOf
-
-/** Structural invariants shared by every message version, reported as a value rather than thrown. */
-internal fun messageError(
-    header: MessageHeader,
-    accounts: List<SolanaAddress>,
-    instructions: List<MessageInstruction>,
-    lookups: List<CompiledAddressLookupTable>,
-): SolanaTransactionError? {
-    if (accounts.size !in 1..256) return SolanaTransactionError.CountOutOfRange(SolanaTransactionError.Limit.ACCOUNTS, accounts.size, 1..256)
-    accounts.groupingBy { it }.eachCount().forEach { (address, count) ->
-        if (count > 1) {
-            return SolanaTransactionError.InvalidMessage(SolanaTransactionError.Reason.DUPLICATE_ACCOUNT, "Account $address appears more than once")
-        }
-    }
-    if (header.requiredSignatures !in 1..minOf(127, accounts.size)) {
-        return SolanaTransactionError.CountOutOfRange(SolanaTransactionError.Limit.SIGNERS, header.requiredSignatures, 1..minOf(127, accounts.size))
-    }
-    if (header.readonlySignedAccounts !in 0 until header.requiredSignatures) {
-        return SolanaTransactionError.InvalidMessage(
-            SolanaTransactionError.Reason.FEE_PAYER_READONLY,
-            "Fee payer must be writable, but ${header.readonlySignedAccounts} of ${header.requiredSignatures} signers are readonly",
-        )
-    }
-    if (header.readonlyUnsignedAccounts !in 0..(accounts.size - header.requiredSignatures)) {
-        return SolanaTransactionError.CountOutOfRange(
-            SolanaTransactionError.Limit.READONLY_ACCOUNTS,
-            header.readonlyUnsignedAccounts,
-            0..(accounts.size - header.requiredSignatures),
-        )
-    }
-    val totalAccounts = accounts.size + lookups.sumOf { it.writableIndexes.size + it.readonlyIndexes.size }
-    if (totalAccounts > 256) return SolanaTransactionError.CountOutOfRange(SolanaTransactionError.Limit.ACCOUNTS, totalAccounts, 1..256)
-    lookups.forEachIndexed { table, lookup ->
-        (lookup.writableIndexes + lookup.readonlyIndexes).forEach {
-            if (it !in 0..255) {
-                return SolanaTransactionError.InvalidMessage(
-                    SolanaTransactionError.Reason.LOOKUP_INDEX,
-                    "Lookup table $table references address index $it outside 0..255",
-                )
-            }
-        }
-    }
-    instructions.forEachIndexed { index, instruction ->
-        if (instruction.programIdIndex !in 1 until accounts.size) {
-            return SolanaTransactionError.InvalidMessage(
-                SolanaTransactionError.Reason.ACCOUNT_INDEX,
-                "Instruction $index names program index ${instruction.programIdIndex} outside 1 until ${accounts.size}",
-            )
-        }
-        instruction.accounts.forEach {
-            if (it !in 0 until totalAccounts) {
-                return SolanaTransactionError.InvalidMessage(
-                    SolanaTransactionError.Reason.ACCOUNT_INDEX,
-                    "Instruction $index references account index $it outside 0 until $totalAccounts",
-                )
-            }
-        }
-    }
-    return null
-}
 
 internal fun SolanaMessageEncoder.writeMessageBody(tx: SolanaTransactionUnsigned) {
     writeByte(tx.header.requiredSignatures).writeByte(tx.header.readonlySignedAccounts).writeByte(tx.header.readonlyUnsignedAccounts)
@@ -139,27 +77,6 @@ internal fun encodeSignaturesFirstEnvelope(tx: SolanaTransactionUnsigned, signat
     val encoder = SolanaMessageEncoder().writeShortVecLength(signatures.size)
     signatures.forEach { encoder.writeBytes(it?.asByteArray() ?: ByteArray(64)) }
     return encoder.writeBytes(tx.serializeMessage()).toByteArray()
-}
-
-internal fun signatureError(tx: SolanaTransactionUnsigned, signatures: List<SolanaSignature?>): SolanaTransactionError? {
-    if (signatures.size != tx.header.requiredSignatures) {
-        return SolanaTransactionError.InvalidMessage(
-            SolanaTransactionError.Reason.SIGNATURE_COUNT,
-            "Envelope carries ${signatures.size} signatures, but the message requires ${tx.header.requiredSignatures}",
-        )
-    }
-    val message = tx.serializeMessage()
-    val signers = tx.signers
-    signatures.forEachIndexed { index, signature ->
-        if (signature != null && !signers[index].verify(signature, message)) {
-            return SolanaTransactionError.InvalidSignature(index, signers[index])
-        }
-    }
-    return null
-}
-
-internal fun validateSignatures(tx: SolanaTransactionUnsigned, signatures: List<SolanaSignature?>) {
-    signatureError(tx, signatures)?.let { throw it.toException() }
 }
 
 internal fun decodeMessage(bytes: ByteArray): SolanaTransactionUnsigned {
@@ -236,57 +153,4 @@ internal inline fun <T> catchTransactionError(block: () -> T): Result<T, SolanaT
     Result.failure(SolanaTransactionError.MalformedBytes(e.message ?: "Malformed transaction bytes", e))
 } catch (e: IndexOutOfBoundsException) {
     Result.failure(SolanaTransactionError.MalformedBytes(e.message ?: "Malformed transaction bytes", e))
-}
-
-/**
- * The ComputeBudget settings a message carries, however its version states them.
- *
- * Every one is optional: a message that sets none of them runs on the runtime's defaults, which is
- * most of them.
- */
-internal class ComputeBudgetValues(
-    val computeUnitLimit: Long?,
-    val computeUnitPrice: BigInteger?,
-    val loadedAccountsDataSizeLimit: Long?,
-    val heapSize: Long?,
-) {
-    /**
-     * The total the runtime charges for priority, which legacy and v0 only imply.
-     *
-     * Null when no price is stated at all, and also when a nonzero price has no limit to multiply,
-     * since the runtime would then apply a default limit this library cannot predict.
-     */
-    val priorityFee: BigInteger?
-        get() {
-            val price = computeUnitPrice ?: return null
-            if (price.signum() == 0) return bigIntegerOf(0)
-            val limit = computeUnitLimit ?: return null
-            return bigIntegerOf(limit).multiply(price).add(bigIntegerOf(999999)).divide(bigIntegerOf(1000000))
-        }
-
-    companion object {
-        val NONE = ComputeBudgetValues(null, null, null, null)
-    }
-}
-
-/** Read the ComputeBudget settings out of a compiled legacy or v0 message. */
-internal fun decodeComputeBudget(accounts: List<SolanaAddress>, instructions: List<CompiledInstruction>): ComputeBudgetValues {
-    var limit: Long? = null
-    var price: BigInteger? = null
-    var dataSize: Long? = null
-    var heap: Long? = null
-    instructions.forEach { instruction ->
-        val programId = accounts.getOrNull(instruction.programIdIndex) ?: return@forEach
-        val discriminant = ComputeBudgetSettings.discriminant(programId, instruction.data)
-        if (discriminant < 0) return@forEach
-        val decoder = SolanaMessageDecoder(instruction.data.asByteArray())
-        decoder.readByte()
-        when (discriminant) {
-            ComputeBudgetSettings.REQUEST_HEAP_FRAME -> heap = decoder.readUnsignedLittleEndian(4).toLong()
-            ComputeBudgetSettings.SET_UNIT_LIMIT -> limit = decoder.readUnsignedLittleEndian(4).toLong()
-            ComputeBudgetSettings.SET_UNIT_PRICE -> price = decoder.readUnsignedLittleEndian(8)
-            ComputeBudgetSettings.SET_LOADED_ACCOUNTS_DATA_SIZE_LIMIT -> dataSize = decoder.readUnsignedLittleEndian(4).toLong()
-        }
-    }
-    return ComputeBudgetValues(limit, price, dataSize, heap)
 }

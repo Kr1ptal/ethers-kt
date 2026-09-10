@@ -195,6 +195,29 @@ class SolanaTransactionRequestTest : FunSpec({
         tx.config.computeUnitLimit shouldBe null
     }
 
+    test("tryCompile never reaches v0 without being given tables, whatever the request holds") {
+        // the documented guarantee: v0 can only appear once the caller has asked for it by passing
+        // tables, so an auto-compiled message is safe against a wallet or RPC that takes legacy only
+        var compiled = 0
+        for (count in listOf(1, 8, 25, 60)) {
+            val accounts = List(count) { SolanaAddress(ByteArray(32) { _ -> (it + 10).toByte() }) }
+            val request = SolanaTransactionRequest {
+                feePayer(alice.publicKey)
+                blockhash(blockhash)
+                instruction(Instruction(Programs.SYSTEM, accounts.map { AccountMeta.writable(it) }, byteArrayOf(1)))
+                computeUnitLimit(200_000)
+                computeUnitPrice(bigIntegerOf(5_000))
+            }
+            // either it compiles as legacy or it does not compile at all; it is never silently v0
+            request.tryCompile().unwrapOrNull()?.let {
+                it.type shouldBe SolanaTxType.Legacy
+                compiled++
+            }
+        }
+        // the largest of these overflows the legacy envelope, so prove the smaller ones really compiled
+        (compiled >= 3) shouldBe true
+    }
+
     test("tryCompile picks legacy when no table earns its place, and v0 when one does") {
         val movable = List(2) { SolanaAddress(ByteArray(32) { _ -> (it + 10).toByte() }) }
         fun withAccounts(accounts: List<SolanaAddress>) = SolanaTransactionRequest {

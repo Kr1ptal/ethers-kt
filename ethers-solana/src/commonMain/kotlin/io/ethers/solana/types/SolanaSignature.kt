@@ -31,3 +31,5 @@ class SolanaSignature(bytes: ByteArray) {
     override fun equals(other: Any?): Boolean = other is SolanaSignature && value.contentEquals(other.value)
     override fun hashCode(): Int = value.contentHashCode()
 }
+
+object SolanaSignatureSerializer : Base58Serializer<SolanaSignature>("io.ethers.solana.SolanaSignature", ::SolanaSignature)

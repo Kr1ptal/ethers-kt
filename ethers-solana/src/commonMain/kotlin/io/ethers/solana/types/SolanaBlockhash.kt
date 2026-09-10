@@ -30,3 +30,5 @@ class SolanaBlockhash(bytes: ByteArray) {
     override fun equals(other: Any?): Boolean = other is SolanaBlockhash && value.contentEquals(other.value)
     override fun hashCode(): Int = value.contentHashCode()
 }
+
+object SolanaBlockhashSerializer : Base58Serializer<SolanaBlockhash>("io.ethers.solana.SolanaBlockhash", ::SolanaBlockhash)

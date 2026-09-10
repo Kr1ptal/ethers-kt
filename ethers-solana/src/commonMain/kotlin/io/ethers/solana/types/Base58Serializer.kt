@@ -12,7 +12,3 @@ abstract class Base58Serializer<T>(name: String, private val decode: (String) ->
     override fun serialize(encoder: Encoder, value: T) = encoder.encodeString(value.toString())
     override fun deserialize(decoder: Decoder): T = decode(decoder.decodeString())
 }
-
-object SolanaAddressSerializer : Base58Serializer<SolanaAddress>("io.ethers.solana.SolanaAddress", ::SolanaAddress)
-object SolanaSignatureSerializer : Base58Serializer<SolanaSignature>("io.ethers.solana.SolanaSignature", ::SolanaSignature)
-object SolanaBlockhashSerializer : Base58Serializer<SolanaBlockhash>("io.ethers.solana.SolanaBlockhash", ::SolanaBlockhash)

@@ -94,3 +94,5 @@ class SolanaAddress(bytes: ByteArray) {
 }
 
 data class ProgramDerivedAddress(val address: SolanaAddress, val bump: Int)
+
+object SolanaAddressSerializer : Base58Serializer<SolanaAddress>("io.ethers.solana.SolanaAddress", ::SolanaAddress)
