@@ -205,6 +205,33 @@ serializer: `Base58BytesSerializer` encodes instruction data, while `Base64Tuple
 return/account data as `["AQID", "base64"]`. Existing byte-array transaction and cryptographic boundaries
 remain unchanged; use `toByteArray()` or `copyInto()` to pass bytes across those boundaries.
 
+## Request batching
+
+Batching is provided by the shared JSON-RPC layer and is generic over `RpcRequest`, so Solana calls
+batch exactly as EVM ones do - there is no Solana-specific API to learn. Unrelated calls leave the
+client as a single JSON-RPC array:
+
+```kotlin
+val batch = batchRequest(
+    provider.getBalance(address),
+    provider.getHealth(),
+    provider.getVersion(),
+).awaitSuspend().unwrap()
+
+println(batch.response1.value) // lamports
+```
+
+Each call carries its own result and its own error: a node rejecting one of them leaves the rest
+intact, so unwrap them individually when partial success is acceptable.
+
+```kotlin
+val batch = batchRequest(provider.getBalance(address), provider.getHealth()).awaitSuspend()
+batch.response1.unwrap().value   // succeeded
+batch.response2.unwrapError()    // this one did not
+```
+
+`BatchRpcRequest` is also available directly when the call count is dynamic, as on the EVM side.
+
 ## Subscriptions and configuration
 
 For private endpoints, supply the WebSocket URL explicitly:
@@ -308,6 +335,7 @@ Reference: [sol4k a166edd854a7198553fdafe9a5051a400d70b121](https://github.com/s
 | Turn any transaction back into an editable request | `SolanaTransaction.toRequest`, `SolanaApi.decompileTransaction` |
 | Resolve a transaction's account indices to addresses and flags | `SolanaTransaction.resolveAccounts` |
 | All upstream public RPC methods | `SolanaApi` / `SolanaProvider` |
+| Batch unrelated calls into one round trip | `batchRequest`, `BatchRpcRequest` (shared with EVM) |
 | Additional WebSocket support | `subscribeAccount`, `subscribeProgram`, `subscribeLogs`, `subscribeSignature`, `subscribeSlot`, `subscribeRoot` |
 
 RPC coverage: `getAccountInfo`, `getBalance`, `getEpochInfo`, `getFeeForMessage`, `getHealth`, `getIdentity`,
