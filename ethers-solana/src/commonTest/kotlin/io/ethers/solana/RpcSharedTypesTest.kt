@@ -222,4 +222,23 @@ class RpcSharedTypesTest : FunSpec({
         }
         Kotlinx.DEFAULT.parseToJsonElement(encoded) shouldBe Kotlinx.DEFAULT.parseToJsonElement(wire)
     }
+
+    test("every type with unknown fields keeps them exactly, not just the one") {
+        // each of these must carry @Serializable(with = OtherFieldsSerializer::class); a type that
+        // forgets it silently falls back to the lossy default, which is what this catches
+        val precise = "1.234567890123456789"
+        infix fun String.encodesPrecisely(encode: (String) -> String) {
+            encode(this).contains(precise) shouldBe true
+        }
+
+        """{"programId":"$address","data":["AQID","base64"],"p":$precise}""" encodesPrecisely {
+            Kotlinx.DEFAULT.encodeToString(Kotlinx.DEFAULT.decodeFromString<ReturnData>(it))
+        }
+        """{"amount":"5","decimals":6,"uiAmountString":"5","p":$precise}""" encodesPrecisely {
+            Kotlinx.DEFAULT.encodeToString(Kotlinx.DEFAULT.decodeFromString<TokenAmount>(it))
+        }
+        """{"data":["AQID","base64"],"executable":false,"lamports":1,"owner":"$address","rentEpoch":0,"space":3,"p":$precise}""" encodesPrecisely {
+            Kotlinx.DEFAULT.encodeToString(Kotlinx.DEFAULT.decodeFromString<AccountInfo>(it))
+        }
+    }
 })
