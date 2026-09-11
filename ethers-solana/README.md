@@ -205,6 +205,31 @@ serializer: `Base58BytesSerializer` encodes instruction data, while `Base64Tuple
 return/account data as `["AQID", "base64"]`. Existing byte-array transaction and cryptographic boundaries
 remain unchanged; use `toByteArray()` or `copyInto()` to pass bytes across those boundaries.
 
+## Composing the provider
+
+`SolanaApi` is the full RPC surface and `SolanaProvider` implements it, the same split as the EVM
+`Middleware` and `Provider`. Customize behaviour by delegating to the layer beneath:
+
+```kotlin
+class RetryingApi(override val inner: SolanaApi) : SolanaApi by inner {
+    override fun getBalance(address: SolanaAddress): RpcRequest<ContextValue<BigInteger>, RpcError> =
+        getBalance(address, defaultCommitment)
+
+    override fun getBalance(address: SolanaAddress, commitment: Commitment) =
+        inner.getBalance(address, commitment).map { ... }
+}
+```
+
+Override **every** overload of a call you intend to intercept. Kotlin generates a forwarder for each
+member the class does not override, so an un-overridden `getBalance(address)` resolves against `inner`
+and reaches `inner`'s two-argument version rather than yours - the interception silently does not
+happen. The same applies to the EVM `Middleware`.
+
+Subscriptions are declared on `SolanaApi` and implemented by `SolanaProvider`, so a delegating layer
+keeps them. `inner` walks one layer down and `provider` reaches the bottom of the chain, which owns
+the WebSocket client; an implementation with no provider beneath it throws when subscribing rather
+than silently doing nothing.
+
 ## Request batching
 
 Batching is provided by the shared JSON-RPC layer and is generic over `RpcRequest`, so Solana calls

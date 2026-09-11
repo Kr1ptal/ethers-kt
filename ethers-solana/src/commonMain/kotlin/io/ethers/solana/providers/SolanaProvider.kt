@@ -39,11 +39,15 @@ class SolanaProvider @JvmOverloads constructor(
     override val defaultCommitment: Commitment = Commitment.FINALIZED,
     private val subscriptionClient: JsonRpcClient = client,
 ) : SolanaApi, AutoCloseable {
-    @JvmOverloads
-    fun subscribeAccount(address: SolanaAddress, commitment: Commitment = this.defaultCommitment): RpcSubscribe<ContextValue<AccountInfo?>, RpcError> = subscribe("account", arrayOf(address.toString(), options(commitment, true))) { decodeContext(it, ::decodeAccount) }
+    override val inner: SolanaApi?
+        get() = null
 
-    @JvmOverloads
-    fun subscribeProgram(program: SolanaAddress, filters: List<AccountFilter> = emptyList(), commitment: Commitment = this.defaultCommitment): RpcSubscribe<ContextValue<ProgramNotification>, RpcError> {
+    override val provider: SolanaProvider
+        get() = this
+
+    override fun subscribeAccount(address: SolanaAddress, commitment: Commitment): RpcSubscribe<ContextValue<AccountInfo?>, RpcError> = subscribe("account", arrayOf(address.toString(), options(commitment, true))) { decodeContext(it, ::decodeAccount) }
+
+    override fun subscribeProgram(program: SolanaAddress, filters: List<AccountFilter>, commitment: Commitment): RpcSubscribe<ContextValue<ProgramNotification>, RpcError> {
         val config = buildJsonObject {
             put("commitment", commitment.toString())
             put("encoding", "base64")
@@ -56,12 +60,10 @@ class SolanaProvider @JvmOverloads constructor(
         }
     }
 
-    @JvmOverloads
-    fun subscribeLogs(filter: LogsFilter = LogsFilter.All, commitment: Commitment = this.defaultCommitment): RpcSubscribe<ContextValue<LogsNotification>, RpcError> = subscribe("logs", arrayOf(filter.toJson(), options(commitment))) { decode(it) }
+    override fun subscribeLogs(filter: LogsFilter, commitment: Commitment): RpcSubscribe<ContextValue<LogsNotification>, RpcError> = subscribe("logs", arrayOf(filter.toJson(), options(commitment))) { decode(it) }
 
     /** The stream closes after its status event; received notifications are non-terminal. */
-    @JvmOverloads
-    fun subscribeSignature(signature: SolanaSignature, commitment: Commitment = this.defaultCommitment, enableReceivedNotification: Boolean = false): RpcSubscribe<ContextValue<SignatureNotification>, RpcError> {
+    override fun subscribeSignature(signature: SolanaSignature, commitment: Commitment, enableReceivedNotification: Boolean): RpcSubscribe<ContextValue<SignatureNotification>, RpcError> {
         val config = buildJsonObject {
             put("commitment", commitment.toString())
             put("enableReceivedNotification", enableReceivedNotification)
@@ -69,8 +71,8 @@ class SolanaProvider @JvmOverloads constructor(
         return subscribe("signature", arrayOf(signature.toString(), config)) { decode(it) }
     }
 
-    fun subscribeSlot(): RpcSubscribe<SlotNotification, RpcError> = subscribe("slot", emptyArray<Any>()) { decode(it) }
-    fun subscribeRoot(): RpcSubscribe<BigInteger, RpcError> = subscribe("root", emptyArray<Any>(), ::decodeU64)
+    override fun subscribeSlot(): RpcSubscribe<SlotNotification, RpcError> = subscribe("slot", emptyArray<Any>()) { decode(it) }
+    override fun subscribeRoot(): RpcSubscribe<BigInteger, RpcError> = subscribe("root", emptyArray<Any>(), ::decodeU64)
 
     private fun <T : Any> subscribe(method: String, params: Array<*>, decoder: (JsonElement) -> T): RpcSubscribe<T, RpcError> = RpcSubscribeCall(subscriptionClient, arrayOf(method, *params), decoder)
 

@@ -82,7 +82,7 @@ class SubscriptionsTest : FunSpec({
         assertCommitment(Commitment.FINALIZED)
 
         client.event = contextual("""{"pubkey":"$key","account":$account}""")
-        provider.subscribeProgram(key, commitment = Commitment.CONFIRMED).send().unwrap()
+        provider.subscribeProgram(key, emptyList(), Commitment.CONFIRMED).send().unwrap()
         assertCommitment(Commitment.CONFIRMED)
         provider.subscribeProgram(key).send().unwrap()
         assertCommitment(Commitment.FINALIZED)

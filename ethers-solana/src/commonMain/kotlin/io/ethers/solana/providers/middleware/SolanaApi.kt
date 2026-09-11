@@ -9,7 +9,11 @@ import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import io.ethers.providers.types.RpcCall
 import io.ethers.providers.types.RpcRequest
+import io.ethers.providers.types.RpcSubscribe
 import io.ethers.providers.types.SuppliedRpcRequest
+import io.ethers.solana.providers.AccountFilter
+import io.ethers.solana.providers.LogsFilter
+import io.ethers.solana.providers.SolanaProvider
 import io.ethers.solana.providers.decode
 import io.ethers.solana.providers.decodeAccount
 import io.ethers.solana.providers.decodeContext
@@ -23,7 +27,11 @@ import io.ethers.solana.types.rpc.Commitment
 import io.ethers.solana.types.rpc.ContextValue
 import io.ethers.solana.types.rpc.EpochInfo
 import io.ethers.solana.types.rpc.LatestBlockhash
+import io.ethers.solana.types.rpc.LogsNotification
 import io.ethers.solana.types.rpc.PrioritizationFee
+import io.ethers.solana.types.rpc.ProgramNotification
+import io.ethers.solana.types.rpc.SignatureNotification
+import io.ethers.solana.types.rpc.SlotNotification
 import io.ethers.solana.types.rpc.SolanaNodeHealth
 import io.ethers.solana.types.rpc.SolanaNodeIdentity
 import io.ethers.solana.types.rpc.SolanaNodeVersion
@@ -62,12 +70,59 @@ import kotlin.io.encoding.Base64
  * Explicit convenience overloads make default arguments available to Java callers and all implementations.
  * Results retain the RPC response shape, including context when supplied by the node.
  * Request parameters are forwarded without local validation; node rejections remain [RpcError] results.
+ *
+ * Customize behaviour by delegating to the layer beneath and overriding only what you need, the same
+ * way the EVM `Middleware` is composed:
+ *
+ * ```kotlin
+ * class RetryingApi(override val inner: SolanaApi) : SolanaApi by inner {
+ *     override fun getBalance(address: SolanaAddress, commitment: Commitment) =
+ *         inner.getBalance(address, commitment).map { ... }
+ * }
+ * ```
+ *
+ * Override every overload of a call you intend to intercept. Kotlin generates a forwarder for each
+ * member the class does not override, so `getBalance(address)` would resolve against [inner] and reach
+ * [inner]'s two-argument version rather than yours, and the interception would silently not happen.
  */
 interface SolanaApi {
     val client: JsonRpcClient
 
     /** Immutable fallback for commitment-aware calls; explicit request arguments take precedence. */
     val defaultCommitment: Commitment
+
+    /** The layer beneath this one, or null for the provider at the bottom. */
+    val inner: SolanaApi?
+        get() = null
+
+    /** The provider at the bottom of the chain, which owns the subscription client. */
+    val provider: SolanaProvider
+        get() = inner?.provider ?: throw IllegalStateException("SolanaApi implementations must provide a provider")
+
+    //-----------------------------------------------------------------------------------------------------------------
+    //                                  Subscriptions
+    //-----------------------------------------------------------------------------------------------------------------
+
+    fun subscribeAccount(address: SolanaAddress): RpcSubscribe<ContextValue<AccountInfo?>, RpcError> = subscribeAccount(address, defaultCommitment)
+    fun subscribeAccount(address: SolanaAddress, commitment: Commitment): RpcSubscribe<ContextValue<AccountInfo?>, RpcError> = provider.subscribeAccount(address, commitment)
+
+    fun subscribeProgram(program: SolanaAddress): RpcSubscribe<ContextValue<ProgramNotification>, RpcError> = subscribeProgram(program, emptyList(), defaultCommitment)
+    fun subscribeProgram(program: SolanaAddress, filters: List<AccountFilter>): RpcSubscribe<ContextValue<ProgramNotification>, RpcError> = subscribeProgram(program, filters, defaultCommitment)
+    fun subscribeProgram(program: SolanaAddress, filters: List<AccountFilter>, commitment: Commitment): RpcSubscribe<ContextValue<ProgramNotification>, RpcError> = provider.subscribeProgram(program, filters, commitment)
+
+    fun subscribeLogs(): RpcSubscribe<ContextValue<LogsNotification>, RpcError> = subscribeLogs(LogsFilter.All, defaultCommitment)
+    fun subscribeLogs(filter: LogsFilter): RpcSubscribe<ContextValue<LogsNotification>, RpcError> = subscribeLogs(filter, defaultCommitment)
+    fun subscribeLogs(commitment: Commitment): RpcSubscribe<ContextValue<LogsNotification>, RpcError> = subscribeLogs(LogsFilter.All, commitment)
+    fun subscribeLogs(filter: LogsFilter, commitment: Commitment): RpcSubscribe<ContextValue<LogsNotification>, RpcError> = provider.subscribeLogs(filter, commitment)
+
+    /** The stream closes after its status event; received notifications are non-terminal. */
+    fun subscribeSignature(signature: SolanaSignature): RpcSubscribe<ContextValue<SignatureNotification>, RpcError> = subscribeSignature(signature, defaultCommitment, false)
+    fun subscribeSignature(signature: SolanaSignature, commitment: Commitment): RpcSubscribe<ContextValue<SignatureNotification>, RpcError> = subscribeSignature(signature, commitment, false)
+    fun subscribeSignature(signature: SolanaSignature, enableReceivedNotification: Boolean): RpcSubscribe<ContextValue<SignatureNotification>, RpcError> = subscribeSignature(signature, defaultCommitment, enableReceivedNotification)
+    fun subscribeSignature(signature: SolanaSignature, commitment: Commitment, enableReceivedNotification: Boolean): RpcSubscribe<ContextValue<SignatureNotification>, RpcError> = provider.subscribeSignature(signature, commitment, enableReceivedNotification)
+
+    fun subscribeSlot(): RpcSubscribe<SlotNotification, RpcError> = provider.subscribeSlot()
+    fun subscribeRoot(): RpcSubscribe<BigInteger, RpcError> = provider.subscribeRoot()
 
     fun getBalance(address: SolanaAddress): RpcRequest<ContextValue<BigInteger>, RpcError> = getBalance(address, defaultCommitment)
     fun getBalance(address: SolanaAddress, commitment: Commitment = this.defaultCommitment): RpcRequest<ContextValue<BigInteger>, RpcError> = rpc("getBalance", address.toString(), config(commitment)) { decodeContext(it, ::decodeU64) }
