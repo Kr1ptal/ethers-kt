@@ -1,12 +1,24 @@
-ethers-solana includes code and test fixtures adapted from sol4k:
+ethers-solana began as a port of sol4k and retains attribution for it:
 https://github.com/sol4k/sol4k
 Reference commit: a166edd854a7198553fdafe9a5051a400d70b121
 Copyright sol4k contributors. Licensed under the Apache License, Version 2.0.
 
-The port changes packages, APIs, platform support, transaction validation,
-binary encoding, and RPC transport, and adds Solana WebSocket subscriptions.
-The accompanying LICENSE-APACHE contains the Apache 2.0 license text.
+Little of that code survives unchanged. The module has since been rebuilt
+around its own transaction model and request builder, adds v0 address lookup
+table selection and v1 (SIMD-0385) transactions, reports every construction
+and decoding failure as a typed value rather than an exception, decodes the
+wire format without throwing, and reconstructs a compiled transaction back
+into an editable request. It targets JVM, Android, macOS and iOS, replaces the
+RPC transport, and adds Solana WebSocket subscriptions. Attribution remains
+because the work is derived from sol4k, which does not depend on how much of
+the original text is still recognisable.
 
-JVM and Android signing uses org.sol4k:tweetnacl:0.1.6, an MIT-licensed dependency:
+Test fixtures adapted from sol4k at that commit are still carried verbatim,
+in src/commonTest/kotlin/io/ethers/solana/UpstreamFixtures.kt.
+
+JVM and Android signing uses org.sol4k:tweetnacl:0.1.6, a current runtime
+dependency, separately licensed under the MIT License:
 https://github.com/sol4k/tweetnacl
 Copyright (2014-present) Tom Zhou and contributors.
+
+The repository's LICENSE-APACHE contains the Apache 2.0 license text.
