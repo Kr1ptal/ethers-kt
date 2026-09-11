@@ -84,12 +84,6 @@ class PendingSolanaTransaction @JvmOverloads constructor(
             override val message: String get() = "Transaction $signature was still unconfirmed after $waited"
         }
 
-        /** Submission itself failed, so there is no transaction to track and nothing reached the cluster. */
-        data class NotSubmitted(val error: io.ethers.providers.RpcError) : Error() {
-            override val message: String get() = "Transaction was not submitted: ${error.message}"
-            override val cause: Throwable get() = error.toException()
-        }
-
         /** The node could not be asked, so nothing is known about the transaction either way. */
         data class Rpc(val signature: SolanaSignature, val error: io.ethers.providers.RpcError) : Error() {
             override val message: String get() = "Could not read the status of $signature: ${error.message}"

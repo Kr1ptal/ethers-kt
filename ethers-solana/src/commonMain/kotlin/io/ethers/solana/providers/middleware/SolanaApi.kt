@@ -407,19 +407,6 @@ interface SolanaApi {
         return rpc("getRecentPrioritizationFees", addresses.map { it.toString() }) { decode(it) }
     }
 
-    /** Submit [transaction] and wait for the cluster to confirm it, using its own blockhash to detect expiry. */
-    suspend fun sendAndConfirmTransaction(transaction: SolanaTransactionSigned): Result<SignatureStatus, PendingSolanaTransaction.Error> = sendAndConfirmTransaction(transaction, SolanaSendConfig(), Commitment.CONFIRMED)
-
-    suspend fun sendAndConfirmTransaction(
-        transaction: SolanaTransactionSigned,
-        options: SolanaSendConfig,
-        commitment: Commitment,
-    ): Result<SignatureStatus, PendingSolanaTransaction.Error> {
-        val pending = sendTransaction(transaction, options).send()
-            .unwrapOrReturn { return Result.failure(PendingSolanaTransaction.Error.NotSubmitted(it)) }
-        return pending.confirmation(commitment)
-    }
-
     fun getSlot(): RpcRequest<BigInteger, RpcError> = getSlot(defaultCommitment)
     fun getSlot(commitment: Commitment = this.defaultCommitment): RpcRequest<BigInteger, RpcError> = rpc("getSlot", config(commitment), decoder = ::decodeU64)
 

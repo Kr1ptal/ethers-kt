@@ -178,7 +178,7 @@ class PendingTransactionTest : FunSpec({
         }
     }
 
-    test("a transaction never submitted has no signature to track") {
+    test("a rejected submission never produces a handle, so there is nothing to confirm") {
         val ktor = KtorHttpClient(
             MockEngine { request ->
                 val id = Kotlinx.DEFAULT.parseToJsonElement((request.body as TextContent).text).jsonObject.getValue("id")
@@ -198,8 +198,8 @@ class PendingTransactionTest : FunSpec({
                 instruction(SystemProgram.transfer(signer.publicKey, Programs.SYSTEM, 1L))
             }.compileLegacy().unwrap().sign(signer)
 
-            provider.sendAndConfirmTransaction(signed).unwrapError()
-                .shouldBeInstanceOf<PendingSolanaTransaction.Error.NotSubmitted>()
+            // the failure belongs to the send, not to confirmation: there is no transaction to track
+            provider.sendTransaction(signed).send().unwrapError().code shouldBe -32002
         } finally {
             provider.close()
         }
