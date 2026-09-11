@@ -2,7 +2,6 @@ package io.ethers.solana
 
 import io.ethers.core.isFailure
 import io.ethers.solana.instruction.Instruction
-import io.ethers.solana.instruction.SystemProgram
 import io.ethers.solana.signers.KeypairSigner
 import io.ethers.solana.types.AccountMeta
 import io.ethers.solana.types.Programs

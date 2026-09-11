@@ -8,13 +8,10 @@ import io.ethers.solana.types.rpc.SolanaRPCTransaction
 import io.ethers.solana.types.transaction.AddressLookupTableAccount
 import io.ethers.solana.types.transaction.CompiledAddressLookupTable
 import io.ethers.solana.types.transaction.LoadedAddresses
-import io.ethers.solana.types.transaction.MessageInstruction
 import io.ethers.solana.types.transaction.SolanaTransactionCompiled
 import io.ethers.solana.types.transaction.SolanaTransactionSigned
 import io.ethers.solana.types.transaction.SolanaTransactionUnsigned
-import io.ethers.solana.types.transaction.SolanaTxLegacy
 import io.ethers.solana.types.transaction.SolanaTxType
-import io.ethers.solana.types.transaction.SolanaTxV0
 import io.ethers.solana.types.transaction.SolanaTxV1
 import io.github.artificialpb.bignum.BigDecimal
 import io.github.artificialpb.bignum.bigIntegerOf
@@ -28,7 +25,6 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.decodeFromJsonElement
-import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 

@@ -11,7 +11,6 @@ import io.ethers.solana.utils.requireU64
 import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JsonElement
 import kotlin.jvm.JvmOverloads
 import io.ethers.core.json.JsonElement as RawJson
 

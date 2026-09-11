@@ -9,7 +9,6 @@ import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.types.SolanaBytes
 import io.ethers.solana.types.SolanaSignature
 import io.ethers.solana.utils.littleEndian
-import io.ethers.solana.utils.requireU64
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
 import kotlin.jvm.JvmStatic

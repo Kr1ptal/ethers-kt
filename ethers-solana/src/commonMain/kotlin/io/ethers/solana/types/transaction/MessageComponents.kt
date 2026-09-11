@@ -2,26 +2,12 @@
 
 package io.ethers.solana.types.transaction
 
-import io.ethers.core.Result
-import io.ethers.solana.serialization.SolanaMessageDecoder
-import io.ethers.solana.types.ExtensibleJsonSerializer
-import io.ethers.solana.types.OtherFieldsSerializer
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.types.SolanaBytes
-import io.ethers.solana.types.U8ListSerializer
 import io.ethers.solana.types.U8Serializer
-import io.ethers.solana.utils.U64_MAX
-import io.github.artificialpb.bignum.BigInteger
-import kotlinx.serialization.KSerializer
-import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.encoding.Decoder
-import kotlinx.serialization.encoding.Encoder
-import kotlinx.serialization.json.JsonElement
-import kotlin.jvm.JvmOverloads
-import kotlin.jvm.JvmStatic
 
 /**
  * The three counts that split a message's accounts into signers and readonly accounts.

@@ -10,7 +10,6 @@ import io.ethers.solana.types.U8Serializer
 import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JsonElement
 import io.ethers.core.json.JsonElement as RawJson
 
 /** An account reward; lamports is a signed delta. */

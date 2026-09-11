@@ -23,7 +23,6 @@ import io.ethers.solana.types.transaction.SolanaTxV1
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 
 class SolanaTransactionResultTest : FunSpec({

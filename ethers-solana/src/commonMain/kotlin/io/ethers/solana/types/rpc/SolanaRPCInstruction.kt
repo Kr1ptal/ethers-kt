@@ -17,7 +17,6 @@ import kotlinx.serialization.descriptors.PrimitiveKind
 import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
-import kotlinx.serialization.json.JsonElement
 import io.ethers.core.json.JsonElement as RawJson
 
 /** Compiled instruction with optional RPC execution details. */

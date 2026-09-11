@@ -15,7 +15,6 @@ import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
-import kotlinx.serialization.json.JsonElement
 import io.ethers.core.json.JsonElement as RawJson
 
 /** Account data in the requested base64 encoding, shared by queries, subscriptions and simulation. */

@@ -20,7 +20,6 @@ import io.ethers.solana.types.transaction.SolanaTxV0
 import io.ethers.solana.types.transaction.SolanaTxV1
 import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JsonElement
 import io.ethers.core.json.JsonElement as RawJson
 
 /** Compiled message in the provider's requested json encoding. */

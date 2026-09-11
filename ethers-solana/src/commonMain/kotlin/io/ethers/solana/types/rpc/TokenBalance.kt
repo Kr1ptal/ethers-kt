@@ -9,7 +9,6 @@ import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.U8Serializer
 import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JsonElement
 import io.ethers.core.json.JsonElement as RawJson
 
 /** A token balance associated with a transaction account. */

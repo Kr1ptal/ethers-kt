@@ -4,7 +4,6 @@ package io.ethers.solana.types
 
 import io.ethers.solana.utils.U32_MAX
 import io.ethers.solana.utils.requireU64
-import io.github.artificialpb.bignum.BigDecimal
 import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.serializer
@@ -21,8 +20,6 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.JsonTransformingSerializer
 import kotlinx.serialization.json.JsonUnquotedLiteral
-import kotlinx.serialization.json.decodeFromJsonElement
-import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject

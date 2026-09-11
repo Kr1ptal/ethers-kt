@@ -1,7 +1,6 @@
 package io.ethers.solana.utils
 
 import io.github.artificialpb.bignum.BigInteger
-import io.github.artificialpb.bignum.bigIntegerOf
 
 internal const val U32_MAX = 4294967295L
 

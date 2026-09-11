@@ -5,7 +5,6 @@ import io.ethers.solana.types.RawJsonSerializer
 import io.ethers.solana.types.TaggedJsonSerializer
 import io.ethers.solana.types.U32Serializer
 import kotlinx.serialization.KSerializer
-import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.encoding.Decoder
@@ -15,7 +14,6 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonEncoder
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.decodeFromJsonElement
 import io.ethers.core.json.JsonElement as RawJson
 
 /** The instruction-error wire enum; unknown future variants remain lossless. */

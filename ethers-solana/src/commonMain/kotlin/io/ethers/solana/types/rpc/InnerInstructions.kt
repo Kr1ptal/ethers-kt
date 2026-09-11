@@ -8,7 +8,6 @@ import io.ethers.solana.types.OtherFieldsSerializer
 import io.ethers.solana.types.U8Serializer
 import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JsonElement
 import io.ethers.core.json.JsonElement as RawJson
 
 /** Inner instructions shared by metadata and simulation. */

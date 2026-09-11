@@ -10,7 +10,6 @@ import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBytes
 import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JsonElement
 import io.ethers.core.json.JsonElement as RawJson
 
 /** Program return bytes, shared by metadata and simulation. */

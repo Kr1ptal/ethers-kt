@@ -9,7 +9,6 @@ import io.ethers.solana.types.transaction.LoadedAddresses
 import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JsonElement
 import io.ethers.core.json.JsonElement as RawJson
 
 /** Missing optional recording data remains null; required fee and balance fields never default. */

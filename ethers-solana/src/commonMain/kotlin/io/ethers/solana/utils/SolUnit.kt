@@ -1,8 +1,5 @@
 package io.ethers.solana.utils
 
-import io.ethers.solana.utils.SolUnit.Companion.LAMPORT
-import io.ethers.solana.utils.SolUnit.Companion.MICRO_LAMPORT
-import io.ethers.solana.utils.SolUnit.Companion.SOL
 import io.github.artificialpb.bignum.BigDecimal
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.RoundingMode
