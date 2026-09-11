@@ -39,7 +39,7 @@ import kotlinx.serialization.json.JsonElement as KJsonElement
 // local round trip - CI runners are far slower than a dev machine. `eventually` returns as soon as the condition
 // holds, so a generous budget costs nothing when things are fast, it only bounds how long a genuine failure takes
 // to surface.
-private val RECONNECT_WINDOW = 30.seconds
+private val RECONNECT_WINDOW = 5.seconds
 
 /** Stands in for any domain type that reaches the transport with a serializer of its own. */
 @Serializable(with = SerializableValueSerializer::class)

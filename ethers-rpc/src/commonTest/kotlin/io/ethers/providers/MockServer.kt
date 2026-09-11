@@ -139,12 +139,18 @@ private class EmbeddedMockServer(private val websocket: Boolean) : MockWSServer 
     }
 
     override suspend fun sendJson(json: String) {
-        session.value?.send(Frame.Text(json))
+        // never discard silently: a dropped frame used to surface only as a test timing out minutes later
+        val current = session.value ?: throw AssertionError("sendJson called with no connected session")
+        current.send(Frame.Text(json))
     }
 
     override suspend fun closeConnection(code: Short, reason: String) {
-        session.value?.close(CloseReason(code, reason))
-        session.value = null
+        // close() suspends for the handshake, and the client can reconnect within that window and register
+        // itself here. Clearing unconditionally would drop the new session, leaving the server unable to
+        // send anything for the rest of the test.
+        val closing = session.value ?: return
+        closing.close(CloseReason(code, reason))
+        session.compareAndSet(closing, null)
     }
 
     override suspend fun stop() {
