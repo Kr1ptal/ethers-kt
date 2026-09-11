@@ -5,8 +5,9 @@ Solana support for ethers-kt on JVM (Java 11+), Android, iOS, and macOS. Add
 library publication; it is not included in previously released BOMs. Within this repository use
 `implementation(project(":ethers-solana"))`.
 
-The module depends on `ethers-providers` and reuses its HTTP/WebSocket clients, request batching, errors,
-and coroutine/blocking/future execution APIs. Ethereum dependencies are therefore transitive.
+The module depends on `ethers-rpc` and `ethers-common`, the chain-agnostic layers, and reuses their
+HTTP/WebSocket clients, request batching, errors, and coroutine/blocking/future execution APIs. It pulls
+in no EVM module, so nothing Ethereum-specific is transitive.
 
 Android currently inherits a known `channels-core:1.0.4` incompatibility: its MethodHandle bytecode prevents
 APK dexing below API 26 despite the repository's declared `minSdk 24`. Fixing that existing dependency is
@@ -230,6 +231,37 @@ keeps them. `inner` walks one layer down and `provider` reaches the bottom of th
 the WebSocket client; an implementation with no provider beneath it throws when subscribing rather
 than silently doing nothing.
 
+## Submitting and confirming
+
+`sendTransaction` answers with a signature as the RPC does. Waiting for the cluster to accept it is a
+separate step, because Solana gives a definite negative answer that EVM has no equivalent of: a
+transaction is only valid while its blockhash is, roughly a minute, after which it can never land.
+
+```kotlin
+val status = provider.sendAndConfirmTransaction(signed).unwrap()
+if (!status.isSuccess) println("landed but failed: ${status.err}")
+```
+
+`sendAndConfirmTransaction` passes the transaction's own blockhash along, so the wait ends as soon as
+the answer is known either way rather than running out a timeout. To track something already submitted,
+build the handle yourself:
+
+```kotlin
+val signature = provider.sendTransaction(signed).send().unwrap()
+provider.pendingTransaction(signature, signed.recentBlockhash)
+    .awaitConfirmation(Commitment.FINALIZED)
+```
+
+A transaction that lands and then fails on chain is returned, not raised - it was included, and
+`SignatureStatus.err` says why it failed. Only never landing is an error: `Expired` when the blockhash
+is gone, `TimedOut` when there was no blockhash to prove it, `NotSubmitted` when the send itself failed.
+
+Submission options mirror the RPC's own:
+
+```kotlin
+provider.sendTransaction(signed, SolanaSendConfig(skipPreflight = true, maxRetries = 3))
+```
+
 ## Request batching
 
 Batching is provided by the shared JSON-RPC layer and is generic over `RpcRequest`, so Solana calls
@@ -360,6 +392,10 @@ Reference: [sol4k a166edd854a7198553fdafe9a5051a400d70b121](https://github.com/s
 | Turn any transaction back into an editable request | `SolanaTransaction.toRequest`, `SolanaApi.decompileTransaction` |
 | Resolve a transaction's account indices to addresses and flags | `SolanaTransaction.resolveAccounts` |
 | All upstream public RPC methods | `SolanaApi` / `SolanaProvider` |
+| Submit and wait for confirmation | `sendAndConfirmTransaction`, `pendingTransaction`, `SignatureStatus`, `SolanaSendConfig` |
+| Read program and token accounts | `getProgramAccounts`, `getTokenAccountsByOwner`, `ProgramAccount` |
+| Read slots and blocks | `getSlot`, `getBlockHeight`, `getBlocks`, `getBlock`, `SolanaBlock` |
+| Account, nonce and token instructions | `SystemProgram`, `TokenProgram`, `Token2022Program` |
 | Batch unrelated calls into one round trip | `batchRequest`, `BatchRpcRequest` (shared with EVM) |
 | Additional WebSocket support | `subscribeAccount`, `subscribeProgram`, `subscribeLogs`, `subscribeSignature`, `subscribeSlot`, `subscribeRoot` |
 

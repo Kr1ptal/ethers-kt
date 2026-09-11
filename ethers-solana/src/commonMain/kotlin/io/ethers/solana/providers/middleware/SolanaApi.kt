@@ -13,6 +13,7 @@ import io.ethers.providers.types.RpcSubscribe
 import io.ethers.providers.types.SuppliedRpcRequest
 import io.ethers.solana.providers.AccountFilter
 import io.ethers.solana.providers.LogsFilter
+import io.ethers.solana.providers.PendingSolanaTransaction
 import io.ethers.solana.providers.SolanaProvider
 import io.ethers.solana.providers.decode
 import io.ethers.solana.providers.decodeAccount
@@ -23,19 +24,23 @@ import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.types.SolanaSignature
 import io.ethers.solana.types.rpc.AccountInfo
+import io.ethers.solana.types.rpc.BlockTransactionDetails
 import io.ethers.solana.types.rpc.Commitment
 import io.ethers.solana.types.rpc.ContextValue
 import io.ethers.solana.types.rpc.EpochInfo
 import io.ethers.solana.types.rpc.LatestBlockhash
 import io.ethers.solana.types.rpc.LogsNotification
 import io.ethers.solana.types.rpc.PrioritizationFee
-import io.ethers.solana.types.rpc.ProgramNotification
+import io.ethers.solana.types.rpc.ProgramAccount
 import io.ethers.solana.types.rpc.SignatureNotification
+import io.ethers.solana.types.rpc.SignatureStatus
 import io.ethers.solana.types.rpc.SlotNotification
+import io.ethers.solana.types.rpc.SolanaBlock
 import io.ethers.solana.types.rpc.SolanaNodeHealth
 import io.ethers.solana.types.rpc.SolanaNodeIdentity
 import io.ethers.solana.types.rpc.SolanaNodeVersion
 import io.ethers.solana.types.rpc.SolanaRPCTransaction
+import io.ethers.solana.types.rpc.SolanaSendConfig
 import io.ethers.solana.types.rpc.SolanaSimulationConfig
 import io.ethers.solana.types.rpc.TokenAmount
 import io.ethers.solana.types.rpc.TransactionSignature
@@ -53,6 +58,7 @@ import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.add
@@ -106,9 +112,9 @@ interface SolanaApi {
     fun subscribeAccount(address: SolanaAddress): RpcSubscribe<ContextValue<AccountInfo?>, RpcError> = subscribeAccount(address, defaultCommitment)
     fun subscribeAccount(address: SolanaAddress, commitment: Commitment): RpcSubscribe<ContextValue<AccountInfo?>, RpcError> = provider.subscribeAccount(address, commitment)
 
-    fun subscribeProgram(program: SolanaAddress): RpcSubscribe<ContextValue<ProgramNotification>, RpcError> = subscribeProgram(program, emptyList(), defaultCommitment)
-    fun subscribeProgram(program: SolanaAddress, filters: List<AccountFilter>): RpcSubscribe<ContextValue<ProgramNotification>, RpcError> = subscribeProgram(program, filters, defaultCommitment)
-    fun subscribeProgram(program: SolanaAddress, filters: List<AccountFilter>, commitment: Commitment): RpcSubscribe<ContextValue<ProgramNotification>, RpcError> = provider.subscribeProgram(program, filters, commitment)
+    fun subscribeProgram(program: SolanaAddress): RpcSubscribe<ContextValue<ProgramAccount>, RpcError> = subscribeProgram(program, emptyList(), defaultCommitment)
+    fun subscribeProgram(program: SolanaAddress, filters: List<AccountFilter>): RpcSubscribe<ContextValue<ProgramAccount>, RpcError> = subscribeProgram(program, filters, defaultCommitment)
+    fun subscribeProgram(program: SolanaAddress, filters: List<AccountFilter>, commitment: Commitment): RpcSubscribe<ContextValue<ProgramAccount>, RpcError> = provider.subscribeProgram(program, filters, commitment)
 
     fun subscribeLogs(): RpcSubscribe<ContextValue<LogsNotification>, RpcError> = subscribeLogs(LogsFilter.All, defaultCommitment)
     fun subscribeLogs(filter: LogsFilter): RpcSubscribe<ContextValue<LogsNotification>, RpcError> = subscribeLogs(filter, defaultCommitment)
@@ -229,13 +235,21 @@ interface SolanaApi {
     fun sendTransaction(transaction: ByteArray): RpcRequest<SolanaSignature, RpcError> = sendTransaction(transaction, defaultCommitment)
 
     /** Forward raw wire bytes unchanged; transaction validation is performed by the RPC node. */
-    fun sendTransaction(transaction: ByteArray, preflightCommitment: Commitment = this.defaultCommitment): RpcRequest<SolanaSignature, RpcError> {
+    fun sendTransaction(transaction: ByteArray, preflightCommitment: Commitment = this.defaultCommitment): RpcRequest<SolanaSignature, RpcError> = sendTransaction(transaction, SolanaSendConfig(preflightCommitment = preflightCommitment))
+
+    fun sendTransaction(transaction: SolanaTransactionSigned, options: SolanaSendConfig): RpcRequest<SolanaSignature, RpcError> = sendTransaction(transaction.serialize(), options)
+
+    /** Submit with explicit options; see [SolanaSendConfig]. */
+    fun sendTransaction(transaction: ByteArray, options: SolanaSendConfig): RpcRequest<SolanaSignature, RpcError> {
         return rpc(
             "sendTransaction",
             Base64.encode(transaction),
             buildJsonObject {
                 put("encoding", "base64")
-                put("preflightCommitment", preflightCommitment.toString())
+                put("preflightCommitment", (options.preflightCommitment ?: defaultCommitment).toString())
+                if (options.skipPreflight) put("skipPreflight", true)
+                options.maxRetries?.let { put("maxRetries", it) }
+                options.minContextSlot?.let { put("minContextSlot", rpcInteger(it)) }
             },
         ) { SolanaSignature(it.jsonPrimitive.content) }
     }
@@ -379,6 +393,96 @@ interface SolanaApi {
     fun getRecentPrioritizationFees(addresses: List<SolanaAddress> = emptyList()): RpcRequest<List<PrioritizationFee>, RpcError> {
         return rpc("getRecentPrioritizationFees", addresses.map { it.toString() }) { decode(it) }
     }
+
+    /**
+     * Track a submitted transaction until the cluster confirms it.
+     *
+     * Pass the [blockhash] the transaction was signed against so expiry can be detected: without it a
+     * transaction that will never land is indistinguishable from one that has not landed yet.
+     */
+    fun pendingTransaction(signature: SolanaSignature): PendingSolanaTransaction = PendingSolanaTransaction(signature, this, null)
+    fun pendingTransaction(signature: SolanaSignature, blockhash: SolanaBlockhash?): PendingSolanaTransaction = PendingSolanaTransaction(signature, this, blockhash)
+
+    /** Submit [transaction] and wait for the cluster to confirm it, using its own blockhash to detect expiry. */
+    suspend fun sendAndConfirmTransaction(transaction: SolanaTransactionSigned): Result<SignatureStatus, PendingSolanaTransaction.Error> = sendAndConfirmTransaction(transaction, SolanaSendConfig(), Commitment.CONFIRMED)
+
+    suspend fun sendAndConfirmTransaction(
+        transaction: SolanaTransactionSigned,
+        options: SolanaSendConfig,
+        commitment: Commitment,
+    ): Result<SignatureStatus, PendingSolanaTransaction.Error> {
+        val signature = sendTransaction(transaction, options).send()
+            .unwrapOrReturn { return Result.failure(PendingSolanaTransaction.Error.NotSubmitted(it)) }
+        return pendingTransaction(signature, transaction.recentBlockhash).awaitConfirmation(commitment)
+    }
+
+    fun getSlot(): RpcRequest<BigInteger, RpcError> = getSlot(defaultCommitment)
+    fun getSlot(commitment: Commitment = this.defaultCommitment): RpcRequest<BigInteger, RpcError> = rpc("getSlot", config(commitment), decoder = ::decodeU64)
+
+    fun getBlockHeight(): RpcRequest<BigInteger, RpcError> = getBlockHeight(defaultCommitment)
+    fun getBlockHeight(commitment: Commitment = this.defaultCommitment): RpcRequest<BigInteger, RpcError> = rpc("getBlockHeight", config(commitment), decoder = ::decodeU64)
+
+    /**
+     * Progress of each signature, in the order given, with null for one the node has never seen.
+     *
+     * Nodes keep only their recent status cache, so a signature older than that reads as null unless
+     * [searchTransactionHistory] is set, which is markedly slower.
+     */
+    fun getSignatureStatuses(signatures: List<SolanaSignature>): RpcRequest<ContextValue<List<SignatureStatus?>>, RpcError> = getSignatureStatuses(signatures, false)
+    fun getSignatureStatuses(signature: SolanaSignature): RpcRequest<ContextValue<List<SignatureStatus?>>, RpcError> = getSignatureStatuses(listOf(signature), false)
+    fun getSignatureStatuses(signatures: List<SolanaSignature>, searchTransactionHistory: Boolean): RpcRequest<ContextValue<List<SignatureStatus?>>, RpcError> {
+        require(signatures.size <= 256) { "At most 256 signatures can be queried at once, got ${signatures.size}" }
+        val options = buildJsonObject { put("searchTransactionHistory", searchTransactionHistory) }
+        return rpc("getSignatureStatuses", signatures.map { it.toString() }, options) { element ->
+            decodeContext(element) { value -> value.jsonArray.map { if (it == JsonNull) null else decode<SignatureStatus>(it) } }
+        }
+    }
+
+    /** Every account owned by [program], narrowed by [filters] as programSubscribe is. */
+    fun getProgramAccounts(program: SolanaAddress): RpcRequest<List<ProgramAccount>, RpcError> = getProgramAccounts(program, emptyList(), defaultCommitment)
+    fun getProgramAccounts(program: SolanaAddress, filters: List<AccountFilter>): RpcRequest<List<ProgramAccount>, RpcError> = getProgramAccounts(program, filters, defaultCommitment)
+    fun getProgramAccounts(program: SolanaAddress, filters: List<AccountFilter>, commitment: Commitment): RpcRequest<List<ProgramAccount>, RpcError> {
+        val options = buildJsonObject {
+            put("commitment", commitment.toString())
+            put("encoding", "base64")
+            if (filters.isNotEmpty()) put("filters", JsonArray(filters.map { it.toJson() }))
+        }
+        return rpc("getProgramAccounts", program.toString(), options) { decode(it) }
+    }
+
+    /** Token accounts [owner] holds, for one mint or across one token program. */
+    fun getTokenAccountsByOwner(owner: SolanaAddress, mint: SolanaAddress): RpcRequest<ContextValue<List<ProgramAccount>>, RpcError> = tokenAccountsByOwner(owner, "mint", mint, defaultCommitment)
+    fun getTokenAccountsByOwner(owner: SolanaAddress, mint: SolanaAddress, commitment: Commitment): RpcRequest<ContextValue<List<ProgramAccount>>, RpcError> = tokenAccountsByOwner(owner, "mint", mint, commitment)
+    fun getTokenAccountsByOwnerForProgram(owner: SolanaAddress, program: SolanaAddress): RpcRequest<ContextValue<List<ProgramAccount>>, RpcError> = tokenAccountsByOwner(owner, "programId", program, defaultCommitment)
+    fun getTokenAccountsByOwnerForProgram(owner: SolanaAddress, program: SolanaAddress, commitment: Commitment): RpcRequest<ContextValue<List<ProgramAccount>>, RpcError> = tokenAccountsByOwner(owner, "programId", program, commitment)
+
+    private fun tokenAccountsByOwner(owner: SolanaAddress, key: String, value: SolanaAddress, commitment: Commitment): RpcRequest<ContextValue<List<ProgramAccount>>, RpcError> {
+        return rpc(
+            "getTokenAccountsByOwner",
+            owner.toString(),
+            buildJsonObject { put(key, value.toString()) },
+            config(commitment, "base64"),
+        ) { element -> decodeContext(element) { it.jsonArray.map { account -> decode<ProgramAccount>(account) } } }
+    }
+
+    /** Slots with confirmed blocks in `[start, end]`, capped by the node at 500,000 slots. */
+    fun getBlocks(start: BigInteger, end: BigInteger): RpcRequest<List<BigInteger>, RpcError> = getBlocks(start, end, defaultCommitment)
+    fun getBlocks(start: BigInteger, end: BigInteger, commitment: Commitment): RpcRequest<List<BigInteger>, RpcError> = rpc("getBlocks", rpcInteger(start), rpcInteger(end), config(commitment)) { element -> element.jsonArray.map(::decodeU64) }
+
+    /** A confirmed block, or null when the slot was skipped. [details] selects how much of each transaction is returned. */
+    fun getBlock(slot: BigInteger): RpcRequest<SolanaBlock?, RpcError> = getBlock(slot, BlockTransactionDetails.FULL, defaultCommitment)
+    fun getBlock(slot: BigInteger, details: BlockTransactionDetails): RpcRequest<SolanaBlock?, RpcError> = getBlock(slot, details, defaultCommitment)
+    fun getBlock(slot: BigInteger, details: BlockTransactionDetails, commitment: Commitment): RpcRequest<SolanaBlock?, RpcError> {
+        val options = buildJsonObject {
+            put("commitment", commitment.toString())
+            put("encoding", "json")
+            put("transactionDetails", details.toString())
+            put("maxSupportedTransactionVersion", 255)
+            put("rewards", false)
+        }
+        return rpc("getBlock", rpcInteger(slot), options) { if (it == JsonNull) null else decode<SolanaBlock>(it) }
+    }
+
     fun getSignaturesForAddress(address: SolanaAddress): RpcRequest<List<TransactionSignature>, RpcError> = getSignaturesForAddress(address, 1000, defaultCommitment, null, null)
     fun getSignaturesForAddress(address: SolanaAddress, limit: Int): RpcRequest<List<TransactionSignature>, RpcError> = getSignaturesForAddress(address, limit, defaultCommitment, null, null)
     fun getSignaturesForAddress(address: SolanaAddress, commitment: Commitment): RpcRequest<List<TransactionSignature>, RpcError> = getSignaturesForAddress(address, 1000, commitment, null, null)

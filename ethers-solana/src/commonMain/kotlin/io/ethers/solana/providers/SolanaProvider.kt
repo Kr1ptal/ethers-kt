@@ -18,7 +18,7 @@ import io.ethers.solana.types.rpc.AccountInfo
 import io.ethers.solana.types.rpc.Commitment
 import io.ethers.solana.types.rpc.ContextValue
 import io.ethers.solana.types.rpc.LogsNotification
-import io.ethers.solana.types.rpc.ProgramNotification
+import io.ethers.solana.types.rpc.ProgramAccount
 import io.ethers.solana.types.rpc.SignatureNotification
 import io.ethers.solana.types.rpc.SlotNotification
 import io.github.artificialpb.bignum.BigInteger
@@ -47,7 +47,7 @@ class SolanaProvider @JvmOverloads constructor(
 
     override fun subscribeAccount(address: SolanaAddress, commitment: Commitment): RpcSubscribe<ContextValue<AccountInfo?>, RpcError> = subscribe("account", arrayOf(address.toString(), options(commitment, true))) { decodeContext(it, ::decodeAccount) }
 
-    override fun subscribeProgram(program: SolanaAddress, filters: List<AccountFilter>, commitment: Commitment): RpcSubscribe<ContextValue<ProgramNotification>, RpcError> {
+    override fun subscribeProgram(program: SolanaAddress, filters: List<AccountFilter>, commitment: Commitment): RpcSubscribe<ContextValue<ProgramAccount>, RpcError> {
         val config = buildJsonObject {
             put("commitment", commitment.toString())
             put("encoding", "base64")
@@ -55,7 +55,7 @@ class SolanaProvider @JvmOverloads constructor(
         }
         return subscribe("program", arrayOf(program.toString(), config)) { element ->
             decodeContext(element) { value ->
-                decode<ProgramNotification>(value)
+                decode<ProgramAccount>(value)
             }
         }
     }

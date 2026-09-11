@@ -9,4 +9,7 @@ object Programs {
     @JvmField val ASSOCIATED_TOKEN = SolanaAddress("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL")
     @JvmField val COMPUTE_BUDGET = SolanaAddress("ComputeBudget111111111111111111111111111111")
     @JvmField val SYSVAR_RENT = SolanaAddress("SysvarRent111111111111111111111111111111111")
+
+    /** Deprecated on chain but still required by the nonce instructions, which name it positionally. */
+    @JvmField val SYSVAR_RECENT_BLOCKHASHES = SolanaAddress("SysvarRecentB1ockHashes11111111111111111111")
 }

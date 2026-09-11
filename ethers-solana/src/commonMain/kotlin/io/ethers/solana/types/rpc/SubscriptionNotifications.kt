@@ -17,7 +17,6 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
 @Serializable data class LogsNotification(val signature: SolanaSignature, val err: TransactionError?, val logs: List<String>)
-@Serializable data class ProgramNotification(val pubkey: SolanaAddress, val account: AccountInfo)
 @Serializable data class SlotNotification(val parent: BigInteger, val root: BigInteger, val slot: BigInteger)
 
 /** Signature notification payload; the slot and API version belong to the enclosing [ContextValue]. */

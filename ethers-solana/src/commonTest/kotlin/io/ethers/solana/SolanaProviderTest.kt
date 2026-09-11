@@ -21,6 +21,7 @@ import io.ethers.solana.types.rpc.ContextValue
 import io.ethers.solana.types.rpc.RpcContext
 import io.ethers.solana.types.rpc.SolanaNodeHealth
 import io.ethers.solana.types.rpc.SolanaNodeIdentity
+import io.ethers.solana.types.rpc.SolanaSendConfig
 import io.ethers.solana.types.transaction.AddressLookupTableAccount
 import io.ethers.solana.types.transaction.SolanaTransactionConfig
 import io.ethers.solana.types.transaction.SolanaTransactionRequest
@@ -78,6 +79,59 @@ class SolanaProviderTest : FunSpec({
     fun assertRequest(method: String, expectedParams: String) {
         requests.last().getValue("method").jsonPrimitive.content shouldBe method
         requests.last().getValue("params") shouldBe Kotlinx.DEFAULT.parseToJsonElement(expectedParams)
+    }
+
+    test("newly added read methods send the parameters the node expects") {
+        response = "12345"
+        provider.getSlot().send().unwrap() shouldBe bigIntegerOf(12345)
+        assertRequest("getSlot", """[{"commitment":"confirmed"}]""")
+        provider.getBlockHeight().send().unwrap() shouldBe bigIntegerOf(12345)
+        assertRequest("getBlockHeight", """[{"commitment":"confirmed"}]""")
+
+        response = "[1,2,3]"
+        provider.getBlocks(bigIntegerOf(1), bigIntegerOf(3)).send().unwrap() shouldBe listOf(bigIntegerOf(1), bigIntegerOf(2), bigIntegerOf(3))
+        assertRequest("getBlocks", """[1,3,{"commitment":"confirmed"}]""")
+
+        // a skipped slot is null rather than an error
+        response = "null"
+        provider.getBlock(bigIntegerOf(5)).send().unwrap() shouldBe null
+        assertRequest("getBlock", """[5,{"commitment":"confirmed","encoding":"json","transactionDetails":"full","maxSupportedTransactionVersion":255,"rewards":false}]""")
+    }
+
+    test("signature statuses keep their position, with null for a signature the node never saw") {
+        response = contextual("""[null,{"slot":9,"confirmations":null,"err":null,"confirmationStatus":"finalized"}]""")
+        val statuses = provider.getSignatureStatuses(listOf(signature, signature), true).send().unwrap().value
+
+        statuses.size shouldBe 2
+        statuses[0] shouldBe null
+        statuses[1]!!.confirmationStatus shouldBe Commitment.FINALIZED
+        // null confirmations means finalized, which satisfies every commitment
+        statuses[1]!!.isAtLeast(Commitment.FINALIZED) shouldBe true
+        assertRequest("getSignatureStatuses", """[["$signature","$signature"],{"searchTransactionHistory":true}]""")
+    }
+
+    test("program and token account queries ask for base64 and carry their filters") {
+        response = """[{"pubkey":"$address","account":$account}]"""
+        val accounts = provider.getProgramAccounts(address).send().unwrap()
+        accounts.single().pubkey shouldBe address
+        accounts.single().account.lamports shouldBe BigInteger("18446744073709551615")
+        assertRequest("getProgramAccounts", """["$address",{"commitment":"confirmed","encoding":"base64"}]""")
+
+        response = contextual("""[{"pubkey":"$address","account":$account}]""")
+        provider.getTokenAccountsByOwner(address, Programs.TOKEN).send().unwrap().value.size shouldBe 1
+        assertRequest("getTokenAccountsByOwner", """["$address",{"mint":"${Programs.TOKEN}"},{"commitment":"confirmed","encoding":"base64"}]""")
+
+        provider.getTokenAccountsByOwnerForProgram(address, Programs.TOKEN_2022).send().unwrap().value.size shouldBe 1
+        assertRequest("getTokenAccountsByOwner", """["$address",{"programId":"${Programs.TOKEN_2022}"},{"commitment":"confirmed","encoding":"base64"}]""")
+    }
+
+    test("sending exposes the options a caller needs, and omits the ones left unset") {
+        response = "\"$signature\""
+        provider.sendTransaction(ByteArray(1)).send().unwrap() shouldBe signature
+        assertRequest("sendTransaction", """["AA==",{"encoding":"base64","preflightCommitment":"confirmed"}]""")
+
+        provider.sendTransaction(ByteArray(1), SolanaSendConfig(skipPreflight = true, maxRetries = 3, minContextSlot = bigIntegerOf(7))).send().unwrap()
+        assertRequest("sendTransaction", """["AA==",{"encoding":"base64","preflightCommitment":"confirmed","skipPreflight":true,"maxRetries":3,"minContextSlot":7}]""")
     }
 
     test("standalone API implementations inherit RPC conveniences and commitment forwarding") {
