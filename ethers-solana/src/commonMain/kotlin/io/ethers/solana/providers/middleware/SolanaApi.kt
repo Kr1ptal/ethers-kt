@@ -12,6 +12,7 @@ import io.ethers.providers.types.RpcRequest
 import io.ethers.providers.types.RpcSubscribe
 import io.ethers.providers.types.SuppliedRpcRequest
 import io.ethers.solana.providers.AccountFilter
+import io.ethers.solana.providers.BlockFilter
 import io.ethers.solana.providers.LogsFilter
 import io.ethers.solana.providers.PendingSolanaTransaction
 import io.ethers.solana.providers.SolanaProvider
@@ -24,17 +25,32 @@ import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.types.SolanaSignature
 import io.ethers.solana.types.rpc.AccountInfo
+import io.ethers.solana.types.rpc.BlockCommitment
+import io.ethers.solana.types.rpc.BlockNotification
+import io.ethers.solana.types.rpc.BlockProduction
 import io.ethers.solana.types.rpc.BlockTransactionDetails
+import io.ethers.solana.types.rpc.ClusterNode
 import io.ethers.solana.types.rpc.Commitment
 import io.ethers.solana.types.rpc.ContextValue
 import io.ethers.solana.types.rpc.EpochInfo
+import io.ethers.solana.types.rpc.EpochSchedule
+import io.ethers.solana.types.rpc.InflationGovernor
+import io.ethers.solana.types.rpc.InflationRate
+import io.ethers.solana.types.rpc.InflationReward
+import io.ethers.solana.types.rpc.LargestAccount
+import io.ethers.solana.types.rpc.LargestAccountsFilter
+import io.ethers.solana.types.rpc.LargestTokenAccount
 import io.ethers.solana.types.rpc.LatestBlockhash
 import io.ethers.solana.types.rpc.LogsNotification
+import io.ethers.solana.types.rpc.PerformanceSample
 import io.ethers.solana.types.rpc.PrioritizationFee
 import io.ethers.solana.types.rpc.ProgramAccount
 import io.ethers.solana.types.rpc.SignatureNotification
 import io.ethers.solana.types.rpc.SignatureStatus
 import io.ethers.solana.types.rpc.SlotNotification
+import io.ethers.solana.types.rpc.SlotRange
+import io.ethers.solana.types.rpc.SlotUpdateNotification
+import io.ethers.solana.types.rpc.SnapshotSlot
 import io.ethers.solana.types.rpc.SolanaBlock
 import io.ethers.solana.types.rpc.SolanaNodeHealth
 import io.ethers.solana.types.rpc.SolanaNodeIdentity
@@ -42,9 +58,12 @@ import io.ethers.solana.types.rpc.SolanaNodeVersion
 import io.ethers.solana.types.rpc.SolanaRPCTransaction
 import io.ethers.solana.types.rpc.SolanaSendConfig
 import io.ethers.solana.types.rpc.SolanaSimulationConfig
+import io.ethers.solana.types.rpc.Supply
 import io.ethers.solana.types.rpc.TokenAmount
 import io.ethers.solana.types.rpc.TransactionSignature
 import io.ethers.solana.types.rpc.TransactionSimulation
+import io.ethers.solana.types.rpc.VoteAccounts
+import io.ethers.solana.types.rpc.VoteNotification
 import io.ethers.solana.types.transaction.AddressLookupTableAccount
 import io.ethers.solana.types.transaction.SolanaTransaction
 import io.ethers.solana.types.transaction.SolanaTransactionCompiled
@@ -65,7 +84,9 @@ import kotlinx.serialization.json.add
 import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.long
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
@@ -126,6 +147,23 @@ interface SolanaApi {
     fun subscribeSignature(signature: SolanaSignature, commitment: Commitment): RpcSubscribe<ContextValue<SignatureNotification>, RpcError> = subscribeSignature(signature, commitment, false)
     fun subscribeSignature(signature: SolanaSignature, enableReceivedNotification: Boolean): RpcSubscribe<ContextValue<SignatureNotification>, RpcError> = subscribeSignature(signature, defaultCommitment, enableReceivedNotification)
     fun subscribeSignature(signature: SolanaSignature, commitment: Commitment, enableReceivedNotification: Boolean): RpcSubscribe<ContextValue<SignatureNotification>, RpcError> = provider.subscribeSignature(signature, commitment, enableReceivedNotification)
+
+    /**
+     * Blocks as they are confirmed. Unstable, and only available where the validator was started with
+     * `--rpc-pubsub-enable-block-subscription`, which most public endpoints are not.
+     */
+    fun subscribeBlock(): RpcSubscribe<ContextValue<BlockNotification>, RpcError> = subscribeBlock(BlockFilter.All, defaultCommitment)
+    fun subscribeBlock(filter: BlockFilter): RpcSubscribe<ContextValue<BlockNotification>, RpcError> = subscribeBlock(filter, defaultCommitment)
+    fun subscribeBlock(filter: BlockFilter, commitment: Commitment): RpcSubscribe<ContextValue<BlockNotification>, RpcError> = provider.subscribeBlock(filter, commitment)
+
+    /** Each step of a slot's progress through the node, which is finer grained than [subscribeSlot]. */
+    fun subscribeSlotsUpdates(): RpcSubscribe<SlotUpdateNotification, RpcError> = provider.subscribeSlotsUpdates()
+
+    /**
+     * Votes as they are seen in gossip, which have not necessarily landed on chain. Unstable, and only
+     * available where the validator was started with `--rpc-pubsub-enable-vote-subscription`.
+     */
+    fun subscribeVote(): RpcSubscribe<VoteNotification, RpcError> = provider.subscribeVote()
 
     fun subscribeSlot(): RpcSubscribe<SlotNotification, RpcError> = provider.subscribeSlot()
     fun subscribeRoot(): RpcSubscribe<BigInteger, RpcError> = provider.subscribeRoot()
@@ -473,6 +511,181 @@ interface SolanaApi {
         }
         return rpc("getBlock", rpcInteger(slot), options) { if (it == JsonNull) null else decode<SolanaBlock>(it) }
     }
+
+    //-----------------------------------------------------------------------------------------------------------------
+    //                                  Accounts and tokens
+    //-----------------------------------------------------------------------------------------------------------------
+
+    /** Token accounts [delegate] may spend from, for one mint or across one token program. */
+    fun getTokenAccountsByDelegate(delegate: SolanaAddress, mint: SolanaAddress): RpcRequest<ContextValue<List<ProgramAccount>>, RpcError> = tokenAccountsBy("getTokenAccountsByDelegate", delegate, "mint", mint, defaultCommitment)
+    fun getTokenAccountsByDelegate(delegate: SolanaAddress, mint: SolanaAddress, commitment: Commitment): RpcRequest<ContextValue<List<ProgramAccount>>, RpcError> = tokenAccountsBy("getTokenAccountsByDelegate", delegate, "mint", mint, commitment)
+    fun getTokenAccountsByDelegateForProgram(delegate: SolanaAddress, program: SolanaAddress): RpcRequest<ContextValue<List<ProgramAccount>>, RpcError> = tokenAccountsBy("getTokenAccountsByDelegate", delegate, "programId", program, defaultCommitment)
+    fun getTokenAccountsByDelegateForProgram(delegate: SolanaAddress, program: SolanaAddress, commitment: Commitment): RpcRequest<ContextValue<List<ProgramAccount>>, RpcError> = tokenAccountsBy("getTokenAccountsByDelegate", delegate, "programId", program, commitment)
+
+    /** The 20 largest holders of [mint]. */
+    fun getTokenLargestAccounts(mint: SolanaAddress): RpcRequest<ContextValue<List<LargestTokenAccount>>, RpcError> = getTokenLargestAccounts(mint, defaultCommitment)
+    fun getTokenLargestAccounts(mint: SolanaAddress, commitment: Commitment): RpcRequest<ContextValue<List<LargestTokenAccount>>, RpcError> = rpc("getTokenLargestAccounts", mint.toString(), config(commitment)) { element -> decodeContext(element) { it.jsonArray.map { account -> decode<LargestTokenAccount>(account) } } }
+
+    /** The 20 largest accounts by lamports, optionally restricted to circulating supply or not. */
+    fun getLargestAccounts(): RpcRequest<ContextValue<List<LargestAccount>>, RpcError> = getLargestAccounts(null, defaultCommitment)
+    fun getLargestAccounts(filter: LargestAccountsFilter?): RpcRequest<ContextValue<List<LargestAccount>>, RpcError> = getLargestAccounts(filter, defaultCommitment)
+    fun getLargestAccounts(filter: LargestAccountsFilter?, commitment: Commitment): RpcRequest<ContextValue<List<LargestAccount>>, RpcError> {
+        val options = buildJsonObject {
+            put("commitment", commitment.toString())
+            filter?.let { put("filter", it.toString()) }
+        }
+        return rpc("getLargestAccounts", options) { element -> decodeContext(element) { it.jsonArray.map { account -> decode<LargestAccount>(account) } } }
+    }
+
+    private fun tokenAccountsBy(method: String, owner: SolanaAddress, key: String, value: SolanaAddress, commitment: Commitment): RpcRequest<ContextValue<List<ProgramAccount>>, RpcError> {
+        return rpc(method, owner.toString(), buildJsonObject { put(key, value.toString()) }, config(commitment, "base64")) { element ->
+            decodeContext(element) { it.jsonArray.map { account -> decode<ProgramAccount>(account) } }
+        }
+    }
+
+    //-----------------------------------------------------------------------------------------------------------------
+    //                                  Blocks and ledger
+    //-----------------------------------------------------------------------------------------------------------------
+
+    /** Up to [limit] slots with confirmed blocks, starting at [start]; the node caps the limit at 500,000. */
+    fun getBlocksWithLimit(start: BigInteger, limit: Int): RpcRequest<List<BigInteger>, RpcError> = getBlocksWithLimit(start, limit, defaultCommitment)
+    fun getBlocksWithLimit(start: BigInteger, limit: Int, commitment: Commitment): RpcRequest<List<BigInteger>, RpcError> = rpc("getBlocksWithLimit", rpcInteger(start), limit, config(commitment)) { element -> element.jsonArray.map(::decodeU64) }
+
+    /** When a block was produced, as a Unix timestamp, or null for a slot the node cannot answer for. */
+    fun getBlockTime(slot: BigInteger): RpcRequest<Long?, RpcError> = rpc("getBlockTime", rpcInteger(slot)) { if (it == JsonNull) null else it.jsonPrimitive.long }
+
+    /** The lowest slot the node still has a block for, which rises as the ledger is pruned. */
+    fun getFirstAvailableBlock(): RpcRequest<BigInteger, RpcError> = rpc("getFirstAvailableBlock", decoder = ::decodeU64)
+
+    /** The lowest slot the node still has any ledger data for. */
+    fun minimumLedgerSlot(): RpcRequest<BigInteger, RpcError> = rpc("minimumLedgerSlot", decoder = ::decodeU64)
+
+    /** Stake that voted on a block, by lockout depth, against the cluster total. */
+    fun getBlockCommitment(slot: BigInteger): RpcRequest<BlockCommitment, RpcError> = rpc("getBlockCommitment", rpcInteger(slot)) { decode(it) }
+
+    /** Slots assigned and produced per validator over a slot range, which is how skip rate is measured. */
+    fun getBlockProduction(): RpcRequest<ContextValue<BlockProduction>, RpcError> = getBlockProduction(null, null, defaultCommitment)
+    fun getBlockProduction(identity: SolanaAddress?): RpcRequest<ContextValue<BlockProduction>, RpcError> = getBlockProduction(identity, null, defaultCommitment)
+    fun getBlockProduction(identity: SolanaAddress?, range: SlotRange?, commitment: Commitment): RpcRequest<ContextValue<BlockProduction>, RpcError> {
+        val options = buildJsonObject {
+            put("commitment", commitment.toString())
+            identity?.let { put("identity", it.toString()) }
+            range?.let { r ->
+                put(
+                    "range",
+                    buildJsonObject {
+                        put("firstSlot", rpcInteger(r.firstSlot))
+                        r.lastSlot?.let { put("lastSlot", rpcInteger(it)) }
+                    },
+                )
+            }
+        }
+        return rpc("getBlockProduction", options) { decodeContext(it) { value -> decode(value) } }
+    }
+
+    /** Recent throughput samples, most recent first, which is what observed TPS is computed from. */
+    fun getRecentPerformanceSamples(): RpcRequest<List<PerformanceSample>, RpcError> = rpc("getRecentPerformanceSamples") { decode(it) }
+    fun getRecentPerformanceSamples(limit: Int): RpcRequest<List<PerformanceSample>, RpcError> = rpc("getRecentPerformanceSamples", limit) { decode(it) }
+
+    //-----------------------------------------------------------------------------------------------------------------
+    //                                  Cluster and validators
+    //-----------------------------------------------------------------------------------------------------------------
+
+    /** Every node the cluster gossips about, with whichever ports each exposes. */
+    fun getClusterNodes(): RpcRequest<List<ClusterNode>, RpcError> = rpc("getClusterNodes") { decode(it) }
+
+    /** Vote accounts, split into those voting and those lagging behind. */
+    fun getVoteAccounts(): RpcRequest<VoteAccounts, RpcError> = getVoteAccounts(null, defaultCommitment)
+    fun getVoteAccounts(votePubkey: SolanaAddress?): RpcRequest<VoteAccounts, RpcError> = getVoteAccounts(votePubkey, defaultCommitment)
+    fun getVoteAccounts(votePubkey: SolanaAddress?, commitment: Commitment): RpcRequest<VoteAccounts, RpcError> {
+        val options = buildJsonObject {
+            put("commitment", commitment.toString())
+            votePubkey?.let { put("votePubkey", it.toString()) }
+        }
+        return rpc("getVoteAccounts", options) { decode(it) }
+    }
+
+    /**
+     * Which validator leads each slot of an epoch, keyed by identity. Null when the epoch is unknown
+     * to the node. This is what tells a sender where the next leader's TPU is.
+     */
+    fun getLeaderSchedule(): RpcRequest<Map<String, List<BigInteger>>?, RpcError> = getLeaderSchedule(null, null, defaultCommitment)
+    fun getLeaderSchedule(slot: BigInteger?): RpcRequest<Map<String, List<BigInteger>>?, RpcError> = getLeaderSchedule(slot, null, defaultCommitment)
+    fun getLeaderSchedule(slot: BigInteger?, identity: SolanaAddress?, commitment: Commitment): RpcRequest<Map<String, List<BigInteger>>?, RpcError> {
+        val options = buildJsonObject {
+            put("commitment", commitment.toString())
+            identity?.let { put("identity", it.toString()) }
+        }
+        val params = if (slot == null) arrayOf<Any>(JsonNull, options) else arrayOf<Any>(rpcInteger(slot), options)
+        return rpc("getLeaderSchedule", *params) { element ->
+            if (element == JsonNull) {
+                null
+            } else {
+                element.jsonObject.mapValues { (_, slots) -> slots.jsonArray.map(::decodeU64) }
+            }
+        }
+    }
+
+    /** Which validator leads the current slot. */
+    fun getSlotLeader(): RpcRequest<SolanaAddress, RpcError> = getSlotLeader(defaultCommitment)
+    fun getSlotLeader(commitment: Commitment = this.defaultCommitment): RpcRequest<SolanaAddress, RpcError> = rpc("getSlotLeader", config(commitment)) { SolanaAddress(it.jsonPrimitive.content) }
+
+    /** Leaders for [limit] slots from [start], which is how a sender targets upcoming leaders. */
+    fun getSlotLeaders(start: BigInteger, limit: Int): RpcRequest<List<SolanaAddress>, RpcError> = rpc("getSlotLeaders", rpcInteger(start), limit) { element -> element.jsonArray.map { SolanaAddress(it.jsonPrimitive.content) } }
+
+    /** How slots map onto epochs, including the shorter warm-up epochs at genesis. */
+    fun getEpochSchedule(): RpcRequest<EpochSchedule, RpcError> = rpc("getEpochSchedule") { decode(it) }
+
+    /** The genesis hash, which identifies the cluster. */
+    fun getGenesisHash(): RpcRequest<SolanaBlockhash, RpcError> = rpc("getGenesisHash") { SolanaBlockhash(it.jsonPrimitive.content) }
+
+    /** Highest slots the node has snapshots for, which a new node would bootstrap from. */
+    fun getHighestSnapshotSlot(): RpcRequest<SnapshotSlot, RpcError> = rpc("getHighestSnapshotSlot") { decode(it) }
+
+    /** Highest slot the node has received a shred for. */
+    fun getMaxShredInsertSlot(): RpcRequest<BigInteger, RpcError> = rpc("getMaxShredInsertSlot", decoder = ::decodeU64)
+
+    /** Highest slot the node has retransmitted a shred for. */
+    fun getMaxRetransmitSlot(): RpcRequest<BigInteger, RpcError> = rpc("getMaxRetransmitSlot", decoder = ::decodeU64)
+
+    //-----------------------------------------------------------------------------------------------------------------
+    //                                  Supply, inflation and staking
+    //-----------------------------------------------------------------------------------------------------------------
+
+    /** Total and circulating supply in lamports; the account list is omitted unless asked for. */
+    fun getSupply(): RpcRequest<ContextValue<Supply>, RpcError> = getSupply(false, defaultCommitment)
+    fun getSupply(includeNonCirculatingAccounts: Boolean): RpcRequest<ContextValue<Supply>, RpcError> = getSupply(includeNonCirculatingAccounts, defaultCommitment)
+    fun getSupply(includeNonCirculatingAccounts: Boolean, commitment: Commitment): RpcRequest<ContextValue<Supply>, RpcError> {
+        val options = buildJsonObject {
+            put("commitment", commitment.toString())
+            put("excludeNonCirculatingAccountsList", !includeNonCirculatingAccounts)
+        }
+        return rpc("getSupply", options) { decodeContext(it) { value -> decode(value) } }
+    }
+
+    /** The inflation schedule's parameters. */
+    fun getInflationGovernor(): RpcRequest<InflationGovernor, RpcError> = getInflationGovernor(defaultCommitment)
+    fun getInflationGovernor(commitment: Commitment = this.defaultCommitment): RpcRequest<InflationGovernor, RpcError> = rpc("getInflationGovernor", config(commitment)) { decode(it) }
+
+    /** Inflation in force for the current epoch. */
+    fun getInflationRate(): RpcRequest<InflationRate, RpcError> = rpc("getInflationRate") { decode(it) }
+
+    /** Staking rewards per address, in the order given, with null where the address earned none. */
+    fun getInflationReward(addresses: List<SolanaAddress>): RpcRequest<List<InflationReward?>, RpcError> = getInflationReward(addresses, null, defaultCommitment)
+    fun getInflationReward(addresses: List<SolanaAddress>, epoch: BigInteger?): RpcRequest<List<InflationReward?>, RpcError> = getInflationReward(addresses, epoch, defaultCommitment)
+    fun getInflationReward(addresses: List<SolanaAddress>, epoch: BigInteger?, commitment: Commitment): RpcRequest<List<InflationReward?>, RpcError> {
+        val options = buildJsonObject {
+            put("commitment", commitment.toString())
+            epoch?.let { put("epoch", rpcInteger(it)) }
+        }
+        return rpc("getInflationReward", addresses.map { it.toString() }, options) { element ->
+            element.jsonArray.map { if (it == JsonNull) null else decode<InflationReward>(it) }
+        }
+    }
+
+    /** The smallest stake delegation the runtime accepts, in lamports. */
+    fun getStakeMinimumDelegation(): RpcRequest<ContextValue<BigInteger>, RpcError> = getStakeMinimumDelegation(defaultCommitment)
+    fun getStakeMinimumDelegation(commitment: Commitment = this.defaultCommitment): RpcRequest<ContextValue<BigInteger>, RpcError> = rpc("getStakeMinimumDelegation", config(commitment)) { decodeContext(it, ::decodeU64) }
 
     fun getSignaturesForAddress(address: SolanaAddress): RpcRequest<List<TransactionSignature>, RpcError> = getSignaturesForAddress(address, 1000, defaultCommitment, null, null)
     fun getSignaturesForAddress(address: SolanaAddress, limit: Int): RpcRequest<List<TransactionSignature>, RpcError> = getSignaturesForAddress(address, limit, defaultCommitment, null, null)

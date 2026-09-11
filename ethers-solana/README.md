@@ -399,13 +399,15 @@ Reference: [sol4k a166edd854a7198553fdafe9a5051a400d70b121](https://github.com/s
 | Read any transaction the same way, built or fetched | `SolanaTransaction`, implemented by `SolanaTransactionCompiled` and `SolanaRPCTransaction` |
 | Turn any transaction back into an editable request | `SolanaTransaction.toRequest`, `SolanaApi.decompileTransaction` |
 | Resolve a transaction's account indices to addresses and flags | `SolanaTransaction.resolveAccounts` |
-| All upstream public RPC methods | `SolanaApi` / `SolanaProvider` |
+| Every documented JSON-RPC method and subscription | `SolanaApi` / `SolanaProvider` |
 | Submit and wait for confirmation | `sendTransaction`, `PendingSolanaTransaction`, `SignatureStatus`, `SolanaSendConfig` |
 | Read program and token accounts | `getProgramAccounts`, `getTokenAccountsByOwner`, `ProgramAccount` |
+| Cluster, validators and leader schedule | `getClusterNodes`, `getVoteAccounts`, `getLeaderSchedule`, `getSlotLeaders`, `getEpochSchedule` |
+| Supply, inflation and staking | `getSupply`, `getInflationRate`, `getInflationReward`, `getStakeMinimumDelegation` |
 | Read slots and blocks | `getSlot`, `getBlockHeight`, `getBlocks`, `getBlock`, `SolanaBlock` |
 | Account, nonce and token instructions | `SystemProgram`, `TokenProgram`, `Token2022Program` |
 | Batch unrelated calls into one round trip | `batchRequest`, `BatchRpcRequest` (shared with EVM) |
-| Additional WebSocket support | `subscribeAccount`, `subscribeProgram`, `subscribeLogs`, `subscribeSignature`, `subscribeSlot`, `subscribeRoot` |
+| Additional WebSocket support | `subscribeAccount`, `subscribeProgram`, `subscribeLogs`, `subscribeSignature`, `subscribeSlot`, `subscribeRoot`, `subscribeBlock`, `subscribeSlotsUpdates`, `subscribeVote` |
 
 RPC coverage: `getAccountInfo`, `getBalance`, `getEpochInfo`, `getFeeForMessage`, `getHealth`, `getIdentity`,
 `getLatestBlockhash`, `getMinimumBalanceForRentExemption`, `getMultipleAccounts`, `getRecentPrioritizationFees`,

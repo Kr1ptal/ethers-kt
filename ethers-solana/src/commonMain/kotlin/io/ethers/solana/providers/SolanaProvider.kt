@@ -15,12 +15,15 @@ import io.ethers.solana.providers.middleware.SolanaApi
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaSignature
 import io.ethers.solana.types.rpc.AccountInfo
+import io.ethers.solana.types.rpc.BlockNotification
 import io.ethers.solana.types.rpc.Commitment
 import io.ethers.solana.types.rpc.ContextValue
 import io.ethers.solana.types.rpc.LogsNotification
 import io.ethers.solana.types.rpc.ProgramAccount
 import io.ethers.solana.types.rpc.SignatureNotification
 import io.ethers.solana.types.rpc.SlotNotification
+import io.ethers.solana.types.rpc.SlotUpdateNotification
+import io.ethers.solana.types.rpc.VoteNotification
 import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -70,6 +73,21 @@ class SolanaProvider @JvmOverloads constructor(
         }
         return subscribe("signature", arrayOf(signature.toString(), config)) { decode(it) }
     }
+
+    override fun subscribeBlock(filter: BlockFilter, commitment: Commitment): RpcSubscribe<ContextValue<BlockNotification>, RpcError> {
+        val config = buildJsonObject {
+            put("commitment", commitment.toString())
+            put("encoding", "json")
+            put("transactionDetails", "full")
+            put("maxSupportedTransactionVersion", 255)
+            put("showRewards", false)
+        }
+        return subscribe("block", arrayOf(filter.toJson(), config)) { decodeContext(it) { value -> decode<BlockNotification>(value) } }
+    }
+
+    override fun subscribeSlotsUpdates(): RpcSubscribe<SlotUpdateNotification, RpcError> = subscribe("slotsUpdates", emptyArray<Any>()) { decode(it) }
+
+    override fun subscribeVote(): RpcSubscribe<VoteNotification, RpcError> = subscribe("vote", emptyArray<Any>()) { decode(it) }
 
     override fun subscribeSlot(): RpcSubscribe<SlotNotification, RpcError> = subscribe("slot", emptyArray<Any>()) { decode(it) }
     override fun subscribeRoot(): RpcSubscribe<BigInteger, RpcError> = subscribe("root", emptyArray<Any>(), ::decodeU64)

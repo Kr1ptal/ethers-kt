@@ -3,9 +3,11 @@
 package io.ethers.solana.types.rpc
 
 import io.ethers.solana.types.SolanaAddress
+import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.types.SolanaSignature
 import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.KSerializer
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.encoding.Decoder
@@ -53,3 +55,65 @@ object SignatureNotificationSerializer : KSerializer<SignatureNotification> {
         }
     }
 }
+
+/** A block as blockSubscribe delivers it, with [err] set when the block could not be processed. */
+@Serializable
+data class BlockNotification(val slot: BigInteger, val block: SolanaBlock? = null, val err: TransactionError? = null)
+
+/**
+ * A step in one slot's progress through the node, which is finer grained than slotSubscribe.
+ *
+ * Which fields are set depends on [type]: `createdBank` carries [parent], `frozen` carries [stats],
+ * and `dead` carries [err]. [timestamp] is Unix milliseconds.
+ */
+@Serializable
+data class SlotUpdateNotification(
+    val slot: BigInteger,
+    val timestamp: BigInteger,
+    val type: SlotUpdateType,
+    val parent: BigInteger? = null,
+    val stats: SlotTransactionStats? = null,
+    val err: String? = null,
+)
+
+@Serializable
+data class SlotTransactionStats(
+    val numTransactionEntries: BigInteger,
+    val numSuccessfulTransactions: BigInteger,
+    val numFailedTransactions: BigInteger,
+    val maxTransactionsPerEntry: BigInteger,
+)
+
+@Serializable
+enum class SlotUpdateType {
+    @SerialName("firstShredReceived")
+    FIRST_SHRED_RECEIVED,
+
+    @SerialName("completed")
+    COMPLETED,
+
+    @SerialName("createdBank")
+    CREATED_BANK,
+
+    @SerialName("frozen")
+    FROZEN,
+
+    @SerialName("dead")
+    DEAD,
+
+    @SerialName("optimisticConfirmation")
+    OPTIMISTIC_CONFIRMATION,
+
+    @SerialName("root")
+    ROOT,
+}
+
+/** A vote observed in gossip, which is not necessarily one that landed on chain. */
+@Serializable
+data class VoteNotification(
+    val hash: SolanaBlockhash,
+    val slots: List<BigInteger>,
+    val timestamp: Long? = null,
+    val signature: SolanaSignature? = null,
+    val votePubkey: SolanaAddress? = null,
+)

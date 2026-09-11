@@ -11,6 +11,7 @@ import io.ethers.providers.RpcError
 import io.ethers.providers.SubscriptionDescriptor
 import io.ethers.providers.types.BatchRpcRequest
 import io.ethers.solana.providers.AccountFilter
+import io.ethers.solana.providers.BlockFilter
 import io.ethers.solana.providers.LogsFilter
 import io.ethers.solana.providers.SolanaProvider
 import io.ethers.solana.providers.SolanaSubscriptionDescriptor
@@ -19,6 +20,7 @@ import io.ethers.solana.types.SolanaSignature
 import io.ethers.solana.types.rpc.Commitment
 import io.ethers.solana.types.rpc.RpcContext
 import io.ethers.solana.types.rpc.SignatureNotification
+import io.ethers.solana.types.rpc.SlotUpdateType
 import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -29,13 +31,14 @@ import kotlinx.serialization.json.JsonPrimitive
 class SubscriptionsTest : FunSpec({
     val key = Programs.SYSTEM
     val signature = SolanaSignature(ByteArray(64))
+    val blockhash = io.ethers.solana.types.SolanaBlockhash(ByteArray(32) { 5 })
     val account = """{"data":["AQID","base64"],"executable":false,"lamports":123,"owner":"$key","rentEpoch":42}"""
     fun contextual(value: String) = """{"context":{"slot":42},"value":$value}"""
     val client = SubscriptionClient()
     val provider = SolanaProvider(client)
 
-    test("descriptor resolves all six methods without changing caller params") {
-        for (name in listOf("account", "program", "logs", "signature", "slot", "root")) {
+    test("descriptor resolves every method without changing caller params") {
+        for (name in listOf("account", "program", "logs", "signature", "slot", "root", "block", "slotsUpdates", "vote")) {
             val params = arrayOf(name, "argument")
             val resolved = SolanaSubscriptionDescriptor.resolve(params)
             resolved.subscribeMethod shouldBe "${name}Subscribe"
@@ -68,6 +71,31 @@ class SubscriptionsTest : FunSpec({
         val filters = List(5) { AccountFilter.DataSize(-1) } + AccountFilter.Memcmp(-1, "not base58!")
         provider.subscribeProgram(key, filters).send().unwrap().close()
         client.params[1] shouldBe Kotlinx.DEFAULT.parseToJsonElement("""{"commitment":"finalized","encoding":"base64","filters":[{"dataSize":-1},{"dataSize":-1},{"dataSize":-1},{"dataSize":-1},{"dataSize":-1},{"memcmp":{"offset":-1,"bytes":"not base58!","encoding":"base58"}}]}""")
+    }
+
+    test("block, slot update and vote streams decode their payloads") {
+        client.event = contextual("""{"slot":9,"block":null,"err":null}""")
+        provider.subscribeBlock().send().unwrap()
+        client.params[0] shouldBe JsonPrimitive("all")
+        (client.params[1] as JsonObject)["transactionDetails"] shouldBe JsonPrimitive("full")
+
+        provider.subscribeBlock(BlockFilter.MentionsAccount(key)).send().unwrap()
+        client.params[0] shouldBe Kotlinx.DEFAULT.parseToJsonElement("""{"mentionsAccountOrProgram":"$key"}""")
+
+        // slotsUpdates carries a different field set per type; frozen is the one with stats
+        client.event = """{"slot":9,"timestamp":1700000000000,"type":"frozen","stats":{"numTransactionEntries":1,"numSuccessfulTransactions":2,"numFailedTransactions":3,"maxTransactionsPerEntry":4}}"""
+        val update = provider.subscribeSlotsUpdates().send().unwrap().take()!!
+        update.type shouldBe SlotUpdateType.FROZEN
+        update.stats!!.numFailedTransactions shouldBe bigIntegerOf(3)
+        update.parent shouldBe null
+
+        client.event = """{"slot":9,"timestamp":1700000000000,"type":"createdBank","parent":8}"""
+        provider.subscribeSlotsUpdates().send().unwrap().take()!!.parent shouldBe bigIntegerOf(8)
+
+        client.event = """{"hash":"$blockhash","slots":[8,9],"timestamp":1700000000,"votePubkey":"$key"}"""
+        val vote = provider.subscribeVote().send().unwrap().take()!!
+        vote.slots shouldBe listOf(bigIntegerOf(8), bigIntegerOf(9))
+        vote.votePubkey shouldBe key
     }
 
     test("subscription commitment overrides leave the provider default unchanged") {

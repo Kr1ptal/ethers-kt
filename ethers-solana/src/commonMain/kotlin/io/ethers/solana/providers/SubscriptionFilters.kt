@@ -35,3 +35,16 @@ sealed class AccountFilter {
         }
     }
 }
+
+/** Which blocks blockSubscribe should deliver: all of them, or only those touching one account. */
+sealed interface BlockFilter {
+    fun toJson(): JsonElement
+
+    data object All : BlockFilter {
+        override fun toJson(): JsonElement = JsonPrimitive("all")
+    }
+
+    data class MentionsAccount(val address: SolanaAddress) : BlockFilter {
+        override fun toJson(): JsonElement = buildJsonObject { put("mentionsAccountOrProgram", address.toString()) }
+    }
+}
