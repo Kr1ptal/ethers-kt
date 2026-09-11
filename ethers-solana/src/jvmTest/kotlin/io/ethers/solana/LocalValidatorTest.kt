@@ -34,7 +34,7 @@ class LocalValidatorTest : FunSpec({
             (tx.serialize().size > 1232) shouldBe true
             provider.getFeeForMessage(tx).send().unwrap().value shouldBe bigIntegerOf(10000)
             provider.simulateTransaction(tx).send().unwrap().value.isSuccess shouldBe true
-            val signature = provider.sendTransaction(tx).send().unwrap()
+            val signature = provider.sendTransaction(tx).send().unwrap().signature
             eventually(30.seconds) {
                 val rpc = provider.getTransaction(signature).send().unwrap()!!
                 rpc.type shouldBe SolanaTxType.V1
@@ -59,7 +59,7 @@ class LocalValidatorTest : FunSpec({
             val message = SolanaTxV0.compile(sender.publicKey, latest.blockhash, SystemProgram.transfer(sender.publicKey, recipient, 1000000L)).unwrap()
             val transaction = message.sign(sender)
             provider.simulateTransaction(transaction).send().unwrap().value.isSuccess shouldBe true
-            val signature = provider.sendTransaction(transaction).send().unwrap()
+            val signature = provider.sendTransaction(transaction).send().unwrap().signature
             val stream = provider.subscribeSignature(signature).send().unwrap()
             try {
                 eventually(30.seconds) { stream.isEmpty shouldBe false }

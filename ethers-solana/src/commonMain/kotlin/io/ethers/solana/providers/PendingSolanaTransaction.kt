@@ -9,6 +9,7 @@ import io.ethers.solana.types.SolanaSignature
 import io.ethers.solana.types.rpc.Commitment
 import io.ethers.solana.types.rpc.SignatureStatus
 import kotlinx.coroutines.delay
+import kotlin.jvm.JvmOverloads
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -28,21 +29,26 @@ val DEFAULT_CONFIRMATION_TIMEOUT: Duration = 90.seconds
  * will never accept it. Given that blockhash this waits for a definite answer rather than a timeout -
  * the transaction landed, or it expired and never can. Without one it can only wait.
  */
-class PendingSolanaTransaction internal constructor(
+class PendingSolanaTransaction @JvmOverloads constructor(
     val signature: SolanaSignature,
     private val api: SolanaApi,
-    private val blockhash: SolanaBlockhash?,
-) {
     /**
-     * Wait until the transaction reaches [commitment].
+     * The blockhash the transaction was signed against. Supplying it is what lets expiry be detected:
+     * without it a transaction that can never land is indistinguishable from one that has not landed yet.
+     */
+    private val blockhash: SolanaBlockhash? = null,
+) : PlatformPendingSolanaTransaction {
+    /**
+     * Wait until the transaction reaches [commitment]. JVM and Android also get blocking
+     * `awaitConfirmation` and `CompletableFuture`-returning `confirmationAsync` variants.
      *
      * A transaction that lands and then fails on chain is returned, not raised: it was included, and
      * [SignatureStatus.err] says why it failed. Only never landing is an error.
      */
-    suspend fun awaitConfirmation(
-        commitment: Commitment = Commitment.CONFIRMED,
-        interval: Duration = DEFAULT_CONFIRMATION_INTERVAL,
-        timeout: Duration = DEFAULT_CONFIRMATION_TIMEOUT,
+    override suspend fun confirmation(
+        commitment: Commitment,
+        interval: Duration,
+        timeout: Duration,
     ): Result<SignatureStatus, Error> {
         val started = TimeSource.Monotonic.markNow()
         while (true) {

@@ -230,17 +230,30 @@ interface SolanaApi {
     fun requestAirdrop(address: SolanaAddress, lamports: Long): RpcRequest<SolanaSignature, RpcError> = requestAirdrop(address, lamports, defaultCommitment)
     fun requestAirdrop(address: SolanaAddress, lamports: Long, commitment: Commitment): RpcRequest<SolanaSignature, RpcError> = requestAirdrop(address, bigIntegerOf(lamports), commitment)
 
-    fun sendTransaction(transaction: SolanaTransactionSigned): RpcRequest<SolanaSignature, RpcError> = sendTransaction(transaction, defaultCommitment)
-    fun sendTransaction(transaction: SolanaTransactionSigned, preflightCommitment: Commitment = this.defaultCommitment): RpcRequest<SolanaSignature, RpcError> = sendTransaction(transaction.serialize(), preflightCommitment)
-    fun sendTransaction(transaction: ByteArray): RpcRequest<SolanaSignature, RpcError> = sendTransaction(transaction, defaultCommitment)
+    /**
+     * Submit a transaction, answering with a handle that waits for the cluster to confirm it, as the
+     * EVM `sendRawTransaction` answers with a `PendingTransaction`. The signature the RPC returns is
+     * [PendingSolanaTransaction.signature].
+     */
+    fun sendTransaction(transaction: SolanaTransactionSigned): RpcRequest<PendingSolanaTransaction, RpcError> = sendTransaction(transaction, defaultCommitment)
+    fun sendTransaction(transaction: SolanaTransactionSigned, preflightCommitment: Commitment = this.defaultCommitment): RpcRequest<PendingSolanaTransaction, RpcError> = sendTransaction(transaction, SolanaSendConfig(preflightCommitment = preflightCommitment))
+    fun sendTransaction(transaction: ByteArray): RpcRequest<PendingSolanaTransaction, RpcError> = sendTransaction(transaction, defaultCommitment)
 
     /** Forward raw wire bytes unchanged; transaction validation is performed by the RPC node. */
-    fun sendTransaction(transaction: ByteArray, preflightCommitment: Commitment = this.defaultCommitment): RpcRequest<SolanaSignature, RpcError> = sendTransaction(transaction, SolanaSendConfig(preflightCommitment = preflightCommitment))
+    fun sendTransaction(transaction: ByteArray, preflightCommitment: Commitment = this.defaultCommitment): RpcRequest<PendingSolanaTransaction, RpcError> = sendTransaction(transaction, SolanaSendConfig(preflightCommitment = preflightCommitment))
 
-    fun sendTransaction(transaction: SolanaTransactionSigned, options: SolanaSendConfig): RpcRequest<SolanaSignature, RpcError> = sendTransaction(transaction.serialize(), options)
+    /** The transaction is known here, so the handle detects expiry from its own blockhash. */
+    fun sendTransaction(transaction: SolanaTransactionSigned, options: SolanaSendConfig): RpcRequest<PendingSolanaTransaction, RpcError> = submit(transaction.serialize(), options, transaction.recentBlockhash)
 
-    /** Submit with explicit options; see [SolanaSendConfig]. */
-    fun sendTransaction(transaction: ByteArray, options: SolanaSendConfig): RpcRequest<SolanaSignature, RpcError> {
+    /**
+     * Submit with explicit options; see [SolanaSendConfig].
+     *
+     * The blockhash is recovered from the bytes where they decode, so expiry is still detected for a
+     * version this library knows. Where they do not, the handle can only wait.
+     */
+    fun sendTransaction(transaction: ByteArray, options: SolanaSendConfig): RpcRequest<PendingSolanaTransaction, RpcError> = submit(transaction, options, SolanaTransactionCompiled.deserialize(transaction).unwrapOrNull()?.recentBlockhash)
+
+    private fun submit(transaction: ByteArray, options: SolanaSendConfig, blockhash: SolanaBlockhash?): RpcRequest<PendingSolanaTransaction, RpcError> {
         return rpc(
             "sendTransaction",
             Base64.encode(transaction),
@@ -251,7 +264,7 @@ interface SolanaApi {
                 options.maxRetries?.let { put("maxRetries", it) }
                 options.minContextSlot?.let { put("minContextSlot", rpcInteger(it)) }
             },
-        ) { SolanaSignature(it.jsonPrimitive.content) }
+        ) { PendingSolanaTransaction(SolanaSignature(it.jsonPrimitive.content), this, blockhash) }
     }
     fun simulateTransaction(transaction: SolanaTransactionCompiled): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = simulateTransaction(transaction, defaultCommitment)
     fun simulateTransaction(transaction: SolanaTransactionCompiled, commitment: Commitment = this.defaultCommitment): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = simulateTransaction(transaction.serializeForSimulation(), commitment)
@@ -394,15 +407,6 @@ interface SolanaApi {
         return rpc("getRecentPrioritizationFees", addresses.map { it.toString() }) { decode(it) }
     }
 
-    /**
-     * Track a submitted transaction until the cluster confirms it.
-     *
-     * Pass the [blockhash] the transaction was signed against so expiry can be detected: without it a
-     * transaction that will never land is indistinguishable from one that has not landed yet.
-     */
-    fun pendingTransaction(signature: SolanaSignature): PendingSolanaTransaction = PendingSolanaTransaction(signature, this, null)
-    fun pendingTransaction(signature: SolanaSignature, blockhash: SolanaBlockhash?): PendingSolanaTransaction = PendingSolanaTransaction(signature, this, blockhash)
-
     /** Submit [transaction] and wait for the cluster to confirm it, using its own blockhash to detect expiry. */
     suspend fun sendAndConfirmTransaction(transaction: SolanaTransactionSigned): Result<SignatureStatus, PendingSolanaTransaction.Error> = sendAndConfirmTransaction(transaction, SolanaSendConfig(), Commitment.CONFIRMED)
 
@@ -411,9 +415,9 @@ interface SolanaApi {
         options: SolanaSendConfig,
         commitment: Commitment,
     ): Result<SignatureStatus, PendingSolanaTransaction.Error> {
-        val signature = sendTransaction(transaction, options).send()
+        val pending = sendTransaction(transaction, options).send()
             .unwrapOrReturn { return Result.failure(PendingSolanaTransaction.Error.NotSubmitted(it)) }
-        return pendingTransaction(signature, transaction.recentBlockhash).awaitConfirmation(commitment)
+        return pending.confirmation(commitment)
     }
 
     fun getSlot(): RpcRequest<BigInteger, RpcError> = getSlot(defaultCommitment)

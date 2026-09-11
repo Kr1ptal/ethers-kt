@@ -127,7 +127,7 @@ class SolanaProviderTest : FunSpec({
 
     test("sending exposes the options a caller needs, and omits the ones left unset") {
         response = "\"$signature\""
-        provider.sendTransaction(ByteArray(1)).send().unwrap() shouldBe signature
+        provider.sendTransaction(ByteArray(1)).send().unwrap().signature shouldBe signature
         assertRequest("sendTransaction", """["AA==",{"encoding":"base64","preflightCommitment":"confirmed"}]""")
 
         provider.sendTransaction(ByteArray(1), SolanaSendConfig(skipPreflight = true, maxRetries = 3, minContextSlot = bigIntegerOf(7))).send().unwrap()
@@ -269,11 +269,11 @@ class SolanaProviderTest : FunSpec({
         assertRequest("requestAirdrop", """["$address",18446744073709551615,{"commitment":"confirmed"}]""")
         val signer = KeypairSigner.fromSeed(ByteArray(32))
         val transaction = SolanaTxV0.compile(signer.publicKey, blockhash, SystemProgram.transfer(signer.publicKey, address, 1L)).unwrap().sign(signer)
-        provider.sendTransaction(transaction).send().unwrap() shouldBe signature
+        provider.sendTransaction(transaction).send().unwrap().signature shouldBe signature
         assertRequest("sendTransaction", """["${transaction.toBase64()}",{"encoding":"base64","preflightCommitment":"confirmed"}]""")
-        provider.sendTransaction(transaction, preflightCommitment = Commitment.FINALIZED).send().unwrap() shouldBe signature
+        provider.sendTransaction(transaction, preflightCommitment = Commitment.FINALIZED).send().unwrap().signature shouldBe signature
         assertRequest("sendTransaction", """["${transaction.toBase64()}",{"encoding":"base64","preflightCommitment":"finalized"}]""")
-        provider.sendTransaction(transaction).send().unwrap() shouldBe signature
+        provider.sendTransaction(transaction).send().unwrap().signature shouldBe signature
         assertRequest("sendTransaction", """["${transaction.toBase64()}",{"encoding":"base64","preflightCommitment":"confirmed"}]""")
         provider.defaultCommitment shouldBe Commitment.CONFIRMED
         response = contextual("""{"err":{"InstructionError":[0,"InvalidArgument"]},"logs":["failed"],"unitsConsumed":9007199254740993}""")
@@ -357,8 +357,8 @@ class SolanaProviderTest : FunSpec({
             val signed = SolanaTxV1.compile(signer.publicKey, blockhash, instruction(size - 174), SolanaTransactionConfig()).unwrap().sign(signer)
             signed.serialize().size shouldBe size
             response = "\"${signed.id}\""
-            provider.sendTransaction(signed).send().unwrap() shouldBe signed.id
-            provider.sendTransaction(signed.serialize()).send().unwrap() shouldBe signed.id
+            provider.sendTransaction(signed).send().unwrap().signature shouldBe signed.id
+            provider.sendTransaction(signed.serialize()).send().unwrap().signature shouldBe signed.id
         }
         for (version in listOf("legacy", "v0")) {
             for (size in listOf(1232, 1233)) {
@@ -373,8 +373,8 @@ class SolanaProviderTest : FunSpec({
                 val signed = tx.sign(signer)
                 signed.serialize().size shouldBe size
                 response = "\"${signed.id}\""
-                provider.sendTransaction(signed).send().unwrap() shouldBe signed.id
-                provider.sendTransaction(signed.serialize()).send().unwrap() shouldBe signed.id
+                provider.sendTransaction(signed).send().unwrap().signature shouldBe signed.id
+                provider.sendTransaction(signed.serialize()).send().unwrap().signature shouldBe signed.id
             }
         }
     }
@@ -396,9 +396,9 @@ class SolanaProviderTest : FunSpec({
         val tx = SolanaTxV1.compile(signer.publicKey, blockhash, SystemProgram.transfer(signer.publicKey, address, 1), SolanaTransactionConfig(computeUnitLimit = 20000, loadedAccountsDataSizeLimit = 65536)).unwrap()
         val signed = tx.sign(signer)
         response = "\"${signed.id}\""
-        provider.sendTransaction(signed).send().unwrap() shouldBe signed.id
+        provider.sendTransaction(signed).send().unwrap().signature shouldBe signed.id
         assertRequest("sendTransaction", """["${signed.toBase64()}",{"encoding":"base64","preflightCommitment":"confirmed"}]""")
-        provider.sendTransaction(signed.serialize()).send().unwrap() shouldBe signed.id
+        provider.sendTransaction(signed.serialize()).send().unwrap().signature shouldBe signed.id
         response = contextual("""{"err":null,"logs":[]}""")
         provider.simulateTransaction(tx).send().unwrap().value.err shouldBe null
         assertRequest("simulateTransaction", """["${Base64.encode(tx.serializeForSimulation())}",{"commitment":"confirmed","encoding":"base64"}]""")

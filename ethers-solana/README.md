@@ -233,8 +233,7 @@ than silently doing nothing.
 
 ## Submitting and confirming
 
-`sendTransaction` answers with a signature as the RPC does. Waiting for the cluster to accept it is a
-separate step, because Solana gives a definite negative answer that EVM has no equivalent of: a
+Waiting for the cluster to accept a transaction is its own step, because Solana gives a definite negative answer that EVM has no equivalent of: a
 transaction is only valid while its blockhash is, roughly a minute, after which it can never land.
 
 ```kotlin
@@ -247,9 +246,22 @@ the answer is known either way rather than running out a timeout. To track somet
 build the handle yourself:
 
 ```kotlin
-val signature = provider.sendTransaction(signed).send().unwrap()
-provider.pendingTransaction(signature, signed.recentBlockhash)
-    .awaitConfirmation(Commitment.FINALIZED)
+val pending = provider.sendTransaction(signed).send().unwrap() // PendingSolanaTransaction
+pending.signature                                              // what the RPC answered
+pending.confirmation(Commitment.FINALIZED)                     // suspend
+```
+
+`sendTransaction` answers with the handle rather than the bare signature, as the EVM
+`sendRawTransaction` answers with a `PendingTransaction`; the signature is `pending.signature`. Raw
+bytes work too, since the blockhash is recovered from them where they decode. To track a transaction
+submitted elsewhere, construct one from its signature: `PendingSolanaTransaction(signature, provider,
+blockhash)`.
+
+JVM and Android also get blocking and future variants, like the EVM `PendingInclusion`:
+
+```kotlin
+pending.awaitConfirmation()      // blocks the calling thread
+pending.confirmationAsync()      // CompletableFuture
 ```
 
 A transaction that lands and then fails on chain is returned, not raised - it was included, and
@@ -392,7 +404,7 @@ Reference: [sol4k a166edd854a7198553fdafe9a5051a400d70b121](https://github.com/s
 | Turn any transaction back into an editable request | `SolanaTransaction.toRequest`, `SolanaApi.decompileTransaction` |
 | Resolve a transaction's account indices to addresses and flags | `SolanaTransaction.resolveAccounts` |
 | All upstream public RPC methods | `SolanaApi` / `SolanaProvider` |
-| Submit and wait for confirmation | `sendAndConfirmTransaction`, `pendingTransaction`, `SignatureStatus`, `SolanaSendConfig` |
+| Submit and wait for confirmation | `sendTransaction`, `PendingSolanaTransaction`, `sendAndConfirmTransaction`, `SignatureStatus`, `SolanaSendConfig` |
 | Read program and token accounts | `getProgramAccounts`, `getTokenAccountsByOwner`, `ProgramAccount` |
 | Read slots and blocks | `getSlot`, `getBlockHeight`, `getBlocks`, `getBlock`, `SolanaBlock` |
 | Account, nonce and token instructions | `SystemProgram`, `TokenProgram`, `Token2022Program` |

@@ -62,8 +62,8 @@ class PendingTransactionTest : FunSpec({
             calls,
         )
         try {
-            val pending = provider.pendingTransaction(signature, blockhash)
-            val result = pending.awaitConfirmation(Commitment.CONFIRMED, 1.milliseconds, 5000.milliseconds).unwrap()
+            val pending = PendingSolanaTransaction(signature, provider, blockhash)
+            val result = pending.confirmation(Commitment.CONFIRMED, 1.milliseconds, 5000.milliseconds).unwrap()
 
             result.confirmationStatus shouldBe Commitment.CONFIRMED
             result.isSuccess shouldBe true
@@ -84,8 +84,8 @@ class PendingTransactionTest : FunSpec({
             calls,
         )
         try {
-            val error = provider.pendingTransaction(signature, blockhash)
-                .awaitConfirmation(Commitment.CONFIRMED, 1.milliseconds, 5000.milliseconds)
+            val error = PendingSolanaTransaction(signature, provider, blockhash)
+                .confirmation(Commitment.CONFIRMED, 1.milliseconds, 5000.milliseconds)
                 .unwrapError()
 
             error.shouldBeInstanceOf<PendingSolanaTransaction.Error.Expired>().signature shouldBe signature
@@ -100,8 +100,8 @@ class PendingTransactionTest : FunSpec({
         val calls = mutableListOf<String>()
         val provider = providerFor(mapOf("getSignatureStatuses" to mutableListOf(unseen)), calls)
         try {
-            val error = provider.pendingTransaction(signature)
-                .awaitConfirmation(Commitment.CONFIRMED, 1.milliseconds, 50.milliseconds)
+            val error = PendingSolanaTransaction(signature, provider)
+                .confirmation(Commitment.CONFIRMED, 1.milliseconds, 50.milliseconds)
                 .unwrapError()
 
             error.shouldBeInstanceOf<PendingSolanaTransaction.Error.TimedOut>()
@@ -118,8 +118,8 @@ class PendingTransactionTest : FunSpec({
             calls,
         )
         try {
-            val result = provider.pendingTransaction(signature, blockhash)
-                .awaitConfirmation(Commitment.CONFIRMED, 1.milliseconds, 5000.milliseconds)
+            val result = PendingSolanaTransaction(signature, provider, blockhash)
+                .confirmation(Commitment.CONFIRMED, 1.milliseconds, 5000.milliseconds)
                 .unwrap()
 
             result.isSuccess shouldBe false
@@ -139,10 +139,40 @@ class PendingTransactionTest : FunSpec({
             calls,
         )
         try {
-            val result = provider.pendingTransaction(signature, blockhash)
-                .awaitConfirmation(Commitment.FINALIZED, 1.milliseconds, 5000.milliseconds).unwrap()
+            val result = PendingSolanaTransaction(signature, provider, blockhash)
+                .confirmation(Commitment.FINALIZED, 1.milliseconds, 5000.milliseconds).unwrap()
             result.confirmationStatus shouldBe Commitment.FINALIZED
             calls.count { it == "getSignatureStatuses" } shouldBe 2
+        } finally {
+            provider.close()
+        }
+    }
+
+    test("submitting raw bytes still detects expiry, by recovering their blockhash") {
+        val signer = KeypairSigner.fromSeed(ByteArray(32) { 7 })
+        val signed = SolanaTransactionRequest {
+            feePayer(signer.publicKey)
+            blockhash(blockhash)
+            instruction(SystemProgram.transfer(signer.publicKey, Programs.SYSTEM, 1L))
+        }.compileLegacy().unwrap().sign(signer)
+
+        val calls = mutableListOf<String>()
+        val provider = providerFor(
+            mapOf(
+                "sendTransaction" to mutableListOf("\"${signed.id}\""),
+                "getSignatureStatuses" to mutableListOf(unseen),
+                "isBlockhashValid" to mutableListOf("""{"context":{"slot":9},"value":false}"""),
+            ),
+            calls,
+        )
+        try {
+            // the bytes carry no type, so the handle has to decode them to learn the blockhash
+            val pending = provider.sendTransaction(signed.serialize()).send().unwrap()
+            pending.signature shouldBe signed.id
+
+            pending.confirmation(Commitment.CONFIRMED, 1.milliseconds, 5000.milliseconds)
+                .unwrapError().shouldBeInstanceOf<PendingSolanaTransaction.Error.Expired>()
+            calls.count { it == "isBlockhashValid" } shouldBe 1
         } finally {
             provider.close()
         }
