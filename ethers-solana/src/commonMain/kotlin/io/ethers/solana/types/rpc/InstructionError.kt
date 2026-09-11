@@ -1,5 +1,9 @@
-package io.ethers.solana.types
+package io.ethers.solana.types.rpc
 
+import io.ethers.solana.types.MappedSerializer
+import io.ethers.solana.types.RawJsonSerializer
+import io.ethers.solana.types.TaggedJsonSerializer
+import io.ethers.solana.types.U32Serializer
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable

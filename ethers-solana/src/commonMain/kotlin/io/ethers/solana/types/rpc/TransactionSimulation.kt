@@ -1,8 +1,12 @@
 @file:kotlinx.serialization.UseSerializers(io.ethers.solana.types.U64Serializer::class)
 @file:OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
 
-package io.ethers.solana.types
+package io.ethers.solana.types.rpc
 
+import io.ethers.solana.types.ExtensibleJsonSerializer
+import io.ethers.solana.types.OtherFieldsSerializer
+import io.ethers.solana.types.U32Serializer
+import io.ethers.solana.types.transaction.LoadedAddresses
 import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.Serializable

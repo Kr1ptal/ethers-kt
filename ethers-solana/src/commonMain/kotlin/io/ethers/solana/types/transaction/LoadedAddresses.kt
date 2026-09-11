@@ -1,5 +1,6 @@
-package io.ethers.solana.types
+package io.ethers.solana.types.transaction
 
+import io.ethers.solana.types.SolanaAddress
 import kotlinx.serialization.Serializable
 
 /**

@@ -14,11 +14,11 @@ import io.ethers.solana.providers.AccountFilter
 import io.ethers.solana.providers.LogsFilter
 import io.ethers.solana.providers.SolanaProvider
 import io.ethers.solana.providers.SolanaSubscriptionDescriptor
-import io.ethers.solana.types.Commitment
 import io.ethers.solana.types.Programs
-import io.ethers.solana.types.RpcContext
-import io.ethers.solana.types.SignatureNotification
 import io.ethers.solana.types.SolanaSignature
+import io.ethers.solana.types.rpc.Commitment
+import io.ethers.solana.types.rpc.RpcContext
+import io.ethers.solana.types.rpc.SignatureNotification
 import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -120,7 +120,7 @@ class SubscriptionsTest : FunSpec({
         client.event = contextual("""{"err":{"InstructionError":[0,"InvalidArgument"]}}""")
         val status = provider.subscribeSignature(signature).send().unwrap().take()!!
         status.context shouldBe RpcContext(bigIntegerOf(42))
-        (status.value as SignatureNotification.Status).err shouldBe io.ethers.solana.types.TransactionError.InstructionFailure(0, io.ethers.solana.types.InstructionError.InvalidArgument)
+        (status.value as SignatureNotification.Status).err shouldBe io.ethers.solana.types.rpc.TransactionError.InstructionFailure(0, io.ethers.solana.types.rpc.InstructionError.InvalidArgument)
         client.descriptor.isTerminal(Kotlinx.DEFAULT.parseToJsonElement(client.event)) shouldBe true
         client.descriptor.unsubscribeMethod shouldBe "signatureUnsubscribe"
     }

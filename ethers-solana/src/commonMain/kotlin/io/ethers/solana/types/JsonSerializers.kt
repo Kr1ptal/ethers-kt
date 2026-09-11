@@ -130,12 +130,6 @@ object RawJsonSerializer : KSerializer<RawJson> {
 object OtherFieldsSerializer : KSerializer<Map<String, RawJson>> by kotlinx.serialization.builtins.MapSerializer(String.serializer(), RawJsonSerializer)
 object U8ListSerializer : KSerializer<List<Int>> by kotlinx.serialization.builtins.ListSerializer(U8Serializer)
 
-object Base58BytesSerializer : KSerializer<SolanaBytes> {
-    override val descriptor = PrimitiveSerialDescriptor("SolanaBase58Bytes", PrimitiveKind.STRING)
-    override fun deserialize(decoder: Decoder): SolanaBytes = SolanaBytes.fromBase58(decoder.decodeString())
-    override fun serialize(encoder: Encoder, value: SolanaBytes) = encoder.encodeString(value.toBase58())
-}
-
 /** Solana's [base64 data, encoding] tuple, shared by accounts and program return data. */
 object Base64TupleBytesSerializer : KSerializer<SolanaBytes> {
     override val descriptor = kotlinx.serialization.builtins.ListSerializer(String.serializer()).descriptor
@@ -145,16 +139,6 @@ object Base64TupleBytesSerializer : KSerializer<SolanaBytes> {
         return SolanaBytes.fromBase64(data[0].jsonPrimitive.content)
     }
     override fun serialize(encoder: Encoder, value: SolanaBytes) = (encoder as JsonEncoder).encodeJsonElement(JsonArray(listOf(JsonPrimitive(value.toBase64()), JsonPrimitive("base64"))))
-}
-
-object DecimalSerializer : KSerializer<BigDecimal> {
-    override val descriptor = PrimitiveSerialDescriptor("SolanaDecimal", PrimitiveKind.DOUBLE)
-    override fun deserialize(decoder: Decoder): BigDecimal {
-        val value = (decoder as JsonDecoder).decodeJsonElement().jsonPrimitive
-        require(!value.isString && value != JsonNull) { "Expected a decimal JSON number" }
-        return BigDecimal(value.content)
-    }
-    override fun serialize(encoder: Encoder, value: BigDecimal) = (encoder as JsonEncoder).encodeJsonElement(JsonUnquotedLiteral(value.toString()))
 }
 
 object U8Serializer : KSerializer<Int> {
@@ -195,10 +179,4 @@ object U64Serializer : KSerializer<BigInteger> {
         require(!primitive.isString) { "Expected a decimal JSON number" }
         return requireU64(BigInteger(primitive.content))
     }
-}
-
-object TokenQuantitySerializer : KSerializer<BigInteger> {
-    override val descriptor = PrimitiveSerialDescriptor("SolanaTokenAmount", PrimitiveKind.STRING)
-    override fun serialize(encoder: Encoder, value: BigInteger) = encoder.encodeString(requireU64(value).toString())
-    override fun deserialize(decoder: Decoder): BigInteger = requireU64(BigInteger(decoder.decodeString()))
 }

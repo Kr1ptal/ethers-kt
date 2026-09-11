@@ -1,12 +1,12 @@
 package io.ethers.solana
 
 import io.ethers.core.Kotlinx
-import io.ethers.solana.types.Base58BytesSerializer
 import io.ethers.solana.types.Base64TupleBytesSerializer
 import io.ethers.solana.types.Programs
-import io.ethers.solana.types.ReturnData
 import io.ethers.solana.types.SolanaBytes
-import io.ethers.solana.types.SolanaRPCInstruction
+import io.ethers.solana.types.rpc.Base58BytesSerializer
+import io.ethers.solana.types.rpc.ReturnData
+import io.ethers.solana.types.rpc.SolanaRPCInstruction
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe

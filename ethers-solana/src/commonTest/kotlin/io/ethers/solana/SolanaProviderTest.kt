@@ -12,15 +12,15 @@ import io.ethers.solana.providers.SolanaProvider
 import io.ethers.solana.providers.middleware.SolanaApi
 import io.ethers.solana.signers.KeypairSigner
 import io.ethers.solana.types.AccountMeta
-import io.ethers.solana.types.Commitment
-import io.ethers.solana.types.ContextValue
 import io.ethers.solana.types.Programs
-import io.ethers.solana.types.RpcContext
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
-import io.ethers.solana.types.SolanaNodeHealth
-import io.ethers.solana.types.SolanaNodeIdentity
 import io.ethers.solana.types.SolanaSignature
+import io.ethers.solana.types.rpc.Commitment
+import io.ethers.solana.types.rpc.ContextValue
+import io.ethers.solana.types.rpc.RpcContext
+import io.ethers.solana.types.rpc.SolanaNodeHealth
+import io.ethers.solana.types.rpc.SolanaNodeIdentity
 import io.ethers.solana.types.transaction.AddressLookupTableAccount
 import io.ethers.solana.types.transaction.SolanaTransactionConfig
 import io.ethers.solana.types.transaction.SolanaTransactionRequest
@@ -226,7 +226,7 @@ class SolanaProviderTest : FunSpec({
         response = contextual("""{"err":{"InstructionError":[0,"InvalidArgument"]},"logs":["failed"],"unitsConsumed":9007199254740993}""")
         val simulation = provider.simulateTransaction(transaction).send().unwrap().value
         simulation.isSuccess shouldBe false
-        simulation.err shouldBe io.ethers.solana.types.TransactionError.InstructionFailure(0, io.ethers.solana.types.InstructionError.InvalidArgument)
+        simulation.err shouldBe io.ethers.solana.types.rpc.TransactionError.InstructionFailure(0, io.ethers.solana.types.rpc.InstructionError.InvalidArgument)
         assertRequest("simulateTransaction", """["${transaction.toBase64()}",{"commitment":"confirmed","encoding":"base64"}]""")
         response = contextual("""{"err":null,"logs":null}""")
         provider.simulateTransaction(transaction).send().unwrap().value.isSuccess shouldBe true

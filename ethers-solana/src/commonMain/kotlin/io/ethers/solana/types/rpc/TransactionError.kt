@@ -1,7 +1,13 @@
 @file:OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
 
-package io.ethers.solana.types
+package io.ethers.solana.types.rpc
 
+import io.ethers.solana.types.ExtensibleJsonSerializer
+import io.ethers.solana.types.MappedSerializer
+import io.ethers.solana.types.OtherFieldsSerializer
+import io.ethers.solana.types.RawJsonSerializer
+import io.ethers.solana.types.TaggedJsonSerializer
+import io.ethers.solana.types.U8Serializer
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.SerialName

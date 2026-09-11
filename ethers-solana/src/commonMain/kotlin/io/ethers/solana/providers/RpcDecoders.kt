@@ -1,10 +1,10 @@
 package io.ethers.solana.providers
 
 import io.ethers.core.Kotlinx
-import io.ethers.solana.types.AccountInfo
-import io.ethers.solana.types.ContextValue
-import io.ethers.solana.types.RpcContext
 import io.ethers.solana.types.U64Serializer
+import io.ethers.solana.types.rpc.AccountInfo
+import io.ethers.solana.types.rpc.ContextValue
+import io.ethers.solana.types.rpc.RpcContext
 import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.JsonElement

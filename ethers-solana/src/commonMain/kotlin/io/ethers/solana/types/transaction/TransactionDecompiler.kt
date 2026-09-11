@@ -4,7 +4,6 @@ import io.ethers.core.Result
 import io.ethers.core.unwrapOrReturn
 import io.ethers.solana.instruction.Instruction
 import io.ethers.solana.types.AccountMeta
-import io.ethers.solana.types.LoadedAddresses
 import io.ethers.solana.types.SolanaAddress
 
 /**

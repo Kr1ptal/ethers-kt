@@ -1,11 +1,11 @@
 package io.ethers.solana
 
 import io.ethers.core.Kotlinx
-import io.ethers.solana.types.ContextValue
-import io.ethers.solana.types.InstructionError
-import io.ethers.solana.types.RpcContext
-import io.ethers.solana.types.SignatureNotification
-import io.ethers.solana.types.TransactionError
+import io.ethers.solana.types.rpc.ContextValue
+import io.ethers.solana.types.rpc.InstructionError
+import io.ethers.solana.types.rpc.RpcContext
+import io.ethers.solana.types.rpc.SignatureNotification
+import io.ethers.solana.types.rpc.TransactionError
 import io.github.artificialpb.bignum.BigInteger
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec

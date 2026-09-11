@@ -9,10 +9,10 @@ import io.ethers.solana.types.AccountMeta
 import io.ethers.solana.types.Programs
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
-import io.ethers.solana.types.SolanaRPCInstruction
-import io.ethers.solana.types.SolanaRPCMessage
-import io.ethers.solana.types.SolanaRPCTransaction
-import io.ethers.solana.types.SolanaRPCTransactionData
+import io.ethers.solana.types.rpc.SolanaRPCInstruction
+import io.ethers.solana.types.rpc.SolanaRPCMessage
+import io.ethers.solana.types.rpc.SolanaRPCTransaction
+import io.ethers.solana.types.rpc.SolanaRPCTransactionData
 import io.ethers.solana.types.transaction.AddressLookupTableAccount
 import io.ethers.solana.types.transaction.MessageHeader
 import io.ethers.solana.types.transaction.SolanaTransaction

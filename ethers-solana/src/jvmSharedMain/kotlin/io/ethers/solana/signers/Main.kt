@@ -2,6 +2,7 @@ package io.ethers.solana.signers
 
 import io.ethers.solana.providers.SolanaCluster
 import io.ethers.solana.providers.SolanaProvider
+import io.ethers.solana.types.rpc.ContextValue
 import kotlinx.coroutines.runBlocking
 
 fun main() = runBlocking {

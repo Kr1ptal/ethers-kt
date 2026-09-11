@@ -1,5 +1,6 @@
-package io.ethers.solana.types
+package io.ethers.solana.types.rpc
 
+import io.ethers.solana.types.SolanaAddress
 import io.github.artificialpb.bignum.BigInteger
 import kotlin.jvm.JvmField
 import kotlin.jvm.JvmOverloads

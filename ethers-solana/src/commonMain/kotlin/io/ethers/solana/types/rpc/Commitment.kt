@@ -1,5 +1,5 @@
 
-package io.ethers.solana.types
+package io.ethers.solana.types.rpc
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable

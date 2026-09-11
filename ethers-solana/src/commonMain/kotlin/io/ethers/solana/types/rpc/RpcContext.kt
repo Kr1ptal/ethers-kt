@@ -1,6 +1,6 @@
 @file:kotlinx.serialization.UseSerializers(io.ethers.solana.types.U64Serializer::class)
 
-package io.ethers.solana.types
+package io.ethers.solana.types.rpc
 
 import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.Serializable

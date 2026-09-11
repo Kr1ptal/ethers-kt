@@ -6,10 +6,10 @@ import io.ethers.providers.HttpClient
 import io.ethers.solana.instruction.SystemProgram
 import io.ethers.solana.providers.SolanaProvider
 import io.ethers.solana.signers.KeypairSigner
-import io.ethers.solana.types.Commitment
 import io.ethers.solana.types.Programs
 import io.ethers.solana.types.SolanaBlockhash
-import io.ethers.solana.types.SolanaSimulationConfig
+import io.ethers.solana.types.rpc.Commitment
+import io.ethers.solana.types.rpc.SolanaSimulationConfig
 import io.ethers.solana.types.transaction.SolanaTransactionError
 import io.ethers.solana.types.transaction.SolanaTransactionException
 import io.ethers.solana.types.transaction.SolanaTransactionRequest

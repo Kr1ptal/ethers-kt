@@ -2,12 +2,12 @@ package io.ethers.solana
 
 import io.ethers.core.Kotlinx
 import io.ethers.solana.corpus.transactionCorpus
-import io.ethers.solana.types.LoadedAddresses
 import io.ethers.solana.types.SolanaAddress
-import io.ethers.solana.types.SolanaRPCTransaction
 import io.ethers.solana.types.SolanaSignature
+import io.ethers.solana.types.rpc.SolanaRPCTransaction
 import io.ethers.solana.types.transaction.AddressLookupTableAccount
 import io.ethers.solana.types.transaction.CompiledAddressLookupTable
+import io.ethers.solana.types.transaction.LoadedAddresses
 import io.ethers.solana.types.transaction.MessageInstruction
 import io.ethers.solana.types.transaction.SolanaTransactionCompiled
 import io.ethers.solana.types.transaction.SolanaTransactionSigned

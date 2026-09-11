@@ -5,8 +5,8 @@ import io.ethers.providers.RpcClientConfig
 import io.ethers.providers.SubscriptionDescriptor
 import io.ethers.solana.providers.SolanaProvider
 import io.ethers.solana.types.Programs
-import io.ethers.solana.types.SignatureNotification
 import io.ethers.solana.types.SolanaSignature
+import io.ethers.solana.types.rpc.SignatureNotification
 import io.kotest.assertions.nondeterministic.eventually
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe

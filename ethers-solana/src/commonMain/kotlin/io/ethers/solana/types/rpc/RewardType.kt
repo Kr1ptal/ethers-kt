@@ -1,4 +1,4 @@
-package io.ethers.solana.types
+package io.ethers.solana.types.rpc
 
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable

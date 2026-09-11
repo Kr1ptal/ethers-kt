@@ -4,7 +4,7 @@ import io.ethers.core.Kotlinx
 import io.ethers.solana.instruction.SystemProgram
 import io.ethers.solana.providers.SolanaProvider
 import io.ethers.solana.signers.KeypairSigner
-import io.ethers.solana.types.Commitment
+import io.ethers.solana.types.rpc.Commitment
 import io.ethers.solana.types.transaction.SolanaTransactionConfig
 import io.ethers.solana.types.transaction.SolanaTransactionSigned
 import io.ethers.solana.types.transaction.SolanaTxV1

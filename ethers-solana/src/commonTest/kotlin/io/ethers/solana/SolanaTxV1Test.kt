@@ -9,7 +9,7 @@ import io.ethers.solana.types.AccountMeta
 import io.ethers.solana.types.Programs
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
-import io.ethers.solana.types.SolanaRPCTransaction
+import io.ethers.solana.types.rpc.SolanaRPCTransaction
 import io.ethers.solana.types.transaction.MessageHeader
 import io.ethers.solana.types.transaction.MessageInstruction
 import io.ethers.solana.types.transaction.SolanaTransactionCompiled
