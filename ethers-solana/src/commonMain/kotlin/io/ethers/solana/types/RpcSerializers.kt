@@ -3,7 +3,9 @@
 package io.ethers.solana.types
 
 import io.ethers.solana.utils.U32_MAX
+import io.ethers.solana.utils.requireU64
 import io.github.artificialpb.bignum.BigDecimal
+import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.descriptors.PrimitiveKind
@@ -179,4 +181,24 @@ object U32Serializer : KSerializer<Long> {
         require(value in 0..U32_MAX) { "Expected an unsigned 32-bit number" }
         encoder.encodeLong(value)
     }
+}
+
+/** Decimal JSON number, unlike ethers-core's hexadecimal Ethereum quantities. */
+object U64Serializer : KSerializer<BigInteger> {
+    override val descriptor = PrimitiveSerialDescriptor("SolanaU64", PrimitiveKind.LONG)
+    override fun serialize(encoder: Encoder, value: BigInteger) {
+        val checked = requireU64(value)
+        (encoder as JsonEncoder).encodeJsonElement(JsonUnquotedLiteral(checked.toString()))
+    }
+    override fun deserialize(decoder: Decoder): BigInteger {
+        val primitive = (decoder as JsonDecoder).decodeJsonElement().jsonPrimitive
+        require(!primitive.isString) { "Expected a decimal JSON number" }
+        return requireU64(BigInteger(primitive.content))
+    }
+}
+
+object TokenQuantitySerializer : KSerializer<BigInteger> {
+    override val descriptor = PrimitiveSerialDescriptor("SolanaTokenAmount", PrimitiveKind.STRING)
+    override fun serialize(encoder: Encoder, value: BigInteger) = encoder.encodeString(requireU64(value).toString())
+    override fun deserialize(decoder: Decoder): BigInteger = requireU64(BigInteger(decoder.decodeString()))
 }

@@ -242,7 +242,7 @@ class SolanaRPCTransactionTest : FunSpec({
             listOf(
                 Kotlinx.DEFAULT.encodeToJsonElement(message.header),
                 Kotlinx.DEFAULT.encodeToJsonElement(lookup),
-                Kotlinx.DEFAULT.encodeToJsonElement(meta.loadedAddresses!!),
+                Kotlinx.DEFAULT.encodeToJsonElement(meta.loadedAddresses),
             ).forEach { it.jsonObject.containsKey("extra") shouldBe false }
             meta.otherFields["status"] shouldBe RawJson("""{"Ok":null}""")
             roundtrip(json)
