@@ -4,6 +4,8 @@ plugins {
     `maven-publish-conventions`
 }
 
+description = "Chain-agnostic JSON-RPC transport over HTTP and WebSocket. Targets JVM, Android, macOS and iOS."
+
 kotlin {
     sourceSets {
         val commonMain by getting {

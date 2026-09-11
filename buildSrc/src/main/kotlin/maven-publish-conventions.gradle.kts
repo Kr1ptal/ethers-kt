@@ -16,8 +16,14 @@ val configureMavenCentralRepo: Action<RepositoryHandler> = Action {
 
 val configurePom = Action<MavenPom> {
     name = project.name
-    description =
-        "Async, high-performance Kotlin library for interacting with EVM-based blockchains. Targeting JVM and Android platforms."
+    // Read lazily: this action runs while the plugin is applied, which is before the build script that
+    // sets `description` has been evaluated. Modules that are not EVM-specific set their own.
+    description.set(
+        project.provider {
+            project.description
+                ?: "Async, high-performance Kotlin library for interacting with EVM-based blockchains. Targets JVM, Android, macOS and iOS."
+        },
+    )
     url = "https://github.com/Kr1ptal/ethers-kt"
 
     licenses {

@@ -4,6 +4,8 @@ plugins {
     `maven-publish-conventions`
 }
 
+description = "Chain-agnostic primitives shared by the EVM and Solana libraries. Targets JVM, Android, macOS and iOS."
+
 kotlin {
     sourceSets {
         commonMain {

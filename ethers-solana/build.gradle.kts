@@ -7,6 +7,8 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+description = "Async, high-performance Kotlin library for interacting with Solana. Targets JVM, Android, macOS and iOS."
+
 /** Embed committed JSONL verbatim for commonTest, which has no portable classpath-resource API. */
 @CacheableTask
 abstract class GenerateSolanaCorpus : DefaultTask() {
@@ -108,10 +110,6 @@ kotlin {
             }
         }
     }
-}
-
-publishing.publications.withType<MavenPublication>().configureEach {
-    pom.description.set("Solana keys, transactions, JSON-RPC and subscriptions for Kotlin Multiplatform, JVM and Android.")
 }
 
 tasks.withType<Jar>().configureEach {
