@@ -11,8 +11,8 @@ import io.ethers.solana.utils.requireU64
 import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 import kotlin.jvm.JvmOverloads
-import io.ethers.core.json.JsonElement as RawJson
 
 /**
  * V1 inline resource requests, also used by the RPC message's transactionConfig.
@@ -28,7 +28,7 @@ data class SolanaTransactionConfig @JvmOverloads constructor(
     @Serializable(with = U32Serializer::class) val computeUnitLimit: Long? = null,
     @Serializable(with = U32Serializer::class) val loadedAccountsDataSizeLimit: Long? = null,
     @Serializable(with = U32Serializer::class) val heapSize: Long? = null,
-    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, RawJson> = emptyMap(),
+    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
 ) {
     init {
         priorityFee?.let(::requireU64)

@@ -6,7 +6,6 @@ import io.ethers.core.asHexBigInteger
 import io.ethers.core.asHexByteArray
 import io.ethers.core.asHexInt
 import io.ethers.core.asHexLong
-import io.ethers.core.json.JsonElement
 import io.ethers.core.types.transaction.ChainId
 import io.ethers.core.types.transaction.TransactionRecovered
 import io.ethers.core.types.transaction.TxType
@@ -18,6 +17,7 @@ import kotlinx.serialization.descriptors.buildClassSerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -125,7 +125,7 @@ object RPCTransactionSerializer : KSerializer<RPCTransaction> {
                 "maxFeePerBlobGas" -> blobFeeCap = element.jsonPrimitive.asHexBigInteger()
                 else -> {
                     if (otherFields == null) otherFields = HashMap()
-                    otherFields[key] = JsonElement(element.toString())
+                    otherFields[key] = element
                 }
             }
         }

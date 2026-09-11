@@ -9,7 +9,7 @@ import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.U8Serializer
 import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.Serializable
-import io.ethers.core.json.JsonElement as RawJson
+import kotlinx.serialization.json.JsonElement
 
 /** A token balance associated with a transaction account. */
 @KeepGeneratedSerializer
@@ -20,7 +20,7 @@ data class TokenBalance(
     val uiTokenAmount: TokenAmount,
     val owner: SolanaAddress? = null,
     val programId: SolanaAddress? = null,
-    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, RawJson> = emptyMap(),
+    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
 )
 
 object TokenBalanceSerializer : ExtensibleJsonSerializer<TokenBalance>(TokenBalance.generatedSerializer(), { it.otherFields })

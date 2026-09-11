@@ -4,7 +4,6 @@ import io.channels.core.ChannelReceiver
 import io.ethers.core.Kotlinx
 import io.ethers.core.Result
 import io.ethers.core.failure
-import io.ethers.core.json.JsonElement
 import io.ethers.core.success
 import io.ethers.logger.err
 import io.ethers.logger.getLogger
@@ -18,6 +17,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import kotlinx.atomicfu.atomic
 import kotlinx.coroutines.CancellationException
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
@@ -88,7 +88,7 @@ class HttpClient(
                 }
 
                 val message = "HTTP ${response.status.value}: ${response.status.description}"
-                val data = JsonElement(JsonPrimitive(text).toString())
+                val data = JsonPrimitive(text)
                 val error = RpcError(RpcError.CODE_CALL_FAILED, message, data)
                 LOG.err { "Batch request failed: $error" }
 
@@ -146,7 +146,7 @@ class HttpClient(
                 }
 
                 val message = "HTTP ${response.status.value}: ${response.status.description}"
-                val data = JsonElement(JsonPrimitive(text).toString())
+                val data = JsonPrimitive(text)
                 val error = RpcError(RpcError.CODE_CALL_FAILED, message, data)
                 LOG.err { "Call failed for method=$method, params=${params.contentToString()}: $error" }
                 return failure(error)

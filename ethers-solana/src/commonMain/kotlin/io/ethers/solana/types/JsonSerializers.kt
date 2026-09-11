@@ -25,7 +25,6 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
-import io.ethers.core.json.JsonElement as RawJson
 
 /**
  * Adds forward-compatible fields to a generated object serializer without hand-decoding its properties.
@@ -33,7 +32,7 @@ import io.ethers.core.json.JsonElement as RawJson
  */
 abstract class ExtensibleJsonSerializer<T>(
     private val delegate: KSerializer<T>,
-    private val otherFields: (T) -> Map<String, RawJson>,
+    private val otherFields: (T) -> Map<String, JsonElement>,
 ) : KSerializer<T> {
     override val descriptor = delegate.descriptor
     private val knownFields = (0 until descriptor.elementsCount).map { descriptor.getElementName(it) }.toSet() - OTHER_FIELDS
@@ -109,22 +108,23 @@ open class MappedSerializer<W, T>(private val wire: KSerializer<W>, private val 
 }
 
 /**
- * A JSON value this library does not model, kept as the text it arrived as.
+ * A JSON value this library does not model, preserved exactly as it arrived.
  *
- * Holding the raw text rather than a parsed tree is what keeps unknown numbers intact: re-encoding a
- * parsed literal routes it through Long or Double, which rounds long decimals and rejects values
- * outside Double's range. This is the same representation the EVM types use for their unknown fields.
+ * Decoding already keeps the literal, since kotlinx stores a number's source text. Encoding does not:
+ * the stock element serializer routes a decimal back through Double, so `1.234567890123456789` would
+ * be written out as `1.2345678901234567`. Re-emitting the element's own text avoids that, which
+ * matters precisely because these are fields the library does not understand well enough to re-render.
  */
-object RawJsonSerializer : KSerializer<RawJson> {
+internal object RawJsonElementSerializer : KSerializer<JsonElement> {
     override val descriptor = PrimitiveSerialDescriptor("SolanaRawJson", PrimitiveKind.STRING)
-    override fun deserialize(decoder: Decoder): RawJson = RawJson((decoder as JsonDecoder).decodeJsonElement().toString())
-    override fun serialize(encoder: Encoder, value: RawJson) {
+    override fun deserialize(decoder: Decoder): JsonElement = (decoder as JsonDecoder).decodeJsonElement()
+    override fun serialize(encoder: Encoder, value: JsonElement) {
         val json = value.toString()
         (encoder as JsonEncoder).encodeJsonElement(if (json == "null") JsonNull else JsonUnquotedLiteral(json))
     }
 }
 
-object OtherFieldsSerializer : KSerializer<Map<String, RawJson>> by kotlinx.serialization.builtins.MapSerializer(String.serializer(), RawJsonSerializer)
+object OtherFieldsSerializer : KSerializer<Map<String, JsonElement>> by kotlinx.serialization.builtins.MapSerializer(String.serializer(), RawJsonElementSerializer)
 object U8ListSerializer : KSerializer<List<Int>> by kotlinx.serialization.builtins.ListSerializer(U8Serializer)
 
 /** Solana's [base64 data, encoding] tuple, shared by accounts and program return data. */

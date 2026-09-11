@@ -1,7 +1,7 @@
 package io.ethers.providers.types
 
+import io.ethers.core.Kotlinx
 import io.ethers.core.isFailure
-import io.ethers.core.json.JsonElement
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bloom
 import io.ethers.core.types.Bytes
@@ -16,6 +16,7 @@ import io.github.artificialpb.bignum.BigInteger
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import kotlinx.serialization.json.JsonElement
 import kotlin.time.Duration.Companion.milliseconds
 
 class PendingTransactionTest : FunSpec({
@@ -201,7 +202,7 @@ private val TX_RECEIPT = TransactionReceipt(
     type = TxType.DynamicFee,
     root = Bytes("0x5f5755290000000000000000000000000000000000000000000000000000000000000080"),
     otherFields = mapOf(
-        "test_tx" to JsonElement("""{"k1_tx":"v1_tx","k2_tx":"v2_tx"}"""),
+        "test_tx" to Kotlinx.DEFAULT.parseToJsonElement("""{"k1_tx":"v1_tx","k2_tx":"v2_tx"}"""),
     ),
 )
 

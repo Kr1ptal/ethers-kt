@@ -17,11 +17,11 @@ import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonEncoder
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonUnquotedLiteral
 import kotlinx.serialization.json.jsonPrimitive
-import io.ethers.core.json.JsonElement as RawJson
 
 /** A token balance in raw units, with the decimals needed to render it. */
 @KeepGeneratedSerializer
@@ -31,7 +31,7 @@ data class TokenAmount(
     @Serializable(with = U8Serializer::class) val decimals: Int,
     val uiAmountString: String,
     @Serializable(with = DecimalSerializer::class) val uiAmount: BigDecimal? = null,
-    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, RawJson> = emptyMap(),
+    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
 )
 
 object TokenAmountSerializer : ExtensibleJsonSerializer<TokenAmount>(TokenAmount.generatedSerializer(), { it.otherFields })

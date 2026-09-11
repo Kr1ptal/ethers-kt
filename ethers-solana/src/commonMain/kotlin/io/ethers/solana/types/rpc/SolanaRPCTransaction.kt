@@ -29,7 +29,7 @@ import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import io.ethers.core.json.JsonElement as RawJson
+import kotlinx.serialization.json.JsonElement
 
 /** A getTransaction response in json encoding; not a signable transaction. */
 @KeepGeneratedSerializer
@@ -40,7 +40,7 @@ data class SolanaRPCTransaction(
     val transaction: SolanaRPCTransactionData,
     val meta: SolanaRPCTransactionMeta?,
     @SerialName("version") override val type: SolanaTxType = SolanaTxType.Legacy,
-    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, RawJson> = emptyMap(),
+    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
 ) : SolanaTransaction {
     override val header: MessageHeader get() = transaction.message.header
     override val accounts: List<SolanaAddress> get() = transaction.message.accountKeys

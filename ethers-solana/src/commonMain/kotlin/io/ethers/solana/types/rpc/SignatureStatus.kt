@@ -8,7 +8,7 @@ import io.ethers.solana.types.OtherFieldsSerializer
 import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.Serializable
-import io.ethers.core.json.JsonElement as RawJson
+import kotlinx.serialization.json.JsonElement
 
 /**
  * How far a submitted transaction has progressed, as getSignatureStatuses reports it.
@@ -25,7 +25,7 @@ data class SignatureStatus(
     /** Why the transaction failed on chain, or null if it succeeded. */
     val err: TransactionError? = null,
     val confirmationStatus: Commitment? = null,
-    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, RawJson> = emptyMap(),
+    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
 ) {
     val isSuccess: Boolean get() = err == null
 

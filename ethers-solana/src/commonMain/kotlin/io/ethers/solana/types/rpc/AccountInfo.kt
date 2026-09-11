@@ -15,7 +15,7 @@ import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
-import io.ethers.core.json.JsonElement as RawJson
+import kotlinx.serialization.json.JsonElement
 
 /** Account data in the requested base64 encoding, shared by queries, subscriptions and simulation. */
 @Serializable(with = AccountInfoSerializer::class)
@@ -26,7 +26,7 @@ data class AccountInfo(
     val owner: SolanaAddress,
     val rentEpoch: BigInteger,
     val space: BigInteger,
-    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, RawJson> = emptyMap(),
+    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
 ) {
     /** Takes ownership of [data] rather than copying it, so do not mutate the array afterwards. */
     constructor(
@@ -36,7 +36,7 @@ data class AccountInfo(
         owner: SolanaAddress,
         rentEpoch: BigInteger,
         space: BigInteger,
-        otherFields: Map<String, RawJson> = emptyMap(),
+        otherFields: Map<String, JsonElement> = emptyMap(),
     ) : this(SolanaBytes.fromBytes(data), executable, lamports, owner, rentEpoch, space, otherFields)
 }
 
@@ -59,7 +59,7 @@ private data class AccountInfoFields(
     val rentEpoch: BigInteger,
     // Older responses omit space. The complete requested account data supplies its size.
     val space: BigInteger = bigIntegerOf(data.size),
-    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, RawJson> = emptyMap(),
+    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
 )
 
 private object AccountInfoFieldsSerializer : ExtensibleJsonSerializer<AccountInfoFields>(AccountInfoFields.generatedSerializer(), { it.otherFields })

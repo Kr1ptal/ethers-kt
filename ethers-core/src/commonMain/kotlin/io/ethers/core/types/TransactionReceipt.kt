@@ -7,7 +7,6 @@ import io.ethers.core.asHash
 import io.ethers.core.asHexBigInteger
 import io.ethers.core.asHexInt
 import io.ethers.core.asHexLong
-import io.ethers.core.json.JsonElement
 import io.ethers.core.types.transaction.TxType
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.minus
@@ -17,6 +16,7 @@ import kotlinx.serialization.descriptors.buildClassSerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -100,7 +100,7 @@ object TxReceiptSerializer : KSerializer<TransactionReceipt> {
                 "root" -> root = element.jsonPrimitive.asBytes()
                 else -> {
                     if (otherFields == null) otherFields = HashMap()
-                    otherFields[key] = JsonElement(element.toString())
+                    otherFields[key] = element
                 }
             }
         }

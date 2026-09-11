@@ -1,12 +1,12 @@
 package io.ethers.core.types
 
 import io.ethers.core.Kotlinx
-import io.ethers.core.json.JsonElement
 import io.ethers.core.types.transaction.TxType
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import kotlinx.serialization.json.JsonElement
 import org.intellij.lang.annotations.Language
 
 class BlockTest : FunSpec({
@@ -115,7 +115,7 @@ class BlockTest : FunSpec({
             excessBlobGas = 75627,
             parentBeaconBlockRoot = Hash("0xc74b35721eec9b338589ea735f8d322b3e27f3259d9e924ef354a4336fb715a8"),
             otherFields = mapOf(
-                "test" to JsonElement("""{"k1":"v1","k2":"v2"}"""),
+                "test" to Kotlinx.DEFAULT.parseToJsonElement("""{"k1":"v1","k2":"v2"}"""),
             ),
         )
 
@@ -267,7 +267,7 @@ class BlockTest : FunSpec({
                     blobVersionedHashes = null,
                     blobFeeCap = null,
                     otherFields = mapOf(
-                        "test_tx" to JsonElement("""{"k1_tx":"v1_tx","k2_tx":"v2_tx"}"""),
+                        "test_tx" to Kotlinx.DEFAULT.parseToJsonElement("""{"k1_tx":"v1_tx","k2_tx":"v2_tx"}"""),
                     ),
                 ),
             ),
@@ -287,7 +287,7 @@ class BlockTest : FunSpec({
             excessBlobGas = -1L,
             parentBeaconBlockRoot = null,
             otherFields = mapOf(
-                "test" to JsonElement("""{"k1":"v1","k2":"v2"}"""),
+                "test" to Kotlinx.DEFAULT.parseToJsonElement("""{"k1":"v1","k2":"v2"}"""),
             ),
         )
 

@@ -5,7 +5,6 @@ import io.ethers.core.FastHex
 import io.ethers.core.Kotlinx
 import io.ethers.core.Result
 import io.ethers.core.ThrowableError
-import io.ethers.core.json.JsonElement
 import io.ethers.core.toJsonElement
 import io.ethers.providers.types.BatchRpcRequest
 import io.ktor.client.plugins.websocket.WebSockets
@@ -15,6 +14,7 @@ import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -266,7 +266,7 @@ data class RpcError @JvmOverloads constructor(
             val code = obj["code"]?.jsonPrimitive?.content?.toIntOrNull() ?: -1
             val message = obj["message"]?.jsonPrimitive?.content ?: ""
             val dataEl = obj["data"]
-            val data = if (dataEl == null || dataEl is JsonNull) null else JsonElement(dataEl.toString())
+            val data = if (dataEl == null || dataEl is JsonNull) null else dataEl
             return RpcError(code, message, data)
         }
     }

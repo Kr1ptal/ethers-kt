@@ -11,6 +11,7 @@ import io.ethers.core.types.CallRequest
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import io.ethers.providers.types.BatchRpcRequest
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonElement as KJsonElement
 
 /**

@@ -1,7 +1,6 @@
 package io.ethers.core.types.tracers
 
 import io.ethers.core.Kotlinx
-import io.ethers.core.json.JsonElement
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
@@ -12,6 +11,7 @@ import io.kotest.datatest.withData
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
+import kotlinx.serialization.json.JsonElement
 import org.intellij.lang.annotations.Language
 
 class CallTracerTest : FunSpec({
@@ -133,8 +133,8 @@ class CallTracerTest : FunSpec({
             ),
             value = BigInteger("11650662055314012"),
             otherFields = mapOf(
-                "beforeEVMTransfers" to JsonElement("[{\"purpose\":\"feePayment\",\"from\":\"0x0000000000000000000000000000000000000000\",\"to\":null,\"value\":\"0x0\"}]"),
-                "afterEVMTransfers" to JsonElement("[{\"purpose\":\"gasRefund\",\"from\":null,\"to\":\"0x0000000000000000000000000000000000000000\",\"value\":\"0x0\"},{\"purpose\":\"feeCollection\",\"from\":null,\"to\":\"0xbF5041Fc07E1c866D15c749156657B8eEd0fb649\",\"value\":\"0x42d1574900\"}]"),
+                "beforeEVMTransfers" to Kotlinx.DEFAULT.parseToJsonElement("[{\"purpose\":\"feePayment\",\"from\":\"0x0000000000000000000000000000000000000000\",\"to\":null,\"value\":\"0x0\"}]"),
+                "afterEVMTransfers" to Kotlinx.DEFAULT.parseToJsonElement("[{\"purpose\":\"gasRefund\",\"from\":null,\"to\":\"0x0000000000000000000000000000000000000000\",\"value\":\"0x0\"},{\"purpose\":\"feeCollection\",\"from\":null,\"to\":\"0xbF5041Fc07E1c866D15c749156657B8eEd0fb649\",\"value\":\"0x42d1574900\"}]"),
             ),
         )
 

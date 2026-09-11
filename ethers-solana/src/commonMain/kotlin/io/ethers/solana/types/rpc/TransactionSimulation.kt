@@ -10,7 +10,7 @@ import io.ethers.solana.types.transaction.LoadedAddresses
 import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.Serializable
-import io.ethers.core.json.JsonElement as RawJson
+import kotlinx.serialization.json.JsonElement
 
 /** A failed simulated transaction is a successful RPC response with a non-null [err]. */
 @KeepGeneratedSerializer
@@ -30,7 +30,7 @@ data class TransactionSimulation(
     val preTokenBalances: List<TokenBalance>? = null,
     val postTokenBalances: List<TokenBalance>? = null,
     val loadedAddresses: LoadedAddresses? = null,
-    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, RawJson> = emptyMap(),
+    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
 ) {
     val isSuccess: Boolean get() = err == null
 }

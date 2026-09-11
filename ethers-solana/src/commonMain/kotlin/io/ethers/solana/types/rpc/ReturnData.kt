@@ -10,7 +10,7 @@ import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBytes
 import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.Serializable
-import io.ethers.core.json.JsonElement as RawJson
+import kotlinx.serialization.json.JsonElement
 
 /** Program return bytes, shared by metadata and simulation. */
 @KeepGeneratedSerializer
@@ -18,7 +18,7 @@ import io.ethers.core.json.JsonElement as RawJson
 data class ReturnData(
     val programId: SolanaAddress,
     @Serializable(with = Base64TupleBytesSerializer::class) val data: SolanaBytes,
-    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, RawJson> = emptyMap(),
+    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
 )
 
 object ReturnDataSerializer : ExtensibleJsonSerializer<ReturnData>(ReturnData.generatedSerializer(), { it.otherFields })

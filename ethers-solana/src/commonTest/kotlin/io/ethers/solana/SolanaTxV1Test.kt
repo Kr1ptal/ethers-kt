@@ -23,11 +23,11 @@ import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.jsonObject
-import io.ethers.core.json.JsonElement as RawJson
 
 class SolanaTxV1Test : FunSpec({
     val alice = KeypairSigner.fromSeed(FastHex.decode("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60"))
@@ -198,7 +198,7 @@ class SolanaTxV1Test : FunSpec({
         Kotlinx.DEFAULT.decodeFromString<SolanaRPCTransaction>(encoded.toString()) shouldBe tx
         val jsonConfig = Kotlinx.DEFAULT.encodeToJsonElement(tx.transaction.message.transactionConfig!!).jsonObject
         val future = Kotlinx.DEFAULT.decodeFromString<SolanaTransactionConfig>(JsonObject(jsonConfig + ("futureLimit" to JsonPrimitive(42))).toString())
-        future.otherFields["futureLimit"] shouldBe RawJson("42")
+        future.otherFields["futureLimit"] shouldBe Kotlinx.DEFAULT.parseToJsonElement("42")
         Kotlinx.DEFAULT.parseToJsonElement(Kotlinx.DEFAULT.encodeToString(future)).jsonObject["futureLimit"] shouldBe JsonPrimitive(42)
         shouldThrow<IllegalArgumentException> { transfer(future) }
         for (field in listOf("computeUnitLimit", "loadedAccountsDataSizeLimit", "heapSize")) {

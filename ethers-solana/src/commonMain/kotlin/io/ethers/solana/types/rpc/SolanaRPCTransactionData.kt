@@ -8,7 +8,7 @@ import io.ethers.solana.types.OtherFieldsSerializer
 import io.ethers.solana.types.SolanaSignature
 import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.Serializable
-import io.ethers.core.json.JsonElement as RawJson
+import kotlinx.serialization.json.JsonElement
 
 /** Signatures and compiled message, including unsupported transaction versions. */
 @KeepGeneratedSerializer
@@ -16,7 +16,7 @@ import io.ethers.core.json.JsonElement as RawJson
 data class SolanaRPCTransactionData(
     val signatures: List<SolanaSignature>,
     val message: SolanaRPCMessage,
-    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, RawJson> = emptyMap(),
+    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
 )
 
 object SolanaRPCTransactionDataSerializer : ExtensibleJsonSerializer<SolanaRPCTransactionData>(SolanaRPCTransactionData.generatedSerializer(), { it.otherFields })

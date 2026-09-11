@@ -7,7 +7,6 @@ import io.ethers.core.asBytes
 import io.ethers.core.asHash
 import io.ethers.core.asHexBigInteger
 import io.ethers.core.asHexLong
-import io.ethers.core.json.JsonElement
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
 import kotlinx.serialization.KSerializer
@@ -16,6 +15,7 @@ import kotlinx.serialization.descriptors.buildClassSerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
@@ -224,7 +224,7 @@ private fun deserializeBlockCommon(obj: JsonObject, jsonDecoder: JsonDecoder): B
             "transactions" -> { /* handled by the specific serializer */ }
             else -> {
                 if (otherFields == null) otherFields = HashMap()
-                otherFields[key] = JsonElement(element.toString())
+                otherFields[key] = element
             }
         }
     }

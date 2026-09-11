@@ -2,12 +2,12 @@ package io.ethers.providers
 
 import io.ethers.core.Kotlinx
 import io.ethers.core.ThrowableError
-import io.ethers.core.json.JsonElement
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.property.Exhaustive
 import io.kotest.property.checkAll
 import io.kotest.property.exhaustive.of
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.jsonObject
 
 class RpcErrorTest : FunSpec({
@@ -42,7 +42,7 @@ class RpcErrorTest : FunSpec({
                 RpcError(
                     RpcError.CODE_METHOD_NOT_FOUND,
                     "Method not found",
-                    JsonElement("""{"method":"‘eth_getHeaderByNumber’ does not exist/is not available"}"""),
+                    Kotlinx.DEFAULT.parseToJsonElement("""{"method":"‘eth_getHeaderByNumber’ does not exist/is not available"}"""),
                 ),
             ),
             TestCase(
@@ -50,7 +50,7 @@ class RpcErrorTest : FunSpec({
                 RpcError(
                     RpcError.CODE_EXECUTION_ERROR,
                     "Execution reverted",
-                    JsonElement("\"0x12124214345676524127654123476541263765\""),
+                    Kotlinx.DEFAULT.parseToJsonElement("\"0x12124214345676524127654123476541263765\""),
                 ),
             ),
         ).checkAll { (json, expected) ->

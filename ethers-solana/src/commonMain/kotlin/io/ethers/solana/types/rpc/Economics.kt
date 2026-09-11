@@ -11,7 +11,7 @@ import io.github.artificialpb.bignum.BigDecimal
 import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.Serializable
-import io.ethers.core.json.JsonElement as RawJson
+import kotlinx.serialization.json.JsonElement
 
 /** Circulating and total supply in lamports. [nonCirculatingAccounts] is empty unless asked for. */
 @KeepGeneratedSerializer
@@ -21,7 +21,7 @@ data class Supply(
     val circulating: BigInteger,
     val nonCirculating: BigInteger,
     val nonCirculatingAccounts: List<SolanaAddress> = emptyList(),
-    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, RawJson> = emptyMap(),
+    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
 )
 
 object SupplySerializer : ExtensibleJsonSerializer<Supply>(Supply.generatedSerializer(), { it.otherFields })
@@ -54,7 +54,7 @@ data class InflationReward(
     val amount: BigInteger,
     val postBalance: BigInteger,
     @Serializable(with = U8Serializer::class) val commission: Int? = null,
-    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, RawJson> = emptyMap(),
+    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
 )
 
 object InflationRewardSerializer : ExtensibleJsonSerializer<InflationReward>(InflationReward.generatedSerializer(), { it.otherFields })
@@ -72,7 +72,7 @@ data class LargestTokenAccount(
     @Serializable(with = U8Serializer::class) val decimals: Int,
     val uiAmountString: String,
     @Serializable(with = DecimalSerializer::class) val uiAmount: BigDecimal? = null,
-    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, RawJson> = emptyMap(),
+    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
 )
 
 object LargestTokenAccountSerializer : ExtensibleJsonSerializer<LargestTokenAccount>(LargestTokenAccount.generatedSerializer(), { it.otherFields })

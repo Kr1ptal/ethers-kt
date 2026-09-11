@@ -6,7 +6,6 @@ import io.channels.core.QueueChannel
 import io.ethers.core.Kotlinx
 import io.ethers.core.Result
 import io.ethers.core.failure
-import io.ethers.core.json.JsonElement
 import io.ethers.core.success
 import io.ethers.logger.dbg
 import io.ethers.logger.err
@@ -29,7 +28,9 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
@@ -525,7 +526,7 @@ class WsClient(
                 val invalid = RpcError(
                     RpcError.CODE_INVALID_RESPONSE,
                     "Invalid response",
-                    JsonElement(text),
+                    JsonPrimitive(text),
                 )
 
                 if (id != -1L) {

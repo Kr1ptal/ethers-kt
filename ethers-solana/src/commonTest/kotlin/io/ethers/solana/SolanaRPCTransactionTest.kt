@@ -35,7 +35,6 @@ import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import io.ethers.core.json.JsonElement as RawJson
 
 class SolanaRPCTransactionTest : FunSpec({
     val signature = SolanaSignature(ByteArray(64)) // Decode format, but do not verify this invalid signature.
@@ -80,7 +79,7 @@ class SolanaRPCTransactionTest : FunSpec({
         meta.isSuccess shouldBe true
         meta.preBalances.size shouldBe 24
         meta.postTokenBalances!!.first().uiTokenAmount.decimals shouldBe 6
-        legacyTx.otherFields["transactionIndex"] shouldBe RawJson("1069")
+        legacyTx.otherFields["transactionIndex"] shouldBe Kotlinx.DEFAULT.parseToJsonElement("1069")
 
         val compiled = decode(fixtures.getValue("4"))
         compiled.type shouldBe SolanaTxType.V0
@@ -238,13 +237,13 @@ class SolanaRPCTransactionTest : FunSpec({
                 5 to instruction.otherFields, 7 to inner.otherFields, 8 to token.otherFields, 9 to amount.otherFields,
                 11 to meta.returnData.otherFields, 12 to reward.otherFields,
                 13 to meta.otherFields,
-            ).forEach { (expected, fields) -> fields["extra"] shouldBe RawJson(expected.toString()) }
+            ).forEach { (expected, fields) -> fields["extra"] shouldBe Kotlinx.DEFAULT.parseToJsonElement(expected.toString()) }
             listOf(
                 Kotlinx.DEFAULT.encodeToJsonElement(message.header),
                 Kotlinx.DEFAULT.encodeToJsonElement(lookup),
                 Kotlinx.DEFAULT.encodeToJsonElement(meta.loadedAddresses),
             ).forEach { it.jsonObject.containsKey("extra") shouldBe false }
-            meta.otherFields["status"] shouldBe RawJson("""{"Ok":null}""")
+            meta.otherFields["status"] shouldBe Kotlinx.DEFAULT.parseToJsonElement("""{"Ok":null}""")
             roundtrip(json)
             Kotlinx.DEFAULT.parseToJsonElement(Kotlinx.DEFAULT.encodeToString(tx)).jsonObject.getValue("meta").jsonObject.getValue("preTokenBalances").jsonArray.first().jsonObject.getValue("uiTokenAmount").jsonObject.getValue("uiAmount").jsonPrimitive.content shouldBe "1.234567890123456789"
         }
@@ -292,9 +291,9 @@ class SolanaRPCTransactionTest : FunSpec({
     test("JSON serialization preserves unknown numeric literals without floating point conversion") {
         val numbers = Kotlinx.DEFAULT.parseToJsonElement("""[1.234567890123456789,123456789012345678901234567890123456789,1e999,true,false,null,"1e999"]""")
         val tx = decode(JsonObject(legacy + ("future" to numbers)))
-        tx.otherFields["future"] shouldBe RawJson(numbers.toString())
+        tx.otherFields["future"] shouldBe Kotlinx.DEFAULT.parseToJsonElement(numbers.toString())
         Kotlinx.DEFAULT.parseToJsonElement(Kotlinx.DEFAULT.encodeToString(tx)).jsonObject["future"] shouldBe numbers
-        val nested = tx.copy(transaction = tx.transaction.copy(message = tx.transaction.message.copy(otherFields = mapOf("future" to RawJson(numbers.toString())))))
+        val nested = tx.copy(transaction = tx.transaction.copy(message = tx.transaction.message.copy(otherFields = mapOf("future" to Kotlinx.DEFAULT.parseToJsonElement(numbers.toString())))))
         Kotlinx.DEFAULT.parseToJsonElement(Kotlinx.DEFAULT.encodeToString(nested)).jsonObject.getValue("transaction").jsonObject.getValue("message").jsonObject["future"] shouldBe numbers
     }
 })

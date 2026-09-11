@@ -8,6 +8,7 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.funSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.JsonElement as KJsonElement
 

@@ -12,7 +12,7 @@ import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import io.ethers.core.json.JsonElement as RawJson
+import kotlinx.serialization.json.JsonElement
 
 /**
  * A confirmed block.
@@ -32,7 +32,7 @@ data class SolanaBlock(
     val rewards: List<Reward>? = null,
     val blockTime: Long? = null,
     val blockHeight: BigInteger? = null,
-    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, RawJson> = emptyMap(),
+    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
 )
 
 object SolanaBlockSerializer : ExtensibleJsonSerializer<SolanaBlock>(SolanaBlock.generatedSerializer(), { it.otherFields })
@@ -44,7 +44,7 @@ data class SolanaBlockTransaction(
     val transaction: SolanaRPCTransactionData,
     val meta: SolanaRPCTransactionMeta? = null,
     @SerialName("version") val type: SolanaTxType = SolanaTxType.Legacy,
-    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, RawJson> = emptyMap(),
+    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
 )
 
 object SolanaBlockTransactionSerializer : ExtensibleJsonSerializer<SolanaBlockTransaction>(SolanaBlockTransaction.generatedSerializer(), { it.otherFields })

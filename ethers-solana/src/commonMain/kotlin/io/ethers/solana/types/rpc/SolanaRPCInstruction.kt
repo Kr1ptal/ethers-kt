@@ -17,7 +17,7 @@ import kotlinx.serialization.descriptors.PrimitiveKind
 import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
-import io.ethers.core.json.JsonElement as RawJson
+import kotlinx.serialization.json.JsonElement
 
 /** Compiled instruction with optional RPC execution details. */
 @KeepGeneratedSerializer
@@ -27,7 +27,7 @@ data class SolanaRPCInstruction(
     @Serializable(with = U8ListSerializer::class) override val accounts: List<Int>,
     @Serializable(with = Base58BytesSerializer::class) override val data: SolanaBytes,
     @Serializable(with = U32Serializer::class) val stackHeight: Long? = null,
-    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, RawJson> = emptyMap(),
+    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
 ) : CompiledInstruction
 
 object SolanaRPCInstructionSerializer : ExtensibleJsonSerializer<SolanaRPCInstruction>(SolanaRPCInstruction.generatedSerializer(), { it.otherFields })

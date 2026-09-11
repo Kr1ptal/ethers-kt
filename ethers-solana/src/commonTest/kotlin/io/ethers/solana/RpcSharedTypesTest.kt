@@ -25,13 +25,13 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
-import io.ethers.core.json.JsonElement as RawJson
 
 class RpcSharedTypesTest : FunSpec({
     val address = Programs.SYSTEM
@@ -55,7 +55,7 @@ class RpcSharedTypesTest : FunSpec({
         json.encodeToJsonElement(updated).jsonObject.getValue("meta").jsonObject["fee"] shouldBe JsonPrimitive(123)
         // Class serializers work with strict Json too, not just Kotlinx.DEFAULT's ignoreUnknownKeys.
         val extended = JsonObject(json.encodeToJsonElement(tx).jsonObject + ("future" to JsonPrimitive(true)))
-        Json.decodeFromJsonElement<SolanaRPCTransaction>(extended).otherFields["future"] shouldBe RawJson("true")
+        Json.decodeFromJsonElement<SolanaRPCTransaction>(extended).otherFields["future"] shouldBe Kotlinx.DEFAULT.parseToJsonElement("true")
     }
 
     test("otherFields is flattened without collisions or accidental interpretation of its wire name") {
@@ -64,12 +64,12 @@ class RpcSharedTypesTest : FunSpec({
         instruction.otherFields.keys shouldBe setOf("future", "otherFields")
         json.parseToJsonElement(json.encodeToString(instruction)) shouldBe fields
         shouldThrow<IllegalArgumentException> {
-            json.encodeToString(instruction.copy(otherFields = mapOf("data" to RawJson("\"override\""))))
+            json.encodeToString(instruction.copy(otherFields = mapOf("data" to Kotlinx.DEFAULT.parseToJsonElement("\"override\""))))
         }
     }
 
     test("token amounts use the same serializer in token endpoints and transaction balances") {
-        val amount = TokenAmount(bigIntegerOf(123), 2, "1.23", BigDecimal("1.23"), mapOf("future" to RawJson("true")))
+        val amount = TokenAmount(bigIntegerOf(123), 2, "1.23", BigDecimal("1.23"), mapOf("future" to Kotlinx.DEFAULT.parseToJsonElement("true")))
         json.decodeFromString<TokenAmount>(json.encodeToString(amount)) shouldBe amount
         json.encodeToJsonElement(amount).jsonObject["amount"] shouldBe JsonPrimitive("123")
         json.encodeToJsonElement(amount).jsonObject["uiAmount"] shouldBe json.parseToJsonElement("1.23")
@@ -103,7 +103,7 @@ class RpcSharedTypesTest : FunSpec({
         simulation.preTokenBalances shouldBe emptyList()
         simulation.postTokenBalances shouldBe emptyList()
         simulation.loadedAddresses!!.writable shouldBe emptyList()
-        simulation.otherFields["future"] shouldBe RawJson("true")
+        simulation.otherFields["future"] shouldBe Kotlinx.DEFAULT.parseToJsonElement("true")
         json.decodeFromString<TransactionSimulation>(json.encodeToString(simulation)) shouldBe simulation
         // A null account occupies its original index, and omitted space derives from complete account data.
         val withoutSpace = JsonObject(json.parseToJsonElement(account).jsonObject - "space")
@@ -124,7 +124,7 @@ class RpcSharedTypesTest : FunSpec({
         encoded.containsKey("otherFields") shouldBe false
         json.decodeFromJsonElement<TokenAmount>(encoded) shouldBe amount
 
-        val extended = TokenAmount(bigIntegerOf(1), 0, "1", otherFields = mapOf("extra" to RawJson("1")))
+        val extended = TokenAmount(bigIntegerOf(1), 0, "1", otherFields = mapOf("extra" to Kotlinx.DEFAULT.parseToJsonElement("1")))
         val extendedJson = json.encodeToJsonElement(extended).jsonObject
         extendedJson.containsKey("otherFields") shouldBe false
         extendedJson["extra"] shouldBe JsonPrimitive(1)
@@ -181,14 +181,14 @@ class RpcSharedTypesTest : FunSpec({
     test("unknown errors remain lossless including nested numbers and future named variants") {
         val future = json.parseToJsonElement("""{"FutureError":{"value":1.234567890123456789,"huge":1e999}}""")
         val txError = json.decodeFromJsonElement<TransactionError>(future)
-        txError shouldBe TransactionError.Unknown(RawJson(future.toString()))
+        txError shouldBe TransactionError.Unknown(Kotlinx.DEFAULT.parseToJsonElement(future.toString()))
         json.parseToJsonElement(json.encodeToString(txError)) shouldBe future
         val ixError = json.decodeFromJsonElement<InstructionError>(future)
-        ixError shouldBe InstructionError.Unknown(RawJson(future.toString()))
+        ixError shouldBe InstructionError.Unknown(Kotlinx.DEFAULT.parseToJsonElement(future.toString()))
         json.parseToJsonElement(json.encodeToString(ixError)) shouldBe future
         val failure: TransactionError = TransactionError.InstructionFailure(0, ixError)
         json.parseToJsonElement(json.encodeToString(failure)).jsonObject.getValue("InstructionError").jsonArray[1] shouldBe future
-        json.decodeFromString<TransactionError>(""""FutureError"""") shouldBe TransactionError.Unknown(RawJson("\"FutureError\""))
+        json.decodeFromString<TransactionError>(""""FutureError"""") shouldBe TransactionError.Unknown(Kotlinx.DEFAULT.parseToJsonElement("\"FutureError\""))
     }
 
     test("history metadata logs and simulation share the same typed error") {
@@ -201,5 +201,25 @@ class RpcSharedTypesTest : FunSpec({
         shouldThrow<IllegalArgumentException> { json.decodeFromString<TransactionSimulation>("""{}""") }
         shouldThrow<IllegalArgumentException> { json.decodeFromString<LogsNotification>("""{"signature":"$signature","logs":[]}""") }
         json.decodeFromString<TransactionSimulation>("""{"err":null,"accounts":null}""").accounts shouldBe null
+    }
+
+    test("unknown fields survive a round trip with their literals intact") {
+        // the stock kotlinx element serializer re-encodes a decimal through Double, which would turn
+        // 1.234567890123456789 into 1.2345678901234567 - unacceptable for a field we do not model
+        val wire = """{"programId":"$address","data":["AQID","base64"],""" +
+            """"precise":1.234567890123456789,"trailing":1.10,"exponent":1e3,"huge":18446744073709551615,""" +
+            """"nested":{"deep":0.1000},"text":"x","nothing":null}"""
+
+        val decoded = Kotlinx.DEFAULT.decodeFromString<ReturnData>(wire)
+        decoded.otherFields.getValue("precise").toString() shouldBe "1.234567890123456789"
+        decoded.otherFields.getValue("nested").jsonObject.getValue("deep").toString() shouldBe "0.1000"
+
+        // re-encoding keeps every literal byte for byte; only the field order differs, since unknown
+        // fields are written after the modelled ones
+        val encoded = Kotlinx.DEFAULT.encodeToString(decoded)
+        for (literal in listOf("1.234567890123456789", "1.10", "1e3", "18446744073709551615", "0.1000", "\"nothing\":null")) {
+            encoded.contains(literal) shouldBe true
+        }
+        Kotlinx.DEFAULT.parseToJsonElement(encoded) shouldBe Kotlinx.DEFAULT.parseToJsonElement(wire)
     }
 })

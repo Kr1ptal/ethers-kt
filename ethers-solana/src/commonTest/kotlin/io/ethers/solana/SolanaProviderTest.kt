@@ -39,11 +39,11 @@ import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.TextContent
 import io.ktor.http.headersOf
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.io.encoding.Base64
-import io.ethers.core.json.JsonElement as RawJson
 import io.ktor.client.HttpClient as KtorHttpClient
 
 class SolanaProviderTest : FunSpec({
@@ -418,9 +418,9 @@ class SolanaProviderTest : FunSpec({
         val tx = provider.getTransaction(signature).send().unwrap()!!
         tx.slot shouldBe BigInteger("9007199254740993")
         tx.type shouldBe SolanaTxType.Unsupported(2)
-        tx.otherFields["extra"] shouldBe RawJson("42")
-        tx.transaction.otherFields["futureMessage"] shouldBe RawJson("true")
-        tx.meta!!.otherFields["future"] shouldBe RawJson("7")
+        tx.otherFields["extra"] shouldBe Kotlinx.DEFAULT.parseToJsonElement("42")
+        tx.transaction.otherFields["futureMessage"] shouldBe Kotlinx.DEFAULT.parseToJsonElement("true")
+        tx.meta!!.otherFields["future"] shouldBe Kotlinx.DEFAULT.parseToJsonElement("7")
         assertRequest("getTransaction", """["$signature",{"commitment":"confirmed","encoding":"json","maxSupportedTransactionVersion":255}]""")
         response = "null"
         provider.getTransaction(signature, Commitment.FINALIZED, 0).send().unwrap() shouldBe null

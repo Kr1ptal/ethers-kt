@@ -10,7 +10,7 @@ import io.ethers.solana.types.U8Serializer
 import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.Serializable
-import io.ethers.core.json.JsonElement as RawJson
+import kotlinx.serialization.json.JsonElement
 
 /** A node taking part in the cluster. Only [pubkey] is always present; a node may expose no ports at all. */
 @KeepGeneratedSerializer
@@ -30,7 +30,7 @@ data class ClusterNode(
     val version: String? = null,
     val featureSet: Long? = null,
     val shredVersion: Int? = null,
-    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, RawJson> = emptyMap(),
+    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
 )
 
 object ClusterNodeSerializer : ExtensibleJsonSerializer<ClusterNode>(ClusterNode.generatedSerializer(), { it.otherFields })
@@ -41,7 +41,7 @@ object ClusterNodeSerializer : ExtensibleJsonSerializer<ClusterNode>(ClusterNode
 data class VoteAccounts(
     val current: List<VoteAccount>,
     val delinquent: List<VoteAccount>,
-    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, RawJson> = emptyMap(),
+    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
 )
 
 object VoteAccountsSerializer : ExtensibleJsonSerializer<VoteAccounts>(VoteAccounts.generatedSerializer(), { it.otherFields })
@@ -58,7 +58,7 @@ data class VoteAccount(
     val lastVote: BigInteger,
     val rootSlot: BigInteger,
     val epochCredits: List<List<BigInteger>> = emptyList(),
-    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, RawJson> = emptyMap(),
+    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
 )
 
 object VoteAccountSerializer : ExtensibleJsonSerializer<VoteAccount>(VoteAccount.generatedSerializer(), { it.otherFields })
@@ -69,7 +69,7 @@ object VoteAccountSerializer : ExtensibleJsonSerializer<VoteAccount>(VoteAccount
 data class BlockProduction(
     val byIdentity: Map<String, List<Long>>,
     val range: SlotRange,
-    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, RawJson> = emptyMap(),
+    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
 )
 
 object BlockProductionSerializer : ExtensibleJsonSerializer<BlockProduction>(BlockProduction.generatedSerializer(), { it.otherFields })
@@ -99,7 +99,7 @@ data class PerformanceSample(
     val numSlots: BigInteger,
     val samplePeriodSecs: Int,
     val numNonVoteTransactions: BigInteger? = null,
-    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, RawJson> = emptyMap(),
+    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
 )
 
 object PerformanceSampleSerializer : ExtensibleJsonSerializer<PerformanceSample>(PerformanceSample.generatedSerializer(), { it.otherFields })

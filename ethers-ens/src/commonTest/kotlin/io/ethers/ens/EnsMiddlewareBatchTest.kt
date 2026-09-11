@@ -15,6 +15,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import kotlinx.coroutines.yield
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonElement as KJsonElement
 
 private val RESOLVER = Address("0x231b0Ee14048e9dCcD1d247744d114a4EB5E8E63")

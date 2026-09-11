@@ -12,7 +12,6 @@ import io.ethers.core.asHexByteArray
 import io.ethers.core.asHexLong
 import io.ethers.core.failure
 import io.ethers.core.isFailure
-import io.ethers.core.json.JsonElement
 import io.ethers.core.success
 import io.ethers.core.types.Address
 import io.ethers.core.types.Block
@@ -61,8 +60,10 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -447,7 +448,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             return success(unsigned)
         }
 
-        val data = JsonElement(Kotlinx.DEFAULT.encodeToString(CallRequestSerializer, call))
+        val data = Kotlinx.DEFAULT.encodeToJsonElement(CallRequestSerializer, call)
         return failure(RpcError(RpcError.CODE_CALL_FAILED, "Failed to manually fill transaction", data))
     }
 

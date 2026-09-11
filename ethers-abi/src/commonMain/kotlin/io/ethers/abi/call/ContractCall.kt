@@ -27,6 +27,7 @@ import io.ethers.providers.types.PendingTransaction
 import io.ethers.providers.types.RpcRequest
 import io.ethers.signers.Signer
 import io.github.artificialpb.bignum.BigInteger
+import kotlinx.serialization.json.JsonPrimitive
 import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmSynthetic
 
@@ -223,12 +224,13 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
 
     protected fun decodeContractRevert(err: RpcError): ContractError {
         val isRevertMessage = err.message.contains("execution revert", true)
+        val errorData = err.data
         if (err.isExecutionError || isRevertMessage) {
             when {
                 err.data == null && isRevertMessage -> return ExecutionRevertedError
 
-                err.data != null && err.data!!.isString -> {
-                    val data = err.data!!.toString().removeSurrounding("\"")
+                errorData is JsonPrimitive && errorData.isString -> {
+                    val data = errorData.content
 
                     // if data is not a valid hex string, it's an already decoded revert error
                     if (!FastHex.isValidHex(data)) {

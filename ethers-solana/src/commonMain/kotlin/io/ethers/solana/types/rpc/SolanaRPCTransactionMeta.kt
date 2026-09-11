@@ -9,7 +9,7 @@ import io.ethers.solana.types.transaction.LoadedAddresses
 import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.Serializable
-import io.ethers.core.json.JsonElement as RawJson
+import kotlinx.serialization.json.JsonElement
 
 /** Missing optional recording data remains null; required fee and balance fields never default. */
 @KeepGeneratedSerializer
@@ -28,7 +28,7 @@ data class SolanaRPCTransactionMeta(
     val returnData: ReturnData? = null,
     val computeUnitsConsumed: BigInteger? = null,
     val costUnits: BigInteger? = null,
-    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, RawJson> = emptyMap(),
+    @Serializable(with = OtherFieldsSerializer::class) val otherFields: Map<String, JsonElement> = emptyMap(),
 ) {
     val isSuccess: Boolean get() = err == null
 }
