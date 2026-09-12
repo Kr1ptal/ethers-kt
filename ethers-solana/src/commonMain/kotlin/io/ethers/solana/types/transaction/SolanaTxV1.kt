@@ -71,21 +71,21 @@ class SolanaTxV1 private constructor(
     override fun serializeMessage(): ByteArray {
         val encoder = SolanaMessageEncoder().writeByte(129)
             .writeByte(header.requiredSignatures).writeByte(header.readonlySignedAccounts).writeByte(header.readonlyUnsignedAccounts)
-            .writeBytes(littleEndian(bigIntegerOf(config.mask), 4)).writeBytes(recentBlockhash.asByteArray())
+            .writeBytes(littleEndian(config.mask.toLong(), 4)).writeBytes(recentBlockhash.asByteArray())
             .writeByte(instructions.size).writeByte(accounts.size)
         accounts.forEach { encoder.writeBytes(it.asByteArray()) }
         config.priorityFee?.let { encoder.writeBytes(littleEndian(it, 8)) }
         if (config.computeUnitLimit != null) {
-            encoder.writeBytes(littleEndian(bigIntegerOf(config.computeUnitLimit), 4))
+            encoder.writeBytes(littleEndian(config.computeUnitLimit, 4))
         }
         if (config.loadedAccountsDataSizeLimit != null) {
-            encoder.writeBytes(littleEndian(bigIntegerOf(config.loadedAccountsDataSizeLimit), 4))
+            encoder.writeBytes(littleEndian(config.loadedAccountsDataSizeLimit, 4))
         }
         if (config.heapSize != null) {
-            encoder.writeBytes(littleEndian(bigIntegerOf(config.heapSize), 4))
+            encoder.writeBytes(littleEndian(config.heapSize, 4))
         }
         instructions.forEach {
-            encoder.writeByte(it.programIdIndex).writeByte(it.accounts.size).writeBytes(littleEndian(bigIntegerOf(it.data.size), 2))
+            encoder.writeByte(it.programIdIndex).writeByte(it.accounts.size).writeBytes(littleEndian(it.data.size.toLong(), 2))
         }
         instructions.forEach {
             it.accounts.forEach(encoder::writeByte)

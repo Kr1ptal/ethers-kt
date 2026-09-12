@@ -34,7 +34,7 @@ object SystemProgram {
     fun createAccount(from: SolanaAddress, account: SolanaAddress, lamports: BigInteger, space: Long, owner: SolanaAddress): Instruction = Instruction(
         ID,
         listOf(AccountMeta.signerAndWritable(from), AccountMeta.signerAndWritable(account)),
-        byteArrayOf(0, 0, 0, 0) + littleEndian(requireU64(lamports), 8) + littleEndian(bigIntegerOf(requireSpace(space)), 8) + owner.asByteArray(),
+        byteArrayOf(0, 0, 0, 0) + littleEndian(requireU64(lamports), 8) + littleEndian(requireSpace(space), 8) + owner.asByteArray(),
     )
 
     @JvmStatic
@@ -53,7 +53,7 @@ object SystemProgram {
     fun allocate(account: SolanaAddress, space: Long): Instruction = Instruction(
         ID,
         listOf(AccountMeta.signerAndWritable(account)),
-        byteArrayOf(8, 0, 0, 0) + littleEndian(bigIntegerOf(requireSpace(space)), 8),
+        byteArrayOf(8, 0, 0, 0) + littleEndian(requireSpace(space), 8),
     )
 
     /**
