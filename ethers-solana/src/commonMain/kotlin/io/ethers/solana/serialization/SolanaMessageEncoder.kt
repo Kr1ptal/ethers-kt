@@ -4,9 +4,16 @@ import com.ditchoom.buffer.BufferFactory
 import com.ditchoom.buffer.Default
 import com.ditchoom.buffer.PlatformBuffer
 
-/** Byte and compact-u16 primitives for Solana transaction wire formats, not Borsh. */
-internal class SolanaMessageEncoder {
-    private var bytes = ByteArray(128)
+/**
+ * Byte and compact-u16 primitives for Solana transaction wire formats, not Borsh.
+ *
+ * Starts at the size of the largest legacy or v0 packet, so encoding one never grows the buffer. The
+ * smallest message a transaction can have is 150 bytes - a single transfer, three accounts - so a
+ * smaller start would reallocate and copy for every transaction, and four times over for a full one.
+ * [toByteArray] returns an exactly sized copy, so the slack is never handed out or retained.
+ */
+internal class SolanaMessageEncoder(capacity: Int = MAX_PACKET_SIZE) {
+    private var bytes = ByteArray(capacity)
     private var buffer: PlatformBuffer = BufferFactory.Default.wrap(bytes)
 
     fun writeByte(value: Int): SolanaMessageEncoder {
@@ -36,6 +43,11 @@ internal class SolanaMessageEncoder {
 
     /** Return an independent copy of the written bytes without changing the write position. */
     fun toByteArray(): ByteArray = bytes.copyOf(buffer.position())
+
+    companion object {
+        /** The wire limit for legacy and v0 transactions; v1 allows more and may still grow once. */
+        const val MAX_PACKET_SIZE: Int = 1232
+    }
 
     private fun ensureCapacity(count: Int) {
         val position = buffer.position()

@@ -50,7 +50,9 @@ class SolanaTxLegacy private constructor(
 
     override fun withNewBlockhash(blockhash: SolanaBlockhash): SolanaTxLegacy = SolanaTxLegacy(header, accounts, blockhash, instructions)
 
-    override fun serializeMessage(): ByteArray = SolanaMessageEncoder().also { it.writeMessageBody(this) }.toByteArray()
+    private val encodedMessage: ByteArray by lazy(LazyThreadSafetyMode.PUBLICATION) { SolanaMessageEncoder().also { it.writeMessageBody(this) }.toByteArray() }
+
+    override fun serializeMessage(): ByteArray = encodedMessage.copyOf()
 
     override fun envelopeSize(): Long = legacyEnvelopeSize(header, accounts, instructions, null)
 

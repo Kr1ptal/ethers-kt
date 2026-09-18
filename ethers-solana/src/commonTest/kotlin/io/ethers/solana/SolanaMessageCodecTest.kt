@@ -38,6 +38,18 @@ class SolanaMessageCodecTest : FunSpec({
         decoder.requireDone()
     }
 
+    test("the default buffer holds the largest legacy packet without growing") {
+        // the smallest message a transaction can have is already 150 bytes, so a buffer that cannot
+        // hold one would reallocate on every single encode
+        val encoder = SolanaMessageEncoder()
+        encoder.writeBytes(ByteArray(SolanaMessageEncoder.MAX_PACKET_SIZE))
+        encoder.toByteArray().size shouldBe SolanaMessageEncoder.MAX_PACKET_SIZE
+
+        // and it still grows correctly past that, for v1 packets which are allowed to be larger
+        encoder.writeBytes(ByteArray(2000))
+        encoder.toByteArray().size shouldBe SolanaMessageEncoder.MAX_PACKET_SIZE + 2000
+    }
+
     test("shortvec rejects truncated, overlong and overflowing encodings") {
         // malformed input is recorded rather than thrown, so decoding untrusted bytes costs no stack trace
         for (hex in listOf("", "80", "8080", "8000", "8100", "808000", "ffff00", "808004", "ffff04", "808080", "ffffff", "80808000")) {
@@ -59,7 +71,8 @@ class SolanaMessageCodecTest : FunSpec({
     test("byte and bulk writes preserve position across growth and return independent snapshots") {
         val prefix = ByteArray(128) { it.toByte() }
         val payload = ByteArray(1000) { (it % 256).toByte() }
-        val encoder = SolanaMessageEncoder().writeBytes(prefix)
+        // an explicitly small buffer, so this keeps exercising growth now that the default holds a whole packet
+        val encoder = SolanaMessageEncoder(16).writeBytes(prefix)
         val first = encoder.toByteArray()
         encoder.writeByte(255).writeBytes(payload).writeBytes(byteArrayOf()).writeByte(128)
         val expected = prefix + byteArrayOf(255.toByte()) + payload + byteArrayOf(128.toByte())

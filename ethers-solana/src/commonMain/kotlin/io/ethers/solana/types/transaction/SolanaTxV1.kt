@@ -68,7 +68,11 @@ class SolanaTxV1 private constructor(
         return encoder.toByteArray()
     }
 
-    override fun serializeMessage(): ByteArray {
+    private val encodedMessage: ByteArray by lazy(LazyThreadSafetyMode.PUBLICATION) { encodeMessage() }
+
+    override fun serializeMessage(): ByteArray = encodedMessage.copyOf()
+
+    private fun encodeMessage(): ByteArray {
         val encoder = SolanaMessageEncoder().writeByte(129)
             .writeByte(header.requiredSignatures).writeByte(header.readonlySignedAccounts).writeByte(header.readonlyUnsignedAccounts)
             .writeBytes(littleEndian(config.mask.toLong(), 4)).writeBytes(recentBlockhash.asByteArray())

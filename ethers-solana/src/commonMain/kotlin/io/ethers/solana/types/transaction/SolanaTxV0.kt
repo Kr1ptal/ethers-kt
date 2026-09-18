@@ -55,7 +55,11 @@ class SolanaTxV0 private constructor(
 
     override fun withNewBlockhash(blockhash: SolanaBlockhash): SolanaTxV0 = SolanaTxV0(header, accounts, blockhash, instructions, addressLookupTables)
 
-    override fun serializeMessage(): ByteArray {
+    private val encodedMessage: ByteArray by lazy(LazyThreadSafetyMode.PUBLICATION) { encodeMessage() }
+
+    override fun serializeMessage(): ByteArray = encodedMessage.copyOf()
+
+    private fun encodeMessage(): ByteArray {
         val encoder = SolanaMessageEncoder().writeByte(128)
         encoder.writeMessageBody(this)
         encoder.writeShortVecLength(addressLookupTables.size)
