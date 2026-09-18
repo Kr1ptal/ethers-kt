@@ -3,7 +3,7 @@ package io.ethers.solana.instruction
 import io.ethers.solana.serialization.SolanaMessageDecoder
 import io.ethers.solana.types.Programs
 import io.ethers.solana.types.SolanaBytes
-import io.ethers.solana.utils.littleEndian
+import io.ethers.solana.utils.littleEndianInto
 import io.ethers.solana.utils.requireU64
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
@@ -63,5 +63,11 @@ object ComputeBudgetProgram {
         return decoder.readUnsignedLittleEndian(payloadWidth(discriminant))
     }
 
-    private fun encode(discriminant: Int, value: BigInteger): Instruction = Instruction(ID, emptyList(), byteArrayOf(discriminant.toByte()) + littleEndian(value, payloadWidth(discriminant)))
+    private fun encode(discriminant: Int, value: BigInteger): Instruction {
+        val width = payloadWidth(discriminant)
+        val data = ByteArray(1 + width)
+        data[0] = discriminant.toByte()
+        littleEndianInto(data, 1, value, width)
+        return Instruction(ID, emptyList(), data)
+    }
 }

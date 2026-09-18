@@ -3,7 +3,7 @@ package io.ethers.solana.instruction
 import io.ethers.solana.types.AccountMeta
 import io.ethers.solana.types.Programs
 import io.ethers.solana.types.SolanaAddress
-import io.ethers.solana.utils.littleEndian
+import io.ethers.solana.utils.littleEndianInto
 import io.ethers.solana.utils.requireU64
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
@@ -18,7 +18,7 @@ object SystemProgram {
     fun transfer(from: SolanaAddress, to: SolanaAddress, lamports: BigInteger): Instruction = Instruction(
         ID,
         listOf(AccountMeta.signerAndWritable(from), AccountMeta.writable(to)),
-        byteArrayOf(2, 0, 0, 0) + littleEndian(requireU64(lamports), 8),
+        payload(TRANSFER, 8) { littleEndianInto(it, 4, requireU64(lamports), 8) },
     )
 
     @JvmStatic
@@ -34,7 +34,11 @@ object SystemProgram {
     fun createAccount(from: SolanaAddress, account: SolanaAddress, lamports: BigInteger, space: Long, owner: SolanaAddress): Instruction = Instruction(
         ID,
         listOf(AccountMeta.signerAndWritable(from), AccountMeta.signerAndWritable(account)),
-        byteArrayOf(0, 0, 0, 0) + littleEndian(requireU64(lamports), 8) + littleEndian(requireSpace(space), 8) + owner.asByteArray(),
+        payload(CREATE_ACCOUNT, 48) {
+            littleEndianInto(it, 4, requireU64(lamports), 8)
+            littleEndianInto(it, 12, requireSpace(space), 8)
+            owner.asByteArray().copyInto(it, 20)
+        },
     )
 
     @JvmStatic
@@ -45,7 +49,7 @@ object SystemProgram {
     fun assign(account: SolanaAddress, owner: SolanaAddress): Instruction = Instruction(
         ID,
         listOf(AccountMeta.signerAndWritable(account)),
-        byteArrayOf(1, 0, 0, 0) + owner.asByteArray(),
+        payload(ASSIGN, 32) { owner.asByteArray().copyInto(it, 4) },
     )
 
     /** Give [account] [space] bytes of data, which it must not already have. */
@@ -53,7 +57,7 @@ object SystemProgram {
     fun allocate(account: SolanaAddress, space: Long): Instruction = Instruction(
         ID,
         listOf(AccountMeta.signerAndWritable(account)),
-        byteArrayOf(8, 0, 0, 0) + littleEndian(requireSpace(space), 8),
+        payload(ALLOCATE, 8) { littleEndianInto(it, 4, requireSpace(space), 8) },
     )
 
     /**
@@ -65,7 +69,7 @@ object SystemProgram {
     fun initializeNonceAccount(nonceAccount: SolanaAddress, authority: SolanaAddress): Instruction = Instruction(
         ID,
         listOf(AccountMeta.writable(nonceAccount), AccountMeta(Programs.SYSVAR_RECENT_BLOCKHASHES), AccountMeta(Programs.SYSVAR_RENT)),
-        byteArrayOf(6, 0, 0, 0) + authority.asByteArray(),
+        payload(INITIALIZE_NONCE_ACCOUNT, 32) { authority.asByteArray().copyInto(it, 4) },
     )
 
     /**
@@ -76,7 +80,7 @@ object SystemProgram {
     fun advanceNonceAccount(nonceAccount: SolanaAddress, authority: SolanaAddress): Instruction = Instruction(
         ID,
         listOf(AccountMeta.writable(nonceAccount), AccountMeta(Programs.SYSVAR_RECENT_BLOCKHASHES), AccountMeta.signer(authority)),
-        byteArrayOf(4, 0, 0, 0),
+        payload(ADVANCE_NONCE_ACCOUNT, 0) {},
     )
 
     /** Move [lamports] out of a nonce account, which must keep enough to stay rent exempt. */
@@ -90,7 +94,7 @@ object SystemProgram {
             AccountMeta(Programs.SYSVAR_RENT),
             AccountMeta.signer(authority),
         ),
-        byteArrayOf(5, 0, 0, 0) + littleEndian(requireU64(lamports), 8),
+        payload(WITHDRAW_NONCE_ACCOUNT, 8) { littleEndianInto(it, 4, requireU64(lamports), 8) },
     )
 
     /** Bytes a nonce account occupies, which its rent exemption is calculated from. */
@@ -103,4 +107,19 @@ object SystemProgram {
 
     /** The runtime's ceiling on a single account's data length, 10 MiB. */
     const val MAX_PERMITTED_DATA_LENGTH: Long = 10 * 1024 * 1024
+
+    // discriminants, which the program reads as a little-endian u32
+    private const val CREATE_ACCOUNT = 0
+    private const val ASSIGN = 1
+    private const val TRANSFER = 2
+    private const val ADVANCE_NONCE_ACCOUNT = 4
+    private const val WITHDRAW_NONCE_ACCOUNT = 5
+    private const val INITIALIZE_NONCE_ACCOUNT = 6
+    private const val ALLOCATE = 8
+
+    /**
+     * One array for the whole payload: the discriminant, then [size] bytes the caller fills in place.
+     * The array starts zeroed, so the discriminant's three high bytes need no writing.
+     */
+    private inline fun payload(discriminant: Int, size: Int, fill: (ByteArray) -> Unit): ByteArray = ByteArray(4 + size).also { it[0] = discriminant.toByte() }.also(fill)
 }

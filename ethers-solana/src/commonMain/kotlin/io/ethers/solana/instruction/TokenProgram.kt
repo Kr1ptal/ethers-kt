@@ -3,7 +3,7 @@ package io.ethers.solana.instruction
 import io.ethers.solana.types.AccountMeta
 import io.ethers.solana.types.Programs
 import io.ethers.solana.types.SolanaAddress
-import io.ethers.solana.utils.littleEndian
+import io.ethers.solana.utils.littleEndianInto
 import io.ethers.solana.utils.requireU64
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
@@ -32,7 +32,7 @@ object TokenProgram {
     ): Instruction = Instruction(
         tokenProgram,
         listOf(AccountMeta.writable(from), AccountMeta(mint), AccountMeta.writable(to), AccountMeta(owner, signer = signers.isEmpty())) + signers.map(AccountMeta::signer),
-        byteArrayOf(12) + littleEndian(requireU64(amount), 8) + byteArrayOf(decimals.also { require(it in 0..255) }.toByte()),
+        checkedAmountPayload(12, amount, decimals),
     )
 
     @JvmStatic
@@ -62,7 +62,7 @@ object TokenProgram {
     ): Instruction = Instruction(
         tokenProgram,
         listOf(AccountMeta.writable(account), AccountMeta(mint), AccountMeta(delegate), AccountMeta(owner, signer = signers.isEmpty())) + signers.map(AccountMeta::signer),
-        byteArrayOf(13) + littleEndian(requireU64(amount), 8) + byteArrayOf(requireDecimals(decimals).toByte()),
+        checkedAmountPayload(13, amount, decimals),
     )
 
     /** Withdraw any delegation on [account]. */
@@ -93,7 +93,7 @@ object TokenProgram {
     ): Instruction = Instruction(
         tokenProgram,
         listOf(AccountMeta.writable(account), AccountMeta.writable(mint), AccountMeta(owner, signer = signers.isEmpty())) + signers.map(AccountMeta::signer),
-        byteArrayOf(15) + littleEndian(requireU64(amount), 8) + byteArrayOf(requireDecimals(decimals).toByte()),
+        checkedAmountPayload(15, amount, decimals),
     )
 
     /** Create [amount] new tokens in [account], which only the mint authority may do. */
@@ -110,7 +110,7 @@ object TokenProgram {
     ): Instruction = Instruction(
         tokenProgram,
         listOf(AccountMeta.writable(mint), AccountMeta.writable(account), AccountMeta(authority, signer = signers.isEmpty())) + signers.map(AccountMeta::signer),
-        byteArrayOf(14) + littleEndian(requireU64(amount), 8) + byteArrayOf(requireDecimals(decimals).toByte()),
+        checkedAmountPayload(14, amount, decimals),
     )
 
     /** Close an empty [account], returning its rent lamports to [destination]. */
@@ -127,6 +127,18 @@ object TokenProgram {
         listOf(AccountMeta.writable(account), AccountMeta.writable(destination), AccountMeta(owner, signer = signers.isEmpty())) + signers.map(AccountMeta::signer),
         byteArrayOf(9),
     )
+
+    /**
+     * The layout every checked instruction shares: a one-byte discriminant, the amount, and the
+     * decimals it is checked against. Built in one array rather than concatenated in three.
+     */
+    private fun checkedAmountPayload(discriminant: Int, amount: BigInteger, decimals: Int): ByteArray {
+        val data = ByteArray(10)
+        data[0] = discriminant.toByte()
+        littleEndianInto(data, 1, requireU64(amount), 8)
+        data[9] = requireDecimals(decimals).toByte()
+        return data
+    }
 
     private fun requireDecimals(decimals: Int): Int {
         require(decimals in 0..255) { "Decimals must fit a byte, got $decimals" }
