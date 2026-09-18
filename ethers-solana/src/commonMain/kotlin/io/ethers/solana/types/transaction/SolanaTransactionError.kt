@@ -1,5 +1,6 @@
 package io.ethers.solana.types.transaction
 
+import io.ethers.core.Result
 import io.ethers.core.ThrowableError
 import io.ethers.solana.types.SolanaAddress
 
@@ -107,12 +108,23 @@ sealed class SolanaTransactionError : ThrowableError {
 }
 
 /**
- * Thrown by the validating transaction constructors and factories. Stays an [IllegalArgumentException],
- * while keeping the typed [error] reachable:
+ * Carries a [SolanaTransactionError] that was raised rather than returned. Stays an
+ * [IllegalArgumentException], while keeping the typed [error] reachable.
+ *
+ * Two things raise one: the validating constructors, and [Result.unwrap] on a failure. The factories
+ * do not - they answer with the error as a value, so wrapping one in a try/catch catches nothing:
  *
  * ```kotlin
+ * // compile returns a Result, so this catch never runs
+ * try { SolanaTxV1.compile(feePayer, blockhash, instructions, config) } catch (e: SolanaTransactionException) { }
+ *
+ * // either read the error as a value
+ * val tooLarge = SolanaTxV1.compile(feePayer, blockhash, instructions, config)
+ *     .unwrapErrorOrNull() as? SolanaTransactionError.EnvelopeTooLarge
+ *
+ * // or opt into the exception with unwrap()
  * try {
- *     SolanaTxV1.compile(feePayer, blockhash, instructions, config)
+ *     SolanaTxV1.compile(feePayer, blockhash, instructions, config).unwrap()
  * } catch (e: SolanaTransactionException) {
  *     val tooLarge = e.error as? SolanaTransactionError.EnvelopeTooLarge
  * }
