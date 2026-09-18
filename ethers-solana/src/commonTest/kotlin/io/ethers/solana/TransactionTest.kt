@@ -16,6 +16,7 @@ import io.ethers.solana.types.transaction.AddressLookupTableAccount
 import io.ethers.solana.types.transaction.CompiledAddressLookupTable
 import io.ethers.solana.types.transaction.MessageHeader
 import io.ethers.solana.types.transaction.SolanaTransactionCompiled
+import io.ethers.solana.types.transaction.SolanaTransactionError
 import io.ethers.solana.types.transaction.SolanaTransactionSigned
 import io.ethers.solana.types.transaction.SolanaTransactionUnsigned
 import io.ethers.solana.types.transaction.SolanaTxLegacy
@@ -79,24 +80,24 @@ class TransactionTest : FunSpec({
             partial.missingSigners shouldBe listOf(alice.publicKey)
             partial.isFullySigned shouldBe false
             shouldThrow<IllegalArgumentException> { original.sign(alice) }
-            shouldThrow<IllegalArgumentException> { partial.build() }
+            partial.build().unwrapError() shouldBe SolanaTransactionError.PartiallySigned(1, 2)
             shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.deserialize(partial.serializePartial()).unwrap() }
             shouldThrow<IllegalArgumentException> { SolanaTransactionCompiled.deserialize(partial.serializePartial()).unwrap() }
-            val completed = SolanaTransactionSigned.Builder.deserializePartial(partial.serializePartial()).unwrap().sign(alice).build()
+            val completed = SolanaTransactionSigned.Builder.deserializePartial(partial.serializePartial()).unwrap().sign(alice).build().unwrap()
             completed.serialize() shouldBe original.sign(alice, bob).serialize()
             original.sign(bob, alice).serialize() shouldBe completed.serialize()
             val externallySigned = partial.addSignature(alice.publicKey, alice.signMessage(original.serializeMessage()))
             externallySigned.isFullySigned shouldBe true
-            val snapshot = externallySigned.build()
+            val snapshot = externallySigned.build().unwrap()
             snapshot.serialize() shouldBe completed.serialize()
             original.withNewBlockhash(SolanaBlockhash(ByteArray(32))).signingBuilder().missingSigners shouldBe original.signers
             shouldThrow<IllegalArgumentException> { partial.addSignature(alice.publicKey, alice.signMessage(byteArrayOf())) }
-            partial.build().serialize() shouldBe completed.serialize()
+            partial.build().unwrap().serialize() shouldBe completed.serialize()
             partial.clearSignatures()
             partial.missingSigners shouldBe original.signers
             partial.isFullySigned shouldBe false
             snapshot.serialize() shouldBe completed.serialize()
-            shouldThrow<IllegalArgumentException> { partial.build() }
+            shouldThrow<IllegalArgumentException> { partial.build().unwrap() }
             shouldThrow<IllegalArgumentException> { SolanaTransactionSigned(original, completed.signatures.reversed()) }
             shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.Builder(original, listOf(null)) }
             shouldThrow<IllegalArgumentException> { SolanaTransactionSigned(original, emptyList()) }
@@ -119,7 +120,7 @@ class TransactionTest : FunSpec({
         }
         shouldThrow<IllegalStateException> { builder.sign(alice, throwingBob) }
         builder.signatures shouldBe listOf(null, null)
-        builder.sign(alice, bob).build().serialize() shouldBe tx.sign(alice, bob).serialize()
+        builder.sign(alice, bob).build().unwrap().serialize() shouldBe tx.sign(alice, bob).serialize()
     }
 
     test("lookup tables load writable then readonly accounts, keeping signers static") {
@@ -177,7 +178,7 @@ class TransactionTest : FunSpec({
             val builder = SolanaTransactionSigned.Builder.fromBase64Partial(encoded).unwrap()
             builder.toBase64Partial() shouldBe encoded
             if (builder.isFullySigned) {
-                SolanaTransactionCompiled.fromBase64(encoded).unwrap().serializeForSimulation() shouldBe builder.build().serialize()
+                SolanaTransactionCompiled.fromBase64(encoded).unwrap().serializeForSimulation() shouldBe builder.build().unwrap().serialize()
             }
         }
     }
@@ -211,7 +212,7 @@ class TransactionTest : FunSpec({
         val signed = SolanaTransactionSigned(tx, listOf(alice.signMessage(bytes)))
         signed.signatures.size shouldBe 1
         alice.signTransaction(tx).serialize() shouldBe signed.serialize()
-        tx.signingBuilder().sign(alice).build().serialize() shouldBe signed.serialize()
+        tx.signingBuilder().sign(alice).build().unwrap().serialize() shouldBe signed.serialize()
     }
 
     test("concrete transaction constructors validate their compiled fields") {
@@ -220,5 +221,25 @@ class TransactionTest : FunSpec({
         shouldThrow<IllegalArgumentException> {
             SolanaTxV0(MessageHeader(1, 0, 0), listOf(alice.publicKey), blockhash, emptyList(), listOf(CompiledAddressLookupTable(Programs.SYSTEM, listOf(256), emptyList())))
         }
+    }
+
+    test("each caller owns the message bytes it is given, however many times it asks") {
+        val tx = SolanaTxV0.compile(alice.publicKey, blockhash, SystemProgram.transfer(alice.publicKey, bob.publicKey, 42L)).unwrap()
+
+        // the encoding is cached, but never handed out: each call returns a fresh array
+        val first = tx.serializeMessage()
+        val second = tx.serializeMessage()
+        (first === second) shouldBe false
+        first shouldBe second
+
+        // so writing to one cannot corrupt the transaction's identity for anyone else
+        first[0] = (first[0] + 1).toByte()
+        tx.serializeMessage() shouldBe second
+        tx.sign(alice).tx.serializeMessage() shouldBe second
+
+        // and collecting signatures one at a time still verifies against those same bytes
+        val builder = tx.signingBuilder()
+        builder.addSignature(alice.publicKey, alice.signMessage(second))
+        builder.build().unwrap().serialize() shouldBe tx.sign(alice).serialize()
     }
 })

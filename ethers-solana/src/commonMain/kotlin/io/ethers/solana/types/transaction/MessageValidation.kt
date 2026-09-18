@@ -63,14 +63,19 @@ internal fun messageError(
     return null
 }
 
-internal fun signatureError(tx: SolanaTransactionUnsigned, signatures: List<SolanaSignature?>): SolanaTransactionError? {
+/** [message] lets a caller that already holds the encoded message avoid asking for another copy. */
+internal fun signatureError(
+    tx: SolanaTransactionUnsigned,
+    signatures: List<SolanaSignature?>,
+    message: ByteArray? = null,
+): SolanaTransactionError? {
     if (signatures.size != tx.header.requiredSignatures) {
         return SolanaTransactionError.InvalidMessage(
             SolanaTransactionError.Reason.SIGNATURE_COUNT,
             "Envelope carries ${signatures.size} signatures, but the message requires ${tx.header.requiredSignatures}",
         )
     }
-    val message = tx.serializeMessage()
+    val message = message ?: tx.serializeMessage()
     val signers = tx.signers
     signatures.forEachIndexed { index, signature ->
         if (signature != null && !signers[index].verify(signature, message)) {
@@ -80,6 +85,6 @@ internal fun signatureError(tx: SolanaTransactionUnsigned, signatures: List<Sola
     return null
 }
 
-internal fun validateSignatures(tx: SolanaTransactionUnsigned, signatures: List<SolanaSignature?>) {
-    signatureError(tx, signatures)?.let { throw it.toException() }
+internal fun validateSignatures(tx: SolanaTransactionUnsigned, signatures: List<SolanaSignature?>, message: ByteArray? = null) {
+    signatureError(tx, signatures, message)?.let { throw it.toException() }
 }

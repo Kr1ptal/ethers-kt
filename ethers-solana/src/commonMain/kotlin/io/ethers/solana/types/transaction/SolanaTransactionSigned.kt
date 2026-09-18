@@ -15,14 +15,23 @@ import kotlin.jvm.JvmStatic
  *
  * [signatures] is kept as given rather than copied, so pass an immutable list.
  */
-class SolanaTransactionSigned(val tx: SolanaTransactionUnsigned, val signatures: List<SolanaSignature>) :
-    SolanaTransactionCompiled by tx {
+class SolanaTransactionSigned private constructor(
+    val tx: SolanaTransactionUnsigned,
+    val signatures: List<SolanaSignature>,
+    validated: Boolean,
+) : SolanaTransactionCompiled by tx {
+
+    /**
+     * Verify every signature against the message, throwing [SolanaTransactionException] if one does
+     * not hold. [signatures] is kept as given rather than copied, so pass an immutable list.
+     */
+    constructor(tx: SolanaTransactionUnsigned, signatures: List<SolanaSignature>) : this(tx, signatures, false)
 
     /** Solana's transaction id is the fee payer's signature, not a hash of the envelope. */
     val id: SolanaSignature get() = signatures.first()
 
     init {
-        validateSignatures(tx, signatures)
+        if (!validated) validateSignatures(tx, signatures)
     }
 
     /** Changing the blockhash discards every signature, returning an unsigned transaction. */
@@ -50,15 +59,18 @@ class SolanaTransactionSigned(val tx: SolanaTransactionUnsigned, val signatures:
         val isFullySigned: Boolean get() = signatures.all { it != null }
         val missingSigners: List<SolanaAddress> get() = tx.signers.filterIndexed { index, _ -> signatures[index] == null }
 
+        /** Encoded once here: every signature this builder collects is checked against these bytes. */
+        private val message: ByteArray = tx.serializeMessage()
+
         init {
-            validateSignatures(tx, this.signatures)
+            validateSignatures(tx, this.signatures, message)
         }
 
         /** A rejected signature leaves the builder's previous signatures intact. */
         fun addSignature(signer: SolanaAddress, signature: SolanaSignature): Builder = apply {
             val index = tx.signers.indexOf(signer)
             require(index >= 0) { "Address is not a required signer" }
-            if (!signer.verify(signature, tx.serializeMessage())) {
+            if (!signer.verify(signature, message)) {
                 throw SolanaTransactionError.InvalidSignature(index, signer).toException()
             }
             signatures[index] = signature
@@ -74,7 +86,6 @@ class SolanaTransactionSigned(val tx: SolanaTransactionUnsigned, val signatures:
                 requiredSigners.indexOf(signer.publicKey)
                     .also { require(it >= 0) { "Address is not a required signer" } }
             }
-            val message = tx.serializeMessage()
             val collected = arrayOfNulls<SolanaSignature>(signers.size)
             signers.forEachIndexed { i, signer ->
                 val signature = signer.signMessage(message)
@@ -92,7 +103,16 @@ class SolanaTransactionSigned(val tx: SolanaTransactionUnsigned, val signatures:
             this@Builder.signatures.indices.forEach { this@Builder.signatures[it] = null }
         }
 
-        fun build(): SolanaTransactionSigned = SolanaTransactionSigned(tx, signatures.map { requireNotNull(it) { "Missing required signatures" } })
+        /**
+         * Every signature was verified as it was collected, so this does not check them again -
+         * repeating N Ed25519 verifications is what the builder exists to avoid. An unfilled slot is
+         * reported as [SolanaTransactionError.PartiallySigned], naming how many are still missing.
+         */
+        fun build(): Result<SolanaTransactionSigned, SolanaTransactionError> {
+            val missing = signatures.count { it == null }
+            if (missing > 0) return Result.failure(SolanaTransactionError.PartiallySigned(missing, signatures.size))
+            return Result.success(SolanaTransactionSigned(tx, signatures.map { requireNotNull(it) }, validated = true))
+        }
 
         /** Full envelope with zeros for missing signatures, for offline exchange or simulation only. */
         fun serializePartial(): ByteArray = tx.encodeEnvelope(signatures)

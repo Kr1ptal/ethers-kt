@@ -14,6 +14,8 @@ import io.ethers.solana.types.transaction.MessageHeader
 import io.ethers.solana.types.transaction.MessageInstruction
 import io.ethers.solana.types.transaction.SolanaTransactionCompiled
 import io.ethers.solana.types.transaction.SolanaTransactionConfig
+import io.ethers.solana.types.transaction.SolanaTransactionError
+import io.ethers.solana.types.transaction.SolanaTransactionException
 import io.ethers.solana.types.transaction.SolanaTransactionSigned
 import io.ethers.solana.types.transaction.SolanaTransactionUnsigned
 import io.ethers.solana.types.transaction.SolanaTxType
@@ -23,6 +25,7 @@ import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -101,11 +104,13 @@ class SolanaTxV1Test : FunSpec({
         val tx = SolanaTxV1.compile(alice.publicKey, blockhash, Instruction(Programs.SYSTEM, listOf(AccountMeta.signer(bob.publicKey)), byteArrayOf(7)), config).unwrap()
         val builder = tx.signingBuilder().sign(bob)
         builder.signatures.first() shouldBe null
-        shouldThrow<IllegalArgumentException> { builder.build() }
+        // an unfilled slot is a value now, naming how many are missing
+        builder.build().unwrapError().shouldBeInstanceOf<SolanaTransactionError.PartiallySigned>().missing shouldBe 1
+        shouldThrow<SolanaTransactionException> { builder.build().unwrap() }
         shouldThrow<IllegalArgumentException> { SolanaTransactionCompiled.deserialize(builder.serializePartial()).unwrap() }
         val imported = SolanaTransactionSigned.Builder.fromBase64Partial(builder.toBase64Partial()).unwrap()
         imported.missingSigners shouldBe listOf(alice.publicKey)
-        val signed = imported.sign(alice).build()
+        val signed = imported.sign(alice).build().unwrap()
         signed.serialize() shouldBe tx.sign(bob, alice).serialize()
         signed.serialize().takeLast(128).toByteArray() shouldBe signed.signatures.flatMap { it.toByteArray().toList() }.toByteArray()
         signed.serializeForSimulation() shouldBe signed.serialize()

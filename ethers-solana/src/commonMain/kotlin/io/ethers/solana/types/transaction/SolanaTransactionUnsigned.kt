@@ -9,7 +9,7 @@ import kotlin.jvm.JvmStatic
 /** A compiled legacy, v0 or v1 payload with no signatures. */
 sealed interface SolanaTransactionUnsigned : SolanaTransactionCompiled {
     /** Sign with every required signer, failing if any signature is missing or invalid. */
-    fun sign(vararg signers: SolanaSigner): SolanaTransactionSigned = signingBuilder().sign(*signers).build()
+    fun sign(vararg signers: SolanaSigner): SolanaTransactionSigned = signingBuilder().sign(*signers).build().unwrap()
 
     /** Rebuild the payload against a fresh blockhash. */
     fun withNewBlockhash(blockhash: SolanaBlockhash): SolanaTransactionUnsigned

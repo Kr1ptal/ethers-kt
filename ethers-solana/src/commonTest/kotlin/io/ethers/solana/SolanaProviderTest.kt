@@ -329,7 +329,7 @@ class SolanaProviderTest : FunSpec({
         val tx = SolanaTxV0.compile(alice.publicKey, blockhash, Instruction(Programs.SYSTEM, listOf(AccountMeta.signer(alice.publicKey), AccountMeta.signer(bob.publicKey)), byteArrayOf())).unwrap()
         val builder = tx.signingBuilder().sign(bob)
         val partial = builder.serializePartial()
-        val signed = builder.sign(alice).build()
+        val signed = builder.sign(alice).build().unwrap()
         response = contextual("""{"err":null,"logs":null}""")
         for (state in listOf(tx, signed)) {
             provider.simulateTransaction(state).send().unwrap().value.isSuccess shouldBe true

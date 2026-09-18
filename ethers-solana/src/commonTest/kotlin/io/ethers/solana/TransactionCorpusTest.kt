@@ -140,7 +140,7 @@ class TransactionCorpusTest : FunSpec({
             val partial = SolanaTransactionSigned.Builder(tx, signed.signatures.mapIndexed { i, value -> if (i == 0) null else value })
             val imported = SolanaTransactionSigned.Builder.deserializePartial(partial.serializePartial()).unwrap()
             imported.missingSigners shouldBe listOf(signed.feePayer)
-            imported.addSignature(signed.feePayer, signed.id).build().serialize() shouldBe signed.serialize()
+            imported.addSignature(signed.feePayer, signed.id).build().unwrap().serialize() shouldBe signed.serialize()
             val badSignature = signed.id.toByteArray().also { it[0] = (it[0].toInt() xor 1).toByte() }
             shouldThrow<IllegalArgumentException> { SolanaTransactionSigned(tx, listOf(SolanaSignature(badSignature)) + signed.signatures.drop(1)) }
             shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.deserialize(signed.serialize().dropLast(1).toByteArray()).unwrap() }
