@@ -1,8 +1,11 @@
 package io.ethers.solana.instruction
 
+import io.ethers.core.Result
+import io.ethers.solana.serialization.SolanaMessageDecoder
 import io.ethers.solana.types.AccountMeta
 import io.ethers.solana.types.Programs
 import io.ethers.solana.types.SolanaAddress
+import io.ethers.solana.types.transaction.SolanaTransactionError
 import io.ethers.solana.utils.littleEndianInto
 import io.ethers.solana.utils.requireU64
 import io.github.artificialpb.bignum.BigInteger
@@ -173,4 +176,81 @@ object Token2022Program {
         decimals: Int,
         signers: List<SolanaAddress> = emptyList(),
     ): Instruction = transferChecked(from, to, mint, owner, bigIntegerOf(amount), decimals, signers)
+}
+
+/**
+ * A token account, as the Token and Token-2022 programs store it on chain.
+ *
+ * [amount] is in the mint's base units, so a caller that wants a decimal figure needs the mint's
+ * decimals. [isNative] is the rent-exempt reserve of an account that wraps SOL, and null for any
+ * other mint. [delegate] may spend up to [delegatedAmount].
+ */
+data class TokenAccount(
+    val mint: SolanaAddress,
+    val owner: SolanaAddress,
+    val amount: BigInteger,
+    val delegate: SolanaAddress?,
+    val state: State,
+    val isNative: BigInteger?,
+    val delegatedAmount: BigInteger,
+    val closeAuthority: SolanaAddress?,
+) {
+    /** Whether the account may be used, as the program records it. */
+    enum class State {
+        UNINITIALIZED,
+        INITIALIZED,
+        FROZEN,
+    }
+
+    companion object {
+        /** Bytes the base layout occupies, which Token-2022 pads every account to before its extensions. */
+        const val SIZE: Int = 165
+
+        /** Token-2022 writes this at [SIZE] to tell an account apart from a mint padded to the same length. */
+        private const val ACCOUNT_TYPE: Int = 2
+
+        /**
+         * Decode the base layout, which Token and Token-2022 share. Token-2022 extensions follow it and
+         * are not decoded, but an account carrying them still reports its base fields.
+         */
+        @JvmStatic
+        fun decode(data: ByteArray): Result<TokenAccount, SolanaTransactionError> {
+            if (data.size < SIZE) {
+                return Result.failure(SolanaTransactionError.MalformedBytes("A token account holds at least $SIZE bytes, got ${data.size}"))
+            }
+            // a Token-2022 mint is padded to the same length, so the discriminant is what separates them
+            if (data.size > SIZE && data[SIZE].toInt() != ACCOUNT_TYPE) {
+                return Result.failure(SolanaTransactionError.MalformedBytes("Account is not a token account, got type ${data[SIZE].toInt()}"))
+            }
+
+            val decoder = SolanaMessageDecoder(data)
+            val mint = SolanaAddress(decoder.readBytes(32))
+            val owner = SolanaAddress(decoder.readBytes(32))
+            val amount = decoder.readUnsignedLittleEndian(8)
+            val delegate = decoder.readCOption { SolanaAddress(readBytes(32)) }
+            val state = when (val raw = decoder.readByte()) {
+                0 -> State.UNINITIALIZED
+                1 -> State.INITIALIZED
+                2 -> State.FROZEN
+                else -> return Result.failure(SolanaTransactionError.MalformedBytes("Token account state $raw is not one the program defines"))
+            }
+            val isNative = decoder.readCOption { readUnsignedLittleEndian(8) }
+            val delegatedAmount = decoder.readUnsignedLittleEndian(8)
+            val closeAuthority = decoder.readCOption { SolanaAddress(readBytes(32)) }
+            if (decoder.failed) {
+                return Result.failure(SolanaTransactionError.MalformedBytes(decoder.error ?: "Malformed token account"))
+            }
+            return Result.success(TokenAccount(mint, owner, amount, delegate, state, isNative, delegatedAmount, closeAuthority))
+        }
+
+        /**
+         * A `COption`: a four-byte tag, then the value, whose bytes are present and zeroed when the tag
+         * says the option is empty.
+         */
+        private inline fun <T> SolanaMessageDecoder.readCOption(read: SolanaMessageDecoder.() -> T): T? {
+            val present = readUnsignedLittleEndian(4).toLong() == 1L
+            val value = read()
+            return if (present) value else null
+        }
+    }
 }
