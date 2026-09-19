@@ -16,16 +16,22 @@ import io.ethers.solana.types.transaction.AddressLookupTableAccount
 import io.ethers.solana.types.transaction.CompiledAddressLookupTable
 import io.ethers.solana.types.transaction.MessageHeader
 import io.ethers.solana.types.transaction.SolanaTransactionCompiled
+import io.ethers.solana.types.transaction.SolanaTransactionConfig
 import io.ethers.solana.types.transaction.SolanaTransactionError
+import io.ethers.solana.types.transaction.SolanaTransactionRequest
 import io.ethers.solana.types.transaction.SolanaTransactionSigned
 import io.ethers.solana.types.transaction.SolanaTransactionUnsigned
 import io.ethers.solana.types.transaction.SolanaTxLegacy
 import io.ethers.solana.types.transaction.SolanaTxV0
+import io.ethers.solana.types.transaction.SolanaTxV1
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.types.shouldNotBeSameInstanceAs
 import kotlin.io.encoding.Base64
 
 class TransactionTest : FunSpec({
@@ -205,6 +211,48 @@ class TransactionTest : FunSpec({
         shouldThrow<IllegalArgumentException> { SolanaTransactionCompiled.deserialize(byteArrayOf(0) + tx.serializeMessage()).unwrap() }
         shouldThrow<IllegalArgumentException> { SolanaTransactionCompiled.deserialize(byteArrayOf(2) + ByteArray(128) + tx.serializeMessage()).unwrap() }
         shouldThrow<IllegalArgumentException> { SolanaTransactionCompiled.deserialize(signed.serialize() + byteArrayOf(0)).unwrap() }
+    }
+
+    test("transactions and requests compare by value, not identity") {
+        val instruction = SystemProgram.transfer(alice.publicKey, bob.publicKey, 42)
+        val legacy = SolanaTxLegacy.compile(alice.publicKey, blockhash, instruction).unwrap()
+        val sameLegacy = SolanaTxLegacy.compile(alice.publicKey, blockhash, instruction).unwrap()
+
+        // separately compiled, so equality cannot be coming from identity
+        legacy shouldNotBeSameInstanceAs sameLegacy
+        legacy shouldBe sameLegacy
+        legacy.hashCode() shouldBe sameLegacy.hashCode()
+        setOf(legacy, sameLegacy).size shouldBe 1
+
+        // any field the message carries separates two transactions
+        legacy shouldNotBe legacy.withNewBlockhash(SolanaBlockhash(ByteArray(32) { 9 }))
+        legacy shouldNotBe SolanaTxLegacy.compile(alice.publicKey, blockhash, SystemProgram.transfer(alice.publicKey, bob.publicKey, 43)).unwrap()
+
+        // a version is part of a transaction's identity, even where the fields agree
+        val v0 = SolanaTxV0.compile(alice.publicKey, blockhash, instruction).unwrap()
+        val v1 = SolanaTxV1.compile(alice.publicKey, blockhash, instruction, SolanaTransactionConfig()).unwrap()
+        legacy shouldNotBe v0
+        v0 shouldNotBe v1
+        setOf<SolanaTransactionUnsigned>(legacy, v0, v1).size shouldBe 3
+
+        // decoding is the round trip equality exists to express
+        for (tx in listOf(legacy, v0, v1)) {
+            SolanaTransactionUnsigned.deserializeMessage(tx.serializeMessage()).unwrap() shouldBe tx
+        }
+        SolanaTransactionSigned.deserialize(legacy.sign(alice).serialize()).unwrap() shouldBe legacy.sign(alice)
+
+        // a signed transaction compares on both halves
+        legacy.sign(alice) shouldBe sameLegacy.sign(alice)
+        legacy.sign(alice) shouldNotBe legacy
+        legacy.sign(alice) shouldNotBe v0.sign(alice)
+
+        val request = SolanaTransactionRequest().feePayer(alice.publicKey).blockhash(blockhash).instruction(instruction)
+        request shouldBe SolanaTransactionRequest(request)
+        request shouldNotBe SolanaTransactionRequest(request).computeUnitLimit(1000)
+
+        legacy.toString() shouldContain "recentBlockhash=$blockhash"
+        legacy.sign(alice).toString() shouldContain "signatures="
+        request.toString() shouldContain "feePayer=${alice.publicKey}"
     }
 
     test("serialized payloads and instruction data cannot be mutated through the transaction") {

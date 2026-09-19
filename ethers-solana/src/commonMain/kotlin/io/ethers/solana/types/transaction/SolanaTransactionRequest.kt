@@ -244,6 +244,42 @@ class SolanaTransactionRequest() {
         return Result.success(scaled.divide(bigIntegerOf(units)))
     }
 
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other == null || this::class != other::class) return false
+
+        other as SolanaTransactionRequest
+
+        if (feePayer != other.feePayer) return false
+        if (blockhash != other.blockhash) return false
+        if (instructions != other.instructions) return false
+        if (computeUnitLimit != other.computeUnitLimit) return false
+        if (computeUnitPrice != other.computeUnitPrice) return false
+        if (priorityFee != other.priorityFee) return false
+        if (loadedAccountsDataSizeLimit != other.loadedAccountsDataSizeLimit) return false
+        if (heapSize != other.heapSize) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = feePayer?.hashCode() ?: 0
+        result = 31 * result + (blockhash?.hashCode() ?: 0)
+        result = 31 * result + instructions.hashCode()
+        result = 31 * result + (computeUnitLimit?.hashCode() ?: 0)
+        result = 31 * result + (computeUnitPrice?.hashCode() ?: 0)
+        result = 31 * result + (priorityFee?.hashCode() ?: 0)
+        result = 31 * result + (loadedAccountsDataSizeLimit?.hashCode() ?: 0)
+        result = 31 * result + (heapSize?.hashCode() ?: 0)
+        return result
+    }
+
+    override fun toString(): String {
+        return "SolanaTransactionRequest(feePayer=$feePayer, blockhash=$blockhash, instructions=$instructions, " +
+            "computeUnitLimit=$computeUnitLimit, computeUnitPrice=$computeUnitPrice, priorityFee=$priorityFee, " +
+            "loadedAccountsDataSizeLimit=$loadedAccountsDataSizeLimit, heapSize=$heapSize)"
+    }
+
     companion object {
         @JvmSynthetic
         inline operator fun invoke(builder: SolanaTransactionRequest.() -> Unit): SolanaTransactionRequest {

@@ -41,6 +41,28 @@ class SolanaTransactionSigned private constructor(
     fun toBase64(): String = Base64.encode(serialize())
     override fun serializeForSimulation(): ByteArray = serialize()
 
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other == null || this::class != other::class) return false
+
+        other as SolanaTransactionSigned
+
+        if (tx != other.tx) return false
+        if (signatures != other.signatures) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = tx.hashCode()
+        result = 31 * result + signatures.hashCode()
+        return result
+    }
+
+    override fun toString(): String {
+        return "SolanaTransactionSigned(tx=$tx, signatures=$signatures)"
+    }
+
     /**
      * Mutable signature collector bound to an unsigned payload. Not thread-safe.
      *

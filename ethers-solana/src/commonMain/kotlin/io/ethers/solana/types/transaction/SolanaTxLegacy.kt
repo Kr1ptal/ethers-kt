@@ -58,6 +58,22 @@ class SolanaTxLegacy private constructor(
 
     override fun encodeEnvelope(signatures: List<SolanaSignature?>): ByteArray = encodeSignaturesFirstEnvelope(this, signatures)
 
+    // the encoded message is the canonical form of every field above, and is already cached
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other == null || this::class != other::class) return false
+
+        other as SolanaTxLegacy
+
+        return encodedMessage.contentEquals(other.encodedMessage)
+    }
+
+    override fun hashCode(): Int = encodedMessage.contentHashCode()
+
+    override fun toString(): String {
+        return "SolanaTxLegacy(header=$header, accounts=$accounts, recentBlockhash=$recentBlockhash, instructions=$instructions)"
+    }
+
     companion object {
         const val MAX_TRANSACTION_SIZE: Int = 1232
 

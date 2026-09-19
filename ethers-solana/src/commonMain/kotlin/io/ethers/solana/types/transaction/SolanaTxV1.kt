@@ -68,6 +68,22 @@ class SolanaTxV1 private constructor(
         return encoder.toByteArray()
     }
 
+    // the encoded message is the canonical form of every field above, and is already cached
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other == null || this::class != other::class) return false
+
+        other as SolanaTxV1
+
+        return encodedMessage.contentEquals(other.encodedMessage)
+    }
+
+    override fun hashCode(): Int = encodedMessage.contentHashCode()
+
+    override fun toString(): String {
+        return "SolanaTxV1(header=$header, accounts=$accounts, recentBlockhash=$recentBlockhash, instructions=$instructions, config=$config)"
+    }
+
     private val encodedMessage: ByteArray by lazy(LazyThreadSafetyMode.PUBLICATION) { encodeMessage() }
 
     override fun serializeMessage(): ByteArray = encodedMessage.copyOf()
