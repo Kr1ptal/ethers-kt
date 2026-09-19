@@ -392,7 +392,7 @@ Reference: [sol4k a166edd854a7198553fdafe9a5051a400d70b121](https://github.com/s
 | Arbitrary program instructions | `Instruction(programId, keys, data)` |
 | Build a transaction across versions | `SolanaTransactionRequest`, `compileLegacy`/`compileV0`/`compileV1` |
 | Shrink a v0 transaction with lookup tables | `getAddressLookupTable`, `AddressLookupTableAccount.decode`, automatic table selection in `compileV0` |
-| Read token balances without a call per account | `getTokenAccountsByOwner`, `TokenAccount.decode` |
+| Read token balances without a call per account | `getTokenAccountsByOwner`, `AccountInfo.toTokenAccount` |
 | Read a mint's supply, decimals and authorities | `TokenMint.decode` |
 | Simulate with options, or fill and compile a request | `simulateTransaction(request, ...)`, `SolanaSimulationConfig`, `fillTransaction` |
 | Rebuild a transaction from an RPC response | `SolanaRPCMessage.toTransaction`, `SolanaRPCTransaction.toSignedTransaction` |

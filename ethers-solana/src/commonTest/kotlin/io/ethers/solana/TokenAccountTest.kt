@@ -1,7 +1,12 @@
 package io.ethers.solana
 
 import io.ethers.solana.instruction.TokenAccount
+import io.ethers.solana.instruction.toTokenAccount
+import io.ethers.solana.instruction.toTokenMint
+import io.ethers.solana.types.Programs
 import io.ethers.solana.types.SolanaAddress
+import io.ethers.solana.types.rpc.AccountInfo
+import io.ethers.solana.types.rpc.ProgramAccount
 import io.ethers.solana.types.transaction.SolanaTransactionError
 import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.core.spec.style.FunSpec
@@ -60,6 +65,19 @@ class TokenAccountTest : FunSpec({
         TokenAccount.decode(extended).unwrap().amount shouldBe bigIntegerOf(117530047828352)
         val mint = live + byteArrayOf(1) + ByteArray(40)
         TokenAccount.decode(mint).unwrapError().shouldBeInstanceOf<SolanaTransactionError.MalformedBytes>()
+    }
+
+    test("an account read from RPC decodes without losing its address or lamports") {
+        val account = AccountInfo(LIVE_ACCOUNT, false, bigIntegerOf(2039280), Programs.TOKEN, bigIntegerOf(0), bigIntegerOf(165))
+        val program = ProgramAccount(SolanaAddress("3DjZ9MqvMJihtkKzVkQuFdupeG1wSdB29pWxsRuGLPV1"), account)
+        val decoded = program.account.toTokenAccount().unwrap()
+        decoded.amount shouldBe bigIntegerOf(117530047828352)
+        // the raw account is still to hand, which is what closing or transferring from it needs
+        program.pubkey shouldBe SolanaAddress("3DjZ9MqvMJihtkKzVkQuFdupeG1wSdB29pWxsRuGLPV1")
+        program.account.lamports shouldBe bigIntegerOf(2039280)
+        program.account.data.size shouldBe TokenAccount.SIZE
+        // a token account is not a mint, and says so rather than decoding to nonsense
+        program.account.toTokenMint().unwrapError().shouldBeInstanceOf<SolanaTransactionError.MalformedBytes>()
     }
 
     test("a buffer shorter than the base layout is reported rather than read") {

@@ -5,6 +5,7 @@ import io.ethers.solana.serialization.SolanaMessageDecoder
 import io.ethers.solana.types.AccountMeta
 import io.ethers.solana.types.Programs
 import io.ethers.solana.types.SolanaAddress
+import io.ethers.solana.types.rpc.AccountInfo
 import io.ethers.solana.types.transaction.SolanaTransactionError
 import io.ethers.solana.utils.littleEndianInto
 import io.ethers.solana.utils.requireU64
@@ -301,3 +302,9 @@ data class TokenMint(
         }
     }
 }
+
+/** Read this account as a [TokenAccount], keeping the account itself for its address and lamports. */
+fun AccountInfo.toTokenAccount(): Result<TokenAccount, SolanaTransactionError> = TokenAccount.decode(data.asByteArray())
+
+/** Read this account as a [TokenMint], keeping the account itself for its address and lamports. */
+fun AccountInfo.toTokenMint(): Result<TokenMint, SolanaTransactionError> = TokenMint.decode(data.asByteArray())
