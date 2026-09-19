@@ -55,13 +55,13 @@ class SubscriptionsTest : FunSpec({
 
     test("account and program subscriptions decode contextual data and filters") {
         client.event = contextual(account)
-        provider.subscribeAccount(key).send().unwrap().take()!!.value!!.data.toByteArray() shouldBe byteArrayOf(1, 2, 3)
+        provider.subscribeAccount(key).send().unwrap().receive()!!.value!!.data.toByteArray() shouldBe byteArrayOf(1, 2, 3)
         client.descriptor.subscribeMethod shouldBe "accountSubscribe"
         client.descriptor.unsubscribeMethod shouldBe "accountUnsubscribe"
         client.params[0] shouldBe key.toString()
         client.params[1] shouldBe Kotlinx.DEFAULT.parseToJsonElement("""{"commitment":"finalized","encoding":"base64"}""")
         client.event = contextual("""{"pubkey":"$key","account":$account}""")
-        provider.subscribeProgram(key, listOf(AccountFilter.DataSize(165), AccountFilter.Memcmp(0, key.toString()))).send().unwrap().take()!!.value.pubkey shouldBe key
+        provider.subscribeProgram(key, listOf(AccountFilter.DataSize(165), AccountFilter.Memcmp(0, key.toString()))).send().unwrap().receive()!!.value.pubkey shouldBe key
         client.descriptor.subscribeMethod shouldBe "programSubscribe"
         client.params[1] shouldBe Kotlinx.DEFAULT.parseToJsonElement("""{"commitment":"finalized","encoding":"base64","filters":[{"dataSize":165},{"memcmp":{"offset":0,"bytes":"$key","encoding":"base58"}}]}""")
     }
@@ -84,16 +84,16 @@ class SubscriptionsTest : FunSpec({
 
         // slotsUpdates carries a different field set per type; frozen is the one with stats
         client.event = """{"slot":9,"timestamp":1700000000000,"type":"frozen","stats":{"numTransactionEntries":1,"numSuccessfulTransactions":2,"numFailedTransactions":3,"maxTransactionsPerEntry":4}}"""
-        val update = provider.subscribeSlotsUpdates().send().unwrap().take()!!
+        val update = provider.subscribeSlotsUpdates().send().unwrap().receive()!!
         update.type shouldBe SlotUpdateType.FROZEN
         update.stats!!.numFailedTransactions shouldBe bigIntegerOf(3)
         update.parent shouldBe null
 
         client.event = """{"slot":9,"timestamp":1700000000000,"type":"createdBank","parent":8}"""
-        provider.subscribeSlotsUpdates().send().unwrap().take()!!.parent shouldBe bigIntegerOf(8)
+        provider.subscribeSlotsUpdates().send().unwrap().receive()!!.parent shouldBe bigIntegerOf(8)
 
         client.event = """{"hash":"$blockhash","slots":[8,9],"timestamp":1700000000,"votePubkey":"$key"}"""
-        val vote = provider.subscribeVote().send().unwrap().take()!!
+        val vote = provider.subscribeVote().send().unwrap().receive()!!
         vote.slots shouldBe listOf(bigIntegerOf(8), bigIntegerOf(9))
         vote.votePubkey shouldBe key
     }
@@ -130,7 +130,7 @@ class SubscriptionsTest : FunSpec({
 
     test("logs support all, allWithVotes and single-account mentions") {
         client.event = contextual("""{"signature":"$signature","err":null,"logs":["hello"]}""")
-        provider.subscribeLogs().send().unwrap().take()!!.value.logs shouldBe listOf("hello")
+        provider.subscribeLogs().send().unwrap().receive()!!.value.logs shouldBe listOf("hello")
         client.params[0] shouldBe JsonPrimitive("all")
         provider.subscribeLogs(LogsFilter.AllWithVotes).send().unwrap()
         client.params[0] shouldBe JsonPrimitive("allWithVotes")
@@ -141,12 +141,12 @@ class SubscriptionsTest : FunSpec({
 
     test("signature received events are non-terminal and statuses are terminal") {
         client.event = contextual("\"receivedSignature\"")
-        val received = provider.subscribeSignature(signature, enableReceivedNotification = true).send().unwrap().take()!!
+        val received = provider.subscribeSignature(signature, enableReceivedNotification = true).send().unwrap().receive()!!
         received.context shouldBe RpcContext(bigIntegerOf(42))
         received.value shouldBe SignatureNotification.Received
         client.descriptor.isTerminal(Kotlinx.DEFAULT.parseToJsonElement(client.event)) shouldBe false
         client.event = contextual("""{"err":{"InstructionError":[0,"InvalidArgument"]}}""")
-        val status = provider.subscribeSignature(signature).send().unwrap().take()!!
+        val status = provider.subscribeSignature(signature).send().unwrap().receive()!!
         status.context shouldBe RpcContext(bigIntegerOf(42))
         (status.value as SignatureNotification.Status).err shouldBe io.ethers.solana.types.rpc.TransactionError.InstructionFailure(0, io.ethers.solana.types.rpc.InstructionError.InvalidArgument)
         client.descriptor.isTerminal(Kotlinx.DEFAULT.parseToJsonElement(client.event)) shouldBe true
@@ -155,11 +155,11 @@ class SubscriptionsTest : FunSpec({
 
     test("slot and root subscriptions have empty params and precise numeric results") {
         client.event = """{"parent":40,"root":39,"slot":42}"""
-        provider.subscribeSlot().send().unwrap().take()!!.slot shouldBe bigIntegerOf(42)
+        provider.subscribeSlot().send().unwrap().receive()!!.slot shouldBe bigIntegerOf(42)
         client.params.isEmpty() shouldBe true
         client.descriptor.subscribeMethod shouldBe "slotSubscribe"
         client.event = "42"
-        provider.subscribeRoot().send().unwrap().take() shouldBe bigIntegerOf(42)
+        provider.subscribeRoot().send().unwrap().receive() shouldBe bigIntegerOf(42)
         client.params.isEmpty() shouldBe true
         client.descriptor.subscribeMethod shouldBe "rootSubscribe"
     }

@@ -52,7 +52,7 @@ class SubscriptionDescriptorTest : FunSpec({
         server.sendJson("""{"jsonrpc":"2.0","method":"wrongNotification","params":{"subscription":42,"result":"wrong"}}""")
         server.sendJson("""{"jsonrpc":"2.0","method":"slotNotification","params":{"subscription":42,"result":"before"}}""")
         eventually(5.seconds) { stream.isEmpty shouldBe false }
-        stream.take() shouldBe "before"
+        stream.receive() shouldBe "before"
 
         server.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":43}""")
         server.closeConnection()
@@ -64,7 +64,7 @@ class SubscriptionDescriptorTest : FunSpec({
             server.sendJson("""{"jsonrpc":"2.0","method":"slotNotification","params":{"subscription":43,"result":"after"}}""")
             stream.isEmpty shouldBe false
         }
-        stream.take() shouldBe "after"
+        stream.receive() shouldBe "after"
         stream.close()
         val unsubscribe = Kotlinx.DEFAULT.parseToJsonElement(server.takeReceivedText(5000)!!).jsonObject
         unsubscribe["method"] shouldBe JsonPrimitive("slotUnsubscribe")
@@ -78,11 +78,11 @@ class SubscriptionDescriptorTest : FunSpec({
         subscribe.getValue("params").jsonArray shouldBe listOf(JsonPrimitive("test-signature"))
         server.sendJson("""{"jsonrpc":"2.0","method":"signatureNotification","params":{"subscription":7,"result":"received"}}""")
         eventually(5.seconds) { stream.isEmpty shouldBe false }
-        stream.take() shouldBe "received"
+        stream.receive() shouldBe "received"
         stream.isClosed shouldBe false
         server.sendJson("""{"jsonrpc":"2.0","method":"signatureNotification","params":{"subscription":7,"result":"done"}}""")
         eventually(5.seconds) { stream.isClosed shouldBe true }
-        stream.take() shouldBe "done"
+        stream.receive() shouldBe "done"
         server.takeReceivedText(100) shouldBe null
         server.closeConnection()
         server.takeReceivedText(3000) shouldBe null

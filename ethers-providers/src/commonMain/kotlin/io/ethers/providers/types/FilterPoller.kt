@@ -1,7 +1,6 @@
 package io.ethers.providers.types
 
 import io.channels.core.Channel
-import io.channels.core.ChannelConsumer
 import io.channels.core.ChannelFunction
 import io.channels.core.ChannelPredicate
 import io.channels.core.ChannelReceiver
@@ -58,14 +57,6 @@ class FilterPoller<T : Any> private constructor(
 
     override val notificationHandle: NotificationHandle
         get() = channel.notificationHandle
-
-    override fun forEach(consumer: ChannelConsumer<in T>) {
-        channel.forEach(consumer)
-    }
-
-    override fun take(): T? {
-        return channel.take()
-    }
 
     override fun poll(): T? {
         return channel.poll()

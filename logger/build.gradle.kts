@@ -11,7 +11,8 @@ kotlin {
             }
         }
 
-        val jvmSharedMain by getting {
+        // jvmSharedMain is androidMain's parent too, and log4j2 is a JVM backend that cannot dex
+        val jvmMain by getting {
             dependencies {
                 runtimeOnly(libs.bundles.log4j2)
             }

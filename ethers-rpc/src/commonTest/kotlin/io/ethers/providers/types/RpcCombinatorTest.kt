@@ -143,8 +143,8 @@ class RpcCombinatorTest : FunSpec({
                 delay(1)
                 it.map { v -> v * 10 }
             }.send().unwrap()
-            mapped.take() shouldBe 10
-            mapped.take() shouldBe 20
+            mapped.receive() shouldBe 10
+            mapped.receive() shouldBe 20
 
             bad().map {
                 delay(1)
@@ -182,7 +182,7 @@ class RpcCombinatorTest : FunSpec({
             bad().orElse {
                 delay(1)
                 success(stream(9))
-            }.send().unwrap().take() shouldBe 9
+            }.send().unwrap().receive() shouldBe 9
             bad().orElse {
                 delay(1)
                 failure(otherErr)
@@ -190,7 +190,7 @@ class RpcCombinatorTest : FunSpec({
             ok(1).orElse {
                 delay(1)
                 success(stream(9))
-            }.send().unwrap().take() shouldBe 1
+            }.send().unwrap().receive() shouldBe 1
         }
 
         test("onSuccess runs the suspending callback only on success, passing the result through") {

@@ -9,10 +9,6 @@ The module depends on `ethers-rpc` and `ethers-common`, the chain-agnostic layer
 HTTP/WebSocket clients, request batching, errors, and coroutine/blocking/future execution APIs. It pulls
 in no EVM module, so nothing Ethereum-specific is transitive.
 
-Android currently inherits a known `channels-core:1.0.4` incompatibility: its MethodHandle bytecode prevents
-APK dexing below API 26 despite the repository's declared `minSdk 24`. Fixing that existing dependency is
-deferred. The module's Android library compiles, but API 24 device tests cannot run until that is resolved.
-
 ## Kotlin
 
 ```kotlin

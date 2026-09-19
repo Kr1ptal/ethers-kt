@@ -46,7 +46,7 @@ sol4k-tweetnacl = { module = "org.sol4k:tweetnacl", version = "0.1.6" }
 ethers-rlp = { module = "io.kriptal.ethers:ethers-signers", version.ref = "ethers" }
 ethers-signers = { module = "io.kriptal.ethers:ethers-signers", version.ref = "ethers" }
 
-channelskt-core = { module = "io.kriptal.channels:channels-core", version = "1.0.4" }
+channelskt-core = { module = "io.kriptal.channels:channels-core", version = "2.0.0" }
 
 log4j2-core = { module = "org.apache.logging.log4j:log4j-core", version.ref = "log4j2" }
 log4j2-api = { module = "org.apache.logging.log4j:log4j-api", version.ref = "log4j2" }

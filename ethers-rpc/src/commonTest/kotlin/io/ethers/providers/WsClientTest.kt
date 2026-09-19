@@ -127,7 +127,7 @@ class WsClientTest : FunSpec({
             )
 
             eventually(1.seconds) { stream.isEmpty shouldBe false }
-            val payload = stream.take()!!
+            val payload = stream.receive()!!
             payload shouldBe byteArrayOf(0xde.toByte(), 0xad.toByte(), 0xbe.toByte(), 0xef.toByte())
         }
     }
@@ -221,7 +221,7 @@ class WsClientTest : FunSpec({
             eventually(1.seconds) {
                 stream.isEmpty shouldBe false
             }
-            val event1 = stream.take()!!
+            val event1 = stream.receive()!!
             event1["number"]?.jsonPrimitive?.content shouldBe "0x1234"
             event1["hash"]?.jsonPrimitive?.content shouldBe "0xabcd"
             event1["timestamp"]?.jsonPrimitive?.content shouldBe "0x1111"
@@ -230,7 +230,7 @@ class WsClientTest : FunSpec({
             eventually(1.seconds) {
                 stream.isEmpty shouldBe false
             }
-            val event2 = stream.take()!!
+            val event2 = stream.receive()!!
             event2["number"]?.jsonPrimitive?.content shouldBe "0x1235"
             event2["hash"]?.jsonPrimitive?.content shouldBe "0xefgh"
             event2["timestamp"]?.jsonPrimitive?.content shouldBe "0x2222"
@@ -239,7 +239,7 @@ class WsClientTest : FunSpec({
             eventually(1.seconds) {
                 stream.isEmpty shouldBe false
             }
-            val event3 = stream.take()!!
+            val event3 = stream.receive()!!
             event3["number"]?.jsonPrimitive?.content shouldBe "0x1236"
             event3["hash"]?.jsonPrimitive?.content shouldBe "0xijkl"
             event3["timestamp"]?.jsonPrimitive?.content shouldBe "0x3333"
@@ -334,7 +334,7 @@ class WsClientTest : FunSpec({
                 stream.isClosed shouldBe false
                 stream.isEmpty shouldBe false
             }
-            val event = stream.take()!!
+            val event = stream.receive()!!
             event["number"]?.jsonPrimitive?.content shouldBe "0x9999"
         }
 
@@ -375,7 +375,7 @@ class WsClientTest : FunSpec({
                 stream.isEmpty shouldBe false
             }
 
-            val event1 = stream.take()!!
+            val event1 = stream.receive()!!
             event1["number"]?.jsonPrimitive?.content shouldBe "0x1234"
             event1["hash"]?.jsonPrimitive?.content shouldBe "0xabcd"
             event1["timestamp"]?.jsonPrimitive?.content shouldBe "0x1111"
