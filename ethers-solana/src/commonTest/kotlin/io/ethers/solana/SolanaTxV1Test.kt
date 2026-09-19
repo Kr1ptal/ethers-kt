@@ -25,7 +25,6 @@ import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -104,8 +103,8 @@ class SolanaTxV1Test : FunSpec({
         val tx = SolanaTxV1.compile(alice.publicKey, blockhash, Instruction(Programs.SYSTEM, listOf(AccountMeta.signer(bob.publicKey)), byteArrayOf(7)), config).unwrap()
         val builder = tx.signingBuilder().sign(bob)
         builder.signatures.first() shouldBe null
-        // an unfilled slot is a value now, naming how many are missing
-        builder.build().unwrapError().shouldBeInstanceOf<SolanaTransactionError.PartiallySigned>().missing shouldBe 1
+        // an unfilled slot is a value now, naming which slots are still to fill
+        builder.build().unwrapError() shouldBe SolanaTransactionError.UnsignedSlots(listOf(0), emptyList())
         shouldThrow<SolanaTransactionException> { builder.build().unwrap() }
         shouldThrow<IllegalArgumentException> { SolanaTransactionCompiled.deserialize(builder.serializePartial()).unwrap() }
         val imported = SolanaTransactionSigned.Builder.fromBase64Partial(builder.toBase64Partial()).unwrap()
@@ -119,8 +118,11 @@ class SolanaTxV1Test : FunSpec({
         val changed = signed.withNewBlockhash(SolanaBlockhash(ByteArray(32) { 1 })) as SolanaTxV1
         changed.config shouldBe config
         changed.signingBuilder().missingSigners shouldBe tx.signers
-        shouldThrow<IllegalArgumentException> { changed.signingBuilder().addSignature(alice.publicKey, signed.id) }
-        shouldThrow<IllegalArgumentException> { tx.withConfig(empty).signingBuilder().addSignature(alice.publicKey, signed.id) }
+        // a signature over different bytes is collected, then reported against its slot by build
+        val wrongBlockhash = changed.signingBuilder().addSignature(alice.publicKey, signed.id).sign(bob)
+        wrongBlockhash.build().unwrapError() shouldBe SolanaTransactionError.UnsignedSlots(emptyList(), listOf(0))
+        val wrongConfig = tx.withConfig(empty).signingBuilder().addSignature(alice.publicKey, signed.id).sign(bob)
+        wrongConfig.build().unwrapError() shouldBe SolanaTransactionError.UnsignedSlots(emptyList(), listOf(0))
         builder.clearSignatures()
         signed.serialize() shouldBe tx.sign(alice, bob).serialize()
     }

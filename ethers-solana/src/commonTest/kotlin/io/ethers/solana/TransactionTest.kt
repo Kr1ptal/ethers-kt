@@ -60,7 +60,10 @@ class TransactionTest : FunSpec({
             val changed = transaction.withNewBlockhash(SolanaBlockhash(ByteArray(32)))
             changed::class shouldBe message::class
             changed.signingBuilder().missingSigners shouldBe listOf(alice.publicKey)
-            shouldThrow<IllegalArgumentException> { changed.signingBuilder().addSignature(alice.publicKey, transaction.id) }
+            // a signature over the old blockhash is collected, then reported against its slot by build
+            changed.signingBuilder().addSignature(alice.publicKey, transaction.id).build()
+                .unwrapError() shouldBe SolanaTransactionError.UnsignedSlots(emptyList(), listOf(0))
+            // an address that is not a required signer has no slot to fill, so it is still rejected here
             shouldThrow<IllegalArgumentException> { message.signingBuilder().addSignature(bob.publicKey, bob.signMessage(message.serializeMessage())) }
             shouldThrow<IllegalArgumentException> { SolanaTransactionUnsigned.deserializeMessage(message.serializeMessage() + byteArrayOf(0)).unwrap() }
             shouldThrow<IllegalArgumentException> { SolanaTransactionUnsigned.deserializeMessage(message.serializeMessage().dropLast(1).toByteArray()).unwrap() }
@@ -80,7 +83,7 @@ class TransactionTest : FunSpec({
             partial.missingSigners shouldBe listOf(alice.publicKey)
             partial.isFullySigned shouldBe false
             shouldThrow<IllegalArgumentException> { original.sign(alice) }
-            partial.build().unwrapError() shouldBe SolanaTransactionError.PartiallySigned(1, 2)
+            partial.build().unwrapError() shouldBe SolanaTransactionError.UnsignedSlots(listOf(0), emptyList())
             shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.deserialize(partial.serializePartial()).unwrap() }
             shouldThrow<IllegalArgumentException> { SolanaTransactionCompiled.deserialize(partial.serializePartial()).unwrap() }
             val completed = SolanaTransactionSigned.Builder.deserializePartial(partial.serializePartial()).unwrap().sign(alice).build().unwrap()
@@ -91,7 +94,10 @@ class TransactionTest : FunSpec({
             val snapshot = externallySigned.build().unwrap()
             snapshot.serialize() shouldBe completed.serialize()
             original.withNewBlockhash(SolanaBlockhash(ByteArray(32))).signingBuilder().missingSigners shouldBe original.signers
-            shouldThrow<IllegalArgumentException> { partial.addSignature(alice.publicKey, alice.signMessage(byteArrayOf())) }
+            // a signature that does not hold is now held rather than rejected on the spot, and named by build
+            partial.addSignature(alice.publicKey, alice.signMessage(byteArrayOf()))
+            partial.build().unwrapError() shouldBe SolanaTransactionError.UnsignedSlots(emptyList(), listOf(0))
+            partial.addSignature(alice.publicKey, alice.signMessage(original.serializeMessage()))
             partial.build().unwrap().serialize() shouldBe completed.serialize()
             partial.clearSignatures()
             partial.missingSigners shouldBe original.signers
@@ -112,8 +118,10 @@ class TransactionTest : FunSpec({
             override val publicKey = bob.publicKey
             override fun signMessage(message: ByteArray): SolanaSignature = bob.signMessage(byteArrayOf())
         }
-        shouldThrow<IllegalArgumentException> { builder.sign(alice, invalidBob) }
-        builder.signatures shouldBe listOf(null, null)
+        // a signer that produces a signature over the wrong bytes is reported by build, against its slot
+        builder.sign(alice, invalidBob)
+        builder.build().unwrapError() shouldBe SolanaTransactionError.UnsignedSlots(emptyList(), listOf(1))
+        builder.clearSignatures()
         val throwingBob = object : SolanaSigner {
             override val publicKey = bob.publicKey
             override fun signMessage(message: ByteArray): SolanaSignature = throw IllegalStateException("Signer unavailable")
@@ -189,7 +197,9 @@ class TransactionTest : FunSpec({
         val corrupt = signed.serialize().also { it[1] = (it[1].toInt() xor 1).toByte() }
         shouldThrow<IllegalArgumentException> { SolanaTransactionCompiled.deserialize(corrupt).unwrap() }
         shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.deserialize(corrupt).unwrap() }
-        shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.Builder.deserializePartial(corrupt).unwrap() }
+        // a collector imports the corrupt slot and reports it when asked to build
+        SolanaTransactionSigned.Builder.deserializePartial(corrupt).unwrap().build()
+            .unwrapError() shouldBe SolanaTransactionError.UnsignedSlots(emptyList(), listOf(0))
         shouldThrow<IllegalArgumentException> { SolanaTransactionSigned(tx, listOf(SolanaSignature(ByteArray(64)))) }
         shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.deserialize(tx.serializeForSimulation()).unwrap() }
         shouldThrow<IllegalArgumentException> { SolanaTransactionCompiled.deserialize(byteArrayOf(0) + tx.serializeMessage()).unwrap() }

@@ -9,8 +9,9 @@ import io.ethers.solana.types.SolanaAddress
  *
  * The cases a caller can act on are distinct types: [EnvelopeTooLarge] is answered by splitting the
  * instructions, moving accounts into a lookup table, or compiling as v1; [PartiallySigned] by
- * importing through `SolanaTransactionSigned.Builder.deserializePartial`; [InvalidSignature] by
- * collecting that signature again; [UnsupportedVersion] by reading the transaction as a
+ * importing through `SolanaTransactionSigned.Builder.deserializePartial`; [UnsignedSlots] and
+ * [InvalidSignature] by collecting those signatures again; [UnsupportedVersion] by reading the
+ * transaction as a
  * `SolanaRPCTransaction`. The remaining failures mean the message is malformed, so they are grouped
  * into [CountOutOfRange] and [InvalidMessage], each tagged with which check failed.
  *
@@ -105,6 +106,19 @@ sealed class SolanaTransactionError : ThrowableError {
 
     /** Some, but not all, signature slots are filled. Import these with `Builder.deserializePartial`. */
     data class PartiallySigned(val missing: Int, val required: Int) : SolanaTransactionError()
+
+    /**
+     * Signature slots that are empty ([missing]) or hold a signature that does not verify ([invalid]).
+     * Both are indexes into the message's required signers, so `tx.signers[index]` names each signer.
+     */
+    data class UnsignedSlots(val missing: List<Int>, val invalid: List<Int>) : SolanaTransactionError() {
+        override val message: String get() = buildString {
+            append("Cannot build a signed transaction: ")
+            if (missing.isNotEmpty()) append("slots ${missing.joinToString()} have no signature")
+            if (missing.isNotEmpty() && invalid.isNotEmpty()) append(", and ")
+            if (invalid.isNotEmpty()) append("slots ${invalid.joinToString()} do not verify")
+        }
+    }
 }
 
 /**

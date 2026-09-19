@@ -43,7 +43,9 @@ class SolanaTransactionSigned private constructor(
 
     /**
      * Mutable signature collector bound to an unsigned payload. Not thread-safe.
-     * Every supplied signature is verified; [build] additionally requires all signer slots to be filled.
+     *
+     * Slots are filled as given and verified only by [build], so until then the collector holds
+     * unverified signatures.
      *
      * [signatures] is the collector's own list, not a snapshot: it reflects later [sign] and
      * [addSignature] calls. Take a copy if you need a stable view. [build] does produce an
@@ -59,26 +61,25 @@ class SolanaTransactionSigned private constructor(
         val isFullySigned: Boolean get() = signatures.all { it != null }
         val missingSigners: List<SolanaAddress> get() = tx.signers.filterIndexed { index, _ -> signatures[index] == null }
 
-        /** Encoded once here: every signature this builder collects is checked against these bytes. */
+        /** The bytes this builder signs and verifies against, encoded once. */
         private val message: ByteArray = tx.serializeMessage()
 
         init {
-            validateSignatures(tx, this.signatures, message)
+            require(this.signatures.size == tx.header.requiredSignatures) {
+                "Collector holds ${this.signatures.size} slots, but the message requires ${tx.header.requiredSignatures}"
+            }
         }
 
-        /** A rejected signature leaves the builder's previous signatures intact. */
+        /** Fill [signer]'s slot. The signature is verified by [build], not here. */
         fun addSignature(signer: SolanaAddress, signature: SolanaSignature): Builder = apply {
             val index = tx.signers.indexOf(signer)
             require(index >= 0) { "Address is not a required signer" }
-            if (!signer.verify(signature, message)) {
-                throw SolanaTransactionError.InvalidSignature(index, signer).toException()
-            }
             signatures[index] = signature
         }
 
         /**
-         * Collect signatures atomically: a failure leaves the builder's previous signatures intact.
-         * Each signature is verified as it is produced, so nothing is written until all of them hold.
+         * Sign with each of [signers], atomically: an unknown address, or a signer that fails to
+         * produce a signature, leaves the builder's previous signatures intact.
          */
         fun sign(vararg signers: SolanaSigner): Builder = apply {
             val requiredSigners = tx.signers
@@ -86,15 +87,7 @@ class SolanaTransactionSigned private constructor(
                 requiredSigners.indexOf(signer.publicKey)
                     .also { require(it >= 0) { "Address is not a required signer" } }
             }
-            val collected = arrayOfNulls<SolanaSignature>(signers.size)
-            signers.forEachIndexed { i, signer ->
-                val signature = signer.signMessage(message)
-                val signerAddress = requiredSigners[indices[i]]
-                if (!signerAddress.verify(signature, message)) {
-                    throw SolanaTransactionError.InvalidSignature(indices[i], signerAddress).toException()
-                }
-                collected[i] = signature
-            }
+            val collected = Array(signers.size) { signers[it].signMessage(message) }
             collected.forEachIndexed { i, signature -> signatures[indices[i]] = signature }
         }
 
@@ -104,22 +97,34 @@ class SolanaTransactionSigned private constructor(
         }
 
         /**
-         * Every signature was verified as it was collected, so this does not check them again -
-         * repeating N Ed25519 verifications is what the builder exists to avoid. An unfilled slot is
-         * reported as [SolanaTransactionError.PartiallySigned], naming how many are still missing.
+         * The signed transaction, once every slot is filled with a signature that verifies. Slots that
+         * are not are reported together as [SolanaTransactionError.UnsignedSlots].
          */
         fun build(): Result<SolanaTransactionSigned, SolanaTransactionError> {
-            val missing = signatures.count { it == null }
-            if (missing > 0) return Result.failure(SolanaTransactionError.PartiallySigned(missing, signatures.size))
+            val signers = tx.signers
+            val missing = mutableListOf<Int>()
+            val invalid = mutableListOf<Int>()
+            signatures.forEachIndexed { index, signature ->
+                when {
+                    signature == null -> missing.add(index)
+                    !signers[index].verify(signature, message) -> invalid.add(index)
+                }
+            }
+            if (missing.isNotEmpty() || invalid.isNotEmpty()) {
+                return Result.failure(SolanaTransactionError.UnsignedSlots(missing, invalid))
+            }
             return Result.success(SolanaTransactionSigned(tx, signatures.map { requireNotNull(it) }, validated = true))
         }
 
-        /** Full envelope with zeros for missing signatures, for offline exchange or simulation only. */
+        /**
+         * Full envelope with zeros for missing signatures, for offline exchange or simulation only.
+         * Its populated slots are unverified.
+         */
         fun serializePartial(): ByteArray = tx.encodeEnvelope(signatures)
         fun toBase64Partial(): String = Base64.encode(serializePartial())
 
         companion object {
-            /** Import an envelope, verifying populated slots and retaining missing ones for further signing. */
+            /** Import an envelope, retaining its empty slots for further signing. */
             @JvmStatic
             fun deserializePartial(bytes: ByteArray): Result<Builder, SolanaTransactionError> = decodeTransactionEnvelope(bytes).map { (tx, signatures) -> Builder(tx, signatures) }
 
