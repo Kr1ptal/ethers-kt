@@ -48,11 +48,14 @@ class SolanaAddress(bytes: ByteArray) {
     companion object {
         private val SCALAR_ORDER = io.github.artificialpb.bignum.BigInteger("1000000000000000000000000000000014def9dea2f79cd65812631a5cf5d3ed", 16)
 
-        /** Derive an address from at most 16 seeds of at most 32 bytes each. */
+        /**
+         * Derive an address from at most 16 seeds of at most 32 bytes each, or null if the seeds
+         * produce an on-curve address, which around half of all seed sets do.
+         */
         @JvmStatic
-        fun createProgramAddress(seeds: List<ByteArray>, programId: SolanaAddress): SolanaAddress {
+        fun createProgramAddress(seeds: List<ByteArray>, programId: SolanaAddress): SolanaAddress? {
             validateSeeds(seeds, 16)
-            return derive(seeds, programId) ?: throw IllegalArgumentException("Seeds produce an on-curve address")
+            return derive(seeds, programId)
         }
 
         /** Find the highest valid bump, including zero. The bump occupies the sixteenth seed slot. */

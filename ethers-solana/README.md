@@ -34,8 +34,9 @@ suspend fun transfer(seed: ByteArray, recipient: SolanaAddress) {
             SystemProgram.transfer(signer.publicKey, recipient, 1_000L),
         ).unwrap()
         val transaction = message.sign(signer)
-        val signature = provider.sendTransaction(transaction).send().unwrap()
-        println(signature)
+        val pending = provider.sendTransaction(transaction).send().unwrap()
+        println(pending.signature)
+        println(pending.confirmation().unwrap().confirmationStatus)
     } finally {
         provider.close()
     }
@@ -44,8 +45,9 @@ suspend fun transfer(seed: ByteArray, recipient: SolanaAddress) {
 
 `send()` suspends and returns `io.ethers.core.Result`; `unwrap()` explicitly opts into throwing on failure. The
 same holds for anything that can fail to build or decode: `compile`, `create`, `deserialize`, `decode`,
-`toRequest`, `resolveAccounts` and `signMessage` all return a `Result` rather than throwing, so the
-failure is a value you can inspect without paying for a stack trace.
+`toRequest` and `resolveAccounts` all return a `Result` rather than throwing, so the failure is a value
+you can inspect without paying for a stack trace. Signing mirrors the EVM `Signer`: `signMessage` and
+`signTransaction` throw, while `trySignMessage` and `trySignTransaction` return a `Result`.
 JVM/Android also expose inherited `sendAwait()` and `sendAsync()` members. Constructors and invalid local
 transaction inputs fail immediately with `IllegalArgumentException`.
 
@@ -59,7 +61,9 @@ try {
     var instruction = SystemProgram.transfer(signer.getPublicKey(), recipient, 1_000L);
     var message = SolanaTxV0.compile(signer.getPublicKey(), latest.getBlockhash(), instruction).unwrap();
     var transaction = message.sign(signer);
-    var signature = provider.sendTransaction(transaction).sendAwait().unwrap();
+    var pending = provider.sendTransaction(transaction).sendAwait().unwrap();
+    System.out.println(pending.getSignature());
+    System.out.println(pending.awaitConfirmation().unwrap().getConfirmationStatus());
 } finally {
     provider.close();
 }
@@ -74,8 +78,9 @@ unsigned payload in `tx` and delegates its common properties. There is no separa
 ```kotlin
 val unsigned = SolanaTxV0.compile(feePayer, blockhash, instructions).unwrap()
 val builder = unsigned.signingBuilder().sign(alice) // SolanaTransactionSigned.Builder
-val signed = builder.sign(bob).build()              // requires every signature
+val signed = builder.sign(bob).build().unwrap()     // Result; every slot must hold a valid signature
 // Or collect external signatures with addSignature(address, signature), then call build().
+// build() reports every empty and every failing slot at once, as SolanaTransactionError.UnsignedSlots.
 ```
 
 `unsigned.sign(vararg signers)` requires all signers. The nested builder collects signatures for a fixed

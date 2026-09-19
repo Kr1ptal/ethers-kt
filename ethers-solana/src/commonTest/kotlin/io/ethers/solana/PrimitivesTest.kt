@@ -13,6 +13,7 @@ import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 
@@ -66,8 +67,10 @@ class PrimitivesTest : FunSpec({
         shouldThrow<IllegalArgumentException> { SolanaAddress.findProgramAddress(listOf(ByteArray(33)), Programs.SYSTEM) }
         shouldThrow<IllegalArgumentException> { SolanaAddress.findProgramAddress(List(16) { byteArrayOf() }, Programs.SYSTEM) }
         // Empty seeds and explicit bump zero are legal inputs, irrespective of whether a given hash is off-curve.
-        val zero = (0..255).first { n -> runCatching { SolanaAddress.createProgramAddress(listOf(byteArrayOf(n.toByte()), byteArrayOf(0)), Programs.SYSTEM) }.isSuccess }
-        SolanaAddress.createProgramAddress(listOf(byteArrayOf(zero.toByte()), byteArrayOf(0)), Programs.SYSTEM).isOnCurve() shouldBe false
+        val zero = (0..255).first { n -> SolanaAddress.createProgramAddress(listOf(byteArrayOf(n.toByte()), byteArrayOf(0)), Programs.SYSTEM) != null }
+        SolanaAddress.createProgramAddress(listOf(byteArrayOf(zero.toByte()), byteArrayOf(0)), Programs.SYSTEM)!!.isOnCurve() shouldBe false
+        // an on-curve result is a value, since around half of all seed sets produce one
+        (0..255).mapNotNull { n -> SolanaAddress.createProgramAddress(listOf(byteArrayOf(n.toByte())), Programs.SYSTEM) }.size shouldBeLessThan 256
     }
 
     test("SolanaAddress serializer preserves base58 addresses including off-curve PDAs") {
