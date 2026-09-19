@@ -10,13 +10,7 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.io.encoding.Base64
 
 class TokenAccountTest : FunSpec({
-    // 3DjZ9MqvMJihtkKzVkQuFdupeG1wSdB29pWxsRuGLPV1 on mainnet, owned by the Token program.
-    // Field values below are the node's own jsonParsed reading of these same bytes.
-    val live = Base64.decode(
-        "lbx/EOQNYs9/ROmd4dD1vVJSbOLrRZayBcTY+mqnSeRBV7BYDzHF/ORKYlgtvPnXjudZQ6CEo5OzUDaNIomTCIBRwJjk" +
-            "agAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
-            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-    )
+    val live = LIVE_ACCOUNT
 
     test("decodes a live mainnet token account exactly as the node parses it") {
         live.size shouldBe TokenAccount.SIZE
@@ -72,4 +66,16 @@ class TokenAccountTest : FunSpec({
         TokenAccount.decode(live.copyOf(164)).unwrapError().shouldBeInstanceOf<SolanaTransactionError.MalformedBytes>()
         TokenAccount.decode(ByteArray(0)).unwrapError().shouldBeInstanceOf<SolanaTransactionError.MalformedBytes>()
     }
-})
+}) {
+    companion object {
+        /**
+         * 3DjZ9MqvMJihtkKzVkQuFdupeG1wSdB29pWxsRuGLPV1 on mainnet, owned by the Token program. Field
+         * values asserted against it are the node's own jsonParsed reading of these same bytes.
+         */
+        val LIVE_ACCOUNT: ByteArray = Base64.decode(
+            "lbx/EOQNYs9/ROmd4dD1vVJSbOLrRZayBcTY+mqnSeRBV7BYDzHF/ORKYlgtvPnXjudZQ6CEo5OzUDaNIomTCIBRwJjk" +
+                "agAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+                "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        )
+    }
+}

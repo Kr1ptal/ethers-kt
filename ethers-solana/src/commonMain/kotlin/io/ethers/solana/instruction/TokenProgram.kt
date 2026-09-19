@@ -179,6 +179,16 @@ object Token2022Program {
 }
 
 /**
+ * A `COption`: a four-byte tag, then the value, whose bytes are present and zeroed when the tag says
+ * the option is empty, so the value is read either way.
+ */
+private inline fun <T> SolanaMessageDecoder.readCOption(read: SolanaMessageDecoder.() -> T): T? {
+    val present = readUnsignedLittleEndian(4).toLong() == 1L
+    val value = read()
+    return if (present) value else null
+}
+
+/**
  * A token account, as the Token and Token-2022 programs store it on chain.
  *
  * [amount] is in the mint's base units, so a caller that wants a decimal figure needs the mint's
@@ -242,15 +252,52 @@ data class TokenAccount(
             }
             return Result.success(TokenAccount(mint, owner, amount, delegate, state, isNative, delegatedAmount, closeAuthority))
         }
+    }
+}
+
+/**
+ * A token mint, as the Token and Token-2022 programs store it on chain.
+ *
+ * [decimals] is what turns a [TokenAccount.amount] into a display figure. A null [mintAuthority] means
+ * the supply is fixed, and a null [freezeAuthority] means no account of this mint can be frozen.
+ */
+data class TokenMint(
+    val mintAuthority: SolanaAddress?,
+    val supply: BigInteger,
+    val decimals: Int,
+    val isInitialized: Boolean,
+    val freezeAuthority: SolanaAddress?,
+) {
+    companion object {
+        /** Bytes the base layout occupies. */
+        const val SIZE: Int = 82
+
+        /** Token-2022 writes this at [TokenAccount.SIZE] to tell a mint apart from an account. */
+        private const val MINT_TYPE: Int = 1
 
         /**
-         * A `COption`: a four-byte tag, then the value, whose bytes are present and zeroed when the tag
-         * says the option is empty.
+         * Decode the base layout, which Token and Token-2022 share. A Token-2022 mint carrying
+         * extensions is padded to [TokenAccount.SIZE] and marked at that offset, which is what
+         * separates it from an account; the extensions themselves are not decoded.
          */
-        private inline fun <T> SolanaMessageDecoder.readCOption(read: SolanaMessageDecoder.() -> T): T? {
-            val present = readUnsignedLittleEndian(4).toLong() == 1L
-            val value = read()
-            return if (present) value else null
+        @JvmStatic
+        fun decode(data: ByteArray): Result<TokenMint, SolanaTransactionError> {
+            if (data.size != SIZE && (data.size <= TokenAccount.SIZE || data[TokenAccount.SIZE].toInt() != MINT_TYPE)) {
+                return Result.failure(
+                    SolanaTransactionError.MalformedBytes("A mint holds $SIZE bytes, or is padded past ${TokenAccount.SIZE} and marked as one, got ${data.size}"),
+                )
+            }
+
+            val decoder = SolanaMessageDecoder(data)
+            val mintAuthority = decoder.readCOption { SolanaAddress(readBytes(32)) }
+            val supply = decoder.readUnsignedLittleEndian(8)
+            val decimals = decoder.readByte()
+            val isInitialized = decoder.readByte() != 0
+            val freezeAuthority = decoder.readCOption { SolanaAddress(readBytes(32)) }
+            if (decoder.failed) {
+                return Result.failure(SolanaTransactionError.MalformedBytes(decoder.error ?: "Malformed mint"))
+            }
+            return Result.success(TokenMint(mintAuthority, supply, decimals, isInitialized, freezeAuthority))
         }
     }
 }
