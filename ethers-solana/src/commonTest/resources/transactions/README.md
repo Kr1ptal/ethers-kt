@@ -1,33 +1,52 @@
 # Transaction corpus
 
-Captured from finalized public-chain and local-validator RPC data on 2026-09-05. Tests run offline in `commonTest` on JVM,
-Android and Kotlin/Native; there are no live RPC requests during normal tests.
+Captured from finalized public-chain and local-validator RPC data on 2026-09-05, with the mainnet v1
+samples added 2026-09-19. Tests run offline in `commonTest` on JVM, Android and Kotlin/Native; there are
+no live RPC requests during normal tests.
 
-## Coverage and outstanding v1 capture
+## Coverage
 
-The corpus contains **840 transactions**: **320 mainnet legacy + 320 mainnet v0 + 200 local-validator v1**.
-The v1 fixtures were explicitly generated and submitted to an isolated Agave 4.2.2 validator, then
-captured from finalized RPC history. They are labeled `cluster: localnet` and
-`origin: generated-local-validator`, and are not counted as public-chain samples. Public-chain v1
-capture remains pending. `SolanaTxV1Test` additionally covers constructed codec fixtures without a validator.
+The corpus contains **1,340 transactions**: **320 mainnet legacy + 320 mainnet v0 + 500 mainnet v1
++ 200 local-validator v1**. The local v1 fixtures were generated and submitted to an isolated Agave 4.2.2
+validator; they are labeled `cluster: localnet` and `origin: generated-local-validator`, and are not
+counted as public-chain samples. `SolanaTxV1Test` additionally covers constructed codec fixtures.
 
-Both public testnet and devnet RPC reported the v1 feature active, but the sampled finalized application
-histories did not return any v1 transactions. Discovery manifests record the completed secondary scans,
-including feature account responses, node versions, slots and observed version counts. An additional
-initial scan of 68 recent System Program history blocks on testnet also found no v1 before switching to
-broader Ed25519 history. This is a bounded search, not evidence that no v1 transactions exist on either
-cluster. A known live v1 signature/address or an indexed RPC source is needed to target further collection.
+The v1 feature gate `txv1aq4pp281K9um3tnPgkfX8UqtFT6wcVW3hNezGLL` activated on mainnet at slot
+447,742,080, read from its Feature account at capture time and recorded in `mainnet-v1-manifest.json`.
+No v1 transaction can predate that slot, so unlike legacy and v0 the v1 samples span no historical
+windows; they come from 22 blocks in slots 448,515,494..448,516,308. The earlier
+`*-discovery.json` files record the bounded testnet/devnet scans that predated activation and found none.
 
-| Samples | Legacy | V0 |
-| --- | ---: | ---: |
-| Total | 320 | 320 |
-| Failed executions | 43 | 59 |
-| Multiple signatures | 45 | 49 |
-| Address lookup tables | 0 | 159 |
-| Inner instructions | 100 | 134 |
-| Return data | 9 | 11 |
-| Distinct top-level programs | 80 | 111 |
-| Largest wire envelope (bytes) | 1229 | 1230 |
+| Samples | Legacy | V0 | V1 |
+| --- | ---: | ---: | ---: |
+| Total | 320 | 320 | 500 |
+| Failed executions | 43 | 59 | 243 |
+| Multiple signatures | 45 | 49 | 5 |
+| Address lookup tables | 0 | 159 | 0 |
+| Inner instructions | 100 | 134 | 110 |
+| Return data | 9 | 11 | 27 |
+| Distinct top-level programs | 80 | 111 | 53 |
+| Largest wire envelope (bytes) | 1229 | 1230 | 3370 |
+
+None of the 500 carries an address lookup table, which matches the v1 message layout as implemented
+here: `SolanaTxV1` inherits the empty `addressLookupTables` default and its body encodes none. 229 v1
+envelopes exceed the 1,232-byte legacy ceiling that v1 raises to 4,096, and every one states its budget
+in the inline config rather than as ComputeBudget instructions.
+
+Five nonetheless carry explicit ComputeBudget instructions alongside that config, and in every one the
+instruction restates what the config already says. The fifth encodes limit 164,417, price 1,106,229 and
+data-size limit 28,666,650; `ceil(164417 * 1106229 / 1e6)` is 181,883, its inline `priorityFee` exactly.
+The other four use a 12-byte discriminant-2 payload whose leading five bytes are a well-formed
+`setComputeUnitLimit` carrying that transaction's own inline limit, followed by seven trailing bytes
+that are byte-identical across all four and match no ComputeBudget layout; all four come from one
+client. The runtime logs every one of these as `success`, because v1 takes its budget from the inline
+config and does not parse ComputeBudget instructions as configuration - on legacy and v0, where the
+instruction is the configuration, a trailing-byte payload would fail the transaction instead.
+
+The fifth is what showed `compileV1` translating recognised ComputeBudget instructions into config and
+compiling only the remainder, so a decompiled v1 transaction did not recompile to the same message. The
+other four escaped only because the width check left their longer payloads alone. `compileV1` now takes
+its config from the request fields and compiles every instruction as given, so all five round-trip.
 
 The initial samples came from ten mainnet blocks (slots 444610345..444610678). The expansion adds
 40 transactions of each version from each of three historical windows ending at slots 300000000,
@@ -39,8 +58,9 @@ statistically representative sample of chain activity.
 
 ## Files and fidelity
 
-- `mainnet-legacy.jsonl`, `mainnet-0.jsonl` and `mainnet-{300,400,440}m-{legacy,0}.jsonl`: one transaction per line.
+- `mainnet-legacy.jsonl`, `mainnet-0.jsonl`, `mainnet-1.jsonl` and `mainnet-{300,400,440}m-{legacy,0}.jsonl`: one transaction per line.
 - `mainnet*-manifest.json`: public endpoint, genesis hash, RPC version at capture, capture time and source blocks.
+  `mainnet-v1-manifest.json` additionally records the v1 Feature account response proving activation.
 - `localnet-1.jsonl` and `localnet-manifest.json`: 200 finalized local v1 transactions and their validator provenance.
 - `*-discovery.json`: unsuccessful v1 discovery observations; not transaction fixtures.
 - `checksums.json`: SHA-256 hashes of the JSONL files, counts and collection target.
@@ -125,9 +145,10 @@ python3 ethers-solana/scripts/collect_transaction_corpus.py \
   --cluster mainnet --versions legacy 0 --count 40 --per-block 20 --max-blocks 5 \
   --start-slot 300000000 --output /private/tmp/solana-corpus-300m
 
+# v1 is dense in recent mainnet blocks since activation, so a plain block scan finds it
 python3 ethers-solana/scripts/collect_transaction_corpus.py \
-  --cluster testnet --versions 1 --count 200 --per-block 200 --application-history \
-  --address <known-v1-program-or-account> --output /private/tmp/solana-corpus-capture
+  --cluster mainnet --versions 1 --count 500 --per-block 20 --max-blocks 200 \
+  --output /private/tmp/solana-corpus-v1
 
 python3 -m unittest discover -s ethers-solana/scripts -p 'test_*.py'
 ./gradlew :ethers-solana:jvmKotest :ethers-solana:macosArm64Test :ethers-solana:iosSimulatorArm64Test

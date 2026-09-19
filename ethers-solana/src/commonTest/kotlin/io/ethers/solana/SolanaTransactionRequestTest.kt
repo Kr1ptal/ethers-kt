@@ -16,6 +16,7 @@ import io.ethers.solana.types.rpc.SolanaRPCTransactionData
 import io.ethers.solana.types.transaction.AddressLookupTableAccount
 import io.ethers.solana.types.transaction.MessageHeader
 import io.ethers.solana.types.transaction.SolanaTransaction
+import io.ethers.solana.types.transaction.SolanaTransactionConfig
 import io.ethers.solana.types.transaction.SolanaTransactionError
 import io.ethers.solana.types.transaction.SolanaTransactionRequest
 import io.ethers.solana.types.transaction.SolanaTxLegacy
@@ -113,37 +114,53 @@ class SolanaTransactionRequestTest : FunSpec({
         tx.instructions.first().data.toHex() shouldBe "0201000000"
     }
 
-    test("v1 translates ComputeBudget instructions into inline config and drops them") {
-        val tx = SolanaTransactionRequest {
+    test("v1 compiles ComputeBudget instructions as instructions and takes its config from the fields") {
+        val request = SolanaTransactionRequest {
             feePayer(alice.publicKey)
             blockhash(blockhash)
             instruction(ComputeBudgetProgram.setComputeUnitLimit(200_000))
             instruction(ComputeBudgetProgram.setComputeUnitPrice(1_000))
             instruction(transfer)
-        }.compileV1().unwrap()
+        }
+        val tx = request.compileV1().unwrap()
 
-        tx.config.computeUnitLimit shouldBe 200_000
+        // the instructions do not configure v1, so they stay instructions and the config is empty
+        tx.config shouldBe SolanaTransactionConfig()
+        tx.instructions.size shouldBe 3
+        tx.accounts.any { it == Programs.COMPUTE_BUDGET } shouldBe true
+        // real mainnet v1 transactions carry both, so dropping them would not reproduce the message
+        tx.toRequest().unwrap().instructions shouldBe request.instructions
+
+        // the same request states them inline on v1 when they are set as fields instead
+        val inline = SolanaTransactionRequest(request)
+            .instructions(listOf(transfer))
+            .computeUnitLimit(200_000)
+            .computeUnitPrice(1_000)
+            .compileV1()
+            .unwrap()
+        inline.config.computeUnitLimit shouldBe 200_000
         // 200000 units * 1000 micro-lamports, rounded up to whole lamports
-        tx.config.priorityFee shouldBe bigIntegerOf(200)
-        tx.accounts.none { it == Programs.COMPUTE_BUDGET } shouldBe true
-        tx.instructions.size shouldBe 1
+        inline.config.priorityFee shouldBe bigIntegerOf(200)
+        inline.accounts.none { it == Programs.COMPUTE_BUDGET } shouldBe true
+        inline.instructions.size shouldBe 1
     }
 
-    test("v1 fields win over instructions and cover heap and data size limits") {
+    test("v1 config fields cover heap and data size limits without consuming instructions") {
         val tx = SolanaTransactionRequest {
             feePayer(alice.publicKey)
             blockhash(blockhash)
             instruction(ComputeBudgetProgram.setComputeUnitLimit(1))
-            instruction(ComputeBudgetProgram.setLoadedAccountsDataSizeLimit(65536))
-            instruction(ComputeBudgetProgram.requestHeapFrame(65536))
             instruction(transfer)
             computeUnitLimit(300_000)
+            loadedAccountsDataSizeLimit(65536)
+            heapSize(65536)
         }.compileV1().unwrap()
 
         tx.config.computeUnitLimit shouldBe 300_000
         tx.config.loadedAccountsDataSizeLimit shouldBe 65536
         tx.config.heapSize shouldBe 65536
-        tx.instructions.size shouldBe 1
+        // the field sets the budget; the instruction is still carried, as the runtime receives it
+        tx.instructions.size shouldBe 2
     }
 
     test("heap size and data size limit are settable without writing an instruction") {

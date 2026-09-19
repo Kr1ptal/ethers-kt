@@ -1,0 +1,249 @@
+{
+  "endpoint": "https://api.mainnet-beta.solana.com",
+  "cluster": "mainnet",
+  "genesisHash": "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d",
+  "nodeVersion": {
+    "feature-set": 2409014235,
+    "solana-core": "4.3.0-rc.0"
+  },
+  "capturedAt": "2026-09-19T20:33:28.687876+00:00",
+  "commitment": "finalized",
+  "firstCapturedAt": "2026-09-19T20:32:05.394174+00:00",
+  "scannedBlocks": [
+    {
+      "slot": 448516308,
+      "versions": {
+        "0": 330,
+        "1": 189,
+        "legacy": 885
+      }
+    },
+    {
+      "slot": 448516271,
+      "versions": {
+        "legacy": 855,
+        "0": 257,
+        "1": 134
+      }
+    },
+    {
+      "slot": 448516234,
+      "versions": {
+        "legacy": 799,
+        "0": 204,
+        "1": 64
+      }
+    },
+    {
+      "slot": 448516197,
+      "versions": {
+        "legacy": 858,
+        "0": 185,
+        "1": 92
+      }
+    },
+    {
+      "slot": 448516308,
+      "versions": {
+        "0": 330,
+        "1": 189,
+        "legacy": 885
+      }
+    },
+    {
+      "slot": 448516271,
+      "versions": {
+        "legacy": 855,
+        "0": 257,
+        "1": 134
+      }
+    },
+    {
+      "slot": 448516234,
+      "versions": {
+        "legacy": 799,
+        "0": 204,
+        "1": 64
+      }
+    },
+    {
+      "slot": 448516197,
+      "versions": {
+        "legacy": 858,
+        "0": 185,
+        "1": 92
+      }
+    },
+    {
+      "slot": 448516160,
+      "versions": {
+        "legacy": 786,
+        "0": 113,
+        "1": 73
+      }
+    },
+    {
+      "slot": 448516123,
+      "versions": {
+        "legacy": 698,
+        "1": 75,
+        "0": 167
+      }
+    },
+    {
+      "slot": 448516086,
+      "versions": {
+        "legacy": 759,
+        "1": 101,
+        "0": 188
+      }
+    },
+    {
+      "slot": 448516049,
+      "versions": {
+        "legacy": 800,
+        "0": 321,
+        "1": 165
+      }
+    },
+    {
+      "slot": 448516012,
+      "versions": {
+        "legacy": 926,
+        "0": 510,
+        "1": 167
+      }
+    },
+    {
+      "slot": 448515975,
+      "versions": {
+        "0": 208,
+        "legacy": 689,
+        "1": 96
+      }
+    },
+    {
+      "slot": 448515938,
+      "versions": {
+        "legacy": 1241,
+        "0": 237,
+        "1": 115
+      }
+    },
+    {
+      "slot": 448515901,
+      "versions": {
+        "legacy": 674,
+        "0": 124,
+        "1": 76
+      }
+    },
+    {
+      "slot": 448515864,
+      "versions": {
+        "legacy": 884,
+        "0": 262
+      }
+    },
+    {
+      "slot": 448515827,
+      "versions": {
+        "legacy": 917,
+        "0": 222,
+        "1": 63
+      }
+    },
+    {
+      "slot": 448515790,
+      "versions": {
+        "0": 242,
+        "legacy": 824,
+        "1": 94
+      }
+    },
+    {
+      "slot": 448515753,
+      "versions": {
+        "legacy": 752,
+        "0": 199,
+        "1": 75
+      }
+    },
+    {
+      "slot": 448515716,
+      "versions": {
+        "legacy": 1071,
+        "0": 183,
+        "1": 240
+      }
+    },
+    {
+      "slot": 448515679,
+      "versions": {
+        "1": 79,
+        "0": 167,
+        "legacy": 754
+      }
+    },
+    {
+      "slot": 448515642,
+      "versions": {
+        "legacy": 909,
+        "0": 231,
+        "1": 53
+      }
+    },
+    {
+      "slot": 448515605,
+      "versions": {
+        "legacy": 108,
+        "0": 226,
+        "1": 42
+      }
+    },
+    {
+      "slot": 448515568,
+      "versions": {
+        "legacy": 813,
+        "0": 408,
+        "1": 73
+      }
+    },
+    {
+      "slot": 448515531,
+      "versions": {
+        "legacy": 788,
+        "0": 313,
+        "1": 204
+      }
+    },
+    {
+      "slot": 448515494,
+      "versions": {
+        "1": 271,
+        "0": 227,
+        "legacy": 785
+      }
+    }
+  ],
+  "v1Feature": {
+    "context": {
+      "apiVersion": "4.3.0-rc.0",
+      "slot": 448516301
+    },
+    "value": {
+      "data": [
+        "AYCCphoAAAAA",
+        "base64"
+      ],
+      "executable": false,
+      "lamports": 10695960,
+      "owner": "Feature111111111111111111111111111111111111",
+      "rentEpoch": 18446744073709551615,
+      "space": 9
+    }
+  },
+  "counts": {
+    "1": 500
+  }
+}

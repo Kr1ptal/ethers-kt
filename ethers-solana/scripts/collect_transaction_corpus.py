@@ -9,6 +9,7 @@ import base64
 import collections
 import datetime
 import hashlib
+import http.client
 import json
 import time
 import urllib.error
@@ -111,7 +112,7 @@ class Rpc:
                 result = fields['result']
                 cached.write_text(result)
                 return result
-            except (urllib.error.URLError, TimeoutError, RuntimeError) as error:
+            except (OSError, http.client.HTTPException, RuntimeError) as error:
                 if attempt == 5:
                     raise
                 print(f'retry {method}: {error}', flush=True)

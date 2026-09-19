@@ -9,6 +9,7 @@ import io.ethers.solana.types.transaction.AddressLookupTableAccount
 import io.ethers.solana.types.transaction.CompiledAddressLookupTable
 import io.ethers.solana.types.transaction.LoadedAddresses
 import io.ethers.solana.types.transaction.SolanaTransactionCompiled
+import io.ethers.solana.types.transaction.SolanaTransactionConfig
 import io.ethers.solana.types.transaction.SolanaTransactionSigned
 import io.ethers.solana.types.transaction.SolanaTransactionUnsigned
 import io.ethers.solana.types.transaction.SolanaTxType
@@ -28,17 +29,19 @@ import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
+private const val V1_ACTIVATION_SLOT = 447_742_080L
+
 class TransactionCorpusTest : FunSpec({
     val fixtures = transactionCorpus().map { Kotlinx.DEFAULT.parseToJsonElement(it).jsonObject }
     val liveFixtures = fixtures.filter { it.getValue("cluster").jsonPrimitive.content != "localnet" }
     val json = Json(Kotlinx.DEFAULT) { encodeDefaults = true }
 
-    test("committed live corpus has 320 legacy and 320 v0 samples across historical periods; v1 capture is still pending") {
+    test("committed live corpus has 320 legacy, 320 v0 and 500 v1 samples across historical periods") {
         // Local-validator samples are deliberately excluded from public-chain counts.
-        liveFixtures.size shouldBe 640
-        fixtures.size shouldBe 840
-        fixtures.map { it.getValue("signature") }.distinct().size shouldBe 840
-        liveFixtures.groupingBy { it.getValue("rpc").jsonObject.getValue("version").jsonPrimitive.content }.eachCount() shouldBe mapOf("legacy" to 320, "0" to 320)
+        liveFixtures.size shouldBe 1140
+        fixtures.size shouldBe 1340
+        fixtures.map { it.getValue("signature") }.distinct().size shouldBe 1340
+        liveFixtures.groupingBy { it.getValue("rpc").jsonObject.getValue("version").jsonPrimitive.content }.eachCount() shouldBe mapOf("legacy" to 320, "0" to 320, "1" to 500)
         liveFixtures.all { it.getValue("cluster").jsonPrimitive.content in setOf("mainnet", "testnet", "devnet") } shouldBe true
         liveFixtures.map { it.getValue("blockhash") }.distinct().size.let { it >= 16 } shouldBe true
         for (version in listOf("legacy", "0")) {
@@ -48,6 +51,11 @@ class TransactionCorpusTest : FunSpec({
             slots.count { it in 399_990_000L..400_000_000L } shouldBe 40
             slots.count { it in 439_990_000L..440_000_000L } shouldBe 40
         }
+        // v1 cannot predate its feature gate, so its samples have no historical windows to span
+        val v1Slots = liveFixtures.filter { it.getValue("rpc").jsonObject.getValue("version").jsonPrimitive.content == "1" }
+            .map { it.getValue("slot").jsonPrimitive.content.toLong() }
+        v1Slots.all { it > V1_ACTIVATION_SLOT } shouldBe true
+        v1Slots.distinct().size.let { it >= 20 } shouldBe true
     }
 
     test("live corpus includes failures, multiple signers, CPI, return data, and v0 with and without lookups") {
@@ -61,6 +69,21 @@ class TransactionCorpusTest : FunSpec({
         val v0 = transactions.filter { it.type == SolanaTxType.V0 }
         v0.any { it.transaction.message.addressTableLookups.isNotEmpty() } shouldBe true
         v0.any { it.transaction.message.addressTableLookups.isEmpty() } shouldBe true
+    }
+
+    test("live v1 fixtures carry an inline config and never a lookup table") {
+        val v1 = liveFixtures.filter { it.getValue("rpc").jsonObject.getValue("version").jsonPrimitive.content == "1" }
+        val transactions = v1.map { SolanaTransactionSigned.fromBase64(it.getValue("wire").jsonPrimitive.content).unwrap() }
+        transactions.all { it.type == SolanaTxType.V1 } shouldBe true
+        // v1 states its budget inline instead of as ComputeBudget instructions, and has no lookup tables
+        transactions.all { it.addressLookupTables.isEmpty() } shouldBe true
+        transactions.all { (it.tx as SolanaTxV1).config != SolanaTransactionConfig() } shouldBe true
+        transactions.any { it.computeUnitLimit != null } shouldBe true
+        transactions.any { it.priorityFee != null } shouldBe true
+        transactions.any { it.loadedAccountsDataSizeLimit != null } shouldBe true
+        // organic traffic exceeds the 1232-byte legacy ceiling that v1 raises to 4096
+        transactions.any { it.serialize().size > 1232 } shouldBe true
+        transactions.map { it.signatures.size }.toSet() shouldBe setOf(1, 2, 12)
     }
 
     test("200 local v1 fixtures cover signer and instruction counts, large envelopes and optional config") {

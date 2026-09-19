@@ -166,17 +166,16 @@ class SolanaTransactionRequest() {
     }
 
     /**
-     * Compile a v1 message. ComputeBudget instructions do not configure v1, so recognised ones are
-     * translated into the inline config and dropped; whatever this library cannot decode is left in
-     * place rather than silently discarded.
+     * Compile a v1 message. The inline config states the compute budget, so it is taken from this
+     * request's own settings; ComputeBudget instructions are ordinary instructions to v1 and are
+     * compiled as given.
      */
     fun compileV1(): Result<SolanaTxV1, SolanaTransactionError> {
         val payer = feePayer ?: return Result.failure(SolanaTransactionError.MissingFeePayer)
         val hash = blockhash ?: return Result.failure(SolanaTransactionError.MissingBlockhash)
 
-        val translated = ComputeBudgetSettings.decode(instructions)
-        val limit = computeUnitLimit ?: translated.computeUnitLimit
-        val price = computeUnitPrice ?: translated.computeUnitPrice
+        val limit = computeUnitLimit
+        val price = computeUnitPrice
         val explicit = priorityFee
         val priorityFee = when {
             explicit != null -> explicit
@@ -194,10 +193,10 @@ class SolanaTransactionRequest() {
         val config = SolanaTransactionConfig(
             priorityFee = priorityFee,
             computeUnitLimit = limit,
-            loadedAccountsDataSizeLimit = loadedAccountsDataSizeLimit ?: translated.loadedAccountsDataSizeLimit,
-            heapSize = heapSize ?: translated.heapSize,
+            loadedAccountsDataSizeLimit = loadedAccountsDataSizeLimit,
+            heapSize = heapSize,
         )
-        return SolanaTxV1.compile(payer, hash, translated.remaining, config)
+        return SolanaTxV1.compile(payer, hash, instructions, config)
     }
 
     /** Legacy and v0 encoding: the fields win over an instruction setting the same value. */
