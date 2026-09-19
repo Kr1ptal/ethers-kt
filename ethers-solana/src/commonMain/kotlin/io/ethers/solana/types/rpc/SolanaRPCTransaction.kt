@@ -55,7 +55,7 @@ data class SolanaRPCTransaction(
      * may not mean what they would in a legacy message, and its inline config, if it has one, is not
      * this config.
      */
-    private val computeBudget: ComputeBudgetValues by lazy {
+    private val computeBudget: ComputeBudgetValues by lazy(LazyThreadSafetyMode.PUBLICATION) {
         when (type) {
             SolanaTxType.Legacy, SolanaTxType.V0 -> decodeComputeBudget(accounts, instructions)
             SolanaTxType.V1 ->

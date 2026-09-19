@@ -15,6 +15,7 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 
 class PrimitivesTest : FunSpec({
@@ -31,7 +32,18 @@ class PrimitivesTest : FunSpec({
         val scalar = BigInteger(1, malleable.copyOfRange(32, 64).reversedArray()).add(order).toByteArray().reversedArray()
         scalar.copyInto(malleable, 32)
         signer.publicKey.verify(SolanaSignature(malleable), byteArrayOf()) shouldBe false
+        // the order itself, and anything above its high byte, are non-canonical too
+        val atOrder = signature.toByteArray()
+        order.toByteArray().reversedArray().copyInto(atOrder, 32)
+        signer.publicKey.verify(SolanaSignature(atOrder), byteArrayOf()) shouldBe false
+        val aboveOrder = signature.toByteArray().also { it[63] = 0x11 }
+        signer.publicKey.verify(SolanaSignature(aboveOrder), byteArrayOf()) shouldBe false
+
         KeypairSigner.fromSecretKey(signer.toSecretKey()).publicKey shouldBe signer.publicKey
+        // a keypair is identified by its public key, so a reimported signer equals the original
+        KeypairSigner.fromSecretKey(signer.toSecretKey()) shouldBe signer
+        KeypairSigner.fromSecretKey(signer.toSecretKey()).hashCode() shouldBe signer.hashCode()
+        KeypairSigner.fromSeed(ByteArray(32) { 7 }) shouldNotBe signer
         seed.fill(0)
         signer.signMessage(byteArrayOf()) shouldBe signature
         val exported = signer.toSecretKey()

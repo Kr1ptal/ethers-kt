@@ -26,7 +26,7 @@ class SolanaTxLegacy private constructor(
     override val type: SolanaTxType get() = SolanaTxType.Legacy
 
     // decoded once: reading the settings back means scanning and parsing the instructions
-    private val computeBudget by lazy { decodeComputeBudget(accounts, instructions) }
+    private val computeBudget by lazy(LazyThreadSafetyMode.PUBLICATION) { decodeComputeBudget(accounts, instructions) }
     override val computeUnitLimit: Long? get() = computeBudget.computeUnitLimit
     override val computeUnitPrice: BigInteger? get() = computeBudget.computeUnitPrice
     override val priorityFee: BigInteger? get() = computeBudget.priorityFee

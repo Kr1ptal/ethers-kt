@@ -38,15 +38,31 @@ class SolanaAddress(bytes: ByteArray) {
         val bytes = signature.asByteArray()
         // TweetNaCl's verifier accepts some non-canonical scalars that OpenSSL rejects. Enforce the
         // RFC8032 S < L condition before dispatching, so both platforms reject malleable signatures.
-        val scalar = io.github.artificialpb.bignum.BigInteger(1, bytes.copyOfRange(32, 64).reversedArray())
-        return scalar < SCALAR_ORDER && Ed25519.verify(value, message, bytes)
+        return isCanonicalScalar(bytes) && Ed25519.verify(value, message, bytes)
     }
     override fun toString(): String = toBase58()
     override fun equals(other: Any?): Boolean = other is SolanaAddress && value.contentEquals(other.value)
     override fun hashCode(): Int = value.contentHashCode()
 
     companion object {
-        private val SCALAR_ORDER = io.github.artificialpb.bignum.BigInteger("1000000000000000000000000000000014def9dea2f79cd65812631a5cf5d3ed", 16)
+        /** The Ed25519 group order L, little-endian, as the S half of a signature is encoded. */
+        private val SCALAR_ORDER = byteArrayOf(
+            0xed.toByte(), 0xd3.toByte(), 0xf5.toByte(), 0x5c, 0x1a, 0x63, 0x12, 0x58,
+            0xd6.toByte(), 0x9c.toByte(), 0xf7.toByte(), 0xa2.toByte(), 0xde.toByte(), 0xf9.toByte(), 0xde.toByte(), 0x14,
+            0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0x10,
+        )
+
+        /** Whether the S half of [signature] is below the group order, compared from its high byte down. */
+        private fun isCanonicalScalar(signature: ByteArray): Boolean {
+            for (i in 31 downTo 0) {
+                val s = signature[32 + i].toInt() and 0xff
+                val order = SCALAR_ORDER[i].toInt() and 0xff
+                if (s != order) return s < order
+            }
+            // S equal to the order is itself non-canonical
+            return false
+        }
 
         /**
          * Derive an address from at most 16 seeds of at most 32 bytes each, or null if the seeds

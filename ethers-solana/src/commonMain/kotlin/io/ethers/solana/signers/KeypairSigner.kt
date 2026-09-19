@@ -14,6 +14,18 @@ class KeypairSigner private constructor(seed: ByteArray) : SolanaSigner {
     fun toSecretKey(): ByteArray = seed + publicKey.toByteArray()
     override fun toString(): String = "KeypairSigner($publicKey)"
 
+    // the public key identifies the keypair, so equality never has to read the seed
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other == null || this::class != other::class) return false
+
+        other as KeypairSigner
+
+        return publicKey == other.publicKey
+    }
+
+    override fun hashCode(): Int = publicKey.hashCode()
+
     companion object {
         @JvmStatic fun generate(): KeypairSigner = fromSeed(Hashing.generateRandomBytes(32))
         @JvmStatic fun fromSeed(seed: ByteArray): KeypairSigner {
