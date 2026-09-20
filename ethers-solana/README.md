@@ -385,6 +385,52 @@ associated account and create it only if needed. For Token-2022, use
 `(payer, associatedToken, owner, mint)`. An existing matching account succeeds unchanged; an
 incompatible account still fails on-chain. These methods build instructions and do not send transactions.
 
+## Token instructions
+
+`TokenProgram` supports checked transfers, approvals, minting and burning, revocation, closing accounts,
+mint/account/multisig initialization, authority changes, freeze/thaw, and wrapped-SOL synchronization.
+`Token2022Program` exposes the same base operations using the Token-2022 program ID; extension-specific
+initialization and additional accounts remain the caller's responsibility.
+
+Prefer `initializeMint2`, `initializeAccount3`, and `initializeMultisig2` when initializing allocated
+accounts without passing the rent sysvar. Include initialization in the same transaction as account
+creation. For associated accounts, use the ATA helpers above instead of allocating manually.
+
+```kotlin
+val initialize = TokenProgram.initializeMint2(mint, 6, mintAuthority, freezeAuthority)
+val removeMintAuthority = TokenProgram.setAuthority(
+    mint, mintAuthority, TokenAuthorityType.MINT_TOKENS, null,
+)
+val syncWrappedSol = TokenProgram.syncNative(wrappedSolAccount)
+```
+
+Authority-controlled instructions accept optional multisig `signers`: the authority account itself
+does not sign when this list is supplied. Multisig initialization accepts 1–11 members and a threshold.
+
+## Lookup-table management
+
+`AddressLookupTableProgram` builds creation, extension, freeze, deactivation, and close instructions.
+Creation derives the table address from the authority and recent slot and returns both the address
+and instruction. Only the payer must sign creation; subsequent management requires the authority.
+
+```kotlin
+val (tableAddress, create) = AddressLookupTableProgram.createLookupTable(authority, payer, recentSlot)
+val extend = AddressLookupTableProgram.extendLookupTable(tableAddress, authority, addresses, payer)
+```
+
+Obtain a recent slot from the provider and include these instructions in a transaction. Extension's
+payer is optional when the table already has sufficient lamports. Split large address lists into
+transactions that fit the packet limit; a table can hold at most 256 addresses. Newly appended
+addresses become usable in a later slot. Fetch the resulting account with `getAddressLookupTable`
+and pass it to `compileV0` to use it.
+
+`freezeLookupTable` permanently makes a nonempty table immutable, preventing extension and closure.
+For reclaimable tables, use `deactivateLookupTable`, wait for the on-chain cooldown, then
+`closeLookupTable(tableAddress, authority, recipient)` to recover rent. These helpers build
+instructions without fetching state or submitting transactions.
+
+## Durable-nonce requests
+
 For durable-nonce requests, use `durableNonce(nonceAccount, authority, nonce)`:
 
 ```kotlin
@@ -417,6 +463,7 @@ Reference: [sol4k a166edd854a7198553fdafe9a5051a400d70b121](https://github.com/s
 | Arbitrary program instructions | `Instruction(programId, keys, data)` |
 | Build a transaction across versions | `SolanaTransactionRequest`, `compileLegacy`/`compileV0`/`compileV1` |
 | Shrink a v0 transaction with lookup tables | `getAddressLookupTable`, `AddressLookupTableAccount.decode`, automatic table selection in `compileV0` |
+| Create, extend, freeze, deactivate and close lookup tables | `AddressLookupTableProgram` |
 | Read token balances without a call per account | `getTokenAccountsByOwner`, `AccountInfo.toTokenAccount` |
 | Read a mint's supply, decimals and authorities | `TokenMint.decode` |
 | Read part of a large account, or refuse a stale one | `SolanaAccountConfig`, `DataSlice`, `minContextSlot` |

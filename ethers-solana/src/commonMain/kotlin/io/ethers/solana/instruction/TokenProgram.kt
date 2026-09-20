@@ -15,6 +15,14 @@ import kotlin.jvm.JvmField
 import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmStatic
 
+/** Authority kinds shared by SPL Token and Token-2022 base instructions. */
+enum class TokenAuthorityType(internal val discriminant: Int) {
+    MINT_TOKENS(0),
+    FREEZE_ACCOUNT(1),
+    ACCOUNT_OWNER(2),
+    CLOSE_ACCOUNT(3),
+}
+
 object TokenProgram {
     @JvmField val ID = Programs.TOKEN
 
@@ -132,6 +140,81 @@ object TokenProgram {
         byteArrayOf(9),
     )
 
+    /** Initialize an allocated mint using the rent sysvar. Include with account creation in the same transaction. */
+    @JvmStatic
+    @JvmOverloads
+    fun initializeMint(mint: SolanaAddress, decimals: Int, mintAuthority: SolanaAddress, freezeAuthority: SolanaAddress? = null, tokenProgram: SolanaAddress = ID): Instruction = Instruction(tokenProgram, listOf(AccountMeta.writable(mint), AccountMeta(Programs.SYSVAR_RENT)), byteArrayOf(0, requireDecimals(decimals).toByte()) + mintAuthority.asByteArray() + authorityOption(freezeAuthority))
+
+    /** Initialize an allocated mint without a rent sysvar account. Include with account creation in the same transaction. */
+    @JvmStatic
+    @JvmOverloads
+    fun initializeMint2(mint: SolanaAddress, decimals: Int, mintAuthority: SolanaAddress, freezeAuthority: SolanaAddress? = null, tokenProgram: SolanaAddress = ID): Instruction = Instruction(tokenProgram, listOf(AccountMeta.writable(mint)), byteArrayOf(20, requireDecimals(decimals).toByte()) + mintAuthority.asByteArray() + authorityOption(freezeAuthority))
+
+    /** Initialize an allocated token account using the rent sysvar. Include with account creation in the same transaction. */
+    @JvmStatic
+    @JvmOverloads
+    fun initializeAccount(account: SolanaAddress, mint: SolanaAddress, owner: SolanaAddress, tokenProgram: SolanaAddress = ID): Instruction = Instruction(tokenProgram, listOf(AccountMeta.writable(account), AccountMeta(mint), AccountMeta(owner), AccountMeta(Programs.SYSVAR_RENT)), byteArrayOf(1))
+
+    /** Initialize an allocated token account with the owner encoded in data, without a rent sysvar account. Include with account creation in the same transaction. */
+    @JvmStatic
+    @JvmOverloads
+    fun initializeAccount3(account: SolanaAddress, mint: SolanaAddress, owner: SolanaAddress, tokenProgram: SolanaAddress = ID): Instruction = Instruction(tokenProgram, listOf(AccountMeta.writable(account), AccountMeta(mint)), byteArrayOf(18) + owner.asByteArray())
+
+    /** Initialize an allocated multisig; member accounts do not sign initialization. Uses the rent sysvar. */
+    @JvmStatic
+    @JvmOverloads
+    fun initializeMultisig(account: SolanaAddress, requiredSignatures: Int, signers: List<SolanaAddress>, tokenProgram: SolanaAddress = ID): Instruction {
+        require(signers.size in 1..11) { "Multisig must have between 1 and 11 signers" }
+        require(requiredSignatures in 1..signers.size) { "Required signatures must be between 1 and the signer count" }
+        return Instruction(tokenProgram, listOf(AccountMeta.writable(account), AccountMeta(Programs.SYSVAR_RENT)) + signers.map { AccountMeta(it) }, byteArrayOf(2, requiredSignatures.toByte()))
+    }
+
+    /** Initialize an allocated multisig; member accounts do not sign initialization. Does not require the rent sysvar. */
+    @JvmStatic
+    @JvmOverloads
+    fun initializeMultisig2(account: SolanaAddress, requiredSignatures: Int, signers: List<SolanaAddress>, tokenProgram: SolanaAddress = ID): Instruction {
+        require(signers.size in 1..11) { "Multisig must have between 1 and 11 signers" }
+        require(requiredSignatures in 1..signers.size) { "Required signatures must be between 1 and the signer count" }
+        return Instruction(tokenProgram, listOf(AccountMeta.writable(account)) + signers.map { AccountMeta(it) }, byteArrayOf(19, requiredSignatures.toByte()))
+    }
+
+    /** Change an account or mint authority. Null removes an authority where the program permits it. */
+    @JvmStatic
+    @JvmOverloads
+    fun setAuthority(account: SolanaAddress, authority: SolanaAddress, authorityType: TokenAuthorityType, newAuthority: SolanaAddress?, signers: List<SolanaAddress> = emptyList(), tokenProgram: SolanaAddress = ID): Instruction = Instruction(
+        tokenProgram,
+        listOf(AccountMeta.writable(account)) + authorityAccounts(authority, signers),
+        byteArrayOf(6, authorityType.discriminant.toByte()) + authorityOption(newAuthority),
+    )
+
+    /** Update a wrapped-SOL account balance after depositing lamports. */
+    @JvmStatic
+    @JvmOverloads
+    fun syncNative(account: SolanaAddress, tokenProgram: SolanaAddress = ID): Instruction = Instruction(tokenProgram, listOf(AccountMeta.writable(account)), byteArrayOf(17))
+
+    /** Freeze a token account using the mint freeze authority, including multisig authorities. */
+    @JvmStatic
+    @JvmOverloads
+    fun freezeAccount(account: SolanaAddress, mint: SolanaAddress, authority: SolanaAddress, signers: List<SolanaAddress> = emptyList(), tokenProgram: SolanaAddress = ID): Instruction = Instruction(
+        tokenProgram,
+        listOf(AccountMeta.writable(account), AccountMeta(mint)) + authorityAccounts(authority, signers),
+        byteArrayOf(10),
+    )
+
+    /** Thaw a token account using the mint freeze authority, including multisig authorities. */
+    @JvmStatic
+    @JvmOverloads
+    fun thawAccount(account: SolanaAddress, mint: SolanaAddress, authority: SolanaAddress, signers: List<SolanaAddress> = emptyList(), tokenProgram: SolanaAddress = ID): Instruction = Instruction(
+        tokenProgram,
+        listOf(AccountMeta.writable(account), AccountMeta(mint)) + authorityAccounts(authority, signers),
+        byteArrayOf(11),
+    )
+
+    // Instruction options use a one-byte tag and omit absent keys, unlike on-chain COption fields.
+    private fun authorityOption(authority: SolanaAddress?): ByteArray = if (authority == null) byteArrayOf(0) else byteArrayOf(1) + authority.asByteArray()
+
+    private fun authorityAccounts(authority: SolanaAddress, signers: List<SolanaAddress>): List<AccountMeta> = listOf(AccountMeta(authority, signer = signers.isEmpty())) + signers.map(AccountMeta::signer)
+
     /**
      * The layout every checked instruction shares: a one-byte discriminant, the amount, and the
      * decimals it is checked against. Built in one array rather than concatenated in three.
@@ -152,6 +235,76 @@ object TokenProgram {
 
 object Token2022Program {
     @JvmField val ID = Programs.TOKEN_2022
+
+    /** Token-2022 version of [TokenProgram.initializeMint]. Extension-specific setup remains the caller's responsibility. */
+    @JvmStatic
+    @JvmOverloads
+    fun initializeMint(mint: SolanaAddress, decimals: Int, mintAuthority: SolanaAddress, freezeAuthority: SolanaAddress? = null): Instruction = TokenProgram.initializeMint(mint, decimals, mintAuthority, freezeAuthority, ID)
+
+    /** Token-2022 version of [TokenProgram.initializeMint2]. Extension-specific setup remains the caller's responsibility. */
+    @JvmStatic
+    @JvmOverloads
+    fun initializeMint2(mint: SolanaAddress, decimals: Int, mintAuthority: SolanaAddress, freezeAuthority: SolanaAddress? = null): Instruction = TokenProgram.initializeMint2(mint, decimals, mintAuthority, freezeAuthority, ID)
+
+    /** Token-2022 version of [TokenProgram.initializeAccount]. Extension-specific setup remains the caller's responsibility. */
+    @JvmStatic
+    fun initializeAccount(account: SolanaAddress, mint: SolanaAddress, owner: SolanaAddress): Instruction = TokenProgram.initializeAccount(account, mint, owner, ID)
+
+    /** Token-2022 version of [TokenProgram.initializeAccount3]. Extension-specific setup remains the caller's responsibility. */
+    @JvmStatic
+    fun initializeAccount3(account: SolanaAddress, mint: SolanaAddress, owner: SolanaAddress): Instruction = TokenProgram.initializeAccount3(account, mint, owner, ID)
+
+    /** Token-2022 version of [TokenProgram.initializeMultisig]. Extension-specific setup remains the caller's responsibility. */
+    @JvmStatic
+    fun initializeMultisig(account: SolanaAddress, requiredSignatures: Int, signers: List<SolanaAddress>): Instruction = TokenProgram.initializeMultisig(account, requiredSignatures, signers, ID)
+
+    /** Token-2022 version of [TokenProgram.initializeMultisig2]. Extension-specific setup remains the caller's responsibility. */
+    @JvmStatic
+    fun initializeMultisig2(account: SolanaAddress, requiredSignatures: Int, signers: List<SolanaAddress>): Instruction = TokenProgram.initializeMultisig2(account, requiredSignatures, signers, ID)
+
+    /** Token-2022 version of [TokenProgram.setAuthority]. Extension-specific setup remains the caller's responsibility. */
+    @JvmStatic
+    @JvmOverloads
+    fun setAuthority(account: SolanaAddress, authority: SolanaAddress, authorityType: TokenAuthorityType, newAuthority: SolanaAddress?, signers: List<SolanaAddress> = emptyList()): Instruction = TokenProgram.setAuthority(account, authority, authorityType, newAuthority, signers, ID)
+
+    /** Token-2022 version of [TokenProgram.syncNative]. Extension-specific setup remains the caller's responsibility. */
+    @JvmStatic
+    fun syncNative(account: SolanaAddress): Instruction = TokenProgram.syncNative(account, ID)
+
+    /** Token-2022 version of [TokenProgram.freezeAccount]. Extension-specific setup remains the caller's responsibility. */
+    @JvmStatic
+    @JvmOverloads
+    fun freezeAccount(account: SolanaAddress, mint: SolanaAddress, authority: SolanaAddress, signers: List<SolanaAddress> = emptyList()): Instruction = TokenProgram.freezeAccount(account, mint, authority, signers, ID)
+
+    /** Token-2022 version of [TokenProgram.thawAccount]. Extension-specific setup remains the caller's responsibility. */
+    @JvmStatic
+    @JvmOverloads
+    fun thawAccount(account: SolanaAddress, mint: SolanaAddress, authority: SolanaAddress, signers: List<SolanaAddress> = emptyList()): Instruction = TokenProgram.thawAccount(account, mint, authority, signers, ID)
+
+    /** Token-2022 version of [TokenProgram.approveChecked]. */
+    @JvmStatic
+    @JvmOverloads
+    fun approveChecked(account: SolanaAddress, mint: SolanaAddress, delegate: SolanaAddress, owner: SolanaAddress, amount: BigInteger, decimals: Int, signers: List<SolanaAddress> = emptyList()): Instruction = TokenProgram.approveChecked(account, mint, delegate, owner, amount, decimals, signers, ID)
+
+    /** Token-2022 version of [TokenProgram.revoke]. */
+    @JvmStatic
+    @JvmOverloads
+    fun revoke(account: SolanaAddress, owner: SolanaAddress, signers: List<SolanaAddress> = emptyList()): Instruction = TokenProgram.revoke(account, owner, signers, ID)
+
+    /** Token-2022 version of [TokenProgram.burnChecked]. */
+    @JvmStatic
+    @JvmOverloads
+    fun burnChecked(account: SolanaAddress, mint: SolanaAddress, owner: SolanaAddress, amount: BigInteger, decimals: Int, signers: List<SolanaAddress> = emptyList()): Instruction = TokenProgram.burnChecked(account, mint, owner, amount, decimals, signers, ID)
+
+    /** Token-2022 version of [TokenProgram.mintToChecked]. */
+    @JvmStatic
+    @JvmOverloads
+    fun mintToChecked(mint: SolanaAddress, account: SolanaAddress, authority: SolanaAddress, amount: BigInteger, decimals: Int, signers: List<SolanaAddress> = emptyList()): Instruction = TokenProgram.mintToChecked(mint, account, authority, amount, decimals, signers, ID)
+
+    /** Token-2022 version of [TokenProgram.closeAccount]. */
+    @JvmStatic
+    @JvmOverloads
+    fun closeAccount(account: SolanaAddress, destination: SolanaAddress, owner: SolanaAddress, signers: List<SolanaAddress> = emptyList()): Instruction = TokenProgram.closeAccount(account, destination, owner, signers, ID)
 
     /** Token-2022 TransferChecked, including multisig owners. */
     @JvmStatic
