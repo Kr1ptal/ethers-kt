@@ -51,6 +51,7 @@ import io.ethers.solana.types.rpc.SlotNotification
 import io.ethers.solana.types.rpc.SlotRange
 import io.ethers.solana.types.rpc.SlotUpdateNotification
 import io.ethers.solana.types.rpc.SnapshotSlot
+import io.ethers.solana.types.rpc.SolanaAccountConfig
 import io.ethers.solana.types.rpc.SolanaBlock
 import io.ethers.solana.types.rpc.SolanaNodeHealth
 import io.ethers.solana.types.rpc.SolanaNodeIdentity
@@ -209,6 +210,12 @@ interface SolanaApi {
     fun getMultipleAccounts(addresses: List<SolanaAddress>, commitment: Commitment = this.defaultCommitment): RpcRequest<ContextValue<List<AccountInfo?>>, RpcError> {
         return rpc("getMultipleAccounts", addresses.map { it.toString() }, config(commitment, "base64")) { decodeContext(it) { v -> v.jsonArray.map(::decodeAccount) } }
     }
+
+    /** As above, slicing the data read and refusing a slot older than the config names. */
+    fun getAccountInfo(address: SolanaAddress, config: SolanaAccountConfig): RpcRequest<ContextValue<AccountInfo?>, RpcError> = rpc("getAccountInfo", address.toString(), accountConfig(config)) { decodeContext(it, ::decodeAccount) }
+
+    /** As above, slicing the data read and refusing a slot older than the config names. */
+    fun getMultipleAccounts(addresses: List<SolanaAddress>, config: SolanaAccountConfig): RpcRequest<ContextValue<List<AccountInfo?>>, RpcError> = rpc("getMultipleAccounts", addresses.map { it.toString() }, accountConfig(config)) { decodeContext(it) { v -> v.jsonArray.map(::decodeAccount) } }
     fun getAddressLookupTable(address: SolanaAddress): RpcRequest<ContextValue<AddressLookupTableAccount?>, RpcError> = getAddressLookupTable(address, defaultCommitment)
 
     /**
@@ -467,16 +474,21 @@ interface SolanaApi {
         }
     }
 
-    /** Every account owned by [program], narrowed by [filters] as programSubscribe is. */
-    fun getProgramAccounts(program: SolanaAddress): RpcRequest<List<ProgramAccount>, RpcError> = getProgramAccounts(program, emptyList(), defaultCommitment)
-    fun getProgramAccounts(program: SolanaAddress, filters: List<AccountFilter>): RpcRequest<List<ProgramAccount>, RpcError> = getProgramAccounts(program, filters, defaultCommitment)
-    fun getProgramAccounts(program: SolanaAddress, filters: List<AccountFilter>, commitment: Commitment): RpcRequest<List<ProgramAccount>, RpcError> {
-        val options = buildJsonObject {
-            put("commitment", commitment.toString())
-            put("encoding", "base64")
-            if (filters.isNotEmpty()) put("filters", JsonArray(filters.map { it.toJson() }))
+    /**
+     * Every account owned by [program], narrowed by [filters] as programSubscribe is.
+     *
+     * A program's whole account set can take a node seconds to answer, so the [RpcContext] naming the
+     * slot it answered at is always requested. This method is alone in having to ask for it.
+     */
+    fun getProgramAccounts(program: SolanaAddress): RpcRequest<ContextValue<List<ProgramAccount>>, RpcError> = getProgramAccounts(program, emptyList(), defaultCommitment)
+    fun getProgramAccounts(program: SolanaAddress, filters: List<AccountFilter>): RpcRequest<ContextValue<List<ProgramAccount>>, RpcError> = getProgramAccounts(program, filters, defaultCommitment)
+    fun getProgramAccounts(program: SolanaAddress, filters: List<AccountFilter>, commitment: Commitment): RpcRequest<ContextValue<List<ProgramAccount>>, RpcError> = getProgramAccounts(program, filters, SolanaAccountConfig(commitment = commitment))
+
+    /** As above, slicing the data read and refusing a slot older than the config names. */
+    fun getProgramAccounts(program: SolanaAddress, filters: List<AccountFilter>, config: SolanaAccountConfig): RpcRequest<ContextValue<List<ProgramAccount>>, RpcError> {
+        return rpc("getProgramAccounts", program.toString(), accountConfig(config, filters, withContext = true)) { element ->
+            decodeContext(element) { it.jsonArray.map { account -> decode<ProgramAccount>(account) } }
         }
-        return rpc("getProgramAccounts", program.toString(), options) { decode(it) }
     }
 
     /** Token accounts [owner] holds, for one mint or across one token program. */
@@ -485,13 +497,14 @@ interface SolanaApi {
     fun getTokenAccountsByOwnerForProgram(owner: SolanaAddress, program: SolanaAddress): RpcRequest<ContextValue<List<ProgramAccount>>, RpcError> = tokenAccountsByOwner(owner, "programId", program, defaultCommitment)
     fun getTokenAccountsByOwnerForProgram(owner: SolanaAddress, program: SolanaAddress, commitment: Commitment): RpcRequest<ContextValue<List<ProgramAccount>>, RpcError> = tokenAccountsByOwner(owner, "programId", program, commitment)
 
+    /** As above, slicing the data read and refusing a slot older than the config names. */
+    fun getTokenAccountsByOwner(owner: SolanaAddress, mint: SolanaAddress, config: SolanaAccountConfig): RpcRequest<ContextValue<List<ProgramAccount>>, RpcError> = tokenAccountsBy("getTokenAccountsByOwner", owner, "mint", mint, config)
+
+    /** As above, slicing the data read and refusing a slot older than the config names. */
+    fun getTokenAccountsByOwnerForProgram(owner: SolanaAddress, program: SolanaAddress, config: SolanaAccountConfig): RpcRequest<ContextValue<List<ProgramAccount>>, RpcError> = tokenAccountsBy("getTokenAccountsByOwner", owner, "programId", program, config)
+
     private fun tokenAccountsByOwner(owner: SolanaAddress, key: String, value: SolanaAddress, commitment: Commitment): RpcRequest<ContextValue<List<ProgramAccount>>, RpcError> {
-        return rpc(
-            "getTokenAccountsByOwner",
-            owner.toString(),
-            buildJsonObject { put(key, value.toString()) },
-            config(commitment, "base64"),
-        ) { element -> decodeContext(element) { it.jsonArray.map { account -> decode<ProgramAccount>(account) } } }
+        return tokenAccountsBy("getTokenAccountsByOwner", owner, key, value, SolanaAccountConfig(commitment = commitment))
     }
 
     /** Slots with confirmed blocks in `[start, end]`, capped by the node at 500,000 slots. */
@@ -501,13 +514,20 @@ interface SolanaApi {
     /** A confirmed block, or null when the slot was skipped. [details] selects how much of each transaction is returned. */
     fun getBlock(slot: BigInteger): RpcRequest<SolanaBlock?, RpcError> = getBlock(slot, BlockTransactionDetails.FULL, defaultCommitment)
     fun getBlock(slot: BigInteger, details: BlockTransactionDetails): RpcRequest<SolanaBlock?, RpcError> = getBlock(slot, details, defaultCommitment)
-    fun getBlock(slot: BigInteger, details: BlockTransactionDetails, commitment: Commitment): RpcRequest<SolanaBlock?, RpcError> {
+    fun getBlock(slot: BigInteger, details: BlockTransactionDetails, commitment: Commitment): RpcRequest<SolanaBlock?, RpcError> = getBlock(slot, details, commitment, false)
+
+    /**
+     * As above, with [rewards] asking for the block's own rewards - the leader's fee share and rent
+     * collection, which [SolanaBlock.rewards] then carries. They are left out by default, since a busy
+     * block's rewards are a large part of its response.
+     */
+    fun getBlock(slot: BigInteger, details: BlockTransactionDetails, commitment: Commitment, rewards: Boolean): RpcRequest<SolanaBlock?, RpcError> {
         val options = buildJsonObject {
             put("commitment", commitment.toString())
             put("encoding", "json")
             put("transactionDetails", details.toString())
             put("maxSupportedTransactionVersion", 255)
-            put("rewards", false)
+            put("rewards", rewards)
         }
         return rpc("getBlock", rpcInteger(slot), options) { if (it == JsonNull) null else decode<SolanaBlock>(it) }
     }
@@ -517,10 +537,10 @@ interface SolanaApi {
     //-----------------------------------------------------------------------------------------------------------------
 
     /** Token accounts [delegate] may spend from, for one mint or across one token program. */
-    fun getTokenAccountsByDelegate(delegate: SolanaAddress, mint: SolanaAddress): RpcRequest<ContextValue<List<ProgramAccount>>, RpcError> = tokenAccountsBy("getTokenAccountsByDelegate", delegate, "mint", mint, defaultCommitment)
-    fun getTokenAccountsByDelegate(delegate: SolanaAddress, mint: SolanaAddress, commitment: Commitment): RpcRequest<ContextValue<List<ProgramAccount>>, RpcError> = tokenAccountsBy("getTokenAccountsByDelegate", delegate, "mint", mint, commitment)
-    fun getTokenAccountsByDelegateForProgram(delegate: SolanaAddress, program: SolanaAddress): RpcRequest<ContextValue<List<ProgramAccount>>, RpcError> = tokenAccountsBy("getTokenAccountsByDelegate", delegate, "programId", program, defaultCommitment)
-    fun getTokenAccountsByDelegateForProgram(delegate: SolanaAddress, program: SolanaAddress, commitment: Commitment): RpcRequest<ContextValue<List<ProgramAccount>>, RpcError> = tokenAccountsBy("getTokenAccountsByDelegate", delegate, "programId", program, commitment)
+    fun getTokenAccountsByDelegate(delegate: SolanaAddress, mint: SolanaAddress): RpcRequest<ContextValue<List<ProgramAccount>>, RpcError> = tokenAccountsBy("getTokenAccountsByDelegate", delegate, "mint", mint, SolanaAccountConfig())
+    fun getTokenAccountsByDelegate(delegate: SolanaAddress, mint: SolanaAddress, commitment: Commitment): RpcRequest<ContextValue<List<ProgramAccount>>, RpcError> = tokenAccountsBy("getTokenAccountsByDelegate", delegate, "mint", mint, SolanaAccountConfig(commitment = commitment))
+    fun getTokenAccountsByDelegateForProgram(delegate: SolanaAddress, program: SolanaAddress): RpcRequest<ContextValue<List<ProgramAccount>>, RpcError> = tokenAccountsBy("getTokenAccountsByDelegate", delegate, "programId", program, SolanaAccountConfig())
+    fun getTokenAccountsByDelegateForProgram(delegate: SolanaAddress, program: SolanaAddress, commitment: Commitment): RpcRequest<ContextValue<List<ProgramAccount>>, RpcError> = tokenAccountsBy("getTokenAccountsByDelegate", delegate, "programId", program, SolanaAccountConfig(commitment = commitment))
 
     /** The 20 largest holders of [mint]. */
     fun getTokenLargestAccounts(mint: SolanaAddress): RpcRequest<ContextValue<List<LargestTokenAccount>>, RpcError> = getTokenLargestAccounts(mint, defaultCommitment)
@@ -537,8 +557,14 @@ interface SolanaApi {
         return rpc("getLargestAccounts", options) { element -> decodeContext(element) { it.jsonArray.map { account -> decode<LargestAccount>(account) } } }
     }
 
-    private fun tokenAccountsBy(method: String, owner: SolanaAddress, key: String, value: SolanaAddress, commitment: Commitment): RpcRequest<ContextValue<List<ProgramAccount>>, RpcError> {
-        return rpc(method, owner.toString(), buildJsonObject { put(key, value.toString()) }, config(commitment, "base64")) { element ->
+    /** As above, slicing the data read and refusing a slot older than the config names. */
+    fun getTokenAccountsByDelegate(delegate: SolanaAddress, mint: SolanaAddress, config: SolanaAccountConfig): RpcRequest<ContextValue<List<ProgramAccount>>, RpcError> = tokenAccountsBy("getTokenAccountsByDelegate", delegate, "mint", mint, config)
+
+    /** As above, slicing the data read and refusing a slot older than the config names. */
+    fun getTokenAccountsByDelegateForProgram(delegate: SolanaAddress, program: SolanaAddress, config: SolanaAccountConfig): RpcRequest<ContextValue<List<ProgramAccount>>, RpcError> = tokenAccountsBy("getTokenAccountsByDelegate", delegate, "programId", program, config)
+
+    private fun tokenAccountsBy(method: String, owner: SolanaAddress, key: String, value: SolanaAddress, config: SolanaAccountConfig): RpcRequest<ContextValue<List<ProgramAccount>>, RpcError> {
+        return rpc(method, owner.toString(), buildJsonObject { put(key, value.toString()) }, accountConfig(config)) { element ->
             decodeContext(element) { it.jsonArray.map { account -> decode<ProgramAccount>(account) } }
         }
     }
@@ -765,6 +791,26 @@ private fun simulationConfig(commitment: Commitment, config: SolanaSimulationCon
 private fun config(commitment: Commitment, encoding: String? = null) = buildJsonObject {
     put("commitment", commitment.toString())
     encoding?.let { put("encoding", it) }
+}
+
+/** Account-read options, with [defaultCommitment] standing in for a config that names none. */
+private fun SolanaApi.accountConfig(
+    config: SolanaAccountConfig,
+    filters: List<AccountFilter> = emptyList(),
+    withContext: Boolean = false,
+) = buildJsonObject {
+    put("commitment", (config.commitment ?: defaultCommitment).toString())
+    put("encoding", "base64")
+    config.dataSlice?.let { slice ->
+        putJsonObject("dataSlice") {
+            put("offset", slice.offset)
+            put("length", slice.length)
+        }
+    }
+    config.minContextSlot?.let { put("minContextSlot", rpcInteger(it)) }
+    if (filters.isNotEmpty()) put("filters", JsonArray(filters.map { it.toJson() }))
+    // getProgramAccounts is the one account read whose context envelope is opt-in
+    if (withContext) put("withContext", true)
 }
 
 private fun <T> SolanaApi.rpc(method: String, vararg params: Any?, decoder: (JsonElement) -> T): RpcRequest<T, RpcError> = RpcCall(client, method, params, decoder)

@@ -394,6 +394,9 @@ Reference: [sol4k a166edd854a7198553fdafe9a5051a400d70b121](https://github.com/s
 | Shrink a v0 transaction with lookup tables | `getAddressLookupTable`, `AddressLookupTableAccount.decode`, automatic table selection in `compileV0` |
 | Read token balances without a call per account | `getTokenAccountsByOwner`, `AccountInfo.toTokenAccount` |
 | Read a mint's supply, decimals and authorities | `TokenMint.decode` |
+| Read part of a large account, or refuse a stale one | `SolanaAccountConfig`, `DataSlice`, `minContextSlot` |
+| Know the slot an account snapshot came from | every account read returns `ContextValue`, `RpcContext.slot` |
+| Read a block's leader and rent rewards | `getBlock(slot, details, commitment, rewards = true)`, `SolanaBlock.rewards` |
 | Simulate with options, or fill and compile a request | `simulateTransaction(request, ...)`, `SolanaSimulationConfig`, `fillTransaction` |
 | Rebuild a transaction from an RPC response | `SolanaRPCMessage.toTransaction`, `SolanaRPCTransaction.toSignedTransaction` |
 | Compile or decode without throwing | `compile`, `deserialize`, `deserializeMessage` — every one returns `Result<_, SolanaTransactionError>` |

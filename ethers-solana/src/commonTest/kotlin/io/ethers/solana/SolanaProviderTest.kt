@@ -16,9 +16,12 @@ import io.ethers.solana.types.Programs
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.types.SolanaSignature
+import io.ethers.solana.types.rpc.BlockTransactionDetails
 import io.ethers.solana.types.rpc.Commitment
 import io.ethers.solana.types.rpc.ContextValue
+import io.ethers.solana.types.rpc.DataSlice
 import io.ethers.solana.types.rpc.RpcContext
+import io.ethers.solana.types.rpc.SolanaAccountConfig
 import io.ethers.solana.types.rpc.SolanaNodeHealth
 import io.ethers.solana.types.rpc.SolanaNodeIdentity
 import io.ethers.solana.types.rpc.SolanaSendConfig
@@ -33,6 +36,7 @@ import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -96,6 +100,10 @@ class SolanaProviderTest : FunSpec({
         response = "null"
         provider.getBlock(bigIntegerOf(5)).send().unwrap() shouldBe null
         assertRequest("getBlock", """[5,{"commitment":"confirmed","encoding":"json","transactionDetails":"full","maxSupportedTransactionVersion":255,"rewards":false}]""")
+
+        // a block's own rewards are asked for, since they are a large part of a busy block's response
+        provider.getBlock(bigIntegerOf(5), BlockTransactionDetails.NONE, Commitment.FINALIZED, true).send().unwrap() shouldBe null
+        assertRequest("getBlock", """[5,{"commitment":"finalized","encoding":"json","transactionDetails":"none","maxSupportedTransactionVersion":255,"rewards":true}]""")
     }
 
     test("signature statuses keep their position, with null for a signature the node never saw") {
@@ -111,18 +119,58 @@ class SolanaProviderTest : FunSpec({
     }
 
     test("program and token account queries ask for base64 and carry their filters") {
-        response = """[{"pubkey":"$address","account":$account}]"""
-        val accounts = provider.getProgramAccounts(address).send().unwrap()
-        accounts.single().pubkey shouldBe address
-        accounts.single().account.lamports shouldBe BigInteger("18446744073709551615")
-        assertRequest("getProgramAccounts", """["$address",{"commitment":"confirmed","encoding":"base64"}]""")
-
         response = contextual("""[{"pubkey":"$address","account":$account}]""")
+        val accounts = provider.getProgramAccounts(address).send().unwrap()
+        accounts.value.single().pubkey shouldBe address
+        accounts.value.single().account.lamports shouldBe BigInteger("18446744073709551615")
+        // alone among the account reads, this one has to ask for the slot it answered at
+        accounts.context.slot shouldBe BigInteger("9007199254740993")
+        assertRequest("getProgramAccounts", """["$address",{"commitment":"confirmed","encoding":"base64","withContext":true}]""")
+
         provider.getTokenAccountsByOwner(address, Programs.TOKEN).send().unwrap().value.size shouldBe 1
         assertRequest("getTokenAccountsByOwner", """["$address",{"mint":"${Programs.TOKEN}"},{"commitment":"confirmed","encoding":"base64"}]""")
 
         provider.getTokenAccountsByOwnerForProgram(address, Programs.TOKEN_2022).send().unwrap().value.size shouldBe 1
         assertRequest("getTokenAccountsByOwner", """["$address",{"programId":"${Programs.TOKEN_2022}"},{"commitment":"confirmed","encoding":"base64"}]""")
+    }
+
+    test("account reads slice the data and refuse a slot older than the caller has seen") {
+        val config = SolanaAccountConfig(dataSlice = DataSlice(offset = 32, length = 8), minContextSlot = BigInteger("512"))
+
+        response = contextual(account)
+        provider.getAccountInfo(address, config).send().unwrap().value.shouldNotBeNull()
+        assertRequest(
+            "getAccountInfo",
+            """["$address",{"commitment":"confirmed","encoding":"base64","dataSlice":{"offset":32,"length":8},"minContextSlot":512}]""",
+        )
+
+        response = contextual("[$account]")
+        provider.getMultipleAccounts(listOf(address), config).send().unwrap().value.size shouldBe 1
+        assertRequest(
+            "getMultipleAccounts",
+            """[["$address"],{"commitment":"confirmed","encoding":"base64","dataSlice":{"offset":32,"length":8},"minContextSlot":512}]""",
+        )
+
+        response = contextual("""[{"pubkey":"$address","account":$account}]""")
+        provider.getProgramAccounts(address, emptyList(), config).send().unwrap().value.size shouldBe 1
+        assertRequest(
+            "getProgramAccounts",
+            """["$address",{"commitment":"confirmed","encoding":"base64","dataSlice":{"offset":32,"length":8},"minContextSlot":512,"withContext":true}]""",
+        )
+
+        provider.getTokenAccountsByOwner(address, Programs.TOKEN, SolanaAccountConfig.WITHOUT_DATA).send().unwrap().value.size shouldBe 1
+        assertRequest(
+            "getTokenAccountsByOwner",
+            """["$address",{"mint":"${Programs.TOKEN}"},{"commitment":"confirmed","encoding":"base64","dataSlice":{"offset":0,"length":0}}]""",
+        )
+
+        // a config naming no commitment defers to the provider's own
+        response = contextual(account)
+        provider.getAccountInfo(address, SolanaAccountConfig(minContextSlot = BigInteger("7"))).send().unwrap()
+        assertRequest("getAccountInfo", """["$address",{"commitment":"confirmed","encoding":"base64","minContextSlot":7}]""")
+
+        shouldThrow<IllegalArgumentException> { DataSlice(offset = -1) }
+        shouldThrow<IllegalArgumentException> { DataSlice(offset = 0, length = -1) }
     }
 
     test("sending exposes the options a caller needs, and omits the ones left unset") {
