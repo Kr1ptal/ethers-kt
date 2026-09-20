@@ -1,5 +1,6 @@
 package io.ethers.solana.providers
 
+import io.ethers.solana.instruction.isAdvanceNonceData
 import io.ethers.solana.types.Programs
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
@@ -28,8 +29,6 @@ internal fun SolanaTransactionCompiled.confirmationTracking(): ConfirmationTrack
     }
     return ConfirmationTracking.Blockhash(recentBlockhash)
 }
-
-internal fun ByteArray.isAdvanceNonceData(): Boolean = size == 4 && this[0] == 4.toByte() && this[1] == 0.toByte() && this[2] == 0.toByte() && this[3] == 0.toByte()
 
 /** Reuse the wire decoder for raw submissions; malformed envelopes still reach RPC unchanged. */
 internal fun decodeConfirmationTracking(bytes: ByteArray): ConfirmationTracking = decodeTransactionEnvelope(bytes).unwrapOrNull()?.first?.confirmationTracking() ?: ConfirmationTracking.StatusOnly

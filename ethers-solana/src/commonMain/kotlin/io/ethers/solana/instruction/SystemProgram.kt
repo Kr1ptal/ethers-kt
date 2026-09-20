@@ -123,3 +123,5 @@ object SystemProgram {
      */
     private inline fun payload(discriminant: Int, size: Int, fill: (ByteArray) -> Unit): ByteArray = ByteArray(4 + size).also { it[0] = discriminant.toByte() }.also(fill)
 }
+
+internal fun ByteArray.isAdvanceNonceData(): Boolean = size == 4 && this[0] == 4.toByte() && this[1] == 0.toByte() && this[2] == 0.toByte() && this[3] == 0.toByte()

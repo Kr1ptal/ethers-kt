@@ -377,6 +377,31 @@ towards zero below one micro-lamport. Use strings or `BigDecimal` for precise de
 `toBigIntegerExact()` when an API requires whole lamports. Unit conversion permits negative and arbitrarily
 large values; transaction instruction types validate unsigned amounts, while RPC calls defer range validation to the node.
 
+## Idempotent associated token accounts
+
+Use `AssociatedTokenProgram.createAccountIdempotent(payer, owner, mint)` to derive the SPL Token
+associated account and create it only if needed. For Token-2022, use
+`createToken2022AccountIdempotent(payer, owner, mint)`. Both also accept an explicit ATA address as
+`(payer, associatedToken, owner, mint)`. An existing matching account succeeds unchanged; an
+incompatible account still fails on-chain. These methods build instructions and do not send transactions.
+
+For durable-nonce requests, use `durableNonce(nonceAccount, authority, nonce)`:
+
+```kotlin
+val request = SolanaTransactionRequest {
+    feePayer(payer)
+    durableNonce(nonceAccount, authority, nonce)
+    instruction(SystemProgram.transfer(payer, recipient, 1_000L))
+    computeUnitLimit(200_000)
+}
+```
+
+Supply the nonce value read from the account; the builder does not fetch it. It sets the blockhash and
+prepends the advance instruction, replacing an existing leading advance on repeated calls. The nonce
+authority must sign along with any other required signers. Legacy/v0 compilation inserts generated
+compute-budget instructions immediately after the advance. V1 retains the instruction order and encodes
+its compute settings inline. You can also construct the leading advance instruction manually.
+
 ## Ported capabilities
 
 Reference: [sol4k a166edd854a7198553fdafe9a5051a400d70b121](https://github.com/sol4k/sol4k/tree/a166edd854a7198553fdafe9a5051a400d70b121).

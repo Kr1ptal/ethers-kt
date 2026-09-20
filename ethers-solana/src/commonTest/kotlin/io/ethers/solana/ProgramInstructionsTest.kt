@@ -1,8 +1,10 @@
 package io.ethers.solana
 
 import io.ethers.core.FastHex
+import io.ethers.solana.instruction.AssociatedTokenProgram
 import io.ethers.solana.instruction.SystemProgram
 import io.ethers.solana.instruction.TokenProgram
+import io.ethers.solana.types.AccountMeta
 import io.ethers.solana.types.Programs
 import io.ethers.solana.types.SolanaAddress
 import io.github.artificialpb.bignum.bigIntegerOf
@@ -58,6 +60,37 @@ class ProgramInstructionsTest : FunSpec({
         val withdraw = SystemProgram.withdrawNonceAccount(account, owner, payer, bigIntegerOf(1))
         withdraw.data.toHex() shouldBe "05000000" + "0100000000000000"
         withdraw.keys.map { it.publicKey } shouldBe listOf(account, payer, Programs.SYSVAR_RECENT_BLOCKHASHES, Programs.SYSVAR_RENT, owner)
+    }
+
+    test("idempotent ATA creation encodes discriminator one and six ordered accounts") {
+        val instructions = listOf(
+            AssociatedTokenProgram.createAccountIdempotent(payer, account, owner, mint) to Programs.TOKEN,
+            AssociatedTokenProgram.createToken2022AccountIdempotent(payer, account, owner, mint) to Programs.TOKEN_2022,
+        )
+        for ((instruction, tokenProgram) in instructions) {
+            instruction.programId shouldBe Programs.ASSOCIATED_TOKEN
+            instruction.data.toHex() shouldBe "01"
+            instruction.keys shouldBe listOf(
+                AccountMeta.signerAndWritable(payer),
+                AccountMeta.writable(account),
+                AccountMeta(owner),
+                AccountMeta(mint),
+                AccountMeta(Programs.SYSTEM),
+                AccountMeta(tokenProgram),
+            )
+        }
+        AssociatedTokenProgram.createAccount(payer, account, owner, mint).data.toHex() shouldBe "00"
+        AssociatedTokenProgram.createToken2022Account(payer, account, owner, mint).data.toHex() shouldBe "00"
+    }
+
+    test("idempotent ATA convenience overloads derive addresses for the selected token program") {
+        val tokenAddress = SolanaAddress.findAssociatedTokenAddress(owner, mint, Programs.TOKEN).address
+        val token2022Address = SolanaAddress.findAssociatedTokenAddress(owner, mint, Programs.TOKEN_2022).address
+        (tokenAddress == token2022Address) shouldBe false
+        AssociatedTokenProgram.createAccountIdempotent(payer, owner, mint) shouldBe
+            AssociatedTokenProgram.createAccountIdempotent(payer, tokenAddress, owner, mint)
+        AssociatedTokenProgram.createToken2022AccountIdempotent(payer, owner, mint) shouldBe
+            AssociatedTokenProgram.createToken2022AccountIdempotent(payer, token2022Address, owner, mint)
     }
 
     test("checked token instructions carry amount and decimals after their discriminant") {

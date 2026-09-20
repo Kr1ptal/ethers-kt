@@ -4,6 +4,9 @@ import io.ethers.core.isFailure
 import io.ethers.solana.instruction.ComputeBudgetProgram
 import io.ethers.solana.instruction.Instruction
 import io.ethers.solana.instruction.SystemProgram
+import io.ethers.solana.providers.ConfirmationTracking
+import io.ethers.solana.providers.confirmationTracking
+import io.ethers.solana.providers.decodeConfirmationTracking
 import io.ethers.solana.signers.KeypairSigner
 import io.ethers.solana.types.AccountMeta
 import io.ethers.solana.types.Programs
@@ -85,6 +88,90 @@ class SolanaTransactionRequestTest : FunSpec({
         budget.map { it.data.toHex() } shouldBe listOf("02400d0300", "03e803000000000000")
         // compute budget is prepended, ahead of the caller's own instructions
         tx.instructions.take(2) shouldBe budget
+    }
+
+    test("compute budget insertion preserves the leading nonce advance in every compilation path") {
+        val nonceAccount = SolanaAddress(ByteArray(32) { 9 })
+        val advance = SystemProgram.advanceNonceAccount(nonceAccount, alice.publicKey)
+        val req = SolanaTransactionRequest {
+            feePayer(alice.publicKey)
+            blockhash(blockhash)
+            instructions(listOf(advance, ComputeBudgetProgram.setComputeUnitLimit(1), transfer))
+            computeUnitLimit(200_000)
+            computeUnitPrice(1_000)
+            heapSize(32768)
+            loadedAccountsDataSizeLimit(65536)
+        }
+        val expected = listOf(
+            advance,
+            ComputeBudgetProgram.requestHeapFrame(32768),
+            ComputeBudgetProgram.setComputeUnitLimit(200_000),
+            ComputeBudgetProgram.setComputeUnitPrice(1_000),
+            ComputeBudgetProgram.setLoadedAccountsDataSizeLimit(65536),
+            transfer,
+        )
+        for (tx in listOf(req.compile().unwrap(), req.compileLegacy().unwrap(), req.compileV0().unwrap())) {
+            tx.instructions.map { tx.accounts[it.programIdIndex] to it.data } shouldBe expected.map { it.programId to it.data }
+            tx.instructions.count { it.data == advance.data && tx.accounts[it.programIdIndex] == Programs.SYSTEM } shouldBe 1
+            tx.confirmationTracking() shouldBe ConfirmationTracking.DurableNonce(nonceAccount, blockhash)
+            decodeConfirmationTracking(tx.sign(alice).serialize()) shouldBe tx.confirmationTracking()
+        }
+        // V1 has inline compute settings, so the original instruction sequence stays intact.
+        val v1 = req.compileV1().unwrap()
+        v1.instructions.map { v1.accounts[it.programIdIndex] to it.data } shouldBe req.instructions.map { it.programId to it.data }
+        v1.confirmationTracking() shouldBe ConfirmationTracking.DurableNonce(nonceAccount, blockhash)
+        req.instructions shouldBe listOf(advance, ComputeBudgetProgram.setComputeUnitLimit(1), transfer)
+    }
+
+    test("durableNonce sets the hash and preserves nonce tracking through compilation and signing") {
+        val nonceAccount = SolanaAddress(ByteArray(32) { 9 })
+        val nonce = SolanaBlockhash(ByteArray(32) { 10 })
+        val req = request().durableNonce(nonceAccount, bob.publicKey, nonce)
+            .computeUnitLimit(200_000).computeUnitPrice(1_000)
+        req.blockhash shouldBe nonce
+        req.instructions shouldBe listOf(SystemProgram.advanceNonceAccount(nonceAccount, bob.publicKey), transfer)
+        for (tx in listOf(req.compile().unwrap(), req.compileLegacy().unwrap(), req.compileV0().unwrap(), req.compileV1().unwrap())) {
+            tx.recentBlockhash shouldBe nonce
+            tx.signers.toSet() shouldBe setOf(alice.publicKey, bob.publicKey)
+            tx.confirmationTracking() shouldBe ConfirmationTracking.DurableNonce(nonceAccount, nonce)
+            decodeConfirmationTracking(tx.sign(alice, bob).serialize()) shouldBe tx.confirmationTracking()
+        }
+    }
+
+    test("durableNonce replaces a leading advance but preserves later nonce operations and other programs") {
+        val firstAccount = SolanaAddress(ByteArray(32) { 9 })
+        val secondAccount = SolanaAddress(ByteArray(32) { 10 })
+        val nonce = SolanaBlockhash(ByteArray(32) { 11 })
+        val laterAdvance = SystemProgram.advanceNonceAccount(firstAccount, alice.publicKey)
+        val other = Instruction(Programs.TOKEN, emptyList(), byteArrayOf(4, 0, 0, 0))
+        val req = request().instructions(listOf(other, transfer, laterAdvance))
+        req.durableNonce(firstAccount, alice.publicKey, blockhash)
+        req.durableNonce(secondAccount, bob.publicKey, nonce)
+        req.durableNonce(secondAccount, bob.publicKey, nonce)
+        req.instructions shouldBe listOf(SystemProgram.advanceNonceAccount(secondAccount, bob.publicKey), other, transfer, laterAdvance)
+        req.blockhash shouldBe nonce
+        val copied = SolanaTransactionRequest(req)
+        copied.durableNonce(firstAccount, alice.publicKey, blockhash)
+        req.blockhash shouldBe nonce
+        req.instructions.first() shouldBe SystemProgram.advanceNonceAccount(secondAccount, bob.publicKey)
+    }
+
+    test("durableNonce can initialize an empty DSL request before appending instructions") {
+        val nonceAccount = SolanaAddress(ByteArray(32) { 9 })
+        val req = SolanaTransactionRequest {
+            feePayer(alice.publicKey)
+            durableNonce(nonceAccount, alice.publicKey, blockhash)
+            instruction(transfer)
+        }
+        req.instructions shouldBe listOf(SystemProgram.advanceNonceAccount(nonceAccount, alice.publicKey), transfer)
+        req.compileLegacy().unwrap().confirmationTracking() shouldBe ConfirmationTracking.DurableNonce(nonceAccount, blockhash)
+    }
+
+    test("nonce opcode from another program does not change compute budget placement") {
+        val other = Instruction(Programs.TOKEN, emptyList(), byteArrayOf(4, 0, 0, 0))
+        val tx = request().instructions(listOf(other, transfer)).computeUnitLimit(200_000).compileLegacy().unwrap()
+        tx.accounts[tx.instructions.first().programIdIndex] shouldBe Programs.COMPUTE_BUDGET
+        tx.accounts[tx.instructions[1].programIdIndex] shouldBe Programs.TOKEN
     }
 
     test("a field replaces the matching ComputeBudget instruction but leaves the other alone") {

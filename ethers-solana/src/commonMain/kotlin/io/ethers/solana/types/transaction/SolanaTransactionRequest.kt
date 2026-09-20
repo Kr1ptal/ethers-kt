@@ -4,6 +4,9 @@ import io.ethers.core.Result
 import io.ethers.core.unwrapOrReturn
 import io.ethers.solana.instruction.ComputeBudgetProgram
 import io.ethers.solana.instruction.Instruction
+import io.ethers.solana.instruction.SystemProgram
+import io.ethers.solana.instruction.isAdvanceNonceData
+import io.ethers.solana.types.Programs
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.utils.U32_MAX
@@ -102,6 +105,27 @@ class SolanaTransactionRequest() {
 
     fun feePayer(feePayer: SolanaAddress?) = apply { this.feePayer = feePayer }
     fun blockhash(blockhash: SolanaBlockhash?) = apply { this.blockhash = blockhash }
+
+    /**
+     * Use [nonce] from [nonceAccount] as this transaction's blockhash and put its advance instruction
+     * first. [authority] must sign the transaction. Replaces an existing leading nonce advance,
+     * preserving every other instruction in order, so repeated calls do not add duplicate advances.
+     *
+     * This only updates the request; it does not fetch the nonce or submit a transaction. Subsequent
+     * calls to [blockhash] or [instructions] replace those fields normally. Append instructions with
+     * [instruction] to retain the nonce setup. Compilation keeps generated compute settings after it.
+     */
+    fun durableNonce(nonceAccount: SolanaAddress, authority: SolanaAddress, nonce: SolanaBlockhash) = apply {
+        val first = instructions.firstOrNull()
+        val remaining = if (first?.programId == Programs.SYSTEM && first.data.asByteArray().isAdvanceNonceData()) {
+            instructions.drop(1)
+        } else {
+            instructions
+        }
+        blockhash = nonce
+        instructions = listOf(SystemProgram.advanceNonceAccount(nonceAccount, authority)) + remaining
+    }
+
     fun instructions(instructions: List<Instruction>) = apply { this.instructions = instructions }
     fun instruction(instruction: Instruction) = apply { this.instructions += instruction }
     fun computeUnitLimit(computeUnitLimit: Long?) = apply { this.computeUnitLimit = computeUnitLimit }
@@ -144,7 +168,8 @@ class SolanaTransactionRequest() {
 
     /**
      * Compile a legacy message. [computeUnitLimit] and [computeUnitPrice] replace any ComputeBudget
-     * instruction that sets the same value, and are prepended otherwise.
+     * instruction that sets the same value, and are inserted before ordinary instructions, after a
+     * leading nonce advance.
      */
     fun compileLegacy(): Result<SolanaTxLegacy, SolanaTransactionError> {
         val payer = feePayer ?: return Result.failure(SolanaTransactionError.MissingFeePayer)
@@ -222,6 +247,11 @@ class SolanaTransactionRequest() {
         if (limit != null) prefix.add(ComputeBudgetProgram.setComputeUnitLimit(limit))
         if (price != null) prefix.add(ComputeBudgetProgram.setComputeUnitPrice(price))
         if (dataSize != null) prefix.add(ComputeBudgetProgram.setLoadedAccountsDataSizeLimit(dataSize))
+        // Durable nonce recognition requires the advance instruction to remain at index zero.
+        val first = instructions.firstOrNull()
+        if (first?.programId == Programs.SYSTEM && first.data.asByteArray().isAdvanceNonceData()) {
+            return Result.success(listOf(first) + prefix + kept.drop(1))
+        }
         return Result.success(prefix + kept)
     }
 
