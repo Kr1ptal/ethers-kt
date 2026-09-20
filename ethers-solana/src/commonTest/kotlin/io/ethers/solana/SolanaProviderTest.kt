@@ -227,7 +227,7 @@ class SolanaProviderTest : FunSpec({
 
     test("request commitment overrides do not change the provider default or other requests") {
         response = contextual("1")
-        val overridden = provider.getBalance(address, commitment = Commitment.FINALIZED)
+        val overridden = provider.getBalance(address, Commitment.FINALIZED)
         val inherited = provider.getBalance(address)
         provider.defaultCommitment shouldBe Commitment.CONFIRMED
         val expected = ContextValue(RpcContext(BigInteger("9007199254740993"), "3.0.0"), bigIntegerOf(1))

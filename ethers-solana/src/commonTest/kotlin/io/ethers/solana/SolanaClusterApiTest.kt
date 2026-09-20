@@ -8,6 +8,7 @@ import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.rpc.Commitment
 import io.ethers.solana.types.rpc.LargestAccountsFilter
 import io.ethers.solana.types.rpc.SlotRange
+import io.ethers.solana.types.rpc.SolanaReadConfig
 import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -99,6 +100,26 @@ class SolanaClusterApiTest : FunSpec({
         votes.current.single().epochCredits.single() shouldBe listOf(bigIntegerOf(1), bigIntegerOf(2), bigIntegerOf(3))
         votes.delinquent shouldBe emptyList()
         assertRequest("getVoteAccounts", """[{"commitment":"confirmed"}]""")
+
+        // the delinquency filters the node applies are the caller's to set
+        provider.getVoteAccounts(null, Commitment.FINALIZED, true, bigIntegerOf(256)).send().unwrap()
+        assertRequest("getVoteAccounts", """[{"commitment":"finalized","keepUnstakedDelinquents":true,"delinquentSlotDistance":256}]""")
+
+        // a stale read is refused rather than answered from an earlier slot
+        response = "5"
+        provider.getSlot(SolanaReadConfig(Commitment.CONFIRMED, bigIntegerOf(400))).send().unwrap() shouldBe bigIntegerOf(5)
+        assertRequest("getSlot", """[{"commitment":"confirmed","minContextSlot":400}]""")
+
+        provider.getSlot(SolanaReadConfig(minContextSlot = bigIntegerOf(402))).send().unwrap()
+        assertRequest("getSlot", """[{"commitment":"confirmed","minContextSlot":402}]""")
+        provider.getSlot(Commitment.FINALIZED).send().unwrap()
+        assertRequest("getSlot", """[{"commitment":"finalized"}]""")
+        provider.getSlot(SolanaReadConfig(commitment = Commitment.FINALIZED)).send().unwrap()
+        assertRequest("getSlot", """[{"commitment":"finalized"}]""")
+
+        response = contextual("""{"blockhash":"$address","lastValidBlockHeight":3}""")
+        provider.getLatestBlockhash(SolanaReadConfig(Commitment.FINALIZED, bigIntegerOf(401))).send().unwrap()
+        assertRequest("getLatestBlockhash", """[{"commitment":"finalized","minContextSlot":401}]""")
     }
 
     test("leader schedule is keyed by identity, and null for an epoch the node cannot answer for") {

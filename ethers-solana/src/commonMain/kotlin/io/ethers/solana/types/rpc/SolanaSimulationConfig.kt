@@ -13,6 +13,7 @@ import kotlin.jvm.JvmOverloads
  * unsigned transaction with no live blockhash be simulated at all.
  */
 data class SolanaSimulationConfig @JvmOverloads constructor(
+    val commitment: Commitment? = null,
     /** Verify the transaction's signatures, rather than ignoring them. */
     val sigVerify: Boolean = false,
     /** Let the node substitute its most recent blockhash for the one in the message. */

@@ -74,6 +74,38 @@ class SolanaSimulationTest : FunSpec({
     fun paramsOf(method: String) = requests.last { it.getValue("method").jsonPrimitive.content == method }
         .getValue("params").let { Kotlinx.DEFAULT.parseToJsonElement(it.toString()) }
 
+    test("compiled and byte simulations preserve the same complete config") {
+        responses["simulateTransaction"] = simulation()
+        val tx = request().apply { blockhash(blockhash) }.compileV0().unwrap()
+        val config = SolanaSimulationConfig(
+            commitment = Commitment.FINALIZED,
+            replaceRecentBlockhash = true,
+            innerInstructions = true,
+            accounts = listOf(alice.publicKey),
+            minContextSlot = bigIntegerOf(7),
+        )
+        provider.simulateTransaction(tx, config).send().unwrap()
+        val compiledParams = paramsOf("simulateTransaction")
+        provider.simulateTransaction(tx.serializeForSimulation(), config).send().unwrap()
+        paramsOf("simulateTransaction") shouldBe compiledParams
+        val sent = compiledParams.toString()
+        ("\"commitment\":\"finalized\"" in sent) shouldBe true
+        ("\"replaceRecentBlockhash\":true" in sent) shouldBe true
+        ("\"innerInstructions\":true" in sent) shouldBe true
+        ("\"minContextSlot\":7" in sent) shouldBe true
+        ("\"addresses\":[\"${alice.publicKey}\"]" in sent) shouldBe true
+
+        provider.simulateTransaction(tx, Commitment.PROCESSED).send().unwrap()
+        val shorthandParams = paramsOf("simulateTransaction")
+        provider.simulateTransaction(tx, SolanaSimulationConfig(commitment = Commitment.PROCESSED)).send().unwrap()
+        paramsOf("simulateTransaction") shouldBe shorthandParams
+        provider.simulateTransaction(tx.serializeForSimulation(), Commitment.PROCESSED).send().unwrap()
+        paramsOf("simulateTransaction") shouldBe shorthandParams
+
+        provider.simulateTransaction(tx, SolanaSimulationConfig()).send().unwrap()
+        ("\"commitment\":\"confirmed\"" in paramsOf("simulateTransaction").toString()) shouldBe true
+    }
+
     test("simulation options reach the node and mutually exclusive ones are rejected") {
         responses["simulateTransaction"] = simulation()
         val tx = request().apply { blockhash(blockhash) }.compileV0().unwrap()

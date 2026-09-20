@@ -13,11 +13,14 @@ import io.ethers.providers.types.RpcSubscribe
 import io.ethers.providers.types.SuppliedRpcRequest
 import io.ethers.solana.providers.AccountFilter
 import io.ethers.solana.providers.BlockFilter
+import io.ethers.solana.providers.ConfirmationTracking
 import io.ethers.solana.providers.LogsFilter
 import io.ethers.solana.providers.PendingSolanaTransaction
 import io.ethers.solana.providers.SolanaProvider
+import io.ethers.solana.providers.confirmationTracking
 import io.ethers.solana.providers.decode
 import io.ethers.solana.providers.decodeAccount
+import io.ethers.solana.providers.decodeConfirmationTracking
 import io.ethers.solana.providers.decodeContext
 import io.ethers.solana.providers.decodeU64
 import io.ethers.solana.providers.rpcInteger
@@ -57,6 +60,7 @@ import io.ethers.solana.types.rpc.SolanaNodeHealth
 import io.ethers.solana.types.rpc.SolanaNodeIdentity
 import io.ethers.solana.types.rpc.SolanaNodeVersion
 import io.ethers.solana.types.rpc.SolanaRPCTransaction
+import io.ethers.solana.types.rpc.SolanaReadConfig
 import io.ethers.solana.types.rpc.SolanaSendConfig
 import io.ethers.solana.types.rpc.SolanaSimulationConfig
 import io.ethers.solana.types.rpc.Supply
@@ -81,6 +85,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.buildJsonObject
@@ -170,22 +175,35 @@ interface SolanaApi {
     fun subscribeRoot(): RpcSubscribe<BigInteger, RpcError> = provider.subscribeRoot()
 
     fun getBalance(address: SolanaAddress): RpcRequest<ContextValue<BigInteger>, RpcError> = getBalance(address, defaultCommitment)
-    fun getBalance(address: SolanaAddress, commitment: Commitment = this.defaultCommitment): RpcRequest<ContextValue<BigInteger>, RpcError> = rpc("getBalance", address.toString(), config(commitment)) { decodeContext(it, ::decodeU64) }
+    fun getBalance(address: SolanaAddress, commitment: Commitment): RpcRequest<ContextValue<BigInteger>, RpcError> = getBalance(address, SolanaReadConfig(commitment = commitment))
+    fun getBalance(address: SolanaAddress, config: SolanaReadConfig): RpcRequest<ContextValue<BigInteger>, RpcError> = rpc("getBalance", address.toString(), readConfig(config)) { decodeContext(it, ::decodeU64) }
+
+    /**
+     * The token-amount reads take only a commitment: the node accepts a `minContextSlot` alongside
+     * these and answers regardless, so [SolanaReadConfig] would promise a guarantee they do not keep.
+     */
     fun getTokenAccountBalance(address: SolanaAddress): RpcRequest<ContextValue<TokenAmount>, RpcError> = getTokenAccountBalance(address, defaultCommitment)
-    fun getTokenAccountBalance(address: SolanaAddress, commitment: Commitment = this.defaultCommitment): RpcRequest<ContextValue<TokenAmount>, RpcError> = rpc("getTokenAccountBalance", address.toString(), config(commitment)) { decode(it) }
+    fun getTokenAccountBalance(address: SolanaAddress, commitment: Commitment): RpcRequest<ContextValue<TokenAmount>, RpcError> = rpc("getTokenAccountBalance", address.toString(), commitmentConfig(commitment)) { decode(it) }
     fun getTokenSupply(mint: SolanaAddress): RpcRequest<ContextValue<TokenAmount>, RpcError> = getTokenSupply(mint, defaultCommitment)
-    fun getTokenSupply(mint: SolanaAddress, commitment: Commitment = this.defaultCommitment): RpcRequest<ContextValue<TokenAmount>, RpcError> = rpc("getTokenSupply", mint.toString(), config(commitment)) { decode(it) }
+    fun getTokenSupply(mint: SolanaAddress, commitment: Commitment): RpcRequest<ContextValue<TokenAmount>, RpcError> = rpc("getTokenSupply", mint.toString(), commitmentConfig(commitment)) { decode(it) }
     fun getLatestBlockhash(): RpcRequest<ContextValue<LatestBlockhash>, RpcError> = getLatestBlockhash(defaultCommitment)
-    fun getLatestBlockhash(commitment: Commitment = this.defaultCommitment): RpcRequest<ContextValue<LatestBlockhash>, RpcError> = rpc("getLatestBlockhash", config(commitment)) { decode(it) }
+    fun getLatestBlockhash(commitment: Commitment): RpcRequest<ContextValue<LatestBlockhash>, RpcError> = getLatestBlockhash(SolanaReadConfig(commitment = commitment))
+    fun getLatestBlockhash(config: SolanaReadConfig): RpcRequest<ContextValue<LatestBlockhash>, RpcError> = rpc("getLatestBlockhash", readConfig(config)) { decode(it) }
+
     fun isBlockhashValid(blockhash: SolanaBlockhash): RpcRequest<ContextValue<Boolean>, RpcError> = isBlockhashValid(blockhash, defaultCommitment)
-    fun isBlockhashValid(blockhash: SolanaBlockhash, commitment: Commitment = this.defaultCommitment): RpcRequest<ContextValue<Boolean>, RpcError> = rpc("isBlockhashValid", blockhash.toString(), config(commitment)) { decodeContext(it) { v -> v.jsonPrimitive.boolean } }
+    fun isBlockhashValid(blockhash: SolanaBlockhash, commitment: Commitment): RpcRequest<ContextValue<Boolean>, RpcError> = isBlockhashValid(blockhash, SolanaReadConfig(commitment = commitment))
+    fun isBlockhashValid(blockhash: SolanaBlockhash, config: SolanaReadConfig): RpcRequest<ContextValue<Boolean>, RpcError> = rpc("isBlockhashValid", blockhash.toString(), readConfig(config)) { decodeContext(it) { v -> v.jsonPrimitive.boolean } }
+
     fun getHealth(): RpcRequest<SolanaNodeHealth, RpcError> = rpc("getHealth") { if (it.jsonPrimitive.content == "ok") SolanaNodeHealth.OK else SolanaNodeHealth.ERROR }
     fun getEpochInfo(): RpcRequest<EpochInfo, RpcError> = getEpochInfo(defaultCommitment)
-    fun getEpochInfo(commitment: Commitment = this.defaultCommitment): RpcRequest<EpochInfo, RpcError> = rpc("getEpochInfo", config(commitment)) { decode(it) }
+    fun getEpochInfo(commitment: Commitment): RpcRequest<EpochInfo, RpcError> = getEpochInfo(SolanaReadConfig(commitment = commitment))
+    fun getEpochInfo(config: SolanaReadConfig): RpcRequest<EpochInfo, RpcError> = rpc("getEpochInfo", readConfig(config)) { decode(it) }
+
     fun getIdentity(): RpcRequest<SolanaNodeIdentity, RpcError> = rpc("getIdentity") { decode(it) }
     fun getVersion(): RpcRequest<SolanaNodeVersion, RpcError> = rpc("getVersion") { decode(it) }
     fun getTransactionCount(): RpcRequest<BigInteger, RpcError> = getTransactionCount(defaultCommitment)
-    fun getTransactionCount(commitment: Commitment = this.defaultCommitment): RpcRequest<BigInteger, RpcError> = rpc("getTransactionCount", config(commitment), decoder = ::decodeU64)
+    fun getTransactionCount(commitment: Commitment): RpcRequest<BigInteger, RpcError> = getTransactionCount(SolanaReadConfig(commitment = commitment))
+    fun getTransactionCount(config: SolanaReadConfig): RpcRequest<BigInteger, RpcError> = rpc("getTransactionCount", readConfig(config), decoder = ::decodeU64)
 
     fun getTransaction(signature: SolanaSignature): RpcRequest<SolanaRPCTransaction?, RpcError> = getTransaction(signature, defaultCommitment, 255)
     fun getTransaction(signature: SolanaSignature, commitment: Commitment): RpcRequest<SolanaRPCTransaction?, RpcError> = getTransaction(signature, commitment, 255)
@@ -205,11 +223,9 @@ interface SolanaApi {
         return rpc("getTransaction", signature.toString(), options) { if (it == JsonNull) null else decode<SolanaRPCTransaction>(it) }
     }
     fun getAccountInfo(address: SolanaAddress): RpcRequest<ContextValue<AccountInfo?>, RpcError> = getAccountInfo(address, defaultCommitment)
-    fun getAccountInfo(address: SolanaAddress, commitment: Commitment = this.defaultCommitment): RpcRequest<ContextValue<AccountInfo?>, RpcError> = rpc("getAccountInfo", address.toString(), config(commitment, "base64")) { decodeContext(it, ::decodeAccount) }
+    fun getAccountInfo(address: SolanaAddress, commitment: Commitment): RpcRequest<ContextValue<AccountInfo?>, RpcError> = getAccountInfo(address, SolanaAccountConfig(commitment = commitment))
     fun getMultipleAccounts(addresses: List<SolanaAddress>): RpcRequest<ContextValue<List<AccountInfo?>>, RpcError> = getMultipleAccounts(addresses, defaultCommitment)
-    fun getMultipleAccounts(addresses: List<SolanaAddress>, commitment: Commitment = this.defaultCommitment): RpcRequest<ContextValue<List<AccountInfo?>>, RpcError> {
-        return rpc("getMultipleAccounts", addresses.map { it.toString() }, config(commitment, "base64")) { decodeContext(it) { v -> v.jsonArray.map(::decodeAccount) } }
-    }
+    fun getMultipleAccounts(addresses: List<SolanaAddress>, commitment: Commitment): RpcRequest<ContextValue<List<AccountInfo?>>, RpcError> = getMultipleAccounts(addresses, SolanaAccountConfig(commitment = commitment))
 
     /** As above, slicing the data read and refusing a slot older than the config names. */
     fun getAccountInfo(address: SolanaAddress, config: SolanaAccountConfig): RpcRequest<ContextValue<AccountInfo?>, RpcError> = rpc("getAccountInfo", address.toString(), accountConfig(config)) { decodeContext(it, ::decodeAccount) }
@@ -222,8 +238,9 @@ interface SolanaApi {
      * Fetch and decode a lookup table, for compiling v0 transactions against it. Null when no account
      * exists; an account that is not a lookup table fails the request.
      */
-    fun getAddressLookupTable(address: SolanaAddress, commitment: Commitment = this.defaultCommitment): RpcRequest<ContextValue<AddressLookupTableAccount?>, RpcError> {
-        return getAccountInfo(address, commitment).map { response ->
+    fun getAddressLookupTable(address: SolanaAddress, commitment: Commitment): RpcRequest<ContextValue<AddressLookupTableAccount?>, RpcError> = getAddressLookupTable(address, SolanaReadConfig(commitment = commitment))
+    fun getAddressLookupTable(address: SolanaAddress, config: SolanaReadConfig): RpcRequest<ContextValue<AddressLookupTableAccount?>, RpcError> {
+        return getAccountInfo(address, SolanaAccountConfig(commitment = config.commitment, minContextSlot = config.minContextSlot)).map { response ->
             ContextValue(response.context, response.value?.let { AddressLookupTableAccount.decode(address, it.data.asByteArray()).unwrap() })
         }
     }
@@ -239,7 +256,8 @@ interface SolanaApi {
      * over anything fetched here because a table's contents can change after inclusion. Only a
      * transaction decoded from bytes, or a response without metadata, costs a `getMultipleAccounts`.
      */
-    fun decompileTransaction(transaction: SolanaTransaction, commitment: Commitment = this.defaultCommitment): RpcRequest<SolanaTransactionRequest, RpcError> = SuppliedRpcRequest {
+    fun decompileTransaction(transaction: SolanaTransaction, commitment: Commitment): RpcRequest<SolanaTransactionRequest, RpcError> = decompileTransaction(transaction, SolanaReadConfig(commitment = commitment))
+    fun decompileTransaction(transaction: SolanaTransaction, config: SolanaReadConfig): RpcRequest<SolanaTransactionRequest, RpcError> = SuppliedRpcRequest {
         when (val direct = transaction.toRequest()) {
             is Result.Success -> success(direct.value)
             is Result.Failure -> {
@@ -248,7 +266,7 @@ interface SolanaApi {
                 if (keys.isEmpty()) {
                     failure(direct.error.toRpcError())
                 } else {
-                    val accounts = getMultipleAccounts(keys, commitment).send()
+                    val accounts = getMultipleAccounts(keys, SolanaAccountConfig(commitment = config.commitment, minContextSlot = config.minContextSlot)).send()
                         .unwrapOrReturn { return@SuppliedRpcRequest failure(it) }
                         .value
                     val tables = ArrayList<AddressLookupTableAccount>(keys.size)
@@ -267,11 +285,11 @@ interface SolanaApi {
     }
 
     fun getMinimumBalanceForRentExemption(space: BigInteger): RpcRequest<BigInteger, RpcError> = getMinimumBalanceForRentExemption(space, defaultCommitment)
-    fun getMinimumBalanceForRentExemption(space: BigInteger, commitment: Commitment = this.defaultCommitment): RpcRequest<BigInteger, RpcError> = rpc("getMinimumBalanceForRentExemption", rpcInteger(space), config(commitment), decoder = ::decodeU64)
+    fun getMinimumBalanceForRentExemption(space: BigInteger, commitment: Commitment): RpcRequest<BigInteger, RpcError> = rpc("getMinimumBalanceForRentExemption", rpcInteger(space), commitmentConfig(commitment), decoder = ::decodeU64)
     fun getMinimumBalanceForRentExemption(space: Long): RpcRequest<BigInteger, RpcError> = getMinimumBalanceForRentExemption(space, defaultCommitment)
     fun getMinimumBalanceForRentExemption(space: Long, commitment: Commitment): RpcRequest<BigInteger, RpcError> = getMinimumBalanceForRentExemption(bigIntegerOf(space), commitment)
     fun requestAirdrop(address: SolanaAddress, lamports: BigInteger): RpcRequest<SolanaSignature, RpcError> = requestAirdrop(address, lamports, defaultCommitment)
-    fun requestAirdrop(address: SolanaAddress, lamports: BigInteger, commitment: Commitment = this.defaultCommitment): RpcRequest<SolanaSignature, RpcError> = rpc("requestAirdrop", address.toString(), rpcInteger(lamports), config(commitment)) { SolanaSignature(it.jsonPrimitive.content) }
+    fun requestAirdrop(address: SolanaAddress, lamports: BigInteger, commitment: Commitment): RpcRequest<SolanaSignature, RpcError> = rpc("requestAirdrop", address.toString(), rpcInteger(lamports), commitmentConfig(commitment)) { SolanaSignature(it.jsonPrimitive.content) }
     fun requestAirdrop(address: SolanaAddress, lamports: Long): RpcRequest<SolanaSignature, RpcError> = requestAirdrop(address, lamports, defaultCommitment)
     fun requestAirdrop(address: SolanaAddress, lamports: Long, commitment: Commitment): RpcRequest<SolanaSignature, RpcError> = requestAirdrop(address, bigIntegerOf(lamports), commitment)
 
@@ -287,18 +305,19 @@ interface SolanaApi {
     /** Forward raw wire bytes unchanged; transaction validation is performed by the RPC node. */
     fun sendTransaction(transaction: ByteArray, preflightCommitment: Commitment = this.defaultCommitment): RpcRequest<PendingSolanaTransaction, RpcError> = sendTransaction(transaction, SolanaSendConfig(preflightCommitment = preflightCommitment))
 
-    /** The transaction is known here, so the handle detects expiry from its own blockhash. */
-    fun sendTransaction(transaction: SolanaTransactionSigned, options: SolanaSendConfig): RpcRequest<PendingSolanaTransaction, RpcError> = submit(transaction.serialize(), options, transaction.recentBlockhash)
+    /** Infer blockhash or durable-nonce tracking from the signed message. */
+    fun sendTransaction(transaction: SolanaTransactionSigned, options: SolanaSendConfig): RpcRequest<PendingSolanaTransaction, RpcError> = submit(transaction.serialize(), options, transaction.confirmationTracking())
 
     /**
      * Submit with explicit options; see [SolanaSendConfig].
      *
-     * The blockhash is recovered from the bytes where they decode, so expiry is still detected for a
-     * version this library knows. Where they do not, the handle can only wait.
+     * Decode the envelope to infer confirmation tracking, without verifying signatures. Malformed
+     * or unknown envelopes use status-only tracking and are forwarded unchanged. Typed submissions
+     * infer tracking directly from their fields and never pass through this decoding path.
      */
-    fun sendTransaction(transaction: ByteArray, options: SolanaSendConfig): RpcRequest<PendingSolanaTransaction, RpcError> = submit(transaction, options, SolanaTransactionCompiled.deserialize(transaction).unwrapOrNull()?.recentBlockhash)
+    fun sendTransaction(transaction: ByteArray, options: SolanaSendConfig): RpcRequest<PendingSolanaTransaction, RpcError> = submit(transaction, options, decodeConfirmationTracking(transaction))
 
-    private fun submit(transaction: ByteArray, options: SolanaSendConfig, blockhash: SolanaBlockhash?): RpcRequest<PendingSolanaTransaction, RpcError> {
+    private fun submit(transaction: ByteArray, options: SolanaSendConfig, tracking: ConfirmationTracking): RpcRequest<PendingSolanaTransaction, RpcError> {
         return rpc(
             "sendTransaction",
             Base64.encode(transaction),
@@ -309,20 +328,16 @@ interface SolanaApi {
                 options.maxRetries?.let { put("maxRetries", it) }
                 options.minContextSlot?.let { put("minContextSlot", rpcInteger(it)) }
             },
-        ) { PendingSolanaTransaction(SolanaSignature(it.jsonPrimitive.content), this, blockhash) }
+        ) { PendingSolanaTransaction(SolanaSignature(it.jsonPrimitive.content), this, tracking) }
     }
-    fun simulateTransaction(transaction: SolanaTransactionCompiled): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = simulateTransaction(transaction, defaultCommitment)
-    fun simulateTransaction(transaction: SolanaTransactionCompiled, commitment: Commitment = this.defaultCommitment): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = simulateTransaction(transaction.serializeForSimulation(), commitment)
-    fun simulateTransaction(transaction: ByteArray): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = simulateTransaction(transaction, defaultCommitment)
-    fun simulateTransaction(transaction: ByteArray, commitment: Commitment = this.defaultCommitment): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = rpc("simulateTransaction", Base64.encode(transaction), config(commitment, "base64")) { decode(it) }
-    fun simulateTransaction(transaction: SolanaTransactionCompiled, options: SolanaSimulationConfig): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = simulateTransaction(transaction, options, defaultCommitment)
+    fun simulateTransaction(transaction: SolanaTransactionCompiled): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = simulateTransaction(transaction, SolanaSimulationConfig())
+    fun simulateTransaction(transaction: SolanaTransactionCompiled, commitment: Commitment): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = simulateTransaction(transaction, SolanaSimulationConfig(commitment = commitment))
+    fun simulateTransaction(transaction: SolanaTransactionCompiled, config: SolanaSimulationConfig): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = simulateTransaction(transaction.serializeForSimulation(), config)
+    fun simulateTransaction(transaction: ByteArray): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = simulateTransaction(transaction, SolanaSimulationConfig())
+    fun simulateTransaction(transaction: ByteArray, commitment: Commitment): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = simulateTransaction(transaction, SolanaSimulationConfig(commitment = commitment))
 
     /** Simulate with explicit options; see [SolanaSimulationConfig]. */
-    fun simulateTransaction(
-        transaction: SolanaTransactionCompiled,
-        options: SolanaSimulationConfig,
-        commitment: Commitment = this.defaultCommitment,
-    ): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = rpc("simulateTransaction", Base64.encode(transaction.serializeForSimulation()), simulationConfig(commitment, options)) { decode(it) }
+    fun simulateTransaction(transaction: ByteArray, config: SolanaSimulationConfig): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = rpc("simulateTransaction", Base64.encode(transaction), simulationConfig(config)) { decode(it) }
 
     fun simulateTransaction(request: SolanaTransactionRequest): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = simulateTransaction(request, emptyList(), defaultCommitment)
 
@@ -336,7 +351,7 @@ interface SolanaApi {
         commitment: Commitment = this.defaultCommitment,
     ): RpcRequest<ContextValue<TransactionSimulation>, RpcError> {
         val tx = request.forSimulation().compile(lookupTables).unwrapOrReturn { return failedRequest(it) }
-        return simulateTransaction(tx, SolanaSimulationConfig.READ_ONLY, commitment)
+        return simulateTransaction(tx, SolanaSimulationConfig.READ_ONLY.copy(commitment = commitment))
     }
 
     fun simulateTransaction(request: SolanaTransactionRequest, type: SolanaTxType): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = simulateTransaction(request, type, emptyList(), defaultCommitment)
@@ -349,7 +364,7 @@ interface SolanaApi {
         commitment: Commitment = this.defaultCommitment,
     ): RpcRequest<ContextValue<TransactionSimulation>, RpcError> {
         val tx = request.compileForSimulation(type, lookupTables).unwrapOrReturn { return failedRequest(it) }
-        return simulateTransaction(tx, SolanaSimulationConfig.READ_ONLY, commitment)
+        return simulateTransaction(tx, SolanaSimulationConfig.READ_ONLY.copy(commitment = commitment))
     }
 
     fun fillTransaction(request: SolanaTransactionRequest): RpcRequest<SolanaTransactionUnsigned, RpcError> = fillTransaction(request, emptyList(), defaultCommitment, DEFAULT_COMPUTE_UNIT_MARGIN_PERCENT)
@@ -444,19 +459,24 @@ interface SolanaApi {
     }
 
     fun getFeeForMessage(message: SolanaTransactionCompiled): RpcRequest<ContextValue<BigInteger?>, RpcError> = getFeeForMessage(message, defaultCommitment)
-    fun getFeeForMessage(message: SolanaTransactionCompiled, commitment: Commitment = this.defaultCommitment): RpcRequest<ContextValue<BigInteger?>, RpcError> = getFeeForMessage(message.serializeMessage(), commitment)
+    fun getFeeForMessage(message: SolanaTransactionCompiled, commitment: Commitment): RpcRequest<ContextValue<BigInteger?>, RpcError> = getFeeForMessage(message, SolanaReadConfig(commitment = commitment))
+    fun getFeeForMessage(message: SolanaTransactionCompiled, config: SolanaReadConfig): RpcRequest<ContextValue<BigInteger?>, RpcError> = getFeeForMessage(message.serializeMessage(), config)
     fun getFeeForMessage(message: ByteArray): RpcRequest<ContextValue<BigInteger?>, RpcError> = getFeeForMessage(message, defaultCommitment)
-    fun getFeeForMessage(message: ByteArray, commitment: Commitment = this.defaultCommitment): RpcRequest<ContextValue<BigInteger?>, RpcError> = rpc("getFeeForMessage", Base64.encode(message), config(commitment)) { decodeContext(it) { v -> if (v == JsonNull) null else decodeU64(v) } }
+    fun getFeeForMessage(message: ByteArray, commitment: Commitment): RpcRequest<ContextValue<BigInteger?>, RpcError> = getFeeForMessage(message, SolanaReadConfig(commitment = commitment))
+    fun getFeeForMessage(message: ByteArray, config: SolanaReadConfig): RpcRequest<ContextValue<BigInteger?>, RpcError> = rpc("getFeeForMessage", Base64.encode(message), readConfig(config)) { decodeContext(it) { v -> if (v == JsonNull) null else decodeU64(v) } }
+
     fun getRecentPrioritizationFees(): RpcRequest<List<PrioritizationFee>, RpcError> = getRecentPrioritizationFees(emptyList())
     fun getRecentPrioritizationFees(addresses: List<SolanaAddress> = emptyList()): RpcRequest<List<PrioritizationFee>, RpcError> {
         return rpc("getRecentPrioritizationFees", addresses.map { it.toString() }) { decode(it) }
     }
 
     fun getSlot(): RpcRequest<BigInteger, RpcError> = getSlot(defaultCommitment)
-    fun getSlot(commitment: Commitment = this.defaultCommitment): RpcRequest<BigInteger, RpcError> = rpc("getSlot", config(commitment), decoder = ::decodeU64)
+    fun getSlot(commitment: Commitment): RpcRequest<BigInteger, RpcError> = getSlot(SolanaReadConfig(commitment = commitment))
+    fun getSlot(config: SolanaReadConfig): RpcRequest<BigInteger, RpcError> = rpc("getSlot", readConfig(config), decoder = ::decodeU64)
 
     fun getBlockHeight(): RpcRequest<BigInteger, RpcError> = getBlockHeight(defaultCommitment)
-    fun getBlockHeight(commitment: Commitment = this.defaultCommitment): RpcRequest<BigInteger, RpcError> = rpc("getBlockHeight", config(commitment), decoder = ::decodeU64)
+    fun getBlockHeight(commitment: Commitment): RpcRequest<BigInteger, RpcError> = getBlockHeight(SolanaReadConfig(commitment = commitment))
+    fun getBlockHeight(config: SolanaReadConfig): RpcRequest<BigInteger, RpcError> = rpc("getBlockHeight", readConfig(config), decoder = ::decodeU64)
 
     /**
      * Progress of each signature, in the order given, with null for one the node has never seen.
@@ -509,7 +529,8 @@ interface SolanaApi {
 
     /** Slots with confirmed blocks in `[start, end]`, capped by the node at 500,000 slots. */
     fun getBlocks(start: BigInteger, end: BigInteger): RpcRequest<List<BigInteger>, RpcError> = getBlocks(start, end, defaultCommitment)
-    fun getBlocks(start: BigInteger, end: BigInteger, commitment: Commitment): RpcRequest<List<BigInteger>, RpcError> = rpc("getBlocks", rpcInteger(start), rpcInteger(end), config(commitment)) { element -> element.jsonArray.map(::decodeU64) }
+    fun getBlocks(start: BigInteger, end: BigInteger, commitment: Commitment): RpcRequest<List<BigInteger>, RpcError> = getBlocks(start, end, SolanaReadConfig(commitment = commitment))
+    fun getBlocks(start: BigInteger, end: BigInteger, config: SolanaReadConfig): RpcRequest<List<BigInteger>, RpcError> = rpc("getBlocks", rpcInteger(start), rpcInteger(end), readConfig(config)) { element -> element.jsonArray.map(::decodeU64) }
 
     /** A confirmed block, or null when the slot was skipped. [details] selects how much of each transaction is returned. */
     fun getBlock(slot: BigInteger): RpcRequest<SolanaBlock?, RpcError> = getBlock(slot, BlockTransactionDetails.FULL, defaultCommitment)
@@ -544,7 +565,7 @@ interface SolanaApi {
 
     /** The 20 largest holders of [mint]. */
     fun getTokenLargestAccounts(mint: SolanaAddress): RpcRequest<ContextValue<List<LargestTokenAccount>>, RpcError> = getTokenLargestAccounts(mint, defaultCommitment)
-    fun getTokenLargestAccounts(mint: SolanaAddress, commitment: Commitment): RpcRequest<ContextValue<List<LargestTokenAccount>>, RpcError> = rpc("getTokenLargestAccounts", mint.toString(), config(commitment)) { element -> decodeContext(element) { it.jsonArray.map { account -> decode<LargestTokenAccount>(account) } } }
+    fun getTokenLargestAccounts(mint: SolanaAddress, commitment: Commitment): RpcRequest<ContextValue<List<LargestTokenAccount>>, RpcError> = rpc("getTokenLargestAccounts", mint.toString(), commitmentConfig(commitment)) { element -> decodeContext(element) { it.jsonArray.map { account -> decode<LargestTokenAccount>(account) } } }
 
     /** The 20 largest accounts by lamports, optionally restricted to circulating supply or not. */
     fun getLargestAccounts(): RpcRequest<ContextValue<List<LargestAccount>>, RpcError> = getLargestAccounts(null, defaultCommitment)
@@ -575,7 +596,8 @@ interface SolanaApi {
 
     /** Up to [limit] slots with confirmed blocks, starting at [start]; the node caps the limit at 500,000. */
     fun getBlocksWithLimit(start: BigInteger, limit: Int): RpcRequest<List<BigInteger>, RpcError> = getBlocksWithLimit(start, limit, defaultCommitment)
-    fun getBlocksWithLimit(start: BigInteger, limit: Int, commitment: Commitment): RpcRequest<List<BigInteger>, RpcError> = rpc("getBlocksWithLimit", rpcInteger(start), limit, config(commitment)) { element -> element.jsonArray.map(::decodeU64) }
+    fun getBlocksWithLimit(start: BigInteger, limit: Int, commitment: Commitment): RpcRequest<List<BigInteger>, RpcError> = getBlocksWithLimit(start, limit, SolanaReadConfig(commitment = commitment))
+    fun getBlocksWithLimit(start: BigInteger, limit: Int, config: SolanaReadConfig): RpcRequest<List<BigInteger>, RpcError> = rpc("getBlocksWithLimit", rpcInteger(start), limit, readConfig(config)) { element -> element.jsonArray.map(::decodeU64) }
 
     /** When a block was produced, as a Unix timestamp, or null for a slot the node cannot answer for. */
     fun getBlockTime(slot: BigInteger): RpcRequest<Long?, RpcError> = rpc("getBlockTime", rpcInteger(slot)) { if (it == JsonNull) null else it.jsonPrimitive.long }
@@ -623,10 +645,21 @@ interface SolanaApi {
     /** Vote accounts, split into those voting and those lagging behind. */
     fun getVoteAccounts(): RpcRequest<VoteAccounts, RpcError> = getVoteAccounts(null, defaultCommitment)
     fun getVoteAccounts(votePubkey: SolanaAddress?): RpcRequest<VoteAccounts, RpcError> = getVoteAccounts(votePubkey, defaultCommitment)
-    fun getVoteAccounts(votePubkey: SolanaAddress?, commitment: Commitment): RpcRequest<VoteAccounts, RpcError> {
+    fun getVoteAccounts(votePubkey: SolanaAddress?, commitment: Commitment): RpcRequest<VoteAccounts, RpcError> = getVoteAccounts(votePubkey, commitment, false, null)
+
+    /**
+     * As above, with the node's delinquency reporting under the caller's control.
+     *
+     * [keepUnstakedDelinquents] keeps delinquent validators that hold no stake, which the node drops
+     * by default. [delinquentSlotDistance] is how far a validator's last vote must lag the tip to
+     * count as delinquent; null leaves the node's own threshold, which is what its operators tuned.
+     */
+    fun getVoteAccounts(votePubkey: SolanaAddress?, commitment: Commitment, keepUnstakedDelinquents: Boolean, delinquentSlotDistance: BigInteger?): RpcRequest<VoteAccounts, RpcError> {
         val options = buildJsonObject {
             put("commitment", commitment.toString())
             votePubkey?.let { put("votePubkey", it.toString()) }
+            if (keepUnstakedDelinquents) put("keepUnstakedDelinquents", true)
+            delinquentSlotDistance?.let { put("delinquentSlotDistance", rpcInteger(it)) }
         }
         return rpc("getVoteAccounts", options) { decode(it) }
     }
@@ -654,7 +687,8 @@ interface SolanaApi {
 
     /** Which validator leads the current slot. */
     fun getSlotLeader(): RpcRequest<SolanaAddress, RpcError> = getSlotLeader(defaultCommitment)
-    fun getSlotLeader(commitment: Commitment = this.defaultCommitment): RpcRequest<SolanaAddress, RpcError> = rpc("getSlotLeader", config(commitment)) { SolanaAddress(it.jsonPrimitive.content) }
+    fun getSlotLeader(commitment: Commitment): RpcRequest<SolanaAddress, RpcError> = getSlotLeader(SolanaReadConfig(commitment = commitment))
+    fun getSlotLeader(config: SolanaReadConfig): RpcRequest<SolanaAddress, RpcError> = rpc("getSlotLeader", readConfig(config)) { SolanaAddress(it.jsonPrimitive.content) }
 
     /** Leaders for [limit] slots from [start], which is how a sender targets upcoming leaders. */
     fun getSlotLeaders(start: BigInteger, limit: Int): RpcRequest<List<SolanaAddress>, RpcError> = rpc("getSlotLeaders", rpcInteger(start), limit) { element -> element.jsonArray.map { SolanaAddress(it.jsonPrimitive.content) } }
@@ -691,7 +725,7 @@ interface SolanaApi {
 
     /** The inflation schedule's parameters. */
     fun getInflationGovernor(): RpcRequest<InflationGovernor, RpcError> = getInflationGovernor(defaultCommitment)
-    fun getInflationGovernor(commitment: Commitment = this.defaultCommitment): RpcRequest<InflationGovernor, RpcError> = rpc("getInflationGovernor", config(commitment)) { decode(it) }
+    fun getInflationGovernor(commitment: Commitment): RpcRequest<InflationGovernor, RpcError> = rpc("getInflationGovernor", commitmentConfig(commitment)) { decode(it) }
 
     /** Inflation in force for the current epoch. */
     fun getInflationRate(): RpcRequest<InflationRate, RpcError> = rpc("getInflationRate") { decode(it) }
@@ -699,9 +733,10 @@ interface SolanaApi {
     /** Staking rewards per address, in the order given, with null where the address earned none. */
     fun getInflationReward(addresses: List<SolanaAddress>): RpcRequest<List<InflationReward?>, RpcError> = getInflationReward(addresses, null, defaultCommitment)
     fun getInflationReward(addresses: List<SolanaAddress>, epoch: BigInteger?): RpcRequest<List<InflationReward?>, RpcError> = getInflationReward(addresses, epoch, defaultCommitment)
-    fun getInflationReward(addresses: List<SolanaAddress>, epoch: BigInteger?, commitment: Commitment): RpcRequest<List<InflationReward?>, RpcError> {
+    fun getInflationReward(addresses: List<SolanaAddress>, epoch: BigInteger?, commitment: Commitment): RpcRequest<List<InflationReward?>, RpcError> = getInflationReward(addresses, epoch, SolanaReadConfig(commitment = commitment))
+    fun getInflationReward(addresses: List<SolanaAddress>, epoch: BigInteger?, config: SolanaReadConfig): RpcRequest<List<InflationReward?>, RpcError> {
         val options = buildJsonObject {
-            put("commitment", commitment.toString())
+            readConfig(config).forEach { (key, value) -> put(key, value) }
             epoch?.let { put("epoch", rpcInteger(it)) }
         }
         return rpc("getInflationReward", addresses.map { it.toString() }, options) { element ->
@@ -711,7 +746,8 @@ interface SolanaApi {
 
     /** The smallest stake delegation the runtime accepts, in lamports. */
     fun getStakeMinimumDelegation(): RpcRequest<ContextValue<BigInteger>, RpcError> = getStakeMinimumDelegation(defaultCommitment)
-    fun getStakeMinimumDelegation(commitment: Commitment = this.defaultCommitment): RpcRequest<ContextValue<BigInteger>, RpcError> = rpc("getStakeMinimumDelegation", config(commitment)) { decodeContext(it, ::decodeU64) }
+    fun getStakeMinimumDelegation(commitment: Commitment): RpcRequest<ContextValue<BigInteger>, RpcError> = getStakeMinimumDelegation(SolanaReadConfig(commitment = commitment))
+    fun getStakeMinimumDelegation(config: SolanaReadConfig): RpcRequest<ContextValue<BigInteger>, RpcError> = rpc("getStakeMinimumDelegation", readConfig(config)) { decodeContext(it, ::decodeU64) }
 
     fun getSignaturesForAddress(address: SolanaAddress): RpcRequest<List<TransactionSignature>, RpcError> = getSignaturesForAddress(address, 1000, defaultCommitment, null, null)
     fun getSignaturesForAddress(address: SolanaAddress, limit: Int): RpcRequest<List<TransactionSignature>, RpcError> = getSignaturesForAddress(address, limit, defaultCommitment, null, null)
@@ -719,9 +755,10 @@ interface SolanaApi {
     fun getSignaturesForAddress(address: SolanaAddress, limit: Int, commitment: Commitment): RpcRequest<List<TransactionSignature>, RpcError> = getSignaturesForAddress(address, limit, commitment, null, null)
     fun getSignaturesForAddress(address: SolanaAddress, limit: Int, commitment: Commitment, before: SolanaSignature?): RpcRequest<List<TransactionSignature>, RpcError> = getSignaturesForAddress(address, limit, commitment, before, null)
     fun getSignaturesForAddress(address: SolanaAddress, limit: Int, before: SolanaSignature?, until: SolanaSignature?): RpcRequest<List<TransactionSignature>, RpcError> = getSignaturesForAddress(address, limit, defaultCommitment, before, until)
-    fun getSignaturesForAddress(address: SolanaAddress, limit: Int = 1000, commitment: Commitment = this.defaultCommitment, before: SolanaSignature? = null, until: SolanaSignature? = null): RpcRequest<List<TransactionSignature>, RpcError> {
+    fun getSignaturesForAddress(address: SolanaAddress, limit: Int = 1000, commitment: Commitment = this.defaultCommitment, before: SolanaSignature? = null, until: SolanaSignature? = null): RpcRequest<List<TransactionSignature>, RpcError> = getSignaturesForAddress(address, limit, SolanaReadConfig(commitment = commitment), before, until)
+    fun getSignaturesForAddress(address: SolanaAddress, limit: Int = 1000, config: SolanaReadConfig, before: SolanaSignature? = null, until: SolanaSignature? = null): RpcRequest<List<TransactionSignature>, RpcError> {
         val options = buildJsonObject {
-            put("commitment", commitment.toString())
+            readConfig(config).forEach { (key, value) -> put(key, value) }
             put("limit", limit)
             before?.let { put("before", it.toString()) }
             until?.let { put("until", it.toString()) }
@@ -773,13 +810,12 @@ private fun medianPrioritizationFee(fees: List<PrioritizationFee>): BigInteger {
     return sorted[sorted.size / 2]
 }
 
-private fun simulationConfig(commitment: Commitment, config: SolanaSimulationConfig) = buildJsonObject {
-    put("commitment", commitment.toString())
+private fun SolanaApi.simulationConfig(config: SolanaSimulationConfig) = buildJsonObject {
+    putReadOptions(config.commitment ?: defaultCommitment, config.minContextSlot)
     put("encoding", "base64")
     if (config.sigVerify) put("sigVerify", true)
     if (config.replaceRecentBlockhash) put("replaceRecentBlockhash", true)
     if (config.innerInstructions) put("innerInstructions", true)
-    config.minContextSlot?.let { put("minContextSlot", rpcInteger(it)) }
     if (config.accounts.isNotEmpty()) {
         putJsonObject("accounts") {
             put("encoding", "base64")
@@ -788,9 +824,9 @@ private fun simulationConfig(commitment: Commitment, config: SolanaSimulationCon
     }
 }
 
-private fun config(commitment: Commitment, encoding: String? = null) = buildJsonObject {
-    put("commitment", commitment.toString())
-    encoding?.let { put("encoding", it) }
+/** Options for methods that enforce a minimum context slot. */
+private fun SolanaApi.readConfig(config: SolanaReadConfig) = buildJsonObject {
+    putReadOptions(config.commitment ?: defaultCommitment, config.minContextSlot)
 }
 
 /** Account-read options, with [defaultCommitment] standing in for a config that names none. */
@@ -799,7 +835,7 @@ private fun SolanaApi.accountConfig(
     filters: List<AccountFilter> = emptyList(),
     withContext: Boolean = false,
 ) = buildJsonObject {
-    put("commitment", (config.commitment ?: defaultCommitment).toString())
+    putReadOptions(config.commitment ?: defaultCommitment, config.minContextSlot)
     put("encoding", "base64")
     config.dataSlice?.let { slice ->
         putJsonObject("dataSlice") {
@@ -807,10 +843,18 @@ private fun SolanaApi.accountConfig(
             put("length", slice.length)
         }
     }
-    config.minContextSlot?.let { put("minContextSlot", rpcInteger(it)) }
     if (filters.isNotEmpty()) put("filters", JsonArray(filters.map { it.toJson() }))
     // getProgramAccounts is the one account read whose context envelope is opt-in
     if (withContext) put("withContext", true)
 }
 
 private fun <T> SolanaApi.rpc(method: String, vararg params: Any?, decoder: (JsonElement) -> T): RpcRequest<T, RpcError> = RpcCall(client, method, params, decoder)
+
+private fun commitmentConfig(commitment: Commitment) = buildJsonObject {
+    put("commitment", commitment.toString())
+}
+
+private fun JsonObjectBuilder.putReadOptions(commitment: Commitment, minContextSlot: BigInteger?) {
+    put("commitment", commitment.toString())
+    minContextSlot?.let { put("minContextSlot", rpcInteger(it)) }
+}

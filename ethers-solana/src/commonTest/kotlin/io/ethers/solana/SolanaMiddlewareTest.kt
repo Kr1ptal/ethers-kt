@@ -11,6 +11,7 @@ import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaSignature
 import io.ethers.solana.types.rpc.Commitment
 import io.ethers.solana.types.rpc.ContextValue
+import io.ethers.solana.types.rpc.SolanaReadConfig
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.throwables.shouldThrow
@@ -24,10 +25,11 @@ import io.ktor.http.headersOf
 import kotlinx.serialization.json.jsonObject
 import io.ktor.client.HttpClient as KtorHttpClient
 
-/** Doubles every balance, overriding both overloads so neither resolves against [inner]. */
+/** Doubles every balance, overriding all overloads so neither resolves against [inner]. */
 private class DoublingApi(override val inner: SolanaApi) : SolanaApi by inner {
     override fun getBalance(address: SolanaAddress): RpcRequest<ContextValue<BigInteger>, RpcError> = getBalance(address, defaultCommitment)
-    override fun getBalance(address: SolanaAddress, commitment: Commitment): RpcRequest<ContextValue<BigInteger>, RpcError> = inner.getBalance(address, commitment).map { ContextValue(it.context, it.value.multiply(bigIntegerOf(2))) }
+    override fun getBalance(address: SolanaAddress, commitment: Commitment): RpcRequest<ContextValue<BigInteger>, RpcError> = getBalance(address, SolanaReadConfig(commitment = commitment))
+    override fun getBalance(address: SolanaAddress, config: SolanaReadConfig): RpcRequest<ContextValue<BigInteger>, RpcError> = inner.getBalance(address, config).map { ContextValue(it.context, it.value.multiply(bigIntegerOf(2))) }
 }
 
 class SolanaMiddlewareTest : FunSpec({

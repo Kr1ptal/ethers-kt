@@ -28,18 +28,13 @@ data class DataSlice @JvmOverloads constructor(val offset: Int, val length: Int 
 }
 
 /**
- * Options for reading accounts.
- *
- * [minContextSlot] is how a caller refuses an answer older than one it has already seen, which an
- * RPC endpoint balancing across nodes can otherwise hand back without saying so; the node fails the
- * request instead of answering from an earlier slot. Pair it with the slot the previous answer's
- * [RpcContext] reported.
+ * Options for reading accounts, including a minimum context slot and optional data slicing.
  */
 data class SolanaAccountConfig @JvmOverloads constructor(
     val commitment: Commitment? = null,
     /** Read only this window of each account's data, instead of all of it. */
     val dataSlice: DataSlice? = null,
-    /** Fail rather than answer from a slot older than this one. */
+    /** Fail rather than answer from a bank older than this slot, at the requested commitment. */
     val minContextSlot: BigInteger? = null,
 ) {
     companion object {
