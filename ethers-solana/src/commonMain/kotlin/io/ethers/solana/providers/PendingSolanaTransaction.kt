@@ -23,7 +23,7 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
 
 /** How often a submitted transaction's status is polled while waiting for it to land. */
-val DEFAULT_CONFIRMATION_INTERVAL: Duration = 1.seconds
+val DEFAULT_CONFIRMATION_INTERVAL: Duration = 200.milliseconds
 
 /** How long to wait for a transaction to reach the requested commitment. */
 val DEFAULT_CONFIRMATION_TIMEOUT: Duration = 90.seconds
