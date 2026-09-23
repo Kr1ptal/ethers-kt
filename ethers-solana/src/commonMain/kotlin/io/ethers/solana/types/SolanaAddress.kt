@@ -45,6 +45,16 @@ class SolanaAddress(bytes: ByteArray) {
     override fun hashCode(): Int = value.contentHashCode()
 
     companion object {
+        /** Derive a System Program seeded address (not a PDA). The base authorizes its operations. */
+        @JvmStatic
+        fun createWithSeed(base: SolanaAddress, seed: String, owner: SolanaAddress): SolanaAddress {
+            val bytes = seed.encodeToByteArray(throwOnInvalidSequence = true)
+            require(bytes.size <= 32) { "Seed must contain at most 32 UTF-8 bytes" }
+            val marker = "ProgramDerivedAddress".encodeToByteArray()
+            require(!owner.asByteArray().copyOfRange(32 - marker.size, 32).contentEquals(marker)) { "Owner must not end with the PDA marker" }
+            return SolanaAddress(Hashing.sha256(base.asByteArray() + bytes + owner.asByteArray()))
+        }
+
         /** The Ed25519 group order L, little-endian, as the S half of a signature is encoded. */
         private val SCALAR_ORDER = byteArrayOf(
             0xed.toByte(), 0xd3.toByte(), 0xf5.toByte(), 0x5c, 0x1a, 0x63, 0x12, 0x58,

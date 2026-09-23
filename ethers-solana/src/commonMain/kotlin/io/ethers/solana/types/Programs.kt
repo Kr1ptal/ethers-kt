@@ -3,6 +3,9 @@ package io.ethers.solana.types
 import kotlin.jvm.JvmField
 
 object Programs {
+    @JvmField val MEMO = SolanaAddress("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr")
+    @JvmField val ED25519 = SolanaAddress("Ed25519SigVerify111111111111111111111111111")
+    @JvmField val SECP256K1 = SolanaAddress("KeccakSecp256k11111111111111111111111111111")
     @JvmField val SYSTEM = SolanaAddress("11111111111111111111111111111111")
     @JvmField val TOKEN = SolanaAddress("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
     @JvmField val TOKEN_2022 = SolanaAddress("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb")

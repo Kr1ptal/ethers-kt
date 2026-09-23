@@ -97,6 +97,95 @@ object SystemProgram {
         payload(WITHDRAW_NONCE_ACCOUNT, 8) { littleEndianInto(it, 4, requireU64(lamports), 8) },
     )
 
+    /** Change the authority that may advance or withdraw from a nonce account. */
+    @JvmStatic
+    fun authorizeNonceAccount(nonceAccount: SolanaAddress, authority: SolanaAddress, newAuthority: SolanaAddress): Instruction = Instruction(
+        ID,
+        listOf(AccountMeta.writable(nonceAccount), AccountMeta.signer(authority)),
+        payload(7, 32) { newAuthority.asByteArray().copyInto(it, 4) },
+    )
+
+    /** Upgrade a legacy nonce account to the current nonce domain. No authority signature is required. */
+    @JvmStatic
+    fun upgradeNonceAccount(nonceAccount: SolanaAddress): Instruction = Instruction(ID, listOf(AccountMeta.writable(nonceAccount)), payload(12, 0) {})
+
+    /** Create a seeded account. Its address must match [SolanaAddress.createWithSeed]. */
+    @JvmStatic
+    fun createAccountWithSeed(from: SolanaAddress, account: SolanaAddress, base: SolanaAddress, seed: String, lamports: BigInteger, space: Long, owner: SolanaAddress): Instruction {
+        val encoded = seededPrefix(account, base, seed, owner)
+        return Instruction(
+            ID,
+            listOf(AccountMeta.signerAndWritable(from), AccountMeta.writable(account)) + if (base == from) emptyList() else listOf(AccountMeta.signer(base)),
+            payload(3, encoded.size + 48) {
+                encoded.copyInto(it, 4)
+                littleEndianInto(it, 4 + encoded.size, requireU64(lamports), 8)
+                littleEndianInto(it, 12 + encoded.size, requireSpace(space), 8)
+                owner.asByteArray().copyInto(it, 20 + encoded.size)
+            },
+        )
+    }
+
+    @JvmStatic
+    fun createAccountWithSeed(from: SolanaAddress, account: SolanaAddress, base: SolanaAddress, seed: String, lamports: Long, space: Long, owner: SolanaAddress): Instruction = createAccountWithSeed(from, account, base, seed, bigIntegerOf(lamports), space, owner)
+
+    /** Allocate and assign a seeded account, authorized by its base. */
+    @JvmStatic
+    fun allocateWithSeed(account: SolanaAddress, base: SolanaAddress, seed: String, space: Long, owner: SolanaAddress): Instruction {
+        val encoded = seededPrefix(account, base, seed, owner)
+        return Instruction(
+            ID,
+            listOf(AccountMeta.writable(account), AccountMeta.signer(base)),
+            payload(9, encoded.size + 40) {
+                encoded.copyInto(it, 4)
+                littleEndianInto(it, 4 + encoded.size, requireSpace(space), 8)
+                owner.asByteArray().copyInto(it, 12 + encoded.size)
+            },
+        )
+    }
+
+    /** Assign a seeded account to the owner used in its derivation. */
+    @JvmStatic
+    fun assignWithSeed(account: SolanaAddress, base: SolanaAddress, seed: String, owner: SolanaAddress): Instruction {
+        val encoded = seededPrefix(account, base, seed, owner)
+        return Instruction(
+            ID,
+            listOf(AccountMeta.writable(account), AccountMeta.signer(base)),
+            payload(10, encoded.size + 32) {
+                encoded.copyInto(it, 4)
+                owner.asByteArray().copyInto(it, 4 + encoded.size)
+            },
+        )
+    }
+
+    /** Transfer from a seeded account, using its base signature instead of an account signature. */
+    @JvmStatic
+    fun transferWithSeed(from: SolanaAddress, base: SolanaAddress, seed: String, owner: SolanaAddress, to: SolanaAddress, lamports: BigInteger): Instruction {
+        val prefix = seededPrefix(from, base, seed, owner)
+        val encoded = prefix.copyOfRange(32, prefix.size)
+        return Instruction(
+            ID,
+            listOf(AccountMeta.writable(from), AccountMeta.signer(base), AccountMeta.writable(to)),
+            payload(11, 40 + encoded.size) {
+                littleEndianInto(it, 4, requireU64(lamports), 8)
+                encoded.copyInto(it, 12)
+                owner.asByteArray().copyInto(it, 12 + encoded.size)
+            },
+        )
+    }
+
+    @JvmStatic
+    fun transferWithSeed(from: SolanaAddress, base: SolanaAddress, seed: String, owner: SolanaAddress, to: SolanaAddress, lamports: Long): Instruction = transferWithSeed(from, base, seed, owner, to, bigIntegerOf(lamports))
+
+    private fun seededPrefix(account: SolanaAddress, base: SolanaAddress, seed: String, owner: SolanaAddress): ByteArray {
+        require(account == SolanaAddress.createWithSeed(base, seed, owner)) { "Account does not match base, seed and owner" }
+        val bytes = seed.encodeToByteArray()
+        return ByteArray(40 + bytes.size).also {
+            base.asByteArray().copyInto(it)
+            littleEndianInto(it, 32, bytes.size.toLong(), 8)
+            bytes.copyInto(it, 40)
+        }
+    }
+
     /** Bytes a nonce account occupies, which its rent exemption is calculated from. */
     const val NONCE_ACCOUNT_SIZE: Long = 80
 

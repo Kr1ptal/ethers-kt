@@ -385,6 +385,38 @@ associated account and create it only if needed. For Token-2022, use
 `(payer, associatedToken, owner, mint)`. An existing matching account succeeds unchanged; an
 incompatible account still fails on-chain. These methods build instructions and do not send transactions.
 
+## Memos, seeded accounts, and signature verification
+
+```kotlin
+val memo = MemoProgram.memo("Invoice 123", listOf(payer))
+val seeded = SolanaAddress.createWithSeed(base, "vault", ownerProgram)
+val create = SystemProgram.createAccountWithSeed(
+    payer, seeded, base, "vault", rentLamports, accountSpace, ownerProgram,
+)
+val authorize = SystemProgram.authorizeNonceAccount(nonceAccount, currentAuthority, newAuthority)
+val verify = Ed25519Program.verify(signer.publicKey, message, signer.signMessage(message))
+```
+
+Memo signers are optional; when supplied they must sign the transaction. Seed strings may contain
+at most 32 UTF-8 bytes. Seeded addresses are distinct from PDAs and use the base account's signature.
+`allocateWithSeed`, `assignWithSeed`, and `transferWithSeed` also validate the supplied derived address.
+`upgradeNonceAccount` builds the legacy nonce-format upgrade instruction.
+
+`Ed25519Program.verify` embeds a detached signature and exact message bytes. `Secp256k1Program.verify`
+accepts a 20-byte Ethereum address, message, compact 64-byte `r || s` signature, recovery ID (0–3),
+and the verification instruction's **final zero-based instruction index**. `verifyWithPublicKey`
+instead accepts a 64-byte uncompressed `X || Y` public key, without the `04` prefix.
+
+Secp256k1 verifies against `keccak256(message)` without adding an Ethereum personal-sign prefix.
+Supply the complete prefixed message yourself when verifying a personal-sign signature, and convert
+Ethereum `v` to a recovery ID before calling the builder. Both helpers build a single-signature
+verification instruction; they do not check signature validity locally or add transaction signers.
+
+Ed25519 references its own instruction automatically. Secp256k1 requires an explicit index: count
+any nonce advance and generated compute-budget instructions when choosing it. Compilation does not
+relocate these references, so finalize the instruction order before building the verification
+instruction. The transaction must still fit the selected version's size limits.
+
 ## Token instructions
 
 `TokenProgram` supports checked transfers, approvals, minting and burning, revocation, closing accounts,
