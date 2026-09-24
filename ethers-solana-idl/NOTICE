@@ -1,0 +1,7 @@
+The Anchor IDL fixtures in src/jvmSharedTest/resources/idl are copied verbatim
+from the Anchor repository (tests/idl/idls and tests/declare-program/idls):
+https://github.com/coral-xyz/anchor
+Reference commit: 2b4b2fd22a881228e02c41b26bd23addb5b8b26f
+Copyright Anchor contributors. Licensed under the Apache License, Version 2.0.
+
+The repository's LICENSE-APACHE contains the Apache 2.0 license text.

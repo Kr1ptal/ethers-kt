@@ -62,12 +62,12 @@ pluginManager.withPlugin("org.jetbrains.kotlin.multiplatform") {
         jvm()
 
         // Modules whose code is inherently JVM-bound and so have no commonMain at all: ethers-signers-gcp wraps
-        // the Google Cloud KMS client.
+        // the Google Cloud KMS client, and ethers-solana-idl reads IDLs for JVM-side code generation.
         //
         // They must not declare Apple targets. A target with no common sources compiles to NO-SOURCE and produces
         // no klib, but the publication still expects that artifact, so `publish` dies with
         // `FileNotFoundException: ethers-signers-gcp-iosArm64Main-<version>.klib`.
-        val jvmOnlyModules = setOf("ethers-signers-gcp")
+        val jvmOnlyModules = setOf("ethers-signers-gcp", "ethers-solana-idl")
 
         // ethers-abigen is JVM-bound in exactly the same way, but declares Apple targets anyway: its commonTest
         // compiles generated contract wrappers for every target, which is what proves abigen output is portable.
