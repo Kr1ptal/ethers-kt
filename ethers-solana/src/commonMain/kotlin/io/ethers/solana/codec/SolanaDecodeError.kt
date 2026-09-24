@@ -1,6 +1,7 @@
 package io.ethers.solana.codec
 
 import io.ethers.core.ThrowableError
+import io.ethers.solana.types.AccountMeta
 import io.ethers.solana.types.SolanaBytes
 
 /**
@@ -8,8 +9,9 @@ import io.ethers.solana.types.SolanaBytes
  *
  * [Unrecognized] means the data is not the value asked for, so another decoder may still claim it.
  * [Malformed] means the data was claimed, by its discriminator or by being handed to a codec directly,
- * but its bytes are invalid; no other decoder should be tried. [Unsupported] means the layout cannot be
- * decoded by this library at all. Every case that saw input keeps it in [data].
+ * but its bytes are invalid; no other decoder should be tried. [InvalidAccounts] means an instruction's
+ * data was recognized but its accounts do not fit the instruction. [Unsupported] means the layout cannot
+ * be decoded by this library at all. Every case that saw input keeps it.
  */
 sealed class SolanaDecodeError : ThrowableError {
     /** Thrown form of this error. Remains an [IllegalArgumentException], as these are argument failures. */
@@ -52,6 +54,12 @@ sealed class SolanaDecodeError : ThrowableError {
         /** A value the layout forbids, such as a NaN float or one rejected by a custom codec. */
         INVALID_VALUE,
     }
+
+    /**
+     * An instruction's [accounts] do not fit its account roles: too few were passed, or an account lacks
+     * a signer or writable privilege its role requires.
+     */
+    data class InvalidAccounts(val accounts: List<AccountMeta>, override val message: String) : SolanaDecodeError()
 
     /** The layout cannot be decoded by this library. */
     data class Unsupported(override val message: String) : SolanaDecodeError()

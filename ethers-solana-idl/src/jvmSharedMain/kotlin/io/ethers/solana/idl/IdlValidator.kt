@@ -193,7 +193,7 @@ private class Validation(private val program: IdlProgram) {
                     "type '${current.name}': alias cycle ${cycle.joinToString(" -> ")}"
                 }
                 chain.add(current.name)
-                current = ((current.body as IdlTypeBody.Alias).type as? IdlType.Defined)?.let { types[it.name] }
+                current = (current.body.type as? IdlType.Defined)?.let { types[it.name] }
             }
         }
     }
