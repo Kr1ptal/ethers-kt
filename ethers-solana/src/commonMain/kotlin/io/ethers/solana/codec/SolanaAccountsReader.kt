@@ -6,19 +6,27 @@ import io.ethers.core.success
 import io.ethers.solana.instruction.Instruction
 import io.ethers.solana.types.AccountMeta
 import io.ethers.solana.types.SolanaAddress
+import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmStatic
 
 /**
  * Cursor over an instruction's account metas, assigning them to account roles in order.
  *
  * A role's required privileges must be present; extra privileges are accepted, as merging accounts
- * across a transaction can elevate them. An optional account that was not passed is represented by
- * [programId] in its slot. Accounts after the last role are left for [remaining].
+ * across a transaction can elevate them. Without [checkSigners], signer privileges are not required:
+ * an inner instruction's accounts carry the transaction's flags, and a program can sign for an
+ * account through `invoke_signed` without the transaction marking it a signer. An optional account
+ * that was not passed is represented by [programId] in its slot. Accounts after the last role are
+ * left for [remaining].
  *
  * Accounts that do not fit throw [SolanaDecodeException] carrying [SolanaDecodeError.InvalidAccounts];
  * [decode] converts it back into a [Result].
  */
-class SolanaAccountsReader(private val accounts: List<AccountMeta>, private val programId: SolanaAddress) {
+class SolanaAccountsReader @JvmOverloads constructor(
+    private val accounts: List<AccountMeta>,
+    private val programId: SolanaAddress,
+    private val checkSigners: Boolean = true,
+) {
     private var index = 0
 
     private fun next(name: String): AccountMeta {
@@ -27,7 +35,7 @@ class SolanaAccountsReader(private val accounts: List<AccountMeta>, private val 
     }
 
     private fun checkPrivileges(meta: AccountMeta, name: String, signer: Boolean, writable: Boolean) {
-        if (signer && !meta.signer) fail("Account '$name' at position ${index - 1} must be a signer")
+        if (checkSigners && signer && !meta.signer) fail("Account '$name' at position ${index - 1} must be a signer")
         if (writable && !meta.writable) fail("Account '$name' at position ${index - 1} must be writable")
     }
 
@@ -54,9 +62,10 @@ class SolanaAccountsReader(private val accounts: List<AccountMeta>, private val 
     companion object {
         /** Run [read] over the accounts of [instruction], converting a thrown [SolanaDecodeException] into a failure. */
         @JvmStatic
-        fun <T> decode(instruction: Instruction, read: (SolanaAccountsReader) -> T): Result<T, SolanaDecodeError> {
+        @JvmOverloads
+        fun <T> decode(instruction: Instruction, checkSigners: Boolean = true, read: (SolanaAccountsReader) -> T): Result<T, SolanaDecodeError> {
             return try {
-                success(read(SolanaAccountsReader(instruction.keys, instruction.programId)))
+                success(read(SolanaAccountsReader(instruction.keys, instruction.programId, checkSigners)))
             } catch (e: SolanaDecodeException) {
                 failure(e.error)
             }

@@ -1,5 +1,6 @@
 package io.ethers.solana.idl.generator
 
+import io.ethers.solana.idl.IdlAccount
 import io.ethers.solana.idl.IdlConstant
 import io.ethers.solana.idl.IdlDiscriminator
 import io.ethers.solana.idl.IdlField
@@ -71,6 +72,29 @@ class SolanaProgramBuilderTest : FunSpec({
             .message shouldContain "constants are not supported yet"
         generate(program(constants = listOf(IdlConstant("C", IdlType.Primitive.I64, "-9_223_372_036_854_775_808i64")))) shouldContain
             "const val C: Long = Long.MIN_VALUE"
+    }
+
+    test("account filter methods stop at the first field without a fixed size") {
+        val source = generate(fixture("relations"))
+        val account = IdlTypeDef(
+            "Acct",
+            IdlTypeBody.Struct(
+                IdlFields.Named(
+                    listOf(
+                        IdlField("a", IdlType.Primitive.U8),
+                        IdlField("name", IdlType.Primitive.STRING),
+                        IdlField("b", IdlType.Primitive.U8),
+                    ),
+                ),
+            ),
+        )
+        val generated = generate(
+            program(types = listOf(account)).copy(accounts = listOf(IdlAccount("Acct", IdlDiscriminator(listOf(2))))),
+        )
+        generated shouldContain "public fun a(`value`: Int): Filter"
+        generated shouldContain "public fun name(`value`: String): Filter"
+        (generated.contains("public fun b(")) shouldBe false
+        source shouldContain "public class Filter("
     }
 
     test("generation is deterministic") {

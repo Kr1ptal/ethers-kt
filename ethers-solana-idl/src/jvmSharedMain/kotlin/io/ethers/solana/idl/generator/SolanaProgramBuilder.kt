@@ -105,6 +105,9 @@ class SolanaProgramBuilder @JvmOverloads constructor(
 
         return FileSpec.builder(programClass)
             .indent("    ")
+            // the generated accessors share these names, which would otherwise hide the runtime extensions
+            .addAliasedImport(Runtime.FETCH, FETCH_ALIAS)
+            .addAliasedImport(Runtime.WATCH, WATCH_ALIAS)
             .addFileComment("Generated from the %L IDL. Do not edit.", program.name)
             .addAnnotation(
                 AnnotationSpec.builder(Suppress::class)
@@ -219,7 +222,32 @@ class SolanaProgramBuilder @JvmOverloads constructor(
 
     private fun isByteArray(type: IdlType.Array) = resolve(type.element) == IdlType.Primitive.U8
 
-    private fun fixedSize(type: IdlType.Array): Int = (type.length as IdlArrayLength.Fixed).size
+    private fun arrayLength(type: IdlType.Array): Int = (type.length as IdlArrayLength.Fixed).size
+
+    /** The encoded size of [type] when every value has the same size, or null. */
+    private fun fixedSize(type: IdlType): Int? = when (val resolved = resolve(type)) {
+        is IdlType.Primitive -> PRIMITIVE_SIZES[resolved]
+        is IdlType.Option, is IdlType.Vec, is IdlType.Generic -> null
+        is IdlType.Array -> fixedSize(resolved.element)?.times(arrayLength(resolved))
+        is IdlType.Defined -> when (val body = typeDefs.getValue(resolved.name).body) {
+            is IdlTypeBody.Struct -> fixedSize(body.fields)
+            // an enum's size depends on its variant, unless no variant carries data
+            is IdlTypeBody.Enum -> if (body.variants.all { it.fields.isEmpty() }) 1 else null
+            is IdlTypeBody.Alias -> fixedSize(body.type)
+        }
+    }
+
+    private fun fixedSize(fields: IdlFields): Int? = when (fields) {
+        IdlFields.None -> 0
+        is IdlFields.Named -> fields.fields.fold(0 as Int?) { total, field -> total?.let { t -> fixedSize(field.type)?.plus(t) } }
+        is IdlFields.Tuple -> fields.types.fold(0 as Int?) { total, type -> total?.let { t -> fixedSize(type)?.plus(t) } }
+    }
+
+    private fun IdlFields.isEmpty() = when (this) {
+        IdlFields.None -> true
+        is IdlFields.Named -> fields.isEmpty()
+        is IdlFields.Tuple -> types.isEmpty()
+    }
 
     private fun typeName(type: IdlType): TypeName = when (val resolved = resolve(type)) {
         is IdlType.Primitive -> PRIMITIVE_TYPES.getValue(resolved)
@@ -243,9 +271,9 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         }
         is IdlType.Vec -> CodeBlock.of("readVec { %L }", read(resolved.element))
         is IdlType.Array -> if (isByteArray(resolved)) {
-            CodeBlock.of("readFixedBytes(%L)", fixedSize(resolved))
+            CodeBlock.of("readFixedBytes(%L)", arrayLength(resolved))
         } else {
-            CodeBlock.of("readArray(%L) { %L }", fixedSize(resolved), read(resolved.element))
+            CodeBlock.of("readArray(%L) { %L }", arrayLength(resolved), read(resolved.element))
         }
         is IdlType.Defined -> CodeBlock.of("%T.read(this)", classOf(resolved.name))
         is IdlType.Generic -> throw IllegalStateException("unsupported generic reached generation")
@@ -261,9 +289,9 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         }
         is IdlType.Vec -> CodeBlock.of("writeVec(%L) { %L }", value, write(resolved.element, CodeBlock.of("it")))
         is IdlType.Array -> if (isByteArray(resolved)) {
-            CodeBlock.of("writeFixedBytes(%L, %L)", value, fixedSize(resolved))
+            CodeBlock.of("writeFixedBytes(%L, %L)", value, arrayLength(resolved))
         } else {
-            CodeBlock.of("writeArray(%L, %L) { %L }", value, fixedSize(resolved), write(resolved.element, CodeBlock.of("it")))
+            CodeBlock.of("writeArray(%L, %L) { %L }", value, arrayLength(resolved), write(resolved.element, CodeBlock.of("it")))
         }
         is IdlType.Defined -> CodeBlock.of("%T.write(this, %L)", classOf(resolved.name), value)
         is IdlType.Generic -> throw IllegalStateException("unsupported generic reached generation")
@@ -341,7 +369,10 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         def.docs.forEach { builder.addKdoc("%L\n", it) }
         program.accounts.firstOrNull { it.name == def.name }?.let { account ->
             builder.addSuperinterface(accountMarker)
-            addToCodecScope(builder, name, accountFactory(name, account.name, account.discriminator))
+            addToCodecScope(builder, accountFactory(name, account.name, account.discriminator))
+            val fields = (def.body as? IdlTypeBody.Struct)?.let { fields(it.fields) }.orEmpty()
+            builder.addType(accountFilter(name, fields))
+            accountAccessors(name).forEach { addToCodecScope(builder, it) }
         }
         return builder.build()
     }
@@ -382,14 +413,102 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         )
     }
 
-    /** Add [property] to the object that holds [owner]'s codec: its companion, or itself when it is an object. */
-    private fun addToCodecScope(owner: TypeSpec.Builder, name: ClassName, property: PropertySpec) {
+    /** Add [member] to the object that holds [owner]'s codec: its companion, or itself when it is an object. */
+    private fun addToCodecScope(owner: TypeSpec.Builder, member: Any) {
         val companion = owner.typeSpecs.indexOfFirst { it.isCompanion }
-        if (companion == -1) {
-            owner.addProperty(property)
-        } else {
-            owner.typeSpecs[companion] = owner.typeSpecs[companion].toBuilder().addProperty(property).build()
+        fun TypeSpec.Builder.add() = when (member) {
+            is PropertySpec -> addProperty(member)
+            is FunSpec -> addFunction(member)
+            else -> throw IllegalArgumentException("Unsupported member $member")
         }
+        if (companion == -1) {
+            owner.add()
+        } else {
+            owner.typeSpecs[companion] = owner.typeSpecs[companion].toBuilder().add().build()
+        }
+    }
+
+    /**
+     * The account's filter class: a method per field at a known offset, where every field before it has a
+     * fixed size. There is no data size method, since the IDL does not say how much space an account is
+     * allocated.
+     */
+    private fun accountFilter(account: ClassName, fields: List<Field>): TypeSpec {
+        val filterClass = account.nestedClass("Filter")
+        val builder = TypeSpec.classBuilder(filterClass)
+            .addKdoc("Filter over the %L accounts the program owns.\n", account.simpleName)
+            .superclass(Runtime.ACCOUNT_FILTER_BASE.parameterizedBy(account, filterClass))
+            .primaryConstructor(FunSpec.constructorBuilder().addParameter("api", Runtime.SOLANA_API).build())
+            .addSuperclassConstructorParameter("api, ACCOUNT, PROGRAM_ID")
+            .addProperty(
+                PropertySpec.builder("self", filterClass, KModifier.OVERRIDE)
+                    .getter(FunSpec.getterBuilder().addStatement("return this").build())
+                    .build(),
+            )
+        var offset: Int? = 0
+        for (field in fields) {
+            val at = offset ?: break
+            val method = if (field.name in FILTER_BASE_MEMBERS) "${field.name}Field" else field.name
+            builder.addFunction(
+                FunSpec.builder(method)
+                    .addKdoc("Select accounts whose [%T.%N] equals [value], at payload offset %L.\n", account, field.name, at)
+                    .addParameter("value", typeName(field.type))
+                    .returns(filterClass)
+                    .addStatement("return field(%L) { %L }", at, write(field.type, CodeBlock.of("value")))
+                    .build(),
+            )
+            offset = fixedSize(field.type)?.plus(at)
+        }
+        return builder.build()
+    }
+
+    /** `filter`, `fetch` and `watch` for an account type, bound to the program address by default. */
+    private fun accountAccessors(account: ClassName): List<FunSpec> {
+        val programId = ParameterSpec.builder("programId", Runtime.SOLANA_ADDRESS).defaultValue("PROGRAM_ID").build()
+        val commitment = ParameterSpec.builder("commitment", Runtime.COMMITMENT).defaultValue("api.defaultCommitment").build()
+        val maybeAccount = Runtime.MAYBE_SOLANA_ACCOUNT.parameterizedBy(account)
+        return listOf(
+            FunSpec.builder("filter")
+                .addKdoc("Filter over the %L accounts the program owns.\n", account.simpleName)
+                .addAnnotation(Runtime.JVM_STATIC)
+                .addParameter("api", Runtime.SOLANA_API)
+                .returns(account.nestedClass("Filter"))
+                .addStatement("return Filter(api)")
+                .build(),
+            FunSpec.builder("fetch")
+                .addKdoc("Fetch the %L account at [address], or a missing account when none exists there.\n", account.simpleName)
+                .addAnnotation(Runtime.JVM_STATIC)
+                .addAnnotation(Runtime.JVM_OVERLOADS)
+                .addParameter("api", Runtime.SOLANA_API)
+                .addParameter("address", Runtime.SOLANA_ADDRESS)
+                .addParameter(programId)
+                .addParameter(commitment)
+                .returns(Runtime.RPC_REQUEST.parameterizedBy(maybeAccount, Runtime.SOLANA_ACCOUNT_ERROR))
+                .addStatement("return ACCOUNT.%L(api, address, programId, commitment)", FETCH_ALIAS)
+                .build(),
+            FunSpec.builder("fetch")
+                .addKdoc("Fetch the %L accounts at [addresses] in order, with a missing account for each that does not exist.\n", account.simpleName)
+                .addAnnotation(Runtime.JVM_STATIC)
+                .addAnnotation(Runtime.JVM_OVERLOADS)
+                .addParameter("api", Runtime.SOLANA_API)
+                .addParameter("addresses", LIST.parameterizedBy(Runtime.SOLANA_ADDRESS))
+                .addParameter(programId)
+                .addParameter(commitment)
+                .returns(Runtime.RPC_REQUEST.parameterizedBy(LIST.parameterizedBy(maybeAccount), Runtime.SOLANA_ACCOUNT_ERROR))
+                .addStatement("return ACCOUNT.%L(api, addresses, programId, commitment)", FETCH_ALIAS)
+                .build(),
+            FunSpec.builder("watch")
+                .addKdoc("Subscribe to the %L account at [address]; notifications are a missing account once it no longer exists.\n", account.simpleName)
+                .addAnnotation(Runtime.JVM_STATIC)
+                .addAnnotation(Runtime.JVM_OVERLOADS)
+                .addParameter("api", Runtime.SOLANA_API)
+                .addParameter("address", Runtime.SOLANA_ADDRESS)
+                .addParameter(programId)
+                .addParameter(commitment)
+                .returns(Runtime.RPC_SUBSCRIBE.parameterizedBy(maybeAccount, Runtime.RPC_ERROR))
+                .addStatement("return ACCOUNT.%L(api, address, programId, commitment)", WATCH_ALIAS)
+                .build(),
+        )
     }
 
     // --- accounts ---
@@ -575,7 +694,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         )
         val dispatch = CodeBlock.builder().add("return when {\n⇥")
         program.instructions.forEach { ix ->
-            dispatch.add("%N.matches(instruction.data) -> %T.decode(instruction)\n", ix.name.toUpperSnakeCase(), instructionHierarchy.nestedClass(ix.name.toPascalCase()))
+            dispatch.add("%N.matches(instruction.data) -> %T.decode(instruction, checkSigners)\n", ix.name.toUpperSnakeCase(), instructionHierarchy.nestedClass(ix.name.toPascalCase()))
         }
         dispatch.add("else -> %M(%T(instruction.data, %S))\n⇤}\n", Runtime.FAILURE, Runtime.UNRECOGNIZED, "Unknown ${program.name} instruction")
         programType.addFunction(
@@ -584,10 +703,13 @@ class SolanaProgramBuilder @JvmOverloads constructor(
                     "Decode [instruction] as whichever instruction its data identifies.\n\n" +
                         "Its program id is not checked, so an alternate deployment decodes as well. Programs can share " +
                         "discriminators, so filter by `instruction.programId` first where other programs' instructions " +
-                        "may be present.\n",
+                        "may be present. Pass [checkSigners] false for an inner instruction, whose accounts carry the " +
+                        "transaction's signer flags rather than the ones it was invoked with.\n",
                 )
                 .addAnnotation(Runtime.JVM_STATIC)
+                .addAnnotation(Runtime.JVM_OVERLOADS)
                 .addParameter("instruction", Runtime.INSTRUCTION)
+                .addParameter(ParameterSpec.builder("checkSigners", BOOLEAN).defaultValue("true").build())
                 .returns(Runtime.RESULT.parameterizedBy(instructionHierarchy, Runtime.DECODE_ERROR))
                 .addCode(dispatch.build())
                 .build(),
@@ -660,10 +782,12 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         val decode = FunSpec.builder("decode")
             .addKdoc("Decode [instruction] as %L, without checking its program id.\n", ix.name)
             .addAnnotation(Runtime.JVM_STATIC)
+            .addAnnotation(Runtime.JVM_OVERLOADS)
             .addParameter("instruction", Runtime.INSTRUCTION)
+            .addParameter(ParameterSpec.builder("checkSigners", BOOLEAN).defaultValue("true").build())
             .returns(Runtime.RESULT.parameterizedBy(decodedClass, Runtime.DECODE_ERROR))
             .addStatement(
-                "return %N.decodeData(instruction.data).andThen { %L -> %T.decode(instruction) { reader -> %L } }",
+                "return %N.decodeData(instruction.data).andThen { %L -> %T.decode(instruction, checkSigners) { reader -> %L } }",
                 descriptorName,
                 if (argsFields.isNotEmpty()) "args" else "_",
                 Runtime.ACCOUNTS_READER,
@@ -835,6 +959,12 @@ class SolanaProgramBuilder @JvmOverloads constructor(
     }
 
     private companion object {
+        const val FETCH_ALIAS = "fetchProgramAccount"
+        const val WATCH_ALIAS = "watchProgramAccount"
+
+        /** Members of the account filter base class that a field method must not shadow. */
+        val FILTER_BASE_MEMBERS = setOf("program", "commitment", "memcmp", "dataSize", "field", "query", "subscribe", "accountFilters", "self")
+
         /** A Rust integer literal's type suffix, such as `u64` in `1_000u64`. */
         val INTEGER_SUFFIX = Regex("[ui](8|16|32|64|128|256|size)$")
 
@@ -857,6 +987,26 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             IdlType.Primitive.BYTES to Runtime.SOLANA_BYTES,
             IdlType.Primitive.STRING to STRING,
             IdlType.Primitive.PUBKEY to Runtime.SOLANA_ADDRESS,
+        )
+
+        /** The encoded size of each fixed-size primitive. */
+        val PRIMITIVE_SIZES: Map<IdlType.Primitive, Int> = mapOf(
+            IdlType.Primitive.BOOL to 1,
+            IdlType.Primitive.U8 to 1,
+            IdlType.Primitive.I8 to 1,
+            IdlType.Primitive.U16 to 2,
+            IdlType.Primitive.I16 to 2,
+            IdlType.Primitive.U32 to 4,
+            IdlType.Primitive.I32 to 4,
+            IdlType.Primitive.F32 to 4,
+            IdlType.Primitive.U64 to 8,
+            IdlType.Primitive.I64 to 8,
+            IdlType.Primitive.F64 to 8,
+            IdlType.Primitive.U128 to 16,
+            IdlType.Primitive.I128 to 16,
+            IdlType.Primitive.U256 to 32,
+            IdlType.Primitive.I256 to 32,
+            IdlType.Primitive.PUBKEY to 32,
         )
 
         /** The suffix of each primitive's `BorshReader.readX` and `BorshWriter.writeX`. */

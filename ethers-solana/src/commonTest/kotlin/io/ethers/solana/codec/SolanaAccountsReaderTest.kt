@@ -45,6 +45,13 @@ class SolanaAccountsReaderTest : FunSpec({
         }.unwrapError().shouldBeInstanceOf<SolanaDecodeError.InvalidAccounts>().message shouldBe "Missing account 'b' at position 1"
     }
 
+    test("signer privileges can be left unchecked, as they are for inner instructions; writable ones are still required") {
+        SolanaAccountsReader.decode(instruction(AccountMeta(A)), checkSigners = false) { it.required("pda", signer = true, writable = false) }
+            .unwrap() shouldBe A
+        SolanaAccountsReader.decode(instruction(AccountMeta(A)), checkSigners = false) { it.required("vault", signer = true, writable = true) }
+            .unwrapError().shouldBeInstanceOf<SolanaDecodeError.InvalidAccounts>().message shouldBe "Account 'vault' at position 0 must be writable"
+    }
+
     test("an optional account passed as the program id is absent, and its privileges are not checked") {
         val (absent, present) = SolanaAccountsReader.decode(instruction(AccountMeta(PROGRAM), AccountMeta.signer(B))) {
             it.optional("first", signer = true, writable = true) to it.optional("second", signer = true, writable = false)

@@ -1,11 +1,27 @@
 package io.ethers.solana.idl.test
 
+import io.channels.core.ChannelReceiver
+import io.channels.core.QueueChannel
 import io.ethers.core.FastHex
+import io.ethers.core.Kotlinx
+import io.ethers.core.Result
+import io.ethers.core.success
+import io.ethers.crypto.Base58
+import io.ethers.providers.HttpClient
+import io.ethers.providers.JsonRpcClient
+import io.ethers.providers.RpcError
+import io.ethers.providers.types.BatchRpcRequest
 import io.ethers.solana.codec.SolanaDecodeError
 import io.ethers.solana.codec.SolanaEventContext
 import io.ethers.solana.codec.SolanaEventSource
 import io.ethers.solana.codec.SolanaOption
 import io.ethers.solana.instruction.Instruction
+import io.ethers.solana.program.ExecutedInstruction
+import io.ethers.solana.program.InstructionPosition
+import io.ethers.solana.program.SolanaAccountError
+import io.ethers.solana.program.decodeInstructions
+import io.ethers.solana.providers.AccountFilter
+import io.ethers.solana.providers.SolanaProvider
 import io.ethers.solana.types.AccountMeta
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBytes
@@ -15,6 +31,8 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import kotlinx.serialization.json.JsonElement
+import kotlin.io.encoding.Base64
 
 private fun hex(value: String): ByteArray = FastHex.decode(value.replace(" ", ""))
 
@@ -84,6 +102,33 @@ class ShowcaseBindingsTest : FunSpec({
             val data = hex("ffb004f5bcfd7c19 $COUNTER_PAYLOAD") + ByteArray(16)
             Showcase.Counter.ACCOUNT.decode(data).unwrap() shouldBe COUNTER
             Showcase.Counter.ACCOUNT.encode(COUNTER) shouldBe hex("ffb004f5bcfd7c19 $COUNTER_PAYLOAD")
+        }
+
+        test("an account filter selects by discriminator, then by fields at a known offset") {
+            val api = SolanaProvider(HttpClient("https://example.invalid"))
+            Showcase.Config.filter(api).authority(CONFIG).feeBps(30).label("main").accountFilters shouldBe listOf(
+                AccountFilter.Memcmp(0, Base58.encode(hex("9b0caae01efacc82"))),
+                AccountFilter.Memcmp(8, CONFIG.toBase58()),
+                AccountFilter.Memcmp(40, Base58.encode(hex("1e00"))),
+                // a string starts at a known offset, though nothing after it does
+                AccountFilter.Memcmp(42, Base58.encode(hex("04000000 6d61696e"))),
+            )
+            Showcase.Counter.filter(api).flags(listOf(true)).accountFilters[1] shouldBe AccountFilter.Memcmp(17, Base58.encode(hex("01000000 01")))
+            api.close()
+        }
+
+        test("fetch, watch and query decode accounts the program owns") {
+            val counter = """{"data":["${Base64.encode(Showcase.Counter.ACCOUNT.encode(COUNTER))}","base64"],"executable":false,"lamports":1,"owner":"${Showcase.PROGRAM_ID}","rentEpoch":0}"""
+            val client = CannedClient("""{"context":{"slot":7},"value":$counter}""")
+            val api = SolanaProvider(client)
+            Showcase.Counter.fetch(api, CONFIG).send().unwrap().data shouldBe COUNTER
+            Showcase.Counter.watch(api, CONFIG).send().unwrap().receive()!!.data shouldBe COUNTER
+            // another deployment owns nothing here, so the same account fails its owner check
+            Showcase.Counter.fetch(api, CONFIG, programId = EXTRA).send().unwrapError()
+                .shouldBeInstanceOf<SolanaAccountError.Decode>().error.shouldBeInstanceOf<SolanaDecodeError.UnexpectedOwner>()
+
+            client.response = """{"context":{"slot":7},"value":[{"pubkey":"$CONFIG","account":$counter}]}"""
+            Showcase.Counter.filter(api).bump(254).query().send().unwrap().single().data shouldBe COUNTER
         }
 
         test("program dispatch picks the account type by discriminator") {
@@ -156,6 +201,22 @@ class ShowcaseBindingsTest : FunSpec({
                 .shouldBeInstanceOf<Showcase.Instruction.Swap>().accounts.referrer.shouldBeNull()
         }
 
+        test("an inner instruction is decoded without requiring signers, which a program can supply through invoke_signed") {
+            val unsigned = Showcase.swap(swapAccounts, swapArgs).let { ix ->
+                ix.copy(keys = ix.keys.map { AccountMeta(it.publicKey, signer = false, writable = it.writable) })
+            }
+            Showcase.decodeInstruction(unsigned, checkSigners = false).unwrap().shouldBeInstanceOf<Showcase.Instruction.Swap>()
+
+            val executed = listOf(
+                ExecutedInstruction(InstructionPosition(0), Showcase.ping()),
+                ExecutedInstruction(InstructionPosition(0, 0, 2), unsigned),
+                ExecutedInstruction(InstructionPosition(1), Instruction(EXTRA, emptyList(), hex("09"))),
+            )
+            val decoded = executed.decodeInstructions(Showcase.PROGRAM_ID, Showcase::decodeInstruction)
+            decoded.map { it.position } shouldBe listOf(InstructionPosition(0), InstructionPosition(0, 0, 2))
+            decoded[1].value.unwrap().shouldBeInstanceOf<Showcase.Instruction.Swap>()
+        }
+
         test("return values decode through the instruction's descriptor") {
             Showcase.SWAP.decodeReturn(hex("2a00000000000000")).unwrap() shouldBe bigIntegerOf(42)
             Showcase.RESET.decodeReturn(Showcase.Counter.encode(COUNTER)).unwrap() shouldBe COUNTER
@@ -202,3 +263,13 @@ class ShowcaseBindingsTest : FunSpec({
         Showcase.OFFSET shouldBe -5L
     }
 })
+
+/** Answers every request and subscription with [response]. */
+private class CannedClient(var response: String) : JsonRpcClient {
+    override suspend fun <T> request(method: String, params: Array<*>, resultDecoder: (JsonElement) -> T): Result<T, RpcError> = success(resultDecoder(Kotlinx.DEFAULT.parseToJsonElement(response)))
+
+    override suspend fun <T : Any> subscribe(params: Array<*>, resultDecoder: (JsonElement) -> T): Result<ChannelReceiver<T>, RpcError> = success(QueueChannel.spscUnbounded<T>().apply { offer(resultDecoder(Kotlinx.DEFAULT.parseToJsonElement(response))) })
+
+    override suspend fun requestBatch(batch: BatchRpcRequest): Boolean = error("Unexpected batch")
+    override fun close() = Unit
+}
