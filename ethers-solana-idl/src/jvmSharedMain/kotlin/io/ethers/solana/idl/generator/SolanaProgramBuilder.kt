@@ -53,6 +53,8 @@ import java.io.File
  * Aliases are resolved to their target at each use. Generic type definitions and non-Borsh
  * serialization are not supported yet and fail generation.
  *
+ * When changing the generated output, bump [OUTPUT_VERSION].
+ *
  * @throws IllegalArgumentException if [program] is invalid, uses an unsupported layout, or its names
  * produce colliding declarations.
  */
@@ -119,7 +121,15 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             .build()
     }
 
-    fun writeTo(directory: File) = build().writeTo(directory)
+    /**
+     * Write the bindings to [directory], under the directories of [packageName].
+     *
+     * @return the canonical name of the generated program object.
+     */
+    fun writeTo(directory: File): String {
+        build().writeTo(directory)
+        return programClass.canonicalName
+    }
 
     // --- checks ---
 
@@ -982,17 +992,23 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             .initializer("%T.fromHex(%S)", Runtime.SOLANA_BYTES, hex)
     }
 
-    private companion object {
-        const val FETCH_ALIAS = "fetchProgramAccount"
-        const val WATCH_ALIAS = "watchProgramAccount"
+    companion object {
+        /**
+         * Version of the generated output. Bump it whenever the output changes, so build tools invalidate
+         * previously generated bindings.
+         */
+        const val OUTPUT_VERSION = "1"
+
+        private const val FETCH_ALIAS = "fetchProgramAccount"
+        private const val WATCH_ALIAS = "watchProgramAccount"
 
         /** Members of the account filter base class that a field method must not shadow. */
-        val FILTER_BASE_MEMBERS = setOf("program", "commitment", "memcmp", "dataSize", "field", "query", "subscribe", "accountFilters", "self")
+        private val FILTER_BASE_MEMBERS = setOf("program", "commitment", "memcmp", "dataSize", "field", "query", "subscribe", "accountFilters", "self")
 
         /** A Rust integer literal's type suffix, such as `u64` in `1_000u64`. */
-        val INTEGER_SUFFIX = Regex("[ui](8|16|32|64|128|256|size)$")
+        private val INTEGER_SUFFIX = Regex("[ui](8|16|32|64|128|256|size)$")
 
-        val PRIMITIVE_TYPES: Map<IdlType.Primitive, TypeName> = mapOf(
+        private val PRIMITIVE_TYPES: Map<IdlType.Primitive, TypeName> = mapOf(
             IdlType.Primitive.BOOL to BOOLEAN,
             IdlType.Primitive.U8 to INT,
             IdlType.Primitive.U16 to INT,
@@ -1014,7 +1030,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         )
 
         /** The encoded size of each fixed-size primitive. */
-        val PRIMITIVE_SIZES: Map<IdlType.Primitive, Int> = mapOf(
+        private val PRIMITIVE_SIZES: Map<IdlType.Primitive, Int> = mapOf(
             IdlType.Primitive.BOOL to 1,
             IdlType.Primitive.U8 to 1,
             IdlType.Primitive.I8 to 1,
@@ -1034,7 +1050,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         )
 
         /** The suffix of each primitive's `BorshReader.readX` and `BorshWriter.writeX`. */
-        val PRIMITIVE_CODEC: Map<IdlType.Primitive, String> = mapOf(
+        private val PRIMITIVE_CODEC: Map<IdlType.Primitive, String> = mapOf(
             IdlType.Primitive.BOOL to "Bool",
             IdlType.Primitive.U8 to "U8",
             IdlType.Primitive.U16 to "U16",

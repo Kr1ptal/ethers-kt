@@ -1,0 +1,75 @@
+package io.ethers.abigen.plugin
+
+import io.ethers.abigen.plugin.source.SolanaIdlDirectorySource
+import io.ethers.solana.idl.reader.SolanaIdlReader
+import io.ethers.solana.idl.reader.SolanaIdlReaderRegistry
+import org.gradle.api.Action
+import org.gradle.api.Project
+import org.gradle.api.provider.ListProperty
+import org.gradle.api.provider.MapProperty
+import org.gradle.api.provider.Property
+
+abstract class EthersSolanaIdlExtension(private val project: Project) {
+    private val factory = project.objects
+
+    /**
+     * Directory where the generated Kotlin files will be placed. Path is relative to the project build directory.
+     *
+     * Default value is `generated/source/ethers-solana/main/kotlin`.
+     * */
+    val outputDir: Property<String> = factory.property(String::class.java).convention(
+        "generated/source/ethers-solana/main/kotlin",
+    )
+
+    /**
+     * IDL sources. Bindings are generated for every IDL they contain.
+     *
+     * Default list contains [directorySource] for `src/main/idl`, which [directorySource] adds to. Set the list to
+     * replace it.
+     * */
+    val sources: ListProperty<SolanaIdlDirectorySource> =
+        factory.listProperty(SolanaIdlDirectorySource::class.java).value(
+            listOf(createDirectorySource("src/main/idl")),
+        )
+
+    /**
+     * Deployment addresses that replace the address an IDL declares, keyed by the program name the IDL declares. The
+     * generated `PROGRAM_ID` is the override, e.g. for a program deployed to devnet or a local validator under another
+     * address. Naming a program that no IDL declares fails the build.
+     *
+     * Default value is empty map.
+     * */
+    val programAddresses: MapProperty<String, String> =
+        factory.mapProperty(String::class.java, String::class.java).convention(emptyMap())
+
+    /**
+     * Replace the address the IDL of [program] declares with [address], see [programAddresses].
+     * */
+    fun programAddress(program: String, address: String) {
+        programAddresses.put(program, address)
+    }
+
+    /**
+     * Add additional [SolanaIdlReader] to the registry, which will be used to read IDL files.
+     * */
+    fun idlReader(reader: SolanaIdlReader) {
+        SolanaIdlReaderRegistry.appendReader(reader)
+    }
+
+    /**
+     * Add directory source, in addition to the default `src/main/idl` one. Paths are relative to the project root
+     * directory.
+     * */
+    @JvmOverloads
+    fun directorySource(path: String, action: Action<in SolanaIdlDirectorySource>? = null) {
+        val source = createDirectorySource(path)
+        action?.execute(source)
+        sources.add(source)
+    }
+
+    private fun createDirectorySource(path: String): SolanaIdlDirectorySource {
+        val source = factory.newInstance(SolanaIdlDirectorySource::class.java)
+        source.sourceDirectory.set(project.layout.projectDirectory.dir(path))
+        return source
+    }
+}

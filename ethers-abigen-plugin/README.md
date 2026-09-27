@@ -41,6 +41,41 @@ ethersAbigen {
 }
 ```
 
+### Solana program bindings
+
+The plugin also generates Kotlin bindings for Solana programs from IDL files, using the `ethers-solana-idl` module.
+This is configured separately in the `ethersSolanaIdl` extension, and runs as the `ethersSolanaIdl` task. By default,
+it reads the IDL files (`*.json`) from `src/main/idl` and generates the bindings in
+`generated/source/ethers-solana/main/kotlin`. The generated code is added to the same source set as the contract
+wrappers, and requires `ethers-solana` at runtime.
+
+The directory structure is used as package structure, and each program is named after the program name its IDL
+declares, e.g. `src/main/idl/com/example/whirlpool.json` will be generated as `com.example.Whirlpool`.
+
+```kotlin
+ethersSolanaIdl {
+    // set by default; directorySource adds to it, and `sources.set(...)` replaces it
+    directorySource("src/main/idl")
+
+    // an additional source, generated into a fixed package regardless of the directory structure
+    directorySource("src/main/idl-vendor") {
+        packageOverride = "com.example.vendor"
+    }
+
+    // set by default
+    outputDir = "generated/source/ethers-solana/main/kotlin"
+
+    // use another deployment address than the one the IDL declares, e.g. on devnet or a local validator.
+    // Keyed by the program name the IDL declares; naming a program no IDL declares fails the build.
+    programAddress("whirlpool", "<base58 address>")
+
+    // by default, it supports reading Anchor IDLs (spec 0.1.x)
+    idlReader { input ->
+        // read IdlProgram from input
+    }
+}
+```
+
 ### Local testing of the plugin
 
 To test the plugin locally, you must first build the shadow jar of the plugin. This can be done by running the following

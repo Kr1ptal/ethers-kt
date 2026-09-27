@@ -149,7 +149,7 @@ The project uses Kotest 6 with the Kotest Gradle plugin for test discovery (no J
 - Bug fixes must include a regression test that explicitly exercises the fixed behavior to prevent regressions
 - New features must have tests covering the happy path, obvious failures, and edge cases
 - Changes to abigen's generated output must stay multiplatform. The `AbigenCompiler`-based tests only compile the output for the JVM, so `java.math` types, `javaClass` and similar slip through; `:ethers-abigen:macosArm64Test`, which compiles the wrappers generated into `commonTest`, is what catches them
-- Bump `EthersAbigenTask#outputVersion` whenever generated output changes, so Gradle invalidates cached abigen results
+- Bump the generator's `OUTPUT_VERSION` (`AbiContractBuilder` for abigen, `SolanaProgramBuilder` for Solana IDL bindings) whenever generated output changes, so Gradle invalidates cached plugin results
 
 ## Code Style Guidelines
 

@@ -1,0 +1,543 @@
+{
+  "address": "ShowcaseProgram1111111111111111111111111111",
+  "metadata": {
+    "name": "showcase",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Exercises every supported IDL feature"
+  },
+  "docs": [
+    "A program that exists to exercise generated bindings."
+  ],
+  "instructions": [
+    {
+      "name": "initialize",
+      "docs": [
+        "Create the config account."
+      ],
+      "discriminator": [
+        175,
+        175,
+        109,
+        31,
+        13,
+        152,
+        155,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "fee_bps",
+          "type": "u16"
+        },
+        {
+          "name": "label",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "swap",
+      "discriminator": [
+        248,
+        198,
+        158,
+        145,
+        225,
+        117,
+        135,
+        200
+      ],
+      "accounts": [
+        {
+          "name": "config"
+        },
+        {
+          "name": "user",
+          "signer": true
+        },
+        {
+          "name": "vaults",
+          "accounts": [
+            {
+              "name": "input",
+              "writable": true
+            },
+            {
+              "name": "output",
+              "writable": true
+            }
+          ]
+        },
+        {
+          "name": "referrer",
+          "optional": true,
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        },
+        {
+          "name": "min_out",
+          "type": {
+            "option": "u64"
+          }
+        },
+        {
+          "name": "mode",
+          "type": {
+            "defined": {
+              "name": "Mode"
+            }
+          }
+        }
+      ],
+      "returns": "u64"
+    },
+    {
+      "name": "reset",
+      "discriminator": [
+        23,
+        81,
+        251,
+        84,
+        138,
+        183,
+        240,
+        214
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "relations": [
+            "authority"
+          ]
+        },
+        {
+          "name": "authority",
+          "signer": true
+        }
+      ],
+      "args": [],
+      "returns": {
+        "defined": {
+          "name": "Counter"
+        }
+      }
+    },
+    {
+      "name": "ping",
+      "discriminator": [
+        9
+      ],
+      "accounts": [],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Config",
+      "discriminator": [
+        155,
+        12,
+        170,
+        224,
+        30,
+        250,
+        204,
+        130
+      ]
+    },
+    {
+      "name": "Counter",
+      "discriminator": [
+        255,
+        176,
+        4,
+        245,
+        188,
+        253,
+        124,
+        25
+      ]
+    },
+    {
+      "name": "Marker",
+      "discriminator": [
+        250,
+        1
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "Swapped",
+      "discriminator": [
+        217,
+        52,
+        52,
+        83,
+        147,
+        135,
+        96,
+        109
+      ]
+    },
+    {
+      "name": "Paused",
+      "discriminator": [
+        172,
+        248,
+        5,
+        253,
+        49,
+        255,
+        255,
+        232
+      ]
+    },
+    {
+      "name": "Snapshot",
+      "discriminator": [
+        162,
+        160,
+        37,
+        6,
+        229,
+        208,
+        125,
+        201
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "Unauthorized",
+      "msg": "Not allowed"
+    },
+    {
+      "code": 6001,
+      "name": "Overflow"
+    }
+  ],
+  "types": [
+    {
+      "name": "Config",
+      "docs": [
+        "Program configuration."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey",
+            "docs": [
+              "Who may reset."
+            ]
+          },
+          {
+            "name": "fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "label",
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "tags",
+            "type": {
+              "vec": "string"
+            }
+          },
+          {
+            "name": "seed",
+            "type": {
+              "array": [
+                "u8",
+                4
+              ]
+            }
+          },
+          {
+            "name": "weights",
+            "type": {
+              "array": [
+                "u32",
+                3
+              ]
+            }
+          },
+          {
+            "name": "nested",
+            "type": {
+              "option": {
+                "option": "u8"
+              }
+            }
+          },
+          {
+            "name": "mode",
+            "type": {
+              "defined": {
+                "name": "Mode"
+              }
+            }
+          },
+          {
+            "name": "total",
+            "type": {
+              "defined": {
+                "name": "Amount"
+              }
+            }
+          },
+          {
+            "name": "last",
+            "type": {
+              "option": {
+                "defined": {
+                  "name": "Snapshot"
+                }
+              }
+            }
+          },
+          {
+            "name": "origin",
+            "type": {
+              "defined": {
+                "name": "showcase::Point"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Mode",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Unit"
+          },
+          {
+            "name": "Fixed",
+            "fields": [
+              {
+                "name": "rate",
+                "type": "u64"
+              },
+              {
+                "name": "until",
+                "type": "i64"
+              }
+            ]
+          },
+          {
+            "name": "Range",
+            "fields": [
+              "u8",
+              "u8",
+              "i128"
+            ]
+          },
+          {
+            "name": "Other",
+            "fields": [
+              {
+                "defined": {
+                  "name": "other::Point"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "showcase::Point",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "x",
+            "type": "i32"
+          },
+          {
+            "name": "y",
+            "type": "i32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "other::Point",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          "f32",
+          "f64"
+        ]
+      }
+    },
+    {
+      "name": "Amount",
+      "type": {
+        "kind": "type",
+        "alias": "u64"
+      }
+    },
+    {
+      "name": "Marker",
+      "type": {
+        "kind": "struct"
+      }
+    },
+    {
+      "name": "Counter",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "count",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "flags",
+            "type": {
+              "vec": "bool"
+            }
+          },
+          {
+            "name": "delta",
+            "type": "i8"
+          },
+          {
+            "name": "raw",
+            "type": "bytes"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Swapped",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "amount_in",
+            "type": "u64"
+          },
+          {
+            "name": "amount_out",
+            "type": "u64"
+          },
+          {
+            "name": "context",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Paused",
+      "type": {
+        "kind": "struct"
+      }
+    },
+    {
+      "name": "Snapshot",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "value",
+            "type": "u128"
+          },
+          {
+            "name": "at",
+            "type": "i64"
+          }
+        ]
+      }
+    }
+  ],
+  "constants": [
+    {
+      "name": "MAX_FEE",
+      "type": "u16",
+      "value": "10_000"
+    },
+    {
+      "name": "SEED",
+      "type": "bytes",
+      "value": "[115, 101, 101, 100]"
+    },
+    {
+      "name": "BIG",
+      "type": "u128",
+      "value": "340282366920938463463374607431768211455"
+    },
+    {
+      "name": "ENABLED",
+      "type": "bool",
+      "value": "true"
+    },
+    {
+      "name": "NAME",
+      "type": "string",
+      "value": "\"showcase\""
+    },
+    {
+      "name": "OFFSET",
+      "type": "i64",
+      "value": "-5"
+    }
+  ]
+}
