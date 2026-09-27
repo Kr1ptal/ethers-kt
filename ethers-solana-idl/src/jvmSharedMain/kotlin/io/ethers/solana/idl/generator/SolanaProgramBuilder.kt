@@ -619,6 +619,15 @@ class SolanaProgramBuilder @JvmOverloads constructor(
                     .apply { if (fields.isNotEmpty()) addCode("with(writer) {\n⇥%L\n⇤}\n", writes(fields, "event")) }
                     .build(),
             )
+            .addFunction(
+                FunSpec.builder("filter")
+                    .addKdoc("Filter over the %L events the program emits to its logs.\n", event.name)
+                    .addAnnotation(Runtime.JVM_STATIC)
+                    .addParameter("api", Runtime.SOLANA_API)
+                    .returns(Runtime.EVENT_FILTER.parameterizedBy(name))
+                    .addStatement("return %T(api, this, PROGRAM_ID)", Runtime.EVENT_FILTER)
+                    .build(),
+            )
         return valueClass(name, fields, listOf(context))
             .addSuperinterface(eventInterface)
             .apply { def.docs.forEach { addKdoc("%L\n", it) } }
@@ -664,6 +673,20 @@ class SolanaProgramBuilder @JvmOverloads constructor(
                 .addParameter("code", LONG)
                 .returns(errorClass.copy(nullable = true))
                 .addStatement("return ERROR_DECODER.decode(code) as %T?", errorClass)
+                .build(),
+        )
+        programType.addFunction(
+            FunSpec.builder("decodeError")
+                .addKdoc(
+                    "The error this program declares for [failure], or null when [failure] was not attributed to " +
+                        "[programId] or the program declares no error with its code.\n",
+                )
+                .addAnnotation(Runtime.JVM_STATIC)
+                .addAnnotation(Runtime.JVM_OVERLOADS)
+                .addParameter("failure", Runtime.PROGRAM_FAILURE)
+                .addParameter(ParameterSpec.builder("programId", Runtime.SOLANA_ADDRESS).defaultValue("PROGRAM_ID").build())
+                .returns(errorClass.copy(nullable = true))
+                .addStatement("return if (failure.programId == programId) decodeError(failure.code) else null")
                 .build(),
         )
     }

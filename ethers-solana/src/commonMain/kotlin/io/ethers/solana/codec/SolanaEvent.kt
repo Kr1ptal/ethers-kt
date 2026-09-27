@@ -17,7 +17,7 @@ interface SolanaEvent {
  * self-CPI. Callers extract the event data from its envelope first; the factory sees the
  * discriminator and payload only.
  */
-interface SolanaEventFactory<T : SolanaEvent> {
+interface SolanaEventFactory<T : SolanaEvent> : SolanaEventDecoder<T> {
     val name: String
     val discriminator: SolanaDiscriminator
 
@@ -32,7 +32,7 @@ interface SolanaEventFactory<T : SolanaEvent> {
     fun matches(data: SolanaBytes): Boolean = discriminator.matches(data)
 
     /** Decode event [data], discriminator included, which must contain nothing after the payload. */
-    fun decode(data: ByteArray, context: SolanaEventContext): Result<T, SolanaDecodeError> {
+    override fun decode(data: ByteArray, context: SolanaEventContext): Result<T, SolanaDecodeError> {
         return decodeDiscriminated(discriminator, data, "a $name event", true) { read(it, context) }
     }
 

@@ -19,12 +19,21 @@ import io.ethers.solana.instruction.Instruction
 import io.ethers.solana.program.ExecutedInstruction
 import io.ethers.solana.program.InstructionPosition
 import io.ethers.solana.program.SolanaAccountError
+import io.ethers.solana.program.SolanaProgramFailure
+import io.ethers.solana.program.decodeEvents
 import io.ethers.solana.program.decodeInstructions
+import io.ethers.solana.program.decodeReturn
+import io.ethers.solana.program.eventRecords
 import io.ethers.solana.providers.AccountFilter
 import io.ethers.solana.providers.SolanaProvider
 import io.ethers.solana.types.AccountMeta
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBytes
+import io.ethers.solana.types.SolanaSignature
+import io.ethers.solana.types.rpc.ContextValue
+import io.ethers.solana.types.rpc.LogsNotification
+import io.ethers.solana.types.rpc.ReturnData
+import io.ethers.solana.types.rpc.RpcContext
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.core.spec.style.FunSpec
@@ -48,6 +57,11 @@ private val EXTRA = address(7)
 private val SYSTEM_PROGRAM = SolanaAddress("11111111111111111111111111111111")
 
 private val COUNTER = Showcase.Counter(bigIntegerOf(7), 254, listOf(true, false), -1, SolanaBytes.fromHex("aabb"))
+private val SIGNATURE = SolanaSignature(ByteArray(64) { 9 })
+
+/** Logs of one top-level invocation of the showcase program that emits each of [events]. */
+private fun showcaseLogs(vararg events: ByteArray): List<String> = listOf("Program ${Showcase.PROGRAM_ID} invoke [1]") + events.map { "Program data: ${Base64.encode(it)}" } + "Program ${Showcase.PROGRAM_ID} success"
+
 private const val COUNTER_PAYLOAD = "0700000000000000 fe 02000000 01 00 ff 02000000 aabb"
 
 class ShowcaseBindingsTest : FunSpec({
@@ -240,11 +254,45 @@ class ShowcaseBindingsTest : FunSpec({
             Showcase.decodeEvent(hex("0000000000000000"), context).unwrapError().shouldBeInstanceOf<SolanaDecodeError.Unrecognized>()
         }
 
+        test("events are decoded from the logs a transaction emitted, with their source") {
+            val swapped = Showcase.Event.Swapped(bigIntegerOf(1), bigIntegerOf(2), "memo", context)
+            val notification = ContextValue(RpcContext(bigIntegerOf(3)), LogsNotification(SIGNATURE, null, showcaseLogs(Showcase.Event.Swapped.encode(swapped))))
+            val event = notification.eventRecords().decodeEvents(Showcase.PROGRAM_ID, Showcase::decodeEvent).single()
+                .shouldBeInstanceOf<Showcase.Event.Swapped>()
+            event.amountIn shouldBe bigIntegerOf(1)
+            event.context.source shouldBe SolanaEventSource.Log(0, 1, 1)
+            event.context.execution.signature shouldBe SIGNATURE
+        }
+
+        test("an event filter subscribes to one event type of the program") {
+            val swapped = Showcase.Event.Swapped.encode(Showcase.Event.Swapped(bigIntegerOf(1), bigIntegerOf(2), "memo", context))
+            val paused = Showcase.Event.Paused.encode(Showcase.Event.Paused(context))
+            val logs = showcaseLogs(paused, swapped).joinToString { "\"$it\"" }
+            val client = CannedClient("""{"context":{"slot":3},"value":{"signature":"$SIGNATURE","err":null,"logs":[$logs]}}""")
+            val channel = Showcase.Event.Swapped.filter(SolanaProvider(client)).subscribe().send().unwrap()
+            // the Paused event in the same transaction is not delivered
+            channel.receive()!!.single().contextField shouldBe "memo"
+            channel.poll().shouldBeNull()
+        }
+
         test("an event type also used as a value is generated as both") {
             val event = Showcase.Event.Snapshot(bigIntegerOf(3), 4, context)
             val value = Showcase.Snapshot(bigIntegerOf(3), 4)
             Showcase.Event.Snapshot.encode(event).copyOfRange(8, 32) shouldBe Showcase.Snapshot.encode(value)
         }
+    }
+
+    test("a failure resolves to an error only when it was attributed to this program") {
+        Showcase.decodeError(SolanaProgramFailure(0, 6000, Showcase.PROGRAM_ID, 2)) shouldBe Showcase.Error.Unauthorized
+        Showcase.decodeError(SolanaProgramFailure(0, 6000, EXTRA, 1)).shouldBeNull()
+        Showcase.decodeError(SolanaProgramFailure(0, 6000, null, null)).shouldBeNull()
+        Showcase.decodeError(SolanaProgramFailure(0, 6000, EXTRA, 1), programId = EXTRA) shouldBe Showcase.Error.Unauthorized
+    }
+
+    test("return data decodes through the instruction that produced it, when this program set it") {
+        Showcase.SWAP.decodeReturn(ReturnData(Showcase.PROGRAM_ID, SolanaBytes.fromHex("2a00000000000000")), Showcase.PROGRAM_ID).unwrap() shouldBe bigIntegerOf(42)
+        Showcase.SWAP.decodeReturn(ReturnData(EXTRA, SolanaBytes.fromHex("2a00000000000000")), Showcase.PROGRAM_ID).unwrapError()
+            .shouldBeInstanceOf<SolanaDecodeError.Unrecognized>()
     }
 
     test("errors are looked up by code within this program") {

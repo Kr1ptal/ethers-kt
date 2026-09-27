@@ -18,6 +18,8 @@ internal object Runtime {
     val SOLANA_CODEC = ClassName(CODEC, "SolanaCodec")
     val SOLANA_OPTION = ClassName(CODEC, "SolanaOption")
     val DISCRIMINATOR = ClassName(CODEC, "SolanaDiscriminator")
+    val EVENT_FILTER = ClassName("io.ethers.solana.program", "SolanaEventFilter")
+    val PROGRAM_FAILURE = ClassName("io.ethers.solana.program", "SolanaProgramFailure")
     val ACCOUNT_FACTORY = ClassName(CODEC, "SolanaAccountFactory")
     val INSTRUCTION_DESCRIPTOR = ClassName(CODEC, "SolanaInstructionDescriptor")
     val RETURNING_DESCRIPTOR = INSTRUCTION_DESCRIPTOR.nestedClass("Returning")
