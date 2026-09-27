@@ -25,7 +25,7 @@ internal object Runtime {
     val RETURNING_DESCRIPTOR = INSTRUCTION_DESCRIPTOR.nestedClass("Returning")
     val ACCOUNTS_READER = ClassName(CODEC, "SolanaAccountsReader")
     val ACCOUNT_FILTER_BASE = ClassName("io.ethers.solana.program", "SolanaAccountFilterBase")
-    val MAYBE_SOLANA_ACCOUNT = ClassName("io.ethers.solana.program", "MaybeSolanaAccount")
+    val SOLANA_ACCOUNT = ClassName("io.ethers.solana.program", "SolanaAccount")
     val SOLANA_ACCOUNT_ERROR = ClassName("io.ethers.solana.program", "SolanaAccountError")
     val FETCH = MemberName("io.ethers.solana.program", "fetch")
     val WATCH = MemberName("io.ethers.solana.program", "watch")

@@ -136,13 +136,20 @@ class ShowcaseBindingsTest : FunSpec({
             val client = CannedClient("""{"context":{"slot":7},"value":$counter}""")
             val api = SolanaProvider(client)
             Showcase.Counter.fetch(api, CONFIG).send().unwrap().data shouldBe COUNTER
-            Showcase.Counter.watch(api, CONFIG).send().unwrap().receive()!!.data shouldBe COUNTER
+            Showcase.Counter.watch(api, CONFIG).send().unwrap().receive()!!.unwrap().data shouldBe COUNTER
+            Showcase.Counter.watch(api, CONFIG, programId = EXTRA).send().unwrap().receive()!!.unwrapError()
+                .shouldBeInstanceOf<SolanaAccountError.Decode>().error.shouldBeInstanceOf<SolanaDecodeError.UnexpectedOwner>()
+            client.response = """{"context":{"slot":7},"value":[$counter,null]}"""
+            val batch = Showcase.Counter.fetch(api, listOf(CONFIG, EXTRA)).send().unwrap()
+            batch[0].unwrap().data shouldBe COUNTER
+            batch[1].unwrapError().shouldBeInstanceOf<SolanaAccountError.Missing>().address shouldBe EXTRA
+            client.response = """{"context":{"slot":7},"value":$counter}"""
             // another deployment owns nothing here, so the same account fails its owner check
             Showcase.Counter.fetch(api, CONFIG, programId = EXTRA).send().unwrapError()
                 .shouldBeInstanceOf<SolanaAccountError.Decode>().error.shouldBeInstanceOf<SolanaDecodeError.UnexpectedOwner>()
 
             client.response = """{"context":{"slot":7},"value":[{"pubkey":"$CONFIG","account":$counter}]}"""
-            Showcase.Counter.filter(api).bump(254).query().send().unwrap().single().data shouldBe COUNTER
+            Showcase.Counter.filter(api).bump(254).query().send().unwrap().single().unwrap().data shouldBe COUNTER
         }
 
         test("program dispatch picks the account type by discriminator") {

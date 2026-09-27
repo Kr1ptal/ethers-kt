@@ -62,6 +62,7 @@ private fun contextual(value: String) = """{"context":{"slot":42},"value":$value
 private class FakeClient : JsonRpcClient {
     val responses = HashMap<String, String>()
     val params = HashMap<String, List<Any?>>()
+    var notifications: List<String>? = null
     private val config = RpcClientConfig().subscriptionDescriptor(SolanaSubscriptionDescriptor)
 
     override suspend fun <T> request(method: String, params: Array<*>, resultDecoder: (JsonElement) -> T): Result<T, RpcError> {
@@ -73,7 +74,9 @@ private class FakeClient : JsonRpcClient {
         val descriptor = config.subscriptionDescriptor.resolve(params)
         this.params[descriptor.subscribeMethod] = descriptor.params.toList()
         val channel = QueueChannel.spscUnbounded<T>()
-        channel.offer(resultDecoder(Kotlinx.DEFAULT.parseToJsonElement(responses.getValue(descriptor.subscribeMethod))))
+        for (notification in notifications ?: listOf(responses.getValue(descriptor.subscribeMethod))) {
+            channel.offer(resultDecoder(Kotlinx.DEFAULT.parseToJsonElement(notification)))
+        }
         return success(channel)
     }
 
@@ -89,7 +92,6 @@ class SolanaAccountTest : FunSpec({
         test("a fetched account is decoded, keeping its address, slot and everything the node returned") {
             client.responses["getAccountInfo"] = contextual(account(Vault.ACCOUNT.encode(VAULT) + ByteArray(8)))
             val fetched = Vault.ACCOUNT.fetch(provider, FIRST, PROGRAM).send().unwrap().shouldBeInstanceOf<SolanaAccount<Vault>>()
-            fetched.exists shouldBe true
             fetched.address shouldBe FIRST
             fetched.context.slot.toString() shouldBe "42"
             fetched.data shouldBe VAULT
@@ -104,17 +106,18 @@ class SolanaAccountTest : FunSpec({
 
         test("a missing account keeps its address and slot") {
             client.responses["getAccountInfo"] = contextual("null")
-            val missing = Vault.ACCOUNT.fetch(provider, FIRST, PROGRAM).send().unwrap()
-            missing shouldBe MissingSolanaAccount(FIRST, RpcContext(bigIntegerOf(42)))
-            missing.exists shouldBe false
-            missing.info.shouldBeNull()
-            missing.data.shouldBeNull()
+            val missing = Vault.ACCOUNT.fetch(provider, FIRST, PROGRAM).send().unwrapError()
+            missing shouldBe SolanaAccountError.Missing(FIRST, RpcContext(bigIntegerOf(42)))
         }
 
         test("an account another program owns, or whose data does not decode, fails the request") {
             client.responses["getAccountInfo"] = contextual(account(Vault.ACCOUNT.encode(VAULT), owner = OTHER_PROGRAM))
-            Vault.ACCOUNT.fetch(provider, FIRST, PROGRAM).send().unwrapError() shouldBe
-                SolanaAccountError.Decode(SolanaDecodeError.UnexpectedOwner(FIRST, OTHER_PROGRAM, PROGRAM))
+            val error = Vault.ACCOUNT.fetch(provider, FIRST, PROGRAM).send().unwrapError().shouldBeInstanceOf<SolanaAccountError.Decode>()
+            error.address shouldBe FIRST
+            error.context.slot.toString() shouldBe "42"
+            error.info.owner shouldBe OTHER_PROGRAM
+            error.info.data.asByteArray().toList() shouldBe Vault.ACCOUNT.encode(VAULT).toList()
+            error.error shouldBe SolanaDecodeError.UnexpectedOwner(FIRST, OTHER_PROGRAM, PROGRAM)
 
             client.responses["getAccountInfo"] = contextual(account(Vault.ACCOUNT.encode(VAULT).copyOf(12)))
             Vault.ACCOUNT.fetch(provider, FIRST, PROGRAM).send().unwrapError().shouldBeInstanceOf<SolanaAccountError.Decode>()
@@ -125,24 +128,36 @@ class SolanaAccountTest : FunSpec({
             val data = account(Vault.ACCOUNT.encode(VAULT))
             client.responses["getMultipleAccounts"] = contextual("[$data, null, $data]")
             val accounts = Vault.ACCOUNT.fetch(provider, listOf(FIRST, SECOND, THIRD), PROGRAM).send().unwrap()
-            accounts.map { it.address } shouldBe listOf(FIRST, SECOND, THIRD)
-            accounts.map { it.exists } shouldBe listOf(true, false, true)
-            accounts[1] shouldBe MissingSolanaAccount(SECOND, RpcContext(bigIntegerOf(42)))
+            accounts[0].unwrap().address shouldBe FIRST
+            accounts[1].unwrapError() shouldBe SolanaAccountError.Missing(SECOND, RpcContext(bigIntegerOf(42)))
+            accounts[2].unwrap().address shouldBe THIRD
 
-            client.responses["getMultipleAccounts"] = contextual("[$data, ${account(ByteArray(8))}]")
-            Vault.ACCOUNT.fetch(provider, listOf(FIRST, SECOND), PROGRAM).send().unwrapError()
-                .shouldBeInstanceOf<SolanaAccountError.Decode>().error.shouldBeInstanceOf<SolanaDecodeError.Unrecognized>()
+            client.responses["getMultipleAccounts"] = contextual("[$data, ${account(ByteArray(8))}, $data]")
+            val mixed = Vault.ACCOUNT.fetch(provider, listOf(FIRST, SECOND, THIRD), PROGRAM).send().unwrap()
+            mixed[0].unwrap().data shouldBe VAULT
+            mixed[1].unwrapError().shouldBeInstanceOf<SolanaAccountError.Decode>().error.shouldBeInstanceOf<SolanaDecodeError.Unrecognized>()
+            mixed[2].unwrap().data shouldBe VAULT
         }
 
-        test("watching decodes notifications, reports closure, and skips ones that do not decode") {
-            client.responses["accountSubscribe"] = contextual(account(Vault.ACCOUNT.encode(VAULT)))
-            Vault.ACCOUNT.watch(provider, FIRST, PROGRAM).send().unwrap().receive()!!.data shouldBe VAULT
-
-            client.responses["accountSubscribe"] = contextual("null")
-            Vault.ACCOUNT.watch(provider, FIRST, PROGRAM).send().unwrap().receive()!!.exists shouldBe false
-
-            client.responses["accountSubscribe"] = contextual(account(ByteArray(3)))
-            Vault.ACCOUNT.watch(provider, FIRST, PROGRAM).send().unwrap().poll().shouldBeNull()
+        test("watching emits decode and missing failures then continues delivering valid updates") {
+            client.notifications = listOf(
+                contextual(account(Vault.ACCOUNT.encode(VAULT))),
+                contextual(account(ByteArray(3))),
+                contextual(account(Vault.ACCOUNT.encode(VAULT), owner = OTHER_PROGRAM)),
+                contextual("null"),
+                contextual(account(Vault.ACCOUNT.encode(VAULT))),
+            )
+            val updates = Vault.ACCOUNT.watch(provider, FIRST, PROGRAM).send().unwrap()
+            client.notifications = null
+            updates.receive()!!.unwrap().data shouldBe VAULT
+            val malformed = updates.receive()!!.unwrapError().shouldBeInstanceOf<SolanaAccountError.Decode>()
+            malformed.address shouldBe FIRST
+            malformed.context.slot.toString() shouldBe "42"
+            malformed.info.data.size shouldBe 3
+            updates.receive()!!.unwrapError().shouldBeInstanceOf<SolanaAccountError.Decode>()
+                .error.shouldBeInstanceOf<SolanaDecodeError.UnexpectedOwner>()
+            updates.receive()!!.unwrapError() shouldBe SolanaAccountError.Missing(FIRST, RpcContext(bigIntegerOf(42)))
+            updates.receive()!!.unwrap().data shouldBe VAULT
         }
     }
 
@@ -156,17 +171,20 @@ class SolanaAccountTest : FunSpec({
             )
         }
 
-        test("a query decodes the matching accounts, skips ones that do not decode, and keeps its slot") {
+        test("a query retains both decoded accounts and failures with its slot") {
             val good = account(Vault.ACCOUNT.encode(VAULT))
             client.responses["getProgramAccounts"] = contextual(
                 """[{"pubkey":"$FIRST","account":$good},{"pubkey":"$SECOND","account":${account(ByteArray(3))}}]""",
             )
             val accounts = SolanaAccountFilter(provider, Vault.ACCOUNT, PROGRAM).query().send().unwrap()
-            accounts.map { it.address } shouldBe listOf(FIRST)
-            accounts.single().data shouldBe VAULT
-            // query results always exist, so info and data are non-null without a check
-            accounts.single().data.amount shouldBe 5L
-            accounts.single().info.owner shouldBe PROGRAM
+            accounts.size shouldBe 2
+            accounts[0].unwrap().address shouldBe FIRST
+            accounts[0].unwrap().data shouldBe VAULT
+            accounts[0].unwrap().info.owner shouldBe PROGRAM
+            val failed = accounts[1].unwrapError().shouldBeInstanceOf<SolanaAccountError.Decode>()
+            failed.address shouldBe SECOND
+            failed.context shouldBe accounts.context
+            failed.info.data.size shouldBe 3
             accounts.context.slot.toString() shouldBe "42"
             client.params.getValue("getProgramAccounts").first() shouldBe PROGRAM.toString()
         }
@@ -181,13 +199,27 @@ class SolanaAccountTest : FunSpec({
 
         test("an alternate deployment selects and checks against its own program id") {
             client.responses["getProgramAccounts"] = contextual("""[{"pubkey":"$FIRST","account":${account(Vault.ACCOUNT.encode(VAULT), owner = OTHER_PROGRAM)}}]""")
-            SolanaAccountFilter(provider, Vault.ACCOUNT, PROGRAM).program(OTHER_PROGRAM).query().send().unwrap().single().data shouldBe VAULT
+            SolanaAccountFilter(provider, Vault.ACCOUNT, PROGRAM).program(OTHER_PROGRAM).query().send().unwrap().single().unwrap().data shouldBe VAULT
             client.params.getValue("getProgramAccounts").first() shouldBe OTHER_PROGRAM.toString()
+        }
+
+        test("a program subscription retains failures and continues with the next account") {
+            fun notification(address: SolanaAddress, data: ByteArray) = contextual(
+                """{"pubkey":"$address","account":${account(data)}}""",
+            )
+            client.notifications = listOf(notification(FIRST, ByteArray(3)), notification(SECOND, Vault.ACCOUNT.encode(VAULT)))
+            val updates = SolanaAccountFilter(provider, Vault.ACCOUNT, PROGRAM).subscribe().send().unwrap()
+            client.notifications = null
+            val failed = updates.receive()!!.unwrapError().shouldBeInstanceOf<SolanaAccountError.Decode>()
+            failed.address shouldBe FIRST
+            failed.context.slot.toString() shouldBe "42"
+            failed.info.data.size shouldBe 3
+            updates.receive()!!.unwrap().address shouldBe SECOND
         }
 
         test("a subscription decodes each notification with its slot") {
             client.responses["programSubscribe"] = contextual("""{"pubkey":"$SECOND","account":${account(Vault.ACCOUNT.encode(VAULT))}}""")
-            val notification = SolanaAccountFilter(provider, Vault.ACCOUNT, PROGRAM).subscribe().send().unwrap().receive()!!
+            val notification = SolanaAccountFilter(provider, Vault.ACCOUNT, PROGRAM).subscribe().send().unwrap().receive()!!.unwrap()
             notification.address shouldBe SECOND
             notification.data.authority shouldBe FIRST
             notification.context.slot.toString() shouldBe "42"
@@ -204,7 +236,7 @@ class SolanaAccountTest : FunSpec({
             contextual("""{"err":null,"accounts":[null,${account(Vault.ACCOUNT.encode(VAULT))}]}"""),
         )
         val decoded = Vault.ACCOUNT.decodeAccounts(simulation, listOf(FIRST, SECOND), PROGRAM)!!
-        decoded[0].unwrap() shouldBe MissingSolanaAccount(FIRST, RpcContext(bigIntegerOf(42)))
+        decoded[0].unwrapError() shouldBe SolanaAccountError.Missing(FIRST, RpcContext(bigIntegerOf(42)))
         decoded[1].unwrap().data shouldBe VAULT
 
         shouldThrow<IllegalArgumentException> { Vault.ACCOUNT.decodeAccounts(simulation, listOf(FIRST), PROGRAM) }

@@ -377,6 +377,44 @@ towards zero below one micro-lamport. Use strings or `BigDecimal` for precise de
 `toBigIntegerExact()` when an API requires whole lamports. Unit conversion permits negative and arbitrarily
 large values; transaction instruction types validate unsigned amounts, while RPC calls defer range validation to the node.
 
+## Typed account results
+
+IDL-generated account types provide `fetch`, `watch`, and `filter` helpers. A successful result contains
+`SolanaAccount<T>` with non-null decoded data, raw account information, address, and slot context.
+`MaybeSolanaAccount` and `MissingSolanaAccount` have been replaced with explicit result failures:
+
+- `SolanaAccountError.Missing` retains the requested address and slot context.
+- `SolanaAccountError.Decode` retains the address, slot context, raw account information, and decode error,
+  including unexpected-owner and discriminator errors.
+
+A single `fetch(...).send()` returns `Result<SolanaAccount<T>, SolanaAccountError>`, including an `Rpc`
+error if the request fails. Batch fetches return an ordered list of per-account results; `filter().query()`
+returns per-account results plus the query context, including when no accounts match. RPC failures fail
+these requests, while missing or undecodable accounts remain individual results.
+
+Both `watch()` and `filter().subscribe()` deliver `Result<SolanaAccount<T>, SolanaAccountError>` items.
+Handle each result explicitly: failures are delivered without ending the subscription or skipping the
+notification. For example, with a generated `Vault` account type, inside a coroutine:
+
+```kotlin
+val updates = Vault.watch(provider, vaultAddress).send().unwrap()
+try {
+    while (true) {
+        val update = updates.receive() ?: break
+        when (update) {
+            is Result.Success -> println(update.value.data)
+            is Result.Failure -> println(update.error)
+        }
+    }
+} finally {
+    updates.close()
+}
+```
+
+Import `io.ethers.core.Result`. When migrating batch/query consumers, handle each element's result
+before accessing `.data`. Subscriptions do not provide an initial snapshot or guarantee every intermediate
+change; the application still coordinates snapshots, reconnect recovery, and multi-account state.
+
 ## Idempotent associated token accounts
 
 Use `AssociatedTokenProgram.createAccountIdempotent(payer, owner, mint)` to derive the SPL Token

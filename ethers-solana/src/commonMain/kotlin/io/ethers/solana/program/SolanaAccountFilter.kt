@@ -1,5 +1,6 @@
 package io.ethers.solana.program
 
+import io.ethers.core.Result
 import io.ethers.crypto.Base58
 import io.ethers.providers.RpcError
 import io.ethers.providers.types.RpcRequest
@@ -67,24 +68,24 @@ abstract class SolanaAccountFilterBase<T, F : SolanaAccountFilterBase<T, F>>(
         return self
     }
 
-    /** Query the matching accounts. Accounts whose data does not decode are skipped. */
+    /** Query the matching accounts. Undecodable accounts are retained as failed results. */
     fun query(): RpcRequest<SolanaAccounts<T>, RpcError> {
         val owner = program
         return api.getProgramAccounts(owner, filters.toList(), SolanaAccountConfig(commitment = commitment)).map { response ->
-            val accounts = response.value.mapNotNull { factory.decodeExisting(it.pubkey, response.context, it.account, owner).unwrapOrNull() }
+            val accounts = response.value.map { factory.decodeExisting(it.pubkey, response.context, it.account, owner) }
             SolanaAccounts(response.context, accounts)
         }
     }
 
     /**
-     * Subscribe to changes of the matching accounts. Notifications whose data does not decode are skipped.
+     * Subscribe to changes of the matching accounts. Decoding failures are emitted as failed results without ending the subscription.
      *
      * Notifications carry an account as of their slot; they are not guaranteed to include every change.
      */
-    fun subscribe(): RpcSubscribe<SolanaAccount<T>, RpcError> {
+    fun subscribe(): RpcSubscribe<Result<SolanaAccount<T>, SolanaAccountError>, RpcError> {
         val owner = program
         return api.subscribeProgram(owner, filters.toList(), commitment).map { channel ->
-            channel.mapNotNull { factory.decodeExisting(it.value.pubkey, it.context, it.value.account, owner).unwrapOrNull() }
+            channel.map { factory.decodeExisting(it.value.pubkey, it.context, it.value.account, owner) }
         }
     }
 }

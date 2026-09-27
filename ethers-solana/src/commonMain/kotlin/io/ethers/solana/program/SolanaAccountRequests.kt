@@ -2,8 +2,7 @@
 
 package io.ethers.solana.program
 
-import io.ethers.core.failure
-import io.ethers.core.success
+import io.ethers.core.Result
 import io.ethers.providers.RpcError
 import io.ethers.providers.types.RpcRequest
 import io.ethers.providers.types.RpcSubscribe
@@ -18,7 +17,7 @@ import kotlin.jvm.JvmOverloads
 /**
  * Fetch the account at [address] and decode it as this factory's type, checking that [owner] owns it.
  *
- * An account that does not exist is a [MissingSolanaAccount]. An account owned by another program, or whose
+ * An account that does not exist fails with [SolanaAccountError.Missing]. An account owned by another program, or whose
  * data does not decode, fails the request with [SolanaAccountError.Decode].
  */
 @JvmOverloads
@@ -27,18 +26,18 @@ fun <T> SolanaAccountFactory<T>.fetch(
     address: SolanaAddress,
     owner: SolanaAddress,
     commitment: Commitment = api.defaultCommitment,
-): RpcRequest<MaybeSolanaAccount<T>, SolanaAccountError> {
+): RpcRequest<SolanaAccount<T>, SolanaAccountError> {
     return api.getAccountInfo(address, SolanaAccountConfig(commitment = commitment))
         .mapError<SolanaAccountError> { SolanaAccountError.Rpc(it) }
         .andThen { response ->
-            decodeAccount(address, response.context, response.value, owner).mapError { SolanaAccountError.Decode(it) }
+            decodeAccount(address, response.context, response.value, owner)
         }
 }
 
 /**
  * Fetch the accounts at [addresses] in one request and decode each as this factory's type, as [fetch]
- * does. The accounts keep the order of [addresses], each missing one a [MissingSolanaAccount]; the first
- * account that does not decode fails the request.
+ * does. Results keep the order of [addresses]. Missing and undecodable accounts are individual failures;
+ * only RPC errors fail the whole request.
  */
 @JvmOverloads
 fun <T> SolanaAccountFactory<T>.fetch(
@@ -46,24 +45,16 @@ fun <T> SolanaAccountFactory<T>.fetch(
     addresses: List<SolanaAddress>,
     owner: SolanaAddress,
     commitment: Commitment = api.defaultCommitment,
-): RpcRequest<List<MaybeSolanaAccount<T>>, SolanaAccountError> {
-    return api.getMultipleAccounts(addresses, SolanaAccountConfig(commitment = commitment))
-        .mapError<SolanaAccountError> { SolanaAccountError.Rpc(it) }
-        .andThen { response ->
-            val accounts = ArrayList<MaybeSolanaAccount<T>>(addresses.size)
-            addresses.forEachIndexed { i, address ->
-                val decoded = decodeAccount(address, response.context, response.value.getOrNull(i), owner)
-                decoded.unwrapErrorOrNull()?.let { return@andThen failure(SolanaAccountError.Decode(it)) }
-                accounts.add(decoded.unwrap())
-            }
-            success(accounts)
-        }
+): RpcRequest<List<Result<SolanaAccount<T>, SolanaAccountError>>, RpcError> {
+    return api.getMultipleAccounts(addresses, SolanaAccountConfig(commitment = commitment)).map { response ->
+        addresses.mapIndexed { i, address -> decodeAccount(address, response.context, response.value[i], owner) }
+    }
 }
 
 /**
  * Subscribe to the account at [address], decoding each notification as this factory's type after checking
- * that [owner] owns it. Once the account no longer exists, notifications are a [MissingSolanaAccount];
- * notifications that do not decode are skipped.
+ * that [owner] owns it. Missing accounts and decoding failures are emitted as failed results with their
+ * notification context. These failures do not end the subscription.
  *
  * Notifications carry the account as of their slot; they are not guaranteed to include every change.
  */
@@ -73,8 +64,8 @@ fun <T> SolanaAccountFactory<T>.watch(
     address: SolanaAddress,
     owner: SolanaAddress,
     commitment: Commitment = api.defaultCommitment,
-): RpcSubscribe<MaybeSolanaAccount<T>, RpcError> {
+): RpcSubscribe<Result<SolanaAccount<T>, SolanaAccountError>, RpcError> {
     return api.subscribeAccount(address, commitment).map { channel ->
-        channel.mapNotNull { decodeAccount(address, it.context, it.value, owner).unwrapOrNull() }
+        channel.map { decodeAccount(address, it.context, it.value, owner) }
     }
 }
