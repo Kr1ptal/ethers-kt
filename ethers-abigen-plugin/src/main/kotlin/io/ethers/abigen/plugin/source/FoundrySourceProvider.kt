@@ -12,6 +12,7 @@ import org.gradle.api.file.RegularFile
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.logging.Logger
 import org.gradle.api.model.ObjectFactory
+import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.provider.ProviderFactory
 import org.gradle.api.tasks.Input
@@ -84,9 +85,8 @@ abstract class FoundrySourceProvider : AbiSourceProvider {
      * */
     @get:Optional
     @get:Input
-    @Suppress("UNCHECKED_CAST")
-    val contractGlobFilters: Property<List<String>> =
-        objectFactory.property(List::class.java as Class<List<String>>).convention(emptyList())
+    val contractGlobFilters: ListProperty<String> =
+        objectFactory.listProperty(String::class.java).convention(emptyList())
 
     @get:PathSensitive(PathSensitivity.RELATIVE)
     @get:InputFile

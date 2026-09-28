@@ -1,12 +1,11 @@
 package io.ethers.abigen.plugin
 
+import io.ethers.abigen.plugin.source.FoundrySourceProvider
 import io.ethers.abigen.plugin.task.EthersAbigenTask
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
-import org.gradle.api.GradleException
 import org.gradle.api.ProjectConfigurationException
-import org.gradle.api.internal.plugins.PluginApplicationException
 import org.gradle.api.internal.project.ProjectInternal
 import org.gradle.testfixtures.ProjectBuilder
 import org.gradle.testkit.runner.GradleRunner
@@ -43,6 +42,16 @@ class EthersAbigenPluginTest : FunSpec({
         shouldThrow<ProjectConfigurationException> {
             (project as ProjectInternal).evaluate()
         }
+    }
+
+    test("foundrySourceProvider initializes contractGlobFilters as ListProperty") {
+        val project = ProjectBuilder.builder().build()
+        val provider = project.objects.newInstance(FoundrySourceProvider::class.java)
+        provider.contractGlobFilters.get() shouldBe emptyList()
+        provider.contractGlobFilters.set(listOf("erc/ERC20.sol", "erc/ERC721.sol"))
+        provider.contractGlobFilters.get() shouldBe listOf("erc/ERC20.sol", "erc/ERC721.sol")
+        provider.contractGlobFilters.add("erc/ERC1155.sol")
+        provider.contractGlobFilters.get() shouldBe listOf("erc/ERC20.sol", "erc/ERC721.sol", "erc/ERC1155.sol")
     }
 
     context("task execution") {
