@@ -16,8 +16,7 @@ internal fun SolanaMessageEncoder.writeMessageBody(tx: SolanaTransactionUnsigned
     tx.accounts.forEach { writeBytes(it.asByteArray()) }
     writeBytes(tx.recentBlockhash.asByteArray()).writeShortVecLength(tx.instructions.size)
     tx.instructions.forEach { instruction ->
-        writeByte(instruction.programIdIndex).writeShortVecLength(instruction.accounts.size)
-        instruction.accounts.forEach { writeByte(it) }
+        writeByte(instruction.programIdIndex).writeShortVecLength(instruction.accounts.size).writeU8List(instruction.accounts)
         writeShortVecLength(instruction.data.size).writeBytes(instruction.data.asByteArray())
     }
 }
@@ -40,7 +39,7 @@ internal fun SolanaMessageDecoder.readMessageBody(requiredSignatures: Int): Resu
     val blockhash = SolanaBlockhash(readBytes(32))
     val instructions = readList(readShortVecLength()) {
         val program = readByte()
-        val indices = readList(readShortVecLength()) { readByte() }
+        val indices = readU8List(readShortVecLength())
         MessageInstruction(program, indices, SolanaBytes.fromBytes(readBytes(readShortVecLength())))
     }
     if (failed) return Result.failure(malformed())
@@ -78,10 +77,19 @@ internal fun envelopeSizeError(type: SolanaTxType, size: Long, max: Int): Solana
 
 /** Legacy and v0 envelopes put the signature vector before the message. */
 internal fun encodeSignaturesFirstEnvelope(tx: SolanaTransactionUnsigned, signatures: List<SolanaSignature?>): ByteArray {
-    val encoder = SolanaMessageEncoder().writeShortVecLength(signatures.size)
-    signatures.forEach { encoder.writeBytes(it?.asByteArray() ?: ByteArray(64)) }
-    return encoder.writeBytes(tx.serializeMessage()).toByteArray()
+    val message = tx.messageBytes()
+    val encoder = SolanaMessageEncoder(shortVecSize(signatures.size).toInt() + 64 * signatures.size + message.size)
+        .writeShortVecLength(signatures.size)
+    signatures.forEach { if (it == null) encoder.writeZeros(64) else encoder.writeBytes(it.asByteArray()) }
+    return encoder.writeBytes(message).finish()
 }
+
+/**
+ * View slots the caller has checked are all filled as non-null signatures. The decoded list is not
+ * shared with anyone, so it is kept rather than copied.
+ */
+@Suppress("UNCHECKED_CAST")
+internal fun List<SolanaSignature?>.filled(): List<SolanaSignature> = this as List<SolanaSignature>
 
 /** Map a decoder that stopped on malformed input into the error it recorded. */
 internal fun SolanaMessageDecoder.malformed(): SolanaTransactionError.MalformedBytes = SolanaTransactionError.MalformedBytes(error ?: "Malformed transaction bytes")
@@ -101,7 +109,7 @@ internal fun decodeTransactionEnvelope(bytes: ByteArray): Result<Pair<SolanaTran
             return Result.failure(SolanaTransactionError.EnvelopeTooLarge(SolanaTxType.V1, bytes.size.toLong(), SolanaTxV1.MAX_TRANSACTION_SIZE))
         }
         decoder.readByte()
-        val tx = SolanaTxV1.decodeBody(decoder).unwrapOrReturn { return Result.failure(it) }
+        val tx = SolanaTxV1.decodeBody(decoder, 0).unwrapOrReturn { return Result.failure(it) }
         val signatures = decoder.readList(tx.header.requiredSignatures) { decoder.readSignatureSlot() }
         decoder.requireDone()
         if (decoder.failed) return Result.failure(decoder.malformed())
@@ -127,31 +135,38 @@ internal fun decodeTransactionEnvelope(bytes: ByteArray): Result<Pair<SolanaTran
 
 /** Dispatch on the version prefix, delegating the body to the type that owns that layout. */
 private fun SolanaMessageDecoder.readVersionedMessage(): Result<SolanaTransactionUnsigned, SolanaTransactionError> {
+    val start = position
     val prefix = readByte()
     if (failed) return Result.failure(malformed())
     return when {
-        prefix == 129 -> SolanaTxV1.decodeBody(this)
-        prefix == 128 -> SolanaTxV0.decodeBody(this)
-        prefix <= 127 -> SolanaTxLegacy.decodeBody(this, prefix)
+        prefix == 129 -> SolanaTxV1.decodeBody(this, start)
+        prefix == 128 -> SolanaTxV0.decodeBody(this, start)
+        prefix <= 127 -> SolanaTxLegacy.decodeBody(this, prefix, start)
         else -> Result.failure(SolanaTransactionError.UnsupportedVersion(prefix))
     }
 }
 
 /** As [readVersionedMessage], but rejects v1, whose signatures follow the message instead of preceding it. */
 private fun SolanaMessageDecoder.readSignaturesFirstMessage(): Result<SolanaTransactionUnsigned, SolanaTransactionError> {
+    val start = position
     val prefix = readByte()
     if (failed) return Result.failure(malformed())
     return when {
-        prefix == 128 -> SolanaTxV0.decodeBody(this)
-        prefix <= 127 -> SolanaTxLegacy.decodeBody(this, prefix)
+        prefix == 128 -> SolanaTxV0.decodeBody(this, start)
+        prefix <= 127 -> SolanaTxLegacy.decodeBody(this, prefix, start)
         prefix == 129 -> Result.failure(SolanaTransactionError.MalformedBytes("V1 signatures must follow the message"))
         else -> Result.failure(SolanaTransactionError.UnsupportedVersion(prefix))
     }
 }
 
 private fun SolanaMessageDecoder.readSignatureSlot(): SolanaSignature? {
+    if (peekZeros(64)) {
+        skip(64)
+        return null
+    }
     val signature = readBytes(64)
-    return if (signature.all { it == 0.toByte() }) null else SolanaSignature(signature)
+    // a failed read zero-fills, which is still an empty slot
+    return if (failed) null else SolanaSignature(signature)
 }
 
 /**
