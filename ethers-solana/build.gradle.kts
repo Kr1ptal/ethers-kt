@@ -3,6 +3,7 @@ import java.security.MessageDigest
 
 plugins {
     `project-conventions`
+    `jmh-conventions`
     `maven-publish-conventions`
     alias(libs.plugins.kotlin.serialization)
 }
@@ -101,6 +102,12 @@ kotlin {
                 implementation(libs.ktor.client.mock)
                 implementation(libs.ktor.server.cio)
                 implementation(libs.ktor.server.websockets)
+            }
+        }
+        val jvmJmh by getting {
+            dependencies {
+                implementation(libs.jmh.core)
+                implementation(libs.jmh.generator)
             }
         }
         named("androidDeviceTest") {

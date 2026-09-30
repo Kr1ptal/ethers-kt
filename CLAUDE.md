@@ -41,7 +41,7 @@ commonMain
 - `src/jvmSharedTest/kotlin` — shared tests
 - `src/jvmMain/kotlin` — JVM-specific code (rarely used)
 - `src/androidMain/kotlin` — Android-specific code (rarely used)
-- `src/jmh/` — JMH benchmarks (JVM-only, in ethers-core, ethers-abi, ethers-rlp)
+- `src/jmh/` — JMH benchmarks (JVM-only, in ethers-core, ethers-abi, ethers-rlp, ethers-solana)
 
 ### Convention Plugins (buildSrc)
 
@@ -79,6 +79,9 @@ commonMain
 
 # Run tests for a specific module
 ./gradlew :ethers-core:kotest
+
+# Run JMH benchmarks (optional class filter and extra JMH arguments)
+./gradlew :ethers-solana:jmh -Pjmh.includes=SolanaTransactionCodecBenchmark -Pjmh.args="-prof gc"
 
 # Analyze dependency sizes for a specific module
 ./gradlew :ethers-core:depsize
