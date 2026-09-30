@@ -9,6 +9,7 @@ import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.types.SolanaSignature
 import io.github.artificialpb.bignum.BigInteger
+import kotlin.concurrent.Volatile
 import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmStatic
 
@@ -25,11 +26,14 @@ class SolanaTxV0 private constructor(
     override val instructions: List<MessageInstruction>,
     override val addressLookupTables: List<CompiledAddressLookupTable>,
     validated: Boolean,
+    message: ByteArray? = null,
 ) : SolanaTransactionUnsigned {
     override val type: SolanaTxType get() = SolanaTxType.V0
 
     // decoded once: reading the settings back means scanning and parsing the instructions
-    private val computeBudget by lazy(LazyThreadSafetyMode.PUBLICATION) { decodeComputeBudget(accounts, instructions) }
+    @Volatile
+    private var cachedComputeBudget: ComputeBudgetValues? = null
+    private val computeBudget: ComputeBudgetValues get() = cachedComputeBudget ?: decodeComputeBudget(accounts, instructions).also { cachedComputeBudget = it }
     override val computeUnitLimit: Long? get() = computeBudget.computeUnitLimit
     override val computeUnitPrice: BigInteger? get() = computeBudget.computeUnitPrice
     override val priorityFee: BigInteger? get() = computeBudget.priorityFee
@@ -53,24 +57,28 @@ class SolanaTxV0 private constructor(
         if (!validated) validate(header, accounts, instructions, addressLookupTables)?.let { throw it.toException() }
     }
 
-    override fun withNewBlockhash(blockhash: SolanaBlockhash): SolanaTxV0 = SolanaTxV0(header, accounts, blockhash, instructions, addressLookupTables)
+    // the blockhash plays no part in validity, so the fields stay validated
+    override fun withNewBlockhash(blockhash: SolanaBlockhash): SolanaTxV0 = SolanaTxV0(header, accounts, blockhash, instructions, addressLookupTables, validated = true)
 
-    private val encodedMessage: ByteArray by lazy(LazyThreadSafetyMode.PUBLICATION) { encodeMessage() }
+    // seeded with the wire bytes when decoded, which are byte for byte what encoding would produce
+    @Volatile
+    private var encodedMessage: ByteArray? = message
 
-    override fun serializeMessage(): ByteArray = encodedMessage.copyOf()
+    internal fun messageBytes(): ByteArray = encodedMessage ?: encodeMessage().also { encodedMessage = it }
+
+    override fun serializeMessage(): ByteArray = messageBytes().copyOf()
 
     private fun encodeMessage(): ByteArray {
-        val encoder = SolanaMessageEncoder().writeByte(128)
+        val size = envelopeSize() - shortVecSize(header.requiredSignatures) - 64L * header.requiredSignatures
+        val encoder = SolanaMessageEncoder(size.toInt()).writeByte(128)
         encoder.writeMessageBody(this)
         encoder.writeShortVecLength(addressLookupTables.size)
 
         for ((key, writableIndexes, readonlyIndexes) in addressLookupTables) {
-            encoder.writeBytes(key.asByteArray()).writeShortVecLength(writableIndexes.size)
-            writableIndexes.forEach { encoder.writeByte(it) }
-            encoder.writeShortVecLength(readonlyIndexes.size)
-            readonlyIndexes.forEach { encoder.writeByte(it) }
+            encoder.writeBytes(key.asByteArray()).writeShortVecLength(writableIndexes.size).writeU8List(writableIndexes)
+            encoder.writeShortVecLength(readonlyIndexes.size).writeU8List(readonlyIndexes)
         }
-        return encoder.toByteArray()
+        return encoder.finish()
     }
 
     override fun envelopeSize(): Long = legacyEnvelopeSize(header, accounts, instructions, addressLookupTables)
@@ -84,10 +92,10 @@ class SolanaTxV0 private constructor(
 
         other as SolanaTxV0
 
-        return encodedMessage.contentEquals(other.encodedMessage)
+        return messageBytes().contentEquals(other.messageBytes())
     }
 
-    override fun hashCode(): Int = encodedMessage.contentHashCode()
+    override fun hashCode(): Int = messageBytes().contentHashCode()
 
     override fun toString(): String {
         return "SolanaTxV0(header=$header, accounts=$accounts, recentBlockhash=$recentBlockhash, instructions=$instructions, addressLookupTables=$addressLookupTables)"
@@ -114,22 +122,31 @@ class SolanaTxV0 private constructor(
             recentBlockhash: SolanaBlockhash,
             instructions: List<MessageInstruction>,
             addressLookupTables: List<CompiledAddressLookupTable> = emptyList(),
+        ): Result<SolanaTxV0, SolanaTransactionError> = create(header, accounts, recentBlockhash, instructions, addressLookupTables, null)
+
+        private fun create(
+            header: MessageHeader,
+            accounts: List<SolanaAddress>,
+            recentBlockhash: SolanaBlockhash,
+            instructions: List<MessageInstruction>,
+            addressLookupTables: List<CompiledAddressLookupTable>,
+            message: ByteArray?,
         ): Result<SolanaTxV0, SolanaTransactionError> {
             validate(header, accounts, instructions, addressLookupTables)?.let { return Result.failure(it) }
-            return Result.success(SolanaTxV0(header, accounts, recentBlockhash, instructions, addressLookupTables, validated = true))
+            return Result.success(SolanaTxV0(header, accounts, recentBlockhash, instructions, addressLookupTables, validated = true, message))
         }
 
-        /** The version prefix has already been read. */
-        internal fun decodeBody(decoder: SolanaMessageDecoder): Result<SolanaTxV0, SolanaTransactionError> {
+        /** The version prefix at [start] has already been read. The message bytes are kept rather than encoded again. */
+        internal fun decodeBody(decoder: SolanaMessageDecoder, start: Int): Result<SolanaTxV0, SolanaTransactionError> {
             val body = decoder.readMessageBody(decoder.readByte()).unwrapOrReturn { return Result.failure(it) }
             val lookups = decoder.readList(decoder.readShortVecLength()) {
                 val key = SolanaAddress(decoder.readBytes(32))
-                val writable = decoder.readList(decoder.readShortVecLength()) { decoder.readByte() }
-                val readonly = decoder.readList(decoder.readShortVecLength()) { decoder.readByte() }
+                val writable = decoder.readU8List(decoder.readShortVecLength())
+                val readonly = decoder.readU8List(decoder.readShortVecLength())
                 CompiledAddressLookupTable(key, writable, readonly)
             }
             if (decoder.failed) return Result.failure(decoder.malformed())
-            return create(body.header, body.accounts, body.recentBlockhash, body.instructions, lookups)
+            return create(body.header, body.accounts, body.recentBlockhash, body.instructions, lookups, decoder.copyFrom(start))
         }
 
         @JvmStatic

@@ -41,3 +41,10 @@ sealed interface SolanaTransactionUnsigned : SolanaTransactionCompiled {
         fun deserializeMessage(bytes: ByteArray): Result<SolanaTransactionUnsigned, SolanaTransactionError> = decodeMessage(bytes)
     }
 }
+
+/** The cached message bytes [SolanaTransactionUnsigned.serializeMessage] copies. Never mutate or hand the array out. */
+internal fun SolanaTransactionUnsigned.messageBytes(): ByteArray = when (this) {
+    is SolanaTxLegacy -> messageBytes()
+    is SolanaTxV0 -> messageBytes()
+    is SolanaTxV1 -> messageBytes()
+}

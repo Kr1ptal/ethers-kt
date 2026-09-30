@@ -8,6 +8,7 @@ import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.types.SolanaSignature
 import io.github.artificialpb.bignum.BigInteger
+import kotlin.concurrent.Volatile
 import kotlin.jvm.JvmStatic
 
 /**
@@ -22,11 +23,14 @@ class SolanaTxLegacy private constructor(
     override val recentBlockhash: SolanaBlockhash,
     override val instructions: List<MessageInstruction>,
     validated: Boolean,
+    message: ByteArray? = null,
 ) : SolanaTransactionUnsigned {
     override val type: SolanaTxType get() = SolanaTxType.Legacy
 
     // decoded once: reading the settings back means scanning and parsing the instructions
-    private val computeBudget by lazy(LazyThreadSafetyMode.PUBLICATION) { decodeComputeBudget(accounts, instructions) }
+    @Volatile
+    private var cachedComputeBudget: ComputeBudgetValues? = null
+    private val computeBudget: ComputeBudgetValues get() = cachedComputeBudget ?: decodeComputeBudget(accounts, instructions).also { cachedComputeBudget = it }
     override val computeUnitLimit: Long? get() = computeBudget.computeUnitLimit
     override val computeUnitPrice: BigInteger? get() = computeBudget.computeUnitPrice
     override val priorityFee: BigInteger? get() = computeBudget.priorityFee
@@ -48,11 +52,21 @@ class SolanaTxLegacy private constructor(
         if (!validated) validate(header, accounts, instructions)?.let { throw it.toException() }
     }
 
-    override fun withNewBlockhash(blockhash: SolanaBlockhash): SolanaTxLegacy = SolanaTxLegacy(header, accounts, blockhash, instructions)
+    // the blockhash plays no part in validity, so the fields stay validated
+    override fun withNewBlockhash(blockhash: SolanaBlockhash): SolanaTxLegacy = SolanaTxLegacy(header, accounts, blockhash, instructions, validated = true)
 
-    private val encodedMessage: ByteArray by lazy(LazyThreadSafetyMode.PUBLICATION) { SolanaMessageEncoder().also { it.writeMessageBody(this) }.toByteArray() }
+    // seeded with the wire bytes when decoded, which are byte for byte what encoding would produce
+    @Volatile
+    private var encodedMessage: ByteArray? = message
 
-    override fun serializeMessage(): ByteArray = encodedMessage.copyOf()
+    internal fun messageBytes(): ByteArray = encodedMessage ?: encodeMessage().also { encodedMessage = it }
+
+    override fun serializeMessage(): ByteArray = messageBytes().copyOf()
+
+    private fun encodeMessage(): ByteArray {
+        val size = envelopeSize() - shortVecSize(header.requiredSignatures) - 64L * header.requiredSignatures
+        return SolanaMessageEncoder(size.toInt()).also { it.writeMessageBody(this) }.finish()
+    }
 
     override fun envelopeSize(): Long = legacyEnvelopeSize(header, accounts, instructions, null)
 
@@ -65,10 +79,10 @@ class SolanaTxLegacy private constructor(
 
         other as SolanaTxLegacy
 
-        return encodedMessage.contentEquals(other.encodedMessage)
+        return messageBytes().contentEquals(other.messageBytes())
     }
 
-    override fun hashCode(): Int = encodedMessage.contentHashCode()
+    override fun hashCode(): Int = messageBytes().contentHashCode()
 
     override fun toString(): String {
         return "SolanaTxLegacy(header=$header, accounts=$accounts, recentBlockhash=$recentBlockhash, instructions=$instructions)"
@@ -88,14 +102,25 @@ class SolanaTxLegacy private constructor(
             accounts: List<SolanaAddress>,
             recentBlockhash: SolanaBlockhash,
             instructions: List<MessageInstruction>,
+        ): Result<SolanaTxLegacy, SolanaTransactionError> = create(header, accounts, recentBlockhash, instructions, null)
+
+        private fun create(
+            header: MessageHeader,
+            accounts: List<SolanaAddress>,
+            recentBlockhash: SolanaBlockhash,
+            instructions: List<MessageInstruction>,
+            message: ByteArray?,
         ): Result<SolanaTxLegacy, SolanaTransactionError> {
             validate(header, accounts, instructions)?.let { return Result.failure(it) }
-            return Result.success(SolanaTxLegacy(header, accounts, recentBlockhash, instructions, validated = true))
+            return Result.success(SolanaTxLegacy(header, accounts, recentBlockhash, instructions, validated = true, message))
         }
 
-        /** The required-signature count stands in for a version byte and has already been read. */
-        internal fun decodeBody(decoder: SolanaMessageDecoder, requiredSignatures: Int): Result<SolanaTxLegacy, SolanaTransactionError> = decoder.readMessageBody(requiredSignatures)
-            .andThen { create(it.header, it.accounts, it.recentBlockhash, it.instructions) }
+        /**
+         * The required-signature count stands in for a version byte and has already been read. The
+         * message began at [start], so its bytes are kept rather than encoded again.
+         */
+        internal fun decodeBody(decoder: SolanaMessageDecoder, requiredSignatures: Int, start: Int): Result<SolanaTxLegacy, SolanaTransactionError> = decoder.readMessageBody(requiredSignatures)
+            .andThen { create(it.header, it.accounts, it.recentBlockhash, it.instructions, decoder.copyFrom(start)) }
 
         @JvmStatic
         fun compile(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instruction: Instruction): Result<SolanaTxLegacy, SolanaTransactionError> = compile(feePayer, blockhash, listOf(instruction))

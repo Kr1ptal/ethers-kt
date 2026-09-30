@@ -83,8 +83,8 @@ class SolanaTransactionSigned private constructor(
         val isFullySigned: Boolean get() = signatures.all { it != null }
         val missingSigners: List<SolanaAddress> get() = tx.signers.filterIndexed { index, _ -> signatures[index] == null }
 
-        /** The bytes this builder signs and verifies against, encoded once. */
-        private val message: ByteArray = tx.serializeMessage()
+        /** The bytes this builder signs and verifies against, encoded once and shared with [tx]. */
+        private val message: ByteArray = tx.messageBytes()
 
         init {
             require(this.signatures.size == tx.header.requiredSignatures) {
@@ -123,17 +123,18 @@ class SolanaTransactionSigned private constructor(
          * are not are reported together as [SolanaTransactionError.UnsignedSlots].
          */
         fun build(): Result<SolanaTransactionSigned, SolanaTransactionError> {
-            val signers = tx.signers
-            val missing = mutableListOf<Int>()
-            val invalid = mutableListOf<Int>()
+            // signers lead the account list, so index it rather than slicing out a copy
+            val signers = tx.accounts
+            var missing: MutableList<Int>? = null
+            var invalid: MutableList<Int>? = null
             signatures.forEachIndexed { index, signature ->
                 when {
-                    signature == null -> missing.add(index)
-                    !signers[index].verify(signature, message) -> invalid.add(index)
+                    signature == null -> (missing ?: mutableListOf<Int>().also { missing = it }).add(index)
+                    !signers[index].verify(signature, message) -> (invalid ?: mutableListOf<Int>().also { invalid = it }).add(index)
                 }
             }
-            if (missing.isNotEmpty() || invalid.isNotEmpty()) {
-                return Result.failure(SolanaTransactionError.UnsignedSlots(missing, invalid))
+            if (missing != null || invalid != null) {
+                return Result.failure(SolanaTransactionError.UnsignedSlots(missing ?: emptyList(), invalid ?: emptyList()))
             }
             return Result.success(SolanaTransactionSigned(tx, signatures.map { requireNotNull(it) }, validated = true))
         }
@@ -165,7 +166,7 @@ class SolanaTransactionSigned private constructor(
             if (missing > 0) return Result.failure(SolanaTransactionError.PartiallySigned(missing, signatures.size))
             // checked as a value, so the validating constructor below can never be the one to report it
             signatureError(tx, signatures)?.let { return Result.failure(it) }
-            return Result.success(SolanaTransactionSigned(tx, signatures.map { requireNotNull(it) }))
+            return Result.success(SolanaTransactionSigned(tx, signatures.filled(), validated = true))
         }
 
         /** As [deserialize], from a base64 envelope. */

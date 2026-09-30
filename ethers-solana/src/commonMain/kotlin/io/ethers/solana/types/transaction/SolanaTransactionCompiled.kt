@@ -31,7 +31,7 @@ sealed interface SolanaTransactionCompiled : SolanaTransaction {
             val (tx, signatures) = decodeTransactionEnvelope(bytes).unwrapOrReturn { return Result.failure(it) }
             return when {
                 signatures.all { it == null } -> Result.success(tx)
-                signatures.all { it != null } -> Result.success(SolanaTransactionSigned(tx, signatures.map { requireNotNull(it) }))
+                signatures.all { it != null } -> Result.success(SolanaTransactionSigned(tx, signatures.filled()))
                 else -> Result.failure(SolanaTransactionError.PartiallySigned(signatures.count { it == null }, signatures.size))
             }
         }

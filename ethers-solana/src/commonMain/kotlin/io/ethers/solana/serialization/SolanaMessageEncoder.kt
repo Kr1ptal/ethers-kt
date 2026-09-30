@@ -1,31 +1,62 @@
 package io.ethers.solana.serialization
 
-import com.ditchoom.buffer.BufferFactory
-import com.ditchoom.buffer.Default
-import com.ditchoom.buffer.PlatformBuffer
+import io.ethers.solana.utils.littleEndianInto
+import io.github.artificialpb.bignum.BigInteger
 
 /**
  * Byte and compact-u16 primitives for Solana transaction wire formats, not Borsh.
  *
- * Starts at the size of the largest legacy or v0 packet, so encoding one never grows the buffer. The
- * smallest message a transaction can have is 150 bytes - a single transfer, three accounts - so a
- * smaller start would reallocate and copy for every transaction, and four times over for a full one.
- * [toByteArray] returns an exactly sized copy, so the slack is never handed out or retained.
+ * Starts at the size of the largest legacy or v0 packet unless told the exact size, so encoding one
+ * never grows the buffer. The smallest message a transaction can have is 150 bytes - a single
+ * transfer, three accounts - so a smaller start would reallocate and copy for every transaction, and
+ * four times over for a full one. [toByteArray] returns an exactly sized copy, so the slack is never
+ * handed out or retained.
  */
 internal class SolanaMessageEncoder(capacity: Int = MAX_PACKET_SIZE) {
     private var bytes = ByteArray(capacity)
-    private var buffer: PlatformBuffer = BufferFactory.Default.wrap(bytes)
+    private var position = 0
 
     fun writeByte(value: Int): SolanaMessageEncoder {
         require(value in 0..255) { "Byte out of range" }
         ensureCapacity(1)
-        buffer.writeByte(value.toByte())
+        bytes[position++] = value.toByte()
         return this
     }
 
     fun writeBytes(value: ByteArray): SolanaMessageEncoder {
         ensureCapacity(value.size)
-        buffer.writeBytes(value)
+        value.copyInto(bytes, position)
+        position += value.size
+        return this
+    }
+
+    /** Write each index as one byte, copying straight from a decoded [U8List]. */
+    fun writeU8List(values: List<Int>): SolanaMessageEncoder {
+        if (values is U8List) return writeBytes(values.bytes)
+        ensureCapacity(values.size)
+        for (i in values.indices) writeByte(values[i])
+        return this
+    }
+
+    /** Write [count] zero bytes. */
+    fun writeZeros(count: Int): SolanaMessageEncoder {
+        ensureCapacity(count)
+        bytes.fill(0, position, position + count)
+        position += count
+        return this
+    }
+
+    fun writeLittleEndian(value: Long, size: Int): SolanaMessageEncoder {
+        ensureCapacity(size)
+        littleEndianInto(bytes, position, value, size)
+        position += size
+        return this
+    }
+
+    fun writeLittleEndian(value: BigInteger, size: Int): SolanaMessageEncoder {
+        ensureCapacity(size)
+        littleEndianInto(bytes, position, value, size)
+        position += size
         return this
     }
 
@@ -42,7 +73,13 @@ internal class SolanaMessageEncoder(capacity: Int = MAX_PACKET_SIZE) {
     }
 
     /** Return an independent copy of the written bytes without changing the write position. */
-    fun toByteArray(): ByteArray = bytes.copyOf(buffer.position())
+    fun toByteArray(): ByteArray = bytes.copyOf(position)
+
+    /**
+     * Return the written bytes, handing over the buffer itself when it is exactly full. The encoder
+     * must not be written to afterwards.
+     */
+    fun finish(): ByteArray = if (position == bytes.size) bytes else bytes.copyOf(position)
 
     companion object {
         /** The wire limit for legacy and v0 transactions; v1 allows more and may still grow once. */
@@ -50,13 +87,10 @@ internal class SolanaMessageEncoder(capacity: Int = MAX_PACKET_SIZE) {
     }
 
     private fun ensureCapacity(count: Int) {
-        val position = buffer.position()
         require(count >= 0 && position <= Int.MAX_VALUE - count) { "Binary payload too large" }
         val required = position + count
         if (required <= bytes.size) return
         val doubled = (bytes.size.toLong() * 2).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
         bytes = bytes.copyOf(maxOf(required, doubled))
-        buffer = BufferFactory.Default.wrap(bytes)
-        buffer.position(position)
     }
 }

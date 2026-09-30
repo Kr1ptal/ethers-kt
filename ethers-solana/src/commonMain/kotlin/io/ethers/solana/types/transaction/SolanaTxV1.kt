@@ -8,9 +8,8 @@ import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.types.SolanaBytes
 import io.ethers.solana.types.SolanaSignature
-import io.ethers.solana.utils.littleEndian
 import io.github.artificialpb.bignum.BigInteger
-import io.github.artificialpb.bignum.bigIntegerOf
+import kotlin.concurrent.Volatile
 import kotlin.jvm.JvmStatic
 
 /**
@@ -28,6 +27,7 @@ class SolanaTxV1 private constructor(
     override val instructions: List<MessageInstruction>,
     val config: SolanaTransactionConfig,
     validated: Boolean,
+    message: ByteArray? = null,
 ) : SolanaTransactionUnsigned {
     override val type: SolanaTxType get() = SolanaTxType.V1
 
@@ -54,7 +54,8 @@ class SolanaTxV1 private constructor(
         if (!validated) validate(header, accounts, instructions, config)?.let { throw it.toException() }
     }
 
-    override fun withNewBlockhash(blockhash: SolanaBlockhash): SolanaTxV1 = SolanaTxV1(header, accounts, blockhash, instructions, config)
+    // the blockhash plays no part in validity, so the fields stay validated
+    override fun withNewBlockhash(blockhash: SolanaBlockhash): SolanaTxV1 = SolanaTxV1(header, accounts, blockhash, instructions, config, validated = true)
 
     /** Replace inline requests; signatures must be collected again for the new payload. */
     fun withConfig(config: SolanaTransactionConfig): SolanaTxV1 = SolanaTxV1(header, accounts, recentBlockhash, instructions, config)
@@ -63,9 +64,10 @@ class SolanaTxV1 private constructor(
 
     /** V1 puts the signature slots after the message, unlike the legacy and v0 envelopes. */
     override fun encodeEnvelope(signatures: List<SolanaSignature?>): ByteArray {
-        val encoder = SolanaMessageEncoder().writeBytes(serializeMessage())
-        signatures.forEach { encoder.writeBytes(it?.asByteArray() ?: ByteArray(64)) }
-        return encoder.toByteArray()
+        val message = messageBytes()
+        val encoder = SolanaMessageEncoder(message.size + 64 * signatures.size).writeBytes(message)
+        signatures.forEach { if (it == null) encoder.writeZeros(64) else encoder.writeBytes(it.asByteArray()) }
+        return encoder.finish()
     }
 
     // the encoded message is the canonical form of every field above, and is already cached
@@ -75,43 +77,47 @@ class SolanaTxV1 private constructor(
 
         other as SolanaTxV1
 
-        return encodedMessage.contentEquals(other.encodedMessage)
+        return messageBytes().contentEquals(other.messageBytes())
     }
 
-    override fun hashCode(): Int = encodedMessage.contentHashCode()
+    override fun hashCode(): Int = messageBytes().contentHashCode()
 
     override fun toString(): String {
         return "SolanaTxV1(header=$header, accounts=$accounts, recentBlockhash=$recentBlockhash, instructions=$instructions, config=$config)"
     }
 
-    private val encodedMessage: ByteArray by lazy(LazyThreadSafetyMode.PUBLICATION) { encodeMessage() }
+    // seeded with the wire bytes when decoded, which are byte for byte what encoding would produce
+    @Volatile
+    private var encodedMessage: ByteArray? = message
 
-    override fun serializeMessage(): ByteArray = encodedMessage.copyOf()
+    internal fun messageBytes(): ByteArray = encodedMessage ?: encodeMessage().also { encodedMessage = it }
+
+    override fun serializeMessage(): ByteArray = messageBytes().copyOf()
 
     private fun encodeMessage(): ByteArray {
-        val encoder = SolanaMessageEncoder().writeByte(129)
+        val size = envelopeSize() - 64L * header.requiredSignatures
+        val encoder = SolanaMessageEncoder(size.toInt()).writeByte(129)
             .writeByte(header.requiredSignatures).writeByte(header.readonlySignedAccounts).writeByte(header.readonlyUnsignedAccounts)
-            .writeBytes(littleEndian(config.mask.toLong(), 4)).writeBytes(recentBlockhash.asByteArray())
+            .writeLittleEndian(config.mask.toLong(), 4).writeBytes(recentBlockhash.asByteArray())
             .writeByte(instructions.size).writeByte(accounts.size)
         accounts.forEach { encoder.writeBytes(it.asByteArray()) }
-        config.priorityFee?.let { encoder.writeBytes(littleEndian(it, 8)) }
+        config.priorityFee?.let { encoder.writeLittleEndian(it, 8) }
         if (config.computeUnitLimit != null) {
-            encoder.writeBytes(littleEndian(config.computeUnitLimit, 4))
+            encoder.writeLittleEndian(config.computeUnitLimit, 4)
         }
         if (config.loadedAccountsDataSizeLimit != null) {
-            encoder.writeBytes(littleEndian(config.loadedAccountsDataSizeLimit, 4))
+            encoder.writeLittleEndian(config.loadedAccountsDataSizeLimit, 4)
         }
         if (config.heapSize != null) {
-            encoder.writeBytes(littleEndian(config.heapSize, 4))
+            encoder.writeLittleEndian(config.heapSize, 4)
         }
         instructions.forEach {
-            encoder.writeByte(it.programIdIndex).writeByte(it.accounts.size).writeBytes(littleEndian(it.data.size.toLong(), 2))
+            encoder.writeByte(it.programIdIndex).writeByte(it.accounts.size).writeLittleEndian(it.data.size.toLong(), 2)
         }
         instructions.forEach {
-            it.accounts.forEach(encoder::writeByte)
-            encoder.writeBytes(it.data.asByteArray())
+            encoder.writeU8List(it.accounts).writeBytes(it.data.asByteArray())
         }
-        return encoder.toByteArray()
+        return encoder.finish()
     }
 
     companion object {
@@ -170,15 +176,27 @@ class SolanaTxV1 private constructor(
             recentBlockhash: SolanaBlockhash,
             instructions: List<MessageInstruction>,
             config: SolanaTransactionConfig,
+        ): Result<SolanaTxV1, SolanaTransactionError> = create(header, accounts, recentBlockhash, instructions, config, null)
+
+        private fun create(
+            header: MessageHeader,
+            accounts: List<SolanaAddress>,
+            recentBlockhash: SolanaBlockhash,
+            instructions: List<MessageInstruction>,
+            config: SolanaTransactionConfig,
+            message: ByteArray?,
         ): Result<SolanaTxV1, SolanaTransactionError> {
             validate(header, accounts, instructions, config)?.let { return Result.failure(it) }
-            return Result.success(SolanaTxV1(header, accounts, recentBlockhash, instructions, config, validated = true))
+            return Result.success(SolanaTxV1(header, accounts, recentBlockhash, instructions, config, validated = true, message))
         }
 
-        /** The version prefix has already been read. Leaves any trailing signature bytes for the envelope reader. */
-        internal fun decodeBody(decoder: SolanaMessageDecoder): Result<SolanaTxV1, SolanaTransactionError> = with(decoder) {
+        /**
+         * The version prefix at [start] has already been read. Leaves any trailing signature bytes for
+         * the envelope reader, and keeps the message bytes rather than encoding them again.
+         */
+        internal fun decodeBody(decoder: SolanaMessageDecoder, start: Int): Result<SolanaTxV1, SolanaTransactionError> = with(decoder) {
             val header = MessageHeader(readByte(), readByte(), readByte())
-            val mask = readUnsignedLittleEndian(4).toLong()
+            val mask = readLittleEndianLong(4)
             if (failed) return Result.failure(malformed())
             if (mask and 31L != mask) {
                 return Result.failure(SolanaTransactionError.InvalidMessage(SolanaTransactionError.Reason.CONFIG, "Unsupported v1 config mask $mask"))
@@ -202,16 +220,22 @@ class SolanaTxV1 private constructor(
             val accounts = readList(accountCount) { SolanaAddress(readBytes(32)) }
             val config = SolanaTransactionConfig(
                 priorityFee = if (mask and 3L != 0L) readUnsignedLittleEndian(8) else null,
-                computeUnitLimit = if (mask and 4L != 0L) readUnsignedLittleEndian(4).toLong() else null,
-                loadedAccountsDataSizeLimit = if (mask and 8L != 0L) readUnsignedLittleEndian(4).toLong() else null,
-                heapSize = if (mask and 16L != 0L) readUnsignedLittleEndian(4).toLong() else null,
+                computeUnitLimit = if (mask and 4L != 0L) readLittleEndianLong(4) else null,
+                loadedAccountsDataSizeLimit = if (mask and 8L != 0L) readLittleEndianLong(4) else null,
+                heapSize = if (mask and 16L != 0L) readLittleEndianLong(4) else null,
             )
-            val headers = readList(instructionCount) { Triple(readByte(), readByte(), readUnsignedLittleEndian(2).toInt()) }
-            val instructions = headers.map { (program, count, size) ->
-                MessageInstruction(program, readList(count) { readByte() }, SolanaBytes.fromBytes(readBytes(size)))
+            // program index, account count and data size of each instruction, which precede all their bodies
+            val headers = IntArray(instructionCount * 3)
+            for (i in 0 until instructionCount) {
+                headers[3 * i] = readByte()
+                headers[3 * i + 1] = readByte()
+                headers[3 * i + 2] = readLittleEndianLong(2).toInt()
+            }
+            val instructions = readList(instructionCount) { i ->
+                MessageInstruction(headers[3 * i], readU8List(headers[3 * i + 1]), SolanaBytes.fromBytes(readBytes(headers[3 * i + 2])))
             }
             if (failed) return Result.failure(malformed())
-            return create(header, accounts, blockhash, instructions, config)
+            return create(header, accounts, blockhash, instructions, config, copyFrom(start))
         }
 
         @JvmStatic
