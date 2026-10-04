@@ -137,7 +137,9 @@ class BorshWriter @JvmOverloads constructor(initialCapacity: Int = 64) {
 
     /** Write [bytes] verbatim, such as a discriminator. */
     fun writeRaw(bytes: ByteArray) {
-        bytes.copyInto(buffer, reserve(bytes.size))
+        // reserve before reading the buffer, which reserving replaces when it grows
+        val start = reserve(bytes.size)
+        bytes.copyInto(buffer, start)
     }
 
     /**

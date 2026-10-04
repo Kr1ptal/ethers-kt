@@ -224,6 +224,20 @@ class BorshCodecTest : FunSpec({
         SolanaCodec.UNIT.malformed("00").reason shouldBe SolanaDecodeError.Reason.TRAILING_DATA
     }
 
+    test("raw writes grow the buffer") {
+        val address = SolanaAddress(ByteArray(32) { 7 })
+        val bytes = SolanaBytes.fromHex("aa".repeat(20))
+
+        // each write starts past the buffer's capacity, so must grow it
+        fun grown(write: BorshWriter.() -> Unit): ByteArray = BorshWriter(8).apply { writeU64(bigIntegerOf(1)) }.apply(write).toByteArray()
+        val prefix = "0100000000000000"
+        grown { writeRaw(ByteArray(40) { 1 }) } shouldBe hex(prefix + "01".repeat(40))
+        grown { writeAddress(address) } shouldBe hex(prefix + "07".repeat(32))
+        grown { writeFixedBytes(bytes, 20) } shouldBe hex(prefix + "aa".repeat(20))
+        grown { writeBytes(bytes) } shouldBe hex(prefix + "14000000" + "aa".repeat(20))
+        grown { writeString("x".repeat(100)) } shouldBe hex(prefix + "64000000" + "78".repeat(100))
+    }
+
     test("writer returns independent arrays") {
         val writer = BorshWriter(8)
         writer.writeI64(1)
