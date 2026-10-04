@@ -118,6 +118,12 @@ class BorshReader @JvmOverloads constructor(private val data: ByteArray, offset:
         return length.toInt()
     }
 
+    /** Skip [count] bytes of padding, which a zero-copy layout places between and after fields. */
+    fun skipPadding(count: Int) {
+        require(count >= 0) { "Count must not be negative" }
+        take(count)
+    }
+
     fun readFixedBytes(size: Int): SolanaBytes {
         require(size >= 0) { "Size must not be negative" }
         val start = take(size)

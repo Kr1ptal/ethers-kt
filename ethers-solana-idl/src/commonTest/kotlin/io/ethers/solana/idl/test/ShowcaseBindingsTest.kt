@@ -36,6 +36,7 @@ import io.ethers.solana.types.rpc.ReturnData
 import io.ethers.solana.types.rpc.RpcContext
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
@@ -128,6 +129,46 @@ class ShowcaseBindingsTest : FunSpec({
                 AccountFilter.Memcmp(42, Base58.encode(hex("04000000 6d61696e"))),
             )
             Showcase.Counter.filter(api).flags(listOf(true)).accountFilters[1] shouldBe AccountFilter.Memcmp(17, Base58.encode(hex("01000000 01")))
+            api.close()
+        }
+
+        // the layout of an unpacked C struct on-chain, computed independently: each field at a multiple of its
+        // alignment, 128-bit integers 8-byte aligned, and the size a multiple of the struct's alignment
+        val gauge = Showcase.Gauge(
+            flag = 1,
+            amount = bigIntegerOf(2),
+            big = bigIntegerOf(3),
+            small = 4,
+            reading = Showcase.Reading(5, 6),
+            readings = listOf(Showcase.Reading(7, 8), Showcase.Reading(9, 10)),
+            tail = 11,
+            aligned = Showcase.Aligned(12),
+        )
+        val gaugeData = "0913f9bd9eabe2cd" + "01 00000000000000 0200000000000000 03000000000000000000000000000000 0400 0000" +
+            "05 000000 06000000 07 000000 08000000 09 000000 0a000000 0b 000000 0c 000000000000000000000000000000"
+
+        test("a zero-copy account follows its C layout, with padding between and after fields") {
+            Showcase.Gauge.ACCOUNT.encode(gauge) shouldBe hex(gaugeData)
+            Showcase.Gauge.ACCOUNT.decode(hex(gaugeData)).unwrap() shouldBe gauge
+            Showcase.Gauge.encode(gauge).size shouldBe 80
+        }
+
+        test("padding is not checked when decoding") {
+            val dirty = hex(gaugeData)
+            for (padding in listOf(9..15, 42..43, 45..47, 53..55, 61..63, 69..71, 73..87)) {
+                for (i in padding) dirty[i] = 0xff.toByte()
+            }
+            Showcase.Gauge.ACCOUNT.decode(dirty).unwrap() shouldBe gauge
+        }
+
+        test("a zero-copy account filters fields at their padded offsets") {
+            val api = SolanaProvider(HttpClient("https://example.invalid"))
+            Showcase.Gauge.filter(api).amount(bigIntegerOf(2)).big(bigIntegerOf(3)).tail(11).aligned(Showcase.Aligned(12)).accountFilters.drop(1) shouldBe listOf(
+                AccountFilter.Memcmp(16, Base58.encode(hex("0200000000000000"))),
+                AccountFilter.Memcmp(24, Base58.encode(hex("03000000000000000000000000000000"))),
+                AccountFilter.Memcmp(68, Base58.encode(hex("0b"))),
+                AccountFilter.Memcmp(72, Base58.encode(hex("0c000000000000000000000000000000"))),
+            )
             api.close()
         }
 
@@ -244,8 +285,81 @@ class ShowcaseBindingsTest : FunSpec({
         }
 
         test("descriptors are listed for generic dispatch") {
-            Showcase.INSTRUCTIONS.map { it.name } shouldBe listOf("initialize", "swap", "reset", "ping")
+            Showcase.INSTRUCTIONS.map { it.name } shouldBe listOf("initialize", "swap", "reset", "ping", "open_vault")
             Showcase.PING.encodeData(Unit) shouldBe hex("09")
+        }
+    }
+
+    // expected addresses are derived independently of this library, from the seed bytes each IDL seed encodes to
+    context("program derived addresses") {
+        val owner = address(1)
+        val key = address(2)
+        val mint = address(3)
+        val authority = address(4)
+        val configAuthority = address(5)
+        val maxU64 = BigInteger("18446744073709551615")
+        val salt = SolanaBytes.fromHex("01020304")
+
+        fun vault(programId: SolanaAddress = Showcase.PROGRAM_ID) = Showcase.OpenVaultAccounts.findVault(owner, maxU64, "vault-name", 0x1234, key, -5, 7, salt, programId)
+
+        test("argument, nested argument field and account seeds are encoded by type, integers little-endian") {
+            vault().address shouldBe SolanaAddress("8mnXDdNjEPaQN9Sf4su1ZJXvUVKA85nxfddwMcogBeVw")
+            vault().bump shouldBe 253
+        }
+
+        test("an alternate deployment derives under its own program id") {
+            vault(address(9)).address shouldBe SolanaAddress("FxExz3yiAbkHeHojY5UhdHN97JkjEtpJx1r3Nb1VuikG")
+        }
+
+        test("a seed configured as big-endian is encoded big-endian, and account data fields are parameters") {
+            val position = Showcase.OpenVaultAccounts.findPosition(0x0102, configAuthority)
+            position.address shouldBe SolanaAddress("43tL2cUnBvw2bWLkjvJm91rB7qzJmAE5A7gwREP33M5v")
+            // the little-endian encoding of the same value derives another address
+            (position.address == SolanaAddress("6vW8drMcMJZKGtZdJKwJPj9QLpEZi1DbJ3ADGr8m1pVh")) shouldBe false
+        }
+
+        test("a PDA of another program derives under that program, with no program id parameter") {
+            val tokenAccount = Showcase.OpenVaultAccounts.findTokenAccount(owner, mint)
+            tokenAccount shouldBe SolanaAddress.findAssociatedTokenAddress(owner, mint)
+            tokenAccount.address shouldBe SolanaAddress("HwD4QpS4bsutLbWZWhbmFUZfkXC5Au1DbkzYEzjDgps8")
+        }
+
+        test("seeds whose encoding the IDL does not determine take their bytes, including fields of undeclared account types") {
+            Showcase.OpenVaultAccounts.findFlagged(byteArrayOf(1)).address shouldBe SolanaAddress("7BaFZesW8K1AxYx98uAbSKVzzoNz65bC2cfpc8JuFRE6")
+            val supply = ByteArray(8).also {
+                it[0] = 0xe8.toByte()
+                it[1] = 0x03
+            }
+            Showcase.OpenVaultAccounts.findMintInfo(supply).address shouldBe SolanaAddress("29KHnrQnub2g1Ci1FqBdHYyJ3BfU4yd7ede3G4qtt8DL")
+        }
+
+        test("a PDA in an account group resolves its account seeds within the group") {
+            Showcase.OpenVaultAccounts.Escrow.findEscrowVault(authority).address shouldBe SolanaAddress("Dmv7vANgrva6hgvEKssdx4RB13Lsd4zdErfYh7cNTcb7")
+        }
+
+        test("derived addresses are accepted by the instruction's accounts") {
+            val accounts = Showcase.OpenVaultAccounts(
+                owner = owner,
+                config = CONFIG,
+                mint = mint,
+                vault = vault().address,
+                position = Showcase.OpenVaultAccounts.findPosition(0x0102, configAuthority).address,
+                flagged = Showcase.OpenVaultAccounts.findFlagged(byteArrayOf(1)).address,
+                mintInfo = Showcase.OpenVaultAccounts.findMintInfo(ByteArray(8)).address,
+                tokenAccount = Showcase.OpenVaultAccounts.findTokenAccount(owner, mint).address,
+                escrow = Showcase.OpenVaultAccounts.Escrow(authority, Showcase.OpenVaultAccounts.Escrow.findEscrowVault(authority).address),
+            )
+            accounts.toAccountMetas(Showcase.PROGRAM_ID)[3] shouldBe AccountMeta.writable(vault().address)
+        }
+
+        test("values outside a seed's type, and seeds over 32 bytes, are rejected") {
+            shouldThrow<IllegalArgumentException> {
+                Showcase.OpenVaultAccounts.findVault(owner, bigIntegerOf(-1), "vault-name", 0x1234, key, -5, 7, salt)
+            }
+            shouldThrow<IllegalArgumentException> {
+                Showcase.OpenVaultAccounts.findVault(owner, maxU64, "a".repeat(33), 0x1234, key, -5, 7, salt)
+            }
+            shouldThrow<IllegalArgumentException> { Showcase.OpenVaultAccounts.findPosition(0x10000, configAuthority) }
         }
     }
 

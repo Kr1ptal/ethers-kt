@@ -135,6 +135,13 @@ class BorshWriter @JvmOverloads constructor(initialCapacity: Int = 64) {
         if (value is SolanaOption.Some) present(value.value)
     }
 
+    /** Write [count] zero bytes of padding, which a zero-copy layout places between and after fields. */
+    fun writePadding(count: Int) {
+        require(count >= 0) { "Count must not be negative" }
+        // bytes past the written size are always zero, in the initial buffer and in each grown copy
+        reserve(count)
+    }
+
     /** Write [bytes] verbatim, such as a discriminator. */
     fun writeRaw(bytes: ByteArray) {
         // reserve before reading the buffer, which reserving replaces when it grows

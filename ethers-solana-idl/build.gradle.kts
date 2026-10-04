@@ -11,6 +11,12 @@ val generatedPackage = "io.ethers.solana.idl.test"
 // IDLs whose bindings the commonTest suite exercises.
 val idlDir = layout.projectDirectory.dir("src/commonTest/idl")
 
+// Raydium's concentrated liquidity AMM, one of the Anchor fixtures: zero-copy accounts and big-endian seeds.
+val ammV3Idl = layout.projectDirectory.file("src/jvmSharedTest/resources/idl/amm_v3.json")
+
+// Meteora's DLMM: unpacked zero-copy accounts.
+val dlmmIdl = layout.projectDirectory.file("src/jvmSharedTest/resources/idl/dlmm.json")
+
 // Must live under `build/generated` - `ktlint-conventions` excludes that path, and generated code is not
 // formatted to this project's ktlint config.
 val generatedSourceDir = layout.buildDirectory.dir("generated/source/solanaIdl/commonTest/kotlin")
@@ -23,6 +29,12 @@ val generateProgramBindings by tasks.registering(JavaExec::class) {
     inputs.dir(idlDir)
         .withPropertyName("idls")
         .withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file(ammV3Idl)
+        .withPropertyName("ammV3Idl")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file(dlmmIdl)
+        .withPropertyName("dlmmIdl")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
     outputs.dir(generatedSourceDir).withPropertyName("generatedSources")
     outputs.cacheIf { true }
 
@@ -32,7 +44,12 @@ val generateProgramBindings by tasks.registering(JavaExec::class) {
 
     argumentProviders.add(
         CommandLineArgumentProvider {
-            listOf(idlDir.asFile.absolutePath, generatedSourceDir.get().asFile.absolutePath, generatedPackage)
+            listOf(idlDir.asFile.absolutePath, generatedSourceDir.get().asFile.absolutePath, generatedPackage) +
+                listOf("--idl", ammV3Idl.asFile.absolutePath, "--idl", dlmmIdl.asFile.absolutePath) +
+                // one seed the showcase program encodes big-endian, the others keep the little-endian default
+                listOf("--seed-byte-order", "showcase:position:config.fee_bps=BIG_ENDIAN") +
+                // Raydium encodes every integer seed big-endian
+                listOf("--seed-byte-order", "amm_v3=BIG_ENDIAN")
         },
     )
 }

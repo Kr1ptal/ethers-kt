@@ -1,12 +1,19 @@
 package io.ethers.solana.idl.generator
 
 import io.ethers.solana.idl.IdlAccount
+import io.ethers.solana.idl.IdlAccountItem
+import io.ethers.solana.idl.IdlArrayLength
 import io.ethers.solana.idl.IdlConstant
 import io.ethers.solana.idl.IdlDiscriminator
+import io.ethers.solana.idl.IdlEnumVariant
 import io.ethers.solana.idl.IdlField
 import io.ethers.solana.idl.IdlFields
 import io.ethers.solana.idl.IdlInstruction
+import io.ethers.solana.idl.IdlPda
 import io.ethers.solana.idl.IdlProgram
+import io.ethers.solana.idl.IdlRepr
+import io.ethers.solana.idl.IdlSeed
+import io.ethers.solana.idl.IdlSerialization
 import io.ethers.solana.idl.IdlType
 import io.ethers.solana.idl.IdlTypeBody
 import io.ethers.solana.idl.IdlTypeDef
@@ -36,9 +43,101 @@ class SolanaProgramBuilderTest : FunSpec({
         source shouldContain "public fun testRelation("
     }
 
-    test("generic type definitions and non-Borsh layouts fail generation") {
+    test("generic type definitions fail generation") {
         shouldThrow<IllegalArgumentException> { generate(fixture("generics")) }.message shouldContain "generic type definitions are not supported yet"
-        shouldThrow<IllegalArgumentException> { generate(fixture("amm_v3")) }.message shouldContain "BytemuckUnsafe serialization is not supported yet"
+    }
+
+    context("zero-copy types") {
+        val packed = IdlRepr.C(packed = true)
+        fun zeroCopy(name: String, vararg fields: IdlType, repr: IdlRepr? = packed, serialization: IdlSerialization = IdlSerialization.BytemuckUnsafe) = IdlTypeDef(name, IdlTypeBody.Struct(IdlFields.Named(fields.mapIndexed { i, type -> IdlField("f$i", type) })), serialization = serialization, repr = repr)
+        fun rejected(vararg types: IdlTypeDef) = shouldThrow<IllegalArgumentException> { generate(program(types = types.toList())) }.message
+
+        test("packed and transparent layouts with fixed-size fields generate with the Borsh codecs") {
+            generate(fixture("amm_v3")) shouldContain "public data class PoolState("
+            val point = zeroCopy("Point", IdlType.Primitive.I32, IdlType.Primitive.U128)
+            val source = generate(
+                program(
+                    types = listOf(
+                        point,
+                        zeroCopy("Wrapper", IdlType.Defined("Point"), repr = IdlRepr.Transparent, serialization = IdlSerialization.Bytemuck),
+                        zeroCopy("Grid", IdlType.Array(IdlType.Defined("Point"), IdlArrayLength.Fixed(2)), IdlType.Primitive.BOOL, IdlType.Primitive.PUBKEY),
+                    ),
+                ),
+            )
+            source shouldContain "f1 = readU128()"
+            source shouldContain "f0 = readArray(2) { Point.read(this) }"
+        }
+
+        test("an unpacked C layout pads each field to its alignment, with 128-bit integers 8-byte aligned") {
+            val source = generate(
+                program(
+                    types = listOf(
+                        zeroCopy("Wide", IdlType.Primitive.U8, IdlType.Primitive.U128, IdlType.Primitive.U16, repr = IdlRepr.C()),
+                        zeroCopy("Holder", IdlType.Primitive.U8, IdlType.Defined("Wide"), repr = IdlRepr.C(align = 16)),
+                    ),
+                ),
+            )
+            val flat = source.replace(Regex("\\s+"), " ")
+            // Wide: u8, 7 bytes to the u128 at 8, the u16 at 24, then 6 bytes to its size of 32
+            flat shouldContain "f1 = run { skipPadding(7) readU128() }, f2 = readU16(), ).also { skipPadding(6) }"
+            flat shouldContain "writeU8(value.f0) writePadding(7) writeU128(value.f1) writeU16(value.f2) writePadding(6)"
+            // Holder: Wide is 8-byte aligned, and align(16) pads the size from 40 to 48
+            flat shouldContain "f1 = run { skipPadding(7) Wide.read(this) }, ).also { skipPadding(8) }"
+            flat shouldContain "writeU8(value.f0) writePadding(7) Wide.write(this, value.f1) writePadding(8)"
+        }
+
+        test("packed and transparent layouts have no padding, even nested in an unpacked one") {
+            val source = generate(
+                program(
+                    types = listOf(
+                        zeroCopy("Packed", IdlType.Primitive.U8, IdlType.Primitive.U64),
+                        zeroCopy("Outer", IdlType.Primitive.U8, IdlType.Defined("Packed"), IdlType.Primitive.U8, repr = IdlRepr.C()),
+                    ),
+                ),
+            )
+            (source.contains("Padding")) shouldBe false
+        }
+
+        test("a Rust layout, packed with align, and 256-bit integers in an unpacked layout are rejected") {
+            rejected(zeroCopy("S", IdlType.Primitive.U8, repr = null)) shouldBe
+                "type 'S': zero-copy types are only supported with a C or transparent layout, without both packed and align; got the default Rust layout"
+            rejected(zeroCopy("S", IdlType.Primitive.U8, repr = IdlRepr.Rust(packed = true))) shouldContain "got Rust(packed=true, align=null)"
+            rejected(zeroCopy("S", IdlType.Primitive.U8, repr = IdlRepr.C(packed = true, align = 8))) shouldContain "got C(packed=true, align=8)"
+            rejected(zeroCopy("S", IdlType.Primitive.U256, repr = IdlRepr.C())) shouldBe
+                "type 'S' field 'f0': U256 has no alignment, so is only supported in packed zero-copy types"
+            generate(program(types = listOf(zeroCopy("S", IdlType.Primitive.U256)))) shouldContain "readU256()"
+        }
+
+        test("a padded zero-copy type cannot be Borsh-encoded, while one without padding can") {
+            val padded = zeroCopy("Padded", IdlType.Primitive.U8, IdlType.Primitive.U64, repr = IdlRepr.C())
+            val tight = zeroCopy("Tight", IdlType.Primitive.U64, IdlType.Primitive.U64, repr = IdlRepr.C())
+            fun withArg(type: String) = program(
+                instructions = listOf(IdlInstruction("ix", IdlDiscriminator(listOf(1)), args = listOf(IdlField("arg", IdlType.Vec(IdlType.Defined(type)))))),
+                types = listOf(padded, tight),
+            )
+            shouldThrow<IllegalArgumentException> { generate(withArg("Padded")) }.message shouldBe
+                "instruction 'ix' argument 'arg': 'Padded' has padding in its zero-copy layout, so cannot be Borsh-encoded"
+            generate(withArg("Tight")) shouldContain "public data class Tight("
+            val borsh = IdlTypeDef("Borsh", IdlTypeBody.Struct(IdlFields.Named(listOf(IdlField("inner", IdlType.Defined("Padded"))))))
+            rejected(padded, borsh) shouldBe "type 'Borsh' field 'inner': 'Padded' has padding in its zero-copy layout, so cannot be Borsh-encoded"
+            // padding in a nested zero-copy type counts too
+            val wrapper = zeroCopy("Wrapper", IdlType.Defined("Padded"), repr = IdlRepr.C())
+            val holder = IdlTypeDef("Holder", IdlTypeBody.Struct(IdlFields.Named(listOf(IdlField("inner", IdlType.Defined("Wrapper"))))))
+            rejected(padded, wrapper, holder) shouldContain "'Wrapper' has padding in its zero-copy layout"
+        }
+
+        test("fields that vary in size, and nested types that are not zero-copy, are rejected") {
+            rejected(zeroCopy("S", IdlType.Primitive.STRING)) shouldBe "type 'S' field 'f0': a zero-copy type cannot contain STRING, which varies in size"
+            rejected(zeroCopy("S", IdlType.Vec(IdlType.Primitive.U8))) shouldBe "type 'S' field 'f0': a zero-copy type cannot contain a vec, which varies in size"
+            rejected(zeroCopy("S", IdlType.Option(IdlType.Primitive.U8))) shouldBe "type 'S' field 'f0': a zero-copy type cannot contain an option"
+            rejected(zeroCopy("S", IdlType.Array(IdlType.Primitive.BYTES, IdlArrayLength.Fixed(2)))) shouldContain "cannot contain BYTES"
+            rejected(zeroCopy("S", IdlType.Defined("Plain")), struct("Plain")) shouldBe
+                "type 'S' field 'f0': a zero-copy type can only contain zero-copy types, but 'Plain' is Borsh"
+            val enum = IdlTypeDef("E", IdlTypeBody.Enum(listOf(IdlEnumVariant("A"))), serialization = IdlSerialization.Bytemuck, repr = packed)
+            rejected(enum) shouldBe "type 'E': zero-copy enums are not supported"
+            rejected(zeroCopy("S", IdlType.Primitive.U8, serialization = IdlSerialization.Custom("Compressed"))) shouldBe
+                "type 'S': Custom(name=Compressed) serialization is not supported"
+        }
     }
 
     test("an invalid program fails before generating") {
@@ -95,6 +194,64 @@ class SolanaProgramBuilderTest : FunSpec({
         generated shouldContain "public fun name(`value`: String): Filter"
         (generated.contains("public fun b(")) shouldBe false
         source shouldContain "public class Filter("
+    }
+
+    context("program derived addresses") {
+        /** A program whose instruction [ix] has a PDA account `vault` with [seeds], and arguments [args]. */
+        fun pdaProgram(seeds: List<IdlSeed>, args: List<IdlField> = emptyList(), ix: String = "ix", constants: List<IdlConstant> = emptyList()): IdlProgram {
+            val accounts = listOf(IdlAccountItem.Single("owner"), IdlAccountItem.Single("vault", pda = IdlPda(seeds)))
+            return program(instructions = listOf(IdlInstruction(ix, IdlDiscriminator(listOf(1)), accounts = accounts, args = args)), constants = constants)
+        }
+        val index = listOf(IdlField("index", IdlType.Primitive.U32))
+        val seeds = listOf(IdlSeed.Const("vault".map { it.code }), IdlSeed.Account("owner"), IdlSeed.Arg("index"))
+        fun build(program: IdlProgram, orders: SeedByteOrders) = SolanaProgramBuilder(program, "test.pkg", seedByteOrders = orders).build().toString()
+
+        test("integer seeds are little-endian by default, and big-endian for the whole program or one seed when configured") {
+            val default = generate(pdaProgram(seeds, index))
+            default shouldContain "public fun findVault(\n"
+            default shouldContain "BorshWriter(4).apply { writeU32(index) }.toByteArray())"
+            default shouldContain "Encodes `index` as a little-endian integer."
+            (default.contains("reverse()")) shouldBe false
+
+            val bigEndian = "BorshWriter(4).apply { writeU32(index) }.toByteArray().also { it.reverse() }"
+            build(pdaProgram(seeds, index), SeedByteOrders(SeedByteOrder.BIG_ENDIAN)) shouldContain bigEndian
+            val seed = SeedByteOrders(seeds = mapOf(SeedByteOrders.Seed("vault", "index") to SeedByteOrder.BIG_ENDIAN))
+            build(pdaProgram(seeds, index), seed) shouldContain bigEndian
+            build(pdaProgram(seeds, index), seed) shouldContain "Encodes `index` as a big-endian integer."
+        }
+
+        test("a byte order for a seed that is not a multi-byte integer seed is rejected") {
+            fun rejected(account: String, path: String, program: IdlProgram = pdaProgram(seeds, index)) = shouldThrow<IllegalArgumentException> {
+                build(program, SeedByteOrders(seeds = mapOf(SeedByteOrders.Seed(account, path) to SeedByteOrder.BIG_ENDIAN)))
+            }.message shouldBe "seed byte order for account '$account' seed '$path': no PDA account has an integer seed at that path"
+            rejected("vault", "missing")
+            rejected("owner", "index")
+            // an account address and a single byte have no byte order
+            rejected("vault", "owner")
+            rejected("vault", "index", pdaProgram(seeds, listOf(IdlField("index", IdlType.Primitive.U8))))
+        }
+
+        test("constant seeds are shared across instructions") {
+            val twice = pdaProgram(seeds, index).let { it.copy(instructions = it.instructions + it.instructions.single().copy(name = "other", discriminator = IdlDiscriminator(listOf(2)))) }
+            val source = generate(twice)
+            source shouldContain "private val PDA_SEED_0: ByteArray = \"vault\".encodeToByteArray()"
+            (source.contains("PDA_SEED_1")) shouldBe false
+        }
+
+        test("a seed that takes the program id's parameter name, or an IDL constant named like a seed constant, is rejected") {
+            val programIdArg = listOf(IdlField("program_id", IdlType.Primitive.PUBKEY))
+            shouldThrow<IllegalArgumentException> { generate(pdaProgram(listOf(IdlSeed.Arg("program_id")), programIdArg)) }.message shouldBe
+                "instruction 'ix' account 'vault': PDA seed argument 'program_id' takes a parameter named 'programId', which the program it derives under takes"
+            val constant = IdlConstant("PDA_SEED_0", IdlType.Primitive.U8, "1")
+            shouldThrow<IllegalArgumentException> { generate(pdaProgram(seeds, index, constants = listOf(constant))) }.message shouldBe
+                "generated member 'PDA_SEED_0' is produced by both constant 'PDA_SEED_0' and the PDA seeds"
+        }
+
+        test("a seed path shared by an argument and an account is rejected, since both would take the same parameter") {
+            val ownerArg = listOf(IdlField("owner", IdlType.Primitive.PUBKEY))
+            shouldThrow<IllegalArgumentException> { generate(pdaProgram(listOf(IdlSeed.Account("owner"), IdlSeed.Arg("owner")), ownerArg)) }.message shouldBe
+                "instruction 'ix' account 'vault': PDA seeds account 'owner' and argument 'owner' both take a parameter named 'owner'"
+        }
     }
 
     test("generation is deterministic") {

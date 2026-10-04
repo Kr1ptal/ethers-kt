@@ -69,12 +69,27 @@ ethersSolanaIdl {
     // Keyed by the program name the IDL declares; naming a program no IDL declares fails the build.
     programAddress("whirlpool", "<base58 address>")
 
+    // encode integer PDA seeds big-endian, for the whole program or one seed of one PDA account (default: little-endian)
+    seedByteOrder("escrow", SeedByteOrder.BIG_ENDIAN)
+    seedByteOrder("escrow", "vault", "nonce", SeedByteOrder.BIG_ENDIAN)
+
     // by default, it supports reading Anchor IDLs (spec 0.1.x)
     idlReader { input ->
         // read IdlProgram from input
     }
 }
 ```
+
+Each program derived account of an instruction gets a `find` function on its accounts class, deriving the address
+and bump from the account's seeds, e.g. `Escrow.OpenVaultAccounts.findVault(owner, nonce)`. IDLs do not record the
+byte order a program encodes integer seeds in. Most programs use little-endian, the default, but some do not, and the
+derived address is then wrong unless `seedByteOrder` is set for them.
+
+Zero-copy accounts (`#[account(zero_copy)]`) are decoded in the layout the program sees on-chain: packed and unpacked
+`#[repr(C)]` layouts, including the padding an unpacked layout places between and after fields, and
+`#[repr(transparent)]`. Zero-copy types with the default Rust layout, with both `packed` and `align`, or with 256-bit
+integers in an unpacked layout fail generation, as does using a zero-copy type with padding where Borsh encodes it, such
+as an instruction argument.
 
 ### Local testing of the plugin
 

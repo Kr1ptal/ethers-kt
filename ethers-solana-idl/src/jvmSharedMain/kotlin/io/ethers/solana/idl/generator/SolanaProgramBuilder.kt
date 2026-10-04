@@ -3,6 +3,7 @@ package io.ethers.solana.idl.generator
 import com.squareup.kotlinpoet.AnnotationSpec
 import com.squareup.kotlinpoet.BOOLEAN
 import com.squareup.kotlinpoet.BYTE
+import com.squareup.kotlinpoet.BYTE_ARRAY
 import com.squareup.kotlinpoet.ClassName
 import com.squareup.kotlinpoet.CodeBlock
 import com.squareup.kotlinpoet.DOUBLE
@@ -24,6 +25,7 @@ import com.squareup.kotlinpoet.TypeSpec
 import com.squareup.kotlinpoet.UNIT
 import com.squareup.kotlinpoet.WildcardTypeName
 import com.squareup.kotlinpoet.joinToCode
+import io.ethers.crypto.Base58
 import io.ethers.solana.idl.IdlAccountItem
 import io.ethers.solana.idl.IdlArrayLength
 import io.ethers.solana.idl.IdlConstant
@@ -32,7 +34,11 @@ import io.ethers.solana.idl.IdlErrorCode
 import io.ethers.solana.idl.IdlEvent
 import io.ethers.solana.idl.IdlFields
 import io.ethers.solana.idl.IdlInstruction
+import io.ethers.solana.idl.IdlPaths
+import io.ethers.solana.idl.IdlPda
 import io.ethers.solana.idl.IdlProgram
+import io.ethers.solana.idl.IdlRepr
+import io.ethers.solana.idl.IdlSeed
 import io.ethers.solana.idl.IdlSerialization
 import io.ethers.solana.idl.IdlType
 import io.ethers.solana.idl.IdlTypeBody
@@ -50,18 +56,24 @@ import java.io.File
  * decoded form within an instruction hierarchy, plus program-level dispatch over accounts, events,
  * errors and instructions.
  *
- * Aliases are resolved to their target at each use. Generic type definitions and non-Borsh
- * serialization are not supported yet and fail generation.
+ * Aliases are resolved to their target at each use. Zero-copy types follow their C or transparent
+ * layout on Solana's on-chain target, with the padding an unpacked C layout has. Generic type
+ * definitions, zero-copy types with a Rust layout and custom serialization are not supported yet and
+ * fail generation.
+ *
+ * Each program derived account gets a `find` function deriving its address from its seeds. Integer seeds are
+ * encoded in the byte order [seedByteOrders] gives, since IDLs do not record it.
  *
  * When changing the generated output, bump [OUTPUT_VERSION].
  *
  * @throws IllegalArgumentException if [program] is invalid, uses an unsupported layout, or its names
- * produce colliding declarations.
+ * produce colliding declarations, or [seedByteOrders] names a seed that is not an integer PDA seed.
  */
 class SolanaProgramBuilder @JvmOverloads constructor(
     private val program: IdlProgram,
     private val packageName: String,
     private val programName: String = program.name.toPascalCase(),
+    private val seedByteOrders: SeedByteOrders = SeedByteOrders(),
 ) {
     private val programClass = ClassName(packageName, programName)
     private val accountMarker = programClass.nestedClass("Account")
@@ -74,10 +86,48 @@ class SolanaProgramBuilder @JvmOverloads constructor(
     private val eventTypes = program.events.mapTo(HashSet()) { it.name }
     private val kotlinTypeNames = kotlinTypeNames()
 
+    /** Computed zero-copy layouts, by type name. */
+    private val zeroCopyLayouts = HashMap<String, ZeroCopyLayout>()
+
+    /** A private constant for each distinct constant seed, in order of first use. */
+    private val seedConstantNames: Map<List<Int>, String> by lazy {
+        val names = LinkedHashMap<List<Int>, String>()
+        forEachPda { _, _, pda, _ ->
+            pda.seeds.filterIsInstance<IdlSeed.Const>().forEach { names.getOrPut(it.bytes) { "PDA_SEED_${names.size}" } }
+        }
+        names
+    }
+
+    /** A private constant for each distinct constant program id a PDA derives under, in order of first use. */
+    private val programConstantNames: Map<List<Int>, String> by lazy {
+        val names = LinkedHashMap<List<Int>, String>()
+        forEachPda { _, _, pda, _ ->
+            (pda.program as? IdlSeed.Const)?.let { names.getOrPut(it.bytes) { "PDA_PROGRAM_${names.size}" } }
+        }
+        names
+    }
+
+    private val pdaConstants: List<PropertySpec> by lazy {
+        val seeds = seedConstantNames.map { (bytes, name) ->
+            val initializer = if (bytes.isNotEmpty() && bytes.all { it in 0x20..0x7e }) {
+                CodeBlock.of("%S.encodeToByteArray()", String(ByteArray(bytes.size) { bytes[it].toByte() }, Charsets.US_ASCII))
+            } else {
+                CodeBlock.of("byteArrayOf(%L)", bytes.joinToString(", ") { it.toByte().toString() })
+            }
+            PropertySpec.builder(name, BYTE_ARRAY, KModifier.PRIVATE).initializer(initializer).build()
+        }
+        val programs = programConstantNames.map { (bytes, name) ->
+            val address = Base58.encode(ByteArray(bytes.size) { bytes[it].toByte() })
+            PropertySpec.builder(name, Runtime.SOLANA_ADDRESS, KModifier.PRIVATE).initializer("%T(%S)", Runtime.SOLANA_ADDRESS, address).build()
+        }
+        seeds + programs
+    }
+
     init {
         IdlValidator.validate(program)
         checkSupported()
         checkCollisions()
+        checkSeedByteOrders()
     }
 
     fun build(): FileSpec {
@@ -92,6 +142,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
                 .build(),
         )
         program.constants.forEach { programType.addProperty(constant(it)) }
+        pdaConstants.forEach { programType.addProperty(it) }
 
         for (def in program.types) {
             if (def.body is IdlTypeBody.Alias) continue
@@ -136,9 +187,97 @@ class SolanaProgramBuilder @JvmOverloads constructor(
     private fun checkSupported() {
         for (def in program.types) {
             require(def.generics.isEmpty()) { "type '${def.name}': generic type definitions are not supported yet" }
-            require(def.serialization == IdlSerialization.Borsh) {
-                "type '${def.name}': ${def.serialization} serialization is not supported yet"
+            when (val serialization = def.serialization) {
+                IdlSerialization.Borsh -> Unit
+                IdlSerialization.Bytemuck, IdlSerialization.BytemuckUnsafe -> checkZeroCopy(def)
+                is IdlSerialization.Custom -> throw IllegalArgumentException("type '${def.name}': $serialization serialization is not supported")
             }
+        }
+        checkPaddingOnlyInZeroCopy()
+    }
+
+    /**
+     * Borsh has no padding, so a zero-copy type whose layout has some can only be used within zero-copy types and as an
+     * account, never where Borsh encodes it.
+     */
+    private fun checkPaddingOnlyInZeroCopy() {
+        fun check(type: IdlType, where: String) {
+            when (val resolved = resolve(type)) {
+                is IdlType.Option -> check(resolved.inner, where)
+                is IdlType.Vec -> check(resolved.element, where)
+                is IdlType.Array -> check(resolved.element, where)
+                is IdlType.Defined -> require(!isZeroCopy(resolved.name) || !hasPadding(resolved.name)) {
+                    "$where: '${resolved.name}' has padding in its zero-copy layout, so cannot be Borsh-encoded"
+                }
+                is IdlType.Primitive, is IdlType.Generic -> Unit
+            }
+        }
+        fun check(fields: IdlFields, where: String) = when (fields) {
+            IdlFields.None -> Unit
+            is IdlFields.Named -> fields.fields.forEach { check(it.type, "$where field '${it.name}'") }
+            is IdlFields.Tuple -> fields.types.forEachIndexed { i, type -> check(type, "$where field $i") }
+        }
+        for (def in program.types) {
+            if (isZeroCopy(def.name)) continue
+            when (val body = def.body) {
+                is IdlTypeBody.Struct -> check(body.fields, "type '${def.name}'")
+                is IdlTypeBody.Enum -> body.variants.forEach { check(it.fields, "type '${def.name}' variant '${it.name}'") }
+                is IdlTypeBody.Alias -> Unit
+            }
+        }
+        for (event in program.events) {
+            require(!isZeroCopy(event.name) || !hasPadding(event.name)) { "event '${event.name}': has padding in its zero-copy layout, so cannot be Borsh-encoded" }
+        }
+        for (ix in program.instructions) {
+            ix.args.forEach { check(it.type, "instruction '${ix.name}' argument '${it.name}'") }
+            ix.returns?.let { check(it, "instruction '${ix.name}' return type") }
+        }
+    }
+
+    /**
+     * Require zero-copy [def] to have a C or transparent layout of fixed-size fields. Its codec follows that layout,
+     * including the padding an unpacked C layout places before fields and after the last one.
+     */
+    private fun checkZeroCopy(def: IdlTypeDef) {
+        val where = "type '${def.name}'"
+        val repr = def.repr
+        val supported = when (repr) {
+            IdlRepr.Transparent -> true
+            is IdlRepr.C -> !repr.packed || (repr.align ?: 1) <= 1
+            is IdlRepr.Rust, null -> false
+        }
+        require(supported) {
+            "$where: zero-copy types are only supported with a C or transparent layout, without both packed and align; " +
+                "got ${repr ?: "the default Rust layout"}"
+        }
+        val body = def.body as? IdlTypeBody.Struct ?: throw IllegalArgumentException("$where: zero-copy enums are not supported")
+        val aligned = repr is IdlRepr.C && !repr.packed
+        when (val fields = body.fields) {
+            IdlFields.None -> Unit
+            is IdlFields.Named -> fields.fields.forEach { checkZeroCopyField(it.type, "$where field '${it.name}'", aligned) }
+            is IdlFields.Tuple -> fields.types.forEachIndexed { i, type -> checkZeroCopyField(type, "$where field $i", aligned) }
+        }
+    }
+
+    /**
+     * Zero-copy fields have one fixed size: no length prefixes or option tags, and only zero-copy structs nested. An
+     * [aligned] layout also needs each field's alignment.
+     */
+    private fun checkZeroCopyField(type: IdlType, where: String, aligned: Boolean) {
+        when (val resolved = resolve(type)) {
+            IdlType.Primitive.STRING, IdlType.Primitive.BYTES -> throw IllegalArgumentException("$where: a zero-copy type cannot contain $resolved, which varies in size")
+            IdlType.Primitive.U256, IdlType.Primitive.I256 -> require(!aligned) { "$where: $resolved has no alignment, so is only supported in packed zero-copy types" }
+            is IdlType.Primitive -> Unit
+            is IdlType.Array -> checkZeroCopyField(resolved.element, where, aligned)
+            is IdlType.Option -> throw IllegalArgumentException("$where: a zero-copy type cannot contain an option")
+            is IdlType.Vec -> throw IllegalArgumentException("$where: a zero-copy type cannot contain a vec, which varies in size")
+            is IdlType.Defined -> {
+                val nested = typeDefs.getValue(resolved.name)
+                require(nested.serialization == IdlSerialization.Bytemuck || nested.serialization == IdlSerialization.BytemuckUnsafe) {
+                    "$where: a zero-copy type can only contain zero-copy types, but '${nested.name}' is ${nested.serialization}"
+                }
+            }
+            is IdlType.Generic -> throw IllegalArgumentException("$where: generic fields are not supported yet")
         }
     }
 
@@ -168,6 +307,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         listOf("PROGRAM_ID", "ACCOUNTS", "EVENTS", "ERRORS", "INSTRUCTIONS").forEach { member(it, "the program") }
         listOf("decodeAccount", "decodeEvent", "decodeError", "decodeInstruction").forEach { member(it, "the program") }
         program.constants.forEach { member(it.name, "constant '${it.name}'") }
+        (seedConstantNames.values + programConstantNames.values).forEach { member(it, "the PDA seeds") }
         for (ix in program.instructions) {
             member(ix.name.toUpperSnakeCase(), "instruction '${ix.name}'")
             member(ix.name.toCamelCase(), "instruction '${ix.name}'")
@@ -240,11 +380,79 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         is IdlType.Option, is IdlType.Vec, is IdlType.Generic -> null
         is IdlType.Array -> fixedSize(resolved.element)?.times(arrayLength(resolved))
         is IdlType.Defined -> when (val body = typeDefs.getValue(resolved.name).body) {
-            is IdlTypeBody.Struct -> fixedSize(body.fields)
+            is IdlTypeBody.Struct -> if (isZeroCopy(resolved.name)) zeroCopyLayout(resolved.name).size else fixedSize(body.fields)
             // an enum's size depends on its variant, unless no variant carries data
             is IdlTypeBody.Enum -> if (body.variants.all { it.fields.isEmpty() }) 1 else null
             is IdlTypeBody.Alias -> fixedSize(body.type)
         }
+    }
+
+    private fun isZeroCopy(name: String): Boolean = typeDefs.getValue(name).serialization.let {
+        it == IdlSerialization.Bytemuck || it == IdlSerialization.BytemuckUnsafe
+    }
+
+    /**
+     * The C layout of zero-copy struct [name] on Solana's on-chain target: the padding before each field, in field
+     * order, and after the last one. A packed or transparent layout has none.
+     */
+    private class ZeroCopyLayout(val padding: List<Int>, val trailing: Int, val offsets: List<Int>, val size: Int, val align: Int)
+
+    private fun zeroCopyLayout(name: String): ZeroCopyLayout = zeroCopyLayouts[name] ?: run {
+        val def = typeDefs.getValue(name)
+        val repr = def.repr
+        val packed = repr !is IdlRepr.C || repr.packed
+        val types = when (val fields = (def.body as IdlTypeBody.Struct).fields) {
+            IdlFields.None -> emptyList()
+            is IdlFields.Named -> fields.fields.map { it.type }
+            is IdlFields.Tuple -> fields.types
+        }
+        val padding = ArrayList<Int>(types.size)
+        val offsets = ArrayList<Int>(types.size)
+        var offset = 0
+        var align = 1
+        for (type in types) {
+            val (size, fieldAlign) = zeroCopySizeAlign(type)
+            val effective = if (packed) 1 else fieldAlign
+            val pad = (effective - offset % effective) % effective
+            padding.add(pad)
+            offset += pad
+            offsets.add(offset)
+            offset += size
+            align = maxOf(align, if (repr == IdlRepr.Transparent) fieldAlign else effective)
+        }
+        if (repr is IdlRepr.C) align = maxOf(align, repr.align ?: 1)
+        val trailing = if (packed) 0 else (align - offset % align) % align
+        ZeroCopyLayout(padding, trailing, offsets, offset + trailing, align).also { zeroCopyLayouts[name] = it }
+    }
+
+    /** The size and alignment of a zero-copy field, where 128-bit integers are 8-byte aligned, as on-chain. */
+    private fun zeroCopySizeAlign(type: IdlType): Pair<Int, Int> = when (val resolved = resolve(type)) {
+        IdlType.Primitive.PUBKEY -> 32 to 1
+        IdlType.Primitive.U128, IdlType.Primitive.I128 -> 16 to 8
+        // only reachable in packed layouts, which ignore alignment
+        IdlType.Primitive.U256, IdlType.Primitive.I256 -> 32 to 1
+        is IdlType.Primitive -> PRIMITIVE_SIZES.getValue(resolved).let { it to it }
+        is IdlType.Array -> zeroCopySizeAlign(resolved.element).let { (size, align) -> size * arrayLength(resolved) to align }
+        is IdlType.Defined -> zeroCopyLayout(resolved.name).let { it.size to it.align }
+        is IdlType.Option, is IdlType.Vec, is IdlType.Generic -> throw IllegalStateException("unchecked zero-copy field $resolved")
+    }
+
+    /** Whether zero-copy struct [name] has padding, itself or in a zero-copy struct it contains. */
+    private fun hasPadding(name: String): Boolean {
+        val layout = zeroCopyLayout(name)
+        if (layout.trailing > 0 || layout.padding.any { it > 0 }) return true
+        val fields = (typeDefs.getValue(name).body as IdlTypeBody.Struct).fields
+        val types = when (fields) {
+            IdlFields.None -> emptyList()
+            is IdlFields.Named -> fields.fields.map { it.type }
+            is IdlFields.Tuple -> fields.types
+        }
+        fun contains(type: IdlType): Boolean = when (val resolved = resolve(type)) {
+            is IdlType.Array -> contains(resolved.element)
+            is IdlType.Defined -> hasPadding(resolved.name)
+            else -> false
+        }
+        return types.any(::contains)
     }
 
     private fun fixedSize(fields: IdlFields): Int? = when (fields) {
@@ -344,16 +552,35 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         return builder.primaryConstructor(constructor.build())
     }
 
-    /** `Name(a = readX(), ...)` or `Name` for a value without fields. */
-    private fun construct(name: ClassName, fields: List<Field>, extra: List<CodeBlock> = emptyList()): CodeBlock {
-        if (fields.isEmpty() && extra.isEmpty()) return CodeBlock.of("%T", name)
-        val arguments = fields.map { CodeBlock.of("%N = %L", it.name, read(it.type)) } + extra
-        return CodeBlock.of("%T(\n⇥%L,\n⇤)", name, arguments.joinToCode(",\n"))
+    /** `Name(a = readX(), ...)` or `Name` for a value without fields, skipping the padding of a zero-copy [layout]. */
+    private fun construct(name: ClassName, fields: List<Field>, extra: List<CodeBlock> = emptyList(), layout: ZeroCopyLayout? = null): CodeBlock {
+        val trailing = layout?.trailing ?: 0
+        if (fields.isEmpty() && extra.isEmpty()) {
+            return if (trailing > 0) CodeBlock.of("%T.also { skipPadding(%L) }", name, trailing) else CodeBlock.of("%T", name)
+        }
+        val arguments = fields.mapIndexed { i, field ->
+            val padding = layout?.padding?.get(i) ?: 0
+            if (padding > 0) {
+                CodeBlock.of("%N = run {\n⇥skipPadding(%L)\n%L\n⇤}", field.name, padding, read(field.type))
+            } else {
+                CodeBlock.of("%N = %L", field.name, read(field.type))
+            }
+        } + extra
+        val value = CodeBlock.of("%T(\n⇥%L,\n⇤)", name, arguments.joinToCode(",\n"))
+        return if (trailing > 0) CodeBlock.of("%L.also { skipPadding(%L) }", value, trailing) else value
     }
 
-    private fun writes(fields: List<Field>, owner: String): CodeBlock = fields
-        .map { write(it.type, CodeBlock.of("%L.%N", owner, it.name)) }
-        .joinToCode("\n")
+    private fun writes(fields: List<Field>, owner: String, layout: ZeroCopyLayout? = null): CodeBlock {
+        val statements = fields.flatMapIndexed { i, field ->
+            val padding = layout?.padding?.get(i) ?: 0
+            listOfNotNull(
+                if (padding > 0) CodeBlock.of("writePadding(%L)", padding) else null,
+                write(field.type, CodeBlock.of("%L.%N", owner, field.name)),
+            )
+        }
+        val trailing = layout?.trailing ?: 0
+        return (if (trailing > 0) statements + CodeBlock.of("writePadding(%L)", trailing) else statements).joinToCode("\n")
+    }
 
     private fun readFunction(returns: TypeName, body: CodeBlock) = FunSpec.builder("read")
         .addModifiers(KModifier.OVERRIDE)
@@ -372,7 +599,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
     private fun typeDefinition(def: IdlTypeDef): TypeSpec {
         val name = classOf(def.name)
         val builder = when (val body = def.body) {
-            is IdlTypeBody.Struct -> struct(name, fields(body.fields))
+            is IdlTypeBody.Struct -> struct(name, fields(body.fields), if (isZeroCopy(def.name)) zeroCopyLayout(def.name) else null)
             is IdlTypeBody.Enum -> enum(name, def, body)
             is IdlTypeBody.Alias -> throw IllegalStateException("aliases are resolved at use")
         }
@@ -381,15 +608,16 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             builder.addSuperinterface(accountMarker)
             addToCodecScope(builder, accountFactory(name, account.name, account.discriminator))
             val fields = (def.body as? IdlTypeBody.Struct)?.let { fields(it.fields) }.orEmpty()
-            builder.addType(accountFilter(name, fields))
+            builder.addType(accountFilter(name, fields, if (isZeroCopy(def.name)) zeroCopyLayout(def.name) else null))
             accountAccessors(name).forEach { addToCodecScope(builder, it) }
         }
         return builder.build()
     }
 
-    private fun struct(name: ClassName, fields: List<Field>): TypeSpec.Builder {
+    /** A struct and its codec, which skips and writes the padding of a zero-copy [layout]. */
+    private fun struct(name: ClassName, fields: List<Field>, layout: ZeroCopyLayout? = null): TypeSpec.Builder {
         val builder = valueClass(name, fields)
-        val codec = listOf(readFunction(name, construct(name, fields)), writeFunction(name, writes(fields, "value")))
+        val codec = listOf(readFunction(name, construct(name, fields, layout = layout)), writeFunction(name, writes(fields, "value", layout)))
         return if (fields.isEmpty()) {
             builder.addSuperinterface(Runtime.SOLANA_CODEC.parameterizedBy(name)).addFunctions(codec)
         } else {
@@ -443,7 +671,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
      * fixed size. There is no data size method, since the IDL does not say how much space an account is
      * allocated.
      */
-    private fun accountFilter(account: ClassName, fields: List<Field>): TypeSpec {
+    private fun accountFilter(account: ClassName, fields: List<Field>, layout: ZeroCopyLayout?): TypeSpec {
         val filterClass = account.nestedClass("Filter")
         val builder = TypeSpec.classBuilder(filterClass)
             .addKdoc("Filter over the %L accounts the program owns.\n", account.simpleName)
@@ -456,8 +684,8 @@ class SolanaProgramBuilder @JvmOverloads constructor(
                     .build(),
             )
         var offset: Int? = 0
-        for (field in fields) {
-            val at = offset ?: break
+        for ((i, field) in fields.withIndex()) {
+            val at = layout?.offsets?.get(i) ?: offset ?: break
             val method = if (field.name in FILTER_BASE_MEMBERS) "${field.name}Field" else field.name
             builder.addFunction(
                 FunSpec.builder(method)
@@ -765,7 +993,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             programType.addType(struct(argsClass, argsFields).addKdoc("Arguments of the %L instruction.\n", ix.name).build())
         }
         if (hasAccounts) {
-            programType.addType(accounts(accountsClass, ix.accounts).addKdoc("Accounts of the %L instruction.\n", ix.name).build())
+            programType.addType(accounts(accountsClass, ix.accounts, ix).addKdoc("Accounts of the %L instruction.\n", ix.name).build())
         }
 
         // descriptor
@@ -835,9 +1063,13 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             .build()
     }
 
-    /** An account roles class: one property per account, nested classes for account groups. */
-    private fun accounts(name: ClassName, items: List<IdlAccountItem>): TypeSpec.Builder {
+    /**
+     * An account roles class of [ix]: one property per account, nested classes for account groups, and a `find`
+     * function for each program derived account.
+     */
+    private fun accounts(name: ClassName, items: List<IdlAccountItem>, ix: IdlInstruction): TypeSpec.Builder {
         val constructor = FunSpec.constructorBuilder()
+        val finders = mutableListOf<FunSpec>()
         val builder = TypeSpec.classBuilder(name).addModifiers(KModifier.DATA)
         val metas = CodeBlock.builder().add("return buildList {\n⇥")
         val reads = mutableListOf<CodeBlock>()
@@ -848,7 +1080,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             when (item) {
                 is IdlAccountItem.Group -> {
                     val groupClass = name.nestedClass(item.name.toPascalCase())
-                    builder.addType(accounts(groupClass, item.accounts).build())
+                    builder.addType(accounts(groupClass, item.accounts, ix).build())
                     type = groupClass
                     parameter = ParameterSpec.builder(property, type).build()
                     metas.addStatement("addAll(%N.toAccountMetas(programId))", property)
@@ -856,8 +1088,11 @@ class SolanaProgramBuilder @JvmOverloads constructor(
                 }
                 is IdlAccountItem.Single -> {
                     type = Runtime.SOLANA_ADDRESS.copy(nullable = item.optional)
+                    val finder = item.pda?.let { pdaFinder(ix, item, it, listOf(items, ix.accounts).distinct()) }
+                    finder?.let(finders::add)
                     parameter = ParameterSpec.builder(property, type).apply {
                         item.docs.forEach { addKdoc("%L\n", it) }
+                        finder?.let { addKdoc("A program derived address, see [%N].\n", it) }
                         when {
                             item.optional -> defaultValue("null")
                             item.address != null -> defaultValue("%T(%S)", Runtime.SOLANA_ADDRESS, item.address)
@@ -913,8 +1148,154 @@ class SolanaProgramBuilder @JvmOverloads constructor(
                             .addStatement("return %T(\n⇥%L,\n⇤)", name, reads.joinToCode(",\n"))
                             .build(),
                     )
+                    .addFunctions(finders)
                     .build(),
             )
+    }
+
+    // --- program derived addresses ---
+
+    /** Call [action] with every PDA account of every instruction, and the account lists its seeds resolve in. */
+    private fun forEachPda(action: (IdlInstruction, IdlAccountItem.Single, IdlPda, List<List<IdlAccountItem>>) -> Unit) {
+        fun visit(ix: IdlInstruction, items: List<IdlAccountItem>, action: (IdlInstruction, IdlAccountItem.Single, IdlPda, List<List<IdlAccountItem>>) -> Unit) {
+            for (item in items) {
+                when (item) {
+                    is IdlAccountItem.Group -> visit(ix, item.accounts, action)
+                    is IdlAccountItem.Single -> item.pda?.let { action(ix, item, it, listOf(items, ix.accounts).distinct()) }
+                }
+            }
+        }
+        program.instructions.forEach { visit(it, it.accounts, action) }
+    }
+
+    /** Reject byte orders for seeds that are not integer PDA seeds, which would otherwise have no effect. */
+    private fun checkSeedByteOrders() {
+        val integerSeeds = HashSet<SeedByteOrders.Seed>()
+        forEachPda { ix, item, pda, scopes ->
+            for (seed in pda.seeds) {
+                val type = seedType(ix, seed, scopes)?.let(::resolve)
+                if (type is IdlType.Primitive && type in INTEGER_TYPES && PRIMITIVE_SIZES.getValue(type) > 1) {
+                    integerSeeds.add(SeedByteOrders.Seed(item.name, (seed as? IdlSeed.Arg)?.path ?: (seed as IdlSeed.Account).path))
+                }
+            }
+        }
+        for (seed in seedByteOrders.seeds.keys) {
+            require(seed in integerSeeds) { "seed byte order for account '${seed.account}' seed '${seed.path}': no PDA account has an integer seed at that path" }
+        }
+    }
+
+    /**
+     * The type of the value [seed] takes: an argument's field, or an account's data field. Null for an account's
+     * address, a constant, or a field of an account type the program does not declare.
+     */
+    private fun seedType(ix: IdlInstruction, seed: IdlSeed, scopes: List<List<IdlAccountItem>>): IdlType? = when (seed) {
+        is IdlSeed.Const -> null
+        is IdlSeed.Arg -> {
+            val path = seed.path.split('.')
+            IdlPaths.field(ix.args.first { it.name == path[0] }.type, path.drop(1), typeDefs)
+        }
+        is IdlSeed.Account -> {
+            val fields = IdlPaths.account(scopes, seed.path)!!.fields
+            if (fields.isEmpty()) null else seed.account?.takeIf { it in typeDefs }?.let { IdlPaths.field(IdlType.Defined(it), fields, typeDefs) }
+        }
+    }
+
+    /**
+     * `find<Account>`: derives [item]'s address from [pda]'s seeds, taking a parameter for each seed that is not a
+     * constant. A seed whose encoding the IDL does not determine takes its bytes.
+     */
+    private fun pdaFinder(ix: IdlInstruction, item: IdlAccountItem.Single, pda: IdlPda, scopes: List<List<IdlAccountItem>>): FunSpec {
+        val where = "instruction '${ix.name}' account '${item.name}'"
+        // parameter name to the seed it is for, so each seed path takes one parameter
+        val parameters = LinkedHashMap<String, Pair<String, ParameterSpec>>()
+        fun parameter(name: String, type: TypeName, source: String, doc: String? = null): String {
+            parameters[name]?.let { (existing, spec) ->
+                require(existing == source && spec.type == type) { "$where: PDA seeds $existing and $source both take a parameter named '$name'" }
+                return name
+            }
+            require(name != "programId") { "$where: PDA seed $source takes a parameter named 'programId', which the program it derives under takes" }
+            parameters[name] = source to ParameterSpec.builder(name, type).apply { doc?.let { addKdoc("%L\n", it) } }.build()
+            return name
+        }
+
+        val byteOrders = LinkedHashMap<String, SeedByteOrder>()
+        fun encoded(seed: IdlSeed, path: String): CodeBlock {
+            val source = "${if (seed is IdlSeed.Arg) "argument" else "account"} '$path'"
+            val name = path.replace('.', '_').toCamelCase()
+            val type = seedType(ix, seed, scopes)?.let(::resolve)
+            return when {
+                type == IdlType.Primitive.STRING -> CodeBlock.of("%N.encodeToByteArray()", parameter(name, STRING, source))
+                type == IdlType.Primitive.PUBKEY -> CodeBlock.of("%N.asByteArray()", parameter(name, Runtime.SOLANA_ADDRESS, source))
+                type == IdlType.Primitive.BYTES || (type is IdlType.Array && isByteArray(type)) ->
+                    CodeBlock.of("%N.asByteArray()", parameter(name, Runtime.SOLANA_BYTES, source))
+                type is IdlType.Primitive && type in INTEGER_TYPES -> {
+                    val size = PRIMITIVE_SIZES.getValue(type)
+                    val bytes = CodeBlock.of("%T(%L).apply { write%L(%N) }.toByteArray()", Runtime.BORSH_WRITER, size, type.name, parameter(name, typeName(type), source))
+                    val order = seedByteOrders.of(item.name, path)
+                    if (size > 1) byteOrders[path] = order
+                    if (size > 1 && order == SeedByteOrder.BIG_ENDIAN) CodeBlock.of("%L.also { it.reverse() }", bytes) else bytes
+                }
+                else -> CodeBlock.of(
+                    "%N",
+                    parameter("${name}Seed", BYTE_ARRAY, source, "The bytes of the `$path` seed, whose encoding the IDL does not determine."),
+                )
+            }
+        }
+        fun address(seed: IdlSeed): CodeBlock = when (seed) {
+            is IdlSeed.Const -> CodeBlock.of("%N", programConstantNames.getValue(seed.bytes))
+            is IdlSeed.Arg -> CodeBlock.of("%N", parameter(seed.path.replace('.', '_').toCamelCase(), Runtime.SOLANA_ADDRESS, "argument '${seed.path}'"))
+            is IdlSeed.Account -> {
+                val path = IdlPaths.account(scopes, seed.path)!!
+                val name = (if (path.fields.isEmpty()) path.role else path.role + path.fields).joinToString("_").toCamelCase()
+                CodeBlock.of("%N", parameter(name, Runtime.SOLANA_ADDRESS, "account '${seed.path}'"))
+            }
+        }
+
+        val seeds = pda.seeds.map { seed ->
+            when (seed) {
+                is IdlSeed.Const -> CodeBlock.of("%N", seedConstantNames.getValue(seed.bytes))
+                is IdlSeed.Arg -> encoded(seed, seed.path)
+                is IdlSeed.Account -> {
+                    val path = IdlPaths.account(scopes, seed.path)!!
+                    if (path.fields.isEmpty()) {
+                        CodeBlock.of("%N.asByteArray()", parameter(path.role.joinToString("_").toCamelCase(), Runtime.SOLANA_ADDRESS, "account '${seed.path}'"))
+                    } else {
+                        encoded(seed, seed.path)
+                    }
+                }
+            }
+        }
+        val programId = pda.program?.let(::address)
+
+        val finder = FunSpec.builder("find${item.name.toPascalCase()}")
+            .addKdoc("Find the address of the %L account, a program derived address with seeds %L.\n", item.name, pda.seeds.joinToString(", ", transform = ::describe))
+            .addAnnotation(Runtime.JVM_STATIC)
+        byteOrders.entries.groupBy({ it.value }, { "`${it.key}`" }).forEach { (order, paths) ->
+            val described = if (order == SeedByteOrder.LITTLE_ENDIAN) "little-endian" else "big-endian"
+            val integers = if (paths.size == 1) "a $described integer" else "$described integers"
+            finder.addKdoc("\nEncodes %L as %L. IDLs do not record the byte order a program uses.\n", paths.joinToString(", "), integers)
+        }
+        parameters.values.forEach { finder.addParameter(it.second) }
+        if (programId == null) {
+            finder.addAnnotation(Runtime.JVM_OVERLOADS)
+            finder.addParameter(ParameterSpec.builder("programId", Runtime.SOLANA_ADDRESS).defaultValue("PROGRAM_ID").build())
+        }
+        return finder
+            .returns(Runtime.PROGRAM_DERIVED_ADDRESS)
+            .addStatement("return %T.findProgramAddress(listOf(%L), %L)", Runtime.SOLANA_ADDRESS, seeds.joinToCode(", "), programId ?: CodeBlock.of("programId"))
+            .build()
+    }
+
+    private fun describe(seed: IdlSeed): String = when (seed) {
+        is IdlSeed.Const -> if (seed.bytes.isNotEmpty() && seed.bytes.all { it in 0x20..0x7e }) {
+            "`\"${String(ByteArray(seed.bytes.size) { seed.bytes[it].toByte() }, Charsets.US_ASCII)}\"`"
+        } else if (seed.bytes.size == 32) {
+            "`${Base58.encode(ByteArray(32) { seed.bytes[it].toByte() })}`"
+        } else {
+            "`0x${seed.bytes.joinToString("") { "%02x".format(it) }}`"
+        }
+        is IdlSeed.Arg -> "`${seed.path}`"
+        is IdlSeed.Account -> "`${seed.path}`"
     }
 
     // --- constants ---
@@ -997,7 +1378,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
          * Version of the generated output. Bump it whenever the output changes, so build tools invalidate
          * previously generated bindings.
          */
-        const val OUTPUT_VERSION = "1"
+        const val OUTPUT_VERSION = "2"
 
         private const val FETCH_ALIAS = "fetchProgramAccount"
         private const val WATCH_ALIAS = "watchProgramAccount"
@@ -1027,6 +1408,22 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             IdlType.Primitive.BYTES to Runtime.SOLANA_BYTES,
             IdlType.Primitive.STRING to STRING,
             IdlType.Primitive.PUBKEY to Runtime.SOLANA_ADDRESS,
+        )
+
+        /** Integers, which a seed encodes like Borsh does, in a byte order of its own. */
+        private val INTEGER_TYPES = setOf(
+            IdlType.Primitive.U8,
+            IdlType.Primitive.U16,
+            IdlType.Primitive.U32,
+            IdlType.Primitive.U64,
+            IdlType.Primitive.U128,
+            IdlType.Primitive.U256,
+            IdlType.Primitive.I8,
+            IdlType.Primitive.I16,
+            IdlType.Primitive.I32,
+            IdlType.Primitive.I64,
+            IdlType.Primitive.I128,
+            IdlType.Primitive.I256,
         )
 
         /** The encoded size of each fixed-size primitive. */

@@ -192,10 +192,61 @@ class IdlValidatorTest : FunSpec({
                 "instruction 'ix' account 'a': relation to unknown account 'missing'"
         }
 
-        test("argument seeds must name an instruction argument") {
-            fun seeded(path: String) = instruction(accounts = """[{"name": "a", "pda": {"seeds": [{"kind": "arg", "path": "$path"}]}}]""")
-            valid(idl(instructions = "[${seeded("value.inner")}]"))
-            problem(idl(instructions = "[${seeded("missing")}]")) shouldBe "instruction 'ix' account 'a' PDA seed: no argument named 'missing'"
+        test("argument seeds must name an instruction argument, or a field within one") {
+            fun seeded(path: String) = instruction(
+                argType = """{"defined": {"name": "Outer"}}""",
+                accounts = """[{"name": "a", "pda": {"seeds": [{"kind": "arg", "path": "$path"}]}}]""",
+            )
+            // fields are reached through struct fields and aliases
+            val types = "[${struct("Outer", """{"defined": {"name": "Alias"}}""")}, ${alias("Alias", "Inner")}, ${struct("Inner", "\"u16\"")}]"
+            valid(idl(instructions = "[${seeded("value")}]", types = types))
+            valid(idl(instructions = "[${seeded("value.field.field")}]", types = types))
+            problem(idl(instructions = "[${seeded("missing")}]", types = types)) shouldBe "instruction 'ix' account 'a' PDA seed 0: no argument named 'missing'"
+            problem(idl(instructions = "[${seeded("value.missing")}]", types = types)) shouldBe
+                "instruction 'ix' account 'a' PDA seed 0: argument path 'value.missing' does not resolve to a field"
+            // a primitive has no fields
+            problem(idl(instructions = "[${seeded("value.field.field.more")}]", types = types)) shouldBe
+                "instruction 'ix' account 'a' PDA seed 0: argument path 'value.field.field.more' does not resolve to a field"
+        }
+
+        test("account seeds must name an instruction account, and a field of its data when its type is declared") {
+            fun seeded(seed: String) = instruction(
+                accounts = """[{"name": "owner"}, {"name": "group", "accounts": [{"name": "member"}]}, {"name": "a", "pda": {"seeds": [$seed]}}]""",
+            )
+            val data = """[{"name": "Data", "discriminator": [7]}]"""
+            val types = "[${struct("Data", "\"u64\"")}]"
+            valid(idl(instructions = "[${seeded("""{"kind": "account", "path": "owner"}""")}]"))
+            valid(idl(instructions = "[${seeded("""{"kind": "account", "path": "group.member"}""")}]"))
+            valid(idl(instructions = "[${seeded("""{"kind": "account", "path": "owner.field", "account": "Data"}""")}]", accounts = data, types = types))
+            // an account type another program declares cannot be checked
+            valid(idl(instructions = "[${seeded("""{"kind": "account", "path": "owner.supply", "account": "Mint"}""")}]"))
+            problem(idl(instructions = "[${seeded("""{"kind": "account", "path": "missing"}""")}]")) shouldBe
+                "instruction 'ix' account 'a' PDA seed 0: no account named by 'missing'"
+            problem(idl(instructions = "[${seeded("""{"kind": "account", "path": "group"}""")}]")) shouldBe
+                "instruction 'ix' account 'a' PDA seed 0: no account named by 'group'"
+            problem(idl(instructions = "[${seeded("""{"kind": "account", "path": "owner.missing", "account": "Data"}""")}]", accounts = data, types = types)) shouldBe
+                "instruction 'ix' account 'a' PDA seed 0: account path 'owner.missing' does not resolve to a field of 'Data'"
+        }
+
+        test("a PDA in an account group resolves its account seeds within the group first") {
+            val grouped = instruction(
+                accounts = """[{"name": "group", "accounts": [{"name": "member"}, {"name": "a", "pda": {"seeds": [{"kind": "account", "path": "member"}]}}]}]""",
+            )
+            valid(idl(instructions = "[$grouped]"))
+        }
+
+        test("seeds must fit a derivation") {
+            fun pda(pda: String) = instruction(accounts = """[{"name": "a", "pda": $pda}]""")
+            fun const(size: Int) = """{"kind": "const", "value": [${List(size) { "1" }.joinToString()}]}"""
+            valid(idl(instructions = "[${pda("""{"seeds": [${List(15) { const(32) }.joinToString()}], "program": ${const(32)}}""")}]"))
+            problem(idl(instructions = "[${pda("""{"seeds": [${List(16) { const(1) }.joinToString()}]}""")}]")) shouldBe
+                "instruction 'ix' account 'a': 16 PDA seeds, but at most 15 fit beside the bump"
+            problem(idl(instructions = "[${pda("""{"seeds": [${const(33)}]}""")}]")) shouldBe
+                "instruction 'ix' account 'a' PDA seed 0: 33 bytes, but a seed has at most 32"
+            problem(idl(instructions = "[${pda("""{"seeds": [], "program": ${const(31)}}""")}]")) shouldBe
+                "instruction 'ix' account 'a' PDA program: a program id has 32 bytes, got 31"
+            problem(idl(instructions = "[${pda("""{"seeds": [], "program": {"kind": "account", "path": "missing"}}""")}]")) shouldBe
+                "instruction 'ix' account 'a' PDA program: no account named by 'missing'"
         }
 
         test("account names within one group must be unique") {

@@ -150,6 +150,33 @@ class EthersSolanaIdlPluginTest : FunSpec({
         build.runner(TASK).buildAndFail().output shouldContain "Invalid address override for program 'showcase'"
     }
 
+    test("integer PDA seeds are little-endian unless a byte order is configured for the program or the seed") {
+        val littleEndian = "BorshWriter(2).apply { writeU16(paramsTag) }.toByteArray(),"
+        val bigEndian = "BorshWriter(2).apply { writeU16(paramsTag) }.toByteArray().also { it.reverse() }"
+        val build = SolanaIdlBuild()
+        build.outcome(TASK) shouldBe TaskOutcome.SUCCESS
+        File(build.outputDir, "io/ethers/programs/Showcase.kt").readText() shouldContain littleEndian
+
+        // Groovy converts the order's name to the enum
+        build.writeExtension("seedByteOrder('showcase', 'BIG_ENDIAN')")
+        build.outcome(TASK) shouldBe TaskOutcome.SUCCESS
+        File(build.outputDir, "io/ethers/programs/Showcase.kt").readText() shouldContain bigEndian
+
+        build.writeExtension("seedByteOrder('showcase', 'vault', 'params.tag', 'BIG_ENDIAN')")
+        build.outcome(TASK) shouldBe TaskOutcome.SUCCESS
+        val perSeed = File(build.outputDir, "io/ethers/programs/Showcase.kt").readText()
+        perSeed shouldContain bigEndian
+        // the other integer seeds keep the default
+        perSeed shouldContain "BorshWriter(8).apply { writeU64(nonce) }.toByteArray(),"
+    }
+
+    test("a byte order for a program no IDL declares, or for a seed that is not an integer seed, fails the build") {
+        SolanaIdlBuild("seedByteOrder('shwocase', 'BIG_ENDIAN')").runner(TASK).buildAndFail().output shouldContain
+            "seedByteOrders names programs that no IDL declares: [shwocase]"
+        SolanaIdlBuild("seedByteOrder('showcase', 'vault', 'owner', 'BIG_ENDIAN')").runner(TASK).buildAndFail().output shouldContain
+            "seed byte order for account 'vault' seed 'owner': no PDA account has an integer seed at that path"
+    }
+
     test("two IDLs generating the same declaration fail the build") {
         val build = SolanaIdlBuild()
         build.copyIdl("io/ethers/programs", "showcase-copy.json")

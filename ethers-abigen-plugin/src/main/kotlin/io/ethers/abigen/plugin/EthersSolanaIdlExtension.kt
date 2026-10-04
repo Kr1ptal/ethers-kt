@@ -1,6 +1,8 @@
 package io.ethers.abigen.plugin
 
 import io.ethers.abigen.plugin.source.SolanaIdlDirectorySource
+import io.ethers.solana.idl.generator.SeedByteOrder
+import io.ethers.solana.idl.generator.SeedByteOrders
 import io.ethers.solana.idl.reader.SolanaIdlReader
 import io.ethers.solana.idl.reader.SolanaIdlReaderRegistry
 import org.gradle.api.Action
@@ -48,6 +50,35 @@ abstract class EthersSolanaIdlExtension(private val project: Project) {
     fun programAddress(program: String, address: String) {
         programAddresses.put(program, address)
     }
+
+    /**
+     * Byte order of integer PDA seeds, keyed by the program name the IDL declares. IDLs do not record the byte order
+     * a program encodes its integer seeds in, so the generated `find` functions assume little-endian unless set here.
+     * Naming a program that no IDL declares, or a seed that is not a multi-byte integer seed, fails the build.
+     *
+     * Default value is empty map.
+     * */
+    val seedByteOrders: MapProperty<String, SeedByteOrders> =
+        factory.mapProperty(String::class.java, SeedByteOrders::class.java).convention(emptyMap())
+
+    /**
+     * Encode every integer PDA seed of [program] in [order], see [seedByteOrders].
+     * */
+    fun seedByteOrder(program: String, order: SeedByteOrder) {
+        seedByteOrders.put(program, byteOrders(program).copy(default = order))
+    }
+
+    /**
+     * Encode the integer seed at [seed] of the PDA account named [account] of [program] in [order], in every
+     * instruction that has the account, see [seedByteOrders]. [seed] is the seed's path as the IDL declares it, e.g.
+     * `index` or `position.tick_lower_index`.
+     * */
+    fun seedByteOrder(program: String, account: String, seed: String, order: SeedByteOrder) {
+        val current = byteOrders(program)
+        seedByteOrders.put(program, current.copy(seeds = current.seeds + (SeedByteOrders.Seed(account, seed) to order)))
+    }
+
+    private fun byteOrders(program: String): SeedByteOrders = seedByteOrders.getting(program).orNull ?: SeedByteOrders()
 
     /**
      * Add additional [SolanaIdlReader] to the registry, which will be used to read IDL files.

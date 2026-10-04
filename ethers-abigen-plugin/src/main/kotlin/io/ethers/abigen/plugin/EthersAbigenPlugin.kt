@@ -30,6 +30,7 @@ abstract class EthersAbigenPlugin : Plugin<Project> {
         val solanaTask = target.tasks.register("ethersSolanaIdl", EthersSolanaIdlTask::class.java) {
             it.sources.set(solanaExt.sources)
             it.programAddresses.set(solanaExt.programAddresses)
+            it.seedByteOrders.set(solanaExt.seedByteOrders)
             it.outputDir.set(solanaExt.outputDir)
         }
         val generators = listOf(abigenTask, solanaTask)

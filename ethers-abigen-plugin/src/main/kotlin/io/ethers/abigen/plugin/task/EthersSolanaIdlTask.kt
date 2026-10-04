@@ -1,6 +1,7 @@
 package io.ethers.abigen.plugin.task
 
 import io.ethers.abigen.plugin.source.SolanaIdlDirectorySource
+import io.ethers.solana.idl.generator.SeedByteOrders
 import io.ethers.solana.idl.generator.SolanaProgramBuilder
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
@@ -45,6 +46,12 @@ abstract class EthersSolanaIdlTask @Inject constructor(private val executor: Wor
      * */
     @get:Input
     abstract val programAddresses: MapProperty<String, String>
+
+    /**
+     * Byte order of integer PDA seeds, keyed by the program name the IDL declares.
+     * */
+    @get:Input
+    abstract val seedByteOrders: MapProperty<String, SeedByteOrders>
 
     /**
      * Directory where the generated Kotlin files will be placed. Path is relative to the project build directory.
@@ -96,6 +103,7 @@ abstract class EthersSolanaIdlTask @Inject constructor(private val executor: Wor
                 it.idl.set(source)
                 it.destination.set(destDir)
                 it.programAddresses.set(programAddresses)
+                it.seedByteOrders.set(seedByteOrders)
                 it.resultFile.set(File(resultsDir, index.toString()))
             }
         }
@@ -112,12 +120,11 @@ abstract class EthersSolanaIdlTask @Inject constructor(private val executor: Wor
             }
         }
 
-        val unknown = programAddresses.get().keys - programNames
-        if (unknown.isNotEmpty()) {
-            throw GradleException(
-                "programAddresses names programs that no IDL declares: ${unknown.sorted()}. " +
-                    "Declared programs: ${programNames.sorted()}",
-            )
+        for ((property, programs) in listOf("programAddresses" to programAddresses.get().keys, "seedByteOrders" to seedByteOrders.get().keys)) {
+            val unknown = programs - programNames
+            if (unknown.isNotEmpty()) {
+                throw GradleException("$property names programs that no IDL declares: ${unknown.sorted()}. Declared programs: ${programNames.sorted()}")
+            }
         }
     }
 }

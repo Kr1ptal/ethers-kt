@@ -10,6 +10,7 @@ internal object Runtime {
 
     val SOLANA_ADDRESS = ClassName(TYPES, "SolanaAddress")
     val SOLANA_BYTES = ClassName(TYPES, "SolanaBytes")
+    val PROGRAM_DERIVED_ADDRESS = ClassName(TYPES, "ProgramDerivedAddress")
     val ACCOUNT_META = ClassName(TYPES, "AccountMeta")
     val INSTRUCTION = ClassName("io.ethers.solana.instruction", "Instruction")
 

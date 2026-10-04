@@ -3,8 +3,8 @@ package io.ethers.solana.idl
 /**
  * Checks the references between the elements of an [IdlProgram], which each element's own
  * constructor cannot: duplicate names or error codes, overlapping discriminators, unresolved or
- * mis-applied types, alias cycles, accounts and events without a layout, and instruction account
- * references that do not resolve.
+ * mis-applied types, alias cycles, accounts and events without a layout, instruction account
+ * references that do not resolve, and PDA seeds that do not resolve or cannot fit a derivation.
  *
  * The layout itself is not checked for support: non-Borsh serialization is valid schema.
  */
@@ -19,6 +19,12 @@ object IdlValidator {
 }
 
 private class Validation(private val program: IdlProgram) {
+    private companion object {
+        /** Seeds a derivation takes, besides the bump. */
+        const val MAX_SEEDS = 15
+        const val MAX_SEED_SIZE = 32
+    }
+
     private val types = program.types.associateBy { it.name }
 
     fun run() {
@@ -36,10 +42,10 @@ private class Validation(private val program: IdlProgram) {
         for (account in program.accounts) require(account.name in types) { "account '${account.name}': no type definition with its name" }
         for (event in program.events) require(event.name in types) { "event '${event.name}': no type definition with its name" }
 
-        program.instructions.forEach(::instruction)
         program.types.forEach(::typeDef)
-        program.constants.forEach { type(it.type, "constant '${it.name}'", emptyList()) }
         aliasCycles()
+        program.instructions.forEach(::instruction)
+        program.constants.forEach { type(it.type, "constant '${it.name}'", emptyList()) }
     }
 
     private inline fun <T> unique(items: List<T>, kind: String, name: (T) -> String) {
@@ -77,39 +83,58 @@ private class Validation(private val program: IdlProgram) {
             }
         }
         collect(instruction.accounts)
-        val argNames = instruction.args.mapTo(HashSet()) { it.name }
 
-        accountItems(instruction.accounts, where, accountNames, argNames)
         unique(instruction.args, "$where argument") { it.name }
         instruction.args.forEach { type(it.type, "$where argument '${it.name}'", emptyList()) }
         instruction.returns?.let { type(it, "$where return type", emptyList()) }
+        accountItems(instruction.accounts, where, accountNames, instruction)
     }
 
-    private fun accountItems(items: List<IdlAccountItem>, where: String, accounts: Set<String>, args: Set<String>) {
+    private fun accountItems(items: List<IdlAccountItem>, where: String, accounts: Set<String>, instruction: IdlInstruction) {
         unique(items, "$where account") { it.name }
         for (item in items) {
             val itemWhere = "$where account '${item.name}'"
             when (item) {
-                is IdlAccountItem.Group -> accountItems(item.accounts, itemWhere, accounts, args)
+                is IdlAccountItem.Group -> accountItems(item.accounts, itemWhere, accounts, instruction)
                 is IdlAccountItem.Single -> {
                     for (relation in item.relations) require(relation in accounts) { "$itemWhere: relation to unknown account '$relation'" }
-                    item.pda?.let { pda ->
-                        (pda.seeds + listOfNotNull(pda.program)).forEach { seed(it, "$itemWhere PDA seed", args) }
-                    }
+                    item.pda?.let { pda(it, itemWhere, listOf(items, instruction.accounts).distinct(), instruction.args) }
                 }
             }
         }
     }
 
-    private fun seed(seed: IdlSeed, where: String, args: Set<String>) {
-        when (seed) {
-            is IdlSeed.Arg -> {
-                val arg = seed.path.substringBefore('.')
-                require(arg in args) { "$where: no argument named '$arg'" }
+    /** Check that [pda]'s seeds resolve among the accounts in [scopes] and [args], and fit a derivation. */
+    private fun pda(pda: IdlPda, where: String, scopes: List<List<IdlAccountItem>>, args: List<IdlField>) {
+        require(pda.seeds.size <= MAX_SEEDS) { "$where: ${pda.seeds.size} PDA seeds, but at most $MAX_SEEDS fit beside the bump" }
+        pda.seeds.forEachIndexed { i, seed -> seed(seed, "$where PDA seed $i", scopes, args) }
+        pda.program?.let { program ->
+            if (program is IdlSeed.Const) {
+                require(program.bytes.size == 32) { "$where PDA program: a program id has 32 bytes, got ${program.bytes.size}" }
+            } else {
+                seed(program, "$where PDA program", scopes, args)
             }
-            // account paths may be nested in account groups or reach into account data, which later
-            // resolution checks against the account's type
-            is IdlSeed.Account, is IdlSeed.Const -> Unit
+        }
+    }
+
+    private fun seed(seed: IdlSeed, where: String, scopes: List<List<IdlAccountItem>>, args: List<IdlField>) {
+        when (seed) {
+            is IdlSeed.Const -> require(seed.bytes.size <= MAX_SEED_SIZE) { "$where: ${seed.bytes.size} bytes, but a seed has at most $MAX_SEED_SIZE" }
+            is IdlSeed.Arg -> {
+                val path = seed.path.split('.')
+                val arg = requireNotNull(args.firstOrNull { it.name == path[0] }) { "$where: no argument named '${path[0]}'" }
+                require(IdlPaths.field(arg.type, path.drop(1), types) != null) { "$where: argument path '${seed.path}' does not resolve to a field" }
+            }
+            is IdlSeed.Account -> {
+                val path = requireNotNull(IdlPaths.account(scopes, seed.path)) { "$where: no account named by '${seed.path}'" }
+                // the account type may be declared by another program, in which case its fields cannot be checked
+                val type = seed.account?.takeIf { it in types }
+                if (path.fields.isNotEmpty() && type != null) {
+                    require(IdlPaths.field(IdlType.Defined(type), path.fields, types) != null) {
+                        "$where: account path '${seed.path}' does not resolve to a field of '$type'"
+                    }
+                }
+            }
         }
     }
 

@@ -224,6 +224,22 @@ class BorshCodecTest : FunSpec({
         SolanaCodec.UNIT.malformed("00").reason shouldBe SolanaDecodeError.Reason.TRAILING_DATA
     }
 
+    test("padding is skipped on read and written as zeros, including when it grows the buffer") {
+        BorshWriter(8).apply {
+            writeU8(1)
+            writePadding(7)
+            writeU64(bigIntegerOf(2))
+            writePadding(12)
+        }.toByteArray() shouldBe hex("01 00000000000000 0200000000000000 000000000000000000000000")
+
+        val reader = BorshReader(hex("01 ffffffffffffff 0200000000000000"))
+        reader.readU8() shouldBe 1
+        // padding bytes are not checked: zero-copy programs may leave any value in them
+        reader.skipPadding(7)
+        reader.readU64() shouldBe bigIntegerOf(2)
+        shouldThrow<SolanaDecodeException> { BorshReader(hex("0102")).skipPadding(3) }.error.shouldBeInstanceOf<SolanaDecodeError.Malformed>()
+    }
+
     test("raw writes grow the buffer") {
         val address = SolanaAddress(ByteArray(32) { 7 })
         val bytes = SolanaBytes.fromHex("aa".repeat(20))
