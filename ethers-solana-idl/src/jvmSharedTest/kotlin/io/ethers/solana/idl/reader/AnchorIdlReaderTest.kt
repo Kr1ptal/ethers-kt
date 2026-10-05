@@ -131,10 +131,9 @@ class AnchorIdlReaderTest : FunSpec({
         }
     }
 
-    test("legacy IDLs are rejected with an explanation") {
-        shouldThrow<IllegalArgumentException> { AnchorIdlReader.read(fixture("external_legacy")) }.message shouldContain "Legacy"
-        SolanaIdlReaderRegistry.tryReadIdl(fixture("external_legacy")).unwrapError()
-            .shouldBeInstanceOf<SolanaIdlReaderRegistry.IdlReadError.Unreadable>()
+    test("legacy IDLs are rejected with an explanation, and read by the legacy reader in the registry") {
+        shouldThrow<IllegalArgumentException> { AnchorIdlReader.read(fixture("external_legacy")) }.message shouldContain "AnchorLegacyIdlReader"
+        SolanaIdlReaderRegistry.tryReadIdl(fixture("external_legacy")).unwrap().name shouldBe "external"
     }
 
     test("the reader parses without validating") {

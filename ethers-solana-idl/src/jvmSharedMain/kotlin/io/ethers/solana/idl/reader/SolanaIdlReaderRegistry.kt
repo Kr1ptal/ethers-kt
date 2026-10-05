@@ -12,14 +12,14 @@ import java.net.URL
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
- * Registry of [SolanaIdlReader]s. By default, it contains [AnchorIdlReader].
+ * Registry of [SolanaIdlReader]s. By default, it contains [AnchorIdlReader], then [AnchorLegacyIdlReader].
  *
  * Custom readers can be added by calling [prependReader] or [appendReader]. The readers are called in order, and the
  * first reader that can read the IDL is used. Its result is then checked with [IdlValidator]: an IDL that was read but
  * fails validation is reported as [IdlReadError.Invalid], without trying the remaining readers.
  * */
 object SolanaIdlReaderRegistry {
-    private val readers = CopyOnWriteArrayList<SolanaIdlReader>(listOf(AnchorIdlReader))
+    private val readers = CopyOnWriteArrayList<SolanaIdlReader>(listOf(AnchorIdlReader, AnchorLegacyIdlReader))
 
     /**
      * Add [SolanaIdlReader] to the beginning of the list of readers.

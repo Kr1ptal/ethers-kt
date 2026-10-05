@@ -5,6 +5,7 @@ package io.ethers.solana.idl
  * constructor cannot: duplicate names or error codes, overlapping discriminators, unresolved or
  * mis-applied types, alias cycles, accounts and events without a layout, instruction account
  * references that do not resolve, and PDA seeds that do not resolve or cannot fit a derivation.
+ * Field names of a struct may repeat, but a seed path through a repeated name does not resolve.
  *
  * The layout itself is not checked for support: non-Borsh serialization is valid schema.
  */
@@ -123,7 +124,9 @@ private class Validation(private val program: IdlProgram) {
             is IdlSeed.Arg -> {
                 val path = seed.path.split('.')
                 val arg = requireNotNull(args.firstOrNull { it.name == path[0] }) { "$where: no argument named '${path[0]}'" }
-                require(IdlPaths.field(arg.type, path.drop(1), types) != null) { "$where: argument path '${seed.path}' does not resolve to a field" }
+                require(IdlPaths.field(arg.type, path.drop(1), types) != null) {
+                    "$where: argument path '${seed.path}' does not resolve to a single field"
+                }
             }
             is IdlSeed.Account -> {
                 val path = requireNotNull(IdlPaths.account(scopes, seed.path)) { "$where: no account named by '${seed.path}'" }
@@ -131,7 +134,7 @@ private class Validation(private val program: IdlProgram) {
                 val type = seed.account?.takeIf { it in types }
                 if (path.fields.isNotEmpty() && type != null) {
                     require(IdlPaths.field(IdlType.Defined(type), path.fields, types) != null) {
-                        "$where: account path '${seed.path}' does not resolve to a field of '$type'"
+                        "$where: account path '${seed.path}' does not resolve to a single field of '$type'"
                     }
                 }
             }
@@ -155,10 +158,9 @@ private class Validation(private val program: IdlProgram) {
     private fun fields(fields: IdlFields, where: String, scope: List<IdlGenericParam>) {
         when (fields) {
             IdlFields.None -> Unit
-            is IdlFields.Named -> {
-                unique(fields.fields, "$where field") { it.name }
-                fields.fields.forEach { type(it.type, "$where field '${it.name}'", scope) }
-            }
+            // a struct's field names may repeat, as legacy IDLs merge `_padding` and `padding`; paths through
+            // a repeated name are rejected where they are resolved
+            is IdlFields.Named -> fields.fields.forEach { type(it.type, "$where field '${it.name}'", scope) }
             is IdlFields.Tuple -> fields.types.forEachIndexed { i, type -> type(type, "$where field $i", scope) }
         }
     }

@@ -29,14 +29,14 @@ internal object IdlPaths {
 
     /**
      * The type [fields] reach within [type], following aliases and named struct fields, or null when one does not
-     * resolve. With no [fields], [type] itself.
+     * resolve, or names more than one field. With no [fields], [type] itself.
      */
     fun field(type: IdlType, fields: List<String>, types: Map<String, IdlTypeDef>): IdlType? {
         var current = type
         for (name in fields) {
             val struct = resolve(current, types) as? IdlType.Defined ?: return null
             val body = types[struct.name]?.body as? IdlTypeBody.Struct ?: return null
-            current = (body.fields as? IdlFields.Named)?.fields?.firstOrNull { it.name == name }?.type ?: return null
+            current = (body.fields as? IdlFields.Named)?.fields?.singleOrNull { it.name == name }?.type ?: return null
         }
         return current
     }

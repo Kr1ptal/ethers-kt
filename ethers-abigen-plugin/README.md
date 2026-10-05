@@ -73,7 +73,7 @@ ethersSolanaIdl {
     seedByteOrder("escrow", SeedByteOrder.BIG_ENDIAN)
     seedByteOrder("escrow", "vault", "nonce", SeedByteOrder.BIG_ENDIAN)
 
-    // by default, it supports reading Anchor IDLs (spec 0.1.x)
+    // by default, it supports reading Anchor IDLs: spec 0.1.x, and legacy IDLs from before Anchor 0.30
     idlReader { input ->
         // read IdlProgram from input
     }
@@ -84,6 +84,12 @@ Each program derived account of an instruction gets a `find` function on its acc
 and bump from the account's seeds, e.g. `Escrow.OpenVaultAccounts.findVault(owner, nonce)`. IDLs do not record the
 byte order a program encodes integer seeds in. Most programs use little-endian, the default, but some do not, and the
 derived address is then wrong unless `seedByteOrder` is set for them.
+
+Legacy IDLs, from before Anchor 0.30, are converted as Anchor converts them: names become snake_case and
+discriminators are derived from them. They often declare no program address, which `programAddress` then provides, and
+do not record zero-copy layouts, so their types are read as Borsh, which matches zero-copy accounts without padding.
+Struct fields that a legacy IDL names alike, such as Rust's `_padding` and `padding`, are numbered from the first, and
+the last keeps the name.
 
 Zero-copy accounts (`#[account(zero_copy)]`) are decoded in the layout the program sees on-chain: packed and unpacked
 `#[repr(C)]` layouts, including the padding an unpacked layout places between and after fields, and

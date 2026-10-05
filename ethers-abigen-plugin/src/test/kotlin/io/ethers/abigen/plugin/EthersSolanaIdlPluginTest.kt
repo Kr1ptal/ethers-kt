@@ -177,6 +177,30 @@ class EthersSolanaIdlPluginTest : FunSpec({
             "seed byte order for account 'vault' seed 'owner': no PDA account has an integer seed at that path"
     }
 
+    test("a legacy IDL generates once an address is given for it") {
+        val build = SolanaIdlBuild(withIdl = false)
+        @Language("json")
+        val legacy = """
+            {
+              "version": "0.1.0",
+              "name": "legacy_program",
+              "instructions": [{"name": "doThing", "accounts": [{"name": "payerAccount", "isMut": true, "isSigner": true}], "args": [{"name": "amount", "type": "u64"}]}],
+              "accounts": [{"name": "Vault", "type": {"kind": "struct", "fields": [{"name": "owner", "type": "publicKey"}]}}]
+            }
+        """.trimIndent()
+        File(build.idlDir, "io/ethers/legacy/legacy.json").apply { parentFile.mkdirs() }.writeText(legacy)
+
+        build.runner(TASK).buildAndFail().output shouldContain
+            "program 'legacy_program': the IDL declares no address, so one must be given, such as with the Gradle plugin's programAddress"
+
+        build.writeExtension("programAddress('legacy_program', '$OVERRIDE_ADDRESS')")
+        build.outcome(TASK) shouldBe TaskOutcome.SUCCESS
+        val generated = File(build.outputDir, "io/ethers/legacy/LegacyProgram.kt").readText()
+        generated shouldContain "SolanaAddress(\"$OVERRIDE_ADDRESS\")"
+        generated shouldContain "public fun doThing("
+        generated shouldContain "public val payerAccount: SolanaAddress"
+    }
+
     test("two IDLs generating the same declaration fail the build") {
         val build = SolanaIdlBuild()
         build.copyIdl("io/ethers/programs", "showcase-copy.json")

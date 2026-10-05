@@ -75,6 +75,9 @@ class SolanaProgramBuilder @JvmOverloads constructor(
     private val programName: String = program.name.toPascalCase(),
     private val seedByteOrders: SeedByteOrders = SeedByteOrders(),
 ) {
+    private val programAddress = requireNotNull(program.address) {
+        "program '${program.name}': the IDL declares no address, so one must be given, such as with the Gradle plugin's programAddress"
+    }
     private val programClass = ClassName(packageName, programName)
     private val accountMarker = programClass.nestedClass("Account")
     private val eventInterface = programClass.nestedClass("Event")
@@ -138,7 +141,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         programType.addProperty(
             PropertySpec.builder("PROGRAM_ID", Runtime.SOLANA_ADDRESS)
                 .addAnnotation(Runtime.JVM_FIELD)
-                .initializer("%T(%S)", Runtime.SOLANA_ADDRESS, program.address)
+                .initializer("%T(%S)", Runtime.SOLANA_ADDRESS, programAddress)
                 .build(),
         )
         program.constants.forEach { programType.addProperty(constant(it)) }
@@ -260,6 +263,15 @@ class SolanaProgramBuilder @JvmOverloads constructor(
     }
 
     /**
+     * Whether [name] is an enum whose variants have no fields and fit a byte, which Rust lays out as that byte, as
+     * Borsh writes its tag.
+     */
+    private fun isByteEnum(name: String): Boolean {
+        val body = typeDefs.getValue(name).body as? IdlTypeBody.Enum ?: return false
+        return body.variants.size <= 256 && body.variants.all { it.fields.isEmpty() }
+    }
+
+    /**
      * Zero-copy fields have one fixed size: no length prefixes or option tags, and only zero-copy structs nested. An
      * [aligned] layout also needs each field's alignment.
      */
@@ -273,8 +285,8 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             is IdlType.Vec -> throw IllegalArgumentException("$where: a zero-copy type cannot contain a vec, which varies in size")
             is IdlType.Defined -> {
                 val nested = typeDefs.getValue(resolved.name)
-                require(nested.serialization == IdlSerialization.Bytemuck || nested.serialization == IdlSerialization.BytemuckUnsafe) {
-                    "$where: a zero-copy type can only contain zero-copy types, but '${nested.name}' is ${nested.serialization}"
+                require(isByteEnum(resolved.name) || nested.serialization == IdlSerialization.Bytemuck || nested.serialization == IdlSerialization.BytemuckUnsafe) {
+                    "$where: a zero-copy type can only contain zero-copy types and enums without fields, but '${nested.name}' is ${nested.serialization}"
                 }
             }
             is IdlType.Generic -> throw IllegalArgumentException("$where: generic fields are not supported yet")
@@ -433,7 +445,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         IdlType.Primitive.U256, IdlType.Primitive.I256 -> 32 to 1
         is IdlType.Primitive -> PRIMITIVE_SIZES.getValue(resolved).let { it to it }
         is IdlType.Array -> zeroCopySizeAlign(resolved.element).let { (size, align) -> size * arrayLength(resolved) to align }
-        is IdlType.Defined -> zeroCopyLayout(resolved.name).let { it.size to it.align }
+        is IdlType.Defined -> if (isByteEnum(resolved.name)) 1 to 1 else zeroCopyLayout(resolved.name).let { it.size to it.align }
         is IdlType.Option, is IdlType.Vec, is IdlType.Generic -> throw IllegalStateException("unchecked zero-copy field $resolved")
     }
 
@@ -449,7 +461,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         }
         fun contains(type: IdlType): Boolean = when (val resolved = resolve(type)) {
             is IdlType.Array -> contains(resolved.element)
-            is IdlType.Defined -> hasPadding(resolved.name)
+            is IdlType.Defined -> !isByteEnum(resolved.name) && hasPadding(resolved.name)
             else -> false
         }
         return types.any(::contains)
@@ -524,11 +536,34 @@ class SolanaProgramBuilder @JvmOverloads constructor(
 
     private class Field(val name: String, val type: IdlType, val docs: List<String>)
 
+    /**
+     * The fields of [fields] with Kotlin names. Fields whose names coincide keep their order: the last keeps the name and
+     * the earlier ones are numbered from 1, skipping numbers another field uses, as legacy IDLs name both `_padding` and
+     * `padding` as `padding`. Names in [reserved] are suffixed with `Field`.
+     */
     private fun fields(fields: IdlFields, reserved: Set<String> = emptySet()): List<Field> = when (fields) {
         IdlFields.None -> emptyList()
-        is IdlFields.Named -> fields.fields.map { field ->
-            val name = field.name.toCamelCase()
-            Field(if (name in reserved) "${name}Field" else name, field.type, field.docs)
+        is IdlFields.Named -> {
+            val names = fields.fields.map { field -> field.name.toCamelCase().let { if (it in reserved) "${it}Field" else it } }
+            val taken = names.toHashSet()
+            val renamed = names.toMutableList()
+            for ((name, indices) in names.indices.groupBy { names[it] }) {
+                if (indices.size == 1) continue
+                var number = 1
+                for (index in indices.dropLast(1)) {
+                    while ("$name$number" in taken) number++
+                    renamed[index] = "$name$number"
+                    taken.add(renamed[index])
+                }
+            }
+            fields.fields.mapIndexed { i, field ->
+                val docs = if (renamed[i] == names[i]) {
+                    field.docs
+                } else {
+                    field.docs + "Named `${field.name}` in the IDL, like a later field, which keeps the name."
+                }
+                Field(renamed[i], field.type, docs)
+            }
         }
         is IdlFields.Tuple -> fields.types.mapIndexed { i, type -> Field("field$i", type, emptyList()) }
     }

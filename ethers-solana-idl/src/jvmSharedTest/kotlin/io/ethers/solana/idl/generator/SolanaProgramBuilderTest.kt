@@ -86,6 +86,14 @@ class SolanaProgramBuilderTest : FunSpec({
             flat shouldContain "writeU8(value.f0) writePadding(7) Wide.write(this, value.f1) writePadding(8)"
         }
 
+        test("an enum without fields is a byte in a zero-copy layout") {
+            val status = IdlTypeDef("Status", IdlTypeBody.Enum(listOf(IdlEnumVariant("On"), IdlEnumVariant("Off"))))
+            val source = generate(program(types = listOf(status, zeroCopy("S", IdlType.Defined("Status"), IdlType.Primitive.U16, repr = IdlRepr.C()))))
+            val flat = source.replace(Regex("\\s+"), " ")
+            // the u16 is 2-byte aligned after the 1-byte enum
+            flat shouldContain "f0 = Status.read(this), f1 = run { skipPadding(1) readU16() }"
+        }
+
         test("packed and transparent layouts have no padding, even nested in an unpacked one") {
             val source = generate(
                 program(
@@ -132,7 +140,10 @@ class SolanaProgramBuilderTest : FunSpec({
             rejected(zeroCopy("S", IdlType.Option(IdlType.Primitive.U8))) shouldBe "type 'S' field 'f0': a zero-copy type cannot contain an option"
             rejected(zeroCopy("S", IdlType.Array(IdlType.Primitive.BYTES, IdlArrayLength.Fixed(2)))) shouldContain "cannot contain BYTES"
             rejected(zeroCopy("S", IdlType.Defined("Plain")), struct("Plain")) shouldBe
-                "type 'S' field 'f0': a zero-copy type can only contain zero-copy types, but 'Plain' is Borsh"
+                "type 'S' field 'f0': a zero-copy type can only contain zero-copy types and enums without fields, but 'Plain' is Borsh"
+            // an enum with a field is no single byte
+            val dataEnum = IdlTypeDef("D", IdlTypeBody.Enum(listOf(IdlEnumVariant("A", IdlFields.Tuple(listOf(IdlType.Primitive.U8))))))
+            rejected(zeroCopy("S", IdlType.Defined("D")), dataEnum) shouldContain "but 'D' is Borsh"
             val enum = IdlTypeDef("E", IdlTypeBody.Enum(listOf(IdlEnumVariant("A"))), serialization = IdlSerialization.Bytemuck, repr = packed)
             rejected(enum) shouldBe "type 'E': zero-copy enums are not supported"
             rejected(zeroCopy("S", IdlType.Primitive.U8, serialization = IdlSerialization.Custom("Compressed"))) shouldBe
@@ -251,6 +262,57 @@ class SolanaProgramBuilderTest : FunSpec({
             val ownerArg = listOf(IdlField("owner", IdlType.Primitive.PUBKEY))
             shouldThrow<IllegalArgumentException> { generate(pdaProgram(listOf(IdlSeed.Account("owner"), IdlSeed.Arg("owner")), ownerArg)) }.message shouldBe
                 "instruction 'ix' account 'vault': PDA seeds account 'owner' and argument 'owner' both take a parameter named 'owner'"
+        }
+    }
+
+    context("legacy IDLs") {
+        test("a program without an address fails generation, naming the way to give one") {
+            shouldThrow<IllegalArgumentException> { generate(program().copy(address = null)) }.message shouldBe
+                "program 'test': the IDL declares no address, so one must be given, such as with the Gradle plugin's programAddress"
+        }
+
+        test("repeated field names are numbered from the first, and the last keeps the name") {
+            val fields = listOf("padding" to IdlType.Primitive.U64, "padding1" to IdlType.Primitive.U8, "padding" to IdlType.Primitive.U16, "padding" to IdlType.Primitive.U32)
+            val def = IdlTypeDef("S", IdlTypeBody.Struct(IdlFields.Named(fields.map { (name, type) -> IdlField(name, type) })))
+            val source = generate(program(types = listOf(def))).replace(Regex("\\s+"), " ")
+            // padding1 is taken, so the repeated names take 2 and 3
+            source shouldContain "public val padding2: BigInteger, public val padding1: Int, /** * Named `padding` in the IDL, like a later field, which keeps the name. */ public val padding3: Int, public val padding: Long,"
+            source shouldContain "padding2 = readU64(), padding1 = readU8(), padding3 = readU16(), padding = readU32(),"
+        }
+
+        test("Drift's legacy IDL generates, with its repeated padding field numbered") {
+            val drift = fixture("drift").copy(address = "dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH")
+            val source = generate(drift).replace(Regex("\\s+"), " ")
+            source shouldContain "public val padding1: BigInteger,"
+            source shouldContain "padding1 = readU64(),"
+            source shouldContain "padding = readFixedBytes(174),"
+        }
+
+        // Drift's zero-copy State, PerpMarket and SpotMarket are 992, 1216 and 776 bytes on mainnet. With 128-bit
+        // integers 8-byte aligned, as on-chain, their C layouts have no padding and match those sizes; 16-byte
+        // alignment would pad them to 1016, 1240 and 808 bytes.
+        test("Drift's zero-copy markets have no padding with on-chain 128-bit alignment") {
+            val drift = fixture("drift")
+            val zeroCopy = HashSet<String>()
+            fun mark(name: String) {
+                if (!zeroCopy.add(name)) return
+                val def = drift.type(name)!!
+                if (def.body !is IdlTypeBody.Struct) return
+                fun visit(type: IdlType) {
+                    when (type) {
+                        is IdlType.Array -> visit(type.element)
+                        is IdlType.Defined -> if (drift.type(type.name)!!.body is IdlTypeBody.Struct) mark(type.name)
+                        else -> Unit
+                    }
+                }
+                ((def.body as IdlTypeBody.Struct).fields as IdlFields.Named).fields.forEach { visit(it.type) }
+            }
+            listOf("State", "PerpMarket", "SpotMarket").forEach(::mark)
+            val marked = drift.copy(
+                address = "dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH",
+                types = drift.types.map { if (it.name in zeroCopy) it.copy(serialization = IdlSerialization.BytemuckUnsafe, repr = IdlRepr.C()) else it },
+            )
+            (generate(marked).contains("Padding(")) shouldBe false
         }
     }
 

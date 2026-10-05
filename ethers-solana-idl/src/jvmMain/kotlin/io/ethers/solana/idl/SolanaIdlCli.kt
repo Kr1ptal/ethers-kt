@@ -7,16 +7,18 @@ import io.ethers.solana.idl.reader.SolanaIdlReaderRegistry
 import java.io.File
 
 private const val USAGE = "Usage: <idl-directory> <output-directory> <package-name> [--idl <idl-file>]... " +
-    "[--seed-byte-order <program>[:<account>:<seed>]=<LITTLE_ENDIAN|BIG_ENDIAN>]..."
+    "[--program-address <program>=<address>]... [--seed-byte-order <program>[:<account>:<seed>]=<LITTLE_ENDIAN|BIG_ENDIAN>]..."
 
 /**
  * Headless entry point for [SolanaProgramBuilder]: generates bindings for every IDL file in a directory, and for each
  * file `--idl` names.
  *
  * ```
- * <idl-directory> <output-directory> <package-name> [--idl <idl-file>]... [--seed-byte-order <program>[:<account>:<seed>]=<order>]...
+ * <idl-directory> <output-directory> <package-name> [--idl <idl-file>]... [--program-address <program>=<address>]...
+ *     [--seed-byte-order <program>[:<account>:<seed>]=<order>]...
  * ```
  *
+ * `--program-address` replaces the address a program's IDL declares, or gives one to an IDL that declares none.
  * `--seed-byte-order` sets the byte order of a program's integer PDA seeds, or of one seed of one of its PDA
  * accounts, see [SeedByteOrders].
  *
@@ -32,10 +34,16 @@ fun main(args: Array<String>) {
     require(idlDir.isDirectory) { "Not a directory: $idlDir" }
 
     val extraIdls = ArrayList<File>()
+    val addresses = HashMap<String, String>()
     val byteOrders = HashMap<String, SeedByteOrders>()
     for (i in 3 until args.size step 2) {
         if (args[i] == "--idl") {
             extraIdls.add(File(args[i + 1]).also { require(it.isFile) { "Not a file: $it" } })
+            continue
+        }
+        if (args[i] == "--program-address") {
+            val (program, address) = args[i + 1].split('=').also { require(it.size == 2) { USAGE } }
+            addresses[program] = address
             continue
         }
         require(args[i] == "--seed-byte-order") { USAGE }
@@ -55,10 +63,13 @@ fun main(args: Array<String>) {
     val programs = HashSet<String>()
     val idlFiles = idlDir.walkTopDown().filter { it.isFile && it.extension == "json" }.sortedBy { it.name } + extraIdls
     for (idlFile in idlFiles) {
-        val program = SolanaIdlReaderRegistry.tryReadIdl(idlFile.toURI().toURL()).unwrap()
+        val read = SolanaIdlReaderRegistry.tryReadIdl(idlFile.toURI().toURL()).unwrap()
+        val program = addresses[read.name]?.let { read.copy(address = it) } ?: read
         programs.add(program.name)
         SolanaProgramBuilder(program, packageName, seedByteOrders = byteOrders[program.name] ?: SeedByteOrders()).writeTo(outputDir)
     }
-    val unknown = byteOrders.keys - programs
-    require(unknown.isEmpty()) { "--seed-byte-order names programs that no IDL declares: ${unknown.sorted()}" }
+    for ((option, names) in listOf("--seed-byte-order" to byteOrders.keys, "--program-address" to addresses.keys)) {
+        val unknown = names - programs
+        require(unknown.isEmpty()) { "$option names programs that no IDL declares: ${unknown.sorted()}" }
+    }
 }

@@ -6,7 +6,8 @@ import io.ethers.crypto.Base58
  * A program schema, independent of the format it was read from.
  *
  * Declarations keep the order of their source, so validation and generated output are
- * deterministic. [address] is the base58 deployment address the source declared.
+ * deterministic. [address] is the base58 deployment address the source declared, or null when it declared
+ * none, as legacy Anchor IDLs often do.
  *
  * Each model type rejects values that are invalid on their own when constructed; [IdlValidator] checks
  * the references between them.
@@ -14,7 +15,7 @@ import io.ethers.crypto.Base58
 data class IdlProgram(
     val name: String,
     val version: String,
-    val address: String,
+    val address: String?,
     val docs: List<String> = emptyList(),
     val instructions: List<IdlInstruction> = emptyList(),
     val accounts: List<IdlAccount> = emptyList(),
@@ -24,7 +25,7 @@ data class IdlProgram(
     val constants: List<IdlConstant> = emptyList(),
 ) {
     init {
-        requireAddress(address)
+        address?.let(::requireAddress)
     }
 
     /** The type definition named [name], or null. */

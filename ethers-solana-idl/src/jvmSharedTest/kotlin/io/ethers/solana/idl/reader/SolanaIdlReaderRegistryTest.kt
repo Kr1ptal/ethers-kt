@@ -86,8 +86,8 @@ class SolanaIdlReaderRegistryTest : FunSpec({
         val error = SolanaIdlReaderRegistry.tryReadIdl("{\"neither\": true}").unwrapError()
         val unreadable = error.shouldBeInstanceOf<SolanaIdlReaderRegistry.IdlReadError.Unreadable>()
 
-        // the Anchor reader could not decode it, and each custom reader said it was not its format
-        unreadable.causes.filterIsInstance<SerializationException>() shouldHaveSize 1
+        // neither Anchor reader could decode it, and each custom reader said it was not its format
+        unreadable.causes.filterIsInstance<SerializationException>() shouldHaveSize 2
         unreadable.causes.filterIsInstance<IllegalStateException>().isNotEmpty() shouldBe true
 
         val exception = shouldThrow<ThrowableError.Exception> { SolanaIdlReaderRegistry.tryReadIdl("{}").unwrap() }

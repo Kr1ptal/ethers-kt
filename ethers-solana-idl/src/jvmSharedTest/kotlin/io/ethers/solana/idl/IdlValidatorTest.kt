@@ -203,10 +203,10 @@ class IdlValidatorTest : FunSpec({
             valid(idl(instructions = "[${seeded("value.field.field")}]", types = types))
             problem(idl(instructions = "[${seeded("missing")}]", types = types)) shouldBe "instruction 'ix' account 'a' PDA seed 0: no argument named 'missing'"
             problem(idl(instructions = "[${seeded("value.missing")}]", types = types)) shouldBe
-                "instruction 'ix' account 'a' PDA seed 0: argument path 'value.missing' does not resolve to a field"
+                "instruction 'ix' account 'a' PDA seed 0: argument path 'value.missing' does not resolve to a single field"
             // a primitive has no fields
             problem(idl(instructions = "[${seeded("value.field.field.more")}]", types = types)) shouldBe
-                "instruction 'ix' account 'a' PDA seed 0: argument path 'value.field.field.more' does not resolve to a field"
+                "instruction 'ix' account 'a' PDA seed 0: argument path 'value.field.field.more' does not resolve to a single field"
         }
 
         test("account seeds must name an instruction account, and a field of its data when its type is declared") {
@@ -225,7 +225,18 @@ class IdlValidatorTest : FunSpec({
             problem(idl(instructions = "[${seeded("""{"kind": "account", "path": "group"}""")}]")) shouldBe
                 "instruction 'ix' account 'a' PDA seed 0: no account named by 'group'"
             problem(idl(instructions = "[${seeded("""{"kind": "account", "path": "owner.missing", "account": "Data"}""")}]", accounts = data, types = types)) shouldBe
-                "instruction 'ix' account 'a' PDA seed 0: account path 'owner.missing' does not resolve to a field of 'Data'"
+                "instruction 'ix' account 'a' PDA seed 0: account path 'owner.missing' does not resolve to a single field of 'Data'"
+        }
+
+        test("a struct's field names may repeat, but a seed path through a repeated name is ambiguous") {
+            val repeated = """{"name": "Outer", "type": {"kind": "struct", "fields": [{"name": "padding", "type": "u64"}, {"name": "padding", "type": "u8"}]}}"""
+            fun seeded(path: String) = instruction(
+                argType = """{"defined": {"name": "Outer"}}""",
+                accounts = """[{"name": "a", "pda": {"seeds": [{"kind": "arg", "path": "$path"}]}}]""",
+            )
+            valid(idl(instructions = "[${instruction()}]", types = "[$repeated]"))
+            problem(idl(instructions = "[${seeded("value.padding")}]", types = "[$repeated]")) shouldBe
+                "instruction 'ix' account 'a' PDA seed 0: argument path 'value.padding' does not resolve to a single field"
         }
 
         test("a PDA in an account group resolves its account seeds within the group first") {

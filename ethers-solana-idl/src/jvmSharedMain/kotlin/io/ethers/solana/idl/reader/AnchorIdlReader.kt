@@ -29,8 +29,8 @@ import java.io.InputStream
 /**
  * Reader for Anchor IDLs of spec version 0.1.x, as produced by Anchor 0.30 and later.
  *
- * Unknown fields are ignored. Legacy IDLs, other spec versions, and input that does not decode as an
- * Anchor IDL are rejected by throwing.
+ * Unknown fields are ignored. Legacy IDLs, which [AnchorLegacyIdlReader] reads, other spec versions, and
+ * input that does not decode as an Anchor IDL are rejected by throwing.
  *
  * Format:
  * ```json
@@ -57,7 +57,7 @@ object AnchorIdlReader : SolanaIdlReader {
         val anchor = try {
             json.decodeFromString(AnchorIdl.serializer(), text)
         } catch (e: SerializationException) {
-            if (isLegacy(text)) throw IllegalArgumentException("Legacy Anchor IDL (before Anchor 0.30) is not supported; regenerate it with Anchor 0.30 or later", e)
+            if (isLegacy(text)) throw IllegalArgumentException("Legacy Anchor IDL (before Anchor 0.30), which AnchorLegacyIdlReader reads", e)
             throw e
         }
         val spec = anchor.metadata.spec
@@ -178,7 +178,7 @@ private fun AnchorIdl.Type.toModel(): IdlType = when (this) {
  * `{"kind": "type", "type": {"generic": "N"}}`. Rewrite each such argument whose target parameter is
  * a const into [IdlGenericArg.ConstParam].
  */
-private class ConstForwarding(val types: List<IdlTypeDef>) {
+internal class ConstForwarding(val types: List<IdlTypeDef>) {
     private val params = types.associate { it.name to it.generics }
 
     fun typeDef(def: IdlTypeDef): IdlTypeDef = def.copy(
