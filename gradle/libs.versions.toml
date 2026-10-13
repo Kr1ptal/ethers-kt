@@ -101,7 +101,7 @@ kotest-assertions-json = { module = "io.kotest:kotest-assertions-json", version.
 kotest-runner-junit5 = { module = "io.kotest:kotest-runner-junit5", version.ref = "kotest" }
 
 mockk = { module = "io.mockk:mockk-jvm", version = "1.14.11" }
-kotlin-compileTesting = { module = "dev.zacsweers.kctfork:core", version = "0.13.0" }
+kotlin-compileTesting = { module = "dev.zacsweers.kctfork:core", version = "0.14.0" }
 
 ##################### JMH #####################
 jmh-core = { module = "org.openjdk.jmh:jmh-core", version.ref = "jmh" }
