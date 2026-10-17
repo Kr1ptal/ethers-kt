@@ -33,13 +33,14 @@ val generateContractWrappers by tasks.registering(JavaExec::class) {
     classpath(jvmMainCompilation.output.allOutputs, jvmMainCompilation.runtimeDependencyFiles)
     mainClass = "io.ethers.abigen.AbigenCliKt"
 
+    // copied to locals, so the lambda does not capture the build script - the configuration cache cannot
+    // serialize script object references
+    val abiPath = abiDir.asFile.absolutePath
+    val outputDir = generatedSourceDir
+    val packageName = generatedPackage
     argumentProviders.add(
         CommandLineArgumentProvider {
-            listOf(
-                abiDir.asFile.absolutePath,
-                generatedSourceDir.get().asFile.absolutePath,
-                generatedPackage,
-            )
+            listOf(abiPath, outputDir.get().asFile.absolutePath, packageName)
         },
     )
 }
