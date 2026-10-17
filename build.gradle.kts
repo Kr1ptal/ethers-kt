@@ -18,9 +18,12 @@ allprojects {
 
 subprojects {
     tasks.register("depsize", Task::class.java) {
+        // resolved at configuration time, `project` cannot be accessed during execution with the configuration cache
+        val configuration: FileCollection? = configurations.findByName("runtimeClasspath")
+        val projectName = project.name
+
         doLast {
-            val configuration = runCatching { project.configurations["runtimeClasspath"] }
-                .getOrNull() ?: return@doLast
+            if (configuration == null) return@doLast
 
             var maxNameLength = 0
             var totalSizeMb = 0.0
@@ -38,7 +41,7 @@ subprojects {
             val out = StringBuffer()
             out.append(newLine)
             out.append(separatorLine)
-            out.append("| Dependency sizes for ${project.name}")
+            out.append("| Dependency sizes for $projectName")
             out.append(newLine)
             out.append(separatorLine)
 
