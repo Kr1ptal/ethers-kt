@@ -4,6 +4,7 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import io.kotest.matchers.types.shouldBeSameInstanceAs
 
 class ResultTest : FunSpec({
     val successValue = Result.success<String, ThrowableError>("hello")
@@ -81,6 +82,29 @@ class ResultTest : FunSpec({
 
         test("throws on Failure") {
             shouldThrow<RuntimeException> { failureValue.unwrap() }
+        }
+    }
+
+    context("unwrap error types") {
+        test("throws a ThrowableError as an exception that keeps it") {
+            val e = shouldThrow<ThrowableError.Exception> { failureValue.unwrap() }
+            e.error shouldBe testError
+        }
+
+        test("rethrows a RuntimeException error as is") {
+            val cause = IllegalArgumentException("runtime")
+            val thrown = shouldThrow<IllegalArgumentException> { Result.failure<String, Throwable>(cause).unwrap() }
+            thrown shouldBeSameInstanceAs cause
+        }
+
+        test("rethrows an Error error as is") {
+            val cause = NotImplementedError("error")
+            val thrown = shouldThrow<NotImplementedError> { Result.failure<String, Throwable>(cause).unwrap() }
+            thrown shouldBeSameInstanceAs cause
+        }
+
+        test("throws IllegalStateException for any other error") {
+            shouldThrow<IllegalStateException> { Result.failure<String, Int>(42).unwrap() }
         }
     }
 

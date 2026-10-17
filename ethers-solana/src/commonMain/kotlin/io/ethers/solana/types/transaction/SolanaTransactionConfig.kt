@@ -13,6 +13,7 @@ import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 import kotlin.jvm.JvmOverloads
+import kotlin.native.ObjCName
 
 /**
  * V1 inline resource requests, also used by the RPC message's transactionConfig.
@@ -22,7 +23,11 @@ import kotlin.jvm.JvmOverloads
  */
 @KeepGeneratedSerializer
 @Serializable(with = SolanaTransactionConfigSerializer::class)
-data class SolanaTransactionConfig @JvmOverloads constructor(
+@ObjCName("SolanaTransactionConfig", exact = true)
+data class SolanaTransactionConfig
+@JvmOverloads
+@Throws(IllegalArgumentException::class)
+constructor(
     /** Total priority fee in lamports, NOT micro-lamports per compute unit. */
     val priorityFee: BigInteger? = null,
     @Serializable(with = U32Serializer::class) val computeUnitLimit: Long? = null,

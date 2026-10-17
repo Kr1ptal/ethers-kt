@@ -10,6 +10,7 @@ import io.ethers.solana.types.SolanaSignature
 import io.github.artificialpb.bignum.BigInteger
 import kotlin.concurrent.Volatile
 import kotlin.jvm.JvmStatic
+import kotlin.native.ObjCName
 
 /**
  * Legacy transaction payload. Every account is inline; lookup tables are not supported.
@@ -17,6 +18,7 @@ import kotlin.jvm.JvmStatic
  * The constructor keeps the lists it is given rather than copying them, so pass immutable lists;
  * mutating them afterwards changes the transaction and invalidates its validated state.
  */
+@ObjCName("SolanaTxLegacy", exact = true)
 class SolanaTxLegacy private constructor(
     override val header: MessageHeader,
     override val accounts: List<SolanaAddress>,
@@ -41,6 +43,7 @@ class SolanaTxLegacy private constructor(
      * Validate the fields, throwing [SolanaTransactionException] if they do not describe a legal
      * message. [create] reports the same failure as a value, without building an exception.
      */
+    @Throws(IllegalArgumentException::class)
     constructor(
         header: MessageHeader,
         accounts: List<SolanaAddress>,

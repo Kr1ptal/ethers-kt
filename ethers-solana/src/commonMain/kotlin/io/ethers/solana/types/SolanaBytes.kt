@@ -6,6 +6,7 @@ import kotlin.io.encoding.Base64
 import kotlin.jvm.JvmField
 import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmStatic
+import kotlin.native.ObjCName
 
 /**
  * Variable size byte array with explicit text encodings.
@@ -17,13 +18,16 @@ import kotlin.jvm.JvmStatic
  * No default JSON serializer is provided: the containing field determines its wire encoding.
  * This type carries no address, instruction, or transaction semantics.
  */
+@ObjCName("SolanaBytes", exact = true)
 class SolanaBytes private constructor(private val value: ByteArray) {
     val size: Int get() = value.size
     val isEmpty: Boolean get() = value.isEmpty()
 
+    @Throws(IndexOutOfBoundsException::class, IllegalArgumentException::class)
     operator fun get(index: Int): Byte = value[index]
 
     /** Copy from [fromIndex] (inclusive) to [toIndex] (exclusive), rejecting invalid ranges. */
+    @Throws(IndexOutOfBoundsException::class, IllegalArgumentException::class)
     fun slice(fromIndex: Int, toIndex: Int): SolanaBytes {
         if (fromIndex !in 0..size || toIndex !in 0..size) {
             throw IndexOutOfBoundsException("Range [$fromIndex, $toIndex) is outside 0..$size")
@@ -53,6 +57,7 @@ class SolanaBytes private constructor(private val value: ByteArray) {
 
     /** Copy all bytes, validating the destination range before writing anything. */
     @JvmOverloads
+    @Throws(IndexOutOfBoundsException::class, IllegalArgumentException::class)
     fun copyInto(destination: ByteArray, destinationOffset: Int = 0) {
         if (destinationOffset < 0 || destinationOffset > destination.size || size > destination.size - destinationOffset) {
             throw IndexOutOfBoundsException("Insufficient destination space at offset $destinationOffset for $size bytes")
@@ -86,13 +91,16 @@ class SolanaBytes private constructor(private val value: ByteArray) {
         fun fromBytes(bytes: ByteArray): SolanaBytes = if (bytes.isEmpty()) EMPTY else SolanaBytes(bytes)
 
         @JvmStatic
+        @Throws(IllegalArgumentException::class)
         fun fromBase58(value: String): SolanaBytes = if (value.isEmpty()) EMPTY else SolanaBytes(Base58.decode(value))
 
         @JvmStatic
+        @Throws(IllegalArgumentException::class)
         fun fromBase64(value: String): SolanaBytes = if (value.isEmpty()) EMPTY else SolanaBytes(Base64.decode(value))
 
         /** Decode hexadecimal with an optional 0x/0X prefix. Invalid or odd-length hex is rejected. */
         @JvmStatic
+        @Throws(IllegalArgumentException::class)
         fun fromHex(value: String): SolanaBytes {
             require(value.length % 2 == 0) { "Hex data must contain an even number of digits" }
             val decoded = FastHex.decode(value)

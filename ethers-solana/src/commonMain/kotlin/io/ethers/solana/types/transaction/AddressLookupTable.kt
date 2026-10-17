@@ -17,7 +17,10 @@ import kotlin.jvm.JvmStatic
  * [deactivationSlot] and [authority] are populated by [decode]; a table whose deactivation slot has
  * passed can no longer be used by a transaction.
  */
-data class AddressLookupTableAccount @JvmOverloads constructor(
+data class AddressLookupTableAccount
+@JvmOverloads
+@Throws(IllegalArgumentException::class)
+constructor(
     val key: SolanaAddress,
     val addresses: List<SolanaAddress>,
     val deactivationSlot: BigInteger? = null,

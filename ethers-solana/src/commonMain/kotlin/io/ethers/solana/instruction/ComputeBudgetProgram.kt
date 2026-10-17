@@ -36,21 +36,26 @@ object ComputeBudgetProgram {
 
     /** Cap the transaction at [units] compute units. */
     @JvmStatic
+    @Throws(IllegalArgumentException::class)
     fun setComputeUnitLimit(units: Long): Instruction = encode(SET_COMPUTE_UNIT_LIMIT, bigIntegerOf(units))
 
     /** Request [bytes] of heap space, a multiple of 1 KiB in 32..256 KiB. */
     @JvmStatic
+    @Throws(IllegalArgumentException::class)
     fun requestHeapFrame(bytes: Long): Instruction = encode(REQUEST_HEAP_FRAME, bigIntegerOf(bytes))
 
     /** Cap the combined size of the accounts the transaction loads at [bytes]. */
     @JvmStatic
+    @Throws(IllegalArgumentException::class)
     fun setLoadedAccountsDataSizeLimit(bytes: Long): Instruction = encode(SET_LOADED_ACCOUNTS_DATA_SIZE_LIMIT, bigIntegerOf(bytes))
 
     /** Bid [microLamports] per compute unit as a prioritization fee. */
     @JvmStatic
+    @Throws(IllegalArgumentException::class)
     fun setComputeUnitPrice(microLamports: BigInteger): Instruction = encode(SET_COMPUTE_UNIT_PRICE, requireU64(microLamports))
 
     @JvmStatic
+    @Throws(IllegalArgumentException::class)
     fun setComputeUnitPrice(microLamports: Long): Instruction = setComputeUnitPrice(bigIntegerOf(microLamports))
 
     /**
