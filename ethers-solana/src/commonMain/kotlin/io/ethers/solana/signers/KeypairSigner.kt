@@ -28,11 +28,15 @@ class KeypairSigner private constructor(seed: ByteArray) : SolanaSigner {
 
     companion object {
         @JvmStatic fun generate(): KeypairSigner = fromSeed(Hashing.generateRandomBytes(32))
-        @JvmStatic fun fromSeed(seed: ByteArray): KeypairSigner {
+        @JvmStatic
+        @Throws(IllegalArgumentException::class)
+        fun fromSeed(seed: ByteArray): KeypairSigner {
             require(seed.size == 32) { "Seed must contain exactly 32 bytes" }
             return KeypairSigner(seed)
         }
-        @JvmStatic fun fromSecretKey(secretKey: ByteArray): KeypairSigner {
+        @JvmStatic
+        @Throws(IllegalArgumentException::class)
+        fun fromSecretKey(secretKey: ByteArray): KeypairSigner {
             require(secretKey.size == 64) { "Secret key must contain a 32-byte seed and 32-byte public key" }
             val signer = fromSeed(secretKey.copyOfRange(0, 32))
             require(signer.publicKey.asByteArray().contentEquals(secretKey.copyOfRange(32, 64))) { "Secret key public half does not match its seed" }

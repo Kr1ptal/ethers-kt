@@ -5,10 +5,13 @@ import io.ethers.solana.signers.SolanaSigner
 import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.types.SolanaSignature
 import kotlin.jvm.JvmStatic
+import kotlin.native.ObjCName
 
 /** A compiled legacy, v0 or v1 payload with no signatures. */
+@ObjCName("SolanaTransactionUnsigned", exact = true)
 sealed interface SolanaTransactionUnsigned : SolanaTransactionCompiled {
     /** Sign with every required signer, failing if any signature is missing or invalid. */
+    @Throws(IllegalArgumentException::class)
     fun sign(vararg signers: SolanaSigner): SolanaTransactionSigned = signingBuilder().sign(*signers).build().unwrap()
 
     /** Rebuild the payload against a fresh blockhash. */

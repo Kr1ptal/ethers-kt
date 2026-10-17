@@ -3,6 +3,7 @@ package io.ethers.solana.types.transaction
 import io.ethers.core.Result
 import io.ethers.core.unwrapOrReturn
 import kotlin.jvm.JvmStatic
+import kotlin.native.ObjCName
 
 /**
  * A transaction this library compiled itself, so it owns the message down to the byte: the accounts,
@@ -12,6 +13,7 @@ import kotlin.jvm.JvmStatic
  * A node's response is a [SolanaTransaction] but never one of these, since it can carry a version this
  * library cannot compile.
  */
+@ObjCName("SolanaTransactionCompiled", exact = true)
 sealed interface SolanaTransactionCompiled : SolanaTransaction {
     override val instructions: List<MessageInstruction>
 

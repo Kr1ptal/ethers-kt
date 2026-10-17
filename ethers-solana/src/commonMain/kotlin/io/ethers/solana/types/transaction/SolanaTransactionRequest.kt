@@ -15,6 +15,7 @@ import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
 import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmSynthetic
+import kotlin.native.ObjCName
 
 /**
  * An incomplete transaction, to be compiled into a [SolanaTransactionUnsigned] of a chosen version.
@@ -39,6 +40,7 @@ import kotlin.jvm.JvmSynthetic
  * val v1 = request.compileV1()
  * ```
  */
+@ObjCName("SolanaTransactionRequest", exact = true)
 class SolanaTransactionRequest() {
     constructor(other: SolanaTransactionRequest) : this() {
         this.feePayer = other.feePayer
