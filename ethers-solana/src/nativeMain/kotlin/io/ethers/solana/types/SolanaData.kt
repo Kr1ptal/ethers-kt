@@ -89,5 +89,4 @@ fun SolanaTransactionSigned.Companion.deserialize(data: NSData): Result<SolanaTr
 fun SolanaTransactionSigned.Builder.serializePartialData(): NSData = serializePartial().toNSData()
 
 /** As [SolanaTransactionSigned.Builder.deserializePartial], from a partially signed envelope. */
-fun SolanaTransactionSigned.Builder.Companion.deserializePartial(data: NSData): Result<SolanaTransactionSigned.Builder, SolanaTransactionError> =
-    deserializePartial(data.toByteArray())
+fun SolanaTransactionSigned.Builder.Companion.deserializePartial(data: NSData): Result<SolanaTransactionSigned.Builder, SolanaTransactionError> = deserializePartial(data.toByteArray())
