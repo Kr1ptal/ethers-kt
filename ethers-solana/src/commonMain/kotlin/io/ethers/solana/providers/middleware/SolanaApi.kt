@@ -240,8 +240,11 @@ interface SolanaApi {
      */
     fun getAddressLookupTable(address: SolanaAddress, commitment: Commitment): RpcRequest<ContextValue<AddressLookupTableAccount?>, RpcError> = getAddressLookupTable(address, SolanaReadConfig(commitment = commitment))
     fun getAddressLookupTable(address: SolanaAddress, config: SolanaReadConfig): RpcRequest<ContextValue<AddressLookupTableAccount?>, RpcError> {
-        return getAccountInfo(address, SolanaAccountConfig(commitment = config.commitment, minContextSlot = config.minContextSlot)).map { response ->
-            ContextValue(response.context, response.value?.let { AddressLookupTableAccount.decode(address, it.data.asByteArray()).unwrap() })
+        return getAccountInfo(address, SolanaAccountConfig(commitment = config.commitment, minContextSlot = config.minContextSlot)).andThen { response ->
+            val account = response.value ?: return@andThen success(ContextValue(response.context, null))
+            AddressLookupTableAccount.decode(address, account.data.asByteArray())
+                .map<ContextValue<AddressLookupTableAccount?>> { ContextValue(response.context, it) }
+                .mapError { it.toRpcError() }
         }
     }
 
@@ -271,7 +274,8 @@ interface SolanaApi {
                         .value
                     val tables = ArrayList<AddressLookupTableAccount>(keys.size)
                     keys.forEachIndexed { index, key ->
-                        val data = accounts[index]
+                        // a node answering with fewer entries than asked for is treated like a missing account
+                        val data = accounts.getOrNull(index)
                             ?: return@SuppliedRpcRequest failure(RpcError(INVALID_PARAMS, "Lookup table $key does not exist, so this transaction cannot be resolved"))
                         tables.add(
                             AddressLookupTableAccount.decode(key, data.data.asByteArray())
@@ -408,6 +412,20 @@ interface SolanaApi {
         lookupTables: List<AddressLookupTableAccount>,
         commitment: Commitment,
         computeUnitMarginPercent: Int,
+    ): RpcRequest<SolanaTransactionUnsigned, RpcError> {
+        // below -100% the estimated limit would turn negative
+        if (computeUnitMarginPercent < -100) {
+            return SuppliedRpcRequest { failure(RpcError(INVALID_PARAMS, "Compute unit margin cannot be below -100%, got $computeUnitMarginPercent%")) }
+        }
+        return fillValidated(request, type, lookupTables, commitment, computeUnitMarginPercent)
+    }
+
+    private fun fillValidated(
+        request: SolanaTransactionRequest,
+        type: SolanaTxType?,
+        lookupTables: List<AddressLookupTableAccount>,
+        commitment: Commitment,
+        computeUnitMarginPercent: Int,
     ): RpcRequest<SolanaTransactionUnsigned, RpcError> = SuppliedRpcRequest {
         val filled = SolanaTransactionRequest(request)
 
@@ -487,7 +505,9 @@ interface SolanaApi {
     fun getSignatureStatuses(signatures: List<SolanaSignature>): RpcRequest<ContextValue<List<SignatureStatus?>>, RpcError> = getSignatureStatuses(signatures, false)
     fun getSignatureStatuses(signature: SolanaSignature): RpcRequest<ContextValue<List<SignatureStatus?>>, RpcError> = getSignatureStatuses(listOf(signature), false)
     fun getSignatureStatuses(signatures: List<SolanaSignature>, searchTransactionHistory: Boolean): RpcRequest<ContextValue<List<SignatureStatus?>>, RpcError> {
-        require(signatures.size <= 256) { "At most 256 signatures can be queried at once, got ${signatures.size}" }
+        if (signatures.size > 256) {
+            return SuppliedRpcRequest { failure(RpcError(INVALID_PARAMS, "At most 256 signatures can be queried at once, got ${signatures.size}")) }
+        }
         val options = buildJsonObject { put("searchTransactionHistory", searchTransactionHistory) }
         return rpc("getSignatureStatuses", signatures.map { it.toString() }, options) { element ->
             decodeContext(element) { value -> value.jsonArray.map { if (it == JsonNull) null else decode<SignatureStatus>(it) } }

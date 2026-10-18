@@ -173,7 +173,14 @@ class SolanaTransactionSigned private constructor(
             val (tx, signatures) = decodeTransactionEnvelope(bytes).unwrapOrReturn { return Result.failure(it) }
             val missing = signatures.count { it == null }
             if (missing > 0) return Result.failure(SolanaTransactionError.PartiallySigned(missing, signatures.size))
-            // checked as a value, so the validating constructor below can never be the one to report it
+            return verified(tx, signatures)
+        }
+
+        /**
+         * Decoded slots, all filled, as a signed transaction. Checked as a value, so the validating
+         * constructor can never be the one to report a bad signature.
+         */
+        internal fun verified(tx: SolanaTransactionUnsigned, signatures: List<SolanaSignature?>): Result<SolanaTransactionSigned, SolanaTransactionError> {
             signatureError(tx, signatures)?.let { return Result.failure(it) }
             return Result.success(SolanaTransactionSigned(tx, signatures.filled(), validated = true))
         }

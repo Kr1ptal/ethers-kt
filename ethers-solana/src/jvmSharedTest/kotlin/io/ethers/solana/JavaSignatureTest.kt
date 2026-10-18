@@ -4,6 +4,7 @@ import io.ethers.solana.instruction.AddressLookupTableProgram
 import io.ethers.solana.instruction.AssociatedTokenProgram
 import io.ethers.solana.instruction.ComputeBudgetProgram
 import io.ethers.solana.instruction.Ed25519Program
+import io.ethers.solana.instruction.MemoProgram
 import io.ethers.solana.instruction.Secp256k1Program
 import io.ethers.solana.instruction.SystemProgram
 import io.ethers.solana.instruction.Token2022Program
@@ -14,15 +15,20 @@ import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.types.SolanaBytes
 import io.ethers.solana.types.SolanaSignature
+import io.ethers.solana.types.rpc.DataSlice
+import io.ethers.solana.types.rpc.SolanaSendConfig
+import io.ethers.solana.types.rpc.SolanaSimulationConfig
 import io.ethers.solana.types.transaction.AddressLookupTableAccount
 import io.ethers.solana.types.transaction.SolanaTransaction
 import io.ethers.solana.types.transaction.SolanaTransactionConfig
+import io.ethers.solana.types.transaction.SolanaTransactionRequest
 import io.ethers.solana.types.transaction.SolanaTransactionSigned
 import io.ethers.solana.types.transaction.SolanaTransactionUnsigned
 import io.ethers.solana.types.transaction.SolanaTxLegacy
 import io.ethers.solana.types.transaction.SolanaTxType
 import io.ethers.solana.types.transaction.SolanaTxV0
 import io.ethers.solana.types.transaction.SolanaTxV1
+import io.ethers.solana.utils.SolUnit
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotBeEmpty
@@ -41,7 +47,8 @@ class JavaSignatureTest : FunSpec({
         AddressLookupTableAccount::class, SolanaTransaction::class, SolanaTransactionConfig::class,
         SolanaTransactionSigned::class, SolanaTransactionSigned.Builder::class, SolanaTransactionUnsigned::class,
         SolanaTxLegacy::class, SolanaTxV0::class, SolanaTxV1::class, SolanaTxType.Companion::class,
-        SolanaTxType.Unsupported::class,
+        SolanaTxType.Unsupported::class, MemoProgram::class, SolanaTransactionRequest::class, DataSlice::class,
+        SolanaSendConfig::class, SolanaSimulationConfig::class, SolUnit::class,
     ).map { it.java }
 
     fun Class<*>.executables(): List<Executable> = declaredMethods.toList() + declaredConstructors

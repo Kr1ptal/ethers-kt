@@ -33,7 +33,10 @@ sealed interface SolanaTransactionUnsigned : SolanaTransactionCompiled {
      * v0 place the signature vector before the message, v1 after it. Prefer
      * [SolanaTransactionSigned.serialize], [SolanaTransactionSigned.Builder.serializePartial] or
      * [serializeForSimulation], which supply the signatures they already hold.
+     *
+     * @throws IllegalArgumentException if [signatures] does not hold exactly one slot per required signature
      */
+    @Throws(IllegalArgumentException::class)
     fun encodeEnvelope(signatures: List<SolanaSignature?>): ByteArray
 
     override fun serializeForSimulation(): ByteArray = encodeEnvelope(List(header.requiredSignatures) { null })

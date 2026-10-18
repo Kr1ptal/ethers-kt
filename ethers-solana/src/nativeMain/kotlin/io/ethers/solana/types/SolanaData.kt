@@ -21,7 +21,10 @@ import platform.posix.memcpy
 // Objective-C selector never collides with the `ByteArray` one; outputs cannot overload on the return type, so they
 // carry a `Data` suffix.
 
-/** Copy [this] into a new [ByteArray]. */
+/**
+ * Copy [this] into a new [ByteArray]. Data over 2 GiB has no `ByteArray` to go into, which is why every function
+ * taking `NSData` declares [IllegalArgumentException], even those returning a `Result`.
+ */
 internal fun NSData.toByteArray(): ByteArray {
     val size = length
     require(size <= Int.MAX_VALUE.toULong()) { "NSData of $size bytes does not fit a ByteArray" }
@@ -58,6 +61,7 @@ fun SolanaBlockhash.Companion.fromData(data: NSData): SolanaBlockhash = SolanaBl
 fun SolanaBlockhash.toData(): NSData = asByteArray().toNSData()
 
 /** As [SolanaBytes.fromBytes], from a copy of [data]. */
+@Throws(IllegalArgumentException::class)
 fun SolanaBytes.Companion.fromData(data: NSData): SolanaBytes = fromBytes(data.toByteArray())
 
 /** A copy of the bytes. */
@@ -75,19 +79,23 @@ fun KeypairSigner.Companion.fromSecretKey(data: NSData): KeypairSigner = fromSec
 fun SolanaTransactionCompiled.serializeMessageData(): NSData = serializeMessage().toNSData()
 
 /** As [SolanaTransactionCompiled.deserialize], from an unsigned or fully signed envelope. */
+@Throws(IllegalArgumentException::class)
 fun SolanaTransactionCompiled.Companion.deserialize(data: NSData): Result<SolanaTransactionCompiled, SolanaTransactionError> = deserialize(data.toByteArray())
 
 /** As [SolanaTransactionUnsigned.deserializeMessage], from message bytes. */
+@Throws(IllegalArgumentException::class)
 fun SolanaTransactionUnsigned.Companion.deserializeMessage(data: NSData): Result<SolanaTransactionUnsigned, SolanaTransactionError> = deserializeMessage(data.toByteArray())
 
 /** As [SolanaTransactionSigned.serialize]: the submit-ready envelope. */
 fun SolanaTransactionSigned.serializeData(): NSData = serialize().toNSData()
 
 /** As [SolanaTransactionSigned.deserialize], from a fully signed envelope. */
+@Throws(IllegalArgumentException::class)
 fun SolanaTransactionSigned.Companion.deserialize(data: NSData): Result<SolanaTransactionSigned, SolanaTransactionError> = deserialize(data.toByteArray())
 
 /** As [SolanaTransactionSigned.Builder.serializePartial]: the envelope with zeros for missing signatures. */
 fun SolanaTransactionSigned.Builder.serializePartialData(): NSData = serializePartial().toNSData()
 
 /** As [SolanaTransactionSigned.Builder.deserializePartial], from a partially signed envelope. */
+@Throws(IllegalArgumentException::class)
 fun SolanaTransactionSigned.Builder.Companion.deserializePartial(data: NSData): Result<SolanaTransactionSigned.Builder, SolanaTransactionError> = deserializePartial(data.toByteArray())

@@ -565,5 +565,37 @@ class SolanaProviderTest : FunSpec({
         response = contextual("[null]")
         provider.decompileTransaction(v0).send().unwrapError().message shouldBe
             "Lookup table $tableKey does not exist, so this transaction cannot be resolved"
+
+        // a node answering with fewer accounts than asked for is reported the same way, not thrown
+        response = contextual("[]")
+        provider.decompileTransaction(v0).send().unwrapError().message shouldBe
+            "Lookup table $tableKey does not exist, so this transaction cannot be resolved"
+    }
+
+    // Regression: each of these used to throw out of the request instead of failing it, aborting a Swift caller.
+    context("bad input fails the request instead of throwing") {
+        test("an account that is not a lookup table") {
+            response = contextual(account)
+            val error = provider.getAddressLookupTable(address).send().unwrapError()
+            error.message shouldBe "A lookup table account holds 56 header bytes and whole addresses, got 3"
+        }
+
+        test("a missing lookup table account is still a null value") {
+            response = contextual("null")
+            provider.getAddressLookupTable(address).send().unwrap().value shouldBe null
+        }
+
+        test("more than 256 signatures, without sending anything") {
+            val error = provider.getSignatureStatuses(List(257) { signature }).send().unwrapError()
+            error.message shouldBe "At most 256 signatures can be queried at once, got 257"
+            requests.size shouldBe 0
+        }
+
+        test("a compute unit margin below -100%, without sending anything") {
+            val request = SolanaTransactionRequest().feePayer(address).blockhash(blockhash).instruction(SystemProgram.transfer(address, address, 1L))
+            val error = provider.fillTransaction(request, emptyList(), Commitment.CONFIRMED, -101).send().unwrapError()
+            error.message shouldBe "Compute unit margin cannot be below -100%, got -101%"
+            requests.size shouldBe 0
+        }
     }
 })

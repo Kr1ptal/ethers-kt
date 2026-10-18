@@ -357,6 +357,8 @@ fun <E> failure(error: E) = Result.failure<Nothing, E>(error)
  * }
  * ```
  * */
+// a Swift block cannot return Nothing, so a Failure would run past it; Kotlin-only
+@HiddenFromObjC
 @OptIn(ExperimentalContracts::class)
 inline fun <R, T : R, E> Result<T, E>.unwrapOrReturn(onFailure: (E) -> Nothing): R {
     contract { callsInPlace(onFailure, InvocationKind.AT_MOST_ONCE) }
@@ -400,6 +402,8 @@ inline fun <T, R> kotlin.Result<T>.andThenCatching(mapper: (T) -> kotlin.Result<
  * }
  * ```
  * */
+// a Swift block cannot return Nothing, so a Failure would run past it; Kotlin-only
+@HiddenFromObjC
 @OptIn(ExperimentalContracts::class)
 inline fun <R, T : R> kotlin.Result<T>.unwrapOrReturn(onFailure: (Throwable) -> Nothing): R {
     contract { callsInPlace(onFailure, InvocationKind.AT_MOST_ONCE) }
