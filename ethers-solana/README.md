@@ -78,8 +78,10 @@ alternative.
 
 The byte-heavy entry points also take and return `Data`. Inputs keep their names (`deserializePartial(data:)`,
 `SolanaAddress.companion.fromData(data:)`), while outputs carry a `Data` suffix (`serializeData()`,
-`serializePartialData()`, `serializeMessageData()`, `toData()`). Main types keep their Kotlin names in Swift,
-unprefixed: `SolanaTransactionSignedBuilder`, `EthersResult`, `SolanaTransactionErrorUnsignedSlots`.
+`serializePartialData()`, `toData()`). The message bytes are the exception: `SolanaTransactionCompiled` is an
+interface, which Objective-C cannot extend, so they come from the free function `SolanaDataKt.serializeMessageData(tx)`.
+Main types keep their Kotlin names in Swift, unprefixed: `SolanaTransactionSignedBuilder`, `EthersResult`,
+`SolanaTransactionErrorUnsignedSlots`.
 
 ```swift
 let builder = try SolanaTransactionSignedBuilder.companion.deserializePartial(data: envelope).unwrap()!
