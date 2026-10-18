@@ -57,6 +57,11 @@ class JavaSignatureTest : FunSpec({
         classes.flatMap { it.executables() }.filter { it.exceptionTypes.isNotEmpty() }.shouldNotBeEmpty()
     }
 
+    test("an unsupported transaction type has no public constructor, so it comes only from fromVersion") {
+        // the synthetic accessor the companion uses is not callable from Java source
+        SolanaTxType.Unsupported::class.java.constructors.filterNot { it.isSynthetic }.shouldBeEmpty()
+    }
+
     test("no public declaration declares a checked exception") {
         val checked = classes.flatMap { it.executables() }.flatMap { executable ->
             executable.exceptionTypes

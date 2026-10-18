@@ -518,7 +518,7 @@ class SolanaTransactionRequestTest : FunSpec({
                 ),
             ),
             meta = null,
-            type = SolanaTxType.Unsupported(3),
+            type = SolanaTxType.fromVersion(3),
         )
         unsupported.computeUnitLimit shouldBe null
         unsupported.priorityFee shouldBe null

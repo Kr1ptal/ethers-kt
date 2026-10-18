@@ -141,6 +141,7 @@ func solanaTests(_ t: Harness, _ f: TransferFixture) {
             ("DataSlice", { _ = try DataSlice(offset: -1, length: 0) }),
             ("SolanaSendConfig", { _ = try SolanaSendConfig(skipPreflight: false, preflightCommitment: nil, maxRetries: KotlinInt(value: -1), minContextSlot: nil) }),
             ("computeUnitLimit", { _ = try SolanaTransactionRequest().computeUnitLimit(computeUnitLimit: KotlinLong(value: -1)) }),
+            ("DataSlice copy", { _ = try DataSlice(offset: 0, length: 0).doCopy(offset: -1, length: 0) }),
             ("memo", { _ = try MemoProgram.shared.memo(message: "fine", signers: []) }),
         ] as [(String, () throws -> Void)] {
             do {
@@ -150,6 +151,11 @@ func solanaTests(_ t: Harness, _ f: TransferFixture) {
                 t.check((error as NSError).kotlinException is KotlinIllegalArgumentException, "\(name) threw \(error)")
             }
         }
+    }
+
+    t.test("an unsupported transaction type comes from fromVersion") {
+        let type = try SolanaTxType.companion.fromVersion(version: 5)
+        t.check(type is SolanaTxTypeUnsupported, "fromVersion(5) is unsupported, got \(type)")
     }
 
     t.test("message bytes round trip through Data") {
