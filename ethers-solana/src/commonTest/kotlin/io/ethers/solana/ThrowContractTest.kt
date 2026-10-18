@@ -6,9 +6,13 @@ import io.ethers.solana.instruction.SystemProgram
 import io.ethers.solana.signers.KeypairSigner
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
+import io.ethers.solana.types.rpc.DataSlice
+import io.ethers.solana.types.rpc.SolanaSendConfig
+import io.ethers.solana.types.rpc.SolanaSimulationConfig
 import io.ethers.solana.types.transaction.AddressLookupTableAccount
 import io.ethers.solana.types.transaction.CompiledAddressLookupTable
 import io.ethers.solana.types.transaction.SolanaTransactionCompiled
+import io.ethers.solana.types.transaction.SolanaTransactionConfig
 import io.ethers.solana.types.transaction.SolanaTransactionError
 import io.ethers.solana.types.transaction.SolanaTransactionRequest
 import io.ethers.solana.types.transaction.SolanaTxLegacy
@@ -77,6 +81,55 @@ class ThrowContractTest : FunSpec({
             val error = AddressLookupTableAccount.decode(recipient, data).unwrapError()
             error.shouldBeInstanceOf<SolanaTransactionError.CountOutOfRange>()
             error.limit shouldBe SolanaTransactionError.Limit.LOOKUP_TABLE
+        }
+    }
+
+    // Not data classes, so their copy can declare @Throws; these pin that they still behave like data classes.
+    context("validating classes copy like data classes, throwing only the declared type") {
+        test("DataSlice") {
+            val slice = DataSlice(1, 2)
+            slice.copy(length = 3) shouldBe DataSlice(1, 3)
+            shouldThrow<IllegalArgumentException> { slice.copy(offset = -1) }
+            val (offset, length) = slice
+            (offset to length) shouldBe (1 to 2)
+            slice.hashCode() shouldBe DataSlice(1, 2).hashCode()
+            slice.toString() shouldBe "DataSlice(offset=1, length=2)"
+        }
+
+        test("SolanaSendConfig") {
+            val config = SolanaSendConfig(maxRetries = 3)
+            config.copy(skipPreflight = true) shouldBe SolanaSendConfig(skipPreflight = true, maxRetries = 3)
+            shouldThrow<IllegalArgumentException> { config.copy(maxRetries = -1) }
+            val (skip, _, retries) = config
+            (skip to retries) shouldBe (false to 3)
+            config.hashCode() shouldBe SolanaSendConfig(maxRetries = 3).hashCode()
+            config.toString() shouldBe "SolanaSendConfig(skipPreflight=false, preflightCommitment=null, maxRetries=3, minContextSlot=null)"
+        }
+
+        test("SolanaSimulationConfig") {
+            val config = SolanaSimulationConfig.READ_ONLY
+            config.copy(innerInstructions = true) shouldBe SolanaSimulationConfig(replaceRecentBlockhash = true, innerInstructions = true)
+            shouldThrow<IllegalArgumentException> { config.copy(sigVerify = true) }
+            shouldThrow<IllegalArgumentException> { config.copy(accounts = List(256) { recipient }) }
+            config.component3() shouldBe true
+            config.hashCode() shouldBe SolanaSimulationConfig(replaceRecentBlockhash = true).hashCode()
+        }
+
+        test("SolanaTransactionConfig") {
+            val config = SolanaTransactionConfig(computeUnitLimit = 10)
+            config.copy(heapSize = 32768) shouldBe SolanaTransactionConfig(computeUnitLimit = 10, heapSize = 32768)
+            shouldThrow<IllegalArgumentException> { config.copy(computeUnitLimit = -1) }
+            config.component2() shouldBe 10L
+            config.hashCode() shouldBe SolanaTransactionConfig(computeUnitLimit = 10).hashCode()
+        }
+
+        test("AddressLookupTableAccount") {
+            val table = AddressLookupTableAccount(recipient, listOf(payer.publicKey))
+            table.copy(addresses = emptyList()) shouldBe AddressLookupTableAccount(recipient, emptyList())
+            shouldThrow<IllegalArgumentException> { table.copy(addresses = List(257) { recipient }) }
+            val (key, addresses) = table
+            (key to addresses) shouldBe (recipient to listOf(payer.publicKey))
+            table.hashCode() shouldBe AddressLookupTableAccount(recipient, listOf(payer.publicKey)).hashCode()
         }
     }
 

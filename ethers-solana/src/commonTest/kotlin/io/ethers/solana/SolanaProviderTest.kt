@@ -465,7 +465,7 @@ class SolanaProviderTest : FunSpec({
         response = """{"slot":9007199254740993,"blockTime":null,"version":2,"transaction":{"signatures":["$signature"],"message":{"header":{"numRequiredSignatures":1,"numReadonlySignedAccounts":0,"numReadonlyUnsignedAccounts":0},"accountKeys":["$address"],"recentBlockhash":"$blockhash","instructions":[]},"futureMessage":true},"meta":{"err":null,"fee":0,"preBalances":[],"postBalances":[],"future":7},"extra":42}"""
         val tx = provider.getTransaction(signature).send().unwrap()!!
         tx.slot shouldBe BigInteger("9007199254740993")
-        tx.type shouldBe SolanaTxType.Unsupported(2)
+        tx.type shouldBe SolanaTxType.fromVersion(2)
         tx.otherFields["extra"] shouldBe Kotlinx.DEFAULT.parseToJsonElement("42")
         tx.transaction.otherFields["futureMessage"] shouldBe Kotlinx.DEFAULT.parseToJsonElement("true")
         tx.meta!!.otherFields["future"] shouldBe Kotlinx.DEFAULT.parseToJsonElement("7")
@@ -488,7 +488,7 @@ class SolanaProviderTest : FunSpec({
     test("transaction history returns typed fields even for unsupported versions") {
         response = """{"slot":1,"blockTime":null,"version":2,"transaction":{"signatures":["$signature"],"message":{"header":{"numRequiredSignatures":1,"numReadonlySignedAccounts":0,"numReadonlyUnsignedAccounts":0},"accountKeys":["$address"],"recentBlockhash":"$blockhash","instructions":[]}},"meta":{"err":null,"fee":5000,"preBalances":[],"postBalances":[],"logMessages":["hello"]}}"""
         val tx = provider.getTransaction(signature).send().unwrap()!!
-        tx.type shouldBe SolanaTxType.Unsupported(2)
+        tx.type shouldBe SolanaTxType.fromVersion(2)
         tx.transaction.signatures shouldBe listOf(signature)
         tx.transaction.message.accountKeys.single() shouldBe address
         tx.transaction.message.recentBlockhash shouldBe blockhash

@@ -13,8 +13,11 @@ import kotlin.jvm.JvmOverloads
  * [AccountInfo.space] still reports the whole account, since the node sends it alongside the slice.
  * A node old enough to omit that field is the one exception: the size then falls back to the bytes
  * returned, which under a slice is the slice.
+ *
+ * Not a data class: a generated `copy` would re-run the validation without declaring it, which a Swift caller
+ * cannot catch. The hand-written members below match what a data class generates.
  */
-data class DataSlice
+class DataSlice
 @JvmOverloads
 @Throws(IllegalArgumentException::class)
 constructor(val offset: Int, val length: Int = 0) {
@@ -22,6 +25,16 @@ constructor(val offset: Int, val length: Int = 0) {
         require(offset >= 0) { "A data slice cannot start before the account, got $offset" }
         require(length >= 0) { "A data slice cannot have a negative length, got $length" }
     }
+
+    @Throws(IllegalArgumentException::class)
+    fun copy(offset: Int = this.offset, length: Int = this.length): DataSlice = DataSlice(offset, length)
+
+    operator fun component1(): Int = offset
+    operator fun component2(): Int = length
+
+    override fun equals(other: Any?): Boolean = this === other || (other is DataSlice && offset == other.offset && length == other.length)
+    override fun hashCode(): Int = 31 * offset + length
+    override fun toString(): String = "DataSlice(offset=$offset, length=$length)"
 
     companion object {
         /** Read no data at all, for a query that wants only the addresses and lamports. */

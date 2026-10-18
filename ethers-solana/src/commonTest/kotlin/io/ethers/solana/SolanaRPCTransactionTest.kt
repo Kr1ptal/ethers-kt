@@ -26,6 +26,7 @@ import io.github.artificialpb.bignum.BigInteger
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -105,15 +106,16 @@ class SolanaRPCTransactionTest : FunSpec({
         }
         for (version in listOf(2, 127, 255)) {
             val tx = decode(JsonObject(legacy + ("version" to JsonPrimitive(version))))
-            tx.type shouldBe SolanaTxType.Unsupported(version)
+            tx.type shouldBe SolanaTxType.fromVersion(version)
             val message = tx.transaction.message
             message.header.requiredSignatures shouldBe 1
         }
         SolanaTxType.fromVersion(0) shouldBe SolanaTxType.V0
         SolanaTxType.fromVersion(1) shouldBe SolanaTxType.V1
         SolanaTxType.V1.isSupported shouldBe true
-        shouldThrow<IllegalArgumentException> { SolanaTxType.Unsupported(1) }
-        val versioned: SolanaTxType.Versioned = SolanaTxType.Unsupported(2)
+        shouldThrow<IllegalArgumentException> { SolanaTxType.fromVersion(256) }
+        val versioned = SolanaTxType.fromVersion(2) as SolanaTxType.Versioned
+        versioned.shouldBeInstanceOf<SolanaTxType.Unsupported>()
         versioned.version shouldBe 2
         versioned.isSupported shouldBe false
         shouldThrow<IllegalArgumentException> { SolanaTxType.fromVersion(-1) }

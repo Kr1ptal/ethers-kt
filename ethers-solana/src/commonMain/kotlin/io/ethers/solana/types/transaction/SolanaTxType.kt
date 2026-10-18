@@ -36,12 +36,15 @@ sealed class SolanaTxType {
         override val version: Int get() = 1
     }
 
+    /** A version this library reads but cannot construct or sign. Obtained from [fromVersion] only. */
     @ObjCName("SolanaTxTypeUnsupported", exact = true)
-    data class Unsupported
-    @Throws(IllegalArgumentException::class)
-    constructor(override val version: Int) : Versioned() {
-        init {
-            require(version in 2..255) { "Unsupported versions must be in 2..255; versions 0 and 1 are supported" }
+    @ConsistentCopyVisibility
+    data class Unsupported private constructor(override val version: Int) : Versioned() {
+        internal companion object {
+            fun of(version: Int): Unsupported {
+                require(version in 2..255) { "Unsupported versions must be in 2..255; versions 0 and 1 are supported" }
+                return Unsupported(version)
+            }
         }
     }
 
@@ -51,7 +54,7 @@ sealed class SolanaTxType {
         fun fromVersion(version: Int): SolanaTxType = when (version) {
             0 -> V0
             1 -> V1
-            else -> Unsupported(version)
+            else -> Unsupported.of(version)
         }
     }
 }
