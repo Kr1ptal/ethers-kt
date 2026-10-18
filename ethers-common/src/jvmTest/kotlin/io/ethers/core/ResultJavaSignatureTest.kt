@@ -1,7 +1,10 @@
 package io.ethers.core
 
+import io.ethers.crypto.Base58
+import io.ethers.crypto.Hashing
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.types.shouldBeSameInstanceAs
@@ -36,6 +39,17 @@ class ResultJavaSignatureTest : FunSpec({
         synthetic.map { it.name to it.parameterTypes.toList() } shouldContainExactlyInAnyOrder callbackFunctions.map {
             it to listOf(Function1::class.java)
         }
+    }
+
+    test("no annotated ethers-common declaration declares a checked exception") {
+        val checked = listOf(FastHex::class.java, Base58::class.java, Hashing::class.java, Class.forName("io.ethers.core.JsonValueConvertersKt"))
+            .flatMap { it.declaredMethods.toList() }
+            .flatMap { method ->
+                method.exceptionTypes
+                    .filterNot { RuntimeException::class.java.isAssignableFrom(it) || Error::class.java.isAssignableFrom(it) }
+                    .map { "$method throws ${it.name}" }
+            }
+        checked.shouldBeEmpty()
     }
 
     test("unwrap rethrows a checked exception error as is") {

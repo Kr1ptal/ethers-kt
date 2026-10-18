@@ -12,7 +12,10 @@ import kotlin.jvm.JvmOverloads
  * transaction has already been simulated, and the only choice when the failure is expected - an
  * arbitrage attempt that loses its race, say.
  */
-data class SolanaSendConfig @JvmOverloads constructor(
+data class SolanaSendConfig
+@JvmOverloads
+@Throws(IllegalArgumentException::class)
+constructor(
     /** Submit without the node simulating the transaction first. */
     val skipPreflight: Boolean = false,
     /** Bank state the preflight simulation runs against; ignored when [skipPreflight] is set. */

@@ -1,5 +1,6 @@
 package io.ethers.crypto
 
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.inspectors.forAll
 import io.kotest.matchers.shouldBe
@@ -13,6 +14,11 @@ class HashingTest : FunSpec({
         MessageTestCase("baz bazonk foo", "44d0abfd52dc3b5d7057799ffbedbbeefdbe346dd1859faa6ff3acc58e6bece5", "389d8d4c9e8b67afca9f0437b037d3dbfd1c923e162ec27c6d64a9fb5882c2c6"),
         MessageTestCase("mockFunction(address,uint)", "30066a7ee0ffd05192d9476a5c80b93d0100d5836920c98256a6d163e2c79944", "7c28684d76b8924336c74d0be33df53610bfe64267782b48614d84593d0850d8"),
     )
+
+    test("generateRandomBytes rejects a negative size as IllegalArgumentException") {
+        shouldThrow<IllegalArgumentException> { Hashing.generateRandomBytes(-1) }
+        Hashing.generateRandomBytes(0).size shouldBe 0
+    }
 
     test("keccak256") {
         testCases.forAll { (message, keccak256Hash) ->

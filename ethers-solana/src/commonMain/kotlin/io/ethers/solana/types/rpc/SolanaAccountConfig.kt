@@ -14,7 +14,10 @@ import kotlin.jvm.JvmOverloads
  * A node old enough to omit that field is the one exception: the size then falls back to the bytes
  * returned, which under a slice is the slice.
  */
-data class DataSlice @JvmOverloads constructor(val offset: Int, val length: Int = 0) {
+data class DataSlice
+@JvmOverloads
+@Throws(IllegalArgumentException::class)
+constructor(val offset: Int, val length: Int = 0) {
     init {
         require(offset >= 0) { "A data slice cannot start before the account, got $offset" }
         require(length >= 0) { "A data slice cannot have a negative length, got $length" }

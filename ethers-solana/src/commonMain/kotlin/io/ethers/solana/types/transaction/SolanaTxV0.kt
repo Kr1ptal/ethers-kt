@@ -86,6 +86,7 @@ class SolanaTxV0 private constructor(
 
     override fun envelopeSize(): Long = legacyEnvelopeSize(header, accounts, instructions, addressLookupTables)
 
+    @Throws(IllegalArgumentException::class)
     override fun encodeEnvelope(signatures: List<SolanaSignature?>): ByteArray = encodeSignaturesFirstEnvelope(this, signatures)
 
     // the encoded message is the canonical form of every field above, and is already cached

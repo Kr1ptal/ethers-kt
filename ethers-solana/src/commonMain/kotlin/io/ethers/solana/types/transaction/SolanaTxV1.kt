@@ -67,7 +67,9 @@ class SolanaTxV1 private constructor(
     override fun envelopeSize(): Long = envelopeSize(header, accounts, instructions, config)
 
     /** V1 puts the signature slots after the message, unlike the legacy and v0 envelopes. */
+    @Throws(IllegalArgumentException::class)
     override fun encodeEnvelope(signatures: List<SolanaSignature?>): ByteArray {
+        requireSignatureSlots(this, signatures)
         val message = messageBytes()
         val encoder = SolanaMessageEncoder(message.size + 64 * signatures.size).writeBytes(message)
         signatures.forEach { if (it == null) encoder.writeZeros(64) else encoder.writeBytes(it.asByteArray()) }

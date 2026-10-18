@@ -12,7 +12,10 @@ import kotlin.jvm.JvmOverloads
  * invalidates the signatures that would be checked. [READ_ONLY] pairs the settings that let an
  * unsigned transaction with no live blockhash be simulated at all.
  */
-data class SolanaSimulationConfig @JvmOverloads constructor(
+data class SolanaSimulationConfig
+@JvmOverloads
+@Throws(IllegalArgumentException::class)
+constructor(
     val commitment: Commitment? = null,
     /** Verify the transaction's signatures, rather than ignoring them. */
     val sigVerify: Boolean = false,

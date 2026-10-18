@@ -3,6 +3,7 @@ package io.ethers.solana.types
 import io.ethers.crypto.Base58
 import io.ethers.crypto.Hashing
 import io.ethers.solana.signers.Ed25519
+import io.ethers.solana.utils.encodeUtf8Strict
 import io.ethers.solana.utils.isEd25519Point
 import kotlinx.serialization.Serializable
 import kotlin.jvm.JvmOverloads
@@ -54,7 +55,7 @@ constructor(bytes: ByteArray) {
         @JvmStatic
         @Throws(IllegalArgumentException::class)
         fun createWithSeed(base: SolanaAddress, seed: String, owner: SolanaAddress): SolanaAddress {
-            val bytes = seed.encodeToByteArray(throwOnInvalidSequence = true)
+            val bytes = seed.encodeUtf8Strict()
             require(bytes.size <= 32) { "Seed must contain at most 32 UTF-8 bytes" }
             val marker = "ProgramDerivedAddress".encodeToByteArray()
             require(!owner.asByteArray().copyOfRange(32 - marker.size, 32).contentEquals(marker)) { "Owner must not end with the PDA marker" }

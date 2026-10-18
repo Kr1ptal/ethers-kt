@@ -136,6 +136,22 @@ func solanaTests(_ t: Harness, _ f: TransferFixture) {
         }
     }
 
+    t.test("validating constructors and request setters throw instead of aborting") {
+        for (name, call) in [
+            ("DataSlice", { _ = try DataSlice(offset: -1, length: 0) }),
+            ("SolanaSendConfig", { _ = try SolanaSendConfig(skipPreflight: false, preflightCommitment: nil, maxRetries: KotlinInt(value: -1), minContextSlot: nil) }),
+            ("computeUnitLimit", { _ = try SolanaTransactionRequest().computeUnitLimit(computeUnitLimit: KotlinLong(value: -1)) }),
+            ("memo", { _ = try MemoProgram.shared.memo(message: "fine", signers: []) }),
+        ] as [(String, () throws -> Void)] {
+            do {
+                try call()
+                t.check(name == "memo", "\(name) accepted an invalid value")
+            } catch {
+                t.check((error as NSError).kotlinException is KotlinIllegalArgumentException, "\(name) threw \(error)")
+            }
+        }
+    }
+
     t.test("message bytes round trip through Data") {
         // both sides hang off an interface: the encoder is a free function, the decoder a companion reached via `shared`
         let message: Data = SolanaDataKt.serializeMessageData(f.tx)
