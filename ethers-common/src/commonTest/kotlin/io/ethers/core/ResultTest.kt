@@ -206,6 +206,54 @@ class ResultTest : FunSpec({
         }
     }
 
+    // the Consumer / Transformer overloads are the ones Java calls, the function type overloads the ones Swift calls
+    context("Consumer / Transformer overloads") {
+        test("onSuccess and onFailure call only the matching Consumer") {
+            val captured = mutableListOf<Any>()
+            successValue.onSuccess(Result.Consumer { captured.add(it) })
+            successValue.onFailure(Result.Consumer { captured.add(it) })
+            failureValue.onSuccess(Result.Consumer { captured.add(it) })
+            failureValue.onFailure(Result.Consumer { captured.add(it) })
+            captured shouldBe listOf("hello", testError)
+        }
+
+        test("unwrapOrElse calls the Transformer only on Failure") {
+            successValue.unwrapOrElse(Result.Transformer { "default" }) shouldBe "hello"
+            failureValue.unwrapOrElse(Result.Transformer { "from-error: $it" }) shouldBe "from-error: TestError"
+        }
+
+        test("unwrapErrorOrElse calls the Transformer only on Success") {
+            failureValue.unwrapErrorOrElse(Result.Transformer { error("not called") }) shouldBe testError
+            successValue.unwrapErrorOrElse(Result.Transformer { testError }) shouldBe testError
+        }
+    }
+
+    context("function type overloads") {
+        test("onSuccess and onFailure call only the matching function") {
+            val captured = mutableListOf<Any>()
+            val onSuccess: (String) -> Unit = { captured.add(it) }
+            val onFailure: (ThrowableError) -> Unit = { captured.add(it) }
+            successValue.onSuccess(onSuccess)
+            successValue.onFailure(onFailure)
+            failureValue.onSuccess(onSuccess)
+            failureValue.onFailure(onFailure)
+            captured shouldBe listOf("hello", testError)
+        }
+
+        test("unwrapOrElse calls the function only on Failure") {
+            val default: (ThrowableError) -> String = { "from-error: $it" }
+            successValue.unwrapOrElse(default) shouldBe "hello"
+            failureValue.unwrapOrElse(default) shouldBe "from-error: TestError"
+        }
+
+        test("unwrapErrorOrElse calls the function only on Success") {
+            val otherError = object : ThrowableError {}
+            val default: (String) -> ThrowableError = { otherError }
+            failureValue.unwrapErrorOrElse(default) shouldBe testError
+            successValue.unwrapErrorOrElse(default) shouldBe otherError
+        }
+    }
+
     context("isSuccess / isFailure / isNullOrFailure") {
         test("isSuccess returns true for Success") {
             successValue.isSuccess() shouldBe true

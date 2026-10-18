@@ -70,9 +70,11 @@ try {
 On Apple targets every function that can throw declares it, so Swift calls it with `try` and a failure arrives as a
 thrown `Error` instead of aborting the process. Call `unwrap()` on a `Result`: a `Failure` is thrown, and the
 original `SolanaTransactionError` stays reachable through
-`((error as NSError).kotlinException as? SolanaTransactionException)?.error`. The `Result` combinators that take a
-Kotlin `fun interface` (`map`, `andThen`, `fold`, ...) are hidden from Objective-C, since Swift closures cannot
-implement them.
+`((error as NSError).kotlinException as? SolanaTransactionException)?.error`. `onSuccess`, `onFailure`,
+`unwrapOrElse` and `unwrapErrorOrElse` take Swift closures, typed by the `Result`'s own value and error types. The
+combinators that introduce a new type (`map`, `mapError`, `andThen`, `orElse`, `fold`) are hidden from
+Objective-C, which would erase that type to `Any`; `try result.unwrap()!` followed by plain Swift is the typed
+alternative.
 
 The byte-heavy entry points also take and return `Data`. Inputs keep their names (`deserializePartial(data:)`,
 `SolanaAddress.companion.fromData(data:)`), while outputs carry a `Data` suffix (`serializeData()`,
