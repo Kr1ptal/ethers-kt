@@ -136,6 +136,12 @@ func solanaTests(_ t: Harness, _ f: TransferFixture) {
         }
     }
 
+    t.test("message bytes round trip through Data") {
+        let message: Data = SolanaDataKt.serializeMessageData(f.tx)
+        let decoded = try SolanaTransactionUnsigned.companion.deserializeMessage(data: message).unwrap()
+        t.check((decoded as? NSObject)?.isEqual(f.tx) == true, "the message decodes to the same transaction")
+    }
+
     t.test("keys and primitives round trip through Data") {
         t.check(try SolanaAddress.companion.fromData(data: f.alice.publicKey.toData()) == f.alice.publicKey, "address")
         t.check(f.alice.publicKey.toData().count == 32, "an address is 32 bytes")
@@ -146,7 +152,7 @@ func confirmationTests(_ t: Harness) async {
     // Swift runs async code on the cooperative pool, not the main thread; Kotlin suspend functions must allow that.
     await Task.detached {
         await t.testAsync("confirmation overloads are async and default to confirmed") {
-            t.check(!Thread.isMainThread, "runs off the main thread")
+            t.check(pthread_main_np() == 0, "runs off the main thread")
             let pending = SwiftFixturesKt.pendingSolanaTransaction(confirmationStatus: "confirmed")
             t.check(try value(await pending.confirmation()).confirmationStatus == Commitment.confirmed, "confirmation()")
             t.check(try value(await pending.confirmation(commitment: Commitment.processed)).confirmationStatus == Commitment.confirmed, "confirmation(commitment:)")
