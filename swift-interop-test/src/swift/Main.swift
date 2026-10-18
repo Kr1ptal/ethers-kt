@@ -43,7 +43,8 @@ struct TransferFixture {
         alice = try KeypairSigner.companion.fromSeed(data: Data(repeating: 1, count: 32))
         bob = try KeypairSigner.companion.fromSeed(data: Data(repeating: 2, count: 32))
         let blockhash = try SolanaBlockhash.companion.fromData(data: Data(repeating: 3, count: 32))
-        let transfer = try SystemProgram.shared.transfer(from: bob.publicKey, to: alice.publicKey, lamports: 42)
+        // `lamports:` takes the BigInteger overload; the Int64 one shares its selector, so Kotlin mangles its label
+        let transfer = try SystemProgram.shared.transfer(from: bob.publicKey, to: alice.publicKey, lamports_: 42)
         tx = try value(SolanaTxLegacy.companion.compile(feePayer: alice.publicKey, blockhash: blockhash, instruction: transfer))
         let bobSignature = bob.signMessage(message: tx.serializeMessage())
         partial = try tx.signingBuilder().addSignature(signer: bob.publicKey, signature: bobSignature).serializePartialData()
@@ -156,7 +157,7 @@ func confirmationTests(_ t: Harness) async {
         await t.testAsync("confirmation times out after the given seconds") {
             let pending = SwiftFixturesKt.pendingSolanaTransaction(confirmationStatus: "processed")
             let error = try errorOf(await pending.confirmation(commitment: Commitment.finalized, intervalSeconds: 0.001, timeoutSeconds: 0.05))
-            t.check(error is PendingSolanaTransactionErrorTimedOut, "timed out, got \(String(describing: error))")
+            t.check(error is PendingSolanaTransaction.ErrorTimedOut, "timed out, got \(String(describing: error))")
         }
 
         await t.testAsync("confirmation rejects NaN seconds by throwing") {
