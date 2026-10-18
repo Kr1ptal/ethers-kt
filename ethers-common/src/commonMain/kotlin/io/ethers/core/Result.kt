@@ -7,6 +7,7 @@ import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
 import kotlin.jvm.JvmName
 import kotlin.jvm.JvmStatic
+import kotlin.jvm.JvmSynthetic
 import kotlin.native.HiddenFromObjC
 import kotlin.native.ObjCName
 
@@ -16,7 +17,9 @@ import kotlin.native.ObjCName
  * From Swift, call [unwrap] with `try`: a [Failure] is thrown as an `Error`, and the original
  * error stays reachable through `(error as NSError).kotlinException`. The combinators taking a [Transformer] or
  * [Consumer] are hidden from Objective-C, since those interfaces are exported as protocols that Swift closures
- * cannot satisfy.
+ * cannot satisfy. [onSuccess], [onFailure], [unwrapOrElse] and [unwrapErrorOrElse] have function type overloads
+ * for Swift instead. The combinators that introduce a new type parameter have none, since Objective-C erases a
+ * function's own type parameters to `id`.
  * */
 // code is optimized to avoid branching operators (if/else) for better JIT compiler optimizations
 @ObjCName("EthersResult", exact = true)
@@ -163,6 +166,18 @@ sealed class Result<out T, out E> {
     }
 
     /**
+     * Unwrap the value if [Result] is [Success], or return the result of [default] function if [Result] is [Failure].
+     *
+     * Function type overload of [unwrapOrElse], callable with a Swift closure. Hidden from Java, which uses the
+     * [Transformer] overload.
+     * */
+    @JvmSynthetic
+    fun unwrapOrElse(default: (E) -> @UnsafeVariance T): T = when (this) {
+        is Success -> value
+        is Failure -> default(error)
+    }
+
+    /**
      * Unwrap the error if [Result] is [Failure], or throw an exception if [Result] is [Success].
      * */
     @Throws(IllegalStateException::class)
@@ -187,16 +202,50 @@ sealed class Result<out T, out E> {
     }
 
     /**
+     * Unwrap the error if [Result] is [Failure], or return the result of [default] function if [Result] is [Success].
+     *
+     * Function type overload of [unwrapErrorOrElse], callable with a Swift closure. Hidden from Java, which uses the
+     * [Transformer] overload.
+     * */
+    @JvmSynthetic
+    fun unwrapErrorOrElse(default: (T) -> @UnsafeVariance E): E = when (this) {
+        is Success -> default(value)
+        is Failure -> error
+    }
+
+    /**
      * Callback called if [Result] is [Success].
      * */
     @HiddenFromObjC
     fun onSuccess(block: Consumer<T>) = fold({ block(it.value) }, {})
 
     /**
+     * Callback called if [Result] is [Success].
+     *
+     * Function type overload of [onSuccess], callable with a Swift closure. Hidden from Java, which uses the
+     * [Consumer] overload.
+     * */
+    @JvmSynthetic
+    fun onSuccess(block: (T) -> Unit) {
+        if (this is Success) block(value)
+    }
+
+    /**
      * Callback called if [Result] is [Failure].
      * */
     @HiddenFromObjC
     fun onFailure(block: Consumer<E>) = fold({}, { block(it.error) })
+
+    /**
+     * Callback called if [Result] is [Failure].
+     *
+     * Function type overload of [onFailure], callable with a Swift closure. Hidden from Java, which uses the
+     * [Consumer] overload.
+     * */
+    @JvmSynthetic
+    fun onFailure(block: (E) -> Unit) {
+        if (this is Failure) block(error)
+    }
 
     /**
      * Call [onSuccess] if [Result] is [Success] or [onFailure] if [Result] is [Failure], returning the result of
