@@ -17,8 +17,9 @@ import platform.Foundation.create
 import platform.posix.memcpy
 
 // `NSData` twins of the byte-heavy entry points, so a Swift caller can pass and receive `Data` instead of copying
-// it through `KotlinByteArray` by hand. Inputs keep their `ByteArray` name and differ only in the parameter type;
-// outputs cannot overload on the return type, so they carry a `Data` suffix.
+// it through `KotlinByteArray` by hand. Inputs keep their `ByteArray` name and take a parameter named `data`, so their
+// Objective-C selector never collides with the `ByteArray` one; outputs cannot overload on the return type, so they
+// carry a `Data` suffix.
 
 /** Copy [this] into a new [ByteArray]. */
 internal fun NSData.toByteArray(): ByteArray {
@@ -64,11 +65,11 @@ fun SolanaBytes.toData(): NSData = asByteArray().toNSData()
 
 /** As [KeypairSigner.fromSeed], from a 32-byte seed. */
 @Throws(IllegalArgumentException::class)
-fun KeypairSigner.Companion.fromSeed(seed: NSData): KeypairSigner = fromSeed(seed.toByteArray())
+fun KeypairSigner.Companion.fromSeed(data: NSData): KeypairSigner = fromSeed(data.toByteArray())
 
 /** As [KeypairSigner.fromSecretKey], from a 64-byte seed and public key. */
 @Throws(IllegalArgumentException::class)
-fun KeypairSigner.Companion.fromSecretKey(secretKey: NSData): KeypairSigner = fromSecretKey(secretKey.toByteArray())
+fun KeypairSigner.Companion.fromSecretKey(data: NSData): KeypairSigner = fromSecretKey(data.toByteArray())
 
 /** As [SolanaTransactionCompiled.serializeMessage]: the exact message bytes signed by Ed25519. */
 fun SolanaTransactionCompiled.serializeMessageData(): NSData = serializeMessage().toNSData()
