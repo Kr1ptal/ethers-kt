@@ -80,6 +80,7 @@ The byte-heavy entry points also take and return `Data`. Inputs keep their names
 `SolanaAddress.companion.fromData(data:)`), while outputs carry a `Data` suffix (`serializeData()`,
 `serializePartialData()`, `toData()`). The message bytes are the exception: `SolanaTransactionCompiled` is an
 interface, which Objective-C cannot extend, so they come from the free function `SolanaDataKt.serializeMessageData(tx)`.
+An interface's companion is likewise reached by name: `SolanaTransactionUnsignedCompanion.shared.deserializeMessage(data:)`.
 Main types keep their Kotlin names in Swift, unprefixed: `SolanaTransactionSignedBuilder`, `EthersResult`,
 `SolanaTransactionErrorUnsignedSlots`.
 
