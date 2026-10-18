@@ -137,8 +137,9 @@ func solanaTests(_ t: Harness, _ f: TransferFixture) {
     }
 
     t.test("message bytes round trip through Data") {
+        // both sides hang off an interface: the encoder is a free function, the decoder a companion reached via `shared`
         let message: Data = SolanaDataKt.serializeMessageData(f.tx)
-        let decoded = try SolanaTransactionUnsigned.companion.deserializeMessage(data: message).unwrap()
+        let decoded = try SolanaTransactionUnsignedCompanion.shared.deserializeMessage(data: message).unwrap()
         t.check((decoded as? NSObject)?.isEqual(f.tx) == true, "the message decodes to the same transaction")
     }
 
