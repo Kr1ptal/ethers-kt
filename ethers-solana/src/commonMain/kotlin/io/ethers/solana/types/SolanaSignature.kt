@@ -2,12 +2,17 @@ package io.ethers.solana.types
 
 import io.ethers.crypto.Base58
 import kotlinx.serialization.Serializable
+import kotlin.native.ObjCName
 
 /** A detached Ed25519 signature, also used as a Solana transaction identifier. */
 @Serializable(with = SolanaSignatureSerializer::class)
-class SolanaSignature(bytes: ByteArray) {
+@ObjCName("SolanaSignature", exact = true)
+class SolanaSignature
+@Throws(IllegalArgumentException::class)
+constructor(bytes: ByteArray) {
     /** Takes ownership of [bytes] rather than copying, so do not mutate the array afterwards. */
     private val value = bytes.also { require(it.size == 64) { "Signature must contain 64 bytes" } }
+    @Throws(IllegalArgumentException::class)
     constructor(base58: String) : this(Base58.decode(base58))
 
     /**
@@ -30,6 +35,9 @@ class SolanaSignature(bytes: ByteArray) {
     override fun toString(): String = toBase58()
     override fun equals(other: Any?): Boolean = other is SolanaSignature && value.contentEquals(other.value)
     override fun hashCode(): Int = value.contentHashCode()
+
+    /** Holds the platform factories, such as the Apple `NSData` one. */
+    companion object
 }
 
 object SolanaSignatureSerializer : Base58Serializer<SolanaSignature>("io.ethers.solana.SolanaSignature", ::SolanaSignature)

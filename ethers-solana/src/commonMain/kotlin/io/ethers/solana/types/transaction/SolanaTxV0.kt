@@ -12,6 +12,7 @@ import io.github.artificialpb.bignum.BigInteger
 import kotlin.concurrent.Volatile
 import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmStatic
+import kotlin.native.ObjCName
 
 /**
  * V0 transaction payload. Lookup table contents are supplied by the caller during compilation.
@@ -19,6 +20,7 @@ import kotlin.jvm.JvmStatic
  * The constructor keeps the lists it is given rather than copying them, so pass immutable lists;
  * mutating them afterwards changes the transaction and invalidates its validated state.
  */
+@ObjCName("SolanaTxV0", exact = true)
 class SolanaTxV0 private constructor(
     override val header: MessageHeader,
     override val accounts: List<SolanaAddress>,
@@ -45,6 +47,7 @@ class SolanaTxV0 private constructor(
      * message. [create] reports the same failure as a value, without building an exception.
      */
     @JvmOverloads
+    @Throws(IllegalArgumentException::class)
     constructor(
         header: MessageHeader,
         accounts: List<SolanaAddress>,
@@ -83,6 +86,7 @@ class SolanaTxV0 private constructor(
 
     override fun envelopeSize(): Long = legacyEnvelopeSize(header, accounts, instructions, addressLookupTables)
 
+    @Throws(IllegalArgumentException::class)
     override fun encodeEnvelope(signatures: List<SolanaSignature?>): ByteArray = encodeSignaturesFirstEnvelope(this, signatures)
 
     // the encoded message is the canonical form of every field above, and is already cached

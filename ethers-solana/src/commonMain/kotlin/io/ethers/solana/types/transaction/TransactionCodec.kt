@@ -49,8 +49,14 @@ internal fun SolanaMessageDecoder.readMessageBody(requiredSignatures: Int): Resu
 /** Canonical shortvec length prefix width, rejecting counts the wire format cannot represent. */
 internal fun shortVecSize(count: Int): Long {
     require(count in 0..65535) { "Shortvec length out of range" }
-    return if (count < 128) 1L else if (count < 16384) 2L else 3L
+    return lengthPrefixSize(count)
 }
+
+/**
+ * [shortVecSize] for a size estimate, which must not throw: a count too large for a shortvec already
+ * makes the envelope far larger than any version's limit, so its exact prefix size does not matter.
+ */
+private fun lengthPrefixSize(count: Int): Long = if (count < 128) 1L else if (count < 16384) 2L else 3L
 
 /**
  * Legacy and v0 envelope size, including every required signature slot. Takes the raw fields rather
@@ -62,12 +68,12 @@ internal fun legacyEnvelopeSize(
     instructions: List<MessageInstruction>,
     lookups: List<CompiledAddressLookupTable>?,
 ): Long {
-    var size = shortVecSize(header.requiredSignatures) + 64L * header.requiredSignatures +
-        3L + shortVecSize(accounts.size) + 32L * accounts.size + 32L + shortVecSize(instructions.size)
-    size += instructions.sumOf { 1L + shortVecSize(it.accounts.size) + it.accounts.size + shortVecSize(it.data.size) + it.data.size }
+    var size = lengthPrefixSize(header.requiredSignatures) + 64L * header.requiredSignatures +
+        3L + lengthPrefixSize(accounts.size) + 32L * accounts.size + 32L + lengthPrefixSize(instructions.size)
+    size += instructions.sumOf { 1L + lengthPrefixSize(it.accounts.size) + it.accounts.size + lengthPrefixSize(it.data.size) + it.data.size }
     if (lookups != null) {
-        size += 1L + shortVecSize(lookups.size)
-        size += lookups.sumOf { 32L + shortVecSize(it.writableIndexes.size) + it.writableIndexes.size + shortVecSize(it.readonlyIndexes.size) + it.readonlyIndexes.size }
+        size += 1L + lengthPrefixSize(lookups.size)
+        size += lookups.sumOf { 32L + lengthPrefixSize(it.writableIndexes.size) + it.writableIndexes.size + lengthPrefixSize(it.readonlyIndexes.size) + it.readonlyIndexes.size }
     }
     return size
 }
@@ -75,8 +81,14 @@ internal fun legacyEnvelopeSize(
 /** The envelope exceeds the version's wire limit. */
 internal fun envelopeSizeError(type: SolanaTxType, size: Long, max: Int): SolanaTransactionError? = if (size > max) SolanaTransactionError.EnvelopeTooLarge(type, size, max) else null
 
+/** Every envelope holds exactly one slot per required signature, filled or not. */
+internal fun requireSignatureSlots(tx: SolanaTransactionUnsigned, signatures: List<SolanaSignature?>) {
+    require(signatures.size == tx.header.requiredSignatures) { "Expected ${tx.header.requiredSignatures} signature slots, got ${signatures.size}" }
+}
+
 /** Legacy and v0 envelopes put the signature vector before the message. */
 internal fun encodeSignaturesFirstEnvelope(tx: SolanaTransactionUnsigned, signatures: List<SolanaSignature?>): ByteArray {
+    requireSignatureSlots(tx, signatures)
     val message = tx.messageBytes()
     val encoder = SolanaMessageEncoder(shortVecSize(signatures.size).toInt() + 64 * signatures.size + message.size)
         .writeShortVecLength(signatures.size)

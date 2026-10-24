@@ -90,6 +90,7 @@ object Base58 {
         return output.decodeToString()
     }
 
+    @Throws(IllegalArgumentException::class)
     fun decode(input: String): ByteArray {
         if (input.isEmpty()) {
             return ByteArray(0)

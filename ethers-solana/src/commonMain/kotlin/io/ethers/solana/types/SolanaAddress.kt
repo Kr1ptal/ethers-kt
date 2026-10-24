@@ -3,17 +3,23 @@ package io.ethers.solana.types
 import io.ethers.crypto.Base58
 import io.ethers.crypto.Hashing
 import io.ethers.solana.signers.Ed25519
+import io.ethers.solana.utils.encodeUtf8Strict
 import io.ethers.solana.utils.isEd25519Point
 import kotlinx.serialization.Serializable
 import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmStatic
+import kotlin.native.ObjCName
 
 /** A 32-byte Solana address, including off-curve program derived addresses. */
 @Serializable(with = SolanaAddressSerializer::class)
-class SolanaAddress(bytes: ByteArray) {
+@ObjCName("SolanaAddress", exact = true)
+class SolanaAddress
+@Throws(IllegalArgumentException::class)
+constructor(bytes: ByteArray) {
     /** Takes ownership of [bytes] rather than copying, so do not mutate the array afterwards. */
     private val value = bytes.also { require(it.size == 32) { "Solana address must contain 32 bytes" } }
 
+    @Throws(IllegalArgumentException::class)
     constructor(base58: String) : this(Base58.decode(base58))
 
     /**
@@ -47,8 +53,9 @@ class SolanaAddress(bytes: ByteArray) {
     companion object {
         /** Derive a System Program seeded address (not a PDA). The base authorizes its operations. */
         @JvmStatic
+        @Throws(IllegalArgumentException::class)
         fun createWithSeed(base: SolanaAddress, seed: String, owner: SolanaAddress): SolanaAddress {
-            val bytes = seed.encodeToByteArray(throwOnInvalidSequence = true)
+            val bytes = seed.encodeUtf8Strict()
             require(bytes.size <= 32) { "Seed must contain at most 32 UTF-8 bytes" }
             val marker = "ProgramDerivedAddress".encodeToByteArray()
             require(!owner.asByteArray().copyOfRange(32 - marker.size, 32).contentEquals(marker)) { "Owner must not end with the PDA marker" }
@@ -79,6 +86,7 @@ class SolanaAddress(bytes: ByteArray) {
          * produce an on-curve address, which around half of all seed sets do.
          */
         @JvmStatic
+        @Throws(IllegalArgumentException::class)
         fun createProgramAddress(seeds: List<ByteArray>, programId: SolanaAddress): SolanaAddress? {
             validateSeeds(seeds, 16)
             return derive(seeds, programId)
@@ -86,6 +94,7 @@ class SolanaAddress(bytes: ByteArray) {
 
         /** Find the highest valid bump, including zero. The bump occupies the sixteenth seed slot. */
         @JvmStatic
+        @Throws(IllegalArgumentException::class)
         fun findProgramAddress(seeds: List<ByteArray>, programId: SolanaAddress): ProgramDerivedAddress {
             validateSeeds(seeds, 15)
             for (bump in 255 downTo 0) {
@@ -97,6 +106,7 @@ class SolanaAddress(bytes: ByteArray) {
 
         @JvmStatic
         @JvmOverloads
+        @Throws(IllegalArgumentException::class)
         fun findAssociatedTokenAddress(owner: SolanaAddress, mint: SolanaAddress, tokenProgram: SolanaAddress = Programs.TOKEN): ProgramDerivedAddress {
             return findProgramAddress(listOf(owner.asByteArray(), tokenProgram.asByteArray(), mint.asByteArray()), Programs.ASSOCIATED_TOKEN)
         }

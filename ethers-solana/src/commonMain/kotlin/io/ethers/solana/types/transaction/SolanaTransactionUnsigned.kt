@@ -5,10 +5,13 @@ import io.ethers.solana.signers.SolanaSigner
 import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.types.SolanaSignature
 import kotlin.jvm.JvmStatic
+import kotlin.native.ObjCName
 
 /** A compiled legacy, v0 or v1 payload with no signatures. */
+@ObjCName("SolanaTransactionUnsigned", exact = true)
 sealed interface SolanaTransactionUnsigned : SolanaTransactionCompiled {
     /** Sign with every required signer, failing if any signature is missing or invalid. */
+    @Throws(IllegalArgumentException::class)
     fun sign(vararg signers: SolanaSigner): SolanaTransactionSigned = signingBuilder().sign(*signers).build().unwrap()
 
     /** Rebuild the payload against a fresh blockhash. */
@@ -30,7 +33,10 @@ sealed interface SolanaTransactionUnsigned : SolanaTransactionCompiled {
      * v0 place the signature vector before the message, v1 after it. Prefer
      * [SolanaTransactionSigned.serialize], [SolanaTransactionSigned.Builder.serializePartial] or
      * [serializeForSimulation], which supply the signatures they already hold.
+     *
+     * @throws IllegalArgumentException if [signatures] does not hold exactly one slot per required signature
      */
+    @Throws(IllegalArgumentException::class)
     fun encodeEnvelope(signatures: List<SolanaSignature?>): ByteArray
 
     override fun serializeForSimulation(): ByteArray = encodeEnvelope(List(header.requiredSignatures) { null })

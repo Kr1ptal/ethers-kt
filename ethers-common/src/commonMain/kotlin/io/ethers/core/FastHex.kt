@@ -98,6 +98,7 @@ object FastHex {
      * Encode [buffer] range to hex string prefixed with '0x'.
      * */
     @JvmStatic
+    @Throws(IndexOutOfBoundsException::class)
     fun encodeWithPrefix(buffer: ByteArray, offset: Int, len: Int): String {
         return encodeToAsciiBytes(buffer, offset, len, true).decodeToString()
     }
@@ -114,6 +115,7 @@ object FastHex {
      * Encode [buffer] range to hex string without '0x' prefix.
      * */
     @JvmStatic
+    @Throws(IndexOutOfBoundsException::class)
     fun encodeWithoutPrefix(buffer: ByteArray, offset: Int, len: Int): String {
         return encodeToAsciiBytes(buffer, offset, len, false).decodeToString()
     }
@@ -166,6 +168,7 @@ object FastHex {
     }
 
     private fun encodeToAsciiBytes(buffer: ByteArray, offset: Int, len: Int, withPrefix: Boolean): ByteArray {
+        checkRange(offset, len, buffer.size)
         var currOffset = offset
         val end = currOffset + len
         var i = 0
@@ -200,6 +203,7 @@ object FastHex {
      * handles uneven length by implicitly adding a leading zero.
      * */
     @JvmStatic
+    @Throws(IllegalArgumentException::class, IndexOutOfBoundsException::class)
     fun decode(hex: CharSequence, offset: Int = 0, length: Int = hex.length - offset): ByteArray {
         return decodeCharSequence(hex, offset, length, ::decodeHexByte)
     }
@@ -209,6 +213,7 @@ object FastHex {
      * handles uneven length by implicitly adding a leading zero.
      * */
     @JvmStatic
+    @Throws(IllegalArgumentException::class, IndexOutOfBoundsException::class)
     fun decode(hex: ByteArray, offset: Int = 0, length: Int = hex.size - offset): ByteArray {
         return decodeByteArray(hex, offset, length, ::decodeHexByte)
     }
@@ -218,6 +223,7 @@ object FastHex {
      * handles uneven length by implicitly adding a leading zero.
      * */
     @JvmStatic
+    @Throws(IllegalArgumentException::class, IndexOutOfBoundsException::class)
     fun decode(hex: CharArray, offset: Int = 0, length: Int = hex.size - offset): ByteArray {
         return decodeCharArray(hex, offset, length, ::decodeHexByte)
     }
@@ -233,6 +239,7 @@ object FastHex {
      * Use [decode] if you are unsure of the input.
      * */
     @JvmStatic
+    @Throws(IndexOutOfBoundsException::class)
     fun decodeUnsafe(hex: CharSequence, offset: Int = 0, length: Int = hex.length - offset): ByteArray {
         return decodeCharSequence(hex, offset, length, ::decodeHexByteUnsafe)
     }
@@ -248,6 +255,7 @@ object FastHex {
      * Use [decode] if you are unsure of the input.
      * */
     @JvmStatic
+    @Throws(IndexOutOfBoundsException::class)
     fun decodeUnsafe(hex: ByteArray, offset: Int = 0, length: Int = hex.size - offset): ByteArray {
         return decodeByteArray(hex, offset, length, ::decodeHexByteUnsafe)
     }
@@ -263,6 +271,7 @@ object FastHex {
      * Use [decode] if you are unsure of the input.
      * */
     @JvmStatic
+    @Throws(IndexOutOfBoundsException::class)
     fun decodeUnsafe(hex: CharArray, offset: Int = 0, length: Int = hex.size - offset): ByteArray {
         return decodeCharArray(hex, offset, length, ::decodeHexByteUnsafe)
     }
@@ -273,6 +282,7 @@ object FastHex {
         length: Int,
         decoder: (Int, (Int) -> Int) -> Int,
     ): ByteArray {
+        checkRange(offset, length, hex.length)
         var destIndex = 0
         var currOffset = offset
         var currLength = length
@@ -312,6 +322,7 @@ object FastHex {
         length: Int,
         decoder: (Int, (Int) -> Int) -> Int,
     ): ByteArray {
+        checkRange(offset, length, hex.size)
         var destIndex = 0
         var currOffset = offset
         var currLength = length
@@ -330,7 +341,7 @@ object FastHex {
             dest = ByteArray((currLength + 1) / CHARS_PER_BYTE)
 
             // decode the first byte, which contains only lower bits, implicitly adding a leading zero, e.g. "f" -> "0f"
-            val nibble = decoder(currOffset) { hex[currOffset].toInt() } shr BITS_PER_CHAR
+            val nibble = decoder(currOffset) { hex[currOffset].toInt() and 0xFF } shr BITS_PER_CHAR
             dest[destIndex++] = nibble.toByte()
             currOffset++
         } else {
@@ -338,7 +349,7 @@ object FastHex {
         }
 
         while (destIndex < dest.size) {
-            dest[destIndex++] = decoder(currOffset) { index -> hex[index].toInt() }.toByte()
+            dest[destIndex++] = decoder(currOffset) { index -> hex[index].toInt() and 0xFF }.toByte()
             currOffset += CHARS_PER_BYTE
         }
 
@@ -351,6 +362,7 @@ object FastHex {
         length: Int,
         decoder: (Int, (Int) -> Int) -> Int,
     ): ByteArray {
+        checkRange(offset, length, hex.size)
         var destIndex = 0
         var currOffset = offset
         var currLength = length
@@ -404,9 +416,20 @@ object FastHex {
         return hex.isNotEmpty()
     }
 
+    /** Reject a range outside [size], before it can surface as a negative array size or a stray index. */
+    private fun checkRange(offset: Int, length: Int, size: Int) {
+        if (offset < 0 || length < 0 || offset > size - length) {
+            throw IndexOutOfBoundsException("Range [$offset, $offset + $length) is out of bounds for size $size")
+        }
+    }
+
     private inline fun decodeHexByte(offset: Int, charCodeAtOffset: (Int) -> Int): Int {
         val upperCode = charCodeAtOffset(offset)
         val lowerCode = charCodeAtOffset(offset + 1)
+        // the tables cover one byte; any char above it is not a hex digit either
+        if (upperCode > 0xFF || lowerCode > 0xFF) {
+            throw IllegalArgumentException("Invalid hex nibble '${upperCode.toChar()}${lowerCode.toChar()}' at position $offset")
+        }
 
         val upper = DECODE_TABLE_UPPER[upperCode]
         val lower = DECODE_TABLE_LOWER[lowerCode]
@@ -418,8 +441,9 @@ object FastHex {
     }
 
     private inline fun decodeHexByteUnsafe(offset: Int, charCodeAtOffset: (Int) -> Int): Int {
-        val upper = DECODE_TABLE_UPPER_UNSAFE[charCodeAtOffset(offset)]
-        val lower = DECODE_TABLE_LOWER_UNSAFE[charCodeAtOffset(offset + 1)]
+        // a char above one byte is clamped to 0xFF, which like every other non-hex char decodes to the default
+        val upper = DECODE_TABLE_UPPER_UNSAFE[minOf(charCodeAtOffset(offset), 0xFF)]
+        val lower = DECODE_TABLE_LOWER_UNSAFE[minOf(charCodeAtOffset(offset + 1), 0xFF)]
         return (upper or lower)
     }
 

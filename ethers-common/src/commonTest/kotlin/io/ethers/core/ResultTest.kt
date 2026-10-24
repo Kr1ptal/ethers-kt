@@ -4,6 +4,7 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import io.kotest.matchers.types.shouldBeSameInstanceAs
 
 class ResultTest : FunSpec({
     val successValue = Result.success<String, ThrowableError>("hello")
@@ -81,6 +82,29 @@ class ResultTest : FunSpec({
 
         test("throws on Failure") {
             shouldThrow<RuntimeException> { failureValue.unwrap() }
+        }
+    }
+
+    context("unwrap error types") {
+        test("throws a ThrowableError as an exception that keeps it") {
+            val e = shouldThrow<ThrowableError.Exception> { failureValue.unwrap() }
+            e.error shouldBe testError
+        }
+
+        test("rethrows a RuntimeException error as is") {
+            val cause = IllegalArgumentException("runtime")
+            val thrown = shouldThrow<IllegalArgumentException> { Result.failure<String, Throwable>(cause).unwrap() }
+            thrown shouldBeSameInstanceAs cause
+        }
+
+        test("rethrows an Error error as is") {
+            val cause = NotImplementedError("error")
+            val thrown = shouldThrow<NotImplementedError> { Result.failure<String, Throwable>(cause).unwrap() }
+            thrown shouldBeSameInstanceAs cause
+        }
+
+        test("throws IllegalStateException for any other error") {
+            shouldThrow<IllegalStateException> { Result.failure<String, Int>(42).unwrap() }
         }
     }
 
@@ -179,6 +203,54 @@ class ResultTest : FunSpec({
             var called = false
             successValue.onFailure { called = true }
             called shouldBe false
+        }
+    }
+
+    // the Consumer / Transformer overloads are the ones Java calls, the function type overloads the ones Swift calls
+    context("Consumer / Transformer overloads") {
+        test("onSuccess and onFailure call only the matching Consumer") {
+            val captured = mutableListOf<Any>()
+            successValue.onSuccess(Result.Consumer { captured.add(it) })
+            successValue.onFailure(Result.Consumer { captured.add(it) })
+            failureValue.onSuccess(Result.Consumer { captured.add(it) })
+            failureValue.onFailure(Result.Consumer { captured.add(it) })
+            captured shouldBe listOf("hello", testError)
+        }
+
+        test("unwrapOrElse calls the Transformer only on Failure") {
+            successValue.unwrapOrElse(Result.Transformer { "default" }) shouldBe "hello"
+            failureValue.unwrapOrElse(Result.Transformer { "from-error: $it" }) shouldBe "from-error: TestError"
+        }
+
+        test("unwrapErrorOrElse calls the Transformer only on Success") {
+            failureValue.unwrapErrorOrElse(Result.Transformer { error("not called") }) shouldBe testError
+            successValue.unwrapErrorOrElse(Result.Transformer { testError }) shouldBe testError
+        }
+    }
+
+    context("function type overloads") {
+        test("onSuccess and onFailure call only the matching function") {
+            val captured = mutableListOf<Any>()
+            val onSuccess: (String) -> Unit = { captured.add(it) }
+            val onFailure: (ThrowableError) -> Unit = { captured.add(it) }
+            successValue.onSuccess(onSuccess)
+            successValue.onFailure(onFailure)
+            failureValue.onSuccess(onSuccess)
+            failureValue.onFailure(onFailure)
+            captured shouldBe listOf("hello", testError)
+        }
+
+        test("unwrapOrElse calls the function only on Failure") {
+            val default: (ThrowableError) -> String = { "from-error: $it" }
+            successValue.unwrapOrElse(default) shouldBe "hello"
+            failureValue.unwrapOrElse(default) shouldBe "from-error: TestError"
+        }
+
+        test("unwrapErrorOrElse calls the function only on Success") {
+            val otherError = object : ThrowableError {}
+            val default: (String) -> ThrowableError = { otherError }
+            failureValue.unwrapErrorOrElse(default) shouldBe testError
+            successValue.unwrapErrorOrElse(default) shouldBe otherError
         }
     }
 

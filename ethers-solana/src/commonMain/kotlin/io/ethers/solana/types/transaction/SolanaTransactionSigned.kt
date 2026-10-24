@@ -9,12 +9,14 @@ import io.ethers.solana.types.SolanaSignature
 import kotlin.io.encoding.Base64
 import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmStatic
+import kotlin.native.ObjCName
 
 /**
  * A transaction with a verified signature for every required signer, in message account order.
  *
  * [signatures] is kept as given rather than copied, so pass an immutable list.
  */
+@ObjCName("SolanaTransactionSigned", exact = true)
 class SolanaTransactionSigned private constructor(
     val tx: SolanaTransactionUnsigned,
     val signatures: List<SolanaSignature>,
@@ -25,6 +27,7 @@ class SolanaTransactionSigned private constructor(
      * Verify every signature against the message, throwing [SolanaTransactionException] if one does
      * not hold. [signatures] is kept as given rather than copied, so pass an immutable list.
      */
+    @Throws(IllegalArgumentException::class)
     constructor(tx: SolanaTransactionUnsigned, signatures: List<SolanaSignature>) : this(tx, signatures, false)
 
     /** Solana's transaction id is the fee payer's signature, not a hash of the envelope. */
@@ -73,7 +76,11 @@ class SolanaTransactionSigned private constructor(
      * [addSignature] calls. Take a copy if you need a stable view. [build] does produce an
      * independent transaction.
      */
-    class Builder @JvmOverloads constructor(
+    @ObjCName("SolanaTransactionSignedBuilder", exact = true)
+    class Builder
+    @JvmOverloads
+    @Throws(IllegalArgumentException::class)
+    constructor(
         val tx: SolanaTransactionUnsigned,
         signatures: List<SolanaSignature?> = List(tx.header.requiredSignatures) { null },
     ) {
@@ -93,6 +100,7 @@ class SolanaTransactionSigned private constructor(
         }
 
         /** Fill [signer]'s slot. The signature is verified by [build], not here. */
+        @Throws(IllegalArgumentException::class)
         fun addSignature(signer: SolanaAddress, signature: SolanaSignature): Builder = apply {
             val index = tx.signers.indexOf(signer)
             require(index >= 0) { "Address is not a required signer" }
@@ -103,6 +111,7 @@ class SolanaTransactionSigned private constructor(
          * Sign with each of [signers], atomically: an unknown address, or a signer that fails to
          * produce a signature, leaves the builder's previous signatures intact.
          */
+        @Throws(IllegalArgumentException::class)
         fun sign(vararg signers: SolanaSigner): Builder = apply {
             val requiredSigners = tx.signers
             val indices = signers.map { signer ->
@@ -164,7 +173,14 @@ class SolanaTransactionSigned private constructor(
             val (tx, signatures) = decodeTransactionEnvelope(bytes).unwrapOrReturn { return Result.failure(it) }
             val missing = signatures.count { it == null }
             if (missing > 0) return Result.failure(SolanaTransactionError.PartiallySigned(missing, signatures.size))
-            // checked as a value, so the validating constructor below can never be the one to report it
+            return verified(tx, signatures)
+        }
+
+        /**
+         * Decoded slots, all filled, as a signed transaction. Checked as a value, so the validating
+         * constructor can never be the one to report a bad signature.
+         */
+        internal fun verified(tx: SolanaTransactionUnsigned, signatures: List<SolanaSignature?>): Result<SolanaTransactionSigned, SolanaTransactionError> {
             signatureError(tx, signatures)?.let { return Result.failure(it) }
             return Result.success(SolanaTransactionSigned(tx, signatures.filled(), validated = true))
         }

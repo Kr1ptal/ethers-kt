@@ -12,6 +12,7 @@ object Ed25519Program {
 
     /** Verify a detached signature on the exact message bytes on-chain. All data references point to this instruction. */
     @JvmStatic
+    @Throws(IllegalArgumentException::class)
     fun verify(publicKey: SolanaAddress, message: ByteArray, signature: SolanaSignature): Instruction {
         require(message.size <= 65535) { "Message length must fit u16" }
         val data = ByteArray(112 + message.size)
