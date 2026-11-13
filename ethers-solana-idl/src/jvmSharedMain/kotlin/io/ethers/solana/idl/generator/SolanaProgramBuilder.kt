@@ -14,6 +14,7 @@ import com.squareup.kotlinpoet.INT
 import com.squareup.kotlinpoet.KModifier
 import com.squareup.kotlinpoet.LIST
 import com.squareup.kotlinpoet.LONG
+import com.squareup.kotlinpoet.LambdaTypeName
 import com.squareup.kotlinpoet.ParameterSpec
 import com.squareup.kotlinpoet.ParameterizedTypeName.Companion.parameterizedBy
 import com.squareup.kotlinpoet.PropertySpec
@@ -22,6 +23,7 @@ import com.squareup.kotlinpoet.STAR
 import com.squareup.kotlinpoet.STRING
 import com.squareup.kotlinpoet.TypeName
 import com.squareup.kotlinpoet.TypeSpec
+import com.squareup.kotlinpoet.TypeVariableName
 import com.squareup.kotlinpoet.UNIT
 import com.squareup.kotlinpoet.WildcardTypeName
 import com.squareup.kotlinpoet.joinToCode
@@ -172,6 +174,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
                     .build(),
             )
             .addType(programType.build())
+            .apply { sliceProperties().forEach(::addProperty) }
             .build()
     }
 
@@ -643,8 +646,14 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             builder.addSuperinterface(accountMarker)
             addToCodecScope(builder, accountFactory(name, account.name, account.discriminator))
             val fields = (def.body as? IdlTypeBody.Struct)?.let { fields(it.fields) }.orEmpty()
-            builder.addType(accountFilter(name, fields, if (isZeroCopy(def.name)) zeroCopyLayout(def.name) else null))
+            val offsets = fieldOffsets(fields, if (isZeroCopy(def.name)) zeroCopyLayout(def.name) else null)
+            builder.addType(accountFilter(name, fields, offsets))
             accountAccessors(name).forEach { addToCodecScope(builder, it) }
+            val sliceable = sliceableFields(def)
+            if (sliceable.isNotEmpty()) {
+                builder.addType(accountFields(name, sliceable))
+                accountSelect(name).forEach { addToCodecScope(builder, it) }
+            }
         }
         return builder.build()
     }
@@ -702,11 +711,110 @@ class SolanaProgramBuilder @JvmOverloads constructor(
     }
 
     /**
+     * Each field's offset into the payload, while every field before it has a fixed size, then null; a zero-copy
+     * [layout] knows every offset.
+     */
+    private fun fieldOffsets(fields: List<Field>, layout: ZeroCopyLayout?): List<Int?> {
+        var offset: Int? = 0
+        return fields.mapIndexed { i, field ->
+            val at = layout?.offsets?.get(i) ?: offset
+            offset = at?.let { start -> fixedSize(field.type)?.plus(start) }
+            at
+        }
+    }
+
+    /** A field of an account at a fixed [offset] into its payload, with a fixed [size]. */
+    private class SliceableField(val field: Field, val offset: Int, val size: Int)
+
+    /** The fields of account type [def] at a fixed offset with a fixed size, which a slice can select. */
+    private fun sliceableFields(def: IdlTypeDef): List<SliceableField> {
+        val fields = (def.body as? IdlTypeBody.Struct)?.let { fields(it.fields) }.orEmpty()
+        val offsets = fieldOffsets(fields, if (isZeroCopy(def.name)) zeroCopyLayout(def.name) else null)
+        val sliceable = ArrayList<SliceableField>()
+        for ((i, field) in fields.withIndex()) {
+            val offset = offsets[i] ?: break
+            val size = fixedSize(field.type) ?: continue
+            sliceable.add(SliceableField(field, offset, size))
+        }
+        return sliceable
+    }
+
+    /** The account's field descriptors, one for each of its [sliceable] fields. */
+    private fun accountFields(account: ClassName, sliceable: List<SliceableField>): TypeSpec {
+        val builder = TypeSpec.objectBuilder(account.nestedClass("Fields"))
+            .superclass(Runtime.ACCOUNT_PROJECTION_SCOPE.parameterizedBy(account))
+            .addKdoc("Fields of %L accounts at a fixed offset and size, to read a slice of the account data with [select].\n", account.simpleName)
+        for (it in sliceable) {
+            builder.addProperty(
+                PropertySpec.builder(it.field.name, Runtime.ACCOUNT_FIELD.parameterizedBy(account, typeName(it.field.type)))
+                    .addAnnotation(Runtime.JVM_FIELD)
+                    .initializer("%T(%S, %L, %L) { with(it) { %L } }", Runtime.ACCOUNT_FIELD, it.field.name, it.offset, it.size, read(it.field.type))
+                    .build(),
+            )
+        }
+        return builder.build()
+    }
+
+    /** `select`, reading some of an account type's fields as a slice of the account data, by descriptor or within [Fields]. */
+    private fun accountSelect(account: ClassName): List<FunSpec> {
+        val field = Runtime.ACCOUNT_FIELD.parameterizedBy(account, STAR)
+        val result = TypeVariableName("R")
+        val selection = Runtime.ACCOUNT_SELECTION.parameterizedBy(account, Runtime.ACCOUNT_SLICE.parameterizedBy(account))
+        val fieldsClass = account.nestedClass("Fields")
+        return listOf(
+            FunSpec.builder("select")
+                .addKdoc("Select [fields] of the %L accounts the program owns, read as one slice of their data.\n", account.simpleName)
+                .addAnnotation(Runtime.JVM_STATIC)
+                .addParameter("fields", field, KModifier.VARARG)
+                .returns(selection)
+                .addStatement("return %T(ACCOUNT, PROGRAM_ID, %T.fields(*fields))", Runtime.ACCOUNT_SELECTION, fieldsClass)
+                .build(),
+            FunSpec.builder("select")
+                .addKdoc(
+                    "Select a slice or a mapped result of the %L accounts the program owns using [%T.fields] or [%T.combine].\n",
+                    account.simpleName,
+                    fieldsClass,
+                    fieldsClass,
+                )
+                .addModifiers(KModifier.INLINE)
+                .addTypeVariable(result)
+                .addParameter("fields", LambdaTypeName.get(receiver = fieldsClass, returnType = Runtime.ACCOUNT_PROJECTION.parameterizedBy(account, result)))
+                .returns(Runtime.ACCOUNT_SELECTION.parameterizedBy(account, result))
+                .addStatement("return %T(ACCOUNT, PROGRAM_ID, %T.fields())", Runtime.ACCOUNT_SELECTION, fieldsClass)
+                .build(),
+        )
+    }
+
+    /**
+     * An extension property on slices of each account type for each of its sliceable fields, reading the field from the
+     * slice. A field named like a member of the slice takes a `Field` suffix, and each property its own JVM name, since
+     * every account's slices share one JVM type.
+     */
+    private fun sliceProperties(): List<PropertySpec> = program.accounts.flatMap { account ->
+        val def = typeDefs.getValue(account.name)
+        val accountClass = classOf(def.name)
+        sliceableFields(def).map {
+            val name = if (it.field.name in SLICE_MEMBERS) "${it.field.name}Field" else it.field.name
+            PropertySpec.builder(name, typeName(it.field.type))
+                .receiver(Runtime.ACCOUNT_SLICE.parameterizedBy(accountClass))
+                .addKdoc("The [%T.%N] of this slice, which must have selected it.\n", accountClass, it.field.name)
+                .addAnnotation(
+                    AnnotationSpec.builder(Runtime.JVM_NAME)
+                        .useSiteTarget(AnnotationSpec.UseSiteTarget.GET)
+                        .addMember("%S", "get${accountClass.simpleName}${it.field.name.replaceFirstChar(Char::uppercaseChar)}")
+                        .build(),
+                )
+                .getter(FunSpec.getterBuilder().addStatement("return this[%T.%N]", accountClass.nestedClass("Fields"), it.field.name).build())
+                .build()
+        }
+    }
+
+    /**
      * The account's filter class: a method per field at a known offset, where every field before it has a
      * fixed size. There is no data size method, since the IDL does not say how much space an account is
      * allocated.
      */
-    private fun accountFilter(account: ClassName, fields: List<Field>, layout: ZeroCopyLayout?): TypeSpec {
+    private fun accountFilter(account: ClassName, fields: List<Field>, offsets: List<Int?>): TypeSpec {
         val filterClass = account.nestedClass("Filter")
         val builder = TypeSpec.classBuilder(filterClass)
             .addKdoc("Filter over the %L accounts the program owns.\n", account.simpleName)
@@ -718,9 +826,8 @@ class SolanaProgramBuilder @JvmOverloads constructor(
                     .getter(FunSpec.getterBuilder().addStatement("return this").build())
                     .build(),
             )
-        var offset: Int? = 0
         for ((i, field) in fields.withIndex()) {
-            val at = layout?.offsets?.get(i) ?: offset ?: break
+            val at = offsets[i] ?: break
             val method = if (field.name in FILTER_BASE_MEMBERS) "${field.name}Field" else field.name
             builder.addFunction(
                 FunSpec.builder(method)
@@ -730,7 +837,6 @@ class SolanaProgramBuilder @JvmOverloads constructor(
                     .addStatement("return field(%L) { %L }", at, write(field.type, CodeBlock.of("value")))
                     .build(),
             )
-            offset = fixedSize(field.type)?.plus(at)
         }
         return builder.build()
     }
@@ -1413,10 +1519,13 @@ class SolanaProgramBuilder @JvmOverloads constructor(
          * Version of the generated output. Bump it whenever the output changes, so build tools invalidate
          * previously generated bindings.
          */
-        const val OUTPUT_VERSION = "2"
+        const val OUTPUT_VERSION = "3"
 
         private const val FETCH_ALIAS = "fetchProgramAccount"
         private const val WATCH_ALIAS = "watchProgramAccount"
+
+        /** Properties of an account slice, which an extension property of the same name cannot be read through. */
+        private val SLICE_MEMBERS = setOf("address", "context", "info", "selection")
 
         /** Members of the account filter base class that a field method must not shadow. */
         private val FILTER_BASE_MEMBERS = setOf("program", "commitment", "memcmp", "dataSize", "field", "query", "subscribe", "accountFilters", "self")

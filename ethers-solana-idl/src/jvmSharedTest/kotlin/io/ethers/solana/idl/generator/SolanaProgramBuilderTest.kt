@@ -265,6 +265,17 @@ class SolanaProgramBuilderTest : FunSpec({
         }
     }
 
+    test("slice properties have their own JVM names, and fields named like slice members a suffix") {
+        val first = IdlTypeDef("First", IdlTypeBody.Struct(IdlFields.Named(listOf(IdlField("address", IdlType.Primitive.PUBKEY), IdlField("bump", IdlType.Primitive.U8)))))
+        val second = IdlTypeDef("Second", IdlTypeBody.Struct(IdlFields.Named(listOf(IdlField("bump", IdlType.Primitive.U8)))))
+        val accounts = listOf(IdlAccount("First", IdlDiscriminator(listOf(1))), IdlAccount("Second", IdlDiscriminator(listOf(2))))
+        val source = generate(program(types = listOf(first, second)).copy(accounts = accounts)).replace(Regex("\\s+"), " ")
+        source shouldContain "@get:JvmName(\"getFirstAddress\") public val SolanaAccountSlice<Test.First>.addressField: SolanaAddress get() = this[Test.First.Fields.address]"
+        source shouldContain "@get:JvmName(\"getFirstBump\") public val SolanaAccountSlice<Test.First>.bump: Int"
+        source shouldContain "@get:JvmName(\"getSecondBump\") public val SolanaAccountSlice<Test.Second>.bump: Int"
+        source shouldContain "public inline fun <R> select(fields: Fields.() -> SolanaAccountProjection<First, R>): SolanaAccountSelection<First, R>"
+    }
+
     context("legacy IDLs") {
         test("a program without an address fails generation, naming the way to give one") {
             shouldThrow<IllegalArgumentException> { generate(program().copy(address = null)) }.message shouldBe
@@ -297,7 +308,7 @@ class SolanaProgramBuilderTest : FunSpec({
             fun mark(name: String) {
                 if (!zeroCopy.add(name)) return
                 val def = drift.type(name)!!
-                if (def.body !is IdlTypeBody.Struct) return
+                val body = def.body as? IdlTypeBody.Struct ?: return
                 fun visit(type: IdlType) {
                     when (type) {
                         is IdlType.Array -> visit(type.element)
@@ -305,7 +316,7 @@ class SolanaProgramBuilderTest : FunSpec({
                         else -> Unit
                     }
                 }
-                ((def.body as IdlTypeBody.Struct).fields as IdlFields.Named).fields.forEach { visit(it.type) }
+                (body.fields as IdlFields.Named).fields.forEach { visit(it.type) }
             }
             listOf("State", "PerpMarket", "SpotMarket").forEach(::mark)
             val marked = drift.copy(

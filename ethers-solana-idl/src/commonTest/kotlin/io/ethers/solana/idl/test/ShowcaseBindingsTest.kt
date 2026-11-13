@@ -11,6 +11,7 @@ import io.ethers.providers.HttpClient
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import io.ethers.providers.types.BatchRpcRequest
+import io.ethers.solana.codec.SolanaAccountField
 import io.ethers.solana.codec.SolanaDecodeError
 import io.ethers.solana.codec.SolanaEventContext
 import io.ethers.solana.codec.SolanaEventSource
@@ -31,6 +32,7 @@ import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBytes
 import io.ethers.solana.types.SolanaSignature
 import io.ethers.solana.types.rpc.ContextValue
+import io.ethers.solana.types.rpc.DataSlice
 import io.ethers.solana.types.rpc.LogsNotification
 import io.ethers.solana.types.rpc.ReturnData
 import io.ethers.solana.types.rpc.RpcContext
@@ -41,7 +43,9 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import kotlin.io.encoding.Base64
 
 private fun hex(value: String): ByteArray = FastHex.decode(value.replace(" ", ""))
@@ -170,6 +174,186 @@ class ShowcaseBindingsTest : FunSpec({
                 AccountFilter.Memcmp(72, Base58.encode(hex("0c000000000000000000000000000000"))),
             )
             api.close()
+        }
+
+        context("account slices") {
+            val gaugeBytes = hex(gaugeData)
+            fun account(data: ByteArray, owner: SolanaAddress = Showcase.PROGRAM_ID) = """{"data":["${Base64.encode(data)}","base64"],"executable":false,"lamports":1,"owner":"$owner","rentEpoch":0}"""
+            fun dataSlice(params: List<Any?>) = (params.last() as JsonObject)["dataSlice"]
+
+            test("descriptors exist for fields at a fixed offset with a fixed size, at their padded zero-copy offsets") {
+                Showcase.Config.Fields.authority.offset shouldBe 0
+                Showcase.Config.Fields.feeBps.offset shouldBe 32
+                Showcase.Config.Fields.feeBps.size shouldBe 2
+                // a string has no fixed size, and nothing after it a fixed offset; Config.Fields has no label
+                Showcase.Gauge.Fields.amount.offset shouldBe 8
+                Showcase.Gauge.Fields.big.offset shouldBe 16
+                Showcase.Gauge.Fields.tail.offset shouldBe 60
+                Showcase.Gauge.Fields.aligned.size shouldBe 16
+            }
+
+            test("a selection reads one slice, from its first field to the end of its last") {
+                val selection = Showcase.Gauge.select(Showcase.Gauge.Fields.tail, Showcase.Gauge.Fields.big)
+                selection.dataSlice shouldBe DataSlice(24, 45)
+                selection.checksDiscriminator shouldBe false
+                // starting at the first field, the slice includes the discriminator to check the account type by
+                val first = Showcase.Gauge.select(Showcase.Gauge.Fields.flag, Showcase.Gauge.Fields.amount)
+                first.dataSlice shouldBe DataSlice(0, 24)
+                first.checksDiscriminator shouldBe true
+            }
+
+            test("fields can be named within Fields, and read as properties of the slice") {
+                val selection = Showcase.Gauge.select { fields(big, tail) }
+                selection.dataSlice shouldBe Showcase.Gauge.select(Showcase.Gauge.Fields.big, Showcase.Gauge.Fields.tail).dataSlice
+                val client = CannedClient("""{"context":{"slot":7},"value":${account(gaugeBytes.copyOfRange(24, 69))}}""")
+                val api = SolanaProvider(client)
+                val slice = selection.fetch(api, CONFIG).send().unwrap()
+                slice.big shouldBe bigIntegerOf(3)
+                slice.tail shouldBe 11
+                // a field the selection does not include cannot be read
+                shouldThrow<IllegalArgumentException> { slice.flag }
+                api.close()
+            }
+
+            test("combined projections fetch, watch, batch, query and subscribe to typed results") {
+                data class GaugeValue(val big: BigInteger, val tail: Int)
+                var calls = 0
+                val selection = Showcase.Gauge.select { combine(big, tail, ::GaugeValue) }
+                val mapped = Showcase.Gauge.select {
+                    combine(big, tail) { b, t ->
+                        calls++
+                        GaugeValue(b, t)
+                    }.map { it.tail }
+                }
+                calls shouldBe 0
+                val expected = GaugeValue(bigIntegerOf(3), 11)
+                val client = CannedClient("""{"context":{"slot":7},"value":${account(gaugeBytes.copyOfRange(24, 69))}}""")
+                val api = SolanaProvider(client)
+                selection.fetch(api, CONFIG).send().unwrap() shouldBe expected
+                selection.watch(api, CONFIG).send().unwrap().receive()!!.unwrap() shouldBe expected
+                mapped.fetch(api, CONFIG).send().unwrap() shouldBe 11
+                calls shouldBe 1
+                selection.dataSlice shouldBe DataSlice(24, 45)
+
+                client.response = """{"context":{"slot":7},"value":[${account(gaugeBytes.copyOfRange(24, 69))},null]}"""
+                val batch = selection.fetch(api, listOf(CONFIG, EXTRA)).send().unwrap()
+                batch[0].unwrap() shouldBe expected
+                batch[1].unwrapError().shouldBeInstanceOf<SolanaAccountError.Missing>()
+
+                client.response = """{"context":{"slot":7},"value":[{"pubkey":"$CONFIG","account":${account(gaugeBytes.copyOfRange(24, 69))}}]}"""
+                Showcase.Gauge.filter(api).query(selection).send().unwrap().value.single().unwrap() shouldBe expected
+                client.response = """{"context":{"slot":7},"value":{"pubkey":"$CONFIG","account":${account(gaugeBytes.copyOfRange(24, 69))}}}"""
+                Showcase.Gauge.filter(api).subscribe(selection).send().unwrap().receive()!!.unwrap() shouldBe expected
+
+                client.response = """{"context":{"slot":7},"value":${account(gaugeBytes.copyOfRange(24, 69), EXTRA)}}"""
+                selection.program(EXTRA).fetch(api, CONFIG).send().unwrap() shouldBe expected
+                api.close()
+            }
+
+            test("a projection decode failure skips the transformation and preserves account error context") {
+                val booleanTail = SolanaAccountField<Showcase.Gauge, Boolean>("booleanTail", 60, 1) { it.readBool() }
+                var calls = 0
+                val selection = Showcase.Gauge.select {
+                    combine(big, booleanTail) { _, flag ->
+                        calls++
+                        flag
+                    }
+                }
+                // The tail byte is 11, which is not a valid Borsh bool.
+                val client = CannedClient("""{"context":{"slot":7},"value":${account(gaugeBytes.copyOfRange(24, 69))}}""")
+                val api = SolanaProvider(client)
+                val error = selection.fetch(api, CONFIG).send().unwrapError().shouldBeInstanceOf<SolanaAccountError.Decode>()
+                error.address shouldBe CONFIG
+                error.context.slot shouldBe bigIntegerOf(7)
+                error.error.shouldBeInstanceOf<SolanaDecodeError.Malformed>()
+                calls shouldBe 0
+                api.close()
+            }
+
+            test("combine supports one through five fields and deduplicates selected descriptors") {
+                val client = CannedClient("""{"context":{"slot":7},"value":${account(byteArrayOf(11))}}""")
+                val api = SolanaProvider(client)
+                Showcase.Gauge.select { combine(tail) { it } }.fetch(api, CONFIG).send().unwrap() shouldBe 11
+                Showcase.Gauge.select { combine(tail, tail, tail) { a, b, c -> a + b + c } }.fetch(api, CONFIG).send().unwrap() shouldBe 33
+                Showcase.Gauge.select { combine(tail, tail, tail, tail) { a, b, c, d -> a + b + c + d } }.fetch(api, CONFIG).send().unwrap() shouldBe 44
+                val five = Showcase.Gauge.select { combine(tail, tail, tail, tail, tail) { a, b, c, d, e -> a + b + c + d + e } }
+                five.fetch(api, CONFIG).send().unwrap() shouldBe 55
+                five.fields shouldBe listOf(Showcase.Gauge.Fields.tail)
+                shouldThrow<IllegalArgumentException> { Showcase.Gauge.select { fields() } }
+                api.close()
+            }
+
+            test("fetch and watch request the slice and decode each selected field from it") {
+                val selection = Showcase.Gauge.select(Showcase.Gauge.Fields.big, Showcase.Gauge.Fields.tail)
+                val client = CannedClient("""{"context":{"slot":7},"value":${account(gaugeBytes.copyOfRange(24, 69))}}""")
+                val api = SolanaProvider(client)
+
+                val slice = selection.fetch(api, CONFIG).send().unwrap()
+                client.params[0] shouldBe "getAccountInfo"
+                dataSlice(client.params) shouldBe Kotlinx.DEFAULT.parseToJsonElement("""{"offset":24,"length":45}""")
+                slice[Showcase.Gauge.Fields.big] shouldBe bigIntegerOf(3)
+                slice[Showcase.Gauge.Fields.tail] shouldBe 11
+                slice.context.slot shouldBe bigIntegerOf(7)
+                shouldThrow<IllegalArgumentException> { slice[Showcase.Gauge.Fields.flag] }
+
+                val watched = selection.watch(api, CONFIG).send().unwrap().receive()!!.unwrap()
+                client.params[0] shouldBe "account"
+                dataSlice(client.params) shouldBe Kotlinx.DEFAULT.parseToJsonElement("""{"offset":24,"length":45}""")
+                watched[Showcase.Gauge.Fields.tail] shouldBe 11
+
+                client.response = """{"context":{"slot":7},"value":[${account(gaugeBytes.copyOfRange(24, 69))},null]}"""
+                val batch = selection.fetch(api, listOf(CONFIG, EXTRA)).send().unwrap()
+                batch[0].unwrap()[Showcase.Gauge.Fields.big] shouldBe bigIntegerOf(3)
+                batch[1].unwrapError().shouldBeInstanceOf<SolanaAccountError.Missing>()
+                api.close()
+            }
+
+            test("the owner is checked, and the discriminator when the slice includes it") {
+                val client = CannedClient("""{"context":{"slot":7},"value":${account(gaugeBytes.copyOfRange(24, 69), owner = EXTRA)}}""")
+                val api = SolanaProvider(client)
+                val selection = Showcase.Gauge.select(Showcase.Gauge.Fields.big)
+                selection.fetch(api, CONFIG).send().unwrapError().shouldBeInstanceOf<SolanaAccountError.Decode>()
+                    .error.shouldBeInstanceOf<SolanaDecodeError.UnexpectedOwner>()
+                selection.program(EXTRA).fetch(api, CONFIG).send().unwrap()[Showcase.Gauge.Fields.big] shouldBe bigIntegerOf(3)
+
+                val first = Showcase.Gauge.select(Showcase.Gauge.Fields.flag, Showcase.Gauge.Fields.amount)
+                client.response = """{"context":{"slot":7},"value":${account(gaugeBytes.copyOfRange(0, 24))}}"""
+                first.fetch(api, CONFIG).send().unwrap()[Showcase.Gauge.Fields.amount] shouldBe bigIntegerOf(2)
+                val other = gaugeBytes.copyOfRange(0, 24).also { it[0] = (it[0] + 1).toByte() }
+                client.response = """{"context":{"slot":7},"value":${account(other)}}"""
+                first.fetch(api, CONFIG).send().unwrapError().shouldBeInstanceOf<SolanaAccountError.Decode>()
+                    .error.shouldBeInstanceOf<SolanaDecodeError.Unrecognized>()
+                api.close()
+            }
+
+            test("an account too short for the selection fails, and a missing one is reported missing") {
+                val client = CannedClient("""{"context":{"slot":7},"value":${account(gaugeBytes.copyOfRange(24, 40))}}""")
+                val api = SolanaProvider(client)
+                val selection = Showcase.Gauge.select(Showcase.Gauge.Fields.big, Showcase.Gauge.Fields.tail)
+                selection.fetch(api, CONFIG).send().unwrapError().shouldBeInstanceOf<SolanaAccountError.Decode>()
+                    .error.shouldBeInstanceOf<SolanaDecodeError.Malformed>().reason shouldBe SolanaDecodeError.Reason.TRUNCATED
+                client.response = """{"context":{"slot":7},"value":null}"""
+                selection.fetch(api, CONFIG).send().unwrapError().shouldBeInstanceOf<SolanaAccountError.Missing>()
+                api.close()
+            }
+
+            test("a filter queries and subscribes to slices, selecting accounts by discriminator before slicing") {
+                val selection = Showcase.Gauge.select(Showcase.Gauge.Fields.tail)
+                val client = CannedClient("""{"context":{"slot":7},"value":[{"pubkey":"$CONFIG","account":${account(byteArrayOf(11))}}]}""")
+                val api = SolanaProvider(client)
+                val query = Showcase.Gauge.filter(api).flag(1).query(selection).send().unwrap()
+                client.params[0] shouldBe "getProgramAccounts"
+                dataSlice(client.params) shouldBe Kotlinx.DEFAULT.parseToJsonElement("""{"offset":68,"length":1}""")
+                ((client.params.last() as JsonObject)["filters"] as JsonArray).size shouldBe 2
+                query.context.slot shouldBe bigIntegerOf(7)
+                query.value.single().unwrap()[Showcase.Gauge.Fields.tail] shouldBe 11
+
+                client.response = """{"context":{"slot":7},"value":{"pubkey":"$CONFIG","account":${account(byteArrayOf(11))}}}"""
+                Showcase.Gauge.filter(api).subscribe(selection).send().unwrap().receive()!!.unwrap()[Showcase.Gauge.Fields.tail] shouldBe 11
+                client.params[0] shouldBe "program"
+                dataSlice(client.params) shouldBe Kotlinx.DEFAULT.parseToJsonElement("""{"offset":68,"length":1}""")
+                api.close()
+            }
         }
 
         test("fetch, watch and query decode accounts the program owns") {
@@ -433,11 +617,19 @@ class ShowcaseBindingsTest : FunSpec({
     }
 })
 
-/** Answers every request and subscription with [response]. */
+/** Answers every request and subscription with [response], recording the last one's parameters, a subscription's method first. */
 private class CannedClient(var response: String) : JsonRpcClient {
-    override suspend fun <T> request(method: String, params: Array<*>, resultDecoder: (JsonElement) -> T): Result<T, RpcError> = success(resultDecoder(Kotlinx.DEFAULT.parseToJsonElement(response)))
+    var params: List<Any?> = emptyList()
 
-    override suspend fun <T : Any> subscribe(params: Array<*>, resultDecoder: (JsonElement) -> T): Result<ChannelReceiver<T>, RpcError> = success(QueueChannel.spscUnbounded<T>().apply { offer(resultDecoder(Kotlinx.DEFAULT.parseToJsonElement(response))) })
+    override suspend fun <T> request(method: String, params: Array<*>, resultDecoder: (JsonElement) -> T): Result<T, RpcError> {
+        this.params = listOf(method) + params.toList()
+        return success(resultDecoder(Kotlinx.DEFAULT.parseToJsonElement(response)))
+    }
+
+    override suspend fun <T : Any> subscribe(params: Array<*>, resultDecoder: (JsonElement) -> T): Result<ChannelReceiver<T>, RpcError> {
+        this.params = params.toList()
+        return success(QueueChannel.spscUnbounded<T>().apply { offer(resultDecoder(Kotlinx.DEFAULT.parseToJsonElement(response))) })
+    }
 
     override suspend fun requestBatch(batch: BatchRpcRequest): Boolean = error("Unexpected batch")
     override fun close() = Unit

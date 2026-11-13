@@ -27,6 +27,11 @@ internal object Runtime {
     val ACCOUNTS_READER = ClassName(CODEC, "SolanaAccountsReader")
     val ACCOUNT_FILTER_BASE = ClassName("io.ethers.solana.program", "SolanaAccountFilterBase")
     val SOLANA_ACCOUNT = ClassName("io.ethers.solana.program", "SolanaAccount")
+    val ACCOUNT_SELECTION = ClassName("io.ethers.solana.program", "SolanaAccountSelection")
+    val ACCOUNT_PROJECTION = ClassName("io.ethers.solana.program", "SolanaAccountProjection")
+    val ACCOUNT_PROJECTION_SCOPE = ClassName("io.ethers.solana.program", "SolanaAccountProjectionScope")
+    val ACCOUNT_SLICE = ClassName("io.ethers.solana.program", "SolanaAccountSlice")
+    val ACCOUNT_FIELD = ClassName(CODEC, "SolanaAccountField")
     val SOLANA_ACCOUNT_ERROR = ClassName("io.ethers.solana.program", "SolanaAccountError")
     val FETCH = MemberName("io.ethers.solana.program", "fetch")
     val WATCH = MemberName("io.ethers.solana.program", "watch")
@@ -49,6 +54,7 @@ internal object Runtime {
 
     val JVM_FIELD = ClassName("kotlin.jvm", "JvmField")
     val JVM_STATIC = ClassName("kotlin.jvm", "JvmStatic")
+    val JVM_NAME = ClassName("kotlin.jvm", "JvmName")
     val JVM_OVERLOADS = ClassName("kotlin.jvm", "JvmOverloads")
 }
 

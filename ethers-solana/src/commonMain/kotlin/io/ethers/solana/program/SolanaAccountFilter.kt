@@ -11,6 +11,7 @@ import io.ethers.solana.providers.AccountFilter
 import io.ethers.solana.providers.middleware.SolanaApi
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.rpc.Commitment
+import io.ethers.solana.types.rpc.ContextValue
 import io.ethers.solana.types.rpc.SolanaAccountConfig
 
 /** Filter over the accounts of one type that a program owns, selected by the type's discriminator. */
@@ -74,6 +75,28 @@ abstract class SolanaAccountFilterBase<T, F : SolanaAccountFilterBase<T, F>>(
         return api.getProgramAccounts(owner, filters.toList(), SolanaAccountConfig(commitment = commitment)).map { response ->
             val accounts = response.value.map { factory.decodeExisting(it.pubkey, response.context, it.account, owner) }
             SolanaAccounts(response.context, accounts)
+        }
+    }
+
+    /**
+     * Query the [selection]'s fields of the matching accounts, as of the returned context. Accounts too short for the
+     * selection are retained as failed results.
+     */
+    fun <R> query(selection: SolanaAccountSelection<T, R>): RpcRequest<ContextValue<List<Result<R, SolanaAccountError>>>, RpcError> {
+        val owner = program
+        return api.getProgramAccounts(owner, filters.toList(), selection.config(commitment)).map { response ->
+            ContextValue(response.context, response.value.map { selection.slice(it.pubkey, response.context, it.account, owner) })
+        }
+    }
+
+    /**
+     * Subscribe to the [selection]'s fields of the matching accounts. Failures are emitted as failed results without
+     * ending the subscription.
+     */
+    fun <R> subscribe(selection: SolanaAccountSelection<T, R>): RpcSubscribe<Result<R, SolanaAccountError>, RpcError> {
+        val owner = program
+        return api.subscribeProgram(owner, filters.toList(), selection.config(commitment)).map { channel ->
+            channel.map { selection.slice(it.value.pubkey, it.context, it.value.account, owner) }
         }
     }
 

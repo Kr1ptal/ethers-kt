@@ -85,6 +85,38 @@ and bump from the account's seeds, e.g. `Escrow.OpenVaultAccounts.findVault(owne
 byte order a program encodes integer seeds in. Most programs use little-endian, the default, but some do not, and the
 derived address is then wrong unless `seedByteOrder` is set for them.
 
+To read only some fields, each account has a `Fields` object of the fields at a fixed offset with a fixed size, and
+`select` reads those fields as one slice of the account data, which the node cuts before sending it:
+
+```kotlin
+val price = Clmm.PoolState.select { fields(sqrtPriceX64, tickCurrent) }
+val pool = price.fetch(api, poolAddress).sendAwait().unwrap()
+val tick = pool.tickCurrent
+```
+
+To return a typed value instead of a slice, use `combine` with one to five field descriptors and a constructor or
+transformation. The transformation runs after all its fields decode successfully:
+
+```kotlin
+data class PoolPrice(val sqrtPriceX64: BigInteger, val tickCurrent: Int)
+
+val price = Clmm.PoolState.select {
+    combine(sqrtPriceX64, tickCurrent, ::PoolPrice)
+}
+val value: PoolPrice = price.fetch(api, poolAddress).sendAwait().unwrap()
+```
+
+`combine(...).map { ... }` can further transform the result. Fetch, batch fetch, watch, filter query and filter
+subscription all preserve the selected result type. Field decode errors are returned as account decode errors;
+exceptions from your transformation propagate. Use `fields(...)` when you need the raw slice and its metadata.
+
+Each selected field reads as a property of the slice, which fails for a field the selection does not include. Java
+calls `select` with the descriptors, `PoolState.Fields.tickCurrent`, and reads them with `slice.get(field)`.
+
+A selection can also `watch` an account, and an account `filter` can `query` or `subscribe` with one. A slice has no
+discriminator to check the account type by, unless it starts with the first field, so fetching by address checks the
+owner only; filters select accounts by discriminator on the node.
+
 Legacy IDLs, from before Anchor 0.30, are converted as Anchor converts them: names become snake_case and
 discriminators are derived from them. They often declare no program address, which `programAddress` then provides, and
 do not record zero-copy layouts, so their types are read as Borsh, which matches zero-copy accounts without padding.
