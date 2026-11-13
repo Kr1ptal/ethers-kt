@@ -42,15 +42,14 @@ val generateProgramBindings by tasks.registering(JavaExec::class) {
     classpath(jvmMainCompilation.output.allOutputs, jvmMainCompilation.runtimeDependencyFiles)
     mainClass = "io.ethers.solana.idl.SolanaIdlCliKt"
 
-    argumentProviders.add(
-        CommandLineArgumentProvider {
-            listOf(idlDir.asFile.absolutePath, generatedSourceDir.get().asFile.absolutePath, generatedPackage) +
-                listOf("--idl", ammV3Idl.asFile.absolutePath, "--idl", dlmmIdl.asFile.absolutePath) +
-                // one seed the showcase program encodes big-endian, the others keep the little-endian default
-                listOf("--seed-byte-order", "showcase:position:config.fee_bps=BIG_ENDIAN") +
-                // Raydium encodes every integer seed big-endian
-                listOf("--seed-byte-order", "amm_v3=BIG_ENDIAN")
-        },
+    // Resolve script-owned values during configuration so execution does not capture the build script.
+    args(
+        listOf(idlDir.asFile.absolutePath, generatedSourceDir.get().asFile.absolutePath, generatedPackage) +
+            listOf("--idl", ammV3Idl.asFile.absolutePath, "--idl", dlmmIdl.asFile.absolutePath) +
+            // one seed the showcase program encodes big-endian, the others keep the little-endian default
+            listOf("--seed-byte-order", "showcase:position:config.fee_bps=BIG_ENDIAN") +
+            // Raydium encodes every integer seed big-endian
+            listOf("--seed-byte-order", "amm_v3=BIG_ENDIAN"),
     )
 }
 
