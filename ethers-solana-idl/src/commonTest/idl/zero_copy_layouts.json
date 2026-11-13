@@ -1,0 +1,148 @@
+{
+  "address": "ZeroCopyLayouts1111111111111111111111111111",
+  "metadata": {
+    "name": "zero_copy_layouts",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Zero-copy layouts whose expected bytes ZeroCopyLayoutsBindingsTest derives from Rust's layout rules"
+  },
+  "instructions": [],
+  "accounts": [
+    { "name": "WideC", "discriminator": [1, 0, 0, 0, 0, 0, 0, 0] },
+    { "name": "Holder", "discriminator": [2, 0, 0, 0, 0, 0, 0, 0] },
+    { "name": "PodWide", "discriminator": [3, 0, 0, 0, 0, 0, 0, 0] }
+  ],
+  "types": [
+    {
+      "name": "WideC",
+      "serialization": "bytemuckunsafe",
+      "repr": { "kind": "c" },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "a", "type": "u8" },
+          { "name": "b", "type": "u128" },
+          { "name": "c", "type": "u16" },
+          { "name": "d", "type": "i128" },
+          { "name": "e", "type": "u8" }
+        ]
+      }
+    },
+    {
+      "name": "AlignedC",
+      "serialization": "bytemuckunsafe",
+      "repr": { "kind": "c", "align": 32 },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "x", "type": "u16" },
+          { "name": "y", "type": "u64" }
+        ]
+      }
+    },
+    {
+      "name": "Outer",
+      "serialization": "bytemuckunsafe",
+      "repr": { "kind": "c" },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "a", "type": "u8" },
+          { "name": "inner", "type": { "defined": { "name": "AlignedC" } } },
+          { "name": "b", "type": "u8" }
+        ]
+      }
+    },
+    {
+      "name": "PackedC",
+      "serialization": "bytemuckunsafe",
+      "repr": { "kind": "c", "packed": true },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "a", "type": "u8" },
+          { "name": "b", "type": "u128" },
+          { "name": "c", "type": "u16" },
+          { "name": "d", "type": "u64" }
+        ]
+      }
+    },
+    {
+      "name": "Wrapper",
+      "serialization": "bytemuck",
+      "repr": { "kind": "transparent" },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "inner", "type": "u128" }
+        ]
+      }
+    },
+    {
+      "name": "Holder",
+      "serialization": "bytemuckunsafe",
+      "repr": { "kind": "c" },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "tag", "type": "u8" },
+          { "name": "wrapped", "type": { "defined": { "name": "Wrapper" } } },
+          { "name": "packed", "type": { "defined": { "name": "PackedC" } } },
+          { "name": "tail", "type": "u32" }
+        ]
+      }
+    },
+    {
+      "name": "Cell",
+      "serialization": "bytemuckunsafe",
+      "repr": { "kind": "c" },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "v", "type": "u64" },
+          { "name": "f", "type": "u8" }
+        ]
+      }
+    },
+    {
+      "name": "Grid",
+      "serialization": "bytemuckunsafe",
+      "repr": { "kind": "c" },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "cells", "type": { "array": [{ "defined": { "name": "Cell" } }, 2] } },
+          { "name": "n", "type": "u8" }
+        ]
+      }
+    },
+    {
+      "name": "PodWide",
+      "serialization": "bytemuck",
+      "repr": { "kind": "c" },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "a", "type": "u64" },
+          { "name": "b", "type": "u128" },
+          { "name": "c", "type": "u256" },
+          { "name": "d", "type": "i256" },
+          { "name": "e", "type": "u64" }
+        ]
+      }
+    },
+    {
+      "name": "PackedWide",
+      "serialization": "bytemuckunsafe",
+      "repr": { "kind": "c", "packed": true },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "a", "type": "u8" },
+          { "name": "b", "type": "u256" },
+          { "name": "c", "type": "i256" }
+        ]
+      }
+    }
+  ]
+}

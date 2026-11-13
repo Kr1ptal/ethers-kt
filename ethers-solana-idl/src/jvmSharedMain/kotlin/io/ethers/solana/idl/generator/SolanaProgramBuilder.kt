@@ -58,10 +58,12 @@ import java.io.File
  * decoded form within an instruction hierarchy, plus program-level dispatch over accounts, events,
  * errors and instructions.
  *
- * Aliases are resolved to their target at each use. Zero-copy types follow their C or transparent
- * layout on Solana's on-chain target, with the padding an unpacked C layout has. Generic type
- * definitions, zero-copy types with a Rust layout and custom serialization are not supported yet and
- * fail generation.
+ * Aliases are resolved to their target at each use. Zero-copy types follow their C, packed C or
+ * transparent layout on Solana's on-chain target, with the padding an unpacked C layout has. Generic
+ * type definitions are not supported yet and fail generation. Layouts the IDL cannot describe fail
+ * generation by design: zero-copy types with Rust's default layout, which leaves the field order
+ * unspecified, zero-copy enums and enum fields of zero-copy types, whose discriminant width the IDL
+ * does not record, and custom serialization.
  *
  * Each program derived account gets a `find` function deriving its address from its seeds. Integer seeds are
  * encoded in the byte order [seedByteOrders] gives, since IDLs do not record it.
@@ -93,6 +95,9 @@ class SolanaProgramBuilder @JvmOverloads constructor(
 
     /** Computed zero-copy layouts, by type name. */
     private val zeroCopyLayouts = HashMap<String, ZeroCopyLayout>()
+
+    /** Zero-copy structs whose layout is being computed, to reject one that contains itself. */
+    private val zeroCopyInProgress = HashSet<String>()
 
     /** A private constant for each distinct constant seed, in order of first use. */
     private val seedConstantNames: Map<List<Int>, String> by lazy {
@@ -196,9 +201,14 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             when (val serialization = def.serialization) {
                 IdlSerialization.Borsh -> Unit
                 IdlSerialization.Bytemuck, IdlSerialization.BytemuckUnsafe -> checkZeroCopy(def)
-                is IdlSerialization.Custom -> throw IllegalArgumentException("type '${def.name}': $serialization serialization is not supported")
+                is IdlSerialization.Custom -> throw IllegalArgumentException(
+                    "type '${def.name}': $serialization serialization is intentionally unsupported, as the program's own code defines " +
+                        "that layout; $ESCAPE_HATCH",
+                )
             }
         }
+        // every zero-copy type's fields passed the checks above, so their layouts can be computed
+        for (def in program.types) if (isZeroCopy(def.name)) zeroCopyLayout(def.name)
         checkPaddingOnlyInZeroCopy()
     }
 
@@ -241,56 +251,59 @@ class SolanaProgramBuilder @JvmOverloads constructor(
     }
 
     /**
-     * Require zero-copy [def] to have a C or transparent layout of fixed-size fields. Its codec follows that layout,
-     * including the padding an unpacked C layout places before fields and after the last one.
+     * Require zero-copy [def] to be a struct of fixed-size fields with a layout the IDL fully specifies: `repr(C)`,
+     * possibly packed or with a raised alignment, or `repr(transparent)`. Forms whose layout the IDL cannot specify
+     * are rejected as intentionally unsupported, naming the escape hatch. The layout itself is checked by
+     * [zeroCopyLayout] once every zero-copy type passed this check.
      */
     private fun checkZeroCopy(def: IdlTypeDef) {
         val where = "type '${def.name}'"
-        val repr = def.repr
-        val supported = when (repr) {
-            IdlRepr.Transparent -> true
-            is IdlRepr.C -> !repr.packed || (repr.align ?: 1) <= 1
-            is IdlRepr.Rust, null -> false
+        when (val repr = def.repr) {
+            // Rust may reorder and pad fields of its default layout as it likes, packed or not, so no IDL can describe it
+            null, is IdlRepr.Rust -> throw IllegalArgumentException(
+                "$where: zero-copy types need a C or transparent layout, but it has ${repr ?: "the default Rust layout"}. " +
+                    "Rust does not specify the field order of that layout, even when packed, so the IDL cannot describe it " +
+                    "and it is intentionally unsupported; $ESCAPE_HATCH",
+            )
+            is IdlRepr.C -> {
+                require(!repr.packed || repr.align == null) { "$where: $repr is not a valid layout, as Rust rejects packed together with align" }
+                repr.align?.let {
+                    require(it in 1..MAX_ALIGN && it and (it - 1) == 0) { "$where: $repr is not a valid layout, as Rust requires align to be a power of two up to 2^29" }
+                }
+            }
+            IdlRepr.Transparent -> Unit
         }
-        require(supported) {
-            "$where: zero-copy types are only supported with a C or transparent layout, without both packed and align; " +
-                "got ${repr ?: "the default Rust layout"}"
-        }
-        val body = def.body as? IdlTypeBody.Struct ?: throw IllegalArgumentException("$where: zero-copy enums are not supported")
-        val aligned = repr is IdlRepr.C && !repr.packed
+        val body = def.body as? IdlTypeBody.Struct ?: throw IllegalArgumentException(
+            "$where: zero-copy enums are intentionally unsupported, as the IDL does not record the width of their discriminant; $ESCAPE_HATCH",
+        )
         when (val fields = body.fields) {
             IdlFields.None -> Unit
-            is IdlFields.Named -> fields.fields.forEach { checkZeroCopyField(it.type, "$where field '${it.name}'", aligned) }
-            is IdlFields.Tuple -> fields.types.forEachIndexed { i, type -> checkZeroCopyField(type, "$where field $i", aligned) }
+            is IdlFields.Named -> fields.fields.forEach { checkZeroCopyField(it.type, "$where field '${it.name}'") }
+            is IdlFields.Tuple -> fields.types.forEachIndexed { i, type -> checkZeroCopyField(type, "$where field $i") }
         }
     }
 
     /**
-     * Whether [name] is an enum whose variants have no fields and fit a byte, which Rust lays out as that byte, as
-     * Borsh writes its tag.
+     * Zero-copy fields have one fixed size: no length prefixes or option tags, and only zero-copy structs nested.
+     *
+     * Enums are rejected: Anchor records `#[repr(u8)]`, `#[repr(u16)]` and so on all as a Rust layout, and
+     * `#[repr(C, u8)]` as a C one, so the IDL never says how wide the discriminant is. On Solana's target a plain
+     * `#[repr(C)]` discriminant takes at least 4 bytes, not the 1 byte Borsh writes.
      */
-    private fun isByteEnum(name: String): Boolean {
-        val body = typeDefs.getValue(name).body as? IdlTypeBody.Enum ?: return false
-        return body.variants.size <= 256 && body.variants.all { it.fields.isEmpty() }
-    }
-
-    /**
-     * Zero-copy fields have one fixed size: no length prefixes or option tags, and only zero-copy structs nested. An
-     * [aligned] layout also needs each field's alignment.
-     */
-    private fun checkZeroCopyField(type: IdlType, where: String, aligned: Boolean) {
+    private fun checkZeroCopyField(type: IdlType, where: String) {
         when (val resolved = resolve(type)) {
             IdlType.Primitive.STRING, IdlType.Primitive.BYTES -> throw IllegalArgumentException("$where: a zero-copy type cannot contain $resolved, which varies in size")
-            IdlType.Primitive.U256, IdlType.Primitive.I256 -> require(!aligned) { "$where: $resolved has no alignment, so is only supported in packed zero-copy types" }
             is IdlType.Primitive -> Unit
-            is IdlType.Array -> checkZeroCopyField(resolved.element, where, aligned)
+            is IdlType.Array -> checkZeroCopyField(resolved.element, where)
             is IdlType.Option -> throw IllegalArgumentException("$where: a zero-copy type cannot contain an option")
             is IdlType.Vec -> throw IllegalArgumentException("$where: a zero-copy type cannot contain a vec, which varies in size")
             is IdlType.Defined -> {
                 val nested = typeDefs.getValue(resolved.name)
-                require(isByteEnum(resolved.name) || nested.serialization == IdlSerialization.Bytemuck || nested.serialization == IdlSerialization.BytemuckUnsafe) {
-                    "$where: a zero-copy type can only contain zero-copy types and enums without fields, but '${nested.name}' is ${nested.serialization}"
+                require(nested.body !is IdlTypeBody.Enum) {
+                    "$where: enum '${nested.name}' in a zero-copy type is intentionally unsupported, as the IDL does not record " +
+                        "the width of its discriminant; $ESCAPE_HATCH"
                 }
+                require(isZeroCopy(nested.name)) { "$where: a zero-copy type can only contain zero-copy types, but '${nested.name}' is ${nested.serialization}" }
             }
             is IdlType.Generic -> throw IllegalArgumentException("$where: generic fields are not supported yet")
         }
@@ -407,49 +420,119 @@ class SolanaProgramBuilder @JvmOverloads constructor(
     }
 
     /**
-     * The C layout of zero-copy struct [name] on Solana's on-chain target: the padding before each field, in field
-     * order, and after the last one. A packed or transparent layout has none.
+     * The layout of zero-copy struct [name] on Solana's on-chain target: the padding before each field, in field
+     * order, and after the last one, each field's offset, the size, and the alignment, null where it is unknown.
      */
-    private class ZeroCopyLayout(val padding: List<Int>, val trailing: Int, val offsets: List<Int>, val size: Int, val align: Int)
+    private class ZeroCopyLayout(val padding: List<Int>, val trailing: Int, val offsets: List<Int>, val size: Int, val align: Int?)
 
+    /** The size of a zero-copy field and its alignment on Solana's on-chain target, null where it is unknown. */
+    private class ZeroCopyField(val label: String, val size: Int, val align: Int?)
+
+    /**
+     * The layout of zero-copy struct [name], which [checkZeroCopy] accepted, following Rust's layout rules:
+     *
+     * - `repr(C)`: each field in order, at the next multiple of its alignment; the struct is aligned to the largest
+     *   field alignment or `align(N)`, whichever is larger, and its size is padded to a multiple of that alignment.
+     * - `repr(C, packed)`: each field right after the previous one, with no padding, and the struct 1-byte aligned.
+     * - `repr(transparent)`: the layout of its one field with a non-zero size or an alignment above 1.
+     *
+     * Primitive alignments are those of Solana's on-chain target, whose data layout `e-m:e-p:64:64-i64:64-n32:64-S128`
+     * gives 64-bit integers 8-byte alignment and, as it names no larger integer, 128-bit integers the same. 256-bit
+     * integers are no Rust primitive, so the type a program uses for one, and its alignment, is unknown.
+     *
+     * A field of unknown alignment is only placed where padding cannot be: in a packed layout, as the field of a
+     * transparent one, whose alignment it leaves unknown, or in a C layout with `bytemuck` serialization. That
+     * serialization stands for `derive(Pod)`, which only compiles for a type without padding, so such a layout has
+     * none either, and one that would is rejected as not matching the program.
+     */
     private fun zeroCopyLayout(name: String): ZeroCopyLayout = zeroCopyLayouts[name] ?: run {
+        val where = "type '$name'"
+        require(zeroCopyInProgress.add(name)) { "$where: contains itself, so has no fixed size" }
         val def = typeDefs.getValue(name)
-        val repr = def.repr
-        val packed = repr !is IdlRepr.C || repr.packed
-        val types = when (val fields = (def.body as IdlTypeBody.Struct).fields) {
+        val fields = when (val fields = (def.body as IdlTypeBody.Struct).fields) {
             IdlFields.None -> emptyList()
-            is IdlFields.Named -> fields.fields.map { it.type }
-            is IdlFields.Tuple -> fields.types
+            is IdlFields.Named -> fields.fields.map { zeroCopyField("field '${it.name}'", it.type) }
+            is IdlFields.Tuple -> fields.types.mapIndexed { i, type -> zeroCopyField("field $i", type) }
         }
-        val padding = ArrayList<Int>(types.size)
-        val offsets = ArrayList<Int>(types.size)
+        val layout = when (val repr = def.repr) {
+            IdlRepr.Transparent -> transparentLayout(where, fields)
+            is IdlRepr.C -> if (repr.packed) packedLayout(fields) else cLayout(where, fields, repr.align, def.serialization == IdlSerialization.Bytemuck)
+            is IdlRepr.Rust, null -> throw IllegalStateException("unchecked zero-copy layout $repr")
+        }
+        zeroCopyInProgress.remove(name)
+        layout.also { zeroCopyLayouts[name] = it }
+    }
+
+    private fun packedLayout(fields: List<ZeroCopyField>): ZeroCopyLayout {
+        val offsets = ArrayList<Int>(fields.size)
         var offset = 0
-        var align = 1
-        for (type in types) {
-            val (size, fieldAlign) = zeroCopySizeAlign(type)
-            val effective = if (packed) 1 else fieldAlign
-            val pad = (effective - offset % effective) % effective
+        for (field in fields) {
+            offsets.add(offset)
+            offset += field.size
+        }
+        return ZeroCopyLayout(List(fields.size) { 0 }, 0, offsets, offset, 1)
+    }
+
+    /** Rust accepts `repr(transparent)` with at most one field of non-zero size or alignment above 1. */
+    private fun transparentLayout(where: String, fields: List<ZeroCopyField>): ZeroCopyLayout {
+        val nonTrivial = fields.filter { it.size != 0 || it.align != 1 }
+        require(nonTrivial.size <= 1) {
+            "$where: repr(transparent) needs at most one field with a non-zero size or an alignment above 1, but " +
+                "${nonTrivial.joinToString { it.label }} are"
+        }
+        // the trivial fields have no size, so every field starts at offset 0
+        val field = nonTrivial.firstOrNull() ?: return ZeroCopyLayout(List(fields.size) { 0 }, 0, List(fields.size) { 0 }, 0, 1)
+        return ZeroCopyLayout(List(fields.size) { 0 }, 0, List(fields.size) { 0 }, field.size, field.align)
+    }
+
+    /** The `repr(C)` layout of [fields], aligned to at least [minAlign]; a [pod] layout has no padding. */
+    private fun cLayout(where: String, fields: List<ZeroCopyField>, minAlign: Int?, pod: Boolean): ZeroCopyLayout {
+        val padding = ArrayList<Int>(fields.size)
+        val offsets = ArrayList<Int>(fields.size)
+        var offset = 0
+        var align: Int? = minAlign ?: 1
+        for (field in fields) {
+            val fieldAlign = field.align
+            val pad = if (fieldAlign == null) {
+                require(pod) {
+                    "$where ${field.label}: has no known alignment on Solana's target, so its padding in a C layout is unknown " +
+                        "and it is intentionally unsupported outside packed and bytemuck (Pod) types; $ESCAPE_HATCH"
+                }
+                0
+            } else {
+                (fieldAlign - offset % fieldAlign) % fieldAlign
+            }
+            require(!pod || pad == 0) { podPadding(where, "$pad bytes of padding before ${field.label}") }
             padding.add(pad)
             offset += pad
             offsets.add(offset)
-            offset += size
-            align = maxOf(align, if (repr == IdlRepr.Transparent) fieldAlign else effective)
+            offset += field.size
+            align = if (align == null || fieldAlign == null) null else maxOf(align, fieldAlign)
         }
-        if (repr is IdlRepr.C) align = maxOf(align, repr.align ?: 1)
-        val trailing = if (packed) 0 else (align - offset % align) % align
-        ZeroCopyLayout(padding, trailing, offsets, offset + trailing, align).also { zeroCopyLayouts[name] = it }
+        val trailing = if (align == null) 0 else (align - offset % align) % align
+        require(!pod || trailing == 0) { podPadding(where, "$trailing bytes of padding after its last field") }
+        return ZeroCopyLayout(padding, trailing, offsets, offset + trailing, align)
     }
 
-    /** The size and alignment of a zero-copy field, where 128-bit integers are 8-byte aligned, as on-chain. */
-    private fun zeroCopySizeAlign(type: IdlType): Pair<Int, Int> = when (val resolved = resolve(type)) {
-        IdlType.Primitive.PUBKEY -> 32 to 1
-        IdlType.Primitive.U128, IdlType.Primitive.I128 -> 16 to 8
-        // only reachable in packed layouts, which ignore alignment
-        IdlType.Primitive.U256, IdlType.Primitive.I256 -> 32 to 1
-        is IdlType.Primitive -> PRIMITIVE_SIZES.getValue(resolved).let { it to it }
-        is IdlType.Array -> zeroCopySizeAlign(resolved.element).let { (size, align) -> size * arrayLength(resolved) to align }
-        is IdlType.Defined -> if (isByteEnum(resolved.name)) 1 to 1 else zeroCopyLayout(resolved.name).let { it.size to it.align }
-        is IdlType.Option, is IdlType.Vec, is IdlType.Generic -> throw IllegalStateException("unchecked zero-copy field $resolved")
+    private fun podPadding(where: String, padding: String) = "$where: its C layout on Solana's target has $padding, but its bytemuck " +
+        "serialization stands for derive(Pod), which rules padding out, so the IDL does not match the program's layout"
+
+    /** The size and alignment of a zero-copy field of [type]. */
+    private fun zeroCopyField(label: String, type: IdlType): ZeroCopyField {
+        var size = 1
+        var element = resolve(type)
+        while (element is IdlType.Array) {
+            size *= arrayLength(element)
+            element = resolve(element.element)
+        }
+        return when (element) {
+            IdlType.Primitive.PUBKEY -> ZeroCopyField(label, size * 32, 1)
+            IdlType.Primitive.U128, IdlType.Primitive.I128 -> ZeroCopyField(label, size * 16, 8)
+            IdlType.Primitive.U256, IdlType.Primitive.I256 -> ZeroCopyField(label, size * 32, null)
+            is IdlType.Primitive -> PRIMITIVE_SIZES.getValue(element).let { ZeroCopyField(label, size * it, it) }
+            is IdlType.Defined -> zeroCopyLayout(element.name).let { ZeroCopyField(label, size * it.size, it.align) }
+            is IdlType.Array, is IdlType.Option, is IdlType.Vec, is IdlType.Generic -> throw IllegalStateException("unchecked zero-copy field $element")
+        }
     }
 
     /** Whether zero-copy struct [name] has padding, itself or in a zero-copy struct it contains. */
@@ -464,7 +547,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         }
         fun contains(type: IdlType): Boolean = when (val resolved = resolve(type)) {
             is IdlType.Array -> contains(resolved.element)
-            is IdlType.Defined -> !isByteEnum(resolved.name) && hasPadding(resolved.name)
+            is IdlType.Defined -> hasPadding(resolved.name)
             else -> false
         }
         return types.any(::contains)
@@ -1519,7 +1602,13 @@ class SolanaProgramBuilder @JvmOverloads constructor(
          * Version of the generated output. Bump it whenever the output changes, so build tools invalidate
          * previously generated bindings.
          */
-        const val OUTPUT_VERSION = "3"
+        const val OUTPUT_VERSION = "4"
+
+        /** The largest alignment Rust's `align(N)` accepts, 2^29. */
+        private const val MAX_ALIGN = 1 shl 29
+
+        /** What to do with a type whose layout the IDL cannot describe. */
+        private const val ESCAPE_HATCH = "bind the type with a handwritten codec instead"
 
         private const val FETCH_ALIAS = "fetchProgramAccount"
         private const val WATCH_ALIAS = "watchProgramAccount"

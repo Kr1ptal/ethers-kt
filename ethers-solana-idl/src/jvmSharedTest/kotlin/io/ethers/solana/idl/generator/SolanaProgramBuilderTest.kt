@@ -86,14 +86,6 @@ class SolanaProgramBuilderTest : FunSpec({
             flat shouldContain "writeU8(value.f0) writePadding(7) Wide.write(this, value.f1) writePadding(8)"
         }
 
-        test("an enum without fields is a byte in a zero-copy layout") {
-            val status = IdlTypeDef("Status", IdlTypeBody.Enum(listOf(IdlEnumVariant("On"), IdlEnumVariant("Off"))))
-            val source = generate(program(types = listOf(status, zeroCopy("S", IdlType.Defined("Status"), IdlType.Primitive.U16, repr = IdlRepr.C()))))
-            val flat = source.replace(Regex("\\s+"), " ")
-            // the u16 is 2-byte aligned after the 1-byte enum
-            flat shouldContain "f0 = Status.read(this), f1 = run { skipPadding(1) readU16() }"
-        }
-
         test("packed and transparent layouts have no padding, even nested in an unpacked one") {
             val source = generate(
                 program(
@@ -106,14 +98,77 @@ class SolanaProgramBuilderTest : FunSpec({
             (source.contains("Padding")) shouldBe false
         }
 
-        test("a Rust layout, packed with align, and 256-bit integers in an unpacked layout are rejected") {
+        test("a transparent layout takes its one non-trivial field's alignment into an unpacked one") {
+            // `Id` is laid out as its u64, the empty byte array before it taking no space, so `Holder` places it at 8
+            val id = zeroCopy("Id", IdlType.Array(IdlType.Primitive.U8, IdlArrayLength.Fixed(0)), IdlType.Primitive.U64, repr = IdlRepr.Transparent)
+            val empty = zeroCopy("Empty", repr = IdlRepr.Transparent)
+            val holder = zeroCopy("Holder", IdlType.Primitive.U8, IdlType.Defined("Id"), IdlType.Defined("Empty"), repr = IdlRepr.C())
+            val flat = generate(program(types = listOf(id, empty, holder))).replace(Regex("\\s+"), " ")
+            flat shouldContain "f1 = run { skipPadding(7) Id.read(this) }, f2 = Empty.read(this), )"
+        }
+
+        test("a transparent layout with more than one non-trivial field is rejected") {
+            rejected(zeroCopy("T", IdlType.Primitive.U32, IdlType.Primitive.U8, repr = IdlRepr.Transparent)) shouldBe
+                "type 'T': repr(transparent) needs at most one field with a non-zero size or an alignment above 1, but field 'f0', field 'f1' are"
+            // a zero-sized field aligned above 1 is not trivial either
+            val alignedZst = IdlType.Array(IdlType.Primitive.U64, IdlArrayLength.Fixed(0))
+            rejected(zeroCopy("T", alignedZst, IdlType.Primitive.U32, repr = IdlRepr.Transparent)) shouldContain "but field 'f0', field 'f1' are"
+        }
+
+        test("Rust layouts, packed or not, are intentionally unsupported") {
             rejected(zeroCopy("S", IdlType.Primitive.U8, repr = null)) shouldBe
-                "type 'S': zero-copy types are only supported with a C or transparent layout, without both packed and align; got the default Rust layout"
-            rejected(zeroCopy("S", IdlType.Primitive.U8, repr = IdlRepr.Rust(packed = true))) shouldContain "got Rust(packed=true, align=null)"
-            rejected(zeroCopy("S", IdlType.Primitive.U8, repr = IdlRepr.C(packed = true, align = 8))) shouldContain "got C(packed=true, align=8)"
-            rejected(zeroCopy("S", IdlType.Primitive.U256, repr = IdlRepr.C())) shouldBe
-                "type 'S' field 'f0': U256 has no alignment, so is only supported in packed zero-copy types"
-            generate(program(types = listOf(zeroCopy("S", IdlType.Primitive.U256)))) shouldContain "readU256()"
+                "type 'S': zero-copy types need a C or transparent layout, but it has the default Rust layout. Rust does not specify the field " +
+                "order of that layout, even when packed, so the IDL cannot describe it and it is intentionally unsupported; bind the type " +
+                "with a handwritten codec instead"
+            // `#[zero_copy(unsafe)]` without a repr of its own is `#[repr(packed)]`
+            rejected(zeroCopy("S", IdlType.Primitive.U8, repr = IdlRepr.Rust(packed = true))) shouldContain
+                "but it has Rust(packed=true, align=null). Rust does not specify the field order"
+            rejected(zeroCopy("S", IdlType.Primitive.U8, repr = IdlRepr.Rust(align = 8))) shouldContain "intentionally unsupported"
+        }
+
+        test("layouts Rust rejects are rejected") {
+            rejected(zeroCopy("S", IdlType.Primitive.U8, repr = IdlRepr.C(packed = true, align = 8))) shouldBe
+                "type 'S': C(packed=true, align=8) is not a valid layout, as Rust rejects packed together with align"
+            for (align in listOf(0, 3, 24, 1 shl 30)) {
+                rejected(zeroCopy("S", IdlType.Primitive.U8, repr = IdlRepr.C(align = align))) shouldBe
+                    "type 'S': C(packed=false, align=$align) is not a valid layout, as Rust requires align to be a power of two up to 2^29"
+            }
+            rejected(zeroCopy("S", IdlType.Defined("S"), repr = IdlRepr.C())) shouldBe "type 'S': contains itself, so has no fixed size"
+            rejected(zeroCopy("A", IdlType.Defined("B")), zeroCopy("B", IdlType.Array(IdlType.Defined("A"), IdlArrayLength.Fixed(1)))) shouldBe
+                "type 'A': contains itself, so has no fixed size"
+        }
+
+        test("256-bit integers, whose alignment is unknown, are only placed where padding cannot be") {
+            val u256 = IdlType.Primitive.U256
+            rejected(zeroCopy("S", IdlType.Primitive.U8, u256, repr = IdlRepr.C())) shouldBe
+                "type 'S' field 'f1': has no known alignment on Solana's target, so its padding in a C layout is unknown and it is " +
+                "intentionally unsupported outside packed and bytemuck (Pod) types; bind the type with a handwritten codec instead"
+            rejected(zeroCopy("S", IdlType.Array(IdlType.Primitive.I256, IdlArrayLength.Fixed(2)), repr = IdlRepr.C())) shouldContain "has no known alignment"
+            // a transparent wrapper keeps its field's unknown alignment
+            val wrapper = zeroCopy("Wrapper", u256, repr = IdlRepr.Transparent)
+            rejected(wrapper, zeroCopy("S", IdlType.Primitive.U8, IdlType.Defined("Wrapper"), repr = IdlRepr.C())) shouldContain
+                "type 'S' field 'f1': has no known alignment"
+
+            // packed, transparent, and Pod layouts have no padding to place
+            generate(program(types = listOf(zeroCopy("S", IdlType.Primitive.U8, u256)))) shouldContain "f1 = readU256()"
+            generate(program(types = listOf(wrapper))) shouldContain "f0 = readU256()"
+            val pod = zeroCopy("Pod", IdlType.Primitive.U64, u256, IdlType.Defined("Wrapper"), IdlType.Primitive.U64, repr = IdlRepr.C(), serialization = IdlSerialization.Bytemuck)
+            val flat = generate(program(types = listOf(wrapper, pod))).replace(Regex("\\s+"), " ")
+            flat shouldContain "f0 = readU64(), f1 = readU256(), f2 = Wrapper.read(this), f3 = readU64(), )"
+            // but a Pod layout cannot need padding after one either: the u64 would be at 1 + 32, 7 bytes short of 40
+            rejected(zeroCopy("Pod", IdlType.Primitive.U8, u256, IdlType.Primitive.U64, repr = IdlRepr.C(), serialization = IdlSerialization.Bytemuck)) shouldBe
+                "type 'Pod': its C layout on Solana's target has 7 bytes of padding before field 'f2', but its bytemuck serialization " +
+                "stands for derive(Pod), which rules padding out, so the IDL does not match the program's layout"
+        }
+
+        test("a bytemuck (Pod) layout with padding does not match the program and is rejected") {
+            fun pod(vararg fields: IdlType, align: Int? = null) = zeroCopy("Pod", *fields, repr = IdlRepr.C(align = align), serialization = IdlSerialization.Bytemuck)
+            rejected(pod(IdlType.Primitive.U8, IdlType.Primitive.U64)) shouldContain "has 7 bytes of padding before field 'f1'"
+            rejected(pod(IdlType.Primitive.U64, IdlType.Primitive.U8)) shouldContain "has 7 bytes of padding after its last field"
+            rejected(pod(IdlType.Primitive.U8, align = 16)) shouldContain "has 15 bytes of padding after its last field"
+            // with 8-byte aligned 128-bit integers, a u64 then a u128 needs no padding; 16-byte alignment would need 8 bytes
+            generate(program(types = listOf(pod(IdlType.Primitive.U64, IdlType.Primitive.U128)))) shouldContain "f1 = readU128()"
+            generate(program(types = listOf(pod(IdlType.Primitive.U64, IdlType.Primitive.U64, align = 16)))) shouldContain "public data class Pod("
         }
 
         test("a padded zero-copy type cannot be Borsh-encoded, while one without padding can") {
@@ -134,20 +189,32 @@ class SolanaProgramBuilderTest : FunSpec({
             rejected(padded, wrapper, holder) shouldContain "'Wrapper' has padding in its zero-copy layout"
         }
 
-        test("fields that vary in size, and nested types that are not zero-copy, are rejected") {
+        test("enums, whose discriminant width the IDL does not record, are intentionally unsupported in zero-copy layouts") {
+            // Anchor records #[repr(u8)] and #[repr(u16)] alike as a Rust layout, and #[repr(C)] takes 4 bytes on-chain
+            for (repr in listOf(null, IdlRepr.Rust(), IdlRepr.C())) {
+                val status = IdlTypeDef("Status", IdlTypeBody.Enum(listOf(IdlEnumVariant("On"), IdlEnumVariant("Off"))), repr = repr)
+                rejected(status, zeroCopy("S", IdlType.Defined("Status"), IdlType.Primitive.U16, repr = IdlRepr.C())) shouldBe
+                    "type 'S' field 'f0': enum 'Status' in a zero-copy type is intentionally unsupported, as the IDL does not record " +
+                    "the width of its discriminant; bind the type with a handwritten codec instead"
+            }
+            val dataEnum = IdlTypeDef("D", IdlTypeBody.Enum(listOf(IdlEnumVariant("A", IdlFields.Tuple(listOf(IdlType.Primitive.U8))))))
+            rejected(zeroCopy("S", IdlType.Array(IdlType.Defined("D"), IdlArrayLength.Fixed(2))), dataEnum) shouldContain "enum 'D' in a zero-copy type"
+            val enum = IdlTypeDef("E", IdlTypeBody.Enum(listOf(IdlEnumVariant("A"))), serialization = IdlSerialization.BytemuckUnsafe, repr = IdlRepr.C())
+            rejected(enum) shouldBe
+                "type 'E': zero-copy enums are intentionally unsupported, as the IDL does not record the width of their discriminant; " +
+                "bind the type with a handwritten codec instead"
+        }
+
+        test("fields that vary in size, nested types that are not zero-copy, and custom serialization are rejected") {
             rejected(zeroCopy("S", IdlType.Primitive.STRING)) shouldBe "type 'S' field 'f0': a zero-copy type cannot contain STRING, which varies in size"
             rejected(zeroCopy("S", IdlType.Vec(IdlType.Primitive.U8))) shouldBe "type 'S' field 'f0': a zero-copy type cannot contain a vec, which varies in size"
             rejected(zeroCopy("S", IdlType.Option(IdlType.Primitive.U8))) shouldBe "type 'S' field 'f0': a zero-copy type cannot contain an option"
             rejected(zeroCopy("S", IdlType.Array(IdlType.Primitive.BYTES, IdlArrayLength.Fixed(2)))) shouldContain "cannot contain BYTES"
             rejected(zeroCopy("S", IdlType.Defined("Plain")), struct("Plain")) shouldBe
-                "type 'S' field 'f0': a zero-copy type can only contain zero-copy types and enums without fields, but 'Plain' is Borsh"
-            // an enum with a field is no single byte
-            val dataEnum = IdlTypeDef("D", IdlTypeBody.Enum(listOf(IdlEnumVariant("A", IdlFields.Tuple(listOf(IdlType.Primitive.U8))))))
-            rejected(zeroCopy("S", IdlType.Defined("D")), dataEnum) shouldContain "but 'D' is Borsh"
-            val enum = IdlTypeDef("E", IdlTypeBody.Enum(listOf(IdlEnumVariant("A"))), serialization = IdlSerialization.Bytemuck, repr = packed)
-            rejected(enum) shouldBe "type 'E': zero-copy enums are not supported"
+                "type 'S' field 'f0': a zero-copy type can only contain zero-copy types, but 'Plain' is Borsh"
             rejected(zeroCopy("S", IdlType.Primitive.U8, serialization = IdlSerialization.Custom("Compressed"))) shouldBe
-                "type 'S': Custom(name=Compressed) serialization is not supported"
+                "type 'S': Custom(name=Compressed) serialization is intentionally unsupported, as the program's own code defines that layout; " +
+                "bind the type with a handwritten codec instead"
         }
     }
 
@@ -301,7 +368,9 @@ class SolanaProgramBuilderTest : FunSpec({
 
         // Drift's zero-copy State, PerpMarket and SpotMarket are 992, 1216 and 776 bytes on mainnet. With 128-bit
         // integers 8-byte aligned, as on-chain, their C layouts have no padding and match those sizes; 16-byte
-        // alignment would pad them to 1016, 1240 and 808 bytes.
+        // alignment would pad them to 1016, 1240 and 808 bytes. Their enum fields have Rust's default layout, which
+        // the IDL cannot describe, so they are replaced by the byte the mainnet sizes show they take, as a
+        // handwritten codec would.
         test("Drift's zero-copy markets have no padding with on-chain 128-bit alignment") {
             val drift = fixture("drift")
             val zeroCopy = HashSet<String>()
@@ -319,9 +388,19 @@ class SolanaProgramBuilderTest : FunSpec({
                 (body.fields as IdlFields.Named).fields.forEach { visit(it.type) }
             }
             listOf("State", "PerpMarket", "SpotMarket").forEach(::mark)
+            fun enumsAsBytes(type: IdlType): IdlType = when (type) {
+                is IdlType.Array -> type.copy(element = enumsAsBytes(type.element))
+                is IdlType.Defined -> if (drift.type(type.name)!!.body is IdlTypeBody.Enum) IdlType.Primitive.U8 else type
+                else -> type
+            }
+            fun asZeroCopy(def: IdlTypeDef): IdlTypeDef {
+                val fields = (def.body as IdlTypeBody.Struct).fields as IdlFields.Named
+                val body = IdlTypeBody.Struct(IdlFields.Named(fields.fields.map { it.copy(type = enumsAsBytes(it.type)) }))
+                return def.copy(body = body, serialization = IdlSerialization.BytemuckUnsafe, repr = IdlRepr.C())
+            }
             val marked = drift.copy(
                 address = "dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH",
-                types = drift.types.map { if (it.name in zeroCopy) it.copy(serialization = IdlSerialization.BytemuckUnsafe, repr = IdlRepr.C()) else it },
+                types = drift.types.map { if (it.name in zeroCopy) asZeroCopy(it) else it },
             )
             (generate(marked).contains("Padding(")) shouldBe false
         }

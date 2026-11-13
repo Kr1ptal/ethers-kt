@@ -123,11 +123,40 @@ do not record zero-copy layouts, so their types are read as Borsh, which matches
 Struct fields that a legacy IDL names alike, such as Rust's `_padding` and `padding`, are numbered from the first, and
 the last keeps the name.
 
-Zero-copy accounts (`#[account(zero_copy)]`) are decoded in the layout the program sees on-chain: packed and unpacked
-`#[repr(C)]` layouts, including the padding an unpacked layout places between and after fields, and
-`#[repr(transparent)]`. Zero-copy types with the default Rust layout, with both `packed` and `align`, or with 256-bit
-integers in an unpacked layout fail generation, as does using a zero-copy type with padding where Borsh encodes it, such
-as an instruction argument.
+Zero-copy accounts (`#[account(zero_copy)]`, IDL `serialization` `bytemuck` or `bytemuckunsafe`) are decoded in the
+layout the program sees on-chain, on Solana's SBF target. Only layouts the IDL fully describes are generated; the rest
+fail generation with an error that says why:
+
+| IDL `repr`                                       | Generated | Layout                                                                                             |
+|--------------------------------------------------|-----------|----------------------------------------------------------------------------------------------------|
+| `{"kind": "c"}`, optionally with `align`         | yes       | Fields in order, each padded to its alignment; the size padded to the struct's alignment.          |
+| `{"kind": "c", "packed": true}`                  | yes       | Fields back to back, no padding, aligned to 1.                                                     |
+| `{"kind": "transparent"}`                        | yes       | Its one field of non-zero size or alignment above 1.                                               |
+| absent or `{"kind": "rust", ...}`                | no        | Rust does not specify the field order of its default layout, even when packed.                     |
+| `packed` and `align` together, invalid `align`   | no        | Rust rejects these layouts.                                                                        |
+
+Primitive alignments follow the SBF data layout (`e-m:e-p:64:64-i64:64-n32:64-S128`): integers are aligned to their
+size up to 8 bytes, and `u128`/`i128` to 8 bytes, unlike the 16 bytes of x86-64 since Rust 1.77. Public keys are
+aligned to 1. 256-bit integers have no Rust primitive, so their alignment is unknown. They are generated only where no
+padding can depend on it: in packed layouts, as the field of a transparent one, and in `bytemuck` C layouts. A
+`bytemuck` IDL type stands for `derive(Pod)`, which only compiles without padding, so a `bytemuck` layout that would
+need padding is rejected as not matching the program.
+
+The Rust layout includes `#[zero_copy(unsafe)]` without a `#[repr]` of its own, which Anchor declares
+`#[repr(packed)]`. Also rejected, by design, are:
+
+- zero-copy enums and enum fields of zero-copy types. Anchor records `#[repr(u8)]`, `#[repr(u16)]` and others all as
+  `{"kind": "rust"}`, and `#[repr(C, u8)]` as `{"kind": "c"}`, so the IDL never states the width of the discriminant. A
+  plain `#[repr(C)]` discriminant takes at least 4 bytes on-chain.
+- `custom` serialization, whose layout is defined by the program's own code.
+- a zero-copy type with padding where Borsh encodes it, such as an instruction argument.
+
+For a layout the IDL cannot describe, bind the type with a handwritten `SolanaCodec` instead.
+
+Anchor records both `#[repr(packed)]` and `#[repr(packed(N))]` as `"packed": true`. The generator reads that as
+`packed`, that is `packed(1)`, the form programs such as Raydium's CLMM use. A type declared
+`#[repr(C, packed(N))]` with N above 1 and a field aligned above 1 is laid out differently from what the IDL implies,
+and needs a handwritten codec.
 
 ### Local testing of the plugin
 
