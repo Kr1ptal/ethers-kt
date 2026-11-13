@@ -23,12 +23,15 @@ import io.ethers.solana.types.rpc.ProgramAccount
 import io.ethers.solana.types.rpc.SignatureNotification
 import io.ethers.solana.types.rpc.SlotNotification
 import io.ethers.solana.types.rpc.SlotUpdateNotification
+import io.ethers.solana.types.rpc.SolanaAccountConfig
 import io.ethers.solana.types.rpc.VoteNotification
 import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
 import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmStatic
 
@@ -48,15 +51,15 @@ class SolanaProvider @JvmOverloads constructor(
     override val provider: SolanaProvider
         get() = this
 
-    override fun subscribeAccount(address: SolanaAddress, commitment: Commitment): RpcSubscribe<ContextValue<AccountInfo?>, RpcError> = subscribe("account", arrayOf(address.toString(), options(commitment, true))) { decodeContext(it, ::decodeAccount) }
+    override fun subscribeAccount(address: SolanaAddress, config: SolanaAccountConfig): RpcSubscribe<ContextValue<AccountInfo?>, RpcError> {
+        return subscribe("account", arrayOf(address.toString(), accountOptions(config))) { decodeContext(it, ::decodeAccount) }
+    }
 
-    override fun subscribeProgram(program: SolanaAddress, filters: List<AccountFilter>, commitment: Commitment): RpcSubscribe<ContextValue<ProgramAccount>, RpcError> {
-        val config = buildJsonObject {
-            put("commitment", commitment.toString())
-            put("encoding", "base64")
+    override fun subscribeProgram(program: SolanaAddress, filters: List<AccountFilter>, config: SolanaAccountConfig): RpcSubscribe<ContextValue<ProgramAccount>, RpcError> {
+        val options = accountOptions(config) {
             put("filters", JsonArray(filters.map { it.toJson() }))
         }
-        return subscribe("program", arrayOf(program.toString(), config)) { element ->
+        return subscribe("program", arrayOf(program.toString(), options)) { element ->
             decodeContext(element) { value ->
                 decode<ProgramAccount>(value)
             }
@@ -142,6 +145,19 @@ class SolanaProviderBuilder internal constructor(private val url: String) {
 }
 
 data class SolanaProviderBuildError(override val message: String) : ThrowableError
+
+/** Base64 account options with [config]'s commitment, or the provider's default, and its data slice. */
+private fun SolanaProvider.accountOptions(config: SolanaAccountConfig, extra: JsonObjectBuilder.() -> Unit = {}) = buildJsonObject {
+    put("commitment", (config.commitment ?: defaultCommitment).toString())
+    put("encoding", "base64")
+    config.dataSlice?.let { slice ->
+        putJsonObject("dataSlice") {
+            put("offset", slice.offset)
+            put("length", slice.length)
+        }
+    }
+    extra()
+}
 
 private fun options(commitment: Commitment, base64: Boolean = false) = buildJsonObject {
     put("commitment", commitment.toString())

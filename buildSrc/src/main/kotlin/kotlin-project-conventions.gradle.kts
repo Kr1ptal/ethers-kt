@@ -69,14 +69,15 @@ pluginManager.withPlugin("org.jetbrains.kotlin.multiplatform") {
         // `FileNotFoundException: ethers-signers-gcp-iosArm64Main-<version>.klib`.
         val jvmOnlyModules = setOf("ethers-signers-gcp")
 
-        // ethers-abigen is JVM-bound in exactly the same way, but declares Apple targets anyway: its commonTest
-        // compiles generated contract wrappers for every target, which is what proves abigen output is portable.
+        // ethers-abigen and ethers-solana-idl are JVM-bound in exactly the same way, but declare Apple targets
+        // anyway: their commonTest compiles generated bindings for every target, which is what proves the
+        // generated output is portable.
         // Its main compilations stay empty, so it hits the klib problem above - `publish` therefore has to run
         // with `-PethersPublishing`, which drops the targets and restores the JVM-only publication.
         //
         // The flag gates publishing rather than the targets so the check is on by default: forgetting it fails
         // the publish loudly, where an opt-in check would just quietly stop running.
-        val testOnlyNativeModules = setOf("ethers-abigen")
+        val testOnlyNativeModules = setOf("ethers-abigen", "ethers-solana-idl")
         val isPublishing = project.hasProperty("ethersPublishing")
 
         val supportsNative = when {

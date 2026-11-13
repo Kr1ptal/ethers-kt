@@ -31,8 +31,8 @@ jobs:
         run: ./gradlew clean build --no-watch-fs --stacktrace
 
       - name: Publish artifacts to staging
-        # `-PethersPublishing` drops ethers-abigen's Apple targets. They exist only so its commonTest can
-        # compile generated contract wrappers natively; its main compilations are empty and produce no klib,
+        # `-PethersPublishing` drops the Apple targets of ethers-abigen and ethers-solana-idl. They exist only so
+        # their commonTest can compile generated bindings natively; their main compilations are empty and produce no klib,
         # which `publish` cannot handle. The preceding `build` step still runs that check with them enabled.
         run: ./gradlew publish -PethersPublishing --no-watch-fs --stacktrace
 

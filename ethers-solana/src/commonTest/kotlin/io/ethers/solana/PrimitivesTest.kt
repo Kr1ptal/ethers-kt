@@ -83,6 +83,10 @@ class PrimitivesTest : FunSpec({
         SolanaAddress.createProgramAddress(listOf(byteArrayOf(zero.toByte()), byteArrayOf(0)), Programs.SYSTEM)!!.isOnCurve() shouldBe false
         // an on-curve result is a value, since around half of all seed sets produce one
         (0..255).mapNotNull { n -> SolanaAddress.createProgramAddress(listOf(byteArrayOf(n.toByte())), Programs.SYSTEM) }.size shouldBeLessThan 256
+        // a bump found after several on-curve attempts derives the same address as that bump given explicitly
+        val (seed, deep) = (0..255).map { n -> n to SolanaAddress.findProgramAddress(listOf(byteArrayOf(n.toByte())), Programs.SYSTEM) }.first { it.second.bump < 252 }
+        SolanaAddress.createProgramAddress(listOf(byteArrayOf(seed.toByte()), byteArrayOf(deep.bump.toByte())), Programs.SYSTEM) shouldBe deep.address
+        (deep.bump + 1..255).forEach { SolanaAddress.createProgramAddress(listOf(byteArrayOf(seed.toByte()), byteArrayOf(it.toByte())), Programs.SYSTEM) shouldBe null }
     }
 
     test("SolanaAddress serializer preserves base58 addresses including off-curve PDAs") {
