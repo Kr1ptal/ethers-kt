@@ -17,6 +17,10 @@ val ammV3Idl = layout.projectDirectory.file("src/jvmSharedTest/resources/idl/amm
 // Meteora's DLMM: unpacked zero-copy accounts.
 val dlmmIdl = layout.projectDirectory.file("src/jvmSharedTest/resources/idl/dlmm.json")
 
+// Custom codecs, type substitutions, renames and account defaults of the ledger IDL, whose handwritten codecs live in
+// commonTest.
+val generatorOverrides = layout.projectDirectory.file("src/commonTest/overrides.json")
+
 // Must live under `build/generated` - `ktlint-conventions` excludes that path, and generated code is not
 // formatted to this project's ktlint config.
 val generatedSourceDir = layout.buildDirectory.dir("generated/source/solanaIdl/commonTest/kotlin")
@@ -35,6 +39,9 @@ val generateProgramBindings by tasks.registering(JavaExec::class) {
     inputs.file(dlmmIdl)
         .withPropertyName("dlmmIdl")
         .withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file(generatorOverrides)
+        .withPropertyName("generatorOverrides")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
     outputs.dir(generatedSourceDir).withPropertyName("generatedSources")
     outputs.cacheIf { true }
 
@@ -49,7 +56,8 @@ val generateProgramBindings by tasks.registering(JavaExec::class) {
             // one seed the showcase program encodes big-endian, the others keep the little-endian default
             listOf("--seed-byte-order", "showcase:position:config.fee_bps=BIG_ENDIAN") +
             // Raydium encodes every integer seed big-endian
-            listOf("--seed-byte-order", "amm_v3=BIG_ENDIAN"),
+            listOf("--seed-byte-order", "amm_v3=BIG_ENDIAN") +
+            listOf("--overrides", generatorOverrides.asFile.absolutePath),
     )
 }
 

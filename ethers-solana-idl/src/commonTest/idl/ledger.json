@@ -1,0 +1,330 @@
+{
+  "address": "Memo1UhkJRfHyvLMcVucJwxXeuD728EqVDDwQDxFMNo",
+  "metadata": {
+    "name": "ledger",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Exercises generator overrides"
+  },
+  "instructions": [
+    {
+      "name": "record",
+      "discriminator": [
+        1
+      ],
+      "accounts": [
+        {
+          "name": "ledger",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "token_program"
+        },
+        {
+          "name": "sides",
+          "accounts": [
+            {
+              "name": "maker",
+              "writable": true
+            },
+            {
+              "name": "taker"
+            }
+          ]
+        },
+        {
+          "name": "referrer",
+          "optional": true
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": {
+            "defined": {
+              "name": "Amount"
+            }
+          }
+        },
+        {
+          "name": "price",
+          "type": {
+            "defined": {
+              "name": "Price"
+            }
+          }
+        },
+        {
+          "name": "side",
+          "type": {
+            "defined": {
+              "name": "Side"
+            }
+          }
+        },
+        {
+          "name": "packed",
+          "type": {
+            "defined": {
+              "name": "Compressed"
+            }
+          }
+        }
+      ],
+      "returns": {
+        "defined": {
+          "name": "Compressed"
+        }
+      }
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Ledger",
+      "discriminator": [
+        10
+      ]
+    },
+    {
+      "name": "Pool",
+      "discriminator": [
+        11
+      ]
+    },
+    {
+      "name": "Tagged",
+      "discriminator": [
+        12
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "Recorded",
+      "discriminator": [
+        20
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "Overflow",
+      "msg": "Too large"
+    }
+  ],
+  "types": [
+    {
+      "name": "Amount",
+      "type": {
+        "kind": "type",
+        "alias": "u64"
+      }
+    },
+    {
+      "name": "Price",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mantissa",
+            "type": "i64"
+          },
+          {
+            "name": "expo",
+            "type": "i32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Compressed",
+      "docs": [
+        "A u32 the program writes as a LEB128 varint."
+      ],
+      "serialization": {
+        "custom": "varint"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "value",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Stamp",
+      "docs": [
+        "A u32 the program writes big-endian."
+      ],
+      "serialization": {
+        "custom": "big_endian"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "seconds",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Side",
+      "serialization": {
+        "custom": "u32_tag"
+      },
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Buy"
+          },
+          {
+            "name": "Sell",
+            "fields": [
+              {
+                "name": "limit",
+                "type": "u8"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "Ledger",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "stamp",
+            "type": {
+              "defined": {
+                "name": "Stamp"
+              }
+            }
+          },
+          {
+            "name": "packed",
+            "type": {
+              "defined": {
+                "name": "Compressed"
+              }
+            }
+          },
+          {
+            "name": "price",
+            "type": {
+              "defined": {
+                "name": "Price"
+              }
+            }
+          },
+          {
+            "name": "total",
+            "type": {
+              "defined": {
+                "name": "Amount"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Pool",
+      "serialization": "bytemuck",
+      "repr": {
+        "kind": "c"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "flag",
+            "type": "u8"
+          },
+          {
+            "name": "liquidity",
+            "type": {
+              "defined": {
+                "name": "Amount"
+              }
+            }
+          },
+          {
+            "name": "stamp",
+            "type": {
+              "defined": {
+                "name": "Stamp"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Tagged",
+      "serialization": {
+        "custom": "label_first"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "tag",
+            "type": "u8"
+          },
+          {
+            "name": "label",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Recorded",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "amount",
+            "type": {
+              "defined": {
+                "name": "Amount"
+              }
+            }
+          },
+          {
+            "name": "side",
+            "type": {
+              "defined": {
+                "name": "Side"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "constants": [
+    {
+      "name": "MAX",
+      "type": "u8",
+      "value": "10"
+    }
+  ]
+}

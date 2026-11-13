@@ -1,24 +1,31 @@
 package io.ethers.abigen.plugin.task
 
 import io.ethers.abigen.plugin.source.SolanaIdlDirectorySource
+import io.ethers.solana.idl.generator.GeneratorOverrides
 import io.ethers.solana.idl.generator.SeedByteOrders
 import io.ethers.solana.idl.generator.SolanaProgramBuilder
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
+import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.ProjectLayout
 import org.gradle.api.model.ObjectFactory
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.MapProperty
 import org.gradle.api.provider.Property
+import org.gradle.api.provider.Provider
 import org.gradle.api.tasks.CacheableTask
 import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.InputFiles
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.Nested
 import org.gradle.api.tasks.OutputDirectory
+import org.gradle.api.tasks.PathSensitive
+import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
 import org.gradle.workers.WorkerExecutor
 import java.io.File
+import java.util.TreeMap
 import javax.inject.Inject
 
 @CacheableTask
@@ -54,6 +61,28 @@ abstract class EthersSolanaIdlTask @Inject constructor(private val executor: Wor
     abstract val seedByteOrders: MapProperty<String, SeedByteOrders>
 
     /**
+     * Generator overrides, keyed by the program name the IDL declares, see [GeneratorOverrides]. Tracked as an input
+     * through [sortedGeneratorOverrides], so the order they were configured in does not change the cache key.
+     * */
+    @get:Internal
+    abstract val generatorOverrides: MapProperty<String, GeneratorOverrides>
+
+    /**
+     * [generatorOverrides] sorted by program, whose overrides are sorted by target themselves.
+     * */
+    @get:Input
+    internal val sortedGeneratorOverrides: Provider<Map<String, GeneratorOverrides>>
+        get() = generatorOverrides.map { TreeMap(it) }
+
+    /**
+     * JSON files of generator overrides, in the format [GeneratorOverrides.parse] reads, merged with
+     * [generatorOverrides].
+     * */
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val overridesFiles: ConfigurableFileCollection
+
+    /**
      * Directory where the generated Kotlin files will be placed. Path is relative to the project build directory.
      * */
     @get:Input
@@ -84,6 +113,20 @@ abstract class EthersSolanaIdlTask @Inject constructor(private val executor: Wor
         projectLayout.buildDirectory.dir("tmp/solana-idl-results/"),
     )
 
+    /** [generatorOverrides] merged with those of [overridesFiles], which must not configure one target differently. */
+    private fun mergedOverrides(): Map<String, GeneratorOverrides> {
+        var merged: Map<String, GeneratorOverrides> = TreeMap(generatorOverrides.get())
+        // sorted, so a conflict is reported alike in any configuration order
+        for (file in overridesFiles.files.sortedBy { it.path }) {
+            merged = try {
+                GeneratorOverrides.mergeAll(merged, GeneratorOverrides.parse(file.readText()))
+            } catch (e: IllegalArgumentException) {
+                throw GradleException("Invalid generator overrides in $file: ${e.message}", e)
+            }
+        }
+        return merged
+    }
+
     @TaskAction
     fun run() {
         // delete previous outputs, so bindings of removed or renamed IDLs are not restored from the build cache,
@@ -96,6 +139,7 @@ abstract class EthersSolanaIdlTask @Inject constructor(private val executor: Wor
             mkdirs()
         }
         val queue = executor.noIsolation()
+        val overrides = mergedOverrides()
 
         val idls = sources.get().flatMap { it.getSources() }
         idls.forEachIndexed { index, source ->
@@ -104,6 +148,7 @@ abstract class EthersSolanaIdlTask @Inject constructor(private val executor: Wor
                 it.destination.set(destDir)
                 it.programAddresses.set(programAddresses)
                 it.seedByteOrders.set(seedByteOrders)
+                it.generatorOverrides.set(overrides)
                 it.resultFile.set(File(resultsDir, index.toString()))
             }
         }
@@ -120,7 +165,11 @@ abstract class EthersSolanaIdlTask @Inject constructor(private val executor: Wor
             }
         }
 
-        for ((property, programs) in listOf("programAddresses" to programAddresses.get().keys, "seedByteOrders" to seedByteOrders.get().keys)) {
+        for ((property, programs) in listOf(
+            "programAddresses" to programAddresses.get().keys,
+            "seedByteOrders" to seedByteOrders.get().keys,
+            "generatorOverrides" to overrides.keys,
+        )) {
             val unknown = programs - programNames
             if (unknown.isNotEmpty()) {
                 throw GradleException("$property names programs that no IDL declares: ${unknown.sorted()}. Declared programs: ${programNames.sorted()}")

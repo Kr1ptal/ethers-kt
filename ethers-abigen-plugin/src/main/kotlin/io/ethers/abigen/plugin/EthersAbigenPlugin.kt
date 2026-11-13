@@ -31,6 +31,8 @@ abstract class EthersAbigenPlugin : Plugin<Project> {
             it.sources.set(solanaExt.sources)
             it.programAddresses.set(solanaExt.programAddresses)
             it.seedByteOrders.set(solanaExt.seedByteOrders)
+            it.generatorOverrides.set(solanaExt.generatorOverrides)
+            it.overridesFiles.from(solanaExt.overridesFiles)
             it.outputDir.set(solanaExt.outputDir)
         }
         val generators = listOf(abigenTask, solanaTask)

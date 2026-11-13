@@ -379,6 +379,11 @@ large values; transaction instruction types validate unsigned amounts, while RPC
 
 ## Typed account results
 
+Bindings are generated from IDLs by the `ethers-abigen-plugin` (`ethersSolanaIdl`), whose README also covers generator
+overrides: handwritten `SolanaCodec`s for IDL types (including custom serialization), substitutions of existing Kotlin
+types, renames and instruction account defaults. A handwritten codec must read and write exactly the size it declares,
+or the generated filters and field descriptors read the wrong bytes.
+
 IDL-generated account types provide `fetch`, `watch`, and `filter` helpers. A successful result contains
 `SolanaAccount<T>` with non-null decoded data, raw account information, address, and slot context.
 `MaybeSolanaAccount` and `MissingSolanaAccount` have been replaced with explicit result failures:
