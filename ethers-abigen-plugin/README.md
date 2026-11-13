@@ -129,6 +129,17 @@ Zero-copy accounts (`#[account(zero_copy)]`) are decoded in the layout the progr
 integers in an unpacked layout fail generation, as does using a zero-copy type with padding where Borsh encodes it, such
 as an instruction argument.
 
+Generic type definitions, with type and const parameters such as `struct RingBuffer<T, const N: usize>`, are
+monomorphized: each distinct instantiation the program uses becomes a class of its own with a concrete codec, since a
+const argument decides the layout, such as the length of `[T; N]`, and with it the offsets of the fields that follow.
+An instantiation is named after its definition and arguments, a const argument after its parameter: `RingBuffer<u64, 3>`
+becomes `RingBufferU64N3`, `Pair<u64, Option<Vec<String>>>` becomes `PairU64OptionVecString`, and `[u8; 4]` within an
+argument becomes `Array4U8`. Arguments are compared as Rust compares types, so `Pair<Amount, u8>` with `type Amount = u64`
+is `PairU64U8`, and generic aliases are inlined where they are used. A generic definition the program never uses is
+not generated. Generation fails when an instantiation's name is already declared, when instantiation would never end
+(as in `struct List<T> { next: Option<Box<List<Vec<T>>>> }`), when a const argument does not fit its parameter's type,
+and when an account or event is itself a generic definition, as the IDL does not say which instantiation it holds.
+
 ### Local testing of the plugin
 
 To test the plugin locally, you must first build the shadow jar of the plugin. This can be done by running the following
