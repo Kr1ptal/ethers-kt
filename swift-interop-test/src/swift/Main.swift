@@ -165,6 +165,48 @@ func solanaTests(_ t: Harness, _ f: TransferFixture) {
         t.check((decoded as? NSObject)?.isEqual(f.tx) == true, "the message decodes to the same transaction")
     }
 
+    t.test("a Swift closure signs through CallbackSigner, and sign takes an array") {
+        // the closure stands in for a Secure Enclave or wallet SDK call that signs Data
+        let external = CallbackSigner(publicKey: f.alice.publicKey) { message in try? f.alice.signMessage(data: message).toData() }
+        let signed = try f.tx.sign(signers: [external, f.bob])
+        t.check(signed == (try f.tx.sign(signers: [f.alice, f.bob])), "the closure's signature is used")
+        let built = try value(f.tx.signingBuilder().sign(signers: [f.bob]).sign(signers: [external]).build())
+        t.check(built == signed, "the builder takes arrays too")
+    }
+
+    t.test("a closure that cannot sign throws instead of aborting") {
+        let declined = CallbackSigner(publicKey: f.alice.publicKey) { _ in nil }
+        let malformed = CallbackSigner(publicKey: f.alice.publicKey) { _ in Data(count: 63) }
+        for (name, signer) in [("declined", declined), ("malformed", malformed)] {
+            do {
+                _ = try f.tx.sign(signers: [signer, f.bob])
+                t.fail("\(name) signer produced a transaction")
+            } catch {
+                t.check((error as NSError).kotlinException is KotlinIllegalArgumentException, "\(name) threw \(error)")
+            }
+            t.check(signer.trySignMessage(message: f.tx.serializeMessage()).isFailure(), "\(name) trySignMessage fails")
+        }
+    }
+
+    t.test("signing, verifying and deriving addresses take Data") {
+        let message: Data = SolanaDataKt.serializeMessageData(f.tx)
+        let signature = try f.alice.signMessage(data: message)
+        t.check(f.alice.publicKey.verify(signature: signature, data: message), "alice's signature verifies")
+        t.check(!f.bob.publicKey.verify(signature: signature, data: message), "it does not verify for bob")
+        _ = try Ed25519Program.shared.verify(publicKey: f.alice.publicKey, data: message, signature: signature)
+        t.check(f.alice.toSecretKeyData().count == 64, "the secret key is 64 bytes")
+
+        let pda = try SolanaAddress.companion.findProgramAddress(seedData: [Data("vault".utf8), f.alice.publicKey.toData()], programId: f.bob.publicKey)
+        t.check(pda.bump >= 0 && pda.bump <= 255, "a bump was found")
+    }
+
+    t.test("account data decodes from Data") {
+        let mint = try value(TokenMint.companion.decode(accountData: Data(count: 82)))
+        t.check(mint.decimals == 0 && !mint.isInitialized, "an empty mint decodes")
+        t.check(try errorOf(TokenMint.companion.decode(accountData: Data(count: 3))) is SolanaTransactionErrorMalformedBytes, "a short mint fails")
+        _ = try value(TokenAccount.companion.decode(accountData: Data(count: 165)))
+    }
+
     t.test("keys and primitives round trip through Data") {
         t.check(try SolanaAddress.companion.fromData(data: f.alice.publicKey.toData()) == f.alice.publicKey, "address")
         t.check(f.alice.publicKey.toData().count == 32, "an address is 32 bytes")
@@ -186,7 +228,10 @@ func confirmationTests(_ t: Harness) async {
         await t.testAsync("confirmation times out after the given seconds") {
             let pending = SwiftFixturesKt.pendingSolanaTransaction(confirmationStatus: "processed")
             let error = try errorOf(await pending.confirmation(commitment: Commitment.finalized, intervalSeconds: 0.001, timeoutSeconds: 0.05))
-            t.check(error is PendingSolanaTransaction.ErrorTimedOut, "timed out, got \(String(describing: error))")
+            let timedOut = error as? PendingSolanaTransaction.ErrorTimedOut
+            t.check(timedOut != nil, "timed out, got \(String(describing: error))")
+            // the raw Duration is hidden: Swift reads the wait in seconds
+            t.check((timedOut?.waitedSeconds ?? 0) >= 0.05 && (timedOut?.waitedSeconds ?? 99) < 30, "waited \(String(describing: timedOut?.waitedSeconds)) seconds")
         }
 
         await t.testAsync("confirmation rejects NaN seconds by throwing") {

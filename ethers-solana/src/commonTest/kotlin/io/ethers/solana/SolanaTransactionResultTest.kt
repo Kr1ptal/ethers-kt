@@ -166,4 +166,14 @@ class SolanaTransactionResultTest : FunSpec({
         exception.shouldBeInstanceOf<IllegalArgumentException>()
         exception.message shouldBe error.toString()
     }
+
+    test("signing takes a list as well as varargs, with the same result and failures") {
+        val tx = SolanaTxLegacy.compile(alice.publicKey, blockhash, SystemProgram.transfer(bob.publicKey, alice.publicKey, 1L)).unwrap()
+        tx.sign(listOf(alice, bob)) shouldBe tx.sign(alice, bob)
+        tx.signingBuilder().sign(listOf(bob)).sign(listOf(alice)).build().unwrap() shouldBe tx.sign(alice, bob)
+        shouldThrow<IllegalArgumentException> { tx.sign(listOf(alice)) }
+        shouldThrow<IllegalArgumentException> { tx.sign(emptyList()) }
+        val stranger = KeypairSigner.fromSeed(ByteArray(32) { 9 })
+        shouldThrow<IllegalArgumentException> { tx.signingBuilder().sign(listOf(alice, stranger)) }
+    }
 })

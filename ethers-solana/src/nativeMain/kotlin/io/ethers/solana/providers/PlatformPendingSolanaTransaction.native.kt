@@ -7,6 +7,7 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlin.native.HiddenFromObjC
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.DurationUnit
 
 /**
  * Swift sees neither Kotlin default arguments nor [Duration], a value class exported as its raw encoded `Int64`.
@@ -41,3 +42,6 @@ actual interface PlatformPendingSolanaTransaction {
         timeoutSeconds: Double,
     ): Result<SignatureStatus, PendingSolanaTransaction.Error> = confirmation(commitment, intervalSeconds.seconds, timeoutSeconds.seconds)
 }
+
+/** How long the wait lasted, in seconds. */
+val PendingSolanaTransaction.Error.TimedOut.waitedSeconds: Double get() = waited.toDouble(DurationUnit.SECONDS)

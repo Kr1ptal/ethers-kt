@@ -5,14 +5,23 @@ import io.ethers.solana.signers.SolanaSigner
 import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.types.SolanaSignature
 import kotlin.jvm.JvmStatic
+import kotlin.native.HiddenFromObjC
 import kotlin.native.ObjCName
 
 /** A compiled legacy, v0 or v1 payload with no signatures. */
 @ObjCName("SolanaTransactionUnsigned", exact = true)
 sealed interface SolanaTransactionUnsigned : SolanaTransactionCompiled {
     /** Sign with every required signer, failing if any signature is missing or invalid. */
+    @HiddenFromObjC
     @Throws(IllegalArgumentException::class)
-    fun sign(vararg signers: SolanaSigner): SolanaTransactionSigned = signingBuilder().sign(*signers).build().unwrap()
+    fun sign(vararg signers: SolanaSigner): SolanaTransactionSigned = sign(signers.asList())
+
+    /**
+     * Sign with every required signer, failing if any signature is missing or invalid. Swift sees only this
+     * overload, as `sign(signers:)` taking an array, since a vararg crosses into Objective-C as a `KotlinArray`.
+     */
+    @Throws(IllegalArgumentException::class)
+    fun sign(signers: List<SolanaSigner>): SolanaTransactionSigned = signingBuilder().sign(signers).build().unwrap()
 
     /** Rebuild the payload against a fresh blockhash. */
     fun withNewBlockhash(blockhash: SolanaBlockhash): SolanaTransactionUnsigned
