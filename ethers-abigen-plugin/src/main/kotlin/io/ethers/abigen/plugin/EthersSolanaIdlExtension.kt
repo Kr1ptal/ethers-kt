@@ -1,12 +1,15 @@
 package io.ethers.abigen.plugin
 
 import io.ethers.abigen.plugin.source.SolanaIdlDirectorySource
+import io.ethers.solana.idl.generator.GeneratorOverrides
 import io.ethers.solana.idl.generator.SeedByteOrder
 import io.ethers.solana.idl.generator.SeedByteOrders
 import io.ethers.solana.idl.reader.SolanaIdlReader
 import io.ethers.solana.idl.reader.SolanaIdlReaderRegistry
 import org.gradle.api.Action
+import org.gradle.api.GradleException
 import org.gradle.api.Project
+import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.MapProperty
 import org.gradle.api.provider.Property
@@ -79,6 +82,80 @@ abstract class EthersSolanaIdlExtension(private val project: Project) {
     }
 
     private fun byteOrders(program: String): SeedByteOrders = seedByteOrders.getting(program).orNull ?: SeedByteOrders()
+
+    /**
+     * Generator overrides, keyed by the program name the IDL declares: handwritten codecs, type substitutions, renames
+     * and instruction account defaults, see [GeneratorOverrides]. [customCodec], [typeSubstitution], [rename] and
+     * [accountDefault] add to it, and [overridesFile] reads more from JSON files. Naming a program that no IDL
+     * declares, or a target its IDL does not declare, fails the build, as does configuring one target in two
+     * different ways.
+     *
+     * Default value is empty map.
+     * */
+    val generatorOverrides: MapProperty<String, GeneratorOverrides> =
+        factory.mapProperty(String::class.java, GeneratorOverrides::class.java).convention(emptyMap())
+
+    /**
+     * JSON files of generator overrides for any number of programs, in the format [GeneratorOverrides.parse] reads,
+     * merged with [generatorOverrides]. They are inputs of the generating task, so changing one regenerates the
+     * bindings.
+     * */
+    val overridesFiles: ConfigurableFileCollection = factory.fileCollection()
+
+    /**
+     * Read the IDL type [type] of [program] with the handwritten [codec], the fully qualified name of a Kotlin `object`
+     * implementing `SolanaCodec` of the type's generated class, e.g. for a type declared with custom serialization.
+     * Declare [size] only if the codec reads and writes that many bytes for every value, and [align] where an
+     * unpacked `#[repr(C)]` zero-copy type contains it; see [GeneratorOverrides.CustomCodec].
+     * */
+    @JvmOverloads
+    fun customCodec(program: String, type: String, codec: String, size: Int? = null, align: Int? = null) {
+        override(program) { it.withCustomCodec(type, GeneratorOverrides.CustomCodec(codec, size, align)) }
+    }
+
+    /**
+     * Use the existing Kotlin class [kotlinType], read and written by the Kotlin `object` [codec], wherever [program]
+     * uses its IDL type [type], which then gets no class of its own. [size] and [align] are declared as for
+     * [customCodec]; see [GeneratorOverrides.TypeSubstitution].
+     * */
+    @JvmOverloads
+    fun typeSubstitution(program: String, type: String, kotlinType: String, codec: String, size: Int? = null, align: Int? = null) {
+        override(program) { it.withTypeSubstitution(type, GeneratorOverrides.TypeSubstitution(kotlinType, codec, size, align)) }
+    }
+
+    /**
+     * Give the declaration [target] of [program] the Kotlin name [name]. [target] is `<kind>:<path>` as the IDL names
+     * it, e.g. `type:Mode`, `field:Config.fee_bps` or `instructionAccount:swap.vaults.input`; see
+     * [GeneratorOverrides.RENAME_KINDS].
+     * */
+    fun rename(program: String, target: String, name: String) {
+        override(program) { it.withRename(target, name) }
+    }
+
+    /**
+     * Default the instruction account [account] of [program], `<instruction>.<account path>` as the IDL names it, to
+     * the base58 [address], e.g. `accountDefault("escrow", "deposit.token_program", "Tokenkeg...")`.
+     * */
+    fun accountDefault(program: String, account: String, address: String) {
+        override(program) { it.withAccountDefault(account, address) }
+    }
+
+    /**
+     * Read generator overrides from the JSON file at [path], relative to the project directory, see [overridesFiles].
+     * */
+    fun overridesFile(path: Any) {
+        overridesFiles.from(path)
+    }
+
+    private fun override(program: String, change: (GeneratorOverrides) -> GeneratorOverrides) {
+        val current = generatorOverrides.getting(program).orNull ?: GeneratorOverrides()
+        val changed = try {
+            change(current)
+        } catch (e: IllegalArgumentException) {
+            throw GradleException("ethersSolanaIdl overrides of program '$program': ${e.message}", e)
+        }
+        generatorOverrides.put(program, changed)
+    }
 
     /**
      * Add additional [SolanaIdlReader] to the registry, which will be used to read IDL files.

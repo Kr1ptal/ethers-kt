@@ -1,6 +1,7 @@
 package io.ethers.abigen.plugin.task
 
 import io.ethers.abigen.plugin.source.SolanaIdlSource
+import io.ethers.solana.idl.generator.GeneratorOverrides
 import io.ethers.solana.idl.generator.SeedByteOrders
 import io.ethers.solana.idl.generator.SolanaProgramBuilder
 import io.ethers.solana.idl.reader.SolanaIdlReaderRegistry
@@ -35,7 +36,8 @@ abstract class SolanaIdlWork : WorkAction<SolanaIdlWork.Parameters> {
         logger.info("Generating Kotlin bindings for ${program.name} from $source")
         val builder = try {
             val byteOrders = parameters.seedByteOrders.get()[program.name] ?: SeedByteOrders()
-            SolanaProgramBuilder(program, source.destinationPackage, seedByteOrders = byteOrders)
+            val overrides = parameters.generatorOverrides.get()[program.name] ?: GeneratorOverrides()
+            SolanaProgramBuilder(program, source.destinationPackage, seedByteOrders = byteOrders, overrides = overrides)
         } catch (e: IllegalArgumentException) {
             throw GradleException("Failed to generate bindings for program '${program.name}' ($source): ${e.message}", e)
         }
@@ -49,6 +51,7 @@ abstract class SolanaIdlWork : WorkAction<SolanaIdlWork.Parameters> {
         val destination: Property<File>
         val programAddresses: MapProperty<String, String>
         val seedByteOrders: MapProperty<String, SeedByteOrders>
+        val generatorOverrides: MapProperty<String, GeneratorOverrides>
         val resultFile: RegularFileProperty
     }
 }
