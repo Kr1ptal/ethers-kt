@@ -139,18 +139,19 @@ Protocol-specific components such as `AccountMeta`, `MessageInstruction`, `Inner
 val transaction = provider.getTransaction(signature).send().unwrap() // SolanaRPCTransaction?
 if (transaction != null) {
     val type = transaction.type // Legacy, V0, V1, or Unsupported(version); never null
-    val signatures = transaction.transaction.signatures // List<SolanaSignature>
-    val message = transaction.transaction.message       // SolanaRPCMessage
-    val accounts = message.accountKeys                  // List<SolanaAddress>
+    val signatures = transaction.signatures // List<SolanaSignature>
+    val message = transaction.message // SolanaRPCMessage
+    val accounts = message.accountKeys // List<SolanaAddress>
     val instructionData = message.instructions.firstOrNull()?.data // SolanaBytes?
-    val fee = transaction.meta?.fee                     // BigInteger? (lamports)
+    val fee = transaction.meta?.fee // BigInteger? (lamports)
     val extra = transaction.otherFields // fields introduced by newer validators
 }
 ```
 
 `SolanaRPCTransaction` is deliberately separate from the signable transaction hierarchy. Its `slot`, `blockTime`,
-and `type` are exposed directly. `transaction` is a `SolanaRPCTransactionData` with typed signatures and message
-fields: account addresses, blockhash, header, instructions, and lookup tables. `meta` is a
+and `type` are exposed directly, alongside `signatures` and `message`. The message contains typed
+fields: account addresses, blockhash, header, instructions, and lookup tables. The nested `transaction` payload
+remains available for compatibility and preserves the RPC JSON structure. `meta` is a
 `SolanaRPCTransactionMeta` with typed fees, balances, token balances, logs, inner instructions, loaded addresses,
 return data, rewards, compute/cost units, and extensible errors (including instruction indices and custom codes).
 Instruction and return data are decoded to `SolanaBytes`. Compiled instruction `accounts` are integer indices.
