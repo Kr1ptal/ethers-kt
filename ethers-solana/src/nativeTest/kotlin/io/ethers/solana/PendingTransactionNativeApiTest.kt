@@ -4,6 +4,7 @@ import io.ethers.core.Kotlinx
 import io.ethers.providers.HttpClient
 import io.ethers.solana.providers.PendingSolanaTransaction
 import io.ethers.solana.providers.SolanaProvider
+import io.ethers.solana.providers.waitedSeconds
 import io.ethers.solana.types.SolanaSignature
 import io.ethers.solana.types.rpc.Commitment
 import io.kotest.assertions.throwables.shouldThrow
@@ -16,6 +17,8 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.TextContent
 import io.ktor.http.headersOf
 import kotlinx.serialization.json.jsonObject
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import io.ktor.client.HttpClient as KtorHttpClient
 
 /** Apple targets spell the default arguments out as overloads and take seconds instead of `Duration`, for Swift. */
@@ -53,6 +56,8 @@ class PendingTransactionNativeApiTest : FunSpec({
         try {
             val error = PendingSolanaTransaction(signature, provider).confirmation(Commitment.FINALIZED, 0.001, 0.05).unwrapError()
             error.shouldBeInstanceOf<PendingSolanaTransaction.Error.TimedOut>()
+            error.waitedSeconds shouldBe error.waited.inWholeNanoseconds / 1e9
+            (error.waitedSeconds >= 0.05) shouldBe true
         } finally {
             provider.close()
         }
@@ -67,5 +72,10 @@ class PendingTransactionNativeApiTest : FunSpec({
         } finally {
             provider.close()
         }
+    }
+
+    test("waitedSeconds reads the duration in seconds, which Swift cannot read from the raw Duration") {
+        PendingSolanaTransaction.Error.TimedOut(signature, 1500.milliseconds).waitedSeconds shouldBe 1.5
+        PendingSolanaTransaction.Error.TimedOut(signature, Duration.ZERO).waitedSeconds shouldBe 0.0
     }
 })

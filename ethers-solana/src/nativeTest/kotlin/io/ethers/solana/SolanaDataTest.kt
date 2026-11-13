@@ -1,29 +1,39 @@
 package io.ethers.solana
 
+import io.ethers.solana.instruction.Ed25519Program
 import io.ethers.solana.instruction.SystemProgram
+import io.ethers.solana.instruction.TokenAccount
+import io.ethers.solana.instruction.TokenMint
 import io.ethers.solana.signers.KeypairSigner
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.types.SolanaBytes
 import io.ethers.solana.types.SolanaSignature
+import io.ethers.solana.types.createProgramAddress
+import io.ethers.solana.types.decode
 import io.ethers.solana.types.deserialize
 import io.ethers.solana.types.deserializeMessage
 import io.ethers.solana.types.deserializePartial
+import io.ethers.solana.types.findProgramAddress
 import io.ethers.solana.types.fromData
 import io.ethers.solana.types.fromSecretKey
 import io.ethers.solana.types.fromSeed
 import io.ethers.solana.types.serializeData
 import io.ethers.solana.types.serializeMessageData
 import io.ethers.solana.types.serializePartialData
+import io.ethers.solana.types.signMessage
 import io.ethers.solana.types.toByteArray
 import io.ethers.solana.types.toData
 import io.ethers.solana.types.toNSData
+import io.ethers.solana.types.toSecretKeyData
+import io.ethers.solana.types.transaction.AddressLookupTableAccount
 import io.ethers.solana.types.transaction.SolanaTransactionCompiled
 import io.ethers.solana.types.transaction.SolanaTransactionError
 import io.ethers.solana.types.transaction.SolanaTransactionException
 import io.ethers.solana.types.transaction.SolanaTransactionSigned
 import io.ethers.solana.types.transaction.SolanaTransactionUnsigned
 import io.ethers.solana.types.transaction.SolanaTxLegacy
+import io.ethers.solana.types.verify
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -85,5 +95,41 @@ class SolanaDataTest : FunSpec({
         val stranger = KeypairSigner.fromSeed(ByteArray(32) { 9 })
         shouldThrow<IllegalArgumentException> { tx.signingBuilder().sign(stranger) }
         shouldThrow<IllegalArgumentException> { tx.signingBuilder().addSignature(stranger.publicKey, stranger.signMessage(tx.serializeMessage())) }
+    }
+
+    test("keypairs sign and export through NSData") {
+        val message = tx.serializeMessage()
+        alice.signMessage(message.toNSData()) shouldBe alice.signMessage(message)
+        alice.toSecretKeyData().toByteArray() shouldBe alice.toSecretKey()
+    }
+
+    test("signatures verify over NSData") {
+        val message = tx.serializeMessage()
+        val signature = alice.signMessage(message)
+        alice.publicKey.verify(signature, message.toNSData()) shouldBe true
+        bob.publicKey.verify(signature, message.toNSData()) shouldBe false
+        alice.publicKey.verify(signature, ByteArray(0).toNSData()) shouldBe false
+        Ed25519Program.verify(alice.publicKey, message.toNSData(), signature) shouldBe Ed25519Program.verify(alice.publicKey, message, signature)
+    }
+
+    test("program addresses derive from NSData seeds") {
+        val seeds = listOf("vault".encodeToByteArray(), alice.publicKey.toByteArray())
+        val seedData = seeds.map { it.toNSData() }
+        SolanaAddress.findProgramAddress(seedData, bob.publicKey) shouldBe SolanaAddress.findProgramAddress(seeds, bob.publicKey)
+        val bump = SolanaAddress.findProgramAddress(seeds, bob.publicKey).bump
+        val bumped = seedData + ByteArray(1) { bump.toByte() }.toNSData()
+        SolanaAddress.createProgramAddress(bumped, bob.publicKey) shouldBe SolanaAddress.findProgramAddress(seeds, bob.publicKey).address
+        shouldThrow<IllegalArgumentException> { SolanaAddress.findProgramAddress(listOf(ByteArray(33).toNSData()), bob.publicKey) }
+    }
+
+    test("account data decodes from NSData") {
+        val account = ByteArray(TokenAccount.SIZE)
+        TokenAccount.decode(accountData = account.toNSData()) shouldBe TokenAccount.decode(account)
+        val mint = ByteArray(TokenMint.SIZE)
+        TokenMint.decode(accountData = mint.toNSData()) shouldBe TokenMint.decode(mint)
+        val table = ByteArray(AddressLookupTableAccount.META_SIZE + 32).also { it[0] = 1 }
+        AddressLookupTableAccount.decode(bob.publicKey, accountData = table.toNSData()) shouldBe AddressLookupTableAccount.decode(bob.publicKey, table)
+
+        TokenMint.decode(accountData = ByteArray(3).toNSData()).unwrapError().shouldBeInstanceOf<SolanaTransactionError.MalformedBytes>()
     }
 })

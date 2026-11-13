@@ -9,6 +9,7 @@ import io.ethers.solana.types.SolanaSignature
 import kotlin.io.encoding.Base64
 import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmStatic
+import kotlin.native.HiddenFromObjC
 import kotlin.native.ObjCName
 
 /**
@@ -111,8 +112,17 @@ class SolanaTransactionSigned private constructor(
          * Sign with each of [signers], atomically: an unknown address, or a signer that fails to
          * produce a signature, leaves the builder's previous signatures intact.
          */
+        @HiddenFromObjC
         @Throws(IllegalArgumentException::class)
-        fun sign(vararg signers: SolanaSigner): Builder = apply {
+        fun sign(vararg signers: SolanaSigner): Builder = sign(signers.asList())
+
+        /**
+         * Sign with each of [signers], atomically: an unknown address, or a signer that fails to
+         * produce a signature, leaves the builder's previous signatures intact. Swift sees only this
+         * overload, since a vararg crosses into Objective-C as a `KotlinArray`.
+         */
+        @Throws(IllegalArgumentException::class)
+        fun sign(signers: List<SolanaSigner>): Builder = apply {
             val requiredSigners = tx.signers
             val indices = signers.map { signer ->
                 requiredSigners.indexOf(signer.publicKey)

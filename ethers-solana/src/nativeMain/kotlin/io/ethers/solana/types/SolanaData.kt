@@ -3,7 +3,12 @@
 package io.ethers.solana.types
 
 import io.ethers.core.Result
+import io.ethers.solana.instruction.Ed25519Program
+import io.ethers.solana.instruction.Instruction
+import io.ethers.solana.instruction.TokenAccount
+import io.ethers.solana.instruction.TokenMint
 import io.ethers.solana.signers.KeypairSigner
+import io.ethers.solana.types.transaction.AddressLookupTableAccount
 import io.ethers.solana.types.transaction.SolanaTransactionCompiled
 import io.ethers.solana.types.transaction.SolanaTransactionError
 import io.ethers.solana.types.transaction.SolanaTransactionSigned
@@ -19,7 +24,7 @@ import platform.posix.memcpy
 // `NSData` twins of the byte-heavy entry points, so a Swift caller can pass and receive `Data` instead of copying
 // it through `KotlinByteArray` by hand. Inputs keep their `ByteArray` name and take a parameter named `data`, so their
 // Objective-C selector never collides with the `ByteArray` one; outputs cannot overload on the return type, so they
-// carry a `Data` suffix.
+// carry a `Data` suffix. Where the `ByteArray` parameter is already named `data`, the twin's is named `accountData`.
 
 /**
  * Copy [this] into a new [ByteArray]. Data over 2 GiB has no `ByteArray` to go into: functions returning a value
@@ -66,12 +71,26 @@ fun SolanaBlockhash.Companion.fromData(data: NSData): SolanaBlockhash = SolanaBl
 /** A copy of the blockhash's 32 bytes. */
 fun SolanaBlockhash.toData(): NSData = asByteArray().toNSData()
 
-/** As [SolanaBytes.fromBytes], from a copy of [data]. */
+/** As [SolanaBytes.fromBytes], from a copy of [data]. Also how Swift passes `Data` as an [Instruction]'s data. */
 @Throws(IllegalArgumentException::class)
 fun SolanaBytes.Companion.fromData(data: NSData): SolanaBytes = fromBytes(data.toByteArray())
 
 /** A copy of the bytes. */
 fun SolanaBytes.toData(): NSData = asByteArray().toNSData()
+
+/**
+ * As [SolanaAddress.verify], for a signature over [data]. Data over 2 GiB is no message this library signs, so it
+ * does not verify.
+ */
+fun SolanaAddress.verify(signature: SolanaSignature, data: NSData): Boolean = data.length <= Int.MAX_VALUE.toULong() && verify(signature, data.toByteArray())
+
+/** As [SolanaAddress.createProgramAddress], from seeds given as `Data`. */
+@Throws(IllegalArgumentException::class)
+fun SolanaAddress.Companion.createProgramAddress(seedData: List<NSData>, programId: SolanaAddress): SolanaAddress? = createProgramAddress(seedData.map { it.toByteArray() }, programId)
+
+/** As [SolanaAddress.findProgramAddress], from seeds given as `Data`. */
+@Throws(IllegalArgumentException::class)
+fun SolanaAddress.Companion.findProgramAddress(seedData: List<NSData>, programId: SolanaAddress): ProgramDerivedAddress = findProgramAddress(seedData.map { it.toByteArray() }, programId)
 
 /** As [KeypairSigner.fromSeed], from a 32-byte seed. */
 @Throws(IllegalArgumentException::class)
@@ -80,6 +99,26 @@ fun KeypairSigner.Companion.fromSeed(data: NSData): KeypairSigner = fromSeed(dat
 /** As [KeypairSigner.fromSecretKey], from a 64-byte seed and public key. */
 @Throws(IllegalArgumentException::class)
 fun KeypairSigner.Companion.fromSecretKey(data: NSData): KeypairSigner = fromSecretKey(data.toByteArray())
+
+/** As [KeypairSigner.signMessage], signing the exact bytes of [data]. */
+@Throws(IllegalArgumentException::class)
+fun KeypairSigner.signMessage(data: NSData): SolanaSignature = signMessage(data.toByteArray())
+
+/** As [KeypairSigner.toSecretKey]: the 64-byte seed and public key. Keep it as secret as the signer itself. */
+fun KeypairSigner.toSecretKeyData(): NSData = toSecretKey().toNSData()
+
+/** As [Ed25519Program.verify], for a signature over [data]. */
+@Throws(IllegalArgumentException::class)
+fun Ed25519Program.verify(publicKey: SolanaAddress, data: NSData, signature: SolanaSignature): Instruction = verify(publicKey, data.toByteArray(), signature)
+
+/** As [TokenAccount.decode], from an account's data. */
+fun TokenAccount.Companion.decode(accountData: NSData): Result<TokenAccount, SolanaTransactionError> = accountData.decodeBytes(::decode)
+
+/** As [TokenMint.decode], from an account's data. */
+fun TokenMint.Companion.decode(accountData: NSData): Result<TokenMint, SolanaTransactionError> = accountData.decodeBytes(::decode)
+
+/** As [AddressLookupTableAccount.decode], from the data of the lookup table account at [key]. */
+fun AddressLookupTableAccount.Companion.decode(key: SolanaAddress, accountData: NSData): Result<AddressLookupTableAccount, SolanaTransactionError> = accountData.decodeBytes { decode(key, it) }
 
 /** As [SolanaTransactionCompiled.serializeMessage]: the exact message bytes signed by Ed25519. */
 fun SolanaTransactionCompiled.serializeMessageData(): NSData = serializeMessage().toNSData()
