@@ -48,6 +48,12 @@ internal object Runtime {
     val DECODE_ERROR = ClassName(CODEC, "SolanaDecodeError")
     val UNRECOGNIZED = DECODE_ERROR.nestedClass("Unrecognized")
 
+    val JSON_SERIALIZER = ClassName(CODEC, "SolanaJsonSerializer")
+    val EVENT_JSON_SERIALIZER = ClassName(CODEC, "SolanaEventJsonSerializer")
+    val SOLANA_JSON = ClassName(CODEC, "SolanaJson")
+    val SERIALIZABLE = ClassName("kotlinx.serialization", "Serializable")
+    val JSON_ELEMENT = ClassName("kotlinx.serialization.json", "JsonElement")
+
     val RESULT = ClassName("io.ethers.core", "Result")
     val FAILURE = MemberName("io.ethers.core", "failure")
     val BIG_INTEGER = ClassName("io.github.artificialpb.bignum", "BigInteger")

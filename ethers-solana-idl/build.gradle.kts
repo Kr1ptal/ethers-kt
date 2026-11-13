@@ -49,7 +49,9 @@ val generateProgramBindings by tasks.registering(JavaExec::class) {
             // one seed the showcase program encodes big-endian, the others keep the little-endian default
             listOf("--seed-byte-order", "showcase:position:config.fee_bps=BIG_ENDIAN") +
             // Raydium encodes every integer seed big-endian
-            listOf("--seed-byte-order", "amm_v3=BIG_ENDIAN"),
+            listOf("--seed-byte-order", "amm_v3=BIG_ENDIAN") +
+            // a JSON form for these programs' value types; DLMM keeps the default, which has none
+            listOf("json_values", "showcase", "amm_v3").flatMap { listOf("--kotlinx-serialization", it) },
     )
 }
 

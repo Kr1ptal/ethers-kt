@@ -18,6 +18,7 @@ import com.squareup.kotlinpoet.LambdaTypeName
 import com.squareup.kotlinpoet.ParameterSpec
 import com.squareup.kotlinpoet.ParameterizedTypeName.Companion.parameterizedBy
 import com.squareup.kotlinpoet.PropertySpec
+import com.squareup.kotlinpoet.SET
 import com.squareup.kotlinpoet.SHORT
 import com.squareup.kotlinpoet.STAR
 import com.squareup.kotlinpoet.STRING
@@ -66,6 +67,11 @@ import java.io.File
  * Each program derived account gets a `find` function deriving its address from its seeds. Integer seeds are
  * encoded in the byte order [seedByteOrders] gives, since IDLs do not record it.
  *
+ * With [kotlinxSerialization], each struct, enum, event and instruction argument type also gets a JSON form, separate
+ * from its binary codec: a nested `JsonSerializer` object, which the type's `@Serializable` annotation names. The
+ * generated code needs only the kotlinx.serialization runtime; the compiler plugin lets `Json.encodeToString(value)`
+ * find the serializer without naming it. `io.ethers.solana.codec.SolanaJson` documents the representation.
+ *
  * When changing the generated output, bump [OUTPUT_VERSION].
  *
  * @throws IllegalArgumentException if [program] is invalid, uses an unsupported layout, or its names
@@ -76,6 +82,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
     private val packageName: String,
     private val programName: String = program.name.toPascalCase(),
     private val seedByteOrders: SeedByteOrders = SeedByteOrders(),
+    private val kotlinxSerialization: Boolean = false,
 ) {
     private val programAddress = requireNotNull(program.address) {
         "program '${program.name}': the IDL declares no address, so one must be given, such as with the Gradle plugin's programAddress"
@@ -133,6 +140,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         checkSupported()
         checkCollisions()
         checkSeedByteOrders()
+        if (kotlinxSerialization) checkJson()
     }
 
     fun build(): FileSpec {
@@ -537,7 +545,199 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         return CodeBlock.of("%T.of({ %L }, { %L })", Runtime.SOLANA_CODEC, read(resolved), write(resolved, CodeBlock.of("it")))
     }
 
-    private class Field(val name: String, val type: IdlType, val docs: List<String>)
+    // --- JSON ---
+
+    /**
+     * IDL field names key the JSON objects, so must be distinct, and the `JsonSerializer` nested in each enum must not
+     * share a variant's name.
+     */
+    private fun checkJson() {
+        fun distinct(fields: IdlFields, where: String) {
+            if (fields !is IdlFields.Named) return
+            val seen = HashSet<String>()
+            for (field in fields.fields) require(seen.add(field.name)) { "$where: field name '${field.name}' is repeated, so cannot key a JSON object" }
+        }
+        for (def in program.types) {
+            val where = "type '${def.name}'"
+            when (val body = def.body) {
+                is IdlTypeBody.Struct -> distinct(body.fields, where)
+                is IdlTypeBody.Enum -> body.variants.forEach { variant ->
+                    distinct(variant.fields, "$where variant '${variant.name}'")
+                    require(variant.name.toPascalCase() != JSON_SERIALIZER) { "$where variant '${variant.name}': its class would hide the nested $JSON_SERIALIZER" }
+                }
+                is IdlTypeBody.Alias -> Unit
+            }
+        }
+    }
+
+    /** `@Serializable(with = Name.JsonSerializer::class)`. */
+    private fun serializableWith(name: ClassName) = AnnotationSpec.builder(Runtime.SERIALIZABLE)
+        .addMember("with = %T::class", name.nestedClass(JSON_SERIALIZER))
+        .build()
+
+    /** An expression encoding [value] of [type] as a `JsonElement`. */
+    private fun jsonEncode(type: IdlType, value: CodeBlock): CodeBlock = when (val resolved = resolve(type)) {
+        is IdlType.Primitive -> CodeBlock.of("%T.%L(%L)", Runtime.SOLANA_JSON, "encode" + PRIMITIVE_CODEC.getValue(resolved), value)
+        is IdlType.Option -> CodeBlock.of(
+            "%T.%L(%L) { %L }",
+            Runtime.SOLANA_JSON,
+            if (typeName(resolved.inner).isNullable) "encodeExplicitOption" else "encodeOption",
+            value,
+            jsonEncode(resolved.inner, CodeBlock.of("it")),
+        )
+        is IdlType.Vec -> CodeBlock.of("%T.encodeVec(%L) { %L }", Runtime.SOLANA_JSON, value, jsonEncode(resolved.element, CodeBlock.of("it")))
+        is IdlType.Array -> if (isByteArray(resolved)) {
+            CodeBlock.of("%T.encodeFixedBytes(%L, %L)", Runtime.SOLANA_JSON, value, arrayLength(resolved))
+        } else {
+            CodeBlock.of("%T.encodeArray(%L, %L) { %L }", Runtime.SOLANA_JSON, value, arrayLength(resolved), jsonEncode(resolved.element, CodeBlock.of("it")))
+        }
+        is IdlType.Defined -> CodeBlock.of("%T.toJson(%L)", classOf(resolved.name).nestedClass(JSON_SERIALIZER), value)
+        is IdlType.Generic -> throw IllegalStateException("unsupported generic reached generation")
+    }
+
+    /** An expression decoding [element], a `JsonElement`, as [type], within a `fromJson` that has `ignoreUnknownKeys`. */
+    private fun jsonDecode(type: IdlType, element: CodeBlock): CodeBlock = when (val resolved = resolve(type)) {
+        is IdlType.Primitive -> CodeBlock.of("%T.%L(%L)", Runtime.SOLANA_JSON, "decode" + PRIMITIVE_CODEC.getValue(resolved), element)
+        is IdlType.Option -> CodeBlock.of(
+            "%T.%L(%L) { %L }",
+            Runtime.SOLANA_JSON,
+            if (typeName(resolved.inner).isNullable) "decodeExplicitOption" else "decodeOption",
+            element,
+            jsonDecode(resolved.inner, CodeBlock.of("it")),
+        )
+        is IdlType.Vec -> CodeBlock.of("%T.decodeVec(%L) { %L }", Runtime.SOLANA_JSON, element, jsonDecode(resolved.element, CodeBlock.of("it")))
+        is IdlType.Array -> if (isByteArray(resolved)) {
+            CodeBlock.of("%T.decodeFixedBytes(%L, %L)", Runtime.SOLANA_JSON, element, arrayLength(resolved))
+        } else {
+            CodeBlock.of("%T.decodeArray(%L, %L) { %L }", Runtime.SOLANA_JSON, element, arrayLength(resolved), jsonDecode(resolved.element, CodeBlock.of("it")))
+        }
+        is IdlType.Defined -> CodeBlock.of("%T.fromJson(%L, ignoreUnknownKeys)", classOf(resolved.name).nestedClass(JSON_SERIALIZER), element)
+        is IdlType.Generic -> throw IllegalStateException("unsupported generic reached generation")
+    }
+
+    /** An expression encoding [fields] of [owner]: an object of the named fields, or an array of the [tuple] fields. */
+    private fun jsonEncodeFields(fields: List<Field>, owner: String, tuple: Boolean): CodeBlock {
+        if (fields.isEmpty()) return CodeBlock.of("%T.encodeStruct()", Runtime.SOLANA_JSON)
+        val values = fields.map { jsonEncode(it.type, CodeBlock.of("%L.%N", owner, it.name)) }
+        return if (tuple) {
+            CodeBlock.of("%T.encodeTuple(\n⇥%L,\n⇤)", Runtime.SOLANA_JSON, values.joinToCode(",\n"))
+        } else {
+            val entries = fields.mapIndexed { i, field -> CodeBlock.of("%S to %L", field.idlName, values[i]) }
+            CodeBlock.of("%T.encodeStruct(\n⇥%L,\n⇤)", Runtime.SOLANA_JSON, entries.joinToCode(",\n"))
+        }
+    }
+
+    /**
+     * Statements decoding the JSON [element] holding the [fields] of [name], ending in an expression constructing it,
+     * with [extra] arguments. [names] is the property holding the field names a named struct checks object keys against.
+     */
+    private fun jsonDecodeFields(
+        name: ClassName,
+        fields: List<Field>,
+        label: String,
+        tuple: Boolean,
+        names: String,
+        element: String = "element",
+        extra: List<CodeBlock> = emptyList(),
+    ): CodeBlock {
+        val code = CodeBlock.builder()
+        val arguments = if (tuple) {
+            code.addStatement("val items = %T.decodeTuple(%N, %S, %L)", Runtime.SOLANA_JSON, element, label, fields.size)
+            fields.mapIndexed { i, field -> CodeBlock.of("%N = %T.element(items, %L) { %L }", field.name, Runtime.SOLANA_JSON, i, jsonDecode(field.type, CodeBlock.of("it"))) }
+        } else {
+            val decode = CodeBlock.of("%T.decodeStruct(%N, %S, %N, ignoreUnknownKeys)", Runtime.SOLANA_JSON, element, label, names)
+            if (fields.isEmpty()) code.addStatement("%L", decode) else code.addStatement("val fields = %L", decode)
+            fields.map { field ->
+                CodeBlock.of(
+                    "%N = %T.field(fields, %S, %L) { %L }",
+                    field.name,
+                    Runtime.SOLANA_JSON,
+                    field.idlName,
+                    resolve(field.type) is IdlType.Option,
+                    jsonDecode(field.type, CodeBlock.of("it")),
+                )
+            }
+        } + extra
+        if (arguments.isEmpty()) return code.add("%T\n", name).build()
+        return code.add("%T(\n⇥%L,\n⇤)\n", name, arguments.joinToCode(",\n")).build()
+    }
+
+    /** A private set of the IDL names of [fields], which a named struct checks object keys against. */
+    private fun jsonFieldNames(property: String, fields: List<Field>) = PropertySpec.builder(property, SET.parameterizedBy(STRING), KModifier.PRIVATE)
+        .initializer(if (fields.isEmpty()) CodeBlock.of("emptySet()") else CodeBlock.of("setOf(%L)", fields.map { CodeBlock.of("%S", it.idlName) }.joinToCode(", ")))
+        .build()
+
+    private fun jsonSerializerObject(name: ClassName, superclass: TypeName, vararg superArguments: CodeBlock) = TypeSpec.objectBuilder(name.nestedClass(JSON_SERIALIZER))
+        .addKdoc("The JSON form of [%T], as `SolanaJson` describes.\n", name)
+        .superclass(superclass)
+        .apply { superArguments.forEach { addSuperclassConstructorParameter(it) } }
+
+    private fun toJsonFunction(name: ClassName, body: CodeBlock) = FunSpec.builder("toJson")
+        .addModifiers(KModifier.OVERRIDE)
+        .addParameter("value", name)
+        .returns(Runtime.JSON_ELEMENT)
+        .addStatement("return %L", body)
+        .build()
+
+    private fun fromJsonFunction(name: ClassName) = FunSpec.builder("fromJson")
+        .addModifiers(KModifier.OVERRIDE)
+        .addParameter("element", Runtime.JSON_ELEMENT)
+        .addParameter("ignoreUnknownKeys", BOOLEAN)
+        .returns(name)
+
+    /** The JSON form of struct [name]. */
+    private fun structJson(name: ClassName, fields: List<Field>, label: String, tuple: Boolean): TypeSpec {
+        val builder = jsonSerializerObject(name, Runtime.JSON_SERIALIZER.parameterizedBy(name), CodeBlock.of("%S", name.canonicalName))
+        if (!tuple) builder.addProperty(jsonFieldNames("FIELDS", fields))
+        return builder
+            .addFunction(toJsonFunction(name, jsonEncodeFields(fields, "value", tuple)))
+            .addFunction(fromJsonFunction(name).addCode("return run {\n⇥%L⇤}\n", jsonDecodeFields(name, fields, label, tuple, "FIELDS")).build())
+            .build()
+    }
+
+    /** The JSON form of event [name], whose payload is [fields]. The context of a decoded event is not represented. */
+    private fun eventJson(name: ClassName, fields: List<Field>, label: String, tuple: Boolean): TypeSpec {
+        val builder = jsonSerializerObject(name, Runtime.EVENT_JSON_SERIALIZER.parameterizedBy(name), CodeBlock.of("%S", name.canonicalName), CodeBlock.of("PROGRAM_ID"))
+        if (!tuple) builder.addProperty(jsonFieldNames("FIELDS", fields))
+        val decode = jsonDecodeFields(name, fields, label, tuple, "FIELDS", extra = listOf(CodeBlock.of("context = context")))
+        return builder
+            .addFunction(toJsonFunction(name, jsonEncodeFields(fields, "value", tuple)))
+            .addFunction(fromJsonFunction(name).addParameter("context", Runtime.EVENT_CONTEXT).addCode("return run {\n⇥%L⇤}\n", decode).build())
+            .build()
+    }
+
+    /** The JSON form of enum [name]: externally tagged by the IDL variant name, a bare string for a variant without fields. */
+    private fun enumJson(name: ClassName, def: IdlTypeDef, body: IdlTypeBody.Enum): TypeSpec {
+        val builder = jsonSerializerObject(name, Runtime.JSON_SERIALIZER.parameterizedBy(name), CodeBlock.of("%S", name.canonicalName))
+        val encodes = CodeBlock.builder().add("when (value) {\n⇥")
+        val decodes = CodeBlock.builder()
+            .addStatement("val variant = %T.decodeVariant(element, %S)", Runtime.SOLANA_JSON, def.name)
+            .add("return when (variant.name) {\n⇥")
+        body.variants.forEachIndexed { index, variant ->
+            val variantClass = name.nestedClass(variant.name.toPascalCase())
+            val fields = fields(variant.fields)
+            if (fields.isEmpty()) {
+                encodes.add("%T -> %T.encodeVariant(%S)\n", variantClass, Runtime.SOLANA_JSON, variant.name)
+                decodes.add("%S -> variant.unit(%T)\n", variant.name, variantClass)
+                return@forEachIndexed
+            }
+            val tuple = variant.fields is IdlFields.Tuple
+            val names = "VARIANT_${index}_FIELDS"
+            if (!tuple) builder.addProperty(jsonFieldNames(names, fields))
+            encodes.add("is %T -> %T.encodeVariant(%S, %L)\n", variantClass, Runtime.SOLANA_JSON, variant.name, jsonEncodeFields(fields, "value", tuple))
+            val decode = jsonDecodeFields(variantClass, fields, "${def.name}::${variant.name}", tuple, names, "payload")
+            decodes.add("%S -> variant.fields { payload ->\n⇥%L⇤}\n", variant.name, decode)
+        }
+        encodes.add("⇤}")
+        decodes.add("else -> variant.unknown()\n⇤}\n")
+        return builder
+            .addFunction(toJsonFunction(name, encodes.build()))
+            .addFunction(fromJsonFunction(name).addCode(decodes.build()).build())
+            .build()
+    }
+
+    /** A field named [name] in Kotlin, and [idlName] in the IDL, or null for a tuple field. */
+    private class Field(val name: String, val type: IdlType, val docs: List<String>, val idlName: String? = null)
 
     /**
      * The fields of [fields] with Kotlin names. Fields whose names coincide keep their order: the last keeps the name and
@@ -565,7 +765,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
                 } else {
                     field.docs + "Named `${field.name}` in the IDL, like a later field, which keeps the name."
                 }
-                Field(renamed[i], field.type, docs)
+                Field(renamed[i], field.type, docs, field.name)
             }
         }
         is IdlFields.Tuple -> fields.types.mapIndexed { i, type -> Field("field$i", type, emptyList()) }
@@ -637,7 +837,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
     private fun typeDefinition(def: IdlTypeDef): TypeSpec {
         val name = classOf(def.name)
         val builder = when (val body = def.body) {
-            is IdlTypeBody.Struct -> struct(name, fields(body.fields), if (isZeroCopy(def.name)) zeroCopyLayout(def.name) else null)
+            is IdlTypeBody.Struct -> struct(name, fields(body.fields), def.name, body.fields is IdlFields.Tuple, if (isZeroCopy(def.name)) zeroCopyLayout(def.name) else null)
             is IdlTypeBody.Enum -> enum(name, def, body)
             is IdlTypeBody.Alias -> throw IllegalStateException("aliases are resolved at use")
         }
@@ -658,9 +858,13 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         return builder.build()
     }
 
-    /** A struct and its codec, which skips and writes the padding of a zero-copy [layout]. */
-    private fun struct(name: ClassName, fields: List<Field>, layout: ZeroCopyLayout? = null): TypeSpec.Builder {
+    /**
+     * A struct and its codec, which skips and writes the padding of a zero-copy [layout], and its JSON form, where [label]
+     * names it in JSON errors and [tuple] tells a tuple struct apart.
+     */
+    private fun struct(name: ClassName, fields: List<Field>, label: String, tuple: Boolean, layout: ZeroCopyLayout? = null): TypeSpec.Builder {
         val builder = valueClass(name, fields)
+        if (kotlinxSerialization) builder.addAnnotation(serializableWith(name)).addType(structJson(name, fields, label, tuple))
         val codec = listOf(readFunction(name, construct(name, fields, layout = layout)), writeFunction(name, writes(fields, "value", layout)))
         return if (fields.isEmpty()) {
             builder.addSuperinterface(Runtime.SOLANA_CODEC.parameterizedBy(name)).addFunctions(codec)
@@ -686,6 +890,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         }
         reads.add("else -> invalidVariant(%S, variant)\n⇤}", def.name)
         writes.add("⇤}")
+        if (kotlinxSerialization) builder.addAnnotation(serializableWith(name)).addType(enumJson(name, def, body))
         return builder.addType(
             TypeSpec.companionObjectBuilder()
                 .addSuperinterface(Runtime.SOLANA_CODEC.parameterizedBy(name))
@@ -1009,6 +1214,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
                     .build(),
             )
         return valueClass(name, fields, listOf(context))
+            .apply { if (kotlinxSerialization) addAnnotation(serializableWith(name)).addType(eventJson(name, fields, event.name, body.fields is IdlFields.Tuple)) }
             .addSuperinterface(eventInterface)
             .apply { def.docs.forEach { addKdoc("%L\n", it) } }
             .addType(companion.build())
@@ -1131,7 +1337,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         val decodedClass = instructionHierarchy.nestedClass(baseName)
 
         if (argsFields.isNotEmpty()) {
-            programType.addType(struct(argsClass, argsFields).addKdoc("Arguments of the %L instruction.\n", ix.name).build())
+            programType.addType(struct(argsClass, argsFields, "${ix.name} arguments", tuple = false).addKdoc("Arguments of the %L instruction.\n", ix.name).build())
         }
         if (hasAccounts) {
             programType.addType(accounts(accountsClass, ix.accounts, ix).addKdoc("Accounts of the %L instruction.\n", ix.name).build())
@@ -1522,6 +1728,9 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         const val OUTPUT_VERSION = "3"
 
         private const val FETCH_ALIAS = "fetchProgramAccount"
+
+        /** The object nested in each value type holding its JSON form. */
+        private const val JSON_SERIALIZER = "JsonSerializer"
         private const val WATCH_ALIAS = "watchProgramAccount"
 
         /** Properties of an account slice, which an extension property of the same name cannot be read through. */

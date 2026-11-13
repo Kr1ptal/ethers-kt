@@ -415,6 +415,52 @@ Import `io.ethers.core.Result`. When migrating batch/query consumers, handle eac
 before accessing `.data`. Subscriptions do not provide an initial snapshot or guarantee every intermediate
 change; the application still coordinates snapshots, reconnect recovery, and multi-account state.
 
+## JSON form of IDL values
+
+Bindings generated with kotlinx.serialization enabled (the Gradle plugin's `kotlinxSerialization = true`, or
+`--kotlinx-serialization <program>` for the CLI) give every struct, enum, event and instruction arguments class a
+nested `JsonSerializer`, a `SolanaJsonSerializer`. This JSON form is entirely separate from the Borsh and zero-copy
+codecs, which do not change. It never routes a value through a JSON double, so it round-trips losslessly:
+
+| IDL type | JSON |
+|----------|------|
+| `bool` | `true` / `false` |
+| `u8`, `u16`, `u32`, `i8`, `i16`, `i32` | JSON integer, e.g. `255` |
+| `u64`, `i64`, `u128`, `i128`, `u256`, `i256` | canonical decimal string, e.g. `"-170141183460469231731687303715884105728"` |
+| `f32`, `f64` | shortest JSON number that reads back exactly, or `"NaN"`, `"Infinity"`, `"-Infinity"` |
+| `string` | JSON string |
+| `pubkey` | base58 string |
+| `bytes`, `[u8; N]` | standard padded base64 string; a fixed array must decode to exactly N bytes |
+| `Vec<T>`, `[T; N]` (including `Vec<u8>`) | JSON array; a fixed array must have exactly N elements |
+| `Option<T>` | `null` for none, otherwise the value; an absent field is none too |
+| `Option<Option<T>>` | `null`, or the outer some as a one-element array: `[null]`, `[1]` |
+| struct with named fields | object keyed by the IDL field names as declared, e.g. `fee_bps`, in declaration order |
+| tuple struct | array of its fields |
+| struct without fields | `{}` |
+| enum variant without fields | its IDL name as a string: `"Bid"` |
+| enum variant with fields | `{"Name": {...}}` for named fields, `{"Name": [...]}` for tuple fields |
+| type alias | the form of its target |
+
+Enum tags are the IDL variant names, so variants of the same shape stay distinct. Decoding is strict: wrong types,
+out-of-range values, non-canonical decimals (`"01"`, `"+1"`, `"-0"`), missing non-option fields and wrong-length
+arrays fail with a `SolanaJsonException` whose `path`, such as `sides[1].Limit[0]`, locates the value. Unknown object
+keys fail unless the `Json` instance sets `ignoreUnknownKeys`. Encoding a value its IDL type cannot hold, such as a
+negative `u64`, throws `IllegalArgumentException`, as the binary codec does. Zero-copy padding is not represented.
+
+An event's JSON holds its payload fields only, as its binary encoding does. Its `JsonSerializer` decodes with a
+standalone context for the program's address, and `withContext(context)` returns a serializer that attaches another.
+
+```kotlin
+// with the kotlinx.serialization compiler plugin applied
+val json = Json.encodeToString(pool)
+val decoded = Json.decodeFromString<Clmm.PoolState>(json)
+
+// without it, name the serializer
+val same = Json.encodeToString(Clmm.PoolState.JsonSerializer, pool)
+```
+
+The serializers support JSON only; another format fails with a `SerializationException`.
+
 ## Idempotent associated token accounts
 
 Use `AssociatedTokenProgram.createAccountIdempotent(payer, owner, mint)` to derive the SPL Token
