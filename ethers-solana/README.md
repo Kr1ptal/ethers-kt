@@ -416,6 +416,17 @@ Import `io.ethers.core.Result`. When migrating batch/query consumers, handle eac
 before accessing `.data`. Subscriptions do not provide an initial snapshot or guarantee every intermediate
 change; the application still coordinates snapshots, reconnect recovery, and multi-account state.
 
+## Resolving instruction accounts
+
+IDL-generated bindings fill in the instruction accounts their IDL says how to derive. You call
+`<Instruction>Accounts.Partial(...).resolve(api, args)` explicitly, and it uses fixed addresses, PDA seeds, and
+Anchor `relations` (`has_one`). The pure instruction builders do not change. Underneath, `SolanaAccountResolver`
+derives each account from the addresses and fetched data of the accounts it depends on. It batches each round of
+fetches into one `getMultipleAccounts` request. Accounts you give are used as given and never re-derived. It returns
+a typed `SolanaAccountResolutionError` for each failure: a missing account, an account that does not exist on chain,
+a wrong owner or account type, undecodable data, ambiguous relations, invalid seeds, or a dependency cycle (with its
+path). See the `ethers-abigen-plugin` README for the rules.
+
 ## IDL constants
 
 Each `constants[]` entry of an IDL becomes a member of the generated program object. Primitives become
