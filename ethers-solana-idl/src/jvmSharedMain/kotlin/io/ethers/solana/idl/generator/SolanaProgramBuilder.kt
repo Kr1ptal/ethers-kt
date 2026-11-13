@@ -642,6 +642,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             is IdlTypeBody.Alias -> throw IllegalStateException("aliases are resolved at use")
         }
         def.docs.forEach { builder.addKdoc("%L\n", it) }
+        if (def.name in pathStructs) builder.addType(structPath(def))
         program.accounts.firstOrNull { it.name == def.name }?.let { account ->
             builder.addSuperinterface(accountMarker)
             addToCodecScope(builder, accountFactory(name, account.name, account.discriminator))
@@ -651,7 +652,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             accountAccessors(name).forEach { addToCodecScope(builder, it) }
             val sliceable = sliceableFields(def)
             if (sliceable.isNotEmpty()) {
-                builder.addType(accountFields(name, sliceable))
+                builder.addType(accountFields(name, sliceable, unsliceableFields(def)))
                 accountSelect(name).forEach { addToCodecScope(builder, it) }
             }
         }
@@ -723,32 +724,172 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         }
     }
 
-    /** A field of an account at a fixed [offset] into its payload, with a fixed [size]. */
+    /** A field of an account at a fixed [offset] into its payload, with a fixed, positive [size]. */
     private class SliceableField(val field: Field, val offset: Int, val size: Int)
 
-    /** The fields of account type [def] at a fixed offset with a fixed size, which a slice can select. */
+    private fun accountFields(def: IdlTypeDef): List<Field> = (def.body as? IdlTypeBody.Struct)?.let { fields(it.fields) }.orEmpty()
+
+    private fun accountOffsets(def: IdlTypeDef, fields: List<Field>) = fieldOffsets(fields, if (isZeroCopy(def.name)) zeroCopyLayout(def.name) else null)
+
+    /**
+     * The fields of account type [def] at a fixed offset with a fixed size, which a slice can select. A field that takes
+     * no bytes, such as an empty struct, has nothing to select.
+     */
     private fun sliceableFields(def: IdlTypeDef): List<SliceableField> {
-        val fields = (def.body as? IdlTypeBody.Struct)?.let { fields(it.fields) }.orEmpty()
-        val offsets = fieldOffsets(fields, if (isZeroCopy(def.name)) zeroCopyLayout(def.name) else null)
+        val fields = accountFields(def)
+        val offsets = accountOffsets(def, fields)
         val sliceable = ArrayList<SliceableField>()
         for ((i, field) in fields.withIndex()) {
             val offset = offsets[i] ?: break
             val size = fixedSize(field.type) ?: continue
-            sliceable.add(SliceableField(field, offset, size))
+            if (size > 0) sliceable.add(SliceableField(field, offset, size))
         }
         return sliceable
     }
 
-    /** The account's field descriptors, one for each of its [sliceable] fields. */
-    private fun accountFields(account: ClassName, sliceable: List<SliceableField>): TypeSpec {
+    /** The fields of account type [def] that [sliceableFields] leaves out, each with why it has no descriptor. */
+    private fun unsliceableFields(def: IdlTypeDef): List<Pair<Field, String>> {
+        val fields = accountFields(def)
+        val offsets = accountOffsets(def, fields)
+        return fields.mapIndexedNotNull { i, field ->
+            val size = fixedSize(field.type)
+            when {
+                offsets[i] == null -> field to "follows a field of variable size, so has no fixed offset"
+                size == null -> field to "has a variable size"
+                size == 0 -> field to "takes no bytes"
+                else -> null
+            }
+        }
+    }
+
+    /**
+     * The struct types that get a [structPath] class: those with a field that takes bytes, reachable from the
+     * [sliceableFields] of an account through fields of fixed-size structs and elements of fixed-size arrays. Every
+     * type reached this way has a fixed size, so each of its fields has a fixed offset within it.
+     */
+    private val pathStructs: Set<String> by lazy {
+        val found = LinkedHashSet<String>()
+        fun visit(type: IdlType) {
+            when (val resolved = resolve(type)) {
+                is IdlType.Array -> visit(resolved.element)
+                is IdlType.Defined -> {
+                    val body = typeDefs.getValue(resolved.name).body as? IdlTypeBody.Struct ?: return
+                    val children = fields(body.fields).filter { fixedSize(it.type)!! > 0 }
+                    if (children.isNotEmpty() && found.add(resolved.name)) children.forEach { visit(it.type) }
+                }
+                else -> Unit
+            }
+        }
+        program.accounts.forEach { account -> sliceableFields(typeDefs.getValue(account.name)).forEach { visit(it.field.type) } }
+        found
+    }
+
+    /**
+     * The type of the descriptor of a field of [type] in accounts of type [owner]: a struct's [structPath] class, an
+     * array field describing its elements, or a plain field.
+     */
+    private fun pathType(type: IdlType, owner: TypeName): TypeName = when (val resolved = resolve(type)) {
+        is IdlType.Defined -> if (resolved.name in pathStructs) {
+            classOf(resolved.name).nestedClass("Path").parameterizedBy(owner)
+        } else {
+            Runtime.ACCOUNT_FIELD.parameterizedBy(owner, typeName(resolved))
+        }
+        is IdlType.Array -> Runtime.ACCOUNT_ARRAY_FIELD.parameterizedBy(owner, typeName(resolved), pathType(resolved.element, owner))
+        else -> Runtime.ACCOUNT_FIELD.parameterizedBy(owner, typeName(resolved))
+    }
+
+    /**
+     * The descriptor of a field of fixed-size [type] named [name] at payload [offset], both expressions, in accounts of
+     * type [owner]. [depth] counts the arrays it is nested in, to name the parameters of their element lambdas.
+     */
+    private fun pathDescriptor(type: IdlType, owner: TypeName, name: CodeBlock, offset: CodeBlock, depth: Int = 0): CodeBlock {
+        val resolved = resolve(type)
+        val descriptor = pathType(resolved, owner)
+        val reader = CodeBlock.of("{ with(it) { %L } }", read(resolved))
+        val writer = CodeBlock.of("{ %L }", write(resolved, CodeBlock.of("it")))
+        return when {
+            resolved is IdlType.Defined && resolved.name in pathStructs -> CodeBlock.of("%T(%L, %L)", descriptor, name, offset)
+            resolved is IdlType.Array -> {
+                val elementName = "elementName$depth"
+                val elementOffset = "elementOffset$depth"
+                val element = pathDescriptor(resolved.element, owner, CodeBlock.of("%N", elementName), CodeBlock.of("%N", elementOffset), depth + 1)
+                CodeBlock.of(
+                    "%T(%L, %L, %L, %L, %L, %L) { %N,·%N·->\n⇥%L\n⇤}",
+                    descriptor,
+                    name,
+                    offset,
+                    arrayLength(resolved),
+                    fixedSize(resolved.element)!!,
+                    reader,
+                    writer,
+                    elementName,
+                    elementOffset,
+                    element,
+                )
+            }
+            else -> CodeBlock.of("%T(%L, %L, %L, %L, %L)", descriptor, name, offset, fixedSize(resolved)!!, reader, writer)
+        }
+    }
+
+    /**
+     * A descriptor class for a field of struct type [def] in an account, nested in the struct: a field descriptor for
+     * the whole struct, with a descriptor for each of its fields at its offset within the struct, as the struct's codec
+     * lays it out.
+     */
+    private fun structPath(def: IdlTypeDef): TypeSpec {
+        val struct = classOf(def.name)
+        val owner = TypeVariableName("T")
+        val type = IdlType.Defined(def.name)
+        val fields = fields((def.body as IdlTypeBody.Struct).fields)
+        val offsets = fieldOffsets(fields, if (isZeroCopy(def.name)) zeroCopyLayout(def.name) else null)
+        val builder = TypeSpec.classBuilder(struct.nestedClass("Path"))
+            .addKdoc(
+                "Describes a field of type [%T] in accounts of type [T], [size] bytes at [offset] into their payload, with a descriptor for each of its fields.\n",
+                struct,
+            )
+            .addTypeVariable(owner)
+            .primaryConstructor(FunSpec.constructorBuilder().addParameter("name", STRING).addParameter("offset", INT).build())
+            .superclass(Runtime.ACCOUNT_FIELD.parameterizedBy(owner, struct))
+            .addSuperclassConstructorParameter(
+                "name, offset, %L, { with(it) { %L } }, { %L }",
+                fixedSize(type)!!,
+                read(type),
+                write(type, CodeBlock.of("it")),
+            )
+        for ((i, field) in fields.withIndex()) {
+            if (fixedSize(field.type)!! == 0) continue
+            val at = offsets[i]!!
+            val offset = if (at == 0) CodeBlock.of("offset") else CodeBlock.of("offset + %L", at)
+            val property = if (field.name in PATH_MEMBERS) "${field.name}Field" else field.name
+            builder.addProperty(
+                PropertySpec.builder(property, pathType(field.type, owner))
+                    .addKdoc("The [%T.%N] of this struct, %L bytes after its start.\n", struct, field.name, at)
+                    .addAnnotation(Runtime.JVM_FIELD)
+                    .initializer(pathDescriptor(field.type, owner, CodeBlock.of("name + %S", ".${field.name}"), offset))
+                    .build(),
+            )
+        }
+        return builder.build()
+    }
+
+    /**
+     * The account's field descriptors, one for each of its [sliceable] fields, with descriptors of the fields of fixed-size
+     * structs and the elements of fixed-size arrays nested within. The [unsliceable] fields are listed with why.
+     */
+    private fun accountFields(account: ClassName, sliceable: List<SliceableField>, unsliceable: List<Pair<Field, String>>): TypeSpec {
         val builder = TypeSpec.objectBuilder(account.nestedClass("Fields"))
             .superclass(Runtime.ACCOUNT_PROJECTION_SCOPE.parameterizedBy(account))
             .addKdoc("Fields of %L accounts at a fixed offset and size, to read a slice of the account data with [select].\n", account.simpleName)
+            .addKdoc("\nFields of fixed-size structs and elements of fixed-size arrays are reached through their field, such as `field.inner` or `field[0]`.\n")
+        if (unsliceable.isNotEmpty()) {
+            builder.addKdoc("\nWithout a descriptor, since their offset or size varies between accounts, or they take no bytes:\n")
+            unsliceable.forEach { (field, reason) -> builder.addKdoc("- `%L` %L\n", field.name, reason) }
+        }
         for (it in sliceable) {
             builder.addProperty(
-                PropertySpec.builder(it.field.name, Runtime.ACCOUNT_FIELD.parameterizedBy(account, typeName(it.field.type)))
+                PropertySpec.builder(it.field.name, pathType(it.field.type, account))
                     .addAnnotation(Runtime.JVM_FIELD)
-                    .initializer("%T(%S, %L, %L) { with(it) { %L } }", Runtime.ACCOUNT_FIELD, it.field.name, it.offset, it.size, read(it.field.type))
+                    .initializer(pathDescriptor(it.field.type, account, CodeBlock.of("%S", it.field.name), CodeBlock.of("%L", it.offset)))
                     .build(),
             )
         }
@@ -1519,13 +1660,16 @@ class SolanaProgramBuilder @JvmOverloads constructor(
          * Version of the generated output. Bump it whenever the output changes, so build tools invalidate
          * previously generated bindings.
          */
-        const val OUTPUT_VERSION = "3"
+        const val OUTPUT_VERSION = "4"
 
         private const val FETCH_ALIAS = "fetchProgramAccount"
         private const val WATCH_ALIAS = "watchProgramAccount"
 
         /** Properties of an account slice, which an extension property of the same name cannot be read through. */
         private val SLICE_MEMBERS = setOf("address", "context", "info", "selection")
+
+        /** Members of an account field descriptor, which a nested field's descriptor must not shadow. */
+        private val PATH_MEMBERS = setOf("name", "offset", "size", "read", "write")
 
         /** Members of the account filter base class that a field method must not shadow. */
         private val FILTER_BASE_MEMBERS = setOf("program", "commitment", "memcmp", "dataSize", "field", "query", "subscribe", "accountFilters", "self")
