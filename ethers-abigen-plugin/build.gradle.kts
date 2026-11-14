@@ -61,7 +61,40 @@ tasks.shadowJar {
     mergeServiceFiles()
 }
 
+// The JVM artifacts of ethers-solana and its dependencies, which TestKit builds compile generated bindings against as
+// plain files, since this build's modules are not published to a repository they can resolve.
+val solanaConsumerClasspath: Configuration by configurations.creating {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+    attributes {
+        attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage.JAVA_RUNTIME))
+        attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category.LIBRARY))
+        attribute(TargetJvmEnvironment.TARGET_JVM_ENVIRONMENT_ATTRIBUTE, objects.named(TargetJvmEnvironment.STANDARD_JVM))
+        attribute(Attribute.of("org.jetbrains.kotlin.platform.type", String::class.java), "jvm")
+    }
+}
+
+// The serialization Gradle plugin, for TestKit builds that apply it alongside this one.
+val serializationGradlePlugin: Configuration by configurations.creating {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+}
+
+dependencies {
+    solanaConsumerClasspath(project(":ethers-solana"))
+    serializationGradlePlugin("org.jetbrains.kotlin:kotlin-serialization:${libs.versions.kotlin.get()}")
+    testRuntimeOnly("org.jetbrains.kotlin:kotlin-serialization:${libs.versions.kotlin.get()}")
+}
+
+tasks.pluginUnderTestMetadata {
+    pluginClasspath.from(serializationGradlePlugin)
+}
+
 tasks.test {
+    inputs.files(solanaConsumerClasspath).withPropertyName("solanaConsumerClasspath").withNormalizer(ClasspathNormalizer::class.java)
+    val consumerClasspath = solanaConsumerClasspath.elements
+    systemProperty("ethers.kotlinVersion", libs.versions.kotlin.get())
+    jvmArgumentProviders.add(CommandLineArgumentProvider { listOf("-Dethers.solanaConsumerClasspath=${consumerClasspath.get().joinToString(File.pathSeparator) { it.asFile.absolutePath }}") })
     useJUnitPlatform()
     javaLauncher.set(
         javaToolchains.launcherFor {

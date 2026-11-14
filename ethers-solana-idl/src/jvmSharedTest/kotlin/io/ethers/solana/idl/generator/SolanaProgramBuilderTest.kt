@@ -396,6 +396,89 @@ class SolanaProgramBuilderTest : FunSpec({
         }
     }
 
+    context("kotlinx.serialization") {
+        fun json(program: IdlProgram): String = SolanaProgramBuilder(program, "test.pkg", kotlinxSerialization = true).build().toString()
+
+        test("is off by default, leaving the output without a JSON form or a kotlinx.serialization import") {
+            for (name in listOf("relations", "amm_v3", "dlmm")) {
+                val source = generate(fixture(name))
+                source.contains("kotlinx.serialization") shouldBe false
+                source.contains("JsonSerializer") shouldBe false
+                source.contains("SolanaJson") shouldBe false
+            }
+        }
+
+        test("gives each struct, enum, event and instruction argument type a JSON form its annotation names") {
+            val source = json(fixture("relations"))
+            source shouldContain "import kotlinx.serialization.Serializable"
+            source shouldContain "@Serializable(with = MyAccount.JsonSerializer::class)"
+            source shouldContain "public object JsonSerializer : SolanaJsonSerializer<MyAccount>(\"test.pkg.RelationsDerivation.MyAccount\")"
+            // the binary codec is generated exactly as without JSON
+            fun codec(source: String): String {
+                val companion = source.substringAfter("public companion object : SolanaCodec<MyAccount> {")
+                val read = companion.substringAfter("override fun read(reader: BorshReader): MyAccount").substringBefore("\n\n")
+                val write = companion.substringAfter("override fun write(").substringBefore("\n\n")
+                return read + write
+            }
+            codec(source) shouldBe codec(generate(fixture("relations")))
+            codec(source) shouldContain "readAddress()"
+        }
+
+        test("keys objects by IDL field names and tags enums by IDL variant names") {
+            val types = listOf(
+                IdlTypeDef("my_struct", IdlTypeBody.Struct(IdlFields.Named(listOf(IdlField("fee_bps", IdlType.Primitive.U16), IdlField("_padding", IdlType.Primitive.U64))))),
+                IdlTypeDef("Tuple", IdlTypeBody.Struct(IdlFields.Tuple(listOf(IdlType.Primitive.I128, IdlType.Primitive.PUBKEY)))),
+                IdlTypeDef(
+                    "side",
+                    IdlTypeBody.Enum(
+                        listOf(
+                            IdlEnumVariant("bid"),
+                            IdlEnumVariant("limit_order", IdlFields.Tuple(listOf(IdlType.Primitive.U64))),
+                            IdlEnumVariant("stop_order", IdlFields.Named(listOf(IdlField("trigger_price", IdlType.Primitive.U64)))),
+                        ),
+                    ),
+                ),
+            )
+            val source = json(program(types = types))
+            source shouldContain "\"fee_bps\" to SolanaJson.encodeU16(value.feeBps)"
+            source shouldContain "\"_padding\" to SolanaJson.encodeU64(value.padding)"
+            source shouldContain "feeBps = SolanaJson.field(fields, \"fee_bps\", false) { SolanaJson.decodeU16(it) }"
+            source shouldContain "SolanaJson.decodeTuple(element, \"Tuple\", 2)"
+            source shouldContain "Bid -> SolanaJson.encodeVariant(\"bid\")"
+            source shouldContain "\"limit_order\" -> variant.fields { payload ->"
+            source shouldContain "SolanaJson.decodeStruct(payload, \"side::stop_order\", VARIANT_2_FIELDS, ignoreUnknownKeys)"
+        }
+
+        test("generates for zero-copy accounts, representing each field the IDL declares") {
+            val source = json(fixture("amm_v3"))
+            source shouldContain "@Serializable(with = PoolState.JsonSerializer::class)"
+            // an explicit padding field is a value like any other
+            source shouldContain "\"padding\" to SolanaJson.encodeArray(value.padding, "
+            // field descriptors and paths are not values, so have no JSON form
+            source shouldContain "public object Fields"
+            source shouldContain "public class Path"
+            Regex("SolanaJsonSerializer<[A-Za-z.]*(Fields|Path)>").containsMatchIn(source) shouldBe false
+            Regex("@Serializable\\(with = [A-Za-z.]*(Fields|Path)\\.").containsMatchIn(source) shouldBe false
+        }
+
+        test("rejects field names that would repeat a JSON key, and a variant hiding the nested serializer") {
+            val repeated = IdlTypeDef("S", IdlTypeBody.Struct(IdlFields.Named(listOf(IdlField("a", IdlType.Primitive.U8), IdlField("a", IdlType.Primitive.U16)))))
+            shouldThrow<IllegalArgumentException> { json(program(types = listOf(repeated))) }.message shouldBe
+                "type 'S': field name 'a' is repeated, so cannot key a JSON object"
+            // without JSON, the Kotlin properties are numbered apart as before
+            generate(program(types = listOf(repeated))) shouldContain "public val a1: Int"
+
+            val variant = IdlTypeDef("E", IdlTypeBody.Enum(listOf(IdlEnumVariant("json_serializer"))))
+            shouldThrow<IllegalArgumentException> { json(program(types = listOf(variant))) }.message shouldBe
+                "type 'E' variant 'json_serializer': its class would hide the nested JsonSerializer"
+            generate(program(types = listOf(variant))) shouldContain "data object JsonSerializer : E()"
+
+            val repeatedInVariant = IdlTypeDef("V", IdlTypeBody.Enum(listOf(IdlEnumVariant("A", IdlFields.Named(listOf(IdlField("x", IdlType.Primitive.U8), IdlField("x", IdlType.Primitive.U8)))))))
+            shouldThrow<IllegalArgumentException> { json(program(types = listOf(repeatedInVariant))) }.message shouldBe
+                "type 'V' variant 'A': field name 'x' is repeated, so cannot key a JSON object"
+        }
+    }
+
     test("generation is deterministic") {
         generate(fixture("relations")) shouldBe generate(fixture("relations"))
     }

@@ -54,6 +54,12 @@ abstract class EthersSolanaIdlTask @Inject constructor(private val executor: Wor
     abstract val seedByteOrders: MapProperty<String, SeedByteOrders>
 
     /**
+     * Whether to generate a kotlinx.serialization JSON form for the value types of every program.
+     * */
+    @get:Input
+    abstract val kotlinxSerialization: Property<Boolean>
+
+    /**
      * Directory where the generated Kotlin files will be placed. Path is relative to the project build directory.
      * */
     @get:Input
@@ -104,6 +110,7 @@ abstract class EthersSolanaIdlTask @Inject constructor(private val executor: Wor
                 it.destination.set(destDir)
                 it.programAddresses.set(programAddresses)
                 it.seedByteOrders.set(seedByteOrders)
+                it.kotlinxSerialization.set(kotlinxSerialization)
                 it.resultFile.set(File(resultsDir, index.toString()))
             }
         }

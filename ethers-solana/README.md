@@ -439,6 +439,61 @@ struct field, an unknown variant, or an invalid address. It also fails for anyth
 an expression, a cast, a path or a reference to another constant. Legacy IDLs can record those as unevaluated
 source text, and the generator never evaluates them.
 
+## JSON form of IDL values
+
+One line in the Gradle build turns it on, with nothing else to set up:
+
+```kotlin
+ethersSolanaIdl {
+    kotlinxSerialization = true
+}
+```
+
+Every struct, enum, event and instruction arguments class then gets a nested `JsonSerializer`, a
+`SolanaJsonSerializer`, which its `@Serializable` annotation names, and the plugin adds the kotlinx.serialization
+compiler plugin to the project's Kotlin compilations so `Json` finds it (see the
+[plugin README](../ethers-abigen-plugin/README.md#solana-program-bindings)). This JSON form is entirely separate from the Borsh and zero-copy
+codecs, which do not change. It never routes a value through a JSON double, so it round-trips losslessly:
+
+| IDL type | JSON |
+|----------|------|
+| `bool` | `true` / `false` |
+| `u8`, `u16`, `u32`, `i8`, `i16`, `i32` | JSON integer, e.g. `255` |
+| `u64`, `i64`, `u128`, `i128`, `u256`, `i256` | canonical decimal string, e.g. `"-170141183460469231731687303715884105728"` |
+| `f32`, `f64` | shortest JSON number that reads back exactly, or `"NaN"`, `"Infinity"`, `"-Infinity"` |
+| `string` | JSON string |
+| `pubkey` | base58 string |
+| `bytes`, `[u8; N]` | standard padded base64 string; a fixed array must decode to exactly N bytes |
+| `Vec<T>`, `[T; N]` (including `Vec<u8>`) | JSON array; a fixed array must have exactly N elements |
+| `Option<T>` | `null` for none, otherwise the value; an absent field is none too |
+| `Option<Option<T>>` | `null`, or the outer some as a one-element array: `[null]`, `[1]` |
+| struct with named fields | object keyed by the IDL field names as declared, e.g. `fee_bps`, in declaration order |
+| tuple struct | array of its fields |
+| struct without fields | `{}` |
+| enum variant without fields | its IDL name as a string: `"Bid"` |
+| enum variant with fields | `{"Name": {...}}` for named fields, `{"Name": [...]}` for tuple fields |
+| type alias | the form of its target |
+
+Enum tags are the IDL variant names, so variants of the same shape stay distinct. Decoding is strict: wrong types,
+out-of-range values, non-canonical decimals (`"01"`, `"+1"`, `"-0"`), missing non-option fields and wrong-length
+arrays fail with a `SolanaJsonException` whose `path`, such as `sides[1].Limit[0]`, locates the value. Unknown object
+keys fail unless the `Json` instance sets `ignoreUnknownKeys`. Encoding a value its IDL type cannot hold, such as a
+negative `u64`, throws `IllegalArgumentException`, as the binary codec does. Zero-copy padding is not represented.
+
+An event's JSON holds its payload fields only, as its binary encoding does. Its `JsonSerializer` decodes with a
+standalone context for the program's address, and `withContext(context)` returns a serializer that attaches another.
+
+```kotlin
+val json = Json.encodeToString(pool)
+val decoded = Json.decodeFromString<Clmm.PoolState>(json)
+val pools = Json.decodeFromString<List<Clmm.PoolState>>(array)
+```
+
+The serializers support JSON only; another format fails with a `SerializationException`. Bindings generated without the
+Gradle plugin, such as with the CLI's `--kotlinx-serialization <program>`, need the
+`org.jetbrains.kotlin.plugin.serialization` plugin for this lookup, or name the serializer explicitly:
+`Json.encodeToString(Clmm.PoolState.JsonSerializer, pool)`.
+
 ## Idempotent associated token accounts
 
 Use `AssociatedTokenProgram.createAccountIdempotent(payer, owner, mint)` to derive the SPL Token

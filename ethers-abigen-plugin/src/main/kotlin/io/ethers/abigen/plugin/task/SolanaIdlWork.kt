@@ -35,7 +35,12 @@ abstract class SolanaIdlWork : WorkAction<SolanaIdlWork.Parameters> {
         logger.info("Generating Kotlin bindings for ${program.name} from $source")
         val builder = try {
             val byteOrders = parameters.seedByteOrders.get()[program.name] ?: SeedByteOrders()
-            SolanaProgramBuilder(program, source.destinationPackage, seedByteOrders = byteOrders)
+            SolanaProgramBuilder(
+                program,
+                source.destinationPackage,
+                seedByteOrders = byteOrders,
+                kotlinxSerialization = parameters.kotlinxSerialization.get(),
+            )
         } catch (e: IllegalArgumentException) {
             throw GradleException("Failed to generate bindings for program '${program.name}' ($source): ${e.message}", e)
         }
@@ -49,6 +54,7 @@ abstract class SolanaIdlWork : WorkAction<SolanaIdlWork.Parameters> {
         val destination: Property<File>
         val programAddresses: MapProperty<String, String>
         val seedByteOrders: MapProperty<String, SeedByteOrders>
+        val kotlinxSerialization: Property<Boolean>
         val resultFile: RegularFileProperty
     }
 }
