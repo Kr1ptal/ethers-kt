@@ -49,6 +49,7 @@ class AmmV3BindingsTest : FunSpec({
         pool.sqrtPriceX64 shouldBe BigInteger("491162215651693862")
         pool.tickCurrent shouldBe -72521
         AmmV3.PoolState.ACCOUNT.encode(pool) shouldBe POOL_DATA
+        AmmV3.PoolState.encodedSize shouldBe POOL_DATA.size - 8
     }
 
     test("nested descriptors read the mainnet pool's packed reward infos as the codec decodes them") {

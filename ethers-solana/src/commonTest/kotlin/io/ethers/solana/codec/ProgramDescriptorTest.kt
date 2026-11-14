@@ -74,6 +74,37 @@ class ProgramDescriptorTest : FunSpec({
         }
     }
 
+    context("encoded size") {
+        val counter = Counter(PROGRAM, bigIntegerOf(9))
+        val payload = PROGRAM.asByteArray() + hex("0900000000000000")
+        val discriminator = SolanaDiscriminator.of(0xff, 0, 1, 2, 3, 4, 5, 6)
+
+        test("only sizes the buffer, so a size that is exact, too small, too large or variable encodes the same bytes") {
+            for (size in listOf(payload.size, 0, 1, payload.size - 1, payload.size + 1, 500, SolanaCodec.VARIABLE_SIZE)) {
+                val codec = object : SolanaCodec<Counter> by Counter {
+                    override val encodedSize = size
+                }
+                codec.encode(counter) shouldBe payload
+                SolanaAccountFactory("Counter", discriminator, codec).encode(counter) shouldBe discriminator.asByteArray() + payload
+                SolanaInstructionDescriptor("set", discriminator, codec).encodeData(counter) shouldBe discriminator.asByteArray() + payload
+            }
+        }
+
+        test("is variable unless a codec declares it, and zero for the unit codec") {
+            Counter.encodedSize shouldBe SolanaCodec.VARIABLE_SIZE
+            SolanaCodec.of({ readU8() }, { writeU8(it) }).encodedSize shouldBe SolanaCodec.VARIABLE_SIZE
+            SolanaCodec.UNIT.encodedSize shouldBe 0
+            SolanaCodec.UNIT.encode(Unit) shouldBe ByteArray(0)
+        }
+
+        test("a writer without initial capacity grows on its first write") {
+            for (capacity in listOf(0, -1)) {
+                BorshWriter(capacity).apply { writeU64(bigIntegerOf(9)) }.toByteArray() shouldBe hex("0900000000000000")
+                BorshWriter(capacity).toByteArray() shouldBe ByteArray(0)
+            }
+        }
+    }
+
     context("instruction descriptor") {
         val increment = SolanaInstructionDescriptor.Returning(
             "increment",
