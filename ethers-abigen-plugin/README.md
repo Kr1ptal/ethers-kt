@@ -117,6 +117,39 @@ A selection can also `watch` an account, and an account `filter` can `query` or 
 discriminator to check the account type by, unless it starts with the first field, so fetching by address checks the
 owner only; filters select accounts by discriminator on the node.
 
+Fields of fixed-size structs and elements of fixed-size arrays have descriptors too, reached as paths through their
+field. Their offsets are the ones the codec reads them at, after the discriminator and including the padding a
+zero-copy layout places before them. A descriptor of a struct or an array reads the whole value, and a slice that
+selects it can also read the fields and elements within it:
+
+```kotlin
+val rewards = Clmm.PoolState.select {
+    combine(rewardInfos[0].rewardState, rewardInfos[1].tokenMint) { state, mint -> state to mint }
+}
+
+val slice = Clmm.PoolState.select { fields(rewardInfos) }.fetch(api, poolAddress).sendAwait().unwrap()
+val mint = slice[Clmm.PoolState.Fields.rewardInfos[2].tokenMint]
+```
+
+A struct field named like a member of a descriptor (`name`, `offset`, `size`, `read`, `write`) takes a `Field` suffix,
+such as `slots[0].nameField`. An index outside the array throws `IndexOutOfBoundsException`, and descriptors with the
+same path are equal, so selecting one twice selects it once.
+
+A filter can compare any descriptor, nested or not, with `field(descriptor, value)`, which compares the bytes the
+value encodes to at the descriptor's offset. A value with padding in its zero-copy layout is compared with zeros there.
+
+```kotlin
+val pools = Clmm.PoolState.filter(api).field(Clmm.PoolState.Fields.rewardInfos[0].tokenMint, mint).query()
+```
+
+Descriptors exist only where the offset and size are the same in every account. A field whose size varies, such as a
+`Vec`, a `String`, an `Option` or an enum with data, has none, and nor does anything after it: those offsets depend on
+the data of each account, so they are intentionally not guessed. Fields that take no bytes, such as an empty struct,
+have nothing to select either. Each account's `Fields` documents which of its fields have no descriptor and why.
+
+Not yet supported: the fields of a struct whose size varies have no descriptors, even those before its first
+variable-size field, whose offsets are fixed.
+
 Legacy IDLs, from before Anchor 0.30, are converted as Anchor converts them: names become snake_case and
 discriminators are derived from them. They often declare no program address, which `programAddress` then provides, and
 do not record zero-copy layouts, so their types are read as Borsh, which matches zero-copy accounts without padding.
@@ -139,6 +172,9 @@ is `PairU64U8`, and generic aliases are inlined where they are used. A generic d
 not generated. Generation fails when an instantiation's name is already declared, when instantiation would never end
 (as in `struct List<T> { next: Option<Box<List<Vec<T>>>> }`), when a const argument does not fit its parameter's type,
 and when an account or event is itself a generic definition, as the IDL does not say which instantiation it holds.
+A constant of a generic instantiation is generated as that instantiation's class, its value written as `Debug` writes
+it, under the definition's own name: `Pair { first: 1, second: [1, 2] }` for a `Pair<u64, [u8; 2]>`. Field descriptors
+reach into fixed-size instantiations like into any fixed-size struct, at the offsets the const arguments fix.
 
 ### Local testing of the plugin
 

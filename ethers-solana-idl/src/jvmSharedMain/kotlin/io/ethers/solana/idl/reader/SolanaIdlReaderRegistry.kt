@@ -19,7 +19,7 @@ import java.util.concurrent.CopyOnWriteArrayList
  * fails validation is reported as [IdlReadError.Invalid], without trying the remaining readers.
  * */
 object SolanaIdlReaderRegistry {
-    private val readers = CopyOnWriteArrayList<SolanaIdlReader>(listOf(AnchorIdlReader, AnchorLegacyIdlReader))
+    private val readers = CopyOnWriteArrayList(listOf(AnchorIdlReader, AnchorLegacyIdlReader))
 
     /**
      * Add [SolanaIdlReader] to the beginning of the list of readers.

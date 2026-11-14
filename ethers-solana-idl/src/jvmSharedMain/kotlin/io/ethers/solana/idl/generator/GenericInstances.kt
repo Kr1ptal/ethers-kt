@@ -53,6 +53,9 @@ internal class GenericInstances(private val source: IdlProgram, private val base
     /** The Kotlin name of each instantiation, by its name in the schema. */
     val kotlinNames = LinkedHashMap<String, String>()
 
+    /** The generic definition each instantiation instantiates, by the instantiation's name in the schema. */
+    val definitions = HashMap<String, String>()
+
     /** [source] with each generic definition replaced by its instantiations. */
     val program: IdlProgram = if (source.types.none { it.generics.isNotEmpty() }) source else expand()
 
@@ -191,6 +194,7 @@ internal class GenericInstances(private val source: IdlProgram, private val base
         val name = "${def.name}<${args.joinToString(", ") { render(it) }}>"
         if (name in kotlinNames) return name
         require(name !in types) { "$where: instantiation '$name' has the name of a declared type definition" }
+        definitions[name] = def.name
         kotlinNames[name] = baseNames.getValue(def.name) + def.generics.indices.joinToString("") { i ->
             when (val arg = args[i]) {
                 is Bound.Type -> fragment(arg.type)

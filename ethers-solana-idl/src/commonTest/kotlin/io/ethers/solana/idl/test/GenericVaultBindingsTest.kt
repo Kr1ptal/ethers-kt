@@ -3,6 +3,8 @@ package io.ethers.solana.idl.test
 import io.ethers.core.FastHex
 import io.ethers.crypto.Base58
 import io.ethers.providers.HttpClient
+import io.ethers.solana.codec.BorshReader
+import io.ethers.solana.codec.SolanaAccountField
 import io.ethers.solana.codec.SolanaDecodeError
 import io.ethers.solana.codec.SolanaEventContext
 import io.ethers.solana.program.decodeReturn
@@ -124,6 +126,73 @@ class GenericVaultBindingsTest : FunSpec({
             GenericVault.Oracle.Fields.ticks.size shouldBe 40
             GenericVault.Oracle.Fields.updated.offset shouldBe 72
         }
+    }
+
+    context("nested field paths") {
+        /** [field] read from the encoded account [data] at its offset, as the codec wrote it there. */
+        fun <V> readAt(data: ByteArray, field: SolanaAccountField<*, V>): V = field.read(BorshReader(data, 8 + field.offset))
+
+        val vaultBytes = GenericVault.Vault.ACCOUNT.encode(VAULT)
+        val oracleBytes = GenericVault.Oracle.ACCOUNT.encode(ORACLE)
+
+        test("fields of instantiations and elements of arrays with a const length are at their encoded offsets") {
+            with(GenericVault.Vault.Fields) {
+                label.field0.offset shouldBe 1
+                label.field0.size shouldBe 8
+                label.field0[3].offset shouldBe 4
+                balances.first.offset shouldBe 9
+                balances.second.offset shouldBe 17
+                history.head.offset shouldBe 21
+                history.items.offset shouldBe 22
+                history.items.size shouldBe 24
+                history.items.elementSize shouldBe 8
+                history.items[2].offset shouldBe 38
+                history.items[2].name shouldBe "history.items[2]"
+
+                readAt(vaultBytes, label.field0[3]) shouldBe 'n'.code
+                readAt(vaultBytes, balances.second) shouldBe -2
+                readAt(vaultBytes, history.head) shouldBe 1
+                readAt(vaultBytes, history.items) shouldBe VAULT.history.items
+                readAt(vaultBytes, history.items[2]) shouldBe bigIntegerOf(3)
+            }
+            shouldThrow<IndexOutOfBoundsException> { GenericVault.Vault.Fields.history.items[3] }
+        }
+
+        test("fields of a zero-copy instantiation are at their padded offsets, its length fixed by the const argument") {
+            with(GenericVault.Oracle.Fields) {
+                ticks.values.offset shouldBe 32
+                ticks.values.size shouldBe 32
+                ticks.values[3].offset shouldBe 56
+                ticks.count.offset shouldBe 64
+                updated.offset shouldBe 72
+
+                readAt(oracleBytes, ticks.values[3]) shouldBe bigIntegerOf(4)
+                readAt(oracleBytes, ticks.count) shouldBe 4
+                readAt(oracleBytes, updated) shouldBe -1
+            }
+            shouldThrow<IndexOutOfBoundsException> { GenericVault.Oracle.Fields.ticks.values[4] }
+        }
+
+        test("an account filter selects by a nested field of an instantiation") {
+            val api = SolanaProvider(HttpClient("https://example.invalid"))
+            GenericVault.Vault.filter(api).field(GenericVault.Vault.Fields.history.items[1], bigIntegerOf(2)).accountFilters.drop(1) shouldBe listOf(
+                AccountFilter.Memcmp(38, Base58.encode(hex("0200000000000000"))),
+            )
+            api.close()
+        }
+    }
+
+    test("constants of instantiations are written under their definition's own name, and construct the instantiation") {
+        GenericVault.DEFAULT_AMOUNT shouldBe GenericVault.PairU64I32(bigIntegerOf(1000), -2)
+        GenericVault.LOCKED_SLOT shouldBe GenericVault.SlotPairU64U8.Locked(
+            SolanaAddress("SysvarRent111111111111111111111111111111111"),
+            GenericVault.PairU64U8(bigIntegerOf(5), 6),
+        )
+        GenericVault.MAIN_LABEL shouldBe GenericVault.LabelN4(SolanaBytes.fromHex("6d61696e"))
+        // declared through the generic alias Bounded<u16>
+        GenericVault.START_RING shouldBe GenericVault.RingBufferU16N2(1, listOf(2, 3))
+        GenericVault.EMPTY_TICKS shouldBe GenericVault.TicksN4(listOf(bigIntegerOf(0), bigIntegerOf(0), bigIntegerOf(0), bigIntegerOf(1)), 1)
+        GenericVault.PairU64I32.encode(GenericVault.DEFAULT_AMOUNT) shouldBe hex("e803000000000000 feffffff")
     }
 
     context("instructions") {

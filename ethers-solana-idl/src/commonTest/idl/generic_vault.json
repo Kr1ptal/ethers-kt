@@ -758,5 +758,102 @@
         ]
       }
     }
+  ],
+  "constants": [
+    {
+      "name": "DEFAULT_AMOUNT",
+      "type": {
+        "defined": {
+          "name": "Pair",
+          "generics": [
+            {
+              "kind": "type",
+              "type": "u64"
+            },
+            {
+              "kind": "type",
+              "type": "i32"
+            }
+          ]
+        }
+      },
+      "value": "Pair { first: 1000, second: -2 }"
+    },
+    {
+      "name": "LOCKED_SLOT",
+      "type": {
+        "defined": {
+          "name": "Slot",
+          "generics": [
+            {
+              "kind": "type",
+              "type": {
+                "defined": {
+                  "name": "Pair",
+                  "generics": [
+                    {
+                      "kind": "type",
+                      "type": "u64"
+                    },
+                    {
+                      "kind": "type",
+                      "type": "u8"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      },
+      "value": "Locked { owner: SysvarRent111111111111111111111111111111111, value: Pair { first: 5, second: 6 } }"
+    },
+    {
+      "name": "MAIN_LABEL",
+      "type": {
+        "defined": {
+          "name": "Label",
+          "generics": [
+            {
+              "kind": "const",
+              "value": "4"
+            }
+          ]
+        }
+      },
+      "value": "Label([109, 97, 105, 110])"
+    },
+    {
+      "name": "START_RING",
+      "type": {
+        "defined": {
+          "name": "Bounded",
+          "generics": [
+            {
+              "kind": "type",
+              "type": "u16"
+            }
+          ]
+        }
+      },
+      "value": "RingBuffer { head: 1, items: [2, 3] }"
+    },
+    {
+      "name": "EMPTY_TICKS",
+      "type": {
+        "option": {
+          "defined": {
+            "name": "Ticks",
+            "generics": [
+              {
+                "kind": "const",
+                "value": "4"
+              }
+            ]
+          }
+        }
+      },
+      "value": "Some(Ticks { values: [0, 0, 0, 1], count: 1 })"
+    }
   ]
 }

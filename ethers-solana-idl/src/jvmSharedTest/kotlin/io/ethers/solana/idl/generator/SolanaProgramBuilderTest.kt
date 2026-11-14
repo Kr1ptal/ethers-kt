@@ -123,8 +123,10 @@ class SolanaProgramBuilderTest : FunSpec({
             val source = flat(generate(program(types = listOf(buffer, account)).copy(accounts = listOf(IdlAccount("User", IdlDiscriminator(listOf(1)))))))
             source shouldContain "public val f0: BufferU16N3, public val f1: Int, public val f2: BufferU16N3,"
             source shouldContain "items = readArray(3) { readU16() },"
-            source shouldContain "SolanaAccountField(\"f1\", 6, 1)"
-            source shouldContain "SolanaAccountField(\"f2\", 7, 6)"
+            source shouldContain "SolanaAccountField<User, Int>(\"f1\", 6, 1,"
+            source shouldContain "BufferU16N3.Path<User>(\"f2\", 7)"
+            // the path into the instantiation describes its three elements
+            source shouldContain "(name + \".items\", offset, 3, 2,"
         }
 
         test("a self-referential instantiation that does not grow is generated once") {
@@ -199,6 +201,19 @@ class SolanaProgramBuilderTest : FunSpec({
             flat(cell, user(defined("Cell", arg(IdlType.Primitive.U32)))) shouldContain "public data class CellU32("
             rejected(cell, user(defined("Cell", arg(IdlType.Primitive.STRING)))) shouldBe
                 "type 'Cell<string>' field 'value': a zero-copy type cannot contain STRING, which varies in size"
+        }
+
+        test("a constant of an instantiation is read under the definition's own name, as Debug writes it") {
+            val type = defined("Pair", arg(IdlType.Primitive.U8), arg(IdlType.Array(IdlType.Primitive.I8, IdlArrayLength.Fixed(2))))
+            fun constant(value: String) = program(types = listOf(pair), constants = listOf(IdlConstant("C", type, value)))
+            flat(generate(constant("Pair { first: 1, second: [-1, 2] }"))) shouldContain
+                "public val C: PairU8Array2I8 = PairU8Array2I8(first = 1, second = listOf<Byte>(-1, 2))"
+            shouldThrow<IllegalArgumentException> { generate(constant("PairU8Array2I8 { first: 1, second: [-1, 2] }")) }.message shouldContain
+                "'PairU8Array2I8' is not a value of struct 'Pair<u8, [i8; 2]>', which Debug writes as 'Pair'"
+            // the const argument fixes the array length the value must have
+            shouldThrow<IllegalArgumentException> {
+                generate(program(types = listOf(buffer), constants = listOf(IdlConstant("C", defined("Buffer", arg(IdlType.Primitive.U8), IdlGenericArg.Const("2")), "Buffer { items: [1] }"))))
+            }.message shouldContain "constant 'C'"
         }
 
         test("instruction arguments, return types and seeds use instantiations") {
@@ -341,11 +356,11 @@ class SolanaProgramBuilderTest : FunSpec({
         source shouldContain "data class Line("
     }
 
-    test("constants must fit their type and have a supported type") {
+    test("constants must fit their type") {
         shouldThrow<IllegalArgumentException> { generate(program(constants = listOf(IdlConstant("C", IdlType.Primitive.U8, "256")))) }
             .message shouldBe "constant 'C': 256 is outside the range of U8"
-        shouldThrow<IllegalArgumentException> { generate(program(constants = listOf(IdlConstant("C", IdlType.Vec(IdlType.Primitive.U8), "[]")))) }
-            .message shouldContain "constants are not supported yet"
+        shouldThrow<IllegalArgumentException> { generate(program(constants = listOf(IdlConstant("C", IdlType.Primitive.PUBKEY, "1111")))) }
+            .message shouldBe "constant 'C': '1111' decodes to 4 bytes, but an address has 32"
         generate(program(constants = listOf(IdlConstant("C", IdlType.Primitive.I64, "-9_223_372_036_854_775_808i64")))) shouldContain
             "const val C: Long = Long.MIN_VALUE"
     }
@@ -440,6 +455,75 @@ class SolanaProgramBuilderTest : FunSpec({
         source shouldContain "@get:JvmName(\"getFirstBump\") public val SolanaAccountSlice<Test.First>.bump: Int"
         source shouldContain "@get:JvmName(\"getSecondBump\") public val SolanaAccountSlice<Test.Second>.bump: Int"
         source shouldContain "public inline fun <R> select(fields: Fields.() -> SolanaAccountProjection<First, R>): SolanaAccountSelection<First, R>"
+    }
+
+    context("nested field paths") {
+        fun named(vararg fields: Pair<String, IdlType>) = IdlTypeBody.Struct(IdlFields.Named(fields.map { (name, type) -> IdlField(name, type) }))
+        fun array(element: IdlType, length: Int) = IdlType.Array(element, IdlArrayLength.Fixed(length))
+        fun generateAccount(account: IdlTypeDef, vararg types: IdlTypeDef): String {
+            val accounts = listOf(IdlAccount(account.name, IdlDiscriminator(listOf(1))))
+            return generate(program(types = listOf(account) + types).copy(accounts = accounts)).replace(Regex("\\s+"), " ")
+        }
+
+        test("only fields at a fixed offset with a fixed size get descriptors, and the others are listed with why") {
+            val account = IdlTypeDef(
+                "A",
+                named(
+                    "head" to IdlType.Defined("Inner"),
+                    "nothing" to IdlType.Defined("Empty"),
+                    "none" to array(IdlType.Primitive.U64, 0),
+                    "variable" to IdlType.Defined("Variable"),
+                    "list" to IdlType.Vec(IdlType.Defined("Listed")),
+                    "tail" to IdlType.Defined("Trailing"),
+                ),
+            )
+            val source = generateAccount(
+                account,
+                IdlTypeDef("Inner", named("x" to IdlType.Primitive.U8, "y" to IdlType.Primitive.U16)),
+                IdlTypeDef("Empty", IdlTypeBody.Struct(IdlFields.None)),
+                IdlTypeDef("Variable", named("x" to IdlType.Primitive.U8, "s" to IdlType.Primitive.STRING)),
+                IdlTypeDef("Listed", named("x" to IdlType.Primitive.U8)),
+                IdlTypeDef("Trailing", named("x" to IdlType.Primitive.U8)),
+            )
+            source shouldContain "public val head: Inner.Path<A> = Inner.Path<A>(\"head\", 0)"
+            source shouldContain "public val y: SolanaAccountField<T, Int> = SolanaAccountField<T, Int>(name + \".y\", offset + 1, 2,"
+            source shouldContain "* - `nothing` takes no bytes * - `none` takes no bytes * - `variable` has a variable size " +
+                "* - `list` follows a field of variable size, so has no fixed offset * - `tail` follows a field of variable size, so has no fixed offset"
+            // structs are described only where a fixed-size field of an account reaches them
+            source.split("public class Path<T>").size shouldBe 2
+            listOf("nothing", "none", "variable", "list", "tail").forEach { (source.contains("public val $it: SolanaAccount") || source.contains("public val $it: Inner")) shouldBe false }
+        }
+
+        test("nested offsets follow packed and unpacked zero-copy layouts") {
+            fun zeroCopy(name: String, body: IdlTypeBody.Struct, packed: Boolean) = IdlTypeDef(name, body, serialization = IdlSerialization.BytemuckUnsafe, repr = IdlRepr.C(packed = packed))
+            val account = zeroCopy("Z", named("a" to IdlType.Primitive.U8, "loose" to IdlType.Defined("Loose"), "tight" to array(IdlType.Defined("Tight"), 2)), packed = false)
+            val source = generateAccount(
+                account,
+                zeroCopy("Loose", named("x" to IdlType.Primitive.U8, "y" to IdlType.Primitive.U128), packed = false),
+                zeroCopy("Tight", named("x" to IdlType.Primitive.U8, "y" to IdlType.Primitive.U64), packed = true),
+            )
+            // Loose is 8-byte aligned, with 128-bit integers 8-byte aligned as on-chain, and 24 bytes
+            source shouldContain "Loose.Path<Z>(\"loose\", 8)"
+            source shouldContain "SolanaAccountField<T, BigInteger>(name + \".y\", offset + 8, 16,"
+            // Tight is packed: 9 bytes, 1-byte aligned, so follows Loose directly
+            source shouldContain "SolanaAccountArrayField<Z, List<Tight>, Tight.Path<Z>>(\"tight\", 32, 2, 9,"
+            source shouldContain "SolanaAccountField<T, BigInteger>(name + \".y\", offset + 1, 8,"
+        }
+
+        test("nested fields named like descriptor members take a suffix, and arrays of arrays nest their elements") {
+            val account = IdlTypeDef("A", named("slot" to IdlType.Defined("Slot"), "grid" to array(array(IdlType.Primitive.U16, 3), 2)))
+            val source = generateAccount(
+                account,
+                IdlTypeDef("Slot", named("name" to IdlType.Primitive.U8, "offset" to IdlType.Primitive.U8, "size" to IdlType.Primitive.U8, "read" to IdlType.Primitive.U8, "write" to IdlType.Primitive.U8)),
+            )
+            listOf("name", "offset", "size", "read", "write").forEachIndexed { i, name ->
+                val offset = if (i == 0) "offset" else "offset + $i"
+                source shouldContain "public val ${name}Field: SolanaAccountField<T, Int> = SolanaAccountField<T, Int>(name + \".$name\", $offset, 1,"
+            }
+            source shouldContain "SolanaAccountArrayField<A, List<List<Int>>, SolanaAccountArrayField<A, List<Int>, SolanaAccountField<A, Int>>>(\"grid\", 5, 2, 6,"
+            source shouldContain "{ elementName0, elementOffset0 -> SolanaAccountArrayField<A, List<Int>, SolanaAccountField<A, Int>>(elementName0, elementOffset0, 3, 2,"
+            source shouldContain "{ elementName1, elementOffset1 -> SolanaAccountField<A, Int>(elementName1, elementOffset1, 2,"
+        }
     }
 
     context("legacy IDLs") {
