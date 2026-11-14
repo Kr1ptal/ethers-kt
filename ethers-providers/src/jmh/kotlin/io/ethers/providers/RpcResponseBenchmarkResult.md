@@ -6,8 +6,8 @@ OS: Linux
 ```
 
 Turning a JSON-RPC response body into the provider's result, by each route kotlinx offers. `text` is only the
-body-to-`String` step that `current` and `direct` include. Solana account data is decoded with the stdlib base64
-decoder, as on master.
+body-to-`String` step that `current` and `direct` include. Solana account data is decoded with `FastBase64`, as on
+master; its roughly 550,000 base64 characters take about 300 µs of each `accounts` route.
 
 kotlinx.serialization 1.11.0, the version the project uses:
 
