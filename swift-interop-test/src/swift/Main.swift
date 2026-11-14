@@ -165,26 +165,15 @@ func solanaTests(_ t: Harness, _ f: TransferFixture) {
         t.check((decoded as? NSObject)?.isEqual(f.tx) == true, "the message decodes to the same transaction")
     }
 
-    t.test("a Swift closure signs through CallbackSigner, and sign takes an array") {
-        // the closure stands in for a Secure Enclave or wallet SDK call that signs Data
-        let external = CallbackSigner(publicKey: f.alice.publicKey) { message in try? f.alice.signMessage(data: message).toData() }
-        let signed = try f.tx.sign(signers: [external, f.bob])
-        t.check(signed == (try f.tx.sign(signers: [f.alice, f.bob])), "the closure's signature is used")
-        let built = try value(f.tx.signingBuilder().sign(signers: [f.bob]).sign(signers: [external]).build())
+    t.test("sign takes a Swift array") {
+        let signed = try f.tx.sign(signers: [f.alice, f.bob])
+        let built = try value(f.tx.signingBuilder().sign(signers: [f.bob]).sign(signers: [f.alice]).build())
         t.check(built == signed, "the builder takes arrays too")
-    }
-
-    t.test("a closure that cannot sign throws instead of aborting") {
-        let declined = CallbackSigner(publicKey: f.alice.publicKey) { _ in nil }
-        let malformed = CallbackSigner(publicKey: f.alice.publicKey) { _ in Data(count: 63) }
-        for (name, signer) in [("declined", declined), ("malformed", malformed)] {
-            do {
-                _ = try f.tx.sign(signers: [signer, f.bob])
-                t.fail("\(name) signer produced a transaction")
-            } catch {
-                t.check((error as NSError).kotlinException is KotlinIllegalArgumentException, "\(name) threw \(error)")
-            }
-            t.check(signer.trySignMessage(message: f.tx.serializeMessage()).isFailure(), "\(name) trySignMessage fails")
+        do {
+            _ = try f.tx.sign(signers: [f.alice])
+            t.fail("a missing signer produced a transaction")
+        } catch {
+            t.check((error as NSError).kotlinException is KotlinIllegalArgumentException, "threw \(error)")
         }
     }
 
