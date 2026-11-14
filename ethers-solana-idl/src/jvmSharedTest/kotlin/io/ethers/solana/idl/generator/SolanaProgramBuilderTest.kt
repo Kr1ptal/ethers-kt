@@ -454,6 +454,11 @@ class SolanaProgramBuilderTest : FunSpec({
             source shouldContain "@Serializable(with = PoolState.JsonSerializer::class)"
             // an explicit padding field is a value like any other
             source shouldContain "\"padding\" to SolanaJson.encodeArray(value.padding, "
+            // field descriptors and paths are not values, so have no JSON form
+            source shouldContain "public object Fields"
+            source shouldContain "public class Path"
+            Regex("SolanaJsonSerializer<[A-Za-z.]*(Fields|Path)>").containsMatchIn(source) shouldBe false
+            Regex("@Serializable\\(with = [A-Za-z.]*(Fields|Path)\\.").containsMatchIn(source) shouldBe false
         }
 
         test("rejects field names that would repeat a JSON key, and a variant hiding the nested serializer") {
