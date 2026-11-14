@@ -1,5 +1,6 @@
 package io.ethers.solana.types.transaction
 
+import io.ethers.core.FastBase64
 import io.ethers.core.Result
 import io.ethers.core.unwrapOrReturn
 import io.ethers.solana.serialization.SolanaMessageDecoder
@@ -8,7 +9,6 @@ import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.types.SolanaBytes
 import io.ethers.solana.types.SolanaSignature
-import kotlin.io.encoding.Base64
 
 internal fun SolanaMessageEncoder.writeMessageBody(tx: SolanaTransactionUnsigned) {
     writeByte(tx.header.requiredSignatures).writeByte(tx.header.readonlySignedAccounts).writeByte(tx.header.readonlyUnsignedAccounts)
@@ -170,11 +170,11 @@ private fun SolanaMessageDecoder.readSignatureSlot(): SolanaSignature? {
 }
 
 /**
- * Base64 is the only step of decoding an envelope that reports failure by throwing, since it belongs
- * to the standard library. Isolating it here keeps the wire decoders themselves exception-free.
+ * Base64 is the only step of decoding an envelope that reports failure by throwing. Isolating it here
+ * keeps the wire decoders themselves exception-free.
  */
 internal fun decodeBase64(encoded: String): Result<ByteArray, SolanaTransactionError> = try {
-    Result.success(Base64.decode(encoded))
+    Result.success(FastBase64.decode(encoded))
 } catch (e: IllegalArgumentException) {
     Result.failure(SolanaTransactionError.MalformedBytes(e.message ?: "Malformed base64 payload", e))
 }
