@@ -6,8 +6,11 @@ import io.ethers.solana.idl.IdlArrayLength
 import io.ethers.solana.idl.IdlConstant
 import io.ethers.solana.idl.IdlDiscriminator
 import io.ethers.solana.idl.IdlEnumVariant
+import io.ethers.solana.idl.IdlEvent
 import io.ethers.solana.idl.IdlField
 import io.ethers.solana.idl.IdlFields
+import io.ethers.solana.idl.IdlGenericArg
+import io.ethers.solana.idl.IdlGenericParam
 import io.ethers.solana.idl.IdlInstruction
 import io.ethers.solana.idl.IdlPda
 import io.ethers.solana.idl.IdlProgram
@@ -43,8 +46,186 @@ class SolanaProgramBuilderTest : FunSpec({
         source shouldContain "public fun testRelation("
     }
 
-    test("generic type definitions fail generation") {
-        shouldThrow<IllegalArgumentException> { generate(fixture("generics")) }.message shouldContain "generic type definitions are not supported yet"
+    context("generic type definitions") {
+        val t = IdlType.Generic("T")
+        val typeParam = IdlGenericParam.Type("T")
+        fun constParam(type: String = "usize") = IdlGenericParam.Const("N", type)
+        fun arg(type: IdlType) = IdlGenericArg.Type(type)
+        fun defined(name: String, vararg args: IdlGenericArg) = IdlType.Defined(name, args.toList())
+        fun generic(name: String, params: List<IdlGenericParam>, vararg fields: Pair<String, IdlType>) = IdlTypeDef(name, IdlTypeBody.Struct(IdlFields.Named(fields.map { (field, type) -> IdlField(field, type) })), generics = params)
+        fun user(vararg fields: IdlType) = IdlTypeDef("User", IdlTypeBody.Struct(IdlFields.Named(fields.mapIndexed { i, type -> IdlField("f$i", type) })))
+        val pair = generic("Pair", listOf(IdlGenericParam.Type("A"), IdlGenericParam.Type("B")), "first" to IdlType.Generic("A"), "second" to IdlType.Generic("B"))
+        val buffer = generic("Buffer", listOf(typeParam, constParam()), "items" to IdlType.Array(t, IdlArrayLength.Generic("N")))
+        fun rejected(vararg types: IdlTypeDef) = shouldThrow<IllegalArgumentException> { generate(program(types = types.toList())) }.message
+        fun flat(source: String) = source.replace(Regex("\\s+"), " ")
+        fun flat(vararg types: IdlTypeDef) = flat(generate(program(types = types.toList())))
+
+        test("Anchor's generics IDL generates a class per instantiation, nested and with const arguments passed on") {
+            val source = flat(generate(fixture("generics")))
+            source shouldContain "public data class GenericAccount( public val `data`: GenericTypeU32U64N10,"
+            source shouldContain "* Instantiation `GenericType<u32, u64, 10>` of the generic `GenericType`."
+            // a generic within a generic within a generic
+            source shouldContain "gen7 = GenericNestedU32GenericNestedU32U64.read(this),"
+            source shouldContain "arr = readFixedBytes(10),"
+            // the const parameter passed on, and a const argument of the same value, are one instantiation
+            source shouldContain "warr = WrappedU8ArrayN10.read(this), warrval = WrappedU8ArrayN10.read(this),"
+            source shouldContain "enm2 = GenericEnumGenericNestedU32U64U32N30.read(this),"
+            source shouldContain "field0 = readArray(30) { GenericNestedU32U64.read(this) },"
+            source shouldContain "public val genericField: GenericTypeU32U64N10,"
+            // the generic definitions themselves have no layout, so are not generated
+            (source.contains("class GenericType(") || source.contains("class GenericNested(")) shouldBe false
+        }
+
+        test("instantiations are listed in place of their definition, in order of first use, and generation is deterministic") {
+            val source = generate(fixture("generics"))
+            // classes nested directly in the program object
+            val classes = Regex("\n {4}public (?:data|sealed) class (\\w+)").findAll(source).map { it.groupValues[1] }
+            classes.takeWhile { it != "GenericAccounts" }.toList() shouldBe listOf(
+                "GenericAccount",
+                "GenericEnumU32U64N10",
+                "GenericEnumGenericNestedU32U64U32N30",
+                "GenericNestedU32U64",
+                "GenericNestedU32MyStruct",
+                "GenericNestedU32GenericNestedU32U64",
+                "GenericNestedGenericNestedU32U64U32",
+                "GenericTypeU32U64N10",
+                "MyStruct",
+                "WrappedU8ArrayN10",
+                "GenericArgs",
+            )
+            source shouldBe generate(fixture("generics"))
+        }
+
+        test("type arguments are named by their kind, and arguments the same once aliases are resolved are one instantiation") {
+            val alias = IdlTypeDef("Amount", IdlTypeBody.Alias(IdlType.Primitive.U64))
+            val source = flat(
+                pair,
+                alias,
+                user(
+                    defined("Pair", arg(IdlType.Defined("Amount")), arg(IdlType.Primitive.PUBKEY)),
+                    defined("Pair", arg(IdlType.Primitive.U64), arg(IdlType.Primitive.PUBKEY)),
+                    defined("Pair", arg(IdlType.Option(IdlType.Vec(IdlType.Primitive.STRING))), arg(IdlType.Array(IdlType.Primitive.U8, IdlArrayLength.Fixed(4)))),
+                    defined("Pair", arg(IdlType.Primitive.BYTES), arg(IdlType.Primitive.BOOL)),
+                ),
+            )
+            source shouldContain "public val f0: PairU64Pubkey, public val f1: PairU64Pubkey, public val f2: PairOptionVecStringArray4U8, public val f3: PairBytesBool,"
+            Regex("data class PairU64Pubkey\\(").findAll(source).count() shouldBe 1
+            source shouldContain "* Instantiation `Pair<u64, pubkey>` of the generic `Pair`."
+            source shouldContain "* Instantiation `Pair<Option<Vec<string>>, [u8; 4]>` of the generic `Pair`."
+        }
+
+        test("a const argument fixes an array length, and the fixed size and offsets that follow it") {
+            val account = user(
+                defined("Buffer", arg(IdlType.Primitive.U16), IdlGenericArg.Const("003")),
+                IdlType.Primitive.U8,
+                defined("Buffer", arg(IdlType.Primitive.U16), IdlGenericArg.Const("3")),
+            )
+            val source = flat(generate(program(types = listOf(buffer, account)).copy(accounts = listOf(IdlAccount("User", IdlDiscriminator(listOf(1)))))))
+            source shouldContain "public val f0: BufferU16N3, public val f1: Int, public val f2: BufferU16N3,"
+            source shouldContain "items = readArray(3) { readU16() },"
+            source shouldContain "SolanaAccountField<User, Int>(\"f1\", 6, 1,"
+            source shouldContain "BufferU16N3.Path<User>(\"f2\", 7)"
+            // the path into the instantiation describes its three elements
+            source shouldContain "(name + \".items\", offset, 3, 2,"
+        }
+
+        test("a self-referential instantiation that does not grow is generated once") {
+            val node = generic("Node", listOf(typeParam), "value" to t, "next" to IdlType.Option(defined("Node", arg(t))))
+            flat(node, user(defined("Node", arg(IdlType.Primitive.U8)))) shouldContain "public val `value`: Int, public val next: NodeU8?,"
+        }
+
+        test("instantiations that would expand without end are rejected, unless the program never uses them") {
+            val growing = generic("List", listOf(typeParam), "next" to IdlType.Option(defined("List", arg(IdlType.Vec(t)))))
+            rejected(growing, user(defined("List", arg(IdlType.Primitive.U8)))) shouldBe
+                "type 'List': instantiating it never ends, as generic parameter List.T flows back into itself through List.T -> List.T, growing at 'Vec<T>'"
+            // through another definition
+            val a = generic("A", listOf(typeParam), "b" to IdlType.Vec(defined("B", arg(IdlType.Option(t)))))
+            val b = generic("B", listOf(IdlGenericParam.Type("U")), "a" to IdlType.Vec(defined("A", arg(IdlType.Generic("U")))))
+            rejected(a, b, user(defined("A", arg(IdlType.Primitive.U8)))) shouldBe
+                "type 'A': instantiating it never ends, as generic parameter A.T flows back into itself through A.T -> B.U -> A.T, growing at 'Option<T>'"
+            generate(program(types = listOf(growing, a, b))) shouldContain "public object Test"
+        }
+
+        test("a generic alias is inlined at each use, and one that refers to itself is rejected") {
+            val bounded = IdlTypeDef("Bounded", IdlTypeBody.Alias(defined("Buffer", arg(t), IdlGenericArg.Const("2"))), generics = listOf(typeParam))
+            flat(buffer, bounded, user(defined("Bounded", arg(IdlType.Primitive.U8)))) shouldContain "public val f0: BufferU8N2,"
+            val looping = IdlTypeDef("Loop", IdlTypeBody.Alias(IdlType.Vec(defined("Loop", arg(t)))), generics = listOf(typeParam))
+            rejected(looping, user(defined("Loop", arg(IdlType.Primitive.U8)))) shouldBe
+                "type 'User' field 'f0': generic alias 'Loop' refers to itself through Loop -> Loop"
+        }
+
+        test("an instantiation named like a declared type is rejected") {
+            val pairOfBytes = user(defined("Pair", arg(IdlType.Primitive.U8), arg(IdlType.Primitive.U8)))
+            rejected(pair, struct("PairU8U8"), pairOfBytes) shouldBe "generated type 'PairU8U8' is produced by both type 'PairU8U8' and type 'Pair<u8, u8>'"
+            rejected(pair, struct("Pair<u8, u8>"), pairOfBytes) shouldBe "type 'User' field 'f0': instantiation 'Pair<u8, u8>' has the name of a declared type definition"
+        }
+
+        test("arguments that do not match the parameters in number or kind are rejected") {
+            rejected(pair, user(defined("Pair", arg(IdlType.Primitive.U8)))) shouldBe "type 'User' field 'f0': 'Pair' takes 2 generic arguments, got 1"
+            rejected(buffer, user(defined("Buffer", arg(IdlType.Primitive.U8), arg(IdlType.Primitive.U8)))) shouldBe
+                "type 'User' field 'f0': generic parameter 'N' of 'Buffer' takes a const value"
+            rejected(buffer, user(defined("Buffer", IdlGenericArg.Const("1"), IdlGenericArg.Const("1")))) shouldBe
+                "type 'User' field 'f0': generic parameter 'T' of 'Buffer' takes a type"
+        }
+
+        test("const arguments must fit their parameter's type, and an array length an Int") {
+            val small = generic("Small", listOf(constParam("u8")), "items" to IdlType.Array(IdlType.Primitive.U8, IdlArrayLength.Generic("N")))
+            flat(small, user(defined("Small", IdlGenericArg.Const("255")))) shouldContain "readFixedBytes(255)"
+            rejected(small, user(defined("Small", IdlGenericArg.Const("256")))) shouldBe
+                "type 'User' field 'f0': const generic argument 256 is outside the range of 'N: u8' of 'Small'"
+            rejected(buffer, user(defined("Buffer", arg(IdlType.Primitive.U8), IdlGenericArg.Const("2147483648")))) shouldBe
+                "type 'Buffer<u8, 2147483648>' field 'items': array length 2147483648, from const generic parameter 'N', is too large"
+            val flagged = generic("Flagged", listOf(constParam("bool")), "x" to IdlType.Primitive.U8)
+            rejected(flagged, user(defined("Flagged", IdlGenericArg.Const("1")))) shouldBe
+                "type 'User' field 'f0': const generic parameter 'N' of 'Flagged' has type 'bool', which is not supported"
+        }
+
+        test("an account or event laid out as a generic definition is rejected") {
+            val node = generic("Node", listOf(typeParam), "value" to t)
+            shouldThrow<IllegalArgumentException> {
+                generate(program(types = listOf(node)).copy(accounts = listOf(IdlAccount("Node", IdlDiscriminator(listOf(1))))))
+            }.message shouldBe "account 'Node': its type definition is generic, and the IDL does not say which instantiation the account holds"
+            shouldThrow<IllegalArgumentException> {
+                generate(program(types = listOf(node)).copy(events = listOf(IdlEvent("Node", IdlDiscriminator(listOf(1))))))
+            }.message shouldBe "event 'Node': its type definition is generic, and the IDL does not say which instantiation the event holds"
+        }
+
+        test("instantiations are checked like any type, naming the instantiation") {
+            val cell = IdlTypeDef(
+                "Cell",
+                IdlTypeBody.Struct(IdlFields.Named(listOf(IdlField("value", t)))),
+                serialization = IdlSerialization.Bytemuck,
+                repr = IdlRepr.C(packed = true),
+                generics = listOf(typeParam),
+            )
+            flat(cell, user(defined("Cell", arg(IdlType.Primitive.U32)))) shouldContain "public data class CellU32("
+            rejected(cell, user(defined("Cell", arg(IdlType.Primitive.STRING)))) shouldBe
+                "type 'Cell<string>' field 'value': a zero-copy type cannot contain STRING, which varies in size"
+        }
+
+        test("a constant of an instantiation is read under the definition's own name, as Debug writes it") {
+            val type = defined("Pair", arg(IdlType.Primitive.U8), arg(IdlType.Array(IdlType.Primitive.I8, IdlArrayLength.Fixed(2))))
+            fun constant(value: String) = program(types = listOf(pair), constants = listOf(IdlConstant("C", type, value)))
+            flat(generate(constant("Pair { first: 1, second: [-1, 2] }"))) shouldContain
+                "public val C: PairU8Array2I8 = PairU8Array2I8(first = 1, second = listOf<Byte>(-1, 2))"
+            shouldThrow<IllegalArgumentException> { generate(constant("PairU8Array2I8 { first: 1, second: [-1, 2] }")) }.message shouldContain
+                "'PairU8Array2I8' is not a value of struct 'Pair<u8, [i8; 2]>', which Debug writes as 'Pair'"
+            // the const argument fixes the array length the value must have
+            shouldThrow<IllegalArgumentException> {
+                generate(program(types = listOf(buffer), constants = listOf(IdlConstant("C", defined("Buffer", arg(IdlType.Primitive.U8), IdlGenericArg.Const("2")), "Buffer { items: [1] }"))))
+            }.message shouldContain "constant 'C'"
+        }
+
+        test("instruction arguments, return types and seeds use instantiations") {
+            val args = listOf(IdlField("amount", defined("Pair", arg(IdlType.Primitive.U64), arg(IdlType.Primitive.I32))))
+            val accounts = listOf(IdlAccountItem.Single("vault", pda = IdlPda(listOf(IdlSeed.Arg("amount.first")))))
+            val returns = defined("Pair", arg(IdlType.Primitive.U8), arg(IdlType.Primitive.U8))
+            val ix = IdlInstruction("ix", IdlDiscriminator(listOf(1)), accounts = accounts, args = args, returns = returns)
+            val source = flat(generate(program(instructions = listOf(ix), types = listOf(pair))))
+            source shouldContain "public val amount: PairU64I32,"
+            source shouldContain "SolanaInstructionDescriptor.Returning<IxArgs, PairU8U8>"
+            source shouldContain "public fun findVault(amountFirst: BigInteger,"
+        }
     }
 
     context("zero-copy types") {

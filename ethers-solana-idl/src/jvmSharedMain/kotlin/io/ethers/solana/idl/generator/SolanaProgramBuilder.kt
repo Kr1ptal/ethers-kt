@@ -59,14 +59,19 @@ import java.math.BigInteger
  * decoded form within an instruction hierarchy, plus program-level dispatch over accounts, events,
  * errors and instructions.
  *
- * Aliases are resolved to their target at each use. Zero-copy types follow their C or transparent
- * layout on Solana's on-chain target, with the padding an unpacked C layout has. Generic type
- * definitions, zero-copy types with a Rust layout and custom serialization are not supported yet and
- * fail generation.
+ * Aliases are resolved to their target at each use. Generic type definitions are monomorphized: each
+ * instantiation the program uses is generated as a class of its own, named after the definition and its
+ * arguments, such as `PairU64Array4U8` for `Pair<u64, [u8; 4]>`, and one the program never uses is not
+ * generated; see [GenericInstances]. Zero-copy types follow their C or transparent layout on Solana's
+ * on-chain target, with the padding an unpacked C layout has. Zero-copy types with a Rust layout and
+ * custom serialization are not supported yet and fail generation, as do accounts and events laid out as
+ * a generic type definition, whose instantiation the IDL does not record.
  *
  * Constants of any supported type are generated: primitives as `const val` where Kotlin allows, everything else as a
  * `@JvmField val` constructing the value. A value must be a literal of its declared type in the form Rust's `Debug`
- * writes it, as Anchor records it; expressions, casts and references to other constants fail generation.
+ * writes it, as Anchor records it; expressions, casts and references to other constants fail generation. A constant
+ * of a generic instantiation is written like any struct or enum, under the generic definition's own name, as `Debug`
+ * writes `Pair { first: 1, second: 2 }` for a `Pair<u64, u8>`.
  *
  * Each program derived account gets a `find` function deriving its address from its seeds. Integer seeds are
  * encoded in the byte order [seedByteOrders] gives, since IDLs do not record it.
@@ -77,11 +82,17 @@ import java.math.BigInteger
  * produce colliding declarations, or [seedByteOrders] names a seed that is not an integer PDA seed.
  */
 class SolanaProgramBuilder @JvmOverloads constructor(
-    private val program: IdlProgram,
+    idl: IdlProgram,
     private val packageName: String,
-    private val programName: String = program.name.toPascalCase(),
+    private val programName: String = idl.name.toPascalCase(),
     private val seedByteOrders: SeedByteOrders = SeedByteOrders(),
 ) {
+    /** The Kotlin name of each type definition of [idl], generic or not, so instantiations do not affect it. */
+    private val baseTypeNames = kotlinTypeNames(idl.also(IdlValidator::validate).types)
+    private val generics = GenericInstances(idl, baseTypeNames)
+
+    /** [idl] with its generic type definitions replaced by their instantiations. */
+    private val program = generics.program
     private val programAddress = requireNotNull(program.address) {
         "program '${program.name}': the IDL declares no address, so one must be given, such as with the Gradle plugin's programAddress"
     }
@@ -94,7 +105,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
     private val typeDefs = program.types.associateBy { it.name }
     private val accountTypes = program.accounts.mapTo(HashSet()) { it.name }
     private val eventTypes = program.events.mapTo(HashSet()) { it.name }
-    private val kotlinTypeNames = kotlinTypeNames()
+    private val kotlinTypeNames = baseTypeNames.filterKeys { it in typeDefs } + generics.kotlinNames
 
     /** Computed zero-copy layouts, by type name. */
     private val zeroCopyLayouts = HashMap<String, ZeroCopyLayout>()
@@ -134,7 +145,6 @@ class SolanaProgramBuilder @JvmOverloads constructor(
     }
 
     init {
-        IdlValidator.validate(program)
         checkSupported()
         checkCollisions()
         checkSeedByteOrders()
@@ -197,7 +207,6 @@ class SolanaProgramBuilder @JvmOverloads constructor(
 
     private fun checkSupported() {
         for (def in program.types) {
-            require(def.generics.isEmpty()) { "type '${def.name}': generic type definitions are not supported yet" }
             when (val serialization = def.serialization) {
                 IdlSerialization.Borsh -> Unit
                 IdlSerialization.Bytemuck, IdlSerialization.BytemuckUnsafe -> checkZeroCopy(def)
@@ -297,7 +306,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
                     "$where: a zero-copy type can only contain zero-copy types and enums without fields, but '${nested.name}' is ${nested.serialization}"
                 }
             }
-            is IdlType.Generic -> throw IllegalArgumentException("$where: generic fields are not supported yet")
+            is IdlType.Generic -> throw IllegalStateException("generic reached generation: $resolved")
         }
     }
 
@@ -335,9 +344,9 @@ class SolanaProgramBuilder @JvmOverloads constructor(
     }
 
     /** The last path segment of each type, or the whole path where the last segment is ambiguous. */
-    private fun kotlinTypeNames(): Map<String, String> {
-        val short = program.types.groupBy { it.name.substringAfterLast("::").toPascalCase() }
-        return program.types.associate { def ->
+    private fun kotlinTypeNames(types: List<IdlTypeDef>): Map<String, String> {
+        val short = types.groupBy { it.name.substringAfterLast("::").toPascalCase() }
+        return types.associate { def ->
             val name = def.name.substringAfterLast("::").toPascalCase()
             def.name to if (short.getValue(name).size == 1) name else def.name.toPascalCase()
         }
@@ -496,7 +505,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         is IdlType.Vec -> LIST.parameterizedBy(typeName(resolved.element))
         is IdlType.Array -> if (isByteArray(resolved)) Runtime.SOLANA_BYTES else LIST.parameterizedBy(typeName(resolved.element))
         is IdlType.Defined -> classOf(resolved.name)
-        is IdlType.Generic -> throw IllegalStateException("unsupported generic reached generation")
+        is IdlType.Generic -> throw IllegalStateException("generic reached generation")
     }
 
     /** An expression reading [type], with a `BorshReader` receiver. */
@@ -514,7 +523,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             CodeBlock.of("readArray(%L) { %L }", arrayLength(resolved), read(resolved.element))
         }
         is IdlType.Defined -> CodeBlock.of("%T.read(this)", classOf(resolved.name))
-        is IdlType.Generic -> throw IllegalStateException("unsupported generic reached generation")
+        is IdlType.Generic -> throw IllegalStateException("generic reached generation")
     }
 
     /** A statement writing [value] of [type], with a `BorshWriter` receiver. */
@@ -532,7 +541,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             CodeBlock.of("writeArray(%L, %L) { %L }", value, arrayLength(resolved), write(resolved.element, CodeBlock.of("it")))
         }
         is IdlType.Defined -> CodeBlock.of("%T.write(this, %L)", classOf(resolved.name), value)
-        is IdlType.Generic -> throw IllegalStateException("unsupported generic reached generation")
+        is IdlType.Generic -> throw IllegalStateException("generic reached generation")
     }
 
     /** A codec value for [type]: the class companion for a defined type, otherwise built inline. */
@@ -1667,7 +1676,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             listValue(reader, resolved.element, arrayLength(resolved))
         }
         is IdlType.Defined -> definedValue(reader, typeDefs.getValue(resolved.name))
-        is IdlType.Generic -> throw IllegalStateException("unsupported generic reached generation")
+        is IdlType.Generic -> throw IllegalStateException("generic reached generation")
     }
 
     private fun primitiveValue(reader: RustValueReader, type: IdlType.Primitive): CodeBlock = when (type) {
@@ -1774,7 +1783,8 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         val type = classOf(def.name)
         return when (val body = def.body) {
             is IdlTypeBody.Struct -> {
-                val rustName = def.name.substringAfterLast("::")
+                // Debug writes the struct's own name, without the arguments of an instantiation
+                val rustName = (generics.definitions[def.name] ?: def.name).substringAfterLast("::")
                 val word = reader.word("'$rustName'")
                 if (word != rustName) reader.fail("'$word' is not a value of struct '${def.name}', which Debug writes as '$rustName'")
                 fieldValues(reader, type, body.fields, "struct '${def.name}'")
@@ -1848,7 +1858,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
          * Version of the generated output. Bump it whenever the output changes, so build tools invalidate
          * previously generated bindings.
          */
-        const val OUTPUT_VERSION = "4"
+        const val OUTPUT_VERSION = "5"
 
         private const val FETCH_ALIAS = "fetchProgramAccount"
         private const val WATCH_ALIAS = "watchProgramAccount"
