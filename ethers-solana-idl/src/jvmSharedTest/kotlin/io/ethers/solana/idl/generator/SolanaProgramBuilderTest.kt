@@ -35,6 +35,9 @@ private fun struct(name: String) = IdlTypeDef(name, IdlTypeBody.Struct(IdlFields
 
 private fun generate(program: IdlProgram): String = SolanaProgramBuilder(program, "test.pkg").build().toString()
 
+/** The diagnostics a strict builder fails [program] with. */
+private fun unsupported(program: IdlProgram): List<SolanaIdlDiagnostic> = shouldThrow<SolanaIdlUnsupportedException> { SolanaProgramBuilder(program, "test.pkg", strict = true) }.diagnostics
+
 class SolanaProgramBuilderTest : FunSpec({
     test("generates an Anchor IDL whose layouts are all Borsh") {
         val source = generate(fixture("relations"))
@@ -43,14 +46,16 @@ class SolanaProgramBuilderTest : FunSpec({
         source shouldContain "public fun testRelation("
     }
 
-    test("generic type definitions fail generation") {
-        shouldThrow<IllegalArgumentException> { generate(fixture("generics")) }.message shouldContain "generic type definitions are not supported yet"
+    test("generic type definitions are not supported yet") {
+        val diagnostic = unsupported(fixture("generics")).first()
+        diagnostic.message shouldContain "generic type definitions are not supported yet"
+        diagnostic.support shouldBe SolanaIdlDiagnostic.Support.NOT_SUPPORTED_YET
     }
 
     context("zero-copy types") {
         val packed = IdlRepr.C(packed = true)
         fun zeroCopy(name: String, vararg fields: IdlType, repr: IdlRepr? = packed, serialization: IdlSerialization = IdlSerialization.BytemuckUnsafe) = IdlTypeDef(name, IdlTypeBody.Struct(IdlFields.Named(fields.mapIndexed { i, type -> IdlField("f$i", type) })), serialization = serialization, repr = repr)
-        fun rejected(vararg types: IdlTypeDef) = shouldThrow<IllegalArgumentException> { generate(program(types = types.toList())) }.message
+        fun rejected(vararg types: IdlTypeDef) = unsupported(program(types = types.toList())).first().message
 
         test("packed and transparent layouts with fixed-size fields generate with the Borsh codecs") {
             generate(fixture("amm_v3")) shouldContain "public data class PoolState("
@@ -178,7 +183,7 @@ class SolanaProgramBuilderTest : FunSpec({
                 instructions = listOf(IdlInstruction("ix", IdlDiscriminator(listOf(1)), args = listOf(IdlField("arg", IdlType.Vec(IdlType.Defined(type)))))),
                 types = listOf(padded, tight),
             )
-            shouldThrow<IllegalArgumentException> { generate(withArg("Padded")) }.message shouldBe
+            unsupported(withArg("Padded")).single().message shouldBe
                 "instruction 'ix' argument 'arg': 'Padded' has padding in its zero-copy layout, so cannot be Borsh-encoded"
             generate(withArg("Tight")) shouldContain "public data class Tight("
             val borsh = IdlTypeDef("Borsh", IdlTypeBody.Struct(IdlFields.Named(listOf(IdlField("inner", IdlType.Defined("Padded"))))))
@@ -211,7 +216,8 @@ class SolanaProgramBuilderTest : FunSpec({
             rejected(zeroCopy("S", IdlType.Option(IdlType.Primitive.U8))) shouldBe "type 'S' field 'f0': a zero-copy type cannot contain an option"
             rejected(zeroCopy("S", IdlType.Array(IdlType.Primitive.BYTES, IdlArrayLength.Fixed(2)))) shouldContain "cannot contain BYTES"
             rejected(zeroCopy("S", IdlType.Defined("Plain")), struct("Plain")) shouldBe
-                "type 'S' field 'f0': a zero-copy type can only contain zero-copy types, but 'Plain' is Borsh"
+                "type 'S' field 'f0': a zero-copy type can only contain zero-copy types, but 'Plain' is Borsh, whose zero-copy layout the IDL " +
+                "does not record; bind the type with a handwritten codec instead"
             rejected(zeroCopy("S", IdlType.Primitive.U8, serialization = IdlSerialization.Custom("Compressed"))) shouldBe
                 "type 'S': Custom(name=Compressed) serialization is intentionally unsupported, as the program's own code defines that layout; " +
                 "bind the type with a handwritten codec instead"
@@ -243,10 +249,17 @@ class SolanaProgramBuilderTest : FunSpec({
     }
 
     test("constants must fit their type") {
-        shouldThrow<IllegalArgumentException> { generate(program(constants = listOf(IdlConstant("C", IdlType.Primitive.U8, "256")))) }
-            .message shouldBe "constant 'C': 256 is outside the range of U8"
-        shouldThrow<IllegalArgumentException> { generate(program(constants = listOf(IdlConstant("C", IdlType.Primitive.PUBKEY, "1111")))) }
-            .message shouldBe "constant 'C': '1111' decodes to 4 bytes, but an address has 32"
+        unsupported(program(constants = listOf(IdlConstant("C", IdlType.Primitive.U8, "256")))).single() shouldBe SolanaIdlDiagnostic(
+            SolanaIdlDiagnostic.Kind.CONSTANT,
+            "C",
+            SolanaIdlDiagnostic.Support.INVALID,
+            "constant 'C': 256 is outside the range of U8",
+        )
+        unsupported(program(constants = listOf(IdlConstant("C", IdlType.Primitive.PUBKEY, "1111")))).single().message shouldBe
+            "constant 'C': '1111' decodes to 4 bytes, but an address has 32"
+        // an expression is not evaluated
+        unsupported(program(constants = listOf(IdlConstant("C", IdlType.Primitive.U64, "10 * 1000")))).single().support shouldBe
+            SolanaIdlDiagnostic.Support.NOT_SUPPORTED_YET
         generate(program(constants = listOf(IdlConstant("C", IdlType.Primitive.I64, "-9_223_372_036_854_775_808i64")))) shouldContain
             "const val C: Long = Long.MIN_VALUE"
     }

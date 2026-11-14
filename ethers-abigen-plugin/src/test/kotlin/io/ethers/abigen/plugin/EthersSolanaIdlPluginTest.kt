@@ -60,6 +60,25 @@ private class SolanaIdlBuild(extension: String = "", withIdl: Boolean = true) {
         idl.copyTo(File(idlDir, "$packagePath/$fileName"), overwrite = true)
     }
 
+    /** Write an IDL named [program] to [packagePath], with a zero-copy type and account whose layout it cannot describe. */
+    fun writeUnsupportedIdl(packagePath: String, program: String = "unsupported") {
+        @Language("json")
+        val idl = """
+            {
+              "address": "$DECLARED_ADDRESS",
+              "metadata": {"name": "$program", "version": "0.1.0", "spec": "0.1.0"},
+              "instructions": [{"name": "ping", "discriminator": [1], "accounts": [], "args": [{"name": "plain", "type": {"defined": {"name": "Plain"}}}]}],
+              "accounts": [{"name": "Packed", "discriminator": [2]}],
+              "types": [
+                {"name": "Plain", "type": {"kind": "struct", "fields": [{"name": "x", "type": "u8"}]}},
+                {"name": "Packed", "serialization": "bytemuckunsafe", "repr": {"kind": "rust", "packed": true},
+                 "type": {"kind": "struct", "fields": [{"name": "x", "type": "u64"}]}}
+              ]
+            }
+        """.trimIndent()
+        File(idlDir, "$packagePath/unsupported.json").apply { parentFile.mkdirs() }.writeText(idl)
+    }
+
     fun generatedFiles(): List<String> = outputDir.walkTopDown().filter(File::isFile).map { it.relativeTo(outputDir).invariantSeparatorsPath }.sorted().toList()
 
     fun runner(vararg args: String): GradleRunner = GradleRunner.create()
@@ -85,6 +104,55 @@ class EthersSolanaIdlPluginTest : FunSpec({
         task.sources.get() shouldBe ext.sources.get()
         task.outputDir.get() shouldBe ext.outputDir.get()
         task.programAddresses.get() shouldBe emptyMap()
+        ext.strict.get() shouldBe false
+        task.strict.get() shouldBe false
+    }
+
+    context("declarations that cannot be generated") {
+        val report = "Some Solana IDL declarations were left out of the generated bindings:"
+        val packed = "type 'Packed': zero-copy types need a C or transparent layout, but it has Rust(packed=true, align=null)"
+
+        test("are left out with a warning, which a build cache hit or up-to-date bindings repeat") {
+            val build = SolanaIdlBuild()
+            build.writeUnsupportedIdl("io/ethers/unsupported")
+            val result = build.runner(TASK).build()
+            result.task(":$TASK")?.outcome shouldBe TaskOutcome.SUCCESS
+            result.output shouldContain report
+            result.output shouldContain "src/main/idl/io/ethers/unsupported/unsupported.json: program 'unsupported': 2 declaration(s) cannot be generated:"
+            result.output shouldContain "- $packed"
+            result.output shouldContain "- account 'Packed': depends on type 'Packed', which is not generated [intentionally unsupported]"
+            // the IDL without problems reports nothing
+            result.output.contains("program 'showcase'") shouldBe false
+            build.generatedFiles() shouldBe listOf("io/ethers/programs/Showcase.kt", "io/ethers/unsupported/Unsupported.kt")
+            val generated = File(build.outputDir, "io/ethers/unsupported/Unsupported.kt").readText()
+            generated shouldContain "public data class Plain("
+            generated shouldContain " * - $packed"
+
+            val upToDate = build.runner(TASK).build()
+            upToDate.task(":$TASK")?.outcome shouldBe TaskOutcome.UP_TO_DATE
+            upToDate.output shouldContain "- $packed"
+
+            val cached = build.runner("clean", TASK).build()
+            cached.task(":$TASK")?.outcome shouldBe TaskOutcome.FROM_CACHE
+            cached.output shouldContain report
+            cached.output shouldContain "- $packed"
+        }
+
+        test("fail the build in strict mode, listing them for every IDL") {
+            val build = SolanaIdlBuild("strict = true")
+            build.writeUnsupportedIdl("io/ethers/unsupported")
+            build.writeUnsupportedIdl("io/ethers/other", "other")
+            val result = build.runner(TASK).buildAndFail()
+            result.output shouldContain "Strict Solana IDL generation failed, as some declarations cannot be generated:"
+            result.output shouldContain "src/main/idl/io/ethers/unsupported/unsupported.json: program 'unsupported'"
+            result.output shouldContain "src/main/idl/io/ethers/other/unsupported.json: program 'other'"
+            result.output shouldContain "- $packed"
+            result.output.contains(report) shouldBe false
+
+            // the setting is an input: leaving strict mode generates the bindings
+            build.writeExtension("strict = false")
+            build.outcome(TASK) shouldBe TaskOutcome.SUCCESS
+        }
     }
 
     test("bindings are generated from src/main/idl, in the package of the IDL's directory") {

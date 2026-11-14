@@ -158,7 +158,7 @@ the last keeps the name.
 
 Zero-copy accounts (`#[account(zero_copy)]`, IDL `serialization` `bytemuck` or `bytemuckunsafe`) are decoded in the
 layout the program sees on-chain, on Solana's SBF target. Only layouts the IDL fully describes are generated; the rest
-fail generation with an error that says why:
+are left out, or fail strict generation, with a diagnostic that says why (see below):
 
 | IDL `repr`                                       | Generated | Layout                                                                                             |
 |--------------------------------------------------|-----------|----------------------------------------------------------------------------------------------------|
@@ -190,6 +190,43 @@ Anchor records both `#[repr(packed)]` and `#[repr(packed(N))]` as `"packed": tru
 `packed`, that is `packed(1)`, the form programs such as Raydium's CLMM use. A type declared
 `#[repr(C, packed(N))]` with N above 1 and a field aligned above 1 is laid out differently from what the IDL implies,
 and needs a handwritten codec.
+
+#### Declarations that cannot be generated
+
+Some declarations cannot be generated: a zero-copy layout the IDL cannot describe, `custom` serialization, a generic
+type definition, a non-struct event, or a constant whose value is an expression rather than a literal. By default such
+a declaration is left out of the bindings, together with everything that depends on it:
+
+- types containing it, directly or within options, vecs or arrays, and aliases to it;
+- constants, accounts and events of those types;
+- instructions with an argument or return value of those types, or a PDA seed read from the data of such an account.
+
+What is generated still compiles and keeps the exact wire format: nothing is generated partially. Accounts, events and
+instructions that are left out are also missing from `ACCOUNTS`, `EVENTS`, `INSTRUCTIONS` and the `decode*` functions,
+which report their data as unrecognized.
+
+Each declaration left out is logged as a warning, naming the IDL file and the program, with the reason and whether it
+is intentionally unsupported (the IDL does not describe its wire format; bind it with a handwritten codec instead),
+not supported yet, or invalid (a layout Rust rejects or that contradicts its serialization, or a value outside its
+type). The `ethersSolanaIdlReport` task logs these warnings after every run of `ethersSolanaIdl`, including when its
+output is up to date or comes from the build cache. The generated program object's documentation lists them too.
+
+Lenient generation keeps the build going, but the bindings can have gaps that are only visible in these warnings.
+Strict mode fails the build instead, listing every declaration that cannot be generated, in every IDL; it suits CI:
+
+```kotlin
+ethersSolanaIdl {
+    strict = true // default: false
+}
+```
+
+An invalid IDL, such as one referring to a type it does not declare, declarations whose Kotlin names collide, and
+invalid configuration, such as a malformed address override or a seed byte order for a seed that does not exist, fail
+the build in either mode.
+
+`SolanaProgramBuilder` behaves the same: its `diagnostics` list what it leaves out, and `strict = true` makes it throw a
+`SolanaIdlUnsupportedException` listing them. The `SolanaIdlCli` entry point prints them as warnings, or with
+`--strict` processes every IDL and then exits with status 1, listing them for all of them.
 
 ### Local testing of the plugin
 

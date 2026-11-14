@@ -7,6 +7,7 @@ import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.ProjectLayout
+import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.model.ObjectFactory
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.MapProperty
@@ -16,6 +17,7 @@ import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.Nested
 import org.gradle.api.tasks.OutputDirectory
+import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.TaskAction
 import org.gradle.workers.WorkerExecutor
 import java.io.File
@@ -60,12 +62,28 @@ abstract class EthersSolanaIdlTask @Inject constructor(private val executor: Wor
     abstract val outputDir: Property<String>
 
     /**
+     * Whether a declaration that cannot be generated fails the task, listing every such declaration of every IDL,
+     * instead of being left out of the bindings with a warning.
+     * */
+    @get:Input
+    abstract val strict: Property<Boolean>
+
+    /**
      * Directory where the generated Kotlin files will be placed. This property should be modified via [outputDir]
      * so all paths are relative to the project build directory.
      * */
     @get:OutputDirectory
     internal val destinationDir: DirectoryProperty = objectFactory.directoryProperty().convention(
         projectLayout.buildDirectory.dir(outputDir),
+    )
+
+    /**
+     * The declarations left out of the bindings, as they cannot be generated, for [EthersSolanaIdlReportTask] to log
+     * on every build, including when this task's outputs come from the build cache. Empty when nothing is left out.
+     * */
+    @get:OutputFile
+    internal val reportFile: RegularFileProperty = objectFactory.fileProperty().convention(
+        projectLayout.buildDirectory.file("reports/ethers-solana-idl/unsupported.txt"),
     )
 
     /**
@@ -112,8 +130,16 @@ abstract class EthersSolanaIdlTask @Inject constructor(private val executor: Wor
 
         val programNames = HashSet<String>()
         val generatedBy = HashMap<String, String>()
+        val unsupported = ArrayList<String>()
+        val projectDir = projectLayout.projectDirectory.asFile
         idls.forEachIndexed { index, source ->
-            val (programName, canonicalName) = File(resultsDir, index.toString()).readLines()
+            val lines = File(resultsDir, index.toString()).readLines()
+            val (programName, canonicalName) = lines
+            if (lines.size > 2) {
+                // relative to the project, so the report is the same wherever the project, or a cache hit, is
+                val path = File(source.toString()).relativeToOrSelf(projectDir).invariantSeparatorsPath
+                unsupported.add("$path: " + lines.drop(2).joinToString("\n"))
+            }
             programNames.add(programName)
             generatedBy.put(canonicalName, source.toString())?.let { previous ->
                 throw GradleException("IDLs $previous and $source both generate $canonicalName; move one to another package")
@@ -126,5 +152,13 @@ abstract class EthersSolanaIdlTask @Inject constructor(private val executor: Wor
                 throw GradleException("$property names programs that no IDL declares: ${unknown.sorted()}. Declared programs: ${programNames.sorted()}")
             }
         }
+
+        val report = reportFile.get().asFile
+        if (strict.get() && unsupported.isNotEmpty()) {
+            report.delete()
+            throw GradleException("Strict Solana IDL generation failed, as some declarations cannot be generated:\n" + unsupported.joinToString("\n"))
+        }
+        report.parentFile.mkdirs()
+        report.writeText(unsupported.joinToString("\n"))
     }
 }
