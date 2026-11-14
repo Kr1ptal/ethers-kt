@@ -117,6 +117,39 @@ A selection can also `watch` an account, and an account `filter` can `query` or 
 discriminator to check the account type by, unless it starts with the first field, so fetching by address checks the
 owner only; filters select accounts by discriminator on the node.
 
+Fields of fixed-size structs and elements of fixed-size arrays have descriptors too, reached as paths through their
+field. Their offsets are the ones the codec reads them at, after the discriminator and including the padding a
+zero-copy layout places before them. A descriptor of a struct or an array reads the whole value, and a slice that
+selects it can also read the fields and elements within it:
+
+```kotlin
+val rewards = Clmm.PoolState.select {
+    combine(rewardInfos[0].rewardState, rewardInfos[1].tokenMint) { state, mint -> state to mint }
+}
+
+val slice = Clmm.PoolState.select { fields(rewardInfos) }.fetch(api, poolAddress).sendAwait().unwrap()
+val mint = slice[Clmm.PoolState.Fields.rewardInfos[2].tokenMint]
+```
+
+A struct field named like a member of a descriptor (`name`, `offset`, `size`, `read`, `write`) takes a `Field` suffix,
+such as `slots[0].nameField`. An index outside the array throws `IndexOutOfBoundsException`, and descriptors with the
+same path are equal, so selecting one twice selects it once.
+
+A filter can compare any descriptor, nested or not, with `field(descriptor, value)`, which compares the bytes the
+value encodes to at the descriptor's offset. A value with padding in its zero-copy layout is compared with zeros there.
+
+```kotlin
+val pools = Clmm.PoolState.filter(api).field(Clmm.PoolState.Fields.rewardInfos[0].tokenMint, mint).query()
+```
+
+Descriptors exist only where the offset and size are the same in every account. A field whose size varies, such as a
+`Vec`, a `String`, an `Option` or an enum with data, has none, and nor does anything after it: those offsets depend on
+the data of each account, so they are intentionally not guessed. Fields that take no bytes, such as an empty struct,
+have nothing to select either. Each account's `Fields` documents which of its fields have no descriptor and why.
+
+Not yet supported: the fields of a struct whose size varies have no descriptors, even those before its first
+variable-size field, whose offsets are fixed.
+
 Legacy IDLs, from before Anchor 0.30, are converted as Anchor converts them: names become snake_case and
 discriminators are derived from them. They often declare no program address, which `programAddress` then provides, and
 do not record zero-copy layouts, so their types are read as Borsh, which matches zero-copy accounts without padding.
@@ -192,6 +225,13 @@ The generator cannot see what a handwritten codec writes, so the caller declares
   it. For custom serialization the IDL cannot tell, and a wrong declaration produces wrong offsets.
 - An account with a custom codec gets its factory, `fetch`, `watch` and `filter`, but no field filter methods or
   slices, since its field layout is the codec's.
+- Field paths (`Fields.inner.x`, `Fields.items[0]`) never descend into a type with a custom codec or substitution: with
+  a declared size it is described as a whole, read through its codec, and the descriptors after it keep their offsets;
+  without one, no field after it gets a descriptor. Path descriptors take renamed field names, with the `Field` suffix
+  where a descriptor member (`name`, `offset`, `size`, `read`, `write`) would take the name.
+- A constant of a type with a custom codec is constructed from the IDL value as the generated class, with its renamed
+  fields; the codec is not involved. A constant of, or containing, a substituted type fails generation, since the
+  generator cannot construct the caller's type from the IDL's Rust literal.
 
 Not supported: custom codecs for event types (not yet implemented); substituting account or event types, which keep
 their generated class holding their factory (intentionally, give an account a custom codec instead); and overrides on

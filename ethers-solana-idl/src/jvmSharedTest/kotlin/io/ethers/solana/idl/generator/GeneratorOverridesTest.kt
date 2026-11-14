@@ -206,11 +206,11 @@ class GeneratorOverridesTest : FunSpec({
             val variable = generate(codecs(COMPRESSED)).flat()
             variable shouldContain "public fun packed(`value`: Compressed): Filter = field(32) { Compressed.write(this, value) }"
             variable shouldNotContain "public fun price("
-            variable shouldNotContain "SolanaAccountField(\"packed\""
+            variable shouldNotContain "public val packed: SolanaAccountField"
             val fixed = generate(codecs("Compressed" to GeneratorOverrides.CustomCodec(CODEC, size = 5))).flat()
-            fixed shouldContain "SolanaAccountField(\"packed\", 32, 5)"
+            fixed shouldContain "SolanaAccountField<Vault, Compressed>(\"packed\", 32, 5,"
             fixed shouldContain "public fun price(`value`: Price): Filter = field(37)"
-            fixed shouldContain "SolanaAccountField(\"price\", 37, 12)"
+            fixed shouldContain "Price.Path<Vault>(\"price\", 37)"
         }
     }
 
@@ -412,6 +412,84 @@ class GeneratorOverridesTest : FunSpec({
             val amount = GeneratorOverrides.TypeSubstitution("com.example.TokenAmount", CODEC, size = 8)
             generate(codecs(COMPRESSED).merge(substitutions("Amount" to amount)), program(listOf(holder))).flat() shouldContain
                 "amounts = readArray(2) { Codec.read(this) },"
+        }
+    }
+
+    context("account field paths") {
+        val inner = struct("Inner", "a" to U8, "b" to IdlType.Primitive.U16)
+        fun holder(vararg fields: Pair<String, IdlType>, types: List<IdlTypeDef> = listOf(inner)) = program(
+            types + struct("Holder", *fields),
+            accounts = listOf(IdlAccount("Vault", IdlDiscriminator(listOf(9))), IdlAccount("Holder", IdlDiscriminator(listOf(8)))),
+        )
+        val sized = "Compressed" to GeneratorOverrides.CustomCodec(CODEC, size = 5)
+
+        test("field renames apply to path descriptors, including the suffix for a name a descriptor member takes") {
+            val source = generate(codecs(COMPRESSED).merge(renames("field:Inner.a" to "offset", "field:Inner.b" to "second")), holder("inner" to defined("Inner"))).flat()
+            source shouldContain "public val offsetField: SolanaAccountField<T, Int> = SolanaAccountField<T, Int>(name + \".offset\", offset, 1,"
+            source shouldContain "public val second: SolanaAccountField<T, Int> = SolanaAccountField<T, Int>(name + \".second\", offset + 1, 2,"
+        }
+
+        test("a rename whose suffixed descriptor name collides with another field's is rejected") {
+            val clash = struct("Inner", "a" to U8, "offset_field" to U8)
+            rejected(codecs(COMPRESSED).merge(renames("field:Inner.a" to "offset")), holder("inner" to defined("Inner"), types = listOf(clash))) shouldBe
+                "type 'Inner': fields 'offset' and 'offsetField' both take the path descriptor name 'offsetField', as a descriptor member takes the name"
+        }
+
+        test("a path does not descend into a type with a custom codec or substitution, which a sized override describes whole") {
+            val plain = generate(codecs(COMPRESSED), holder("inner" to defined("Inner"), "after" to U8)).flat()
+            plain shouldContain "public class Path<T>("
+            val overridden = codecs(COMPRESSED, "Inner" to GeneratorOverrides.CustomCodec(CODEC, size = 3))
+            val opaque = generate(overridden, holder("inner" to defined("Inner"), "after" to U8)).flat()
+            opaque shouldNotContain "class Path"
+            opaque shouldContain "public val `inner`: SolanaAccountField<Holder, Inner> = SolanaAccountField<Holder, Inner>(\"inner\", 0, 3,"
+            opaque shouldContain "public val after: SolanaAccountField<Holder, Int> = SolanaAccountField<Holder, Int>(\"after\", 3, 1,"
+
+            val price = "Price" to GeneratorOverrides.TypeSubstitution("com.example.Quote", "com.example.QuoteCodec", size = 12)
+            val substituted = generate(codecs(sized).merge(substitutions(price)), holder("prices" to IdlType.Array(defined("Price"), IdlArrayLength.Fixed(2)), "after" to U8)).flat()
+            substituted shouldContain "SolanaAccountArrayField<Holder, List<Quote>, SolanaAccountField<Holder, Quote>>"
+            substituted shouldContain "SolanaAccountField<Holder, Int>(\"after\", 24, 1,"
+        }
+
+        test("an opaque type without a declared size ends every following path and array descriptor") {
+            val source = generate(codecs(COMPRESSED), holder("first" to U8, "packed" to defined("Compressed"), "inner" to defined("Inner"), "list" to IdlType.Array(IdlType.Primitive.U16, IdlArrayLength.Fixed(2)))).flat()
+            source shouldContain "SolanaAccountField<Holder, Int>(\"first\", 0, 1,"
+            source shouldContain "- `packed` has a variable size"
+            source shouldContain "- `inner` follows a field of variable size, so has no fixed offset"
+            source shouldContain "- `list` follows a field of variable size, so has no fixed offset"
+            source shouldNotContain "class Path"
+            source shouldNotContain "SolanaAccountArrayField"
+        }
+    }
+
+    context("constants") {
+        fun withConstant(type: IdlType, value: String, overrides: GeneratorOverrides, name: String = "C") = generate(codecs(COMPRESSED).merge(overrides), program().let { it.copy(constants = it.constants + IdlConstant(name, type, value)) })
+        fun rejectedConstant(type: IdlType, value: String, overrides: GeneratorOverrides) = shouldThrow<IllegalArgumentException> {
+            withConstant(type, value, overrides)
+        }.message
+
+        test("a renamed composite constant takes its new name, and the renamed fields of its type") {
+            val source = withConstant(defined("Price"), "Price { mantissa: 5, expo: -2 }", renames("constant:C" to "QUOTE", "field:Price.expo" to "exponent")).flat()
+            source shouldContain "public val QUOTE: Price = Price(mantissa = 5L, exponent = -2)"
+        }
+
+        test("a constant of a type with a custom codec is constructed from the IDL value, as its generated class") {
+            withConstant(defined("Compressed"), "Compressed { value: 7 }", GeneratorOverrides()).flat() shouldContain
+                "public val C: Compressed = Compressed(`value` = 7L)"
+        }
+
+        test("a constant of, or containing, a substituted type fails generation") {
+            val amount = substitutions("Amount" to GeneratorOverrides.TypeSubstitution("com.example.TokenAmount", CODEC, size = 8))
+            rejectedConstant(defined("Amount"), "5", amount) shouldBe
+                "constant 'C': type 'Amount' is substituted by com.example.TokenAmount, which cannot be constructed from the IDL's value; " +
+                "constants of substituted types are not supported, in value `5`"
+            rejectedConstant(IdlType.Vec(defined("Amount")), "[5]", amount) shouldContain "type 'Amount' is substituted by com.example.TokenAmount"
+            val price = substitutions("Price" to GeneratorOverrides.TypeSubstitution("com.example.Quote", CODEC))
+            rejectedConstant(IdlType.Option(defined("Price")), "Some(Price { mantissa: 1, expo: 0 })", price) shouldContain
+                "type 'Price' is substituted by com.example.Quote"
+        }
+
+        test("a primitive constant renamed reports errors under its IDL name") {
+            rejectedConstant(U8, "300", renames("constant:C" to "LIMIT")) shouldBe "constant 'C': 300 is outside the range of U8"
         }
     }
 

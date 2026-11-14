@@ -3,6 +3,8 @@ package io.ethers.solana.idl.test
 import io.ethers.core.FastHex
 import io.ethers.crypto.Base58
 import io.ethers.providers.HttpClient
+import io.ethers.solana.codec.BorshReader
+import io.ethers.solana.codec.SolanaAccountField
 import io.ethers.solana.codec.SolanaDecodeError
 import io.ethers.solana.codec.SolanaEventContext
 import io.ethers.solana.providers.AccountFilter
@@ -58,11 +60,13 @@ class LedgerBindingsTest : FunSpec({
             val state = Ledger.LedgerState(
                 authority = address(1),
                 stamp = Ledger.Stamp(2),
+                window = Ledger.Window(Ledger.Stamp(4), 5),
+                stamps = listOf(Ledger.Stamp(6), Ledger.Stamp(7)),
                 packed = Ledger.Compressed(1),
                 price = PythPrice(mantissa = -5, expo = -2),
                 total = TokenAmount(9),
             )
-            val payload = "01".repeat(32) + "00000002" + "01" + "fbffffffffffffff feffffff" + "0900000000000000"
+            val payload = "01".repeat(32) + "00000002" + "00000004 0500" + "00000006 00000007" + "01" + "fbffffffffffffff feffffff" + "0900000000000000"
             Ledger.LedgerState.encode(state) shouldBe hex(payload)
             Ledger.LedgerState.ACCOUNT.decode(hex("0a $payload")).unwrap() shouldBe state
         }
@@ -90,9 +94,32 @@ class LedgerBindingsTest : FunSpec({
                 // the discriminator is a single byte
                 AccountFilter.Memcmp(1, address(1).toBase58()),
                 AccountFilter.Memcmp(33, Base58.encode(hex("00000002"))),
-                AccountFilter.Memcmp(37, Base58.encode(hex("ac02"))),
+                AccountFilter.Memcmp(51, Base58.encode(hex("ac02"))),
             )
             api.close()
+        }
+
+        test("paths describe an opaque type of declared size as a whole, and take renamed field names") {
+            val window = Ledger.LedgerState.Fields.window
+            window.offset shouldBe 36
+            window.size shouldBe 6
+            // the opaque Stamp gets a plain descriptor, read through its codec, rather than a path into its IDL fields
+            val start: SolanaAccountField<Ledger.LedgerState, Ledger.Stamp> = window.start
+            start.offset shouldBe 36
+            start.size shouldBe 4
+            start.read(BorshReader(hex("00000009"))) shouldBe Ledger.Stamp(9)
+            // `length` is renamed `size`, which a descriptor member takes, so its descriptor is `sizeField`
+            window.sizeField.offset shouldBe 40
+            window.sizeField.name shouldBe "window.size"
+            // an array of a sized opaque type describes each element
+            Ledger.LedgerState.Fields.stamps[1].offset shouldBe 46
+            Ledger.LedgerState.Fields.stamps[1].read(BorshReader(hex("00000003"))) shouldBe Ledger.Stamp(3)
+        }
+    }
+
+    context("constants") {
+        test("a composite constant of a type with a custom codec is constructed from the IDL value, under its renamed name and fields") {
+            Ledger.FIRST_WINDOW shouldBe Ledger.Window(start = Ledger.Stamp(7), size = 3)
         }
     }
 

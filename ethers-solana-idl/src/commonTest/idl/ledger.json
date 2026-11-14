@@ -218,6 +218,27 @@
             }
           },
           {
+            "name": "window",
+            "type": {
+              "defined": {
+                "name": "Window"
+              }
+            }
+          },
+          {
+            "name": "stamps",
+            "type": {
+              "array": [
+                {
+                  "defined": {
+                    "name": "Stamp"
+                  }
+                },
+                2
+              ]
+            }
+          },
+          {
             "name": "packed",
             "type": {
               "defined": {
@@ -318,6 +339,29 @@
           }
         ]
       }
+    },
+    {
+      "name": "Window",
+      "docs": [
+        "A fixed-size struct holding an opaque type of declared size."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "start",
+            "type": {
+              "defined": {
+                "name": "Stamp"
+              }
+            }
+          },
+          {
+            "name": "length",
+            "type": "u16"
+          }
+        ]
+      }
     }
   ],
   "constants": [
@@ -325,6 +369,15 @@
       "name": "MAX",
       "type": "u8",
       "value": "10"
+    },
+    {
+      "name": "FIRST",
+      "type": {
+        "defined": {
+          "name": "Window"
+        }
+      },
+      "value": "Window { start: Stamp { seconds: 7 }, length: 3 }"
     }
   ]
 }

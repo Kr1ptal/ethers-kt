@@ -43,7 +43,9 @@
       "instructionAccount:record.sides.maker": "makerAccount",
       "event:Recorded": "EntryRecorded",
       "error:Overflow": "TooLarge",
-      "constant:MAX": "MAX_ENTRIES"
+      "constant:MAX": "MAX_ENTRIES",
+      "field:Window.length": "size",
+      "constant:FIRST": "FIRST_WINDOW"
     },
     "accountDefaults": {
       "record.token_program": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",

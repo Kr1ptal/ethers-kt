@@ -131,7 +131,8 @@ data class SolanaAccountSlice<T>(
     val selection: SolanaAccountSelection<T, *>,
 ) {
     /**
-     * The value of [field], decoded from its bytes in the slice.
+     * The value of [field], decoded from its bytes in the slice. [field] is either selected or lies within a selected
+     * field, such as a field of a selected struct or an element of a selected array.
      *
      * @throws IllegalArgumentException if [selection] does not include [field].
      * @throws io.ethers.core.ThrowableError.Exception if the field's bytes do not decode, such as an invalid bool.
@@ -139,12 +140,13 @@ data class SolanaAccountSlice<T>(
     operator fun <V> get(field: SolanaAccountField<T, V>): V = decode(field).unwrap()
 
     /**
-     * The value of [field], decoded from its bytes in the slice, or why they do not decode.
+     * The value of [field], decoded from its bytes in the slice, or why they do not decode. [field] is either selected
+     * or lies within a selected field.
      *
      * @throws IllegalArgumentException if [selection] does not include [field].
      */
     fun <V> decode(field: SolanaAccountField<T, V>): Result<V, SolanaDecodeError> {
-        require(field in selection.fields) { "$field is not in $selection" }
+        require(selection.fields.any { field.isWithin(it) }) { "$field is not in $selection" }
         val offset = selection.factory.discriminator.size + field.offset - selection.dataSlice.offset
         return BorshReader.decode(info.data.asByteArray(), offset, false, field::read)
     }
