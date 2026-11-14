@@ -1,9 +1,9 @@
 package io.ethers.solana.program
 
+import io.ethers.core.FastBase64
 import io.ethers.core.FastHex
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBytes
-import kotlin.io.encoding.Base64
 
 /** What a transaction's logs report: the data its programs logged, the program that failed, and truncation. */
 internal class ProgramLogs(val data: List<ProgramLogs.Data>, val failure: ProgramLogs.Failure?, val truncated: Boolean) {
@@ -108,13 +108,13 @@ internal class ProgramLogs(val data: List<ProgramLogs.Data>, val failure: Progra
         private fun decodeBase64Fields(line: String, start: Int): SolanaBytes? = try {
             val space = line.indexOf(' ', start)
             if (space < 0) {
-                SolanaBytes.fromBytes(Base64.decode(line, start, line.length))
+                SolanaBytes.fromBytes(FastBase64.decode(line, start, line.length))
             } else {
                 var joined = ByteArray(0)
                 var from = start
                 while (from < line.length) {
                     val end = line.indexOf(' ', from).let { if (it < 0) line.length else it }
-                    if (end > from) joined += Base64.decode(line, from, end)
+                    if (end > from) joined += FastBase64.decode(line, from, end)
                     from = end + 1
                 }
                 SolanaBytes.fromBytes(joined)

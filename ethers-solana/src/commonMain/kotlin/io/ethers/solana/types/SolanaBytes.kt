@@ -1,5 +1,6 @@
 package io.ethers.solana.types
 
+import io.ethers.core.FastBase64
 import io.ethers.core.FastHex
 import io.ethers.crypto.Base58
 import kotlin.io.encoding.Base64
@@ -89,7 +90,7 @@ class SolanaBytes private constructor(private val value: ByteArray) {
         fun fromBase58(value: String): SolanaBytes = if (value.isEmpty()) EMPTY else SolanaBytes(Base58.decode(value))
 
         @JvmStatic
-        fun fromBase64(value: String): SolanaBytes = if (value.isEmpty()) EMPTY else SolanaBytes(Base64.decode(value))
+        fun fromBase64(value: String): SolanaBytes = if (value.isEmpty()) EMPTY else SolanaBytes(FastBase64.decode(value))
 
         /** Decode hexadecimal with an optional 0x/0X prefix. Invalid or odd-length hex is rejected. */
         @JvmStatic
