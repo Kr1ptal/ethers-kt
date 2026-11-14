@@ -139,18 +139,19 @@ Protocol-specific components such as `AccountMeta`, `MessageInstruction`, `Inner
 val transaction = provider.getTransaction(signature).send().unwrap() // SolanaRPCTransaction?
 if (transaction != null) {
     val type = transaction.type // Legacy, V0, V1, or Unsupported(version); never null
-    val signatures = transaction.transaction.signatures // List<SolanaSignature>
-    val message = transaction.transaction.message       // SolanaRPCMessage
-    val accounts = message.accountKeys                  // List<SolanaAddress>
+    val signatures = transaction.signatures // List<SolanaSignature>
+    val message = transaction.message // SolanaRPCMessage
+    val accounts = message.accountKeys // List<SolanaAddress>
     val instructionData = message.instructions.firstOrNull()?.data // SolanaBytes?
-    val fee = transaction.meta?.fee                     // BigInteger? (lamports)
+    val fee = transaction.meta?.fee // BigInteger? (lamports)
     val extra = transaction.otherFields // fields introduced by newer validators
 }
 ```
 
 `SolanaRPCTransaction` is deliberately separate from the signable transaction hierarchy. Its `slot`, `blockTime`,
-and `type` are exposed directly. `transaction` is a `SolanaRPCTransactionData` with typed signatures and message
-fields: account addresses, blockhash, header, instructions, and lookup tables. `meta` is a
+and `type` are exposed directly, alongside `signatures` and `message`. The message contains typed
+fields: account addresses, blockhash, header, instructions, and lookup tables. The nested `transaction` payload
+remains available for compatibility and preserves the RPC JSON structure. `meta` is a
 `SolanaRPCTransactionMeta` with typed fees, balances, token balances, logs, inner instructions, loaded addresses,
 return data, rewards, compute/cost units, and extensible errors (including instruction indices and custom codes).
 Instruction and return data are decoded to `SolanaBytes`. Compiled instruction `accounts` are integer indices.
@@ -414,6 +415,29 @@ try {
 Import `io.ethers.core.Result`. When migrating batch/query consumers, handle each element's result
 before accessing `.data`. Subscriptions do not provide an initial snapshot or guarantee every intermediate
 change; the application still coordinates snapshots, reconnect recovery, and multi-account state.
+
+## IDL constants
+
+Each `constants[]` entry of an IDL becomes a member of the generated program object. Primitives become
+`const val` where Kotlin allows it. Values of every other type are `@JvmField val`s: `u64` and wider integers,
+pubkeys, bytes, arrays, vecs, options, and defined structs and enums (aliases resolve to their target):
+
+| Rust type | IDL value (`Debug` output) | Generated Kotlin |
+| --- | --- | --- |
+| `[u16; 3]` | `[1, 2, 3]` | `listOf<Int>(1, 2, 3)` |
+| `[u8; 4]` | `[1, 2, 3, 4]` | `SolanaBytes.fromHex("01020304")` |
+| `Option<u64>` | `Some(5)` / `None` | `BigInteger("5")` / `null` |
+| `Option<Option<bool>>` | `Some(None)` | `SolanaOption.Some<Boolean?>(null)` |
+| `Point` | `Point { x: 1, y: -2 }` | `Point(x = 1, y = -2)` |
+| `Kind` | `Tuple(7, -300)` | `Kind.Tuple(7, -300)` |
+
+Anchor writes each value as the Rust `Debug` output of the constant (`format!("{:?}", value)`), so the generator
+reads only the literal forms `Debug` produces and checks them against the declared type. Legacy IDLs that record
+the source tokens (`Some (5)`, `1_000u32`) read the same way. Generation fails for any value that does not match
+the declared type exactly: integers out of range, arrays of the wrong length, a missing, extra or reordered
+struct field, an unknown variant, or an invalid address. It also fails for anything that is not a literal, such as
+an expression, a cast, a path or a reference to another constant. Legacy IDLs can record those as unevaluated
+source text, and the generator never evaluates them.
 
 ## JSON form of IDL values
 

@@ -517,6 +517,19 @@
         226,
         205
       ]
+    },
+    {
+      "name": "Ledger",
+      "discriminator": [
+        43,
+        41,
+        21,
+        213,
+        180,
+        176,
+        95,
+        32
+      ]
     }
   ],
   "events": [
@@ -937,6 +950,155 @@
                 "name": "Aligned"
               }
             }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Slot",
+      "docs": [
+        "A fixed-size struct whose fields are named like members of a field descriptor."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "name",
+            "type": {
+              "array": [
+                "u8",
+                4
+              ]
+            }
+          },
+          {
+            "name": "size",
+            "type": "u64"
+          },
+          {
+            "name": "point",
+            "type": {
+              "defined": {
+                "name": "showcase::Point"
+              }
+            }
+          },
+          {
+            "name": "path",
+            "type": {
+              "defined": {
+                "name": "Path"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Path",
+      "docs": [
+        "Named like the descriptor class nested in each struct."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "depth",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Note",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u32"
+          },
+          {
+            "name": "text",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Ledger",
+      "docs": [
+        "A Borsh account with nested fixed-size structs and arrays, then fields of variable size."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "version",
+            "type": "u8"
+          },
+          {
+            "name": "origin",
+            "type": {
+              "defined": {
+                "name": "showcase::Point"
+              }
+            }
+          },
+          {
+            "name": "slots",
+            "type": {
+              "array": [
+                {
+                  "defined": {
+                    "name": "Slot"
+                  }
+                },
+                2
+              ]
+            }
+          },
+          {
+            "name": "grid",
+            "type": {
+              "array": [
+                {
+                  "array": [
+                    "u16",
+                    3
+                  ]
+                },
+                2
+              ]
+            }
+          },
+          {
+            "name": "empty",
+            "type": {
+              "defined": {
+                "name": "Marker"
+              }
+            }
+          },
+          {
+            "name": "path",
+            "type": {
+              "defined": {
+                "name": "Path"
+              }
+            }
+          },
+          {
+            "name": "note",
+            "type": {
+              "defined": {
+                "name": "Note"
+              }
+            }
+          },
+          {
+            "name": "after",
+            "type": "u64"
           }
         ]
       }

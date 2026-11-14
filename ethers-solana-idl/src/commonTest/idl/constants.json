@@ -1,0 +1,510 @@
+{
+  "address": "Constants1111111111111111111111111111111111",
+  "metadata": {
+    "name": "constants",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Composite constants"
+  },
+  "instructions": [],
+  "types": [
+    {
+      "name": "consts::Point",
+      "docs": [
+        "A point."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "x",
+            "type": "i32"
+          },
+          {
+            "name": "y",
+            "type": "i32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Duo",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          "u8",
+          "i64"
+        ]
+      }
+    },
+    {
+      "name": "Marker",
+      "type": {
+        "kind": "struct"
+      }
+    },
+    {
+      "name": "Amount",
+      "type": {
+        "kind": "type",
+        "alias": "u64"
+      }
+    },
+    {
+      "name": "Kind",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Plain"
+          },
+          {
+            "name": "Tuple",
+            "fields": [
+              "u8",
+              "i16"
+            ]
+          },
+          {
+            "name": "Named",
+            "fields": [
+              {
+                "name": "lo",
+                "type": "u64"
+              },
+              {
+                "name": "hi",
+                "type": {
+                  "option": "u32"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "Limits",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "max_amount",
+            "type": "u64"
+          },
+          {
+            "name": "big",
+            "type": "i128"
+          },
+          {
+            "name": "small",
+            "type": "i8"
+          },
+          {
+            "name": "short",
+            "type": "i16"
+          },
+          {
+            "name": "word",
+            "type": "u32"
+          },
+          {
+            "name": "ratio",
+            "type": "f32"
+          },
+          {
+            "name": "scale",
+            "type": "f64"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "seed",
+            "type": {
+              "array": [
+                "u8",
+                4
+              ]
+            }
+          },
+          {
+            "name": "raw",
+            "type": "bytes"
+          },
+          {
+            "name": "tags",
+            "type": {
+              "vec": "string"
+            }
+          },
+          {
+            "name": "points",
+            "type": {
+              "array": [
+                {
+                  "defined": {
+                    "name": "consts::Point"
+                  }
+                },
+                2
+              ]
+            }
+          },
+          {
+            "name": "cap",
+            "type": {
+              "option": "u16"
+            }
+          },
+          {
+            "name": "nested",
+            "type": {
+              "option": {
+                "option": "u8"
+              }
+            }
+          },
+          {
+            "name": "kind",
+            "type": {
+              "defined": {
+                "name": "Kind"
+              }
+            }
+          },
+          {
+            "name": "marker",
+            "type": {
+              "defined": {
+                "name": "Marker"
+              }
+            }
+          },
+          {
+            "name": "pair",
+            "type": {
+              "defined": {
+                "name": "Duo"
+              }
+            }
+          },
+          {
+            "name": "enabled",
+            "type": "bool"
+          },
+          {
+            "name": "amount",
+            "type": {
+              "defined": {
+                "name": "Amount"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Reading",
+      "serialization": "bytemuck",
+      "repr": {
+        "kind": "c"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "kind",
+            "type": "u8"
+          },
+          {
+            "name": "value",
+            "type": "u32"
+          }
+        ]
+      }
+    }
+  ],
+  "constants": [
+    {
+      "name": "ORIGIN",
+      "docs": [
+        "The origin, almost."
+      ],
+      "type": {
+        "defined": {
+          "name": "consts::Point"
+        }
+      },
+      "value": "Point { x: 0, y: -5 }"
+    },
+    {
+      "name": "PAIR",
+      "type": {
+        "defined": {
+          "name": "Duo"
+        }
+      },
+      "value": "Duo(255, -9223372036854775808)"
+    },
+    {
+      "name": "MARKER",
+      "type": {
+        "defined": {
+          "name": "Marker"
+        }
+      },
+      "value": "Marker"
+    },
+    {
+      "name": "KIND_PLAIN",
+      "type": {
+        "defined": {
+          "name": "Kind"
+        }
+      },
+      "value": "Plain"
+    },
+    {
+      "name": "KIND_TUPLE",
+      "type": {
+        "defined": {
+          "name": "Kind"
+        }
+      },
+      "value": "Tuple(7, -300)"
+    },
+    {
+      "name": "KIND_NAMED",
+      "type": {
+        "defined": {
+          "name": "Kind"
+        }
+      },
+      "value": "Named { lo: 18446744073709551615, hi: None }"
+    },
+    {
+      "name": "LIMITS",
+      "type": {
+        "defined": {
+          "name": "Limits"
+        }
+      },
+      "value": "Limits { max_amount: 18446744073709551615, big: -170141183460469231731687303715884105728, small: -128, short: 32767, word: 4294967295, ratio: 0.5, scale: -1e-7, name: \"fee \\\"bps\\\"\\n\", owner: SysvarRent111111111111111111111111111111111, seed: [1, 2, 3, 4], raw: [255, 0], tags: [\"a\", \"\"], points: [Point { x: 1, y: -1 }, Point { x: -2147483648, y: 2147483647 }], cap: Some(65535), nested: Some(None), kind: Named { lo: 7, hi: Some(9) }, marker: Marker, pair: Duo(1, -9223372036854775808), enabled: true, amount: 42 }"
+    },
+    {
+      "name": "READING",
+      "type": {
+        "defined": {
+          "name": "Reading"
+        }
+      },
+      "value": "Reading { kind: 1, value: 4294967295 }"
+    },
+    {
+      "name": "PRIMES",
+      "type": {
+        "array": [
+          "u16",
+          4
+        ]
+      },
+      "value": "[2, 3, 5, 7]"
+    },
+    {
+      "name": "SEED",
+      "type": {
+        "array": [
+          "u8",
+          4
+        ]
+      },
+      "value": "[1, 2, 3, 4]"
+    },
+    {
+      "name": "MATRIX",
+      "type": {
+        "array": [
+          {
+            "array": [
+              "i8",
+              2
+            ]
+          },
+          2
+        ]
+      },
+      "value": "[[-1, 2], [3, -128]]"
+    },
+    {
+      "name": "NAMES",
+      "type": {
+        "vec": "string"
+      },
+      "value": "[\"a\\\"b\", \"\\u{1f600}\", \"tab\\t\", \"ünï\", \"\\\\$x\"]"
+    },
+    {
+      "name": "EMPTY",
+      "type": {
+        "vec": "u64"
+      },
+      "value": "[]"
+    },
+    {
+      "name": "WORDS",
+      "type": {
+        "vec": "u32"
+      },
+      "value": "[0, 4294967295]"
+    },
+    {
+      "name": "LONGS",
+      "type": {
+        "vec": "i64"
+      },
+      "value": "[-9223372036854775808, 9223372036854775807]"
+    },
+    {
+      "name": "SHORTS",
+      "type": {
+        "vec": "i16"
+      },
+      "value": "[-32768, 32767]"
+    },
+    {
+      "name": "DOUBLES",
+      "type": {
+        "vec": "f64"
+      },
+      "value": "[1.0, -0.0, 1e-7, 1e16, inf, -inf, NaN]"
+    },
+    {
+      "name": "FLOATS",
+      "type": {
+        "vec": "f32"
+      },
+      "value": "[0.1, 3.4028235e38, -inf]"
+    },
+    {
+      "name": "ADDRESSES",
+      "type": {
+        "vec": "pubkey"
+      },
+      "value": "[11111111111111111111111111111111, SysvarRent111111111111111111111111111111111]"
+    },
+    {
+      "name": "AMOUNTS",
+      "type": {
+        "vec": {
+          "defined": {
+            "name": "Amount"
+          }
+        }
+      },
+      "value": "[1, 2]"
+    },
+    {
+      "name": "KINDS",
+      "type": {
+        "vec": {
+          "defined": {
+            "name": "Kind"
+          }
+        }
+      },
+      "value": "[Plain, Tuple(1, 2)]"
+    },
+    {
+      "name": "BLOBS",
+      "type": {
+        "vec": "bytes"
+      },
+      "value": "[[], [1, 2]]"
+    },
+    {
+      "name": "MAYBE",
+      "type": {
+        "option": "u64"
+      },
+      "value": "Some(5)"
+    },
+    {
+      "name": "NOTHING",
+      "type": {
+        "option": "pubkey"
+      },
+      "value": "None"
+    },
+    {
+      "name": "MAYBE_STRING",
+      "type": {
+        "option": "string"
+      },
+      "value": "Some(\"abc\")"
+    },
+    {
+      "name": "MAYBE_ARRAY",
+      "type": {
+        "option": {
+          "array": [
+            "u8",
+            4
+          ]
+        }
+      },
+      "value": "Some([1, 2, 3, 4])"
+    },
+    {
+      "name": "MAYBE_POINT",
+      "type": {
+        "option": {
+          "defined": {
+            "name": "consts::Point"
+          }
+        }
+      },
+      "value": "Some(Point { x: 3, y: 4 })"
+    },
+    {
+      "name": "SOME_NONE",
+      "type": {
+        "option": {
+          "option": "bool"
+        }
+      },
+      "value": "Some(None)"
+    },
+    {
+      "name": "SOME_SOME",
+      "type": {
+        "option": {
+          "option": "bool"
+        }
+      },
+      "value": "Some(Some(false))"
+    },
+    {
+      "name": "NONE_NESTED",
+      "type": {
+        "option": {
+          "option": "bool"
+        }
+      },
+      "value": "None"
+    },
+    {
+      "name": "TOKEN_SPACED",
+      "type": {
+        "option": {
+          "vec": "u16"
+        }
+      },
+      "value": "Some ([1 , 2_000u16])"
+    }
+  ]
+}
