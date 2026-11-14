@@ -156,11 +156,77 @@ do not record zero-copy layouts, so their types are read as Borsh, which matches
 Struct fields that a legacy IDL names alike, such as Rust's `_padding` and `padding`, are numbered from the first, and
 the last keeps the name.
 
-Zero-copy accounts (`#[account(zero_copy)]`) are decoded in the layout the program sees on-chain: packed and unpacked
-`#[repr(C)]` layouts, including the padding an unpacked layout places between and after fields, and
-`#[repr(transparent)]`. Zero-copy types with the default Rust layout, with both `packed` and `align`, or with 256-bit
-integers in an unpacked layout fail generation, as does using a zero-copy type with padding where Borsh encodes it, such
-as an instruction argument.
+Zero-copy accounts (`#[account(zero_copy)]`, IDL `serialization` `bytemuck` or `bytemuckunsafe`) are decoded in the
+layout the program sees on-chain, on Solana's SBF target. Only layouts the IDL fully describes are generated; the rest
+are left out, or fail strict generation, with a diagnostic that says why (see below):
+
+| IDL `repr`                                       | Generated | Layout                                                                                             |
+|--------------------------------------------------|-----------|----------------------------------------------------------------------------------------------------|
+| `{"kind": "c"}`, optionally with `align`         | yes       | Fields in order, each padded to its alignment; the size padded to the struct's alignment.          |
+| `{"kind": "c", "packed": true}`                  | yes       | Fields back to back, no padding, aligned to 1.                                                     |
+| `{"kind": "transparent"}`                        | yes       | Its one field of non-zero size or alignment above 1.                                               |
+| absent or `{"kind": "rust", ...}`                | no        | Rust does not specify the field order of its default layout, even when packed.                     |
+| `packed` and `align` together, invalid `align`   | no        | Rust rejects these layouts.                                                                        |
+
+Primitive alignments follow the SBF data layout (`e-m:e-p:64:64-i64:64-n32:64-S128`): integers are aligned to their
+size up to 8 bytes, and `u128`/`i128` to 8 bytes, unlike the 16 bytes of x86-64 since Rust 1.77. Public keys are
+aligned to 1. 256-bit integers have no Rust primitive, so their alignment is unknown. They are generated only where no
+padding can depend on it: in packed layouts, as the field of a transparent one, and in `bytemuck` C layouts. A
+`bytemuck` IDL type stands for `derive(Pod)`, which only compiles without padding, so a `bytemuck` layout that would
+need padding is rejected as not matching the program.
+
+The Rust layout includes `#[zero_copy(unsafe)]` without a `#[repr]` of its own, which Anchor declares
+`#[repr(packed)]`. Also rejected, by design, are:
+
+- zero-copy enums and enum fields of zero-copy types. Anchor records `#[repr(u8)]`, `#[repr(u16)]` and others all as
+  `{"kind": "rust"}`, and `#[repr(C, u8)]` as `{"kind": "c"}`, so the IDL never states the width of the discriminant. A
+  plain `#[repr(C)]` discriminant takes at least 4 bytes on-chain.
+- `custom` serialization, whose layout is defined by the program's own code.
+- a zero-copy type with padding where Borsh encodes it, such as an instruction argument.
+
+For a layout the IDL cannot describe, bind the type with a handwritten `SolanaCodec` instead.
+
+Anchor records both `#[repr(packed)]` and `#[repr(packed(N))]` as `"packed": true`. The generator reads that as
+`packed`, that is `packed(1)`, the form programs such as Raydium's CLMM use. A type declared
+`#[repr(C, packed(N))]` with N above 1 and a field aligned above 1 is laid out differently from what the IDL implies,
+and needs a handwritten codec.
+
+#### Declarations that cannot be generated
+
+Some declarations cannot be generated: a zero-copy layout the IDL cannot describe, `custom` serialization, a generic
+type definition, a non-struct event, or a constant whose value is an expression rather than a literal. By default such
+a declaration is left out of the bindings, together with everything that depends on it:
+
+- types containing it, directly or within options, vecs or arrays, and aliases to it;
+- constants, accounts and events of those types;
+- instructions with an argument or return value of those types, or a PDA seed read from the data of such an account.
+
+What is generated still compiles and keeps the exact wire format: nothing is generated partially. Accounts, events and
+instructions that are left out are also missing from `ACCOUNTS`, `EVENTS`, `INSTRUCTIONS` and the `decode*` functions,
+which report their data as unrecognized.
+
+Each declaration left out is logged as a warning, naming the IDL file and the program, with the reason and whether it
+is intentionally unsupported (the IDL does not describe its wire format; bind it with a handwritten codec instead),
+not supported yet, or invalid (a layout Rust rejects or that contradicts its serialization, or a value outside its
+type). The `ethersSolanaIdlReport` task logs these warnings after every run of `ethersSolanaIdl`, including when its
+output is up to date or comes from the build cache. The generated program object's documentation lists them too.
+
+Lenient generation keeps the build going, but the bindings can have gaps that are only visible in these warnings.
+Strict mode fails the build instead, listing every declaration that cannot be generated, in every IDL; it suits CI:
+
+```kotlin
+ethersSolanaIdl {
+    strict = true // default: false
+}
+```
+
+An invalid IDL, such as one referring to a type it does not declare, declarations whose Kotlin names collide, and
+invalid configuration, such as a malformed address override or a seed byte order for a seed that does not exist, fail
+the build in either mode.
+
+`SolanaProgramBuilder` behaves the same: its `diagnostics` list what it leaves out, and `strict = true` makes it throw a
+`SolanaIdlUnsupportedException` listing them. The `SolanaIdlCli` entry point prints them as warnings, or with
+`--strict` processes every IDL and then exits with status 1, listing them for all of them.
 
 ### Local testing of the plugin
 

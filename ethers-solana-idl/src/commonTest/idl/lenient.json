@@ -1,0 +1,117 @@
+{
+  "address": "Lenient111111111111111111111111111111111111",
+  "metadata": {
+    "name": "lenient",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Declarations that cannot be generated next to ones that can, for LenientBindingsTest"
+  },
+  "instructions": [
+    {
+      "name": "initialize",
+      "discriminator": [1, 0, 0, 0, 0, 0, 0, 0],
+      "accounts": [
+        { "name": "config", "writable": true },
+        { "name": "payer", "writable": true, "signer": true }
+      ],
+      "args": [{ "name": "fee", "type": { "defined": { "name": "Fee" } } }]
+    },
+    {
+      "name": "set_pool",
+      "discriminator": [2, 0, 0, 0, 0, 0, 0, 0],
+      "accounts": [{ "name": "pool", "writable": true }],
+      "args": [{ "name": "status", "type": { "defined": { "name": "Status" } } }]
+    },
+    {
+      "name": "swap",
+      "discriminator": [3, 0, 0, 0, 0, 0, 0, 0],
+      "accounts": [
+        { "name": "pool" },
+        {
+          "name": "vault",
+          "pda": {
+            "seeds": [
+              { "kind": "const", "value": [118] },
+              { "kind": "account", "path": "pool.authority", "account": "Pool" }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "migrate",
+      "discriminator": [4, 0, 0, 0, 0, 0, 0, 0],
+      "accounts": [],
+      "args": [{ "name": "pool", "type": { "defined": { "name": "Pool" } } }]
+    }
+  ],
+  "accounts": [
+    { "name": "Config", "discriminator": [10, 0, 0, 0, 0, 0, 0, 0] },
+    { "name": "Pool", "discriminator": [11, 0, 0, 0, 0, 0, 0, 0] }
+  ],
+  "events": [
+    { "name": "ConfigUpdated", "discriminator": [20, 0, 0, 0, 0, 0, 0, 0] },
+    { "name": "PoolUpdated", "discriminator": [21, 0, 0, 0, 0, 0, 0, 0] }
+  ],
+  "types": [
+    {
+      "name": "Fee",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "bps", "type": "u16" },
+          { "name": "recipient", "type": "pubkey" }
+        ]
+      }
+    },
+    {
+      "name": "Config",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "admin", "type": "pubkey" },
+          { "name": "fee", "type": { "defined": { "name": "Fee" } } }
+        ]
+      }
+    },
+    {
+      "name": "Status",
+      "type": {
+        "kind": "enum",
+        "variants": [{ "name": "Active" }, { "name": "Paused" }]
+      }
+    },
+    {
+      "name": "Pool",
+      "serialization": "bytemuck",
+      "repr": { "kind": "c" },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "authority", "type": "pubkey" },
+          { "name": "status", "type": { "defined": { "name": "Status" } } }
+        ]
+      }
+    },
+    {
+      "name": "ConfigUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [{ "name": "fee", "type": { "defined": { "name": "Fee" } } }]
+      }
+    },
+    {
+      "name": "PoolUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [{ "name": "pool", "type": { "defined": { "name": "Pool" } } }]
+      }
+    }
+  ],
+  "constants": [
+    { "name": "MAX_FEE_BPS", "type": "u16", "value": "1000" },
+    { "name": "LOCKUP", "type": "i64", "value": "60 * 60 * 24" },
+    { "name": "DEFAULT_POOL", "type": { "defined": { "name": "Pool" } }, "value": "Pool { authority: 11111111111111111111111111111111, status: Active }" }
+  ]
+}

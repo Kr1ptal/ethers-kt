@@ -35,6 +35,16 @@ abstract class EthersSolanaIdlExtension(private val project: Project) {
         )
 
     /**
+     * Whether a declaration of an IDL that cannot be generated, such as a type with a layout the IDL cannot describe,
+     * fails the build. By default it is left out of the bindings, together with everything that depends on it, and
+     * logged as a warning; the generated program object's documentation lists it too. Strict mode fails the build
+     * listing every such declaration of every IDL, which suits CI, where gaps in the bindings should not go unnoticed.
+     *
+     * Default value is `false`.
+     * */
+    val strict: Property<Boolean> = factory.property(Boolean::class.javaObjectType).convention(false)
+
+    /**
      * Deployment addresses that replace the address an IDL declares, keyed by the program name the IDL declares. The
      * generated `PROGRAM_ID` is the override, e.g. for a program deployed to devnet or a local validator under another
      * address. Naming a program that no IDL declares fails the build.

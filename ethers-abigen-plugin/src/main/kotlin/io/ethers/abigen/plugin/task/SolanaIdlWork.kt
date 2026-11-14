@@ -2,6 +2,7 @@ package io.ethers.abigen.plugin.task
 
 import io.ethers.abigen.plugin.source.SolanaIdlSource
 import io.ethers.solana.idl.generator.SeedByteOrders
+import io.ethers.solana.idl.generator.SolanaIdlUnsupportedException
 import io.ethers.solana.idl.generator.SolanaProgramBuilder
 import io.ethers.solana.idl.reader.SolanaIdlReaderRegistry
 import org.gradle.api.GradleException
@@ -16,8 +17,9 @@ import java.io.File
 /**
  * Work action which generates Kotlin program bindings for a single Solana IDL.
  *
- * Writes the program's IDL name and the canonical name of the generated object to [Parameters.resultFile], one per
- * line, so the task can check them across all IDLs.
+ * Declarations that cannot be generated are left out. Writes the program's IDL name, the canonical name of the
+ * generated object and a description of the declarations left out, if any, to [Parameters.resultFile], so the task
+ * can check names across all IDLs and report what was left out.
  * */
 abstract class SolanaIdlWork : WorkAction<SolanaIdlWork.Parameters> {
     private val logger = LoggerFactory.getLogger(SolanaIdlWork::class.java)
@@ -40,7 +42,8 @@ abstract class SolanaIdlWork : WorkAction<SolanaIdlWork.Parameters> {
             throw GradleException("Failed to generate bindings for program '${program.name}' ($source): ${e.message}", e)
         }
         val canonicalName = builder.writeTo(parameters.destination.get())
-        parameters.resultFile.get().asFile.writeText("${program.name}\n$canonicalName")
+        val unsupported = if (builder.diagnostics.isEmpty()) "" else "\n${SolanaIdlUnsupportedException.describe(program.name, builder.diagnostics)}"
+        parameters.resultFile.get().asFile.writeText("${program.name}\n$canonicalName$unsupported")
     }
 
     // all parameters need to be serializable

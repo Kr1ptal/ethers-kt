@@ -1,5 +1,8 @@
 package io.ethers.solana.idl.generator
 
+/** A constant's value is a literal its declared type cannot hold, so not one a program can have. */
+internal class InvalidConstantValue(message: String) : IllegalArgumentException(message)
+
 /**
  * Reads the value of an IDL constant, which Anchor records as the Rust `Debug` output of the constant's expression,
  * such as `[1, 2, 3]`, `Some("abc")`, `Point { x: 1, y: -2 }` or `Variant(5)`. Legacy IDLs parsed from source record
@@ -55,6 +58,9 @@ internal class RustValueReader(private val text: String, private val where: Stri
 
     /** Fail at the last consumed token, or the start. */
     fun fail(message: String): Nothing = throw IllegalArgumentException("$where: $message, in value `$text`")
+
+    /** Fail as the value is a literal outside its type. */
+    fun invalid(message: String): Nothing = throw InvalidConstantValue("$where: $message, in value `$text`")
 
     /** Fail with the next token being unexpected where [expected] should be. */
     fun unexpected(expected: String): Nothing {
