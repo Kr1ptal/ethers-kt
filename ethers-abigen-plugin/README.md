@@ -162,6 +162,59 @@ Zero-copy accounts (`#[account(zero_copy)]`) are decoded in the layout the progr
 integers in an unpacked layout fail generation, as does using a zero-copy type with padding where Borsh encodes it, such
 as an instruction argument.
 
+#### Resolving instruction accounts
+
+The instruction builders are pure: they take every account. To fill in the accounts the IDL says how to find, each
+accounts class has a `Partial` class, whose accounts may all be left out, and `resolve`, which returns an
+`RpcRequest` of the full accounts class. Resolving only happens when you call it, and needs a provider only for the
+accounts whose data it reads:
+
+```kotlin
+val accounts = Escrow.DepositAccounts.Partial(user = me)
+    .resolve(api, Escrow.DepositArgs(poolId, amount)) // args only when a PDA seed reads them
+    .sendAwait().unwrap()
+val instruction = Escrow.deposit(accounts, args)
+```
+
+Each account the IDL does not let you leave out is documented on its `Partial` property, along with the reason. An
+account you give is used as given. It is never derived again or checked against a derivation, so you can
+override any of them. Every other required account is resolved from the first of these that applies:
+
+1. its fixed `address`;
+2. its PDA `seeds`, and its `program` when that is set, through the same `find` function. Seeds can be constants,
+   arguments, the addresses of other accounts, or fields of other accounts' data. A field seed is resolved only when
+   its `account` names an account type this program declares;
+3. its `relations`, which are Anchor's `has_one`. Each related account's data is fetched and decoded as whichever
+   of this program's account types its discriminator identifies. Only types with a pubkey field named after this
+   account count. When there are several related accounts, they must all name the same address.
+
+Optional accounts are never derived. They are absent unless you give them. A way of deriving an account that
+depends on an absent optional account is skipped.
+
+Accounts whose data a derivation reads are fetched with `getMultipleAccounts`. Each round fetches every account it
+needs in one request, and no round reads older state than the round before it. Only accounts the program owns are
+read. Resolution returns the first failure in instruction order as a typed `SolanaAccountResolutionError` and does
+not throw:
+
+| Error | Cause |
+| --- | --- |
+| `MissingAccount` | a required account was not given, and the IDL gives no usable way to derive it |
+| `AccountNotFound` | an account whose data a derivation reads does not exist on chain |
+| `OwnerMismatch` | that account is owned by another program |
+| `AccountTypeMismatch` | its discriminator is not one of the account types the derivation reads |
+| `Undecodable` | it has the right discriminator, but its data does not decode |
+| `AmbiguousRelation` | related accounts name different addresses for the account |
+| `InvalidSeeds` | the seeds cannot derive an address, such as a seed longer than 32 bytes |
+| `DependencyCycle` | accounts can only be derived from each other; give one of them to break the cycle |
+| `Rpc` | a fetch failed |
+
+Nothing is inferred from names alone, and nothing is guessed. The resolver does not use:
+
+- a seed whose encoding the IDL does not determine. This is the same case where `find` takes the seed's bytes;
+- a seed read from an account type this program does not declare;
+- a `program` that is not a pubkey;
+- a relation that no account type can follow.
+
 ### Local testing of the plugin
 
 To test the plugin locally, you must first build the shadow jar of the plugin. This can be done by running the following

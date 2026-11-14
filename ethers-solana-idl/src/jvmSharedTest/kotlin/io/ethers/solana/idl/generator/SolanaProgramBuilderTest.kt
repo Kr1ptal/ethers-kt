@@ -396,6 +396,91 @@ class SolanaProgramBuilderTest : FunSpec({
         }
     }
 
+    context("account resolution") {
+        val config = IdlTypeDef(
+            "Config",
+            IdlTypeBody.Struct(IdlFields.Named(listOf(IdlField("authority", IdlType.Primitive.PUBKEY), IdlField("fee_bps", IdlType.Primitive.U16)))),
+        )
+        val configAccount = IdlAccount("Config", IdlDiscriminator(listOf(9)))
+
+        /** A program with one instruction of [accounts] and [args], and a Config account when [declared]. */
+        fun resolving(accounts: List<IdlAccountItem>, args: List<IdlField> = emptyList(), declared: Boolean = true): String {
+            val ix = IdlInstruction("ix", IdlDiscriminator(listOf(1)), accounts = accounts, args = args)
+            val program = program(instructions = listOf(ix), types = listOf(config))
+            return generate(if (declared) program.copy(accounts = listOf(configAccount)) else program).replace(Regex("\\s+"), " ")
+        }
+
+        test("relations read the field named after the account from each account type that has it, in the scope seeds use") {
+            val source = generate(fixture("relations")).replace(Regex("\\s+"), " ")
+            source shouldContain "public data class Partial @JvmOverloads constructor("
+            source shouldContain "SolanaAccountResolver.Account(\"my_account\", this.myAccount, false, listOf(SolanaAccountDerivation.Relations(listOf(" +
+                "SolanaRelationSource(1, listOf(SolanaRelationCandidate(MyAccount.ACCOUNT) { it.myAccount }))))))"
+            // the nested group's relation names the account in its own group
+            source shouldContain "SolanaAccountResolver.Account(\"nested.my_account\", this.nested.myAccount, false, listOf(SolanaAccountDerivation.Relations(listOf(" +
+                "SolanaRelationSource(3, listOf(SolanaRelationCandidate(MyAccount.ACCOUNT) { it.myAccount }))))))"
+            source shouldContain "public val nested: Nested.Partial = Nested.Partial(),"
+            source shouldContain "Resolved, when not provided, from the `my_account` field of related account `nested.account`, which must agree."
+            source shouldContain "nested = Nested( myAccount = resolved.required(2), account = resolved.required(3), ),"
+            // the pure builder and accounts are untouched
+            source shouldContain "public fun testRelation( accounts: TestRelationAccounts, remainingAccounts: List<AccountMeta> = emptyList(), " +
+                "programId: SolanaAddress = PROGRAM_ID, ): io.ethers.solana.instruction.Instruction = io.ethers.solana.instruction.Instruction(programId, accounts.toAccountMetas(programId) + remainingAccounts, TEST_RELATION.encodeData(Unit))"
+        }
+
+        test("PDA seeds from arguments, account addresses and typed account data call the finder, taking arguments only when read") {
+            val seeds = listOf(IdlSeed.Const(listOf(1)), IdlSeed.Account("config.fee_bps", "Config"), IdlSeed.Account("owner"))
+            val source = resolving(listOf(IdlAccountItem.Single("owner"), IdlAccountItem.Single("config"), IdlAccountItem.Single("vault", pda = IdlPda(seeds))))
+            source shouldContain "SolanaAccountDerivation.Pda(listOf(SolanaAccountDependency.data(1, Config.ACCOUNT), SolanaAccountDependency.address(0))) { inputs -> " +
+                "IxAccounts.findVault(configFeeBps = inputs.data(1, Config.ACCOUNT).feeBps, owner = inputs.address(0), programId = programId).address }"
+            source shouldContain "public fun resolve( api: SolanaApi, programId: SolanaAddress = PROGRAM_ID, commitment: Commitment = api.defaultCommitment, ): " +
+                "RpcRequest<IxAccounts, SolanaAccountResolutionError>"
+
+            val args = listOf(IdlField("index", IdlType.Primitive.U32))
+            val withArgs = resolving(listOf(IdlAccountItem.Single("vault", pda = IdlPda(listOf(IdlSeed.Arg("index"))))), args)
+            withArgs shouldContain "IxAccounts.findVault(index = args.index, programId = programId).address"
+            withArgs shouldContain "public fun resolve( api: SolanaApi, args: IxArgs,"
+        }
+
+        test("seeds and relations the IDL does not make resolvable are documented, and the account must be provided") {
+            val seeds = listOf(IdlSeed.Account("config.authority", "Config"))
+            val undeclared = resolving(listOf(IdlAccountItem.Single("config"), IdlAccountItem.Single("vault", pda = IdlPda(seeds))), declared = false)
+            undeclared shouldContain "@param vault Must be provided: the IDL gives no way to derive it. * Not resolved from its PDA seeds, as seed `config.authority` reads the data of an " +
+                "account whose type this program does not declare."
+            undeclared shouldContain "SolanaAccountResolver.Account(\"vault\", this.vault, false, listOf())"
+
+            val raw = resolving(listOf(IdlAccountItem.Single("vault", pda = IdlPda(listOf(IdlSeed.Arg("flag"))))), listOf(IdlField("flag", IdlType.Primitive.BOOL)))
+            raw shouldContain "Not resolved from its PDA seeds, as the IDL does not determine the encoding of seed `flag`."
+            // nothing reads the arguments
+            raw shouldContain "public fun resolve( api: SolanaApi, programId: SolanaAddress"
+
+            val program = IdlPda(listOf(IdlSeed.Const(listOf(1))), program = IdlSeed.Arg("index"))
+            resolving(listOf(IdlAccountItem.Single("vault", pda = program)), listOf(IdlField("index", IdlType.Primitive.U32))) shouldContain
+                "Not resolved from its PDA seeds, as the program it derives under is argument `index`, which is not a pubkey."
+
+            val related = resolving(listOf(IdlAccountItem.Single("config"), IdlAccountItem.Single("owner", relations = listOf("config"))))
+            related shouldContain "Not resolved from its relation to `config`, as no account type of this program has a pubkey field `owner`."
+            resolving(listOf(IdlAccountItem.Single("config"), IdlAccountItem.Single("authority", relations = listOf("config")))) shouldContain
+                "SolanaRelationSource(0, listOf(SolanaRelationCandidate(Config.ACCOUNT) { it.authority }))"
+            // a field that is not a pubkey cannot name an account
+            resolving(listOf(IdlAccountItem.Single("config"), IdlAccountItem.Single("fee_bps", relations = listOf("config")))) shouldContain
+                "as no account type of this program has a pubkey field `fee_bps`"
+        }
+
+        test("fixed addresses come first, and optional accounts are never derived") {
+            val fixed = IdlAccountItem.Single("program", address = "11111111111111111111111111111111", pda = IdlPda(listOf(IdlSeed.Const(listOf(1)))))
+            val source = resolving(listOf(fixed, IdlAccountItem.Single("extra", optional = true, pda = IdlPda(listOf(IdlSeed.Const(listOf(2)))))))
+            source shouldContain "listOf(SolanaAccountDerivation.Fixed(SolanaAddress(\"11111111111111111111111111111111\")), SolanaAccountDerivation.Pda(listOf()) { _ ->"
+            source shouldContain "Resolved, when not provided, from the first of: its fixed address `11111111111111111111111111111111`; its PDA seeds, see [IxAccounts.findProgram]."
+            source shouldContain "SolanaAccountResolver.Account(\"extra\", this.extra, true, listOf())"
+            source shouldContain "extra = resolved[1],"
+            source shouldContain "Optional: absent unless provided, and never derived."
+        }
+
+        test("an account group named like the partial accounts class is rejected") {
+            shouldThrow<IllegalArgumentException> { resolving(listOf(IdlAccountItem.Group("partial", listOf(IdlAccountItem.Single("a"))))) }.message shouldBe
+                "instruction 'ix' account group 'partial': generated type 'Partial' is produced by both the group and the partial accounts"
+        }
+    }
+
     test("generation is deterministic") {
         generate(fixture("relations")) shouldBe generate(fixture("relations"))
     }
