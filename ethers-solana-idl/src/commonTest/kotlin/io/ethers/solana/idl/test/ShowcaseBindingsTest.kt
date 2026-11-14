@@ -11,6 +11,7 @@ import io.ethers.providers.HttpClient
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import io.ethers.providers.types.BatchRpcRequest
+import io.ethers.solana.codec.BorshReader
 import io.ethers.solana.codec.SolanaAccountField
 import io.ethers.solana.codec.SolanaDecodeError
 import io.ethers.solana.codec.SolanaEventContext
@@ -251,7 +252,7 @@ class ShowcaseBindingsTest : FunSpec({
             }
 
             test("a projection decode failure skips the transformation and preserves account error context") {
-                val booleanTail = SolanaAccountField<Showcase.Gauge, Boolean>("booleanTail", 60, 1) { it.readBool() }
+                val booleanTail = SolanaAccountField<Showcase.Gauge, Boolean>("booleanTail", 60, 1, { it.readBool() }, { writeBool(it) })
                 var calls = 0
                 val selection = Showcase.Gauge.select {
                     combine(big, booleanTail) { _, flag ->
@@ -352,6 +353,156 @@ class ShowcaseBindingsTest : FunSpec({
                 Showcase.Gauge.filter(api).subscribe(selection).send().unwrap().receive()!!.unwrap()[Showcase.Gauge.Fields.tail] shouldBe 11
                 client.params[0] shouldBe "program"
                 dataSlice(client.params) shouldBe Kotlinx.DEFAULT.parseToJsonElement("""{"offset":68,"length":1}""")
+                api.close()
+            }
+        }
+
+        context("nested field paths") {
+            val gaugeBytes = hex(gaugeData)
+            fun account(data: ByteArray) = """{"data":["${Base64.encode(data)}","base64"],"executable":false,"lamports":1,"owner":"${Showcase.PROGRAM_ID}","rentEpoch":0}"""
+            fun dataSlice(params: List<Any?>) = (params.last() as JsonObject)["dataSlice"]
+
+            /** [field] read from the encoded account [data] at its offset, as the codec wrote it there. */
+            fun <V> readAt(data: ByteArray, field: SolanaAccountField<*, V>): V = field.read(BorshReader(data, 8 + field.offset))
+
+            val ledger = Showcase.Ledger(
+                version = 1,
+                origin = Showcase.ShowcasePoint(2, 3),
+                slots = listOf(
+                    Showcase.Slot(SolanaBytes.fromHex("0a0b0c0d"), bigIntegerOf(4), Showcase.ShowcasePoint(5, 6), Showcase.Path(7)),
+                    Showcase.Slot(SolanaBytes.fromHex("1a1b1c1d"), bigIntegerOf(8), Showcase.ShowcasePoint(9, 10), Showcase.Path(11)),
+                ),
+                grid = listOf(listOf(1, 2, 3), listOf(4, 5, 6)),
+                empty = Showcase.Marker,
+                path = Showcase.Path(12),
+                note = Showcase.Note(13, "memo"),
+                after = bigIntegerOf(14),
+            )
+            val ledgerBytes = Showcase.Ledger.ACCOUNT.encode(ledger)
+
+            test("fields of nested Borsh structs and elements of fixed arrays are at their encoded offsets") {
+                with(Showcase.Ledger.Fields) {
+                    origin.offset shouldBe 1
+                    origin.y.offset shouldBe 5
+                    slots.offset shouldBe 9
+                    slots.size shouldBe 42
+                    slots.elementSize shouldBe 21
+                    slots[1].offset shouldBe 30
+                    slots[1].nameField[2].offset shouldBe 32
+                    slots[1].sizeField.offset shouldBe 34
+                    slots[1].point.y.offset shouldBe 46
+                    slots[1].path.depth.offset shouldBe 50
+                    grid.offset shouldBe 51
+                    grid[1][2].offset shouldBe 61
+                    // the empty marker takes no bytes, and has no descriptor
+                    path.offset shouldBe 63
+                    path.depth.offset shouldBe 63
+
+                    readAt(ledgerBytes, version) shouldBe 1
+                    readAt(ledgerBytes, origin) shouldBe ledger.origin
+                    readAt(ledgerBytes, origin.y) shouldBe 3
+                    readAt(ledgerBytes, slots) shouldBe ledger.slots
+                    readAt(ledgerBytes, slots[0].path.depth) shouldBe 7
+                    readAt(ledgerBytes, slots[1]) shouldBe ledger.slots[1]
+                    readAt(ledgerBytes, slots[1].nameField) shouldBe SolanaBytes.fromHex("1a1b1c1d")
+                    readAt(ledgerBytes, slots[1].nameField[2]) shouldBe 0x1c
+                    readAt(ledgerBytes, slots[1].sizeField) shouldBe bigIntegerOf(8)
+                    readAt(ledgerBytes, slots[1].point.y) shouldBe 10
+                    readAt(ledgerBytes, grid[1]) shouldBe listOf(4, 5, 6)
+                    readAt(ledgerBytes, grid[1][2]) shouldBe 6
+                    readAt(ledgerBytes, path.depth) shouldBe 12
+                }
+            }
+
+            test("fields of nested zero-copy structs and array elements are at their padded offsets") {
+                with(Showcase.Gauge.Fields) {
+                    reading.offset shouldBe 36
+                    reading.kind.offset shouldBe 36
+                    // three bytes of padding after kind
+                    reading.value.offset shouldBe 40
+                    readings.elementSize shouldBe 8
+                    readings[0].kind.offset shouldBe 44
+                    readings[1].kind.offset shouldBe 52
+                    readings[1].value.offset shouldBe 56
+                    aligned.x.offset shouldBe 64
+                    aligned.size shouldBe 16
+
+                    readAt(gaugeBytes, reading.value) shouldBe 6
+                    readAt(gaugeBytes, readings[0].kind) shouldBe 7
+                    readAt(gaugeBytes, readings[1]) shouldBe Showcase.Reading(9, 10)
+                    readAt(gaugeBytes, readings[1].value) shouldBe 10
+                    readAt(gaugeBytes, aligned.x) shouldBe 12
+                }
+            }
+
+            test("paths are named after the fields and indices they go through, and equal when built twice") {
+                Showcase.Ledger.Fields.slots[1].point.y.name shouldBe "slots[1].point.y"
+                Showcase.Ledger.Fields.slots[0].nameField[3].name shouldBe "slots[0].name[3]"
+                Showcase.Ledger.Fields.grid[1][2].name shouldBe "grid[1][2]"
+                Showcase.Gauge.Fields.readings[1].value shouldBe Showcase.Gauge.Fields.readings[1].value
+                Showcase.Gauge.select { fields(readings[1].value, readings[1].value) }.fields.size shouldBe 1
+            }
+
+            test("an index outside a fixed array fails") {
+                shouldThrow<IndexOutOfBoundsException> { Showcase.Gauge.Fields.readings[2] }
+                shouldThrow<IndexOutOfBoundsException> { Showcase.Ledger.Fields.grid[0][-1] }
+            }
+
+            test("a selection of nested fields slices from the first to the end of the last, and combines them") {
+                val selection = Showcase.Gauge.select { combine(reading.value, readings[1].value, aligned.x) { a, b, c -> Triple(a, b, c) } }
+                selection.dataSlice shouldBe DataSlice(48, 25)
+                selection.checksDiscriminator shouldBe false
+                val client = CannedClient("""{"context":{"slot":7},"value":${account(gaugeBytes.copyOfRange(48, 73))}}""")
+                val api = SolanaProvider(client)
+                selection.fetch(api, CONFIG).send().unwrap() shouldBe Triple(6L, 10L, 12)
+                dataSlice(client.params) shouldBe Kotlinx.DEFAULT.parseToJsonElement("""{"offset":48,"length":25}""")
+
+                client.response = """{"context":{"slot":7},"value":[{"pubkey":"$CONFIG","account":${account(gaugeBytes.copyOfRange(48, 73))}}]}"""
+                Showcase.Gauge.filter(api).field(Showcase.Gauge.Fields.readings[1].kind, 9).query(selection).send().unwrap().value.single().unwrap() shouldBe
+                    Triple(6L, 10L, 12)
+                api.close()
+            }
+
+            test("a slice of a struct or array reads the fields and elements within it") {
+                val selection = Showcase.Ledger.select { fields(slots) }
+                selection.dataSlice shouldBe DataSlice(17, 42)
+                val client = CannedClient("""{"context":{"slot":7},"value":${account(ledgerBytes.copyOfRange(17, 59))}}""")
+                val api = SolanaProvider(client)
+                val slice = selection.fetch(api, CONFIG).send().unwrap()
+                slice.slots shouldBe ledger.slots
+                slice[Showcase.Ledger.Fields.slots[1].point.y] shouldBe 10
+                slice[Showcase.Ledger.Fields.slots[0].nameField[1]] shouldBe 0x0b
+                shouldThrow<IllegalArgumentException> { slice[Showcase.Ledger.Fields.grid[0][0]] }
+                shouldThrow<IllegalArgumentException> { slice[Showcase.Ledger.Fields.origin.x] }
+                api.close()
+            }
+
+            test("filters by nested descriptors compare at their offsets from the start of the account data") {
+                val api = SolanaProvider(HttpClient("https://example.invalid"))
+                Showcase.Gauge.filter(api)
+                    .field(Showcase.Gauge.Fields.readings[1].value, 10)
+                    .field(Showcase.Gauge.Fields.aligned.x, 12)
+                    .field(Showcase.Gauge.Fields.reading, Showcase.Reading(5, 6))
+                    .accountFilters.drop(1) shouldBe listOf(
+                    AccountFilter.Memcmp(64, Base58.encode(hex("0a000000"))),
+                    AccountFilter.Memcmp(72, Base58.encode(hex("0c"))),
+                    // a struct encodes with its padding, as zeros
+                    AccountFilter.Memcmp(44, Base58.encode(hex("05 000000 06000000"))),
+                )
+                Showcase.Ledger.filter(api)
+                    .field(Showcase.Ledger.Fields.slots[1].point.y, 10)
+                    .field(Showcase.Ledger.Fields.grid[1], listOf(4, 5, 6))
+                    .field(Showcase.Ledger.Fields.slots[0].nameField, SolanaBytes.fromHex("0a0b0c0d"))
+                    .accountFilters.drop(1) shouldBe listOf(
+                    AccountFilter.Memcmp(54, Base58.encode(hex("0a000000"))),
+                    AccountFilter.Memcmp(65, Base58.encode(hex("0400 0500 0600"))),
+                    AccountFilter.Memcmp(17, Base58.encode(hex("0a0b0c0d"))),
+                )
+                // a top-level descriptor filters as the field's own filter method does
+                Showcase.Gauge.filter(api).field(Showcase.Gauge.Fields.tail, 11).accountFilters shouldBe Showcase.Gauge.filter(api).tail(11).accountFilters
+                // values that do not fit the field fail instead of comparing other bytes
+                shouldThrow<IllegalArgumentException> { Showcase.Ledger.filter(api).field(Showcase.Ledger.Fields.grid[1], listOf(4, 5)) }
+                shouldThrow<IllegalArgumentException> { Showcase.Ledger.filter(api).field(Showcase.Ledger.Fields.slots[0].nameField, SolanaBytes.fromHex("0a")) }
                 api.close()
             }
         }
