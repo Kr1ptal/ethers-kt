@@ -38,15 +38,19 @@ package io.ethers.crypto
  * ```
  */
 object Base58 {
-    private val ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz".toCharArray()
-    private val INDEXES = IntArray(128)
+    private const val ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 
-    init {
-        for (i in INDEXES.indices) {
-            INDEXES[i] = -1
-        }
+    // 58^5 is the largest power of 58 below 2^30, so a base-58^5 limb times 2^32 plus a carry fits in a Long
+    private const val LIMB_DIGITS = 5
+    private const val LIMB_BASE = 58L * 58 * 58 * 58 * 58
+    private const val UINT_MASK = 0xFFFFFFFFL
+
+    // 58^0..58^4, the multiplier of a leading group shorter than LIMB_DIGITS
+    private val POWERS = longArrayOf(1, 58, 58 * 58, 58 * 58 * 58, 58 * 58 * 58 * 58)
+
+    private val INDEXES = ByteArray(128) { -1 }.also { indexes ->
         for (i in ALPHABET.indices) {
-            INDEXES[ALPHABET[i].code] = i
+            indexes[ALPHABET[i].code] = i.toByte()
         }
     }
 
@@ -54,107 +58,140 @@ object Base58 {
      * Encodes the given bytes in base58. No checksum is appended.
      * */
     fun encode(input: ByteArray): String {
-        @Suppress("NAME_SHADOWING")
-        var input = input
         if (input.isEmpty()) {
             return ""
         }
-        input = copyOfRange(input, 0, input.size)
-        // Count leading zeroes.
+
         var zeroCount = 0
         while (zeroCount < input.size && input[zeroCount].toInt() == 0) {
             ++zeroCount
         }
-        // The actual encoding.
-        val temp = ByteArray(input.size * 2)
-        var j = temp.size
-        var startAt = zeroCount
-        while (startAt < input.size) {
-            val mod = divmod58(input, startAt)
-            if (input[startAt].toInt() == 0) {
-                ++startAt
-            }
-            temp[--j] = ALPHABET[mod.toInt()].code.toByte()
+
+        // Convert the big-endian input to little-endian base-58^5 limbs, feeding 32 bits per step. The value has at
+        // most 1.366 base58 digits per byte (log(256) / log(58)), hence at most 0.274 limbs per byte.
+        val limbs = IntArray((input.size - zeroCount) * 274 / 1000 + 2)
+        var limbCount = 0
+        var i = zeroCount
+        // take the odd leading bytes first, so the rest of the input splits into whole 32-bit words
+        val head = (input.size - zeroCount) and 3
+        if (head != 0) {
+            var word = 0L
+            repeat(head) { word = (word shl 8) or (input[i++].toLong() and 0xFF) }
+            limbCount = shiftAdd(limbs, limbCount, 8 * head, word)
+        }
+        while (i < input.size) {
+            val word = ((input[i].toLong() and 0xFF) shl 24) or
+                ((input[i + 1].toLong() and 0xFF) shl 16) or
+                ((input[i + 2].toLong() and 0xFF) shl 8) or
+                (input[i + 3].toLong() and 0xFF)
+            i += 4
+            limbCount = shiftAdd(limbs, limbCount, 32, word)
         }
 
-        // Strip extra '1' if there are some after decoding.
-        while (j < temp.size && temp[j] == ALPHABET[0].code.toByte()) {
-            ++j
+        // the most significant limb has no leading '1' padding, the others are always LIMB_DIGITS wide
+        var topDigits = 0
+        if (limbCount > 0) {
+            var top = limbs[limbCount - 1]
+            while (top != 0) {
+                top /= 58
+                ++topDigits
+            }
         }
-        // Add as many leading '1' as there were leading zeros.
-        while (--zeroCount >= 0) {
-            temp[--j] = ALPHABET[0].code.toByte()
+        val length = zeroCount + topDigits + (limbCount - 1).coerceAtLeast(0) * LIMB_DIGITS
+        val output = CharArray(length)
+        output.fill(ALPHABET[0], 0, zeroCount)
+        var pos = length
+        for (l in 0..<limbCount) {
+            var limb = limbs[l]
+            val digits = if (l == limbCount - 1) topDigits else LIMB_DIGITS
+            repeat(digits) {
+                output[--pos] = ALPHABET[limb % 58]
+                limb /= 58
+            }
         }
-        val output = copyOfRange(temp, j, temp.size)
-        // every byte comes from ALPHABET, which is pure ASCII, so UTF-8 decoding is equivalent to US-ASCII here
-        return output.decodeToString()
+        return output.concatToString()
+    }
+
+    // limbs = limbs * 2^shift + value, returning the new limb count
+    private fun shiftAdd(limbs: IntArray, limbCount: Int, shift: Int, value: Long): Int {
+        var carry = value
+        for (l in 0..<limbCount) {
+            val acc = (limbs[l].toLong() shl shift) + carry
+            carry = acc / LIMB_BASE
+            limbs[l] = (acc - carry * LIMB_BASE).toInt()
+        }
+        var count = limbCount
+        while (carry != 0L) {
+            val next = carry / LIMB_BASE
+            limbs[count++] = (carry - next * LIMB_BASE).toInt()
+            carry = next
+        }
+        return count
     }
 
     fun decode(input: String): ByteArray {
         if (input.isEmpty()) {
             return ByteArray(0)
         }
-        val input58 = ByteArray(input.length)
-        // Transform the String to a base58 byte sequence
-        for (i in input.indices) {
-            val c = input[i]
-            var digit58 = -1
-            if (c.code in 0..127) {
-                digit58 = INDEXES[c.code]
-            }
-            require(digit58 >= 0) { "Illegal character $c at $i" }
-            input58[i] = digit58.toByte()
-        }
-        // Count leading zeroes
+
         var zeroCount = 0
-        while (zeroCount < input58.size && input58[zeroCount].toInt() == 0) {
+        while (zeroCount < input.length && input[zeroCount] == ALPHABET[0]) {
             ++zeroCount
         }
-        // The encoding
-        val temp = ByteArray(input.length)
-        var j = temp.size
-        var startAt = zeroCount
-        while (startAt < input58.size) {
-            val mod = divmod256(input58, startAt)
-            if (input58[startAt].toInt() == 0) {
-                ++startAt
+
+        // Convert to little-endian 32-bit words, feeding 5 base58 digits (one base-58^5 limb) per step. The value
+        // has at most 0.733 bytes per base58 digit (log(58) / log(256)).
+        val words = IntArray(((input.length - zeroCount) * 733 / 1000 + 4) / 4 + 1)
+        var wordCount = 0
+        var i = zeroCount
+        // take the odd leading digits first, so the rest of the input splits into whole limbs
+        var groupSize = (input.length - zeroCount) % LIMB_DIGITS
+        if (groupSize == 0) groupSize = LIMB_DIGITS
+        while (i < input.length) {
+            var limb = 0L
+            repeat(groupSize) {
+                limb = limb * 58 + digit(input, i++)
             }
-            temp[--j] = mod
+            val multiplier = if (groupSize == LIMB_DIGITS) LIMB_BASE else POWERS[groupSize]
+            wordCount = mulAdd(words, wordCount, multiplier, limb)
+            groupSize = LIMB_DIGITS
         }
-        // Do no add extra leading zeroes, move j to first non null byte.
-        while (j < temp.size && temp[j].toInt() == 0) {
-            ++j
+
+        // the most significant word drops its leading zero bytes, the others are always 4 bytes wide
+        val topBytes = if (wordCount > 0) (Int.SIZE_BITS - words[wordCount - 1].countLeadingZeroBits() + 7) / 8 else 0
+        val output = ByteArray(zeroCount + topBytes + (wordCount - 1).coerceAtLeast(0) * 4)
+        var pos = output.size
+        for (w in 0..<wordCount) {
+            var word = words[w]
+            val bytes = if (w == wordCount - 1) topBytes else 4
+            repeat(bytes) {
+                output[--pos] = word.toByte()
+                word = word ushr 8
+            }
         }
-        return copyOfRange(temp, j - zeroCount, temp.size)
+        return output
     }
 
-    // number -> number / 58, returns number % 58
-    private fun divmod58(number: ByteArray, startAt: Int): Byte {
-        var remainder = 0
-        for (i in startAt..<number.size) {
-            val digit256 = number[i].toInt() and 0xFF
-            val temp = remainder * 256 + digit256
-            number[i] = (temp / 58).toByte()
-            remainder = temp % 58
+    // words = words * multiplier + value, returning the new word count
+    private fun mulAdd(words: IntArray, wordCount: Int, multiplier: Long, value: Long): Int {
+        var carry = value
+        for (w in 0..<wordCount) {
+            val acc = (words[w].toLong() and UINT_MASK) * multiplier + carry
+            words[w] = acc.toInt()
+            carry = acc ushr 32
         }
-        return remainder.toByte()
+        var count = wordCount
+        while (carry != 0L) {
+            words[count++] = carry.toInt()
+            carry = carry ushr 32
+        }
+        return count
     }
 
-    // number -> number / 256, returns number % 256
-    private fun divmod256(number58: ByteArray, startAt: Int): Byte {
-        var remainder = 0
-        for (i in startAt..<number58.size) {
-            val digit58 = number58[i].toInt() and 0xFF
-            val temp = remainder * 58 + digit58
-            number58[i] = (temp / 256).toByte()
-            remainder = temp % 256
-        }
-        return remainder.toByte()
-    }
-
-    private fun copyOfRange(source: ByteArray, from: Int, to: Int): ByteArray {
-        val range = ByteArray(to - from)
-        source.copyInto(range, 0, from, to)
-        return range
+    private fun digit(input: String, index: Int): Int {
+        val c = input[index]
+        val digit = if (c.code < 128) INDEXES[c.code].toInt() else -1
+        require(digit >= 0) { "Illegal character $c at $index" }
+        return digit
     }
 }

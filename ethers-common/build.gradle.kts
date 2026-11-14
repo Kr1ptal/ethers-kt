@@ -1,5 +1,6 @@
 plugins {
     `project-conventions`
+    `jmh-conventions`
     kotlin("plugin.serialization") version libs.versions.kotlin.get()
     `maven-publish-conventions`
 }
@@ -31,6 +32,13 @@ kotlin {
                 // native provider for whyoleg cryptography. Apple's CommonCrypto/CryptoKit providers have no
                 // RIPEMD160, which Hashing.ripemd160() needs, so OpenSSL is the one that covers everything.
                 implementation(libs.whyoleg.cryptography.openssl3)
+            }
+        }
+
+        val jvmJmh by getting {
+            dependencies {
+                implementation(libs.jmh.core)
+                implementation(libs.jmh.generator)
             }
         }
     }

@@ -41,7 +41,7 @@ commonMain
 - `src/jvmSharedTest/kotlin` — shared tests
 - `src/jvmMain/kotlin` — JVM-specific code (rarely used)
 - `src/androidMain/kotlin` — Android-specific code (rarely used)
-- `src/jmh/` — JMH benchmarks (JVM-only, in ethers-core, ethers-abi, ethers-rlp, ethers-solana)
+- `src/jmh/` — JMH benchmarks (JVM-only, in ethers-common, ethers-core, ethers-abi, ethers-rlp, ethers-solana)
 
 ### Convention Plugins (buildSrc)
 
