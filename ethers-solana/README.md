@@ -433,11 +433,12 @@ pubkeys, bytes, arrays, vecs, options, and defined structs and enums (aliases re
 
 Anchor writes each value as the Rust `Debug` output of the constant (`format!("{:?}", value)`), so the generator
 reads only the literal forms `Debug` produces and checks them against the declared type. Legacy IDLs that record
-the source tokens (`Some (5)`, `1_000u32`) read the same way. Generation fails for any value that does not match
-the declared type exactly: integers out of range, arrays of the wrong length, a missing, extra or reordered
-struct field, an unknown variant, or an invalid address. It also fails for anything that is not a literal, such as
-an expression, a cast, a path or a reference to another constant. Legacy IDLs can record those as unevaluated
-source text, and the generator never evaluates them.
+the source tokens (`Some (5)`, `1_000u32`) read the same way. A constant whose value does not match the declared
+type exactly is not generated: integers out of range, arrays of the wrong length, a missing, extra or reordered
+struct field, an unknown variant, or an invalid address. Nor is anything that is not a literal, such as an
+expression, a cast, a path or a reference to another constant. Legacy IDLs can record those as unevaluated source
+text, and the generator never evaluates them. Such a constant is reported as a warning and left out, or fails
+strict generation; see "Declarations that cannot be generated" in the `ethers-abigen-plugin` README.
 
 ## Idempotent associated token accounts
 

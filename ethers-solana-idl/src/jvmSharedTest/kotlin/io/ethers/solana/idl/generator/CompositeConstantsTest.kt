@@ -37,12 +37,15 @@ private fun array(element: IdlType, size: Int) = IdlType.Array(element, IdlArray
 
 private fun defined(name: String) = IdlType.Defined(name)
 
-private fun generate(type: IdlType, value: String): String = SolanaProgramBuilder(
-    IdlProgram("test", "1.0.0", "11111111111111111111111111111111", types = listOf(POINT, EMPTY, KIND, ALIAS), constants = listOf(IdlConstant("C", type, value))),
-    "test.pkg",
-).build().toString()
+private fun program(type: IdlType, value: String) = IdlProgram("test", "1.0.0", "11111111111111111111111111111111", types = listOf(POINT, EMPTY, KIND, ALIAS), constants = listOf(IdlConstant("C", type, value)))
 
-private fun rejected(type: IdlType, value: String): String = shouldThrow<IllegalArgumentException> { generate(type, value) }.message!!
+private fun generate(type: IdlType, value: String): String = SolanaProgramBuilder(program(type, value), "test.pkg").build().toString()
+
+/** Why a strict builder rejects constant `C`, which a lenient one leaves out. */
+private fun rejected(type: IdlType, value: String): String {
+    SolanaProgramBuilder(program(type, value), "test.pkg").diagnostics.single().name shouldBe "C"
+    return shouldThrow<SolanaIdlUnsupportedException> { SolanaProgramBuilder(program(type, value), "test.pkg", strict = true) }.diagnostics.single().message
+}
 
 private const val NOT_LITERAL = "only literal values are supported, not expressions, casts or references to other constants"
 
