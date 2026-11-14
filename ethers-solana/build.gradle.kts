@@ -20,6 +20,10 @@ abstract class GenerateSolanaCorpus : DefaultTask() {
     @get:OutputDirectory
     abstract val outputDirectory: DirectoryProperty
 
+    /** Names the generated accessor, `<name>Corpus()`, and its classes. */
+    @get:Input
+    abstract val corpusName: Property<String>
+
     @TaskAction
     fun generate() {
         val input = corpusDirectory.get().asFile
@@ -32,17 +36,20 @@ abstract class GenerateSolanaCorpus : DefaultTask() {
             name
         }
         require(input.listFiles()!!.filter { it.extension == "jsonl" }.map { it.name }.toSet() == expectedFiles.toSet()) { "Corpus checksum inventory is incomplete" }
-        val output = outputDirectory.get().asFile.resolve("io/ethers/solana/corpus").also { it.mkdirs() }
+        // start empty, so files from an earlier naming or corpus layout cannot linger
+        val output = outputDirectory.get().asFile.also { it.deleteRecursively() }.resolve("io/ethers/solana/corpus").also { it.mkdirs() }
+        val name = corpusName.get()
+        val prefix = name.replaceFirstChar(Char::uppercaseChar) + "Corpus"
         val chunks = input.listFiles()!!.filter { it.extension == "jsonl" }.sortedBy { it.name }
             .flatMap { it.readLines().filter(String::isNotBlank).chunked(20) }
-        require(chunks.isNotEmpty()) { "The committed Solana transaction corpus is missing" }
+        require(chunks.isNotEmpty()) { "The committed Solana $name corpus is missing" }
         fun quoted(value: String) = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"").replace("$", "\\$") + "\""
         chunks.forEachIndexed { index, records ->
-            output.resolve("SolanaCorpusChunk$index.kt").writeText(
+            output.resolve("${prefix}Chunk$index.kt").writeText(
                 buildString {
                     appendLine("// Generated from committed corpus JSONL. Do not edit.")
                     appendLine("package io.ethers.solana.corpus")
-                    appendLine("internal object SolanaCorpusChunk$index {")
+                    appendLine("internal object ${prefix}Chunk$index {")
                     appendLine("    fun records(): List<String> = listOf(${records.indices.joinToString { "record$it()" }})")
                     records.forEachIndexed { recordIndex, raw ->
                         // Bound individual JVM constants and method sizes even for large RPC log arrays.
@@ -54,12 +61,12 @@ abstract class GenerateSolanaCorpus : DefaultTask() {
                 },
             )
         }
-        output.resolve("SolanaCorpusData.kt").writeText(
+        output.resolve("${prefix}Data.kt").writeText(
             buildString {
                 appendLine("// Generated from committed corpus JSONL. Do not edit.")
                 appendLine("package io.ethers.solana.corpus")
-                appendLine("internal fun transactionCorpus(): List<String> = buildList {")
-                chunks.indices.forEach { appendLine("    addAll(SolanaCorpusChunk$it.records())") }
+                appendLine("internal fun ${name}Corpus(): List<String> = buildList {")
+                chunks.indices.forEach { appendLine("    addAll(${prefix}Chunk$it.records())") }
                 appendLine("}")
             },
         )
@@ -69,6 +76,13 @@ abstract class GenerateSolanaCorpus : DefaultTask() {
 val generateSolanaCorpus = tasks.register<GenerateSolanaCorpus>("generateSolanaCorpus") {
     corpusDirectory.set(layout.projectDirectory.dir("src/commonTest/resources/transactions"))
     outputDirectory.set(layout.buildDirectory.dir("generated/source/solanaCorpus/commonTest/kotlin"))
+    corpusName.set("transaction")
+}
+
+val generateSolanaLogCorpus = tasks.register<GenerateSolanaCorpus>("generateSolanaLogCorpus") {
+    corpusDirectory.set(layout.projectDirectory.dir("src/commonTest/resources/program-logs"))
+    outputDirectory.set(layout.buildDirectory.dir("generated/source/solanaLogCorpus/commonTest/kotlin"))
+    corpusName.set("log")
 }
 
 kotlin {
@@ -98,6 +112,7 @@ kotlin {
         }
         commonTest {
             kotlin.srcDir(generateSolanaCorpus)
+            kotlin.srcDir(generateSolanaLogCorpus)
             dependencies {
                 implementation(libs.ktor.client.mock)
                 implementation(libs.ktor.server.cio)

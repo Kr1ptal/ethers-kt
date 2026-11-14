@@ -38,34 +38,41 @@ abstract class DirectorySourceProvider : AbiSourceProvider {
         dir.walkTopDown().filter(File::isFile).forEach { file ->
             val contractName = file.nameWithoutExtension
 
-            val destinationPackage = (packageOverride.orNull ?: file.normalizedPath())
-                .substringAfter(dir.normalizedPath())
-                .substringBeforeLast("/")
-                .removePrefix("/")
-                .replace("/", ".")
-                .ifBlank { DEFAULT_PACKAGE }
-
+            val destinationPackage = destinationPackage(dir, file, packageOverride.orNull, DEFAULT_PACKAGE)
             ret.add(AbiSource(contractName, destinationPackage, file.toURI().toURL()))
         }
 
         return ret
     }
 
-    /**
-     * Return normalized absolute path of the file, using `/` as a separator. This is mainly useful
-     * for normalizing paths on Windows.
-     *
-     * Example:
-     * ```
-     * from: "C:\\ethers-kt\\ethers-abigen-plugin\\src\\main\\kotlin"
-     * to:    "/ethers-kt/ethers-abigen-plugin/src/main/kotlin"
-     * ```
-     * */
-    private fun File.normalizedPath(): String {
-        return absolutePath.replace('\\', '/').split(":/").last()
-    }
-
     companion object {
         private const val DEFAULT_PACKAGE = "io.ethers.abigen.generated"
+
+        /**
+         * The package of [file] within [dir], following its directory structure, or [override] when set. Files at the
+         * root of [dir] fall back to [defaultPackage].
+         * */
+        internal fun destinationPackage(dir: File, file: File, override: String?, defaultPackage: String): String {
+            return (override ?: file.normalizedPath())
+                .substringAfter(dir.normalizedPath())
+                .substringBeforeLast("/")
+                .removePrefix("/")
+                .replace("/", ".")
+                .ifBlank { defaultPackage }
+        }
+
+        /**
+         * Return normalized absolute path of the file, using `/` as a separator. This is mainly useful
+         * for normalizing paths on Windows.
+         *
+         * Example:
+         * ```
+         * from: "C:\\ethers-kt\\ethers-abigen-plugin\\src\\main\\kotlin"
+         * to:    "/ethers-kt/ethers-abigen-plugin/src/main/kotlin"
+         * ```
+         * */
+        private fun File.normalizedPath(): String {
+            return absolutePath.replace('\\', '/').split(":/").last()
+        }
     }
 }

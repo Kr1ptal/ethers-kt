@@ -48,10 +48,9 @@ import kotlin.reflect.full.functions
 import kotlin.reflect.full.memberProperties
 
 /**
- * IMPORTANT: When modifying the outputs of this builder (e.g. adding a new method or changing method signatures), make
- * sure to also update the `EthersAbigenTask#outputVersion` property to a new value. This will force Gradle to
- * invalidate the abigen task output and re-run it, so the generated code is up-to-date and compatible with the latest
- * version.
+ * IMPORTANT: When modifying the outputs of this builder or [ErrorLoaderBuilder] (e.g. adding a new method or changing
+ * method signatures), make sure to also bump [OUTPUT_VERSION]. This will force Gradle to invalidate the abigen task
+ * output and re-run it, so the generated code is up-to-date and compatible with the latest version.
  * */
 class AbiContractBuilder(
     private val contractName: String,
@@ -1308,6 +1307,12 @@ class AbiContractBuilder(
     )
 
     companion object {
+        /**
+         * Version of the output of this builder and [ErrorLoaderBuilder]. Bump it whenever the output changes, so
+         * build tools invalidate previously generated code.
+         * */
+        const val OUTPUT_VERSION = "10"
+
         private val RESERVED_DEPLOY_FUNCTION_ARG_NAMES = setOf("provider")
         private val RESERVED_FUNCTION_ARG_NAMES = setOf("provider", "address")
         private val RESERVED_EVENT_FIELD_NAMES = ContractEvent::class.memberProperties.map { it.name }.toSet()

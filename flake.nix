@@ -13,12 +13,29 @@
     {
       devShells = forAllSystems (system:
         let
-          pkgs = nixpkgs.legacyPackages.${system};
+          pkgs = import nixpkgs {
+            inherit system;
+            config = {
+              allowUnfree = true;
+              android_sdk.accept_license = true;
+            };
+          };
           jdk = pkgs.temurin-bin-21;
+          androidSdk = (pkgs.androidenv.composeAndroidPackages {
+            # Match compileSdk and the Android Gradle plugin's build tools.
+            platformVersions = [ "36" ];
+            buildToolsVersions = [ "36.0.0" ];
+            includeEmulator = false;
+            includeSystemImages = false;
+            includeNDK = false;
+          }).androidsdk;
         in
         {
           default = pkgs.mkShell {
-            packages = [ jdk ];
+            packages = [ jdk androidSdk ];
+
+            ANDROID_HOME = "${androidSdk}/libexec/android-sdk";
+            ANDROID_SDK_ROOT = "${androidSdk}/libexec/android-sdk";
 
             shellHook = ''
               export JAVA_HOME="${jdk}"

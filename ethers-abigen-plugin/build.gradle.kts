@@ -42,6 +42,7 @@ dependencies {
     }
 
     api(project(":ethers-abigen"))
+    api(project(":ethers-solana-idl"))
 
     implementation(libs.kotlin.gradle)
     implementation(libs.kotlin.reflect)
@@ -80,9 +81,9 @@ gradlePlugin {
             id = "io.kriptal.ethers.abigen-plugin"
             implementationClass = "io.ethers.abigen.plugin.EthersAbigenPlugin"
 
-            displayName = "Plugin for generating JVM contract bindings for Ethereum smart contracts"
-            description = "A plugin that generates JVM contract bindings for Ethereum smart contracts"
-            tags = listOf("ethereum", "evm", "java", "kotlin", "smart-contracts")
+            displayName = "Plugin for generating Kotlin bindings for Ethereum smart contracts and Solana programs"
+            description = "A plugin that generates Kotlin bindings for Ethereum smart contracts from JSON-ABI files, and for Solana programs from IDL files"
+            tags = listOf("ethereum", "evm", "solana", "anchor", "java", "kotlin", "smart-contracts")
         }
     }
 }

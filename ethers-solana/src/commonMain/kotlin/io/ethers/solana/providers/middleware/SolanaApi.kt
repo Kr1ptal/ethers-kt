@@ -137,11 +137,17 @@ interface SolanaApi {
     //-----------------------------------------------------------------------------------------------------------------
 
     fun subscribeAccount(address: SolanaAddress): RpcSubscribe<ContextValue<AccountInfo?>, RpcError> = subscribeAccount(address, defaultCommitment)
-    fun subscribeAccount(address: SolanaAddress, commitment: Commitment): RpcSubscribe<ContextValue<AccountInfo?>, RpcError> = provider.subscribeAccount(address, commitment)
+    fun subscribeAccount(address: SolanaAddress, commitment: Commitment): RpcSubscribe<ContextValue<AccountInfo?>, RpcError> = subscribeAccount(address, SolanaAccountConfig(commitment = commitment))
+
+    /** Subscribe to the account at [address], with [config]'s data slice. Nodes ignore a minimum context slot for subscriptions. */
+    fun subscribeAccount(address: SolanaAddress, config: SolanaAccountConfig): RpcSubscribe<ContextValue<AccountInfo?>, RpcError> = provider.subscribeAccount(address, config)
 
     fun subscribeProgram(program: SolanaAddress): RpcSubscribe<ContextValue<ProgramAccount>, RpcError> = subscribeProgram(program, emptyList(), defaultCommitment)
     fun subscribeProgram(program: SolanaAddress, filters: List<AccountFilter>): RpcSubscribe<ContextValue<ProgramAccount>, RpcError> = subscribeProgram(program, filters, defaultCommitment)
-    fun subscribeProgram(program: SolanaAddress, filters: List<AccountFilter>, commitment: Commitment): RpcSubscribe<ContextValue<ProgramAccount>, RpcError> = provider.subscribeProgram(program, filters, commitment)
+    fun subscribeProgram(program: SolanaAddress, filters: List<AccountFilter>, commitment: Commitment): RpcSubscribe<ContextValue<ProgramAccount>, RpcError> = subscribeProgram(program, filters, SolanaAccountConfig(commitment = commitment))
+
+    /** Subscribe to the accounts [program] owns, narrowed by [filters], with [config]'s data slice. Nodes ignore a minimum context slot for subscriptions. */
+    fun subscribeProgram(program: SolanaAddress, filters: List<AccountFilter>, config: SolanaAccountConfig): RpcSubscribe<ContextValue<ProgramAccount>, RpcError> = provider.subscribeProgram(program, filters, config)
 
     fun subscribeLogs(): RpcSubscribe<ContextValue<LogsNotification>, RpcError> = subscribeLogs(LogsFilter.All, defaultCommitment)
     fun subscribeLogs(filter: LogsFilter): RpcSubscribe<ContextValue<LogsNotification>, RpcError> = subscribeLogs(filter, defaultCommitment)

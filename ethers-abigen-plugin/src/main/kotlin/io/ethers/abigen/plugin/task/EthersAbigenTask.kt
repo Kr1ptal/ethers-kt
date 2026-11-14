@@ -1,5 +1,6 @@
 package io.ethers.abigen.plugin.task
 
+import io.ethers.abigen.AbiContractBuilder
 import io.ethers.abigen.ErrorLoaderBuilder
 import io.ethers.abigen.plugin.source.AbiSourceProvider
 import org.gradle.api.DefaultTask
@@ -70,11 +71,11 @@ abstract class EthersAbigenTask @Inject constructor(private val executor: Worker
     )
 
     /**
-     * Version indicating the output format. This is useful when the abigen builder changes its output format, and
-     * causes the new version of the plugin to invalidate previous output automatically.
+     * Version indicating the output format, [AbiContractBuilder.OUTPUT_VERSION]. A new version of the generator
+     * invalidates previous output automatically.
      * */
     @get:Input
-    internal val outputVersion: Property<String> = objectFactory.property(String::class.java).convention("10")
+    internal val outputVersion: Property<String> = objectFactory.property(String::class.java).convention(AbiContractBuilder.OUTPUT_VERSION)
 
     /**
      * Project path for generating loader prefix. This property is used instead of direct project.path access

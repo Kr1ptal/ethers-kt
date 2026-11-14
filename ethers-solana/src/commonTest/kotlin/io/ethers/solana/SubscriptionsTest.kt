@@ -18,9 +18,11 @@ import io.ethers.solana.providers.SolanaSubscriptionDescriptor
 import io.ethers.solana.types.Programs
 import io.ethers.solana.types.SolanaSignature
 import io.ethers.solana.types.rpc.Commitment
+import io.ethers.solana.types.rpc.DataSlice
 import io.ethers.solana.types.rpc.RpcContext
 import io.ethers.solana.types.rpc.SignatureNotification
 import io.ethers.solana.types.rpc.SlotUpdateType
+import io.ethers.solana.types.rpc.SolanaAccountConfig
 import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -64,6 +66,18 @@ class SubscriptionsTest : FunSpec({
         provider.subscribeProgram(key, listOf(AccountFilter.DataSize(165), AccountFilter.Memcmp(0, key.toString()))).send().unwrap().receive()!!.value.pubkey shouldBe key
         client.descriptor.subscribeMethod shouldBe "programSubscribe"
         client.params[1] shouldBe Kotlinx.DEFAULT.parseToJsonElement("""{"commitment":"finalized","encoding":"base64","filters":[{"dataSize":165},{"memcmp":{"offset":0,"bytes":"$key","encoding":"base58"}}]}""")
+    }
+
+    test("account and program subscriptions send a data slice and commitment from their config") {
+        client.event = contextual(account)
+        val config = SolanaAccountConfig(commitment = Commitment.CONFIRMED, dataSlice = DataSlice(8, 4))
+        provider.subscribeAccount(key, config).send().unwrap().close()
+        client.params[1] shouldBe Kotlinx.DEFAULT.parseToJsonElement("""{"commitment":"confirmed","encoding":"base64","dataSlice":{"offset":8,"length":4}}""")
+        client.event = contextual("""{"pubkey":"$key","account":$account}""")
+        provider.subscribeProgram(key, listOf(AccountFilter.DataSize(165)), SolanaAccountConfig(dataSlice = DataSlice(0, 1))).send().unwrap().close()
+        client.params[1] shouldBe Kotlinx.DEFAULT.parseToJsonElement(
+            """{"commitment":"finalized","encoding":"base64","dataSlice":{"offset":0,"length":1},"filters":[{"dataSize":165}]}""",
+        )
     }
 
     test("program subscription forwards excessive and invalid filters without local validation") {
