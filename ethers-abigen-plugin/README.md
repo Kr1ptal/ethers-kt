@@ -160,7 +160,82 @@ Zero-copy accounts (`#[account(zero_copy)]`) are decoded in the layout the progr
 `#[repr(C)]` layouts, including the padding an unpacked layout places between and after fields, and
 `#[repr(transparent)]`. Zero-copy types with the default Rust layout, with both `packed` and `align`, or with 256-bit
 integers in an unpacked layout fail generation, as does using a zero-copy type with padding where Borsh encodes it, such
-as an instruction argument.
+as an instruction argument. Types declared with custom serialization fail generation unless a generator override
+supplies their codec, see below.
+
+#### Generator overrides
+
+Four extension points adjust what the generator produces, each keyed by the program name the IDL declares and by
+targets named as the IDL names them:
+
+```kotlin
+ethersSolanaIdl {
+    // a handwritten codec for a type, e.g. one declared with custom serialization: its class is still generated from
+    // the IDL, but its companion delegates to the codec, an `object` implementing SolanaCodec<GeneratedClass>
+    customCodec("ledger", "Compressed", "com.example.CompressedCodec")
+    customCodec("ledger", "Stamp", "com.example.StampCodec", 4, 4) // size, align
+
+    // an existing Kotlin type and its codec in place of an IDL type, which then gets no class
+    typeSubstitution("ledger", "Amount", "com.example.TokenAmount", "com.example.TokenAmount.Codec", 8, 8)
+
+    // Kotlin names for declarations: <kind>:<path>
+    rename("ledger", "type:Ledger", "LedgerState")
+    rename("ledger", "instructionAccount:record.sides.maker", "makerAccount")
+
+    // a default address for an instruction account parameter: <instruction>.<account path>
+    accountDefault("ledger", "record.token_program", "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
+
+    // more overrides, for any number of programs, from JSON files (task inputs, so editing one regenerates)
+    overridesFile("solana-overrides.json")
+}
+```
+
+```json
+{
+  "ledger": {
+    "customCodecs": { "Compressed": { "codec": "com.example.CompressedCodec" } },
+    "typeSubstitutions": { "Amount": { "type": "com.example.TokenAmount", "codec": "com.example.TokenAmount.Codec", "size": 8, "align": 8 } },
+    "renames": { "type:Ledger": "LedgerState" },
+    "accountDefaults": { "record.token_program": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" }
+  }
+}
+```
+
+Codec and type names are fully qualified Kotlin class names: package segments start in lower case and class segments
+in upper case, e.g. `com.example.TokenAmount.Codec` for an object nested in a class. Rename kinds are `type:<Type>`,
+`account:<Account>`, `field:<Type>.<field>` (or `field:<Type>.<Variant>.<field>`, or a tuple field's index),
+`variant:<Type>.<Variant>`, `instruction:<instruction>` (the base name its `Args`, `Accounts` and decoded classes,
+builder and descriptor follow), `argument:<instruction>.<argument>`, `instructionAccount:<instruction>.<path>`
+(groups included), `event:<Event>`, `error:<Error>` and `constant:<CONSTANT>`. Renames change Kotlin names only:
+the IDL names that reach the wire or the logs, such as event and error names, stay.
+
+The build fails for a program no IDL declares, a target the IDL does not declare, a name that is not a valid Kotlin
+identifier or collides with another declaration, a custom codec and a substitution for the same type, the same target
+configured differently (in the DSL, across files or between both), and a default that is not a 32-byte base58 address
+or replaces an address the IDL fixes. Output does not depend on the order overrides are configured in.
+
+The generator cannot see what a handwritten codec writes, so the caller declares it:
+
+- `size` is the number of bytes the codec reads and writes for **every** value. Without it the type has a variable
+  size: account fields after it have no known offset, so get no filter method or `Fields` descriptor. A field that
+  starts at a known offset still gets a filter method, which compares the bytes the codec writes.
+- `align` is required, with `size`, where an unpacked `#[repr(C)]` zero-copy type contains the type; any zero-copy
+  type requires `size`.
+- Where the IDL lays the type out itself (Borsh, or a supported zero-copy layout), a declared size and align must match
+  it. For custom serialization the IDL cannot tell, and a wrong declaration produces wrong offsets.
+- An account with a custom codec gets its factory, `fetch`, `watch` and `filter`, but no field filter methods or
+  slices, since its field layout is the codec's.
+- Field paths (`Fields.inner.x`, `Fields.items[0]`) never descend into a type with a custom codec or substitution: with
+  a declared size it is described as a whole, read through its codec, and the descriptors after it keep their offsets;
+  without one, no field after it gets a descriptor. Path descriptors take renamed field names, with the `Field` suffix
+  where a descriptor member (`name`, `offset`, `size`, `read`, `write`) would take the name.
+- A constant of a type with a custom codec is constructed from the IDL value as the generated class, with its renamed
+  fields; the codec is not involved. A constant of, or containing, a substituted type fails generation, since the
+  generator cannot construct the caller's type from the IDL's Rust literal.
+
+Not supported: custom codecs for event types (not yet implemented); substituting account or event types, which keep
+their generated class holding their factory (intentionally, give an account a custom codec instead); and overrides on
+generic type definitions, which still fail generation.
 
 ### Local testing of the plugin
 

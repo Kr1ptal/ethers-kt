@@ -1,0 +1,56 @@
+{
+  "ledger": {
+    "customCodecs": {
+      "Compressed": {
+        "codec": "io.ethers.solana.idl.test.CompressedCodec"
+      },
+      "Stamp": {
+        "codec": "io.ethers.solana.idl.test.StampCodec",
+        "size": 4,
+        "align": 4
+      },
+      "Side": {
+        "codec": "io.ethers.solana.idl.test.SideCodec"
+      },
+      "Tagged": {
+        "codec": "io.ethers.solana.idl.test.TaggedCodec"
+      }
+    },
+    "typeSubstitutions": {
+      "Amount": {
+        "type": "io.ethers.solana.idl.test.TokenAmount",
+        "codec": "io.ethers.solana.idl.test.TokenAmount.Codec",
+        "size": 8,
+        "align": 8
+      },
+      "Price": {
+        "type": "io.ethers.solana.idl.test.PythPrice",
+        "codec": "io.ethers.solana.idl.test.PythPriceCodec",
+        "size": 12
+      }
+    },
+    "renames": {
+      "type:Ledger": "LedgerState",
+      "account:Tagged": "TaggedRecord",
+      "field:Ledger.owner": "authority",
+      "field:Recorded.amount": "quantity",
+      "field:Side.Sell.limit": "maxPrice",
+      "variant:Side.Buy": "Bid",
+      "instruction:record": "RecordEntry",
+      "argument:record.amount": "quantity",
+      "instructionAccount:record.ledger": "ledgerState",
+      "instructionAccount:record.sides": "parties",
+      "instructionAccount:record.sides.maker": "makerAccount",
+      "event:Recorded": "EntryRecorded",
+      "error:Overflow": "TooLarge",
+      "constant:MAX": "MAX_ENTRIES",
+      "field:Window.length": "size",
+      "constant:FIRST": "FIRST_WINDOW"
+    },
+    "accountDefaults": {
+      "record.token_program": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+      "record.sides.taker": "Memo1UhkJRfHyvLMcVucJwxXeuD728EqVDDwQDxFMNo",
+      "record.referrer": "11111111111111111111111111111111"
+    }
+  }
+}

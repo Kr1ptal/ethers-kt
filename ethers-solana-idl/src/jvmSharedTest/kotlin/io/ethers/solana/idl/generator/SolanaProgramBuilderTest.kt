@@ -147,7 +147,7 @@ class SolanaProgramBuilderTest : FunSpec({
             val enum = IdlTypeDef("E", IdlTypeBody.Enum(listOf(IdlEnumVariant("A"))), serialization = IdlSerialization.Bytemuck, repr = packed)
             rejected(enum) shouldBe "type 'E': zero-copy enums are not supported"
             rejected(zeroCopy("S", IdlType.Primitive.U8, serialization = IdlSerialization.Custom("Compressed"))) shouldBe
-                "type 'S': Custom(name=Compressed) serialization is not supported"
+                "type 'S': custom serialization 'Compressed' cannot be generated from the IDL; configure a custom codec or a type substitution for it"
         }
     }
 

@@ -32,6 +32,7 @@ import io.ethers.solana.idl.IdlAccountItem
 import io.ethers.solana.idl.IdlArrayLength
 import io.ethers.solana.idl.IdlConstant
 import io.ethers.solana.idl.IdlDiscriminator
+import io.ethers.solana.idl.IdlEnumVariant
 import io.ethers.solana.idl.IdlErrorCode
 import io.ethers.solana.idl.IdlEvent
 import io.ethers.solana.idl.IdlFields
@@ -61,8 +62,9 @@ import java.math.BigInteger
  *
  * Aliases are resolved to their target at each use. Zero-copy types follow their C or transparent
  * layout on Solana's on-chain target, with the padding an unpacked C layout has. Generic type
- * definitions, zero-copy types with a Rust layout and custom serialization are not supported yet and
- * fail generation.
+ * definitions and zero-copy types with a Rust layout are not supported yet and fail generation. Types
+ * declared with custom serialization fail generation unless [overrides] gives them a custom codec or a
+ * type substitution.
  *
  * Constants of any supported type are generated: primitives as `const val` where Kotlin allows, everything else as a
  * `@JvmField val` constructing the value. A value must be a literal of its declared type in the form Rust's `Debug`
@@ -71,16 +73,25 @@ import java.math.BigInteger
  * Each program derived account gets a `find` function deriving its address from its seeds. Integer seeds are
  * encoded in the byte order [seedByteOrders] gives, since IDLs do not record it.
  *
+ * [overrides] supplies handwritten codecs, type substitutions, renames and instruction account defaults, see
+ * [GeneratorOverrides]. The generator cannot see inside a custom or substituted codec: it treats the type as
+ * having the size the override declares, or a variable size when it declares none, so account filters and slice
+ * descriptors stop before the first field whose offset that leaves unknown, and an account with a custom codec gets
+ * none at all, since its field layout is the codec's. Field paths do not descend into an overridden type. A constant
+ * of a type with a custom codec is constructed as its generated class; one of a substituted type fails generation.
+ *
  * When changing the generated output, bump [OUTPUT_VERSION].
  *
  * @throws IllegalArgumentException if [program] is invalid, uses an unsupported layout, or its names
- * produce colliding declarations, or [seedByteOrders] names a seed that is not an integer PDA seed.
+ * produce colliding declarations, [seedByteOrders] names a seed that is not an integer PDA seed, or
+ * [overrides] names a target the program does not declare, conflicts with itself or with the IDL's layout.
  */
 class SolanaProgramBuilder @JvmOverloads constructor(
     private val program: IdlProgram,
     private val packageName: String,
     private val programName: String = program.name.toPascalCase(),
     private val seedByteOrders: SeedByteOrders = SeedByteOrders(),
+    private val overrides: GeneratorOverrides = GeneratorOverrides(),
 ) {
     private val programAddress = requireNotNull(program.address) {
         "program '${program.name}': the IDL declares no address, so one must be given, such as with the Gradle plugin's programAddress"
@@ -94,7 +105,12 @@ class SolanaProgramBuilder @JvmOverloads constructor(
     private val typeDefs = program.types.associateBy { it.name }
     private val accountTypes = program.accounts.mapTo(HashSet()) { it.name }
     private val eventTypes = program.events.mapTo(HashSet()) { it.name }
-    private val kotlinTypeNames = kotlinTypeNames()
+
+    /** Types read and written by a codec the generator cannot see into: custom codecs and substitutions. */
+    private val opaqueTypes: Map<String, Opaque> = overrides.customCodecs.mapValues { (_, it) -> Opaque("custom codec", it.size, it.align) } +
+        overrides.typeSubstitutions.mapValues { (_, it) -> Opaque("type substitution", it.size, it.align) }
+
+    private val kotlinTypeNames by lazy { kotlinTypeNames() }
 
     /** Computed zero-copy layouts, by type name. */
     private val zeroCopyLayouts = HashMap<String, ZeroCopyLayout>()
@@ -135,7 +151,9 @@ class SolanaProgramBuilder @JvmOverloads constructor(
 
     init {
         IdlValidator.validate(program)
+        checkOverrides()
         checkSupported()
+        checkOpaqueLayouts()
         checkCollisions()
         checkSeedByteOrders()
     }
@@ -155,7 +173,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         pdaConstants.forEach { programType.addProperty(it) }
 
         for (def in program.types) {
-            if (def.body is IdlTypeBody.Alias) continue
+            if (def.body is IdlTypeBody.Alias || def.name in overrides.typeSubstitutions) continue
             // an event's type is generated as the event unless something else uses it as a plain value
             if (def.name in eventTypes && def.name !in eventTypesUsedAsValues) continue
             programType.addType(typeDefinition(def))
@@ -198,10 +216,15 @@ class SolanaProgramBuilder @JvmOverloads constructor(
     private fun checkSupported() {
         for (def in program.types) {
             require(def.generics.isEmpty()) { "type '${def.name}': generic type definitions are not supported yet" }
+            // the override's codec lays the type out, so its IDL layout need not be supported
+            if (def.name in opaqueTypes) continue
             when (val serialization = def.serialization) {
                 IdlSerialization.Borsh -> Unit
                 IdlSerialization.Bytemuck, IdlSerialization.BytemuckUnsafe -> checkZeroCopy(def)
-                is IdlSerialization.Custom -> throw IllegalArgumentException("type '${def.name}': $serialization serialization is not supported")
+                is IdlSerialization.Custom -> throw IllegalArgumentException(
+                    "type '${def.name}': custom serialization '${serialization.name}' cannot be generated from the IDL; " +
+                        "configure a custom codec or a type substitution for it",
+                )
             }
         }
         checkPaddingOnlyInZeroCopy()
@@ -217,7 +240,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
                 is IdlType.Option -> check(resolved.inner, where)
                 is IdlType.Vec -> check(resolved.element, where)
                 is IdlType.Array -> check(resolved.element, where)
-                is IdlType.Defined -> require(!isZeroCopy(resolved.name) || !hasPadding(resolved.name)) {
+                is IdlType.Defined -> require(resolved.name in opaqueTypes || !isZeroCopy(resolved.name) || !hasPadding(resolved.name)) {
                     "$where: '${resolved.name}' has padding in its zero-copy layout, so cannot be Borsh-encoded"
                 }
                 is IdlType.Primitive, is IdlType.Generic -> Unit
@@ -229,7 +252,8 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             is IdlFields.Tuple -> fields.types.forEachIndexed { i, type -> check(type, "$where field $i") }
         }
         for (def in program.types) {
-            if (isZeroCopy(def.name)) continue
+            // an opaque type's codec, not the generator, encodes its fields
+            if (isZeroCopy(def.name) || def.name in opaqueTypes) continue
             when (val body = def.body) {
                 is IdlTypeBody.Struct -> check(body.fields, "type '${def.name}'")
                 is IdlTypeBody.Enum -> body.variants.forEach { check(it.fields, "type '${def.name}' variant '${it.name}'") }
@@ -292,6 +316,15 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             is IdlType.Option -> throw IllegalArgumentException("$where: a zero-copy type cannot contain an option")
             is IdlType.Vec -> throw IllegalArgumentException("$where: a zero-copy type cannot contain a vec, which varies in size")
             is IdlType.Defined -> {
+                opaqueTypes[resolved.name]?.let { opaque ->
+                    require(opaque.size != null) {
+                        "$where: '${resolved.name}' has a ${opaque.kind} without a declared size, so its size in a zero-copy layout is unknown"
+                    }
+                    require(!aligned || opaque.align != null) {
+                        "$where: '${resolved.name}' has a ${opaque.kind} without a declared align, which an unpacked C layout needs"
+                    }
+                    return
+                }
                 val nested = typeDefs.getValue(resolved.name)
                 require(isByteEnum(resolved.name) || nested.serialization == IdlSerialization.Bytemuck || nested.serialization == IdlSerialization.BytemuckUnsafe) {
                     "$where: a zero-copy type can only contain zero-copy types and enums without fields, but '${nested.name}' is ${nested.serialization}"
@@ -308,15 +341,24 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             val previous = types.put(name, source)
             require(previous == null) { "generated type '$name' is produced by both $previous and $source" }
         }
-        kotlinTypeNames.forEach { (idl, kotlin) -> if (typeDefs.getValue(idl).body !is IdlTypeBody.Alias) type(kotlin, "type '$idl'") }
+        kotlinTypeNames.forEach { (idl, kotlin) -> type(kotlin, "type '$idl'") }
         type("Account", "the account hierarchy")
         type("Event", "the event hierarchy")
         type("Error", "the error hierarchy")
         type("Instruction", "the instruction hierarchy")
         for (ix in program.instructions) {
-            val name = ix.name.toPascalCase()
+            val name = instructionClassName(ix)
             type("${name}Args", "instruction '${ix.name}'")
             type("${name}Accounts", "instruction '${ix.name}'")
+        }
+
+        unique(program.events, "event", { "Event.${eventClass(it).simpleName}" }) { "event '${it.name}'" }
+        unique(program.errors, "error", { "Error.${errorObjectName(it)}" }) { "error '${it.name}'" }
+        unique(program.instructions, "instruction", { "Instruction.${instructionClassName(it)}" }) { "instruction '${it.name}'" }
+        for (def in program.types) {
+            val body = def.body as? IdlTypeBody.Enum ?: continue
+            if (def.name in overrides.typeSubstitutions) continue
+            unique(body.variants, "variant", { "${kotlinTypeNames.getValue(def.name)}.${variantClassName(def, it)}" }) { "type '${def.name}' variant '${it.name}'" }
         }
 
         val members = HashMap<String, String>()
@@ -326,20 +368,261 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         }
         listOf("PROGRAM_ID", "ACCOUNTS", "EVENTS", "ERRORS", "INSTRUCTIONS").forEach { member(it, "the program") }
         listOf("decodeAccount", "decodeEvent", "decodeError", "decodeInstruction").forEach { member(it, "the program") }
-        program.constants.forEach { member(it.name, "constant '${it.name}'") }
+        program.constants.forEach { member(constantName(it), "constant '${it.name}'") }
         (seedConstantNames.values + programConstantNames.values).forEach { member(it, "the PDA seeds") }
         for (ix in program.instructions) {
-            member(ix.name.toUpperSnakeCase(), "instruction '${ix.name}'")
-            member(ix.name.toCamelCase(), "instruction '${ix.name}'")
+            member(instructionDescriptorName(ix), "instruction '${ix.name}'")
+            member(instructionBuilderName(ix), "instruction '${ix.name}'")
         }
     }
 
-    /** The last path segment of each type, or the whole path where the last segment is ambiguous. */
+    /** Require [items] to declare distinct Kotlin names, by [name], each of which [source] describes. */
+    private inline fun <T> unique(items: List<T>, kind: String, name: (T) -> String, source: (T) -> String) {
+        val seen = HashMap<String, String>()
+        for (item in items) {
+            val previous = seen.put(name(item), source(item))
+            require(previous == null) { "generated $kind '${name(item)}' is produced by both $previous and ${source(item)}" }
+        }
+    }
+
+    /**
+     * The class name of each type that has a class: the last path segment, or the whole path where the last segment
+     * is ambiguous, unless renamed. Aliases and substituted types have none.
+     */
     private fun kotlinTypeNames(): Map<String, String> {
         val short = program.types.groupBy { it.name.substringAfterLast("::").toPascalCase() }
-        return program.types.associate { def ->
+        val declared = program.types.filter { it.body !is IdlTypeBody.Alias && it.name !in overrides.typeSubstitutions }
+        return declared.associate { def ->
             val name = def.name.substringAfterLast("::").toPascalCase()
-            def.name to if (short.getValue(name).size == 1) name else def.name.toPascalCase()
+            def.name to (typeRename(def.name) ?: if (short.getValue(name).size == 1) name else def.name.toPascalCase())
+        }
+    }
+
+    // --- overrides ---
+
+    /** A type read and written by a codec the generator cannot see into, with the layout its override declares. */
+    private class Opaque(val kind: String, val size: Int?, val align: Int?)
+
+    /** The layout of a type as its IDL declares it: its size, null when it varies, and its alignment when known. */
+    private class IdlLayout(val size: Int?, val align: Int?)
+
+    private fun typeRename(name: String): String? = overrides.renames["type:$name"] ?: overrides.renames["account:$name"]
+
+    private fun variantClassName(def: IdlTypeDef, variant: IdlEnumVariant): String = overrides.renames["variant:${def.name}.${variant.name}"] ?: variant.name.toPascalCase()
+
+    private fun instructionClassName(ix: IdlInstruction): String = overrides.renames["instruction:${ix.name}"] ?: ix.name.toPascalCase()
+
+    private fun instructionBuilderName(ix: IdlInstruction): String = overrides.renames["instruction:${ix.name}"]?.replaceFirstChar(Char::lowercaseChar) ?: ix.name.toCamelCase()
+
+    private fun instructionDescriptorName(ix: IdlInstruction): String = overrides.renames["instruction:${ix.name}"]?.toUpperSnakeCase() ?: ix.name.toUpperSnakeCase()
+
+    private fun errorObjectName(error: IdlErrorCode): String = overrides.renames["error:${error.name}"] ?: error.name.toPascalCase()
+
+    private fun constantName(constant: IdlConstant): String = overrides.renames["constant:${constant.name}"] ?: constant.name
+
+    /** Check that every override names a declaration of the program, and that overrides of one target agree. */
+    private fun checkOverrides() {
+        for (name in overrides.customCodecs.keys) {
+            val where = "custom codec for type '$name'"
+            val def = requireNotNull(typeDefs[name]) { "$where: the program declares no such type" }
+            require(name !in overrides.typeSubstitutions) { "type '$name': has both a custom codec and a type substitution, configure one" }
+            require(def.body !is IdlTypeBody.Alias) { "$where: an alias has no class of its own for the codec to read; substitute it instead" }
+            require(name !in eventTypes) { "$where: custom codecs for event types are not supported yet" }
+        }
+        for (name in overrides.typeSubstitutions.keys) {
+            val where = "type substitution for type '$name'"
+            requireNotNull(typeDefs[name]) { "$where: the program declares no such type" }
+            require(name !in accountTypes) {
+                "$where: an account keeps its generated class, which holds its account factory and filter; give it a custom codec instead"
+            }
+            require(name !in eventTypes) { "$where: an event keeps its generated class, which holds its event factory; events cannot be substituted" }
+        }
+        for ((target, name) in overrides.renames) {
+            val problem = renameProblem(target, name)
+            require(problem == null) { "rename '$target': $problem" }
+        }
+        for ((target, address) in overrides.accountDefaults) {
+            val problem = accountDefaultProblem(target, address)
+            require(problem == null) { "account default for '$target': $problem" }
+        }
+    }
+
+    /** Why renaming [target] to [name] fails, or null when it does not. */
+    private fun renameProblem(target: String, name: String): String? {
+        val kind = target.substringBefore(':', "")
+        val path = target.substringAfter(':')
+        if (kind !in GeneratorOverrides.RENAME_KINDS) return "unknown kind '$kind', expected <kind>:<path> with a kind of ${GeneratorOverrides.RENAME_KINDS}"
+        if (!isKotlinIdentifier(name)) return "'$name' is not a valid Kotlin identifier"
+        val segments = path.split('.')
+        fun typeWithClass(type: String): String? {
+            val def = typeDefs[type] ?: return "the program declares no type '$type'"
+            return when {
+                def.body is IdlTypeBody.Alias -> "'$type' is an alias, which has no class of its own"
+                type in overrides.typeSubstitutions -> "'$type' is substituted, so has no generated class"
+                else -> null
+            }
+        }
+        fun field(fields: IdlFields, field: String, owner: String): String? = when (fields) {
+            IdlFields.None -> "$owner has no fields"
+            is IdlFields.Named -> when (fields.fields.count { it.name == field }) {
+                0 -> "$owner has no field '$field'"
+                1 -> null
+                else -> "$owner has more than one field named '$field'"
+            }
+            is IdlFields.Tuple -> if (field.toIntOrNull() in fields.types.indices) null else "$owner has no tuple field $field"
+        }
+        fun variant(def: IdlTypeDef, variant: String): IdlEnumVariant? = (def.body as? IdlTypeBody.Enum)?.variants?.firstOrNull { it.name == variant }
+        return when (kind) {
+            "type" -> typeWithClass(path)
+            "account" -> when {
+                program.accounts.none { it.name == path } -> "the program declares no account '$path'"
+                overrides.renames["type:$path"].let { it != null && it != name } -> "conflicts with rename 'type:$path'"
+                else -> typeWithClass(path)
+            }
+            "field" -> typeWithClass(segments[0]) ?: run {
+                val def = typeDefs.getValue(segments[0])
+                val body = def.body
+                when {
+                    segments.size == 2 && body is IdlTypeBody.Struct -> field(body.fields, segments[1], "type '${def.name}'")
+                    segments.size == 2 -> "type '${def.name}' is an enum; name a variant's field as field:${def.name}.<Variant>.<field>"
+                    segments.size == 3 -> when (val variant = variant(def, segments[1])) {
+                        null -> "type '${def.name}' has no variant '${segments[1]}'"
+                        else -> field(variant.fields, segments[2], "type '${def.name}' variant '${variant.name}'")
+                    }
+                    else -> "expected field:<Type>.<field> or field:<Type>.<Variant>.<field>"
+                }
+            }
+            "variant" -> typeWithClass(segments[0]) ?: when {
+                segments.size != 2 -> "expected variant:<Type>.<Variant>"
+                variant(typeDefs.getValue(segments[0]), segments[1]) == null -> "type '${segments[0]}' has no variant '${segments[1]}'"
+                else -> null
+            }
+            "instruction" -> if (program.instructions.none { it.name == path }) "the program declares no instruction '$path'" else null
+            "argument" -> {
+                val ix = program.instructions.firstOrNull { it.name == segments[0] }
+                when {
+                    ix == null -> "the program declares no instruction '${segments[0]}'"
+                    segments.size != 2 -> "expected argument:<instruction>.<argument>"
+                    ix.args.none { it.name == segments[1] } -> "instruction '${ix.name}' has no argument '${segments[1]}'"
+                    else -> null
+                }
+            }
+            "instructionAccount" -> {
+                val ix = program.instructions.firstOrNull { it.name == segments[0] }
+                when {
+                    ix == null -> "the program declares no instruction '${segments[0]}'"
+                    segments.size < 2 -> "expected instructionAccount:<instruction>.<account path>"
+                    accountItem(ix, segments.drop(1)) == null -> "instruction '${ix.name}' has no account at '${path.substringAfter('.')}'"
+                    else -> null
+                }
+            }
+            "event" -> if (program.events.none { it.name == path }) "the program declares no event '$path'" else null
+            "error" -> if (program.errors.none { it.name == path }) "the program declares no error '$path'" else null
+            "constant" -> if (program.constants.none { it.name == path }) "the program declares no constant '$path'" else null
+            else -> throw IllegalStateException("unhandled rename kind $kind")
+        }
+    }
+
+    /** Why defaulting the instruction account at [target] to [address] fails, or null when it does not. */
+    private fun accountDefaultProblem(target: String, address: String): String? {
+        val segments = target.split('.')
+        val ix = program.instructions.firstOrNull { it.name == segments[0] } ?: return "the program declares no instruction '${segments[0]}'"
+        if (segments.size < 2) return "expected <instruction>.<account path>"
+        val item = accountItem(ix, segments.drop(1)) ?: return "instruction '${ix.name}' has no account at '${target.substringAfter('.')}'"
+        if (item !is IdlAccountItem.Single) return "'${item.name}' is an account group, which has no address of its own"
+        if (item.address != null) return "the IDL fixes its address to ${item.address}"
+        val bytes = try {
+            Base58.decode(address)
+        } catch (e: IllegalArgumentException) {
+            return "'$address' is not a base58 address"
+        }
+        return if (bytes.size == 32) null else "'$address' decodes to ${bytes.size} bytes, but an address has 32"
+    }
+
+    /** The account of [ix] that [path] names, descending into account groups, or null. */
+    private fun accountItem(ix: IdlInstruction, path: List<String>): IdlAccountItem? {
+        var items = ix.accounts
+        var item: IdlAccountItem? = null
+        for (segment in path) {
+            item = items.firstOrNull { it.name == segment } ?: return null
+            items = (item as? IdlAccountItem.Group)?.accounts ?: emptyList()
+        }
+        return item
+    }
+
+    /**
+     * Check what an opaque type declares against the layout its IDL gives it, where the IDL gives one: Borsh, or a
+     * supported zero-copy layout. Custom serialization, and layouts the generator cannot follow, leave it to the caller.
+     */
+    private fun checkOpaqueLayouts() {
+        for ((name, opaque) in opaqueTypes) {
+            val where = "${opaque.kind} for type '$name'"
+            val layout = idlLayout(typeDefs.getValue(name)) ?: continue
+            if (opaque.size != null) {
+                require(layout.size == opaque.size) {
+                    if (layout.size == null) {
+                        "$where: declares size ${opaque.size}, but the IDL lays the type out with a variable size"
+                    } else {
+                        "$where: declares size ${opaque.size}, but the IDL lays the type out in ${layout.size} bytes"
+                    }
+                }
+            }
+            if (opaque.align != null && layout.align != null) {
+                require(layout.align == opaque.align) { "$where: declares align ${opaque.align}, but the IDL aligns the type to ${layout.align}" }
+            }
+        }
+    }
+
+    /** The layout the IDL gives [def], ignoring any override of it, or null when the generator cannot tell. */
+    private fun idlLayout(def: IdlTypeDef): IdlLayout? = when (def.serialization) {
+        is IdlSerialization.Custom -> null
+        IdlSerialization.Bytemuck, IdlSerialization.BytemuckUnsafe -> {
+            val supported = try {
+                checkZeroCopy(def)
+                true
+            } catch (e: IllegalArgumentException) {
+                false
+            }
+            if (supported) zeroCopyLayout(def.name).let { IdlLayout(it.size, it.align) } else null
+        }
+        IdlSerialization.Borsh -> when (val body = def.body) {
+            is IdlTypeBody.Enum -> if (isByteEnum(def.name)) IdlLayout(1, 1) else IdlLayout(definedSize(def.name), null)
+            is IdlTypeBody.Alias -> {
+                val zeroCopy = try {
+                    checkZeroCopyField(body.type, "", aligned = true)
+                    true
+                } catch (e: IllegalArgumentException) {
+                    false
+                }
+                IdlLayout(fixedSize(body.type), if (zeroCopy) zeroCopySizeAlign(body.type).second else null)
+            }
+            // the alignment of a Borsh struct is its Rust layout's, which the IDL does not record
+            is IdlTypeBody.Struct -> IdlLayout(definedSize(def.name), null)
+        }
+    }?.takeUnless { it.size == null && reachesUnsizedOpaque(def) }
+
+    /**
+     * Whether [def] contains an opaque type without a declared size, so its IDL size may vary with that type rather than
+     * by its own layout.
+     */
+    private fun reachesUnsizedOpaque(def: IdlTypeDef, visited: MutableSet<String> = HashSet()): Boolean {
+        if (!visited.add(def.name)) return false
+        fun reaches(type: IdlType): Boolean = when (type) {
+            is IdlType.Primitive, is IdlType.Generic -> false
+            is IdlType.Option -> reaches(type.inner)
+            is IdlType.Vec -> reaches(type.element)
+            is IdlType.Array -> reaches(type.element)
+            is IdlType.Defined -> opaqueTypes[type.name]?.let { it.size == null } ?: reachesUnsizedOpaque(typeDefs.getValue(type.name), visited)
+        }
+        fun reaches(fields: IdlFields): Boolean = when (fields) {
+            IdlFields.None -> false
+            is IdlFields.Named -> fields.fields.any { reaches(it.type) }
+            is IdlFields.Tuple -> fields.types.any(::reaches)
+        }
+        return when (val body = def.body) {
+            is IdlTypeBody.Struct -> reaches(body.fields)
+            is IdlTypeBody.Enum -> body.variants.any { reaches(it.fields) }
+            is IdlTypeBody.Alias -> reaches(body.type)
         }
     }
 
@@ -378,10 +661,10 @@ class SolanaProgramBuilder @JvmOverloads constructor(
 
     // --- types ---
 
-    /** [type] with aliases replaced by their targets, at this level only. */
+    /** [type] with aliases replaced by their targets, at this level only. A substituted alias stays as it is. */
     private fun resolve(type: IdlType): IdlType {
         var current = type
-        while (current is IdlType.Defined) {
+        while (current is IdlType.Defined && current.name !in overrides.typeSubstitutions) {
             val body = typeDefs.getValue(current.name).body as? IdlTypeBody.Alias ?: break
             current = body.type
         }
@@ -399,12 +682,15 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         is IdlType.Primitive -> PRIMITIVE_SIZES[resolved]
         is IdlType.Option, is IdlType.Vec, is IdlType.Generic -> null
         is IdlType.Array -> fixedSize(resolved.element)?.times(arrayLength(resolved))
-        is IdlType.Defined -> when (val body = typeDefs.getValue(resolved.name).body) {
-            is IdlTypeBody.Struct -> if (isZeroCopy(resolved.name)) zeroCopyLayout(resolved.name).size else fixedSize(body.fields)
-            // an enum's size depends on its variant, unless no variant carries data
-            is IdlTypeBody.Enum -> if (body.variants.all { it.fields.isEmpty() }) 1 else null
-            is IdlTypeBody.Alias -> fixedSize(body.type)
-        }
+        is IdlType.Defined -> if (resolved.name in opaqueTypes) opaqueTypes.getValue(resolved.name).size else definedSize(resolved.name)
+    }
+
+    /** The encoded size of type definition [name] as its IDL lays it out, when every value has the same size, or null. */
+    private fun definedSize(name: String): Int? = when (val body = typeDefs.getValue(name).body) {
+        is IdlTypeBody.Struct -> if (isZeroCopy(name)) zeroCopyLayout(name).size else fixedSize(body.fields)
+        // an enum's size depends on its variant, unless no variant carries data
+        is IdlTypeBody.Enum -> if (body.variants.all { it.fields.isEmpty() }) 1 else null
+        is IdlTypeBody.Alias -> fixedSize(body.type)
     }
 
     private fun isZeroCopy(name: String): Boolean = typeDefs.getValue(name).serialization.let {
@@ -453,7 +739,11 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         IdlType.Primitive.U256, IdlType.Primitive.I256 -> 32 to 1
         is IdlType.Primitive -> PRIMITIVE_SIZES.getValue(resolved).let { it to it }
         is IdlType.Array -> zeroCopySizeAlign(resolved.element).let { (size, align) -> size * arrayLength(resolved) to align }
-        is IdlType.Defined -> if (isByteEnum(resolved.name)) 1 to 1 else zeroCopyLayout(resolved.name).let { it.size to it.align }
+        is IdlType.Defined -> when {
+            resolved.name in opaqueTypes -> opaqueTypes.getValue(resolved.name).let { it.size!! to (it.align ?: 1) }
+            isByteEnum(resolved.name) -> 1 to 1
+            else -> zeroCopyLayout(resolved.name).let { it.size to it.align }
+        }
         is IdlType.Option, is IdlType.Vec, is IdlType.Generic -> throw IllegalStateException("unchecked zero-copy field $resolved")
     }
 
@@ -469,7 +759,8 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         }
         fun contains(type: IdlType): Boolean = when (val resolved = resolve(type)) {
             is IdlType.Array -> contains(resolved.element)
-            is IdlType.Defined -> !isByteEnum(resolved.name) && hasPadding(resolved.name)
+            // an opaque codec writes the bytes it declares, whatever they hold
+            is IdlType.Defined -> resolved.name !in opaqueTypes && !isByteEnum(resolved.name) && hasPadding(resolved.name)
             else -> false
         }
         return types.any(::contains)
@@ -495,9 +786,12 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         }
         is IdlType.Vec -> LIST.parameterizedBy(typeName(resolved.element))
         is IdlType.Array -> if (isByteArray(resolved)) Runtime.SOLANA_BYTES else LIST.parameterizedBy(typeName(resolved.element))
-        is IdlType.Defined -> classOf(resolved.name)
+        is IdlType.Defined -> overrides.typeSubstitutions[resolved.name]?.let { GeneratorOverrides.className(it.type) } ?: classOf(resolved.name)
         is IdlType.Generic -> throw IllegalStateException("unsupported generic reached generation")
     }
+
+    /** The codec object of defined type [name]: its substitution's codec, or its class companion. */
+    private fun codecOf(name: String): ClassName = overrides.typeSubstitutions[name]?.let { GeneratorOverrides.className(it.codec) } ?: classOf(name)
 
     /** An expression reading [type], with a `BorshReader` receiver. */
     private fun read(type: IdlType): CodeBlock = when (val resolved = resolve(type)) {
@@ -513,7 +807,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         } else {
             CodeBlock.of("readArray(%L) { %L }", arrayLength(resolved), read(resolved.element))
         }
-        is IdlType.Defined -> CodeBlock.of("%T.read(this)", classOf(resolved.name))
+        is IdlType.Defined -> CodeBlock.of("%T.read(this)", codecOf(resolved.name))
         is IdlType.Generic -> throw IllegalStateException("unsupported generic reached generation")
     }
 
@@ -531,14 +825,14 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         } else {
             CodeBlock.of("writeArray(%L, %L) { %L }", value, arrayLength(resolved), write(resolved.element, CodeBlock.of("it")))
         }
-        is IdlType.Defined -> CodeBlock.of("%T.write(this, %L)", classOf(resolved.name), value)
+        is IdlType.Defined -> CodeBlock.of("%T.write(this, %L)", codecOf(resolved.name), value)
         is IdlType.Generic -> throw IllegalStateException("unsupported generic reached generation")
     }
 
     /** A codec value for [type]: the class companion for a defined type, otherwise built inline. */
     private fun codec(type: IdlType): CodeBlock {
         val resolved = resolve(type)
-        if (resolved is IdlType.Defined) return CodeBlock.of("%T", classOf(resolved.name))
+        if (resolved is IdlType.Defined) return CodeBlock.of("%T", codecOf(resolved.name))
         return CodeBlock.of("%T.of({ %L }, { %L })", Runtime.SOLANA_CODEC, read(resolved), write(resolved, CodeBlock.of("it")))
     }
 
@@ -548,11 +842,23 @@ class SolanaProgramBuilder @JvmOverloads constructor(
      * The fields of [fields] with Kotlin names. Fields whose names coincide keep their order: the last keeps the name and
      * the earlier ones are numbered from 1, skipping numbers another field uses, as legacy IDLs name both `_padding` and
      * `padding` as `padding`. Names in [reserved] are suffixed with `Field`.
+     *
+     * A field renamed by the rename target [renames] followed by its IDL name, or by its index for a tuple field, takes
+     * that name as is, which no other field may take and must not be [reserved].
      */
-    private fun fields(fields: IdlFields, reserved: Set<String> = emptySet()): List<Field> = when (fields) {
+    private fun fields(fields: IdlFields, renames: String? = null, reserved: Set<String> = emptySet()): List<Field> = when (fields) {
         IdlFields.None -> emptyList()
         is IdlFields.Named -> {
-            val names = fields.fields.map { field -> field.name.toCamelCase().let { if (it in reserved) "${it}Field" else it } }
+            val overridden = fields.fields.map { field -> renames?.let { overrides.renames[it + field.name] } }
+            val names = fields.fields.mapIndexed { i, field ->
+                overridden[i]?.also { require(it !in reserved) { "rename '$renames${field.name}': '$it' is reserved in this declaration" } }
+                    ?: field.name.toCamelCase().let { if (it in reserved) "${it}Field" else it }
+            }
+            for ((i, name) in overridden.withIndex()) {
+                if (name == null) continue
+                val other = names.indices.firstOrNull { it != i && names[it] == name }
+                require(other == null) { "rename '$renames${fields.fields[i].name}': '$name' is also the name of field '${fields.fields[other!!].name}'" }
+            }
             val taken = names.toHashSet()
             val renamed = names.toMutableList()
             for ((name, indices) in names.indices.groupBy { names[it] }) {
@@ -573,8 +879,19 @@ class SolanaProgramBuilder @JvmOverloads constructor(
                 Field(renamed[i], field.type, docs)
             }
         }
-        is IdlFields.Tuple -> fields.types.mapIndexed { i, type -> Field("field$i", type, emptyList()) }
+        is IdlFields.Tuple -> {
+            val names = fields.types.indices.map { i -> renames?.let { overrides.renames["$it$i"] } ?: "field$i" }
+            for ((i, name) in names.withIndex()) {
+                val other = names.indices.firstOrNull { it != i && names[it] == name }
+                require(other == null) { "rename '$renames${maxOf(i, other!!)}': '$name' is also the name of field ${minOf(i, other)}" }
+                require(name !in reserved) { "rename '$renames$i': '$name' is reserved in this declaration" }
+            }
+            fields.types.mapIndexed { i, type -> Field(names[i], type, emptyList()) }
+        }
     }
+
+    /** The fields of struct [def] with Kotlin names, or none when it is not a struct. */
+    private fun structFields(def: IdlTypeDef, reserved: Set<String> = emptySet()): List<Field> = (def.body as? IdlTypeBody.Struct)?.let { fields(it.fields, "field:${def.name}.", reserved) }.orEmpty()
 
     /** A data class with [fields] as properties, or a data object when there are none. */
     private fun valueClass(name: ClassName, fields: List<Field>, extraProperties: List<PropertySpec> = emptyList()): TypeSpec.Builder {
@@ -641,17 +958,24 @@ class SolanaProgramBuilder @JvmOverloads constructor(
 
     private fun typeDefinition(def: IdlTypeDef): TypeSpec {
         val name = classOf(def.name)
+        val customCodec = overrides.customCodecs[def.name]?.let { GeneratorOverrides.className(it.codec) }
         val builder = when (val body = def.body) {
-            is IdlTypeBody.Struct -> struct(name, fields(body.fields), if (isZeroCopy(def.name)) zeroCopyLayout(def.name) else null)
-            is IdlTypeBody.Enum -> enum(name, def, body)
+            is IdlTypeBody.Struct -> if (customCodec != null) {
+                delegatingStruct(name, structFields(def), customCodec)
+            } else {
+                struct(name, structFields(def), if (isZeroCopy(def.name)) zeroCopyLayout(def.name) else null)
+            }
+            is IdlTypeBody.Enum -> enum(name, def, body, customCodec)
             is IdlTypeBody.Alias -> throw IllegalStateException("aliases are resolved at use")
         }
         def.docs.forEach { builder.addKdoc("%L\n", it) }
+        customCodec?.let { builder.addKdoc(if (def.docs.isEmpty()) "Read and written by the handwritten [%T].\n" else "\nRead and written by the handwritten [%T].\n", it) }
         if (def.name in pathStructs) builder.addType(structPath(def))
         program.accounts.firstOrNull { it.name == def.name }?.let { account ->
             builder.addSuperinterface(accountMarker)
             addToCodecScope(builder, accountFactory(name, account.name, account.discriminator))
-            val fields = (def.body as? IdlTypeBody.Struct)?.let { fields(it.fields) }.orEmpty()
+            // a custom codec lays the fields out its own way, so none has an offset the filter can rely on
+            val fields = if (customCodec != null) emptyList() else structFields(def)
             val offsets = fieldOffsets(fields, if (isZeroCopy(def.name)) zeroCopyLayout(def.name) else null)
             builder.addType(accountFilter(name, fields, offsets))
             accountAccessors(name).forEach { addToCodecScope(builder, it) }
@@ -675,13 +999,25 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         }
     }
 
-    private fun enum(name: ClassName, def: IdlTypeDef, body: IdlTypeBody.Enum): TypeSpec.Builder {
+    /** A struct whose codec delegates to the handwritten [codec]. */
+    private fun delegatingStruct(name: ClassName, fields: List<Field>, codec: ClassName): TypeSpec.Builder {
+        val builder = valueClass(name, fields)
+        val codecType = Runtime.SOLANA_CODEC.parameterizedBy(name)
+        return if (fields.isEmpty()) {
+            builder.addSuperinterface(codecType, CodeBlock.of("%T", codec))
+        } else {
+            builder.addType(TypeSpec.companionObjectBuilder().addSuperinterface(codecType, CodeBlock.of("%T", codec)).build())
+        }
+    }
+
+    /** A sealed class with a class for each variant, and its codec, which delegates to [customCodec] when set. */
+    private fun enum(name: ClassName, def: IdlTypeDef, body: IdlTypeBody.Enum, customCodec: ClassName?): TypeSpec.Builder {
         val builder = TypeSpec.classBuilder(name).addModifiers(KModifier.SEALED)
         val reads = CodeBlock.builder().add("when (val variant = readU8()) {\n⇥")
         val writes = CodeBlock.builder().add("when (value) {\n⇥")
         body.variants.forEachIndexed { index, variant ->
-            val variantClass = name.nestedClass(variant.name.toPascalCase())
-            val fields = fields(variant.fields)
+            val variantClass = name.nestedClass(variantClassName(def, variant))
+            val fields = fields(variant.fields, "field:${def.name}.${variant.name}.")
             builder.addType(valueClass(variantClass, fields).superclass(name).build())
             reads.add("%L -> %L\n", index, construct(variantClass, fields))
             if (fields.isEmpty()) {
@@ -692,6 +1028,10 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         }
         reads.add("else -> invalidVariant(%S, variant)\n⇤}", def.name)
         writes.add("⇤}")
+        if (customCodec != null) {
+            val codecType = Runtime.SOLANA_CODEC.parameterizedBy(name)
+            return builder.addType(TypeSpec.companionObjectBuilder().addSuperinterface(codecType, CodeBlock.of("%T", customCodec)).build())
+        }
         return builder.addType(
             TypeSpec.companionObjectBuilder()
                 .addSuperinterface(Runtime.SOLANA_CODEC.parameterizedBy(name))
@@ -732,7 +1072,8 @@ class SolanaProgramBuilder @JvmOverloads constructor(
     /** A field of an account at a fixed [offset] into its payload, with a fixed, positive [size]. */
     private class SliceableField(val field: Field, val offset: Int, val size: Int)
 
-    private fun accountFields(def: IdlTypeDef): List<Field> = (def.body as? IdlTypeBody.Struct)?.let { fields(it.fields) }.orEmpty()
+    /** The fields of account type [def], none when a custom codec lays them out its own way. */
+    private fun accountFields(def: IdlTypeDef): List<Field> = if (def.name in overrides.customCodecs) emptyList() else structFields(def)
 
     private fun accountOffsets(def: IdlTypeDef, fields: List<Field>) = fieldOffsets(fields, if (isZeroCopy(def.name)) zeroCopyLayout(def.name) else null)
 
@@ -771,6 +1112,9 @@ class SolanaProgramBuilder @JvmOverloads constructor(
      * The struct types that get a [structPath] class: those with a field that takes bytes, reachable from the
      * [sliceableFields] of an account through fields of fixed-size structs and elements of fixed-size arrays. Every
      * type reached this way has a fixed size, so each of its fields has a fixed offset within it.
+     *
+     * A type with a custom codec or a substitution is opaque: its codec, not its IDL fields, lays it out, so a path
+     * never descends into it, and it is described as a whole when its size is declared.
      */
     private val pathStructs: Set<String> by lazy {
         val found = LinkedHashSet<String>()
@@ -778,8 +1122,10 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             when (val resolved = resolve(type)) {
                 is IdlType.Array -> visit(resolved.element)
                 is IdlType.Defined -> {
-                    val body = typeDefs.getValue(resolved.name).body as? IdlTypeBody.Struct ?: return
-                    val children = fields(body.fields).filter { fixedSize(it.type)!! > 0 }
+                    if (resolved.name in opaqueTypes) return
+                    val def = typeDefs.getValue(resolved.name)
+                    if (def.body !is IdlTypeBody.Struct) return
+                    val children = structFields(def).filter { fixedSize(it.type)!! > 0 }
                     if (children.isNotEmpty() && found.add(resolved.name)) children.forEach { visit(it.type) }
                 }
                 else -> Unit
@@ -845,8 +1191,9 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         val struct = classOf(def.name)
         val owner = TypeVariableName("T")
         val type = IdlType.Defined(def.name)
-        val fields = fields((def.body as IdlTypeBody.Struct).fields)
+        val fields = structFields(def)
         val offsets = fieldOffsets(fields, if (isZeroCopy(def.name)) zeroCopyLayout(def.name) else null)
+        val properties = HashMap<String, String>()
         val builder = TypeSpec.classBuilder(struct.nestedClass("Path"))
             .addKdoc(
                 "Describes a field of type [%T] in accounts of type [T], [size] bytes at [offset] into their payload, with a descriptor for each of its fields.\n",
@@ -866,6 +1213,11 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             val at = offsets[i]!!
             val offset = if (at == 0) CodeBlock.of("offset") else CodeBlock.of("offset + %L", at)
             val property = if (field.name in PATH_MEMBERS) "${field.name}Field" else field.name
+            properties.put(property, field.name)?.let { previous ->
+                throw IllegalArgumentException(
+                    "type '${def.name}': fields '$previous' and '${field.name}' both take the path descriptor name '$property', as a descriptor member takes the name",
+                )
+            }
             builder.addProperty(
                 PropertySpec.builder(property, pathType(field.type, owner))
                     .addKdoc("The [%T.%N] of this struct, %L bytes after its start.\n", struct, field.name, at)
@@ -1116,13 +1468,13 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         )
     }
 
-    private fun eventClass(event: IdlEvent) = eventInterface.nestedClass(event.name.substringAfterLast("::").toPascalCase())
+    private fun eventClass(event: IdlEvent) = eventInterface.nestedClass(overrides.renames["event:${event.name}"] ?: event.name.substringAfterLast("::").toPascalCase())
 
     private fun event(event: IdlEvent): TypeSpec {
         val name = eventClass(event)
         val def = typeDefs.getValue(event.name)
         val body = def.body as? IdlTypeBody.Struct ?: throw IllegalArgumentException("event '${event.name}': only struct events are supported")
-        val fields = fields(body.fields, reserved = setOf("context"))
+        val fields = fields(body.fields, "field:${def.name}.", reserved = setOf("context"))
         val context = PropertySpec.builder("context", Runtime.EVENT_CONTEXT, KModifier.OVERRIDE).build()
         val companion = TypeSpec.companionObjectBuilder()
             .addSuperinterface(Runtime.EVENT_FACTORY.parameterizedBy(name))
@@ -1184,7 +1536,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         programType.addProperty(
             PropertySpec.builder("ERRORS", LIST.parameterizedBy(errorClass))
                 .addAnnotation(Runtime.JVM_FIELD)
-                .initializer("listOf(%L)", program.errors.map { CodeBlock.of("%T", errorClass.nestedClass(it.name.toPascalCase())) }.joinToCode(", "))
+                .initializer("listOf(%L)", program.errors.map { CodeBlock.of("%T", errorClass.nestedClass(errorObjectName(it))) }.joinToCode(", "))
                 .build(),
         )
         programType.addProperty(
@@ -1217,7 +1569,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         )
     }
 
-    private fun error(error: IdlErrorCode): TypeSpec = TypeSpec.objectBuilder(errorClass.nestedClass(error.name.toPascalCase()))
+    private fun error(error: IdlErrorCode): TypeSpec = TypeSpec.objectBuilder(errorClass.nestedClass(errorObjectName(error)))
         .addModifiers(KModifier.DATA)
         .superclass(errorClass)
         .addSuperclassConstructorParameter("%LL", error.code)
@@ -1238,12 +1590,12 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         programType.addProperty(
             PropertySpec.builder("INSTRUCTIONS", LIST.parameterizedBy(Runtime.INSTRUCTION_DESCRIPTOR.parameterizedBy(STAR)))
                 .addAnnotation(Runtime.JVM_FIELD)
-                .initializer("listOf(%L)", program.instructions.map { CodeBlock.of("%N", it.name.toUpperSnakeCase()) }.joinToCode(", "))
+                .initializer("listOf(%L)", program.instructions.map { CodeBlock.of("%N", instructionDescriptorName(it)) }.joinToCode(", "))
                 .build(),
         )
         val dispatch = CodeBlock.builder().add("return when {\n⇥")
         program.instructions.forEach { ix ->
-            dispatch.add("%N.matches(instruction.data) -> %T.decode(instruction, checkSigners)\n", ix.name.toUpperSnakeCase(), instructionHierarchy.nestedClass(ix.name.toPascalCase()))
+            dispatch.add("%N.matches(instruction.data) -> %T.decode(instruction, checkSigners)\n", instructionDescriptorName(ix), instructionHierarchy.nestedClass(instructionClassName(ix)))
         }
         dispatch.add("else -> %M(%T(instruction.data, %S))\n⇤}\n", Runtime.FAILURE, Runtime.UNRECOGNIZED, "Unknown ${program.name} instruction")
         programType.addFunction(
@@ -1267,9 +1619,9 @@ class SolanaProgramBuilder @JvmOverloads constructor(
 
     /** Add [ix]'s arguments, accounts, descriptor and builder to [programType], and return its decoded form. */
     private fun addInstruction(programType: TypeSpec.Builder, ix: IdlInstruction): TypeSpec {
-        val baseName = ix.name.toPascalCase()
-        val descriptorName = ix.name.toUpperSnakeCase()
-        val argsFields = fields(IdlFields.Named(ix.args))
+        val baseName = instructionClassName(ix)
+        val descriptorName = instructionDescriptorName(ix)
+        val argsFields = fields(IdlFields.Named(ix.args), "argument:${ix.name}.")
         val argsClass = programClass.nestedClass("${baseName}Args")
         val argsType: TypeName = if (argsFields.isEmpty()) UNIT else argsClass
         val accountsClass = programClass.nestedClass("${baseName}Accounts")
@@ -1280,7 +1632,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             programType.addType(struct(argsClass, argsFields).addKdoc("Arguments of the %L instruction.\n", ix.name).build())
         }
         if (hasAccounts) {
-            programType.addType(accounts(accountsClass, ix.accounts, ix).addKdoc("Accounts of the %L instruction.\n", ix.name).build())
+            programType.addType(accounts(accountsClass, ix.accounts, ix, "").addKdoc("Accounts of the %L instruction.\n", ix.name).build())
         }
 
         // descriptor
@@ -1293,7 +1645,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         programType.addProperty(descriptor.addAnnotation(Runtime.JVM_FIELD).build())
 
         // builder
-        val builder = FunSpec.builder(ix.name.toCamelCase())
+        val builder = FunSpec.builder(instructionBuilderName(ix))
             .addAnnotation(Runtime.JVM_STATIC)
             .addAnnotation(Runtime.JVM_OVERLOADS)
             .returns(Runtime.INSTRUCTION)
@@ -1352,22 +1704,29 @@ class SolanaProgramBuilder @JvmOverloads constructor(
 
     /**
      * An account roles class of [ix]: one property per account, nested classes for account groups, and a `find`
-     * function for each program derived account.
+     * function for each program derived account. [path] is the IDL path of the group holding [items], ending in `.`,
+     * or empty for the instruction's own accounts.
      */
-    private fun accounts(name: ClassName, items: List<IdlAccountItem>, ix: IdlInstruction): TypeSpec.Builder {
+    private fun accounts(name: ClassName, items: List<IdlAccountItem>, ix: IdlInstruction, path: String): TypeSpec.Builder {
         val constructor = FunSpec.constructorBuilder()
         val finders = mutableListOf<FunSpec>()
         val builder = TypeSpec.classBuilder(name).addModifiers(KModifier.DATA)
         val metas = CodeBlock.builder().add("return buildList {\n⇥")
         val reads = mutableListOf<CodeBlock>()
+        val properties = HashMap<String, String>()
         for (item in items) {
-            val property = item.name.toCamelCase()
+            val target = "${ix.name}.$path${item.name}"
+            val renamed = overrides.renames["instructionAccount:$target"]
+            val property = renamed ?: item.name.toCamelCase()
+            properties.put(property, item.name)?.let { previous ->
+                throw IllegalArgumentException("instruction '${ix.name}': accounts '$path$previous' and '$path${item.name}' both take the property name '$property'")
+            }
             val type: TypeName
             val parameter: ParameterSpec
             when (item) {
                 is IdlAccountItem.Group -> {
-                    val groupClass = name.nestedClass(item.name.toPascalCase())
-                    builder.addType(accounts(groupClass, item.accounts, ix).build())
+                    val groupClass = name.nestedClass(renamed?.replaceFirstChar(Char::uppercaseChar) ?: item.name.toPascalCase())
+                    builder.addType(accounts(groupClass, item.accounts, ix, "$path${item.name}.").build())
                     type = groupClass
                     parameter = ParameterSpec.builder(property, type).build()
                     metas.addStatement("addAll(%N.toAccountMetas(programId))", property)
@@ -1375,12 +1734,18 @@ class SolanaProgramBuilder @JvmOverloads constructor(
                 }
                 is IdlAccountItem.Single -> {
                     type = Runtime.SOLANA_ADDRESS.copy(nullable = item.optional)
-                    val finder = item.pda?.let { pdaFinder(ix, item, it, listOf(items, ix.accounts).distinct()) }
-                    finder?.let(finders::add)
+                    val finderName = "find${renamed?.replaceFirstChar(Char::uppercaseChar) ?: item.name.toPascalCase()}"
+                    val finder = item.pda?.let { pdaFinder(ix, item, it, listOf(items, ix.accounts).distinct(), finderName) }
+                    finder?.let { new ->
+                        require(finders.none { it.name == new.name }) { "instruction '${ix.name}': more than one PDA account of '${path.ifEmpty { ix.name }}' takes the finder name '${new.name}'" }
+                        finders.add(new)
+                    }
+                    val default = overrides.accountDefaults[target]
                     parameter = ParameterSpec.builder(property, type).apply {
                         item.docs.forEach { addKdoc("%L\n", it) }
                         finder?.let { addKdoc("A program derived address, see [%N].\n", it) }
                         when {
+                            default != null -> defaultValue("%T(%S)", Runtime.SOLANA_ADDRESS, default)
                             item.optional -> defaultValue("null")
                             item.address != null -> defaultValue("%T(%S)", Runtime.SOLANA_ADDRESS, item.address)
                         }
@@ -1491,7 +1856,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
      * `find<Account>`: derives [item]'s address from [pda]'s seeds, taking a parameter for each seed that is not a
      * constant. A seed whose encoding the IDL does not determine takes its bytes.
      */
-    private fun pdaFinder(ix: IdlInstruction, item: IdlAccountItem.Single, pda: IdlPda, scopes: List<List<IdlAccountItem>>): FunSpec {
+    private fun pdaFinder(ix: IdlInstruction, item: IdlAccountItem.Single, pda: IdlPda, scopes: List<List<IdlAccountItem>>, finderName: String): FunSpec {
         val where = "instruction '${ix.name}' account '${item.name}'"
         // parameter name to the seed it is for, so each seed path takes one parameter
         val parameters = LinkedHashMap<String, Pair<String, ParameterSpec>>()
@@ -1554,7 +1919,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         }
         val programId = pda.program?.let(::address)
 
-        val finder = FunSpec.builder("find${item.name.toPascalCase()}")
+        val finder = FunSpec.builder(finderName)
             .addKdoc("Find the address of the %L account, a program derived address with seeds %L.\n", item.name, pda.seeds.joinToString(", ", transform = ::describe))
             .addAnnotation(Runtime.JVM_STATIC)
         byteOrders.entries.groupBy({ it.value }, { "`${it.key}`" }).forEach { (order, paths) ->
@@ -1591,6 +1956,10 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         val builder = when (val type = resolve(constant.type)) {
             is IdlType.Primitive -> primitiveConstant(constant.name, type, constant.value.trim())
             else -> compositeConstant(constant)
+        }.let { builder ->
+            // built under the IDL name, which errors report, then renamed
+            val name = constantName(constant)
+            if (name == constant.name) builder else builder.build().toBuilder(name = name)
         }
         constant.docs.forEach { builder.addKdoc("%L\n", it) }
         return builder.build()
@@ -1666,7 +2035,14 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         } else {
             listValue(reader, resolved.element, arrayLength(resolved))
         }
-        is IdlType.Defined -> definedValue(reader, typeDefs.getValue(resolved.name))
+        is IdlType.Defined -> {
+            // a substitute is a type of the caller's, which the generator has no way to construct
+            val substitution = overrides.typeSubstitutions[resolved.name]
+            if (substitution != null) {
+                reader.fail("type '${resolved.name}' is substituted by ${substitution.type}, which cannot be constructed from the IDL's value; constants of substituted types are not supported")
+            }
+            definedValue(reader, typeDefs.getValue(resolved.name))
+        }
         is IdlType.Generic -> throw IllegalStateException("unsupported generic reached generation")
     }
 
@@ -1777,21 +2153,24 @@ class SolanaProgramBuilder @JvmOverloads constructor(
                 val rustName = def.name.substringAfterLast("::")
                 val word = reader.word("'$rustName'")
                 if (word != rustName) reader.fail("'$word' is not a value of struct '${def.name}', which Debug writes as '$rustName'")
-                fieldValues(reader, type, body.fields, "struct '${def.name}'")
+                fieldValues(reader, type, body.fields, "field:${def.name}.", "struct '${def.name}'")
             }
             is IdlTypeBody.Enum -> {
                 val word = reader.word("a variant of enum '${def.name}'")
                 val variant = body.variants.firstOrNull { it.name == word }
                     ?: reader.fail("'$word' is not a variant of enum '${def.name}', which has ${body.variants.joinToString { "'${it.name}'" }}")
-                fieldValues(reader, type.nestedClass(variant.name.toPascalCase()), variant.fields, "variant '${variant.name}' of enum '${def.name}'")
+                fieldValues(reader, type.nestedClass(variantClassName(def, variant)), variant.fields, "field:${def.name}.${variant.name}.", "variant '${variant.name}' of enum '${def.name}'")
             }
             is IdlTypeBody.Alias -> throw IllegalStateException("aliases are resolved at use")
         }
     }
 
-    /** The [fields] of [owner] that follow its name, every one in declaration order, constructing [type]. */
-    private fun fieldValues(reader: RustValueReader, type: ClassName, fields: IdlFields, owner: String): CodeBlock {
-        val kotlinFields = fields(fields)
+    /**
+     * The [fields] of [owner] that follow its name, every one in declaration order, constructing [type]. The value names
+     * fields as the IDL does, and the constructor as [renames], the rename target prefix of the fields, renames them.
+     */
+    private fun fieldValues(reader: RustValueReader, type: ClassName, fields: IdlFields, renames: String, owner: String): CodeBlock {
+        val kotlinFields = fields(fields, renames)
         if (kotlinFields.isEmpty()) {
             if (reader.atPunct('{') || reader.atPunct('(')) reader.fail("$owner has no fields, so Debug writes only its name")
             return CodeBlock.of("%T", type)
@@ -1848,7 +2227,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
          * Version of the generated output. Bump it whenever the output changes, so build tools invalidate
          * previously generated bindings.
          */
-        const val OUTPUT_VERSION = "4"
+        const val OUTPUT_VERSION = "5"
 
         private const val FETCH_ALIAS = "fetchProgramAccount"
         private const val WATCH_ALIAS = "watchProgramAccount"
