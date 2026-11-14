@@ -172,16 +172,10 @@ class BorshReader @JvmOverloads constructor(private val data: ByteArray, offset:
     }
 
     private fun isAscii(start: Int, end: Int): Boolean {
-        var i = start
-        // eight bytes per step: any byte with its high bit set is non-ASCII
-        while (i + 8 <= end) {
-            if (longAt(i) and ASCII_MASK != 0L) return false
-            i += 8
-        }
-        while (i < end) {
-            if (data[i++] < 0) return false
-        }
-        return true
+        // OR every byte without an early exit, which the JIT can vectorize: a set high bit makes it negative
+        var acc = 0
+        for (i in start until end) acc = acc or data[i].toInt()
+        return acc >= 0
     }
 
     fun readAddress(): SolanaAddress {
@@ -216,8 +210,6 @@ class BorshReader @JvmOverloads constructor(private val data: ByteArray, offset:
     }
 
     internal companion object {
-        private const val ASCII_MASK = -0x7f7f7f7f7f7f7f80L // 0x8080808080808080
-
         /** Run [read] over [data], converting a thrown [SolanaDecodeException] into a failure. */
         inline fun <T> decode(data: ByteArray, offset: Int, requireDone: Boolean, read: (BorshReader) -> T): Result<T, SolanaDecodeError> {
             return try {
