@@ -32,6 +32,7 @@ internal object Runtime {
     val ACCOUNT_PROJECTION_SCOPE = ClassName("io.ethers.solana.program", "SolanaAccountProjectionScope")
     val ACCOUNT_SLICE = ClassName("io.ethers.solana.program", "SolanaAccountSlice")
     val ACCOUNT_FIELD = ClassName(CODEC, "SolanaAccountField")
+    val ACCOUNT_ARRAY_FIELD = ClassName(CODEC, "SolanaAccountArrayField")
     val SOLANA_ACCOUNT_ERROR = ClassName("io.ethers.solana.program", "SolanaAccountError")
     val ACCOUNT_RESOLVER = ClassName("io.ethers.solana.program", "SolanaAccountResolver")
     val RESOLVER_ACCOUNT = ACCOUNT_RESOLVER.nestedClass("Account")
