@@ -83,13 +83,7 @@ interface, which Objective-C cannot extend, so they come from the free function 
 An interface's companion is likewise reached by name: `SolanaTransactionUnsignedCompanion.shared.deserializeMessage(data:)`.
 Where the `ByteArray` parameter is already called `data`, the `Data` one is `accountData`
 (`TokenMint.companion.decode(accountData:)`). Instruction data is passed as `SolanaBytes.companion.fromData(data:)`.
-
-Sign with keys held outside this library, such as the Secure Enclave or a wallet SDK, through `CallbackSigner`
-rather than implementing `SolanaSigner` in Swift: an Objective-C protocol has no default methods, so a Swift type
-would have to implement all of them. The closure returns the 64-byte signature, or nil if it could not sign, which
-signing reports as a thrown error. It runs synchronously; a signer that has to wait can sign
-`SolanaDataKt.serializeMessageData(tx)` ahead of time and pass the result to `addSignature`. `sign(signers:)` takes a
-Swift array.
+`sign(signers:)` takes a Swift array.
 
 `Duration`s cross into Objective-C as their raw encoding, so the Apple-only overloads take and return seconds instead:
 `confirmation(commitment:intervalSeconds:timeoutSeconds:)` and `PendingSolanaTransaction.ErrorTimedOut.waitedSeconds`.
@@ -102,8 +96,7 @@ _ = try builder.addSignature(signer: payer, signature: SolanaSignature.companion
 let signed = try builder.build().unwrap()!
 let bytes: Data = signed.serializeData()
 
-let enclaveSigner = CallbackSigner(publicKey: enclaveAddress) { message in try? enclave.sign(message) }
-let transaction = try unsigned.sign(signers: [enclaveSigner, payerSigner])
+let transaction = try unsigned.sign(signers: [aliceSigner, bobSigner])
 ```
 
 ## Transaction types and signing
