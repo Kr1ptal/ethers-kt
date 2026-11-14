@@ -47,6 +47,7 @@ import io.ethers.solana.idl.IdlTypeBody
 import io.ethers.solana.idl.IdlTypeDef
 import io.ethers.solana.idl.IdlValidator
 import java.io.File
+import java.math.BigInteger
 
 /**
  * Generates Kotlin bindings for [program] as one file holding an object named [programName] in
@@ -62,6 +63,10 @@ import java.io.File
  * layout on Solana's on-chain target, with the padding an unpacked C layout has. Generic type
  * definitions, zero-copy types with a Rust layout and custom serialization are not supported yet and
  * fail generation.
+ *
+ * Constants of any supported type are generated: primitives as `const val` where Kotlin allows, everything else as a
+ * `@JvmField val` constructing the value. A value must be a literal of its declared type in the form Rust's `Debug`
+ * writes it, as Anchor records it; expressions, casts and references to other constants fail generation.
  *
  * Each program derived account gets a `find` function deriving its address from its seeds. Integer seeds are
  * encoded in the byte order [seedByteOrders] gives, since IDLs do not record it.
@@ -1583,63 +1588,246 @@ class SolanaProgramBuilder @JvmOverloads constructor(
     // --- constants ---
 
     private fun constant(constant: IdlConstant): PropertySpec {
-        val type = resolve(constant.type)
-        val raw = constant.value.trim()
-        val builder = when (type) {
-            is IdlType.Primitive -> primitiveConstant(constant.name, type, raw)
-            is IdlType.Array -> if (isByteArray(type)) bytesConstant(constant.name, raw) else null
-            else -> null
-        } ?: throw IllegalArgumentException("constant '${constant.name}': ${constant.type} constants are not supported yet")
+        val builder = when (val type = resolve(constant.type)) {
+            is IdlType.Primitive -> primitiveConstant(constant.name, type, constant.value.trim())
+            else -> compositeConstant(constant)
+        }
         constant.docs.forEach { builder.addKdoc("%L\n", it) }
         return builder.build()
     }
 
-    private fun primitiveConstant(name: String, type: IdlType.Primitive, raw: String): PropertySpec.Builder? {
+    private fun primitiveConstant(name: String, type: IdlType.Primitive, raw: String): PropertySpec.Builder {
         fun const(kotlinType: TypeName, format: String, value: Any) = PropertySpec.builder(name, kotlinType, KModifier.CONST).initializer(format, value)
         fun field(kotlinType: TypeName, format: String, vararg values: Any) = PropertySpec.builder(name, kotlinType).addAnnotation(Runtime.JVM_FIELD).initializer(format, *values)
-        val integer by lazy { raw.replace("_", "").replace(INTEGER_SUFFIX, "") }
-        fun ranged(min: String, max: String): String {
-            val value = integer.toBigInteger()
-            require(value >= min.toBigInteger() && value <= max.toBigInteger()) { "constant '$name': $raw is outside the range of $type" }
+        fun ranged(): String {
+            val value = raw.replace("_", "").replace(INTEGER_SUFFIX, "").toBigInteger()
+            val (min, max) = INTEGER_RANGES.getValue(type)
+            require(value >= min && value <= max) { "constant '$name': $raw is outside the range of $type" }
             return value.toString()
         }
         return when (type) {
             IdlType.Primitive.BOOL -> const(BOOLEAN, "%L", raw.toBooleanStrict())
-            IdlType.Primitive.U8 -> const(INT, "%L", ranged("0", "255"))
-            IdlType.Primitive.U16 -> const(INT, "%L", ranged("0", "65535"))
-            IdlType.Primitive.U32 -> const(LONG, "%LL", ranged("0", "4294967295"))
-            IdlType.Primitive.I8 -> const(BYTE, "%L", ranged("-128", "127"))
-            IdlType.Primitive.I16 -> const(SHORT, "%L", ranged("-32768", "32767"))
-            IdlType.Primitive.I32 -> const(INT, "%L", ranged(Int.MIN_VALUE.toString(), Int.MAX_VALUE.toString()))
+            IdlType.Primitive.U8, IdlType.Primitive.U16, IdlType.Primitive.I32 -> const(INT, "%L", ranged())
+            IdlType.Primitive.U32 -> const(LONG, "%LL", ranged())
+            IdlType.Primitive.I8 -> const(BYTE, "%L", ranged())
+            IdlType.Primitive.I16 -> const(SHORT, "%L", ranged())
             IdlType.Primitive.I64 -> {
-                val value = ranged(Long.MIN_VALUE.toString(), Long.MAX_VALUE.toString())
+                val value = ranged()
                 // Long.MIN_VALUE has no literal form
                 if (value == Long.MIN_VALUE.toString()) const(LONG, "%L", "Long.MIN_VALUE") else const(LONG, "%LL", value)
             }
-            IdlType.Primitive.U64 -> field(Runtime.BIG_INTEGER, "%T(%S)", Runtime.BIG_INTEGER, ranged("0", "18446744073709551615"))
-            IdlType.Primitive.U128 -> field(Runtime.BIG_INTEGER, "%T(%S)", Runtime.BIG_INTEGER, ranged("0", "340282366920938463463374607431768211455"))
-            IdlType.Primitive.U256 -> field(Runtime.BIG_INTEGER, "%T(%S)", Runtime.BIG_INTEGER, ranged("0", "115792089237316195423570985008687907853269984665640564039457584007913129639935"))
-            IdlType.Primitive.I128 -> field(
-                Runtime.BIG_INTEGER,
-                "%T(%S)",
-                Runtime.BIG_INTEGER,
-                ranged("-170141183460469231731687303715884105728", "170141183460469231731687303715884105727"),
-            )
-            IdlType.Primitive.I256 -> field(
-                Runtime.BIG_INTEGER,
-                "%T(%S)",
-                Runtime.BIG_INTEGER,
-                ranged(
-                    "-57896044618658097711785492504343953926634992332820282019728792003956564819968",
-                    "57896044618658097711785492504343953926634992332820282019728792003956564819967",
-                ),
-            )
+            IdlType.Primitive.U64, IdlType.Primitive.U128, IdlType.Primitive.U256, IdlType.Primitive.I128, IdlType.Primitive.I256 ->
+                field(Runtime.BIG_INTEGER, "%T(%S)", Runtime.BIG_INTEGER, ranged())
             IdlType.Primitive.F32 -> const(FLOAT, "%Lf", raw.removeSuffix("f32").toFloat())
             IdlType.Primitive.F64 -> const(DOUBLE, "%L", raw.removeSuffix("f64").toDouble())
             IdlType.Primitive.STRING -> const(STRING, "%S", raw.removeSurrounding("\""))
-            IdlType.Primitive.PUBKEY -> field(Runtime.SOLANA_ADDRESS, "%T(%S)", Runtime.SOLANA_ADDRESS, raw.removeSurrounding("\""))
+            IdlType.Primitive.PUBKEY -> {
+                val address = raw.removeSurrounding("\"")
+                requireAddress(address) { throw IllegalArgumentException("constant '$name': $it") }
+                field(Runtime.SOLANA_ADDRESS, "%T(%S)", Runtime.SOLANA_ADDRESS, address)
+            }
             IdlType.Primitive.BYTES -> bytesConstant(name, raw)
         }
+    }
+
+    /**
+     * A constant of an array, vec, option or defined type, as a `@JvmField val` constructing the value. Its text is the
+     * Rust `Debug` output of the value, which [RustValueReader] reads against the declared type.
+     */
+    private fun compositeConstant(constant: IdlConstant): PropertySpec.Builder {
+        val reader = RustValueReader(constant.value.trim(), "constant '${constant.name}'")
+        val value = constantValue(reader, constant.type)
+        reader.end()
+        return PropertySpec.builder(constant.name, typeName(constant.type))
+            .addAnnotation(Runtime.JVM_FIELD)
+            .initializer(value)
+    }
+
+    /** An expression for the value of [type] that [reader] reads next. */
+    private fun constantValue(reader: RustValueReader, type: IdlType): CodeBlock = when (val resolved = resolve(type)) {
+        is IdlType.Primitive -> primitiveValue(reader, resolved)
+        is IdlType.Option -> {
+            // a nullable inner type needs the explicit option, as in typeName
+            val explicit = typeName(resolved.inner).isNullable
+            when (val word = reader.word("'Some(…)' or 'None'")) {
+                "None" -> if (explicit) CodeBlock.of("%T", Runtime.SOLANA_OPTION.nestedClass("None")) else CodeBlock.of("null")
+                "Some" -> {
+                    reader.punct('(')
+                    val inner = constantValue(reader, resolved.inner)
+                    reader.punct(')')
+                    if (explicit) CodeBlock.of("%T<%T>(%L)", Runtime.SOLANA_OPTION.nestedClass("Some"), typeName(resolved.inner), inner) else inner
+                }
+                else -> reader.fail("'$word' is not 'Some(…)' or 'None'")
+            }
+        }
+        is IdlType.Vec -> listValue(reader, resolved.element, null)
+        is IdlType.Array -> if (isByteArray(resolved)) {
+            bytesValue(reader, arrayLength(resolved))
+        } else {
+            listValue(reader, resolved.element, arrayLength(resolved))
+        }
+        is IdlType.Defined -> definedValue(reader, typeDefs.getValue(resolved.name))
+        is IdlType.Generic -> throw IllegalStateException("unsupported generic reached generation")
+    }
+
+    private fun primitiveValue(reader: RustValueReader, type: IdlType.Primitive): CodeBlock = when (type) {
+        IdlType.Primitive.BOOL -> when (val word = reader.word("'true' or 'false'")) {
+            "true", "false" -> CodeBlock.of("%L", word)
+            else -> reader.fail("'$word' is not 'true' or 'false'")
+        }
+        IdlType.Primitive.U8, IdlType.Primitive.U16, IdlType.Primitive.I32 -> {
+            val value = integerValue(reader, type)
+            if (value == Int.MIN_VALUE.toString()) CodeBlock.of("Int.MIN_VALUE") else CodeBlock.of("%L", value)
+        }
+        // the parameter or element type the value is given for makes the literal a Byte or Short
+        IdlType.Primitive.I8, IdlType.Primitive.I16 -> CodeBlock.of("%L", integerValue(reader, type))
+        IdlType.Primitive.U32, IdlType.Primitive.I64 -> {
+            val value = integerValue(reader, type)
+            if (value == Long.MIN_VALUE.toString()) CodeBlock.of("Long.MIN_VALUE") else CodeBlock.of("%LL", value)
+        }
+        IdlType.Primitive.U64, IdlType.Primitive.U128, IdlType.Primitive.U256, IdlType.Primitive.I128, IdlType.Primitive.I256 ->
+            CodeBlock.of("%T(%S)", Runtime.BIG_INTEGER, integerValue(reader, type))
+        IdlType.Primitive.F32 -> when (val text = floatText(reader, type)) {
+            in FLOAT_SPECIALS -> CodeBlock.of("Float.%L", FLOAT_SPECIALS.getValue(text))
+            else -> {
+                val value = text.removeSuffix("f32").toFloat()
+                if (value.isInfinite()) reader.fail("'$text' is outside the range of $type")
+                CodeBlock.of("%Lf", value.toString())
+            }
+        }
+        IdlType.Primitive.F64 -> when (val text = floatText(reader, type)) {
+            in FLOAT_SPECIALS -> CodeBlock.of("Double.%L", FLOAT_SPECIALS.getValue(text))
+            else -> {
+                val value = text.removeSuffix("f64").toDouble()
+                if (value.isInfinite()) reader.fail("'$text' is outside the range of $type")
+                CodeBlock.of("%L", value.toString())
+            }
+        }
+        IdlType.Primitive.STRING -> CodeBlock.of("%S", reader.string())
+        IdlType.Primitive.PUBKEY -> {
+            // Debug writes a pubkey as its base58 form, unquoted
+            val address = reader.word("a base58 address")
+            requireAddress(address) { reader.fail(it) }
+            CodeBlock.of("%T(%S)", Runtime.SOLANA_ADDRESS, address)
+        }
+        IdlType.Primitive.BYTES -> bytesValue(reader, null)
+    }
+
+    /** The decimal value of the [type] integer that [reader] reads next, checked against the range of [type]. */
+    private fun integerValue(reader: RustValueReader, type: IdlType.Primitive): String {
+        val word = reader.word("a $type integer literal")
+        val digits = word.replace("_", "").replace(INTEGER_SUFFIX, "")
+        if (!DECIMAL_INTEGER.matches(digits)) reader.fail("'$word' is not a decimal $type integer literal")
+        val value = digits.toBigInteger()
+        val (min, max) = INTEGER_RANGES.getValue(type)
+        if (value < min || value > max) reader.fail("'$word' is outside the range of $type")
+        return value.toString()
+    }
+
+    /** The float literal [reader] reads next, without `_`, either decimal with an optional suffix or a special value. */
+    private fun floatText(reader: RustValueReader, type: IdlType.Primitive): String {
+        val word = reader.word("a $type literal")
+        if (word in FLOAT_SPECIALS) return word
+        val text = word.replace("_", "")
+        if (!DECIMAL_FLOAT.matches(text.removeSuffix(if (type == IdlType.Primitive.F32) "f32" else "f64"))) {
+            reader.fail("'$word' is not a decimal $type literal")
+        }
+        return text
+    }
+
+    /** Bytes written as a list of `u8`, `[1, 2, 3]`, with [length] elements when fixed. */
+    private fun bytesValue(reader: RustValueReader, length: Int?): CodeBlock {
+        val hex = StringBuilder()
+        val size = listItems(reader) { hex.append("%02x".format(integerValue(reader, IdlType.Primitive.U8).toInt())) }
+        if (length != null && size != length) reader.fail("expected $length elements for [u8; $length], got $size")
+        return CodeBlock.of("%T.fromHex(%S)", Runtime.SOLANA_BYTES, hex.toString())
+    }
+
+    /** A list of [element] values, `[a, b]`, with [length] elements when fixed. */
+    private fun listValue(reader: RustValueReader, element: IdlType, length: Int?): CodeBlock {
+        val items = ArrayList<CodeBlock>()
+        listItems(reader) { items.add(constantValue(reader, element)) }
+        if (length != null && items.size != length) reader.fail("expected $length elements for an array of length $length, got ${items.size}")
+        // explicit type arguments give integer literals their type, and an empty list its element type
+        val elementType = typeName(element)
+        return if (items.isEmpty()) CodeBlock.of("emptyList<%T>()", elementType) else CodeBlock.of("listOf<%T>(%L)", elementType, items.joinToCode(", "))
+    }
+
+    /** Read `[item, item]`, calling [item] for each, and return the number of items. */
+    private inline fun listItems(reader: RustValueReader, item: () -> Unit): Int {
+        reader.punct('[')
+        if (reader.tryPunct(']')) return 0
+        var count = 0
+        do {
+            item()
+            count++
+        } while (reader.tryPunct(','))
+        reader.punct(']')
+        return count
+    }
+
+    /**
+     * A value of [def], which Debug writes with its Rust name: `Name { a: 1 }`, `Name(1, 2)` or `Name` for a struct, and
+     * the same forms with a variant name for an enum.
+     */
+    private fun definedValue(reader: RustValueReader, def: IdlTypeDef): CodeBlock {
+        val type = classOf(def.name)
+        return when (val body = def.body) {
+            is IdlTypeBody.Struct -> {
+                val rustName = def.name.substringAfterLast("::")
+                val word = reader.word("'$rustName'")
+                if (word != rustName) reader.fail("'$word' is not a value of struct '${def.name}', which Debug writes as '$rustName'")
+                fieldValues(reader, type, body.fields, "struct '${def.name}'")
+            }
+            is IdlTypeBody.Enum -> {
+                val word = reader.word("a variant of enum '${def.name}'")
+                val variant = body.variants.firstOrNull { it.name == word }
+                    ?: reader.fail("'$word' is not a variant of enum '${def.name}', which has ${body.variants.joinToString { "'${it.name}'" }}")
+                fieldValues(reader, type.nestedClass(variant.name.toPascalCase()), variant.fields, "variant '${variant.name}' of enum '${def.name}'")
+            }
+            is IdlTypeBody.Alias -> throw IllegalStateException("aliases are resolved at use")
+        }
+    }
+
+    /** The [fields] of [owner] that follow its name, every one in declaration order, constructing [type]. */
+    private fun fieldValues(reader: RustValueReader, type: ClassName, fields: IdlFields, owner: String): CodeBlock {
+        val kotlinFields = fields(fields)
+        if (kotlinFields.isEmpty()) {
+            if (reader.atPunct('{') || reader.atPunct('(')) reader.fail("$owner has no fields, so Debug writes only its name")
+            return CodeBlock.of("%T", type)
+        }
+        val named = fields as? IdlFields.Named
+        val (open, close) = if (named != null) '{' to '}' else '(' to ')'
+        reader.punct(open)
+        val values = kotlinFields.mapIndexed { i, field ->
+            if (i > 0) {
+                if (reader.atPunct(close)) reader.fail("$owner has ${kotlinFields.size} fields, but the value gives $i")
+                reader.punct(',')
+            }
+            if (named != null) {
+                val expected = named.fields[i].name
+                val word = reader.word("field '$expected'")
+                if (word != expected) reader.fail("expected field '$expected' of $owner, got '$word'; every field must be given, in declaration order")
+                reader.punct(':')
+                CodeBlock.of("%N = %L", field.name, constantValue(reader, field.type))
+            } else {
+                constantValue(reader, field.type)
+            }
+        }
+        if (reader.atPunct(',')) reader.fail("the value gives more than the ${kotlinFields.size} fields of $owner")
+        reader.punct(close)
+        // one argument per line once a value is too wide to read on one
+        return if (values.size > 3) CodeBlock.of("%T(\n⇥%L,\n⇤)", type, values.joinToCode(",\n")) else CodeBlock.of("%T(%L)", type, values.joinToCode(", "))
+    }
+
+    /** Require [address] to be the base58 form of 32 bytes, calling [fail] with the reason otherwise. */
+    private inline fun requireAddress(address: String, fail: (String) -> Nothing) {
+        val bytes = try {
+            Base58.decode(address)
+        } catch (e: IllegalArgumentException) {
+            fail("'$address' is not a base58 address")
+        }
+        if (bytes.size != 32) fail("'$address' decodes to ${bytes.size} bytes, but an address has 32")
     }
 
     /** Bytes written as a Rust array literal, `[1, 2, 3]`. */
@@ -1676,6 +1864,34 @@ class SolanaProgramBuilder @JvmOverloads constructor(
 
         /** A Rust integer literal's type suffix, such as `u64` in `1_000u64`. */
         private val INTEGER_SUFFIX = Regex("[ui](8|16|32|64|128|256|size)$")
+
+        private val DECIMAL_INTEGER = Regex("-?[0-9]+")
+
+        /** A float as Rust's `Debug` writes it, such as `1.5`, `-0.0` or `1e-7`. */
+        private val DECIMAL_FLOAT = Regex("-?[0-9]+(\\.[0-9]+)?([eE]-?[0-9]+)?")
+
+        /** The float values `Debug` writes as words, and their Kotlin constants on `Float` and `Double`. */
+        private val FLOAT_SPECIALS = mapOf("NaN" to "NaN", "inf" to "POSITIVE_INFINITY", "-inf" to "NEGATIVE_INFINITY")
+
+        /** The inclusive range of each integer primitive. */
+        private val INTEGER_RANGES: Map<IdlType.Primitive, Pair<BigInteger, BigInteger>> = mapOf(
+            IdlType.Primitive.U8 to unsigned(8),
+            IdlType.Primitive.U16 to unsigned(16),
+            IdlType.Primitive.U32 to unsigned(32),
+            IdlType.Primitive.U64 to unsigned(64),
+            IdlType.Primitive.U128 to unsigned(128),
+            IdlType.Primitive.U256 to unsigned(256),
+            IdlType.Primitive.I8 to signed(8),
+            IdlType.Primitive.I16 to signed(16),
+            IdlType.Primitive.I32 to signed(32),
+            IdlType.Primitive.I64 to signed(64),
+            IdlType.Primitive.I128 to signed(128),
+            IdlType.Primitive.I256 to signed(256),
+        )
+
+        private fun unsigned(bits: Int) = BigInteger.ZERO to BigInteger.ONE.shiftLeft(bits) - BigInteger.ONE
+
+        private fun signed(bits: Int) = -BigInteger.ONE.shiftLeft(bits - 1) to BigInteger.ONE.shiftLeft(bits - 1) - BigInteger.ONE
 
         private val PRIMITIVE_TYPES: Map<IdlType.Primitive, TypeName> = mapOf(
             IdlType.Primitive.BOOL to BOOLEAN,

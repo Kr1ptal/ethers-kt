@@ -175,11 +175,11 @@ class SolanaProgramBuilderTest : FunSpec({
         source shouldContain "data class Line("
     }
 
-    test("constants must fit their type and have a supported type") {
+    test("constants must fit their type") {
         shouldThrow<IllegalArgumentException> { generate(program(constants = listOf(IdlConstant("C", IdlType.Primitive.U8, "256")))) }
             .message shouldBe "constant 'C': 256 is outside the range of U8"
-        shouldThrow<IllegalArgumentException> { generate(program(constants = listOf(IdlConstant("C", IdlType.Vec(IdlType.Primitive.U8), "[]")))) }
-            .message shouldContain "constants are not supported yet"
+        shouldThrow<IllegalArgumentException> { generate(program(constants = listOf(IdlConstant("C", IdlType.Primitive.PUBKEY, "1111")))) }
+            .message shouldBe "constant 'C': '1111' decodes to 4 bytes, but an address has 32"
         generate(program(constants = listOf(IdlConstant("C", IdlType.Primitive.I64, "-9_223_372_036_854_775_808i64")))) shouldContain
             "const val C: Long = Long.MIN_VALUE"
     }
