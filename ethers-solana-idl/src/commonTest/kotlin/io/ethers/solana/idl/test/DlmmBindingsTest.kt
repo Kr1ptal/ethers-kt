@@ -224,6 +224,7 @@ class DlmmBindingsTest : FunSpec({
         pair.reserveX shouldBe SolanaAddress("CqrcuHpvrbKAGdHNwUrDFqyMxzLee96rHhBZkCKuo6am")
         pair.reserveY shouldBe SolanaAddress("2hjrztQiwfxZNkwEYKhesMSiR4Drbe9SHLdRb76bgTVP")
         LbClmm.LbPair.ACCOUNT.encode(pair) shouldBe LB_PAIR_DATA
+        LbClmm.LbPair.encodedSize shouldBe LB_PAIR_DATA.size - 8
     }
 
     test("an account of nested zero-copy structs with 128-bit integers decodes and re-encodes byte for byte") {
@@ -233,6 +234,7 @@ class DlmmBindingsTest : FunSpec({
         bins.bins.size shouldBe 70
         bins.bins.first().price shouldBe BigInteger("282450750985822657")
         LbClmm.BinArray.ACCOUNT.encode(bins) shouldBe BIN_ARRAY_DATA
+        LbClmm.BinArray.encodedSize shouldBe BIN_ARRAY_DATA.size - 8
     }
 
     test("a zero-copy header decodes from an account with data after it") {

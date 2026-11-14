@@ -207,6 +207,39 @@ class SolanaProgramBuilderTest : FunSpec({
         source shouldContain "public class Filter("
     }
 
+    test("codecs of types with one encoded size declare it, and the others keep the variable default") {
+        fun named(vararg fields: Pair<String, IdlType>) = IdlTypeBody.Struct(IdlFields.Named(fields.map { (name, type) -> IdlField(name, type) }))
+        val types = listOf(
+            // 1 + 8 + 32 + 3 * 2 = 47
+            IdlTypeDef("Fixed", named("a" to IdlType.Primitive.U8, "b" to IdlType.Primitive.U64, "c" to IdlType.Primitive.PUBKEY, "d" to IdlType.Array(IdlType.Primitive.U16, IdlArrayLength.Fixed(3)))),
+            // nested fixed struct plus a unit-only enum: 47 + 1 = 48
+            IdlTypeDef("Nested", named("fixed" to IdlType.Defined("Fixed"), "status" to IdlType.Defined("Status"))),
+            IdlTypeDef("Status", IdlTypeBody.Enum(listOf(IdlEnumVariant("On"), IdlEnumVariant("Off")))),
+            IdlTypeDef("Shape", IdlTypeBody.Enum(listOf(IdlEnumVariant("Dot"), IdlEnumVariant("Line", IdlFields.Tuple(listOf(IdlType.Primitive.U32)))))),
+            IdlTypeDef("Named", named("a" to IdlType.Primitive.U8, "name" to IdlType.Primitive.STRING)),
+            IdlTypeDef("Maybe", named("a" to IdlType.Option(IdlType.Primitive.U8))),
+            IdlTypeDef("Many", named("a" to IdlType.Vec(IdlType.Primitive.U8))),
+            IdlTypeDef("WithShape", named("shape" to IdlType.Defined("Shape"))),
+            // zero-copy: u8, 7 bytes of padding, u64 = 16
+            IdlTypeDef("Padded", named("a" to IdlType.Primitive.U8, "b" to IdlType.Primitive.U64), serialization = IdlSerialization.Bytemuck, repr = IdlRepr.C()),
+        )
+        val instructions = listOf(
+            // u32 + u16 = 6
+            IdlInstruction("fixedArgs", IdlDiscriminator(listOf(1)), args = listOf(IdlField("x", IdlType.Primitive.U32), IdlField("y", IdlType.Primitive.U16))),
+            IdlInstruction("stringArgs", IdlDiscriminator(listOf(2)), args = listOf(IdlField("s", IdlType.Primitive.STRING))),
+        )
+        val flat = generate(program(instructions = instructions, types = types)).replace(Regex("\\s+"), " ")
+        fun declared(size: Int) = Regex("override val encodedSize: Int get\\(\\) = $size\\b").findAll(flat).count()
+
+        declared(47) shouldBe 1
+        declared(48) shouldBe 1
+        declared(1) shouldBe 1
+        declared(16) shouldBe 1
+        declared(6) shouldBe 1
+        // Shape, Named, Maybe, Many, WithShape and the string args keep the default
+        Regex("override val encodedSize").findAll(flat).count() shouldBe 5
+    }
+
     context("program derived addresses") {
         /** A program whose instruction [ix] has a PDA account `vault` with [seeds], and arguments [args]. */
         fun pdaProgram(seeds: List<IdlSeed>, args: List<IdlField> = emptyList(), ix: String = "ix", constants: List<IdlConstant> = emptyList()): IdlProgram {

@@ -20,7 +20,7 @@ open class SolanaInstructionDescriptor<A>(
     fun matches(data: SolanaBytes): Boolean = discriminator.matches(data)
 
     /** Encode instruction data for [args]. */
-    fun encodeData(args: A): ByteArray = BorshWriter().apply {
+    fun encodeData(args: A): ByteArray = BorshWriter(this.args.writerCapacity(discriminator.size)).apply {
         writeRaw(discriminator.asByteArray())
         this@SolanaInstructionDescriptor.args.write(this, args)
     }.toByteArray()

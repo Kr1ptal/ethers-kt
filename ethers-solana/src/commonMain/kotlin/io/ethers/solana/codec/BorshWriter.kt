@@ -11,8 +11,8 @@ import kotlin.jvm.JvmOverloads
  * A value outside its declared width throws [IllegalArgumentException]: encoding validates the
  * caller's own values, so a failure there is a programming error rather than untrusted input.
  */
-class BorshWriter @JvmOverloads constructor(initialCapacity: Int = 64) {
-    private var buffer = ByteArray(initialCapacity.coerceAtLeast(8))
+class BorshWriter @JvmOverloads constructor(initialCapacity: Int = DEFAULT_CAPACITY) {
+    private var buffer = ByteArray(initialCapacity.coerceAtLeast(0))
 
     /** Number of bytes written so far. */
     var size: Int = 0
@@ -239,4 +239,9 @@ class BorshWriter @JvmOverloads constructor(initialCapacity: Int = 64) {
      * into a new buffer, so the returned array is never modified by this writer.
      */
     fun toByteArray(): ByteArray = if (size == buffer.size) buffer else buffer.copyOf(size)
+
+    companion object {
+        /** The capacity a writer starts with when the size of its output is not known. */
+        const val DEFAULT_CAPACITY: Int = 64
+    }
 }

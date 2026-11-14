@@ -668,12 +668,17 @@ class SolanaProgramBuilder @JvmOverloads constructor(
     private fun struct(name: ClassName, fields: List<Field>, layout: ZeroCopyLayout? = null): TypeSpec.Builder {
         val builder = valueClass(name, fields)
         val codec = listOf(readFunction(name, construct(name, fields, layout = layout)), writeFunction(name, writes(fields, "value", layout)))
-        return if (fields.isEmpty()) {
-            builder.addSuperinterface(Runtime.SOLANA_CODEC.parameterizedBy(name)).addFunctions(codec)
-        } else {
-            builder.addType(TypeSpec.companionObjectBuilder().addSuperinterface(Runtime.SOLANA_CODEC.parameterizedBy(name)).addFunctions(codec).build())
-        }
+        val size = layout?.size ?: fields.fold(0 as Int?) { total, field -> total?.let { t -> fixedSize(field.type)?.plus(t) } }
+        val scope = if (fields.isEmpty()) builder else TypeSpec.companionObjectBuilder()
+        scope.addSuperinterface(Runtime.SOLANA_CODEC.parameterizedBy(name)).addFunctions(codec)
+        size?.let { scope.addProperty(encodedSize(it)) }
+        return if (fields.isEmpty()) builder else builder.addType(scope.build())
     }
+
+    /** The [size] every value of a codec encodes to, which encoders size their buffer with. */
+    private fun encodedSize(size: Int) = PropertySpec.builder("encodedSize", INT, KModifier.OVERRIDE)
+        .getter(FunSpec.getterBuilder().addStatement("return %L", size).build())
+        .build()
 
     private fun enum(name: ClassName, def: IdlTypeDef, body: IdlTypeBody.Enum): TypeSpec.Builder {
         val builder = TypeSpec.classBuilder(name).addModifiers(KModifier.SEALED)
@@ -697,6 +702,8 @@ class SolanaProgramBuilder @JvmOverloads constructor(
                 .addSuperinterface(Runtime.SOLANA_CODEC.parameterizedBy(name))
                 .addFunction(readFunction(name, reads.build()))
                 .addFunction(writeFunction(name, writes.build()))
+                // only the variant tag when no variant carries data
+                .apply { if (body.variants.all { it.fields.isEmpty() }) addProperty(encodedSize(1)) }
                 .build(),
         )
     }
@@ -1848,7 +1855,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
          * Version of the generated output. Bump it whenever the output changes, so build tools invalidate
          * previously generated bindings.
          */
-        const val OUTPUT_VERSION = "4"
+        const val OUTPUT_VERSION = "5"
 
         private const val FETCH_ALIAS = "fetchProgramAccount"
         private const val WATCH_ALIAS = "watchProgramAccount"

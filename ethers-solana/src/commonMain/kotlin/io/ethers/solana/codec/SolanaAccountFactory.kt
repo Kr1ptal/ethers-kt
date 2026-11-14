@@ -28,7 +28,7 @@ class SolanaAccountFactory<T>(
     fun decode(data: SolanaBytes): Result<T, SolanaDecodeError> = decode(data.asByteArray())
 
     /** Encode [value] with its discriminator and no padding. */
-    fun encode(value: T): ByteArray = BorshWriter().apply {
+    fun encode(value: T): ByteArray = BorshWriter(codec.writerCapacity(discriminator.size)).apply {
         writeRaw(discriminator.asByteArray())
         codec.write(this, value)
     }.toByteArray()
