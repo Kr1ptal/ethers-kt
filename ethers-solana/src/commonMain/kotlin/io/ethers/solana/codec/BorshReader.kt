@@ -6,6 +6,7 @@ import io.ethers.core.success
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBytes
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import kotlin.jvm.JvmOverloads
 
 /**
@@ -49,38 +50,62 @@ class BorshReader @JvmOverloads constructor(private val data: ByteArray, offset:
         return start
     }
 
-    private fun littleEndianLong(size: Int): Long {
-        val start = take(size)
-        var result = 0L
-        for (i in size - 1 downTo 0) result = (result shl 8) or (data[start + i].toLong() and 0xff)
-        return result
+    private fun byte(): Int = data[take(1)].toInt() and 0xff
+
+    private fun short(): Int {
+        val start = take(2)
+        return (data[start].toInt() and 0xff) or ((data[start + 1].toInt() and 0xff) shl 8)
     }
+
+    private fun int(): Int = intAt(take(4))
+
+    private fun long(): Long = longAt(take(8))
+
+    private fun intAt(start: Int): Int {
+        return (data[start].toInt() and 0xff) or
+            ((data[start + 1].toInt() and 0xff) shl 8) or
+            ((data[start + 2].toInt() and 0xff) shl 16) or
+            ((data[start + 3].toInt() and 0xff) shl 24)
+    }
+
+    private fun longAt(start: Int): Long = (intAt(start).toLong() and 0xffffffffL) or (intAt(start + 4).toLong() shl 32)
 
     /** Read [size] bytes as a little-endian integer, two's complement when [signed]. */
     private fun littleEndianBig(size: Int, signed: Boolean): BigInteger {
         val start = take(size)
+        val low = longAt(start)
+        // most values fit a Long: build those directly instead of parsing a reversed copy of the bytes.
+        // That holds when every byte above the low 8 repeats the sign of the low Long, which for unsigned
+        // values means they are zero and the low Long is not negative.
+        val fill: Byte = if (signed && low < 0) -1 else 0
+        if (signed || low >= 0) {
+            var i = start + 8
+            val end = start + size
+            while (i < end && data[i] == fill) i++
+            if (i == end) return bigIntegerOf(low)
+        }
         val bigEndian = ByteArray(size) { data[start + size - 1 - it] }
         return if (signed) BigInteger(bigEndian) else BigInteger(1, bigEndian)
     }
 
-    fun readU8(): Int = littleEndianLong(1).toInt()
-    fun readU16(): Int = littleEndianLong(2).toInt()
-    fun readU32(): Long = littleEndianLong(4)
+    fun readU8(): Int = byte()
+    fun readU16(): Int = short()
+    fun readU32(): Long = int().toLong() and 0xffffffffL
     fun readU64(): BigInteger = littleEndianBig(8, false)
     fun readU128(): BigInteger = littleEndianBig(16, false)
     fun readU256(): BigInteger = littleEndianBig(32, false)
 
-    fun readI8(): Byte = littleEndianLong(1).toByte()
-    fun readI16(): Short = littleEndianLong(2).toShort()
-    fun readI32(): Int = littleEndianLong(4).toInt()
-    fun readI64(): Long = littleEndianLong(8)
+    fun readI8(): Byte = data[take(1)]
+    fun readI16(): Short = short().toShort()
+    fun readI32(): Int = int()
+    fun readI64(): Long = long()
     fun readI128(): BigInteger = littleEndianBig(16, true)
     fun readI256(): BigInteger = littleEndianBig(32, true)
 
     /** Borsh rejects NaN, which has no canonical encoding. */
     fun readF32(): Float {
         val start = position
-        return Float.fromBits(littleEndianLong(4).toInt()).also {
+        return Float.fromBits(int()).also {
             if (it.isNaN()) fail(SolanaDecodeError.Reason.INVALID_VALUE, "NaN is not a valid Borsh f32", start)
         }
     }
@@ -88,7 +113,7 @@ class BorshReader @JvmOverloads constructor(private val data: ByteArray, offset:
     /** Borsh rejects NaN, which has no canonical encoding. */
     fun readF64(): Double {
         val start = position
-        return Double.fromBits(littleEndianLong(8)).also {
+        return Double.fromBits(long()).also {
             if (it.isNaN()) fail(SolanaDecodeError.Reason.INVALID_VALUE, "NaN is not a valid Borsh f64", start)
         }
     }
@@ -137,11 +162,26 @@ class BorshReader @JvmOverloads constructor(private val data: ByteArray, offset:
     fun readString(): String {
         val length = readLength()
         val start = take(length)
+        // ASCII cannot hold an invalid sequence, and the lenient decoder is much cheaper than the validating one
+        if (isAscii(start, start + length)) return data.decodeToString(start, start + length)
         return try {
             data.decodeToString(start, start + length, throwOnInvalidSequence = true)
         } catch (e: CharacterCodingException) {
             fail(SolanaDecodeError.Reason.INVALID_UTF8, "Invalid UTF-8 string", start)
         }
+    }
+
+    private fun isAscii(start: Int, end: Int): Boolean {
+        var i = start
+        // eight bytes per step: any byte with its high bit set is non-ASCII
+        while (i + 8 <= end) {
+            if (longAt(i) and ASCII_MASK != 0L) return false
+            i += 8
+        }
+        while (i < end) {
+            if (data[i++] < 0) return false
+        }
+        return true
     }
 
     fun readAddress(): SolanaAddress {
@@ -176,6 +216,8 @@ class BorshReader @JvmOverloads constructor(private val data: ByteArray, offset:
     }
 
     internal companion object {
+        private const val ASCII_MASK = -0x7f7f7f7f7f7f7f80L // 0x8080808080808080
+
         /** Run [read] over [data], converting a thrown [SolanaDecodeException] into a failure. */
         inline fun <T> decode(data: ByteArray, offset: Int, requireDone: Boolean, read: (BorshReader) -> T): Result<T, SolanaDecodeError> {
             return try {

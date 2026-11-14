@@ -26,68 +26,103 @@ class BorshWriter @JvmOverloads constructor(initialCapacity: Int = 64) {
         return start
     }
 
-    private fun writeLittleEndian(value: Long, width: Int) {
-        val start = reserve(width)
-        var remaining = value
-        for (i in 0 until width) {
-            buffer[start + i] = remaining.toByte()
-            remaining = remaining ushr 8
-        }
+    private fun byte(value: Int) {
+        val start = reserve(1)
+        buffer[start] = value.toByte()
+    }
+
+    private fun short(value: Int) {
+        val start = reserve(2)
+        buffer[start] = value.toByte()
+        buffer[start + 1] = (value ushr 8).toByte()
+    }
+
+    private fun int(value: Int) = intAt(reserve(4), value)
+
+    private fun long(value: Long) = longAt(reserve(8), value)
+
+    private fun intAt(start: Int, value: Int) {
+        val buffer = buffer
+        buffer[start] = value.toByte()
+        buffer[start + 1] = (value ushr 8).toByte()
+        buffer[start + 2] = (value ushr 16).toByte()
+        buffer[start + 3] = (value ushr 24).toByte()
+    }
+
+    private fun longAt(start: Int, value: Long) {
+        intAt(start, value.toInt())
+        intAt(start + 4, (value ushr 32).toInt())
     }
 
     /** Write [value] across [width] bytes, two's complement when [signed], after checking it fits. */
     private fun writeBig(value: BigInteger, width: Int, signed: Boolean) {
+        val bitLength = value.bitLength()
+        val negative = value.signum() < 0
         if (signed) {
-            require(value.bitLength() < width * 8) { "Value does not fit a signed ${width * 8}-bit integer" }
+            require(bitLength < width * 8) { "Value does not fit a signed ${width * 8}-bit integer" }
         } else {
-            require(value.signum() >= 0 && value.bitLength() <= width * 8) { "Value does not fit an unsigned ${width * 8}-bit integer" }
+            require(!negative && bitLength <= width * 8) { "Value does not fit an unsigned ${width * 8}-bit integer" }
+        }
+        val start = reserve(width)
+        if (bitLength < Long.SIZE_BITS) {
+            // fits a Long exactly, so skip the big-endian copy; the bytes above the low 8 are sign fill
+            longAt(start, value.toLong())
+            if (negative) buffer.fill(-1, start + 8, start + width)
+            // bytes past the written size are always zero, so a non-negative value needs no fill
+            return
         }
         val bigEndian = value.toByteArray()
-        val fill = if (value.signum() < 0) -1 else 0
-        val start = reserve(width)
+        val fill: Byte = if (negative) -1 else 0
         for (i in 0 until width) {
             val from = bigEndian.size - 1 - i
-            buffer[start + i] = if (from >= 0) bigEndian[from] else fill.toByte()
+            buffer[start + i] = if (from >= 0) bigEndian[from] else fill
         }
     }
 
-    private fun writeUnsigned(value: Long, width: Int) {
-        require(value >= 0 && value ushr (width * 8) == 0L) { "Value $value does not fit an unsigned ${width * 8}-bit integer" }
-        writeLittleEndian(value, width)
+    fun writeU8(value: Int) {
+        require(value and 0xff.inv() == 0) { "Value $value does not fit an unsigned 8-bit integer" }
+        byte(value)
     }
 
-    fun writeU8(value: Int) = writeUnsigned(value.toLong(), 1)
-    fun writeU16(value: Int) = writeUnsigned(value.toLong(), 2)
-    fun writeU32(value: Long) = writeUnsigned(value, 4)
+    fun writeU16(value: Int) {
+        require(value and 0xffff.inv() == 0) { "Value $value does not fit an unsigned 16-bit integer" }
+        short(value)
+    }
+
+    fun writeU32(value: Long) {
+        require(value and 0xffffffffL.inv() == 0L) { "Value $value does not fit an unsigned 32-bit integer" }
+        int(value.toInt())
+    }
+
     fun writeU64(value: BigInteger) = writeBig(value, 8, false)
     fun writeU128(value: BigInteger) = writeBig(value, 16, false)
     fun writeU256(value: BigInteger) = writeBig(value, 32, false)
 
-    fun writeI8(value: Byte) = writeLittleEndian(value.toLong(), 1)
-    fun writeI16(value: Short) = writeLittleEndian(value.toLong(), 2)
-    fun writeI32(value: Int) = writeLittleEndian(value.toLong(), 4)
-    fun writeI64(value: Long) = writeLittleEndian(value, 8)
+    fun writeI8(value: Byte) = byte(value.toInt())
+    fun writeI16(value: Short) = short(value.toInt())
+    fun writeI32(value: Int) = int(value)
+    fun writeI64(value: Long) = long(value)
     fun writeI128(value: BigInteger) = writeBig(value, 16, true)
     fun writeI256(value: BigInteger) = writeBig(value, 32, true)
 
     fun writeF32(value: Float) {
         require(!value.isNaN()) { "NaN is not a valid Borsh f32" }
-        writeLittleEndian(value.toRawBits().toLong(), 4)
+        int(value.toRawBits())
     }
 
     fun writeF64(value: Double) {
         require(!value.isNaN()) { "NaN is not a valid Borsh f64" }
-        writeLittleEndian(value.toRawBits(), 8)
+        long(value.toRawBits())
     }
 
-    fun writeBool(value: Boolean) = writeU8(if (value) 1 else 0)
+    fun writeBool(value: Boolean) = byte(if (value) 1 else 0)
 
     fun writeOptionTag(present: Boolean) = writeBool(present)
 
     /** Write a u32 collection length. */
     fun writeLength(length: Int) {
         require(length >= 0) { "Length must not be negative" }
-        writeU32(length.toLong())
+        int(length)
     }
 
     /** Write exactly [size] bytes, without a length prefix. */
@@ -102,11 +137,61 @@ class BorshWriter @JvmOverloads constructor(initialCapacity: Int = 64) {
         writeRaw(value.asByteArray())
     }
 
-    /** Write u32-length-prefixed UTF-8. */
+    /**
+     * Write u32-length-prefixed UTF-8. An unpaired surrogate throws [CharacterCodingException] and
+     * leaves the writer unchanged.
+     */
     fun writeString(value: String) {
-        val bytes = value.encodeToByteArray(throwOnInvalidSequence = true)
-        writeLength(bytes.size)
-        writeRaw(bytes)
+        val length = value.length
+        // reserve the prefix and one byte per char, which is exact for ASCII, the common case
+        val prefix = reserve(4 + length)
+        var buffer = buffer
+        var out = prefix + 4
+        var i = 0
+        while (i < length) {
+            val c = value[i].code
+            if (c >= 0x80) break
+            buffer[out++] = c.toByte()
+            i++
+        }
+        if (i < length) {
+            // a char takes at most 3 bytes (a surrogate pair takes 4 for 2 chars), 1 of which is reserved
+            reserve((length - i) * 2)
+            buffer = this.buffer
+            while (i < length) {
+                val c = value[i++].code
+                when {
+                    c < 0x80 -> buffer[out++] = c.toByte()
+                    c < 0x800 -> {
+                        buffer[out++] = (0xc0 or (c shr 6)).toByte()
+                        buffer[out++] = (0x80 or (c and 0x3f)).toByte()
+                    }
+                    c !in 0xd800..0xdfff -> {
+                        buffer[out++] = (0xe0 or (c shr 12)).toByte()
+                        buffer[out++] = (0x80 or ((c shr 6) and 0x3f)).toByte()
+                        buffer[out++] = (0x80 or (c and 0x3f)).toByte()
+                    }
+                    c < 0xdc00 && i < length && value[i].code in 0xdc00..0xdfff -> {
+                        val codePoint = 0x10000 + ((c - 0xd800) shl 10) + (value[i++].code - 0xdc00)
+                        buffer[out++] = (0xf0 or (codePoint shr 18)).toByte()
+                        buffer[out++] = (0x80 or ((codePoint shr 12) and 0x3f)).toByte()
+                        buffer[out++] = (0x80 or ((codePoint shr 6) and 0x3f)).toByte()
+                        buffer[out++] = (0x80 or (codePoint and 0x3f)).toByte()
+                    }
+                    else -> {
+                        // an unpaired surrogate: restore the zeroed tail this writer relies on, then let the
+                        // stdlib throw its usual exception for it
+                        buffer.fill(0, prefix, out)
+                        size = prefix
+                        value.encodeToByteArray(throwOnInvalidSequence = true)
+                        error("Unpaired surrogate at $i was not rejected")
+                    }
+                }
+            }
+        }
+        // the unused part of the reservation is still zero, so dropping it keeps the tail zeroed
+        size = out
+        intAt(prefix, out - prefix - 4)
     }
 
     fun writeAddress(value: SolanaAddress) = writeRaw(value.asByteArray())
