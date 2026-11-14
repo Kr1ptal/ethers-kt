@@ -173,18 +173,19 @@ Protocol-specific components such as `AccountMeta`, `MessageInstruction`, `Inner
 val transaction = provider.getTransaction(signature).send().unwrap() // SolanaRPCTransaction?
 if (transaction != null) {
     val type = transaction.type // Legacy, V0, V1, or Unsupported(version); never null
-    val signatures = transaction.transaction.signatures // List<SolanaSignature>
-    val message = transaction.transaction.message       // SolanaRPCMessage
-    val accounts = message.accountKeys                  // List<SolanaAddress>
+    val signatures = transaction.signatures // List<SolanaSignature>
+    val message = transaction.message // SolanaRPCMessage
+    val accounts = message.accountKeys // List<SolanaAddress>
     val instructionData = message.instructions.firstOrNull()?.data // SolanaBytes?
-    val fee = transaction.meta?.fee                     // BigInteger? (lamports)
+    val fee = transaction.meta?.fee // BigInteger? (lamports)
     val extra = transaction.otherFields // fields introduced by newer validators
 }
 ```
 
 `SolanaRPCTransaction` is deliberately separate from the signable transaction hierarchy. Its `slot`, `blockTime`,
-and `type` are exposed directly. `transaction` is a `SolanaRPCTransactionData` with typed signatures and message
-fields: account addresses, blockhash, header, instructions, and lookup tables. `meta` is a
+and `type` are exposed directly, alongside `signatures` and `message`. The message contains typed
+fields: account addresses, blockhash, header, instructions, and lookup tables. The nested `transaction` payload
+remains available for compatibility and preserves the RPC JSON structure. `meta` is a
 `SolanaRPCTransactionMeta` with typed fees, balances, token balances, logs, inner instructions, loaded addresses,
 return data, rewards, compute/cost units, and extensible errors (including instruction indices and custom codes).
 Instruction and return data are decoded to `SolanaBytes`. Compiled instruction `accounts` are integer indices.
@@ -410,6 +411,44 @@ Decimals are relative to a micro-lamport: `MICRO_LAMPORT = SolUnit(0)`, `LAMPORT
 towards zero below one micro-lamport. Use strings or `BigDecimal` for precise decimal inputs, and
 `toBigIntegerExact()` when an API requires whole lamports. Unit conversion permits negative and arbitrarily
 large values; transaction instruction types validate unsigned amounts, while RPC calls defer range validation to the node.
+
+## Typed account results
+
+IDL-generated account types provide `fetch`, `watch`, and `filter` helpers. A successful result contains
+`SolanaAccount<T>` with non-null decoded data, raw account information, address, and slot context.
+`MaybeSolanaAccount` and `MissingSolanaAccount` have been replaced with explicit result failures:
+
+- `SolanaAccountError.Missing` retains the requested address and slot context.
+- `SolanaAccountError.Decode` retains the address, slot context, raw account information, and decode error,
+  including unexpected-owner and discriminator errors.
+
+A single `fetch(...).send()` returns `Result<SolanaAccount<T>, SolanaAccountError>`, including an `Rpc`
+error if the request fails. Batch fetches return an ordered list of per-account results; `filter().query()`
+returns per-account results plus the query context, including when no accounts match. RPC failures fail
+these requests, while missing or undecodable accounts remain individual results.
+
+Both `watch()` and `filter().subscribe()` deliver `Result<SolanaAccount<T>, SolanaAccountError>` items.
+Handle each result explicitly: failures are delivered without ending the subscription or skipping the
+notification. For example, with a generated `Vault` account type, inside a coroutine:
+
+```kotlin
+val updates = Vault.watch(provider, vaultAddress).send().unwrap()
+try {
+    while (true) {
+        val update = updates.receive() ?: break
+        when (update) {
+            is Result.Success -> println(update.value.data)
+            is Result.Failure -> println(update.error)
+        }
+    }
+} finally {
+    updates.close()
+}
+```
+
+Import `io.ethers.core.Result`. When migrating batch/query consumers, handle each element's result
+before accessing `.data`. Subscriptions do not provide an initial snapshot or guarantee every intermediate
+change; the application still coordinates snapshots, reconnect recovery, and multi-account state.
 
 ## Idempotent associated token accounts
 

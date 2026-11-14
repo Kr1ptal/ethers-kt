@@ -1,0 +1,977 @@
+{
+  "address": "ShowcaseProgram1111111111111111111111111111",
+  "metadata": {
+    "name": "showcase",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Exercises every supported IDL feature"
+  },
+  "docs": [
+    "A program that exists to exercise generated bindings."
+  ],
+  "instructions": [
+    {
+      "name": "initialize",
+      "docs": [
+        "Create the config account."
+      ],
+      "discriminator": [
+        175,
+        175,
+        109,
+        31,
+        13,
+        152,
+        155,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "fee_bps",
+          "type": "u16"
+        },
+        {
+          "name": "label",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "swap",
+      "discriminator": [
+        248,
+        198,
+        158,
+        145,
+        225,
+        117,
+        135,
+        200
+      ],
+      "accounts": [
+        {
+          "name": "config"
+        },
+        {
+          "name": "user",
+          "signer": true
+        },
+        {
+          "name": "vaults",
+          "accounts": [
+            {
+              "name": "input",
+              "writable": true
+            },
+            {
+              "name": "output",
+              "writable": true
+            }
+          ]
+        },
+        {
+          "name": "referrer",
+          "optional": true,
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        },
+        {
+          "name": "min_out",
+          "type": {
+            "option": "u64"
+          }
+        },
+        {
+          "name": "mode",
+          "type": {
+            "defined": {
+              "name": "Mode"
+            }
+          }
+        }
+      ],
+      "returns": "u64"
+    },
+    {
+      "name": "reset",
+      "discriminator": [
+        23,
+        81,
+        251,
+        84,
+        138,
+        183,
+        240,
+        214
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "relations": [
+            "authority"
+          ]
+        },
+        {
+          "name": "authority",
+          "signer": true
+        }
+      ],
+      "args": [],
+      "returns": {
+        "defined": {
+          "name": "Counter"
+        }
+      }
+    },
+    {
+      "name": "ping",
+      "discriminator": [
+        9
+      ],
+      "accounts": [],
+      "args": []
+    },
+    {
+      "name": "open_vault",
+      "docs": [
+        "Open a vault, deriving its accounts from every kind of seed."
+      ],
+      "discriminator": [
+        181,
+        248,
+        228,
+        67,
+        6,
+        175,
+        37,
+        167
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config"
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "arg",
+                "path": "nonce"
+              },
+              {
+                "kind": "arg",
+                "path": "name"
+              },
+              {
+                "kind": "arg",
+                "path": "params.tag"
+              },
+              {
+                "kind": "arg",
+                "path": "params.key"
+              },
+              {
+                "kind": "arg",
+                "path": "tick"
+              },
+              {
+                "kind": "arg",
+                "path": "index"
+              },
+              {
+                "kind": "arg",
+                "path": "salt"
+              }
+            ]
+          }
+        },
+        {
+          "name": "position",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "config.fee_bps",
+                "account": "Config"
+              },
+              {
+                "kind": "account",
+                "path": "config.authority",
+                "account": "Config"
+              }
+            ]
+          }
+        },
+        {
+          "name": "flagged",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  255,
+                  0
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "params.flag"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint_info",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  105,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint.supply",
+                "account": "Mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "escrow",
+          "accounts": [
+            {
+              "name": "authority"
+            },
+            {
+              "name": "escrow_vault",
+              "writable": true,
+              "pda": {
+                "seeds": [
+                  {
+                    "kind": "const",
+                    "value": [
+                      118,
+                      97,
+                      117,
+                      108,
+                      116
+                    ]
+                  },
+                  {
+                    "kind": "account",
+                    "path": "authority"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "nonce",
+          "type": "u64"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "params",
+          "type": {
+            "defined": {
+              "name": "VaultParams"
+            }
+          }
+        },
+        {
+          "name": "tick",
+          "type": "i32"
+        },
+        {
+          "name": "index",
+          "type": "u8"
+        },
+        {
+          "name": "salt",
+          "type": {
+            "array": [
+              "u8",
+              4
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Config",
+      "discriminator": [
+        155,
+        12,
+        170,
+        224,
+        30,
+        250,
+        204,
+        130
+      ]
+    },
+    {
+      "name": "Counter",
+      "discriminator": [
+        255,
+        176,
+        4,
+        245,
+        188,
+        253,
+        124,
+        25
+      ]
+    },
+    {
+      "name": "Marker",
+      "discriminator": [
+        250,
+        1
+      ]
+    },
+    {
+      "name": "Gauge",
+      "discriminator": [
+        9,
+        19,
+        249,
+        189,
+        158,
+        171,
+        226,
+        205
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "Swapped",
+      "discriminator": [
+        217,
+        52,
+        52,
+        83,
+        147,
+        135,
+        96,
+        109
+      ]
+    },
+    {
+      "name": "Paused",
+      "discriminator": [
+        172,
+        248,
+        5,
+        253,
+        49,
+        255,
+        255,
+        232
+      ]
+    },
+    {
+      "name": "Snapshot",
+      "discriminator": [
+        162,
+        160,
+        37,
+        6,
+        229,
+        208,
+        125,
+        201
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "Unauthorized",
+      "msg": "Not allowed"
+    },
+    {
+      "code": 6001,
+      "name": "Overflow"
+    }
+  ],
+  "types": [
+    {
+      "name": "Config",
+      "docs": [
+        "Program configuration."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey",
+            "docs": [
+              "Who may reset."
+            ]
+          },
+          {
+            "name": "fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "label",
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "tags",
+            "type": {
+              "vec": "string"
+            }
+          },
+          {
+            "name": "seed",
+            "type": {
+              "array": [
+                "u8",
+                4
+              ]
+            }
+          },
+          {
+            "name": "weights",
+            "type": {
+              "array": [
+                "u32",
+                3
+              ]
+            }
+          },
+          {
+            "name": "nested",
+            "type": {
+              "option": {
+                "option": "u8"
+              }
+            }
+          },
+          {
+            "name": "mode",
+            "type": {
+              "defined": {
+                "name": "Mode"
+              }
+            }
+          },
+          {
+            "name": "total",
+            "type": {
+              "defined": {
+                "name": "Amount"
+              }
+            }
+          },
+          {
+            "name": "last",
+            "type": {
+              "option": {
+                "defined": {
+                  "name": "Snapshot"
+                }
+              }
+            }
+          },
+          {
+            "name": "origin",
+            "type": {
+              "defined": {
+                "name": "showcase::Point"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Mode",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Unit"
+          },
+          {
+            "name": "Fixed",
+            "fields": [
+              {
+                "name": "rate",
+                "type": "u64"
+              },
+              {
+                "name": "until",
+                "type": "i64"
+              }
+            ]
+          },
+          {
+            "name": "Range",
+            "fields": [
+              "u8",
+              "u8",
+              "i128"
+            ]
+          },
+          {
+            "name": "Other",
+            "fields": [
+              {
+                "defined": {
+                  "name": "other::Point"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "showcase::Point",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "x",
+            "type": "i32"
+          },
+          {
+            "name": "y",
+            "type": "i32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "other::Point",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          "f32",
+          "f64"
+        ]
+      }
+    },
+    {
+      "name": "Amount",
+      "type": {
+        "kind": "type",
+        "alias": "u64"
+      }
+    },
+    {
+      "name": "Marker",
+      "type": {
+        "kind": "struct"
+      }
+    },
+    {
+      "name": "Counter",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "count",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "flags",
+            "type": {
+              "vec": "bool"
+            }
+          },
+          {
+            "name": "delta",
+            "type": "i8"
+          },
+          {
+            "name": "raw",
+            "type": "bytes"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Swapped",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "amount_in",
+            "type": "u64"
+          },
+          {
+            "name": "amount_out",
+            "type": "u64"
+          },
+          {
+            "name": "context",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Paused",
+      "type": {
+        "kind": "struct"
+      }
+    },
+    {
+      "name": "Snapshot",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "value",
+            "type": "u128"
+          },
+          {
+            "name": "at",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VaultParams",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "tag",
+            "type": "u16"
+          },
+          {
+            "name": "key",
+            "type": "pubkey"
+          },
+          {
+            "name": "flag",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Reading",
+      "serialization": "bytemuck",
+      "repr": {
+        "kind": "c"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "kind",
+            "type": "u8"
+          },
+          {
+            "name": "value",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Aligned",
+      "serialization": "bytemuck",
+      "repr": {
+        "kind": "c",
+        "align": 16
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "x",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Gauge",
+      "serialization": "bytemuckunsafe",
+      "repr": {
+        "kind": "c"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "flag",
+            "type": "u8"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "big",
+            "type": "u128"
+          },
+          {
+            "name": "small",
+            "type": "u16"
+          },
+          {
+            "name": "reading",
+            "type": {
+              "defined": {
+                "name": "Reading"
+              }
+            }
+          },
+          {
+            "name": "readings",
+            "type": {
+              "array": [
+                {
+                  "defined": {
+                    "name": "Reading"
+                  }
+                },
+                2
+              ]
+            }
+          },
+          {
+            "name": "tail",
+            "type": "u8"
+          },
+          {
+            "name": "aligned",
+            "type": {
+              "defined": {
+                "name": "Aligned"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "constants": [
+    {
+      "name": "MAX_FEE",
+      "type": "u16",
+      "value": "10_000"
+    },
+    {
+      "name": "SEED",
+      "type": "bytes",
+      "value": "[115, 101, 101, 100]"
+    },
+    {
+      "name": "BIG",
+      "type": "u128",
+      "value": "340282366920938463463374607431768211455"
+    },
+    {
+      "name": "ENABLED",
+      "type": "bool",
+      "value": "true"
+    },
+    {
+      "name": "NAME",
+      "type": "string",
+      "value": "\"showcase\""
+    },
+    {
+      "name": "OFFSET",
+      "type": "i64",
+      "value": "-5"
+    }
+  ]
+}

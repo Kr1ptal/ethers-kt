@@ -63,6 +63,8 @@ constructor(bytes: ByteArray) {
         }
 
         /** The Ed25519 group order L, little-endian, as the S half of a signature is encoded. */
+        private val PDA_MARKER = "ProgramDerivedAddress".encodeToByteArray()
+
         private val SCALAR_ORDER = byteArrayOf(
             0xed.toByte(), 0xd3.toByte(), 0xf5.toByte(), 0x5c, 0x1a, 0x63, 0x12, 0x58,
             0xd6.toByte(), 0x9c.toByte(), 0xf7.toByte(), 0xa2.toByte(), 0xde.toByte(), 0xf9.toByte(), 0xde.toByte(), 0x14,
@@ -89,7 +91,8 @@ constructor(bytes: ByteArray) {
         @Throws(IllegalArgumentException::class)
         fun createProgramAddress(seeds: List<ByteArray>, programId: SolanaAddress): SolanaAddress? {
             validateSeeds(seeds, 16)
-            return derive(seeds, programId)
+            val hash = Hashing.sha256(preimage(seeds, programId, bumpSlot = false))
+            return if (isEd25519Point(hash)) null else SolanaAddress(hash)
         }
 
         /** Find the highest valid bump, including zero. The bump occupies the sixteenth seed slot. */
@@ -97,9 +100,12 @@ constructor(bytes: ByteArray) {
         @Throws(IllegalArgumentException::class)
         fun findProgramAddress(seeds: List<ByteArray>, programId: SolanaAddress): ProgramDerivedAddress {
             validateSeeds(seeds, 15)
+            val bytes = preimage(seeds, programId, bumpSlot = true)
+            val bumpOffset = seeds.sumOf { it.size }
             for (bump in 255 downTo 0) {
-                val key = derive(seeds + listOf(byteArrayOf(bump.toByte())), programId)
-                if (key != null) return ProgramDerivedAddress(key, bump)
+                bytes[bumpOffset] = bump.toByte()
+                val hash = Hashing.sha256(bytes)
+                if (!isEd25519Point(hash)) return ProgramDerivedAddress(SolanaAddress(hash), bump)
             }
             throw IllegalArgumentException("Unable to find an off-curve program address")
         }
@@ -116,18 +122,18 @@ constructor(bytes: ByteArray) {
             require(seeds.all { it.size <= 32 }) { "PDA seed exceeds 32 bytes" }
         }
 
-        private fun derive(seeds: List<ByteArray>, programId: SolanaAddress): SolanaAddress? {
-            val suffix = "ProgramDerivedAddress".encodeToByteArray()
-            val bytes = ByteArray(seeds.sumOf { it.size } + 32 + suffix.size)
+        /** The seeds, then a byte for the bump when [bumpSlot], then [programId] and the PDA marker. */
+        private fun preimage(seeds: List<ByteArray>, programId: SolanaAddress, bumpSlot: Boolean): ByteArray {
+            val seedsSize = seeds.sumOf { it.size } + if (bumpSlot) 1 else 0
+            val bytes = ByteArray(seedsSize + 32 + PDA_MARKER.size)
             var offset = 0
             for (seed in seeds) {
                 seed.copyInto(bytes, offset)
                 offset += seed.size
             }
-            programId.value.copyInto(bytes, offset)
-            suffix.copyInto(bytes, offset + 32)
-            val hash = Hashing.sha256(bytes)
-            return if (isEd25519Point(hash)) null else SolanaAddress(hash)
+            programId.value.copyInto(bytes, seedsSize)
+            PDA_MARKER.copyInto(bytes, seedsSize + 32)
+            return bytes
         }
     }
 }

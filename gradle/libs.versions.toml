@@ -6,14 +6,14 @@ log4j2 = "2.26.1"
 jackson = "2.22.2"
 eclipse-collections = "13.0.0"
 ksp = "2.3.11"
-kotest = "6.2.4"
+kotest = "6.2.6"
 jmh = "1.37"
 klogging = "8.0.4"
 ktor = "3.5.2"
 ktlint-tool = "1.8.0"
 web3j = "4.10.3"
 ethers = "2.0.1"
-hoplite = "2.9.0"
+hoplite = "3.0.0"
 kotlincrypto = "0.8.0"
 secp256k1 = "0.24.0"
 cryptography = "0.6.0"
@@ -101,7 +101,7 @@ kotest-assertions-json = { module = "io.kotest:kotest-assertions-json", version.
 kotest-runner-junit5 = { module = "io.kotest:kotest-runner-junit5", version.ref = "kotest" }
 
 mockk = { module = "io.mockk:mockk-jvm", version = "1.14.11" }
-kotlin-compileTesting = { module = "dev.zacsweers.kctfork:core", version = "0.13.0" }
+kotlin-compileTesting = { module = "dev.zacsweers.kctfork:core", version = "0.14.0" }
 
 ##################### JMH #####################
 jmh-core = { module = "org.openjdk.jmh:jmh-core", version.ref = "jmh" }

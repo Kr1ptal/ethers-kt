@@ -16,6 +16,7 @@ include("logger")
 include("examples")
 include("ethers-ens")
 include("ethers-solana")
+include("ethers-solana-idl")
 include("swift-interop-test")
 
 pluginManagement {
