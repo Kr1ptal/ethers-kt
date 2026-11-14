@@ -80,6 +80,18 @@ class Base58Test : FunSpec({
         }
     }
 
+    test("decodes the largest value of every length, which needs the most output space") {
+        // "zzz...z" is 58^n - 1, the largest value n digits can hold, so it fills the output buffer the most
+        for (length in (1..600) + listOf(1400, 2801, 5602, 11203)) {
+            val maxValue = "z".repeat(length)
+            for (input in listOf(maxValue, "111$maxValue")) {
+                val decoded = Base58.decode(input)
+                if (length <= 600) decoded shouldBe Reference.decode(input)
+                Base58.encode(decoded) shouldBe input
+            }
+        }
+    }
+
     context("decode rejects characters outside the alphabet") {
         withData(
             mapOf(
