@@ -11,6 +11,7 @@ object Secp256k1Program {
 
     /** Derive the 20-byte Ethereum address from a 64-byte uncompressed X || Y public key (no 04 prefix). */
     @JvmStatic
+    @Throws(IllegalArgumentException::class)
     fun publicKeyToEthAddress(publicKey: ByteArray): ByteArray {
         require(publicKey.size == 64) { "Public key must contain 64 bytes without the 04 prefix" }
         return Hashing.keccak256(publicKey).copyOfRange(12, 32)
@@ -23,6 +24,7 @@ object Secp256k1Program {
      * The compiler does not relocate these references. Verification happens on-chain.
      */
     @JvmStatic
+    @Throws(IllegalArgumentException::class)
     fun verify(ethAddress: ByteArray, message: ByteArray, signature: ByteArray, recoveryId: Int, instructionIndex: Int): Instruction {
         require(ethAddress.size == 20) { "Ethereum address must contain 20 bytes" }
         require(signature.size == 64) { "Signature must contain 64 bytes" }
@@ -46,5 +48,6 @@ object Secp256k1Program {
     }
 
     @JvmStatic
+    @Throws(IllegalArgumentException::class)
     fun verifyWithPublicKey(publicKey: ByteArray, message: ByteArray, signature: ByteArray, recoveryId: Int, instructionIndex: Int): Instruction = verify(publicKeyToEthAddress(publicKey), message, signature, recoveryId, instructionIndex)
 }

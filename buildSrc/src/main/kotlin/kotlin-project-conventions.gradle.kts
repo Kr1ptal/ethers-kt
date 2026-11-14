@@ -20,6 +20,8 @@ val kotlinCompilerConfig: KotlinCommonCompilerOptions.(Boolean) -> Unit = { isTe
         //"-Xbackend-threads=0", // use all available processors
         "-Xjvm-default=all",
         "-Xexpect-actual-classes",
+        // stable Objective-C/Swift names and hiding of members Swift cannot call, for the Apple framework export
+        "-opt-in=kotlin.experimental.ExperimentalObjCName,kotlin.experimental.ExperimentalObjCRefinement",
     )
 
     val specificArgs = if (isTestTask) {

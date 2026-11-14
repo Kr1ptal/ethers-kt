@@ -2,11 +2,16 @@ package io.ethers.solana.types
 
 import io.ethers.crypto.Base58
 import kotlinx.serialization.Serializable
+import kotlin.native.ObjCName
 
 @Serializable(with = SolanaBlockhashSerializer::class)
-class SolanaBlockhash(bytes: ByteArray) {
+@ObjCName("SolanaBlockhash", exact = true)
+class SolanaBlockhash
+@Throws(IllegalArgumentException::class)
+constructor(bytes: ByteArray) {
     /** Takes ownership of [bytes] rather than copying, so do not mutate the array afterwards. */
     private val value = bytes.also { require(it.size == 32) { "Blockhash must contain 32 bytes" } }
+    @Throws(IllegalArgumentException::class)
     constructor(base58: String) : this(Base58.decode(base58))
 
     /**
@@ -29,6 +34,9 @@ class SolanaBlockhash(bytes: ByteArray) {
     override fun toString(): String = toBase58()
     override fun equals(other: Any?): Boolean = other is SolanaBlockhash && value.contentEquals(other.value)
     override fun hashCode(): Int = value.contentHashCode()
+
+    /** Holds the platform factories, such as the Apple `NSData` one. */
+    companion object
 }
 
 object SolanaBlockhashSerializer : Base58Serializer<SolanaBlockhash>("io.ethers.solana.SolanaBlockhash", ::SolanaBlockhash)

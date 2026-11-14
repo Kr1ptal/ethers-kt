@@ -3,6 +3,7 @@ package io.ethers.solana.types.transaction
 import io.ethers.core.Result
 import io.ethers.core.ThrowableError
 import io.ethers.solana.types.SolanaAddress
+import kotlin.native.ObjCName
 
 /**
  * A reason a Solana transaction could not be constructed or decoded.
@@ -21,6 +22,7 @@ import io.ethers.solana.types.SolanaAddress
  * `unwrap` does, and the validating constructors still throw [SolanaTransactionException] for callers
  * who prefer that.
  */
+@ObjCName("SolanaTransactionError", exact = true)
 sealed class SolanaTransactionError : ThrowableError {
     /** Thrown form of this error. Remains an [IllegalArgumentException], as these are argument failures. */
     override fun toException(): SolanaTransactionException = SolanaTransactionException(this)
@@ -29,6 +31,7 @@ sealed class SolanaTransactionError : ThrowableError {
      * A count fell outside the range the wire format or the message version allows.
      * [instructionIndex] is set only for the per-instruction limits.
      */
+    @ObjCName("SolanaTransactionErrorCountOutOfRange", exact = true)
     data class CountOutOfRange(
         val limit: Limit,
         val count: Int,
@@ -37,6 +40,7 @@ sealed class SolanaTransactionError : ThrowableError {
     ) : SolanaTransactionError()
 
     /** Which count [CountOutOfRange] refers to. */
+    @ObjCName("SolanaTransactionErrorLimit", exact = true)
     enum class Limit {
         /** Inline accounts, or inline plus every address loaded from a lookup table. */
         ACCOUNTS,
@@ -57,9 +61,11 @@ sealed class SolanaTransactionError : ThrowableError {
     }
 
     /** The message's own parts do not agree with each other. */
+    @ObjCName("SolanaTransactionErrorInvalidMessage", exact = true)
     data class InvalidMessage(val reason: Reason, override val message: String) : SolanaTransactionError()
 
     /** Which consistency check [InvalidMessage] failed. */
+    @ObjCName("SolanaTransactionErrorReason", exact = true)
     enum class Reason {
         /** The same address appears twice in the inline account list. */
         DUPLICATE_ACCOUNT,
@@ -87,30 +93,38 @@ sealed class SolanaTransactionError : ThrowableError {
     }
 
     /** The serialized envelope, including a slot for every required signature, exceeds the version's limit. */
+    @ObjCName("SolanaTransactionErrorEnvelopeTooLarge", exact = true)
     data class EnvelopeTooLarge(val type: SolanaTxType, val size: Long, val max: Int) : SolanaTransactionError()
 
     /** Truncated, overlong or otherwise unreadable bytes, as reported by the wire decoder. */
+    @ObjCName("SolanaTransactionErrorMalformedBytes", exact = true)
     data class MalformedBytes(override val message: String, override val cause: Throwable? = null) : SolanaTransactionError()
 
     /** A message version this library cannot construct or sign. */
+    @ObjCName("SolanaTransactionErrorUnsupportedVersion", exact = true)
     data class UnsupportedVersion(val version: Int) : SolanaTransactionError()
 
     /** A populated signature slot does not verify against the message and its signer. */
+    @ObjCName("SolanaTransactionErrorInvalidSignature", exact = true)
     data class InvalidSignature(val index: Int, val signer: SolanaAddress) : SolanaTransactionError()
 
     /** A request cannot be compiled without a fee payer, which is always the first account. */
+    @ObjCName("SolanaTransactionErrorMissingFeePayer", exact = true)
     data object MissingFeePayer : SolanaTransactionError()
 
     /** A request cannot be compiled without a recent blockhash. */
+    @ObjCName("SolanaTransactionErrorMissingBlockhash", exact = true)
     data object MissingBlockhash : SolanaTransactionError()
 
     /** Some, but not all, signature slots are filled. Import these with `Builder.deserializePartial`. */
+    @ObjCName("SolanaTransactionErrorPartiallySigned", exact = true)
     data class PartiallySigned(val missing: Int, val required: Int) : SolanaTransactionError()
 
     /**
      * Signature slots that are empty ([missing]) or hold a signature that does not verify ([invalid]).
      * Both are indexes into the message's required signers, so `tx.signers[index]` names each signer.
      */
+    @ObjCName("SolanaTransactionErrorUnsignedSlots", exact = true)
     data class UnsignedSlots(val missing: List<Int>, val invalid: List<Int>) : SolanaTransactionError() {
         override val message: String get() = buildString {
             append("Cannot build a signed transaction: ")
@@ -144,5 +158,6 @@ sealed class SolanaTransactionError : ThrowableError {
  * }
  * ```
  */
+@ObjCName("SolanaTransactionException", exact = true)
 class SolanaTransactionException(val error: SolanaTransactionError) :
     IllegalArgumentException(error.message ?: error.toString(), error.cause)

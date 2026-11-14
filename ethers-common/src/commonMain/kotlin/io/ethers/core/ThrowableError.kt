@@ -1,5 +1,6 @@
 package io.ethers.core
 
+import kotlin.native.ObjCName
 import kotlin.reflect.KClass
 
 /**
@@ -12,6 +13,7 @@ import kotlin.reflect.KClass
  * Implementations should provide a [message] and, if they wrap another failure, a [cause]. Overriding [toException]
  * is only needed for exceptions that cannot be described by a message and a cause.
  * */
+@ObjCName("EthersThrowableError", exact = true)
 interface ThrowableError {
     /**
      * Description of this error, used as the message of [toException]. If null, the error's [toString] is used
@@ -59,6 +61,7 @@ interface ThrowableError {
      * imported directly. Implementations of [ThrowableError] are unaffected, since Kotlin does not bring nested
      * classifiers of a supertype into the implementing class's scope.
      * */
+    @ObjCName("EthersThrowableErrorException", exact = true)
     class Exception(
         val error: ThrowableError,
         private val description: String? = error.message,

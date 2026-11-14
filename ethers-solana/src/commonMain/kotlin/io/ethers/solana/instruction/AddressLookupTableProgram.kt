@@ -19,13 +19,16 @@ object AddressLookupTableProgram {
 
     /** The authority and a recent slot determine the table address; the payer is not a seed. */
     @JvmStatic
+    @Throws(IllegalArgumentException::class)
     fun deriveLookupTableAddress(authority: SolanaAddress, recentSlot: BigInteger): ProgramDerivedAddress = SolanaAddress.findProgramAddress(listOf(authority.asByteArray(), littleEndian(requireU64(recentSlot), 8)), ID)
 
     @JvmStatic
+    @Throws(IllegalArgumentException::class)
     fun deriveLookupTableAddress(authority: SolanaAddress, recentSlot: Long): ProgramDerivedAddress = deriveLookupTableAddress(authority, bigIntegerOf(recentSlot))
 
     /** Build table creation and return its derived address. Only the payer must sign creation. */
     @JvmStatic
+    @Throws(IllegalArgumentException::class)
     fun createLookupTable(authority: SolanaAddress, payer: SolanaAddress, recentSlot: BigInteger): LookupTableCreation {
         val derived = deriveLookupTableAddress(authority, recentSlot)
         val data = ByteArray(13)
@@ -40,6 +43,7 @@ object AddressLookupTableProgram {
     }
 
     @JvmStatic
+    @Throws(IllegalArgumentException::class)
     fun createLookupTable(authority: SolanaAddress, payer: SolanaAddress, recentSlot: Long): LookupTableCreation = createLookupTable(authority, payer, bigIntegerOf(recentSlot))
 
     /**
@@ -49,6 +53,7 @@ object AddressLookupTableProgram {
      */
     @JvmStatic
     @JvmOverloads
+    @Throws(IllegalArgumentException::class)
     fun extendLookupTable(table: SolanaAddress, authority: SolanaAddress, addresses: List<SolanaAddress>, payer: SolanaAddress? = null): Instruction {
         require(addresses.size in 1..256) { "An extension must contain between 1 and 256 addresses" }
         val data = ByteArray(12 + addresses.size * 32)

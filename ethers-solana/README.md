@@ -65,6 +65,40 @@ try {
 }
 ```
 
+## Swift
+
+On Apple targets every function that can throw declares it, so Swift calls it with `try` and a failure arrives as a
+thrown `Error` instead of aborting the process. Call `unwrap()` on a `Result`: a `Failure` is thrown, and the
+original `SolanaTransactionError` stays reachable through
+`((error as NSError).kotlinException as? SolanaTransactionException)?.error`. `onSuccess`, `onFailure`,
+`unwrapOrElse` and `unwrapErrorOrElse` take Swift closures, typed by the `Result`'s own value and error types. The
+combinators that introduce a new type (`map`, `mapError`, `andThen`, `orElse`, `fold`) are hidden from
+Objective-C, which would erase that type to `Any`; `try result.unwrap()!` followed by plain Swift is the typed
+alternative.
+
+The byte-heavy entry points also take and return `Data`. Inputs keep their names (`deserializePartial(data:)`,
+`SolanaAddress.companion.fromData(data:)`), while outputs carry a `Data` suffix (`serializeData()`,
+`serializePartialData()`, `toData()`). The message bytes are the exception: `SolanaTransactionCompiled` is an
+interface, which Objective-C cannot extend, so they come from the free function `SolanaDataKt.serializeMessageData(tx)`.
+An interface's companion is likewise reached by name: `SolanaTransactionUnsignedCompanion.shared.deserializeMessage(data:)`.
+Where the `ByteArray` parameter is already called `data`, the `Data` one is `accountData`
+(`TokenMint.companion.decode(accountData:)`). Instruction data is passed as `SolanaBytes.companion.fromData(data:)`.
+`sign(signers:)` takes a Swift array.
+
+`Duration`s cross into Objective-C as their raw encoding, so the Apple-only overloads take and return seconds instead:
+`confirmation(commitment:intervalSeconds:timeoutSeconds:)` and `PendingSolanaTransaction.ErrorTimedOut.waitedSeconds`.
+Main types keep their Kotlin names in Swift, unprefixed: `SolanaTransactionSignedBuilder`, `EthersResult`,
+`SolanaTransactionErrorUnsignedSlots`.
+
+```swift
+let builder = try SolanaTransactionSignedBuilder.companion.deserializePartial(data: envelope).unwrap()!
+_ = try builder.addSignature(signer: payer, signature: SolanaSignature.companion.fromData(data: signature))
+let signed = try builder.build().unwrap()!
+let bytes: Data = signed.serializeData()
+
+let transaction = try unsigned.sign(signers: [aliceSigner, bobSigner])
+```
+
 ## Transaction types and signing
 
 `SolanaTransaction` is the common interface. `SolanaTxLegacy`, `SolanaTxV0`, and `SolanaTxV1` implement
@@ -79,7 +113,7 @@ val signed = builder.sign(bob).build().unwrap()     // Result; every slot must h
 // build() reports every empty and every failing slot at once, as SolanaTransactionError.UnsignedSlots.
 ```
 
-`unsigned.sign(vararg signers)` requires all signers. The nested builder collects signatures for a fixed
+`unsigned.sign(vararg signers)` and `unsigned.sign(signers: List)` require all signers. The nested builder collects signatures for a fixed
 unsigned payload; it is mutable, not thread-safe, and is not a transaction itself. `build()` returns an immutable
 fully signed snapshot. Constructors and imports verify every supplied signature against its ordered signer slot.
 A signed transaction's `id` is its first signature. Replacing the message or blockhash returns an unsigned

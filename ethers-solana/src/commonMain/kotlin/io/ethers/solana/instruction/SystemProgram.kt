@@ -15,6 +15,7 @@ object SystemProgram {
 
     /** Move [lamports] of SOL from [from] to [to]. */
     @JvmStatic
+    @Throws(IllegalArgumentException::class)
     fun transfer(from: SolanaAddress, to: SolanaAddress, lamports: BigInteger): Instruction = Instruction(
         ID,
         listOf(AccountMeta.signerAndWritable(from), AccountMeta.writable(to)),
@@ -22,6 +23,7 @@ object SystemProgram {
     )
 
     @JvmStatic
+    @Throws(IllegalArgumentException::class)
     fun transfer(from: SolanaAddress, to: SolanaAddress, lamports: Long): Instruction = transfer(from, to, bigIntegerOf(lamports))
 
     /**
@@ -31,6 +33,7 @@ object SystemProgram {
      * `getMinimumBalanceForRentExemption`.
      */
     @JvmStatic
+    @Throws(IllegalArgumentException::class)
     fun createAccount(from: SolanaAddress, account: SolanaAddress, lamports: BigInteger, space: Long, owner: SolanaAddress): Instruction = Instruction(
         ID,
         listOf(AccountMeta.signerAndWritable(from), AccountMeta.signerAndWritable(account)),
@@ -42,6 +45,7 @@ object SystemProgram {
     )
 
     @JvmStatic
+    @Throws(IllegalArgumentException::class)
     fun createAccount(from: SolanaAddress, account: SolanaAddress, lamports: Long, space: Long, owner: SolanaAddress): Instruction = createAccount(from, account, bigIntegerOf(lamports), space, owner)
 
     /** Hand ownership of [account], which must be empty of data, to [owner]. */
@@ -54,6 +58,7 @@ object SystemProgram {
 
     /** Give [account] [space] bytes of data, which it must not already have. */
     @JvmStatic
+    @Throws(IllegalArgumentException::class)
     fun allocate(account: SolanaAddress, space: Long): Instruction = Instruction(
         ID,
         listOf(AccountMeta.signerAndWritable(account)),
@@ -85,6 +90,7 @@ object SystemProgram {
 
     /** Move [lamports] out of a nonce account, which must keep enough to stay rent exempt. */
     @JvmStatic
+    @Throws(IllegalArgumentException::class)
     fun withdrawNonceAccount(nonceAccount: SolanaAddress, authority: SolanaAddress, to: SolanaAddress, lamports: BigInteger): Instruction = Instruction(
         ID,
         listOf(
@@ -111,6 +117,7 @@ object SystemProgram {
 
     /** Create a seeded account. Its address must match [SolanaAddress.createWithSeed]. */
     @JvmStatic
+    @Throws(IllegalArgumentException::class)
     fun createAccountWithSeed(from: SolanaAddress, account: SolanaAddress, base: SolanaAddress, seed: String, lamports: BigInteger, space: Long, owner: SolanaAddress): Instruction {
         val encoded = seededPrefix(account, base, seed, owner)
         return Instruction(
@@ -126,10 +133,12 @@ object SystemProgram {
     }
 
     @JvmStatic
+    @Throws(IllegalArgumentException::class)
     fun createAccountWithSeed(from: SolanaAddress, account: SolanaAddress, base: SolanaAddress, seed: String, lamports: Long, space: Long, owner: SolanaAddress): Instruction = createAccountWithSeed(from, account, base, seed, bigIntegerOf(lamports), space, owner)
 
     /** Allocate and assign a seeded account, authorized by its base. */
     @JvmStatic
+    @Throws(IllegalArgumentException::class)
     fun allocateWithSeed(account: SolanaAddress, base: SolanaAddress, seed: String, space: Long, owner: SolanaAddress): Instruction {
         val encoded = seededPrefix(account, base, seed, owner)
         return Instruction(
@@ -145,6 +154,7 @@ object SystemProgram {
 
     /** Assign a seeded account to the owner used in its derivation. */
     @JvmStatic
+    @Throws(IllegalArgumentException::class)
     fun assignWithSeed(account: SolanaAddress, base: SolanaAddress, seed: String, owner: SolanaAddress): Instruction {
         val encoded = seededPrefix(account, base, seed, owner)
         return Instruction(
@@ -159,6 +169,7 @@ object SystemProgram {
 
     /** Transfer from a seeded account, using its base signature instead of an account signature. */
     @JvmStatic
+    @Throws(IllegalArgumentException::class)
     fun transferWithSeed(from: SolanaAddress, base: SolanaAddress, seed: String, owner: SolanaAddress, to: SolanaAddress, lamports: BigInteger): Instruction {
         val prefix = seededPrefix(from, base, seed, owner)
         val encoded = prefix.copyOfRange(32, prefix.size)
@@ -174,6 +185,7 @@ object SystemProgram {
     }
 
     @JvmStatic
+    @Throws(IllegalArgumentException::class)
     fun transferWithSeed(from: SolanaAddress, base: SolanaAddress, seed: String, owner: SolanaAddress, to: SolanaAddress, lamports: Long): Instruction = transferWithSeed(from, base, seed, owner, to, bigIntegerOf(lamports))
 
     private fun seededPrefix(account: SolanaAddress, base: SolanaAddress, seed: String, owner: SolanaAddress): ByteArray {
