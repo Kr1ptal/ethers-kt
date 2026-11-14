@@ -94,6 +94,10 @@ class ZeroCopyLayoutsBindingsTest : FunSpec({
 
         val fields = ZeroCopyLayouts.Holder.Fields
         listOf(fields.tag.offset, fields.wrapped.offset, fields.packed.offset, fields.tail.offset) shouldBe listOf(0, 8, 24, 52)
+        // nested paths follow the same layouts: the transparent field at 8 + 0, and the packed fields at 24 + 0, 1, 17, 19
+        fields.wrapped.inner.offset shouldBe 8
+        listOf(fields.packed.a.offset, fields.packed.b.offset, fields.packed.c.offset, fields.packed.d.offset) shouldBe listOf(24, 25, 41, 43)
+        fields.packed.d.size shouldBe 8
     }
 
     test("arrays of a padded struct repeat it with its padding") {
