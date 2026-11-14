@@ -84,9 +84,10 @@ abstract class EthersSolanaIdlExtension(private val project: Project) {
      * Generate a JSON form for the value types of every program: structs, enums, events and instruction arguments get a
      * nested kotlinx.serialization `JsonSerializer`, which their `@Serializable` annotation names. It is separate from
      * the binary codecs, which do not change. The generated code compiles against the kotlinx.serialization runtime,
-     * which `ethers-solana` already depends on; apply the kotlinx.serialization compiler plugin as well to have
-     * `Json.encodeToString(value)` find the serializers without naming them. `io.ethers.solana.codec.SolanaJson`
-     * documents the JSON representation.
+     * which `ethers-solana` already depends on, and the kotlinx.serialization compiler plugin is added to the project's
+     * Kotlin compilations at the project's Kotlin version, so `Json.encodeToString(value)` finds the serializers. A
+     * project that applies `org.jetbrains.kotlin.plugin.serialization` itself keeps it, see
+     * [KotlinxSerializationSubplugin]. `io.ethers.solana.codec.SolanaJson` documents the JSON representation.
      *
      * Default value is `false`, which keeps the bindings without a JSON form.
      * */

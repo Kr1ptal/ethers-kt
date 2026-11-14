@@ -417,9 +417,18 @@ change; the application still coordinates snapshots, reconnect recovery, and mul
 
 ## JSON form of IDL values
 
-Bindings generated with kotlinx.serialization enabled (the Gradle plugin's `kotlinxSerialization = true`, or
-`--kotlinx-serialization <program>` for the CLI) give every struct, enum, event and instruction arguments class a
-nested `JsonSerializer`, a `SolanaJsonSerializer`. This JSON form is entirely separate from the Borsh and zero-copy
+One line in the Gradle build turns it on, with nothing else to set up:
+
+```kotlin
+ethersSolanaIdl {
+    kotlinxSerialization = true
+}
+```
+
+Every struct, enum, event and instruction arguments class then gets a nested `JsonSerializer`, a
+`SolanaJsonSerializer`, which its `@Serializable` annotation names, and the plugin adds the kotlinx.serialization
+compiler plugin to the project's Kotlin compilations so `Json` finds it (see the
+[plugin README](../ethers-abigen-plugin/README.md#solana-program-bindings)). This JSON form is entirely separate from the Borsh and zero-copy
 codecs, which do not change. It never routes a value through a JSON double, so it round-trips losslessly:
 
 | IDL type | JSON |
@@ -451,15 +460,15 @@ An event's JSON holds its payload fields only, as its binary encoding does. Its 
 standalone context for the program's address, and `withContext(context)` returns a serializer that attaches another.
 
 ```kotlin
-// with the kotlinx.serialization compiler plugin applied
 val json = Json.encodeToString(pool)
 val decoded = Json.decodeFromString<Clmm.PoolState>(json)
-
-// without it, name the serializer
-val same = Json.encodeToString(Clmm.PoolState.JsonSerializer, pool)
+val pools = Json.decodeFromString<List<Clmm.PoolState>>(array)
 ```
 
-The serializers support JSON only; another format fails with a `SerializationException`.
+The serializers support JSON only; another format fails with a `SerializationException`. Bindings generated without the
+Gradle plugin, such as with the CLI's `--kotlinx-serialization <program>`, need the
+`org.jetbrains.kotlin.plugin.serialization` plugin for this lookup, or name the serializer explicitly:
+`Json.encodeToString(Clmm.PoolState.JsonSerializer, pool)`.
 
 ## Idempotent associated token accounts
 
