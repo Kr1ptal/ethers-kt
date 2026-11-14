@@ -1,5 +1,7 @@
 package io.ethers.solana.idl.test
 
+import io.ethers.solana.codec.BorshReader
+import io.ethers.solana.codec.SolanaAccountField
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBytes
 import io.github.artificialpb.bignum.BigInteger
@@ -47,6 +49,23 @@ class AmmV3BindingsTest : FunSpec({
         pool.sqrtPriceX64 shouldBe BigInteger("491162215651693862")
         pool.tickCurrent shouldBe -72521
         AmmV3.PoolState.ACCOUNT.encode(pool) shouldBe POOL_DATA
+    }
+
+    test("nested descriptors read the mainnet pool's packed reward infos as the codec decodes them") {
+        val pool = AmmV3.PoolState.ACCOUNT.decode(POOL_DATA).unwrap()
+        fun <V> read(field: SolanaAccountField<AmmV3.PoolState, V>): V = field.read(BorshReader(POOL_DATA, 8 + field.offset))
+        val rewards = AmmV3.PoolState.Fields.rewardInfos
+        read(rewards) shouldBe pool.rewardInfos
+        for (i in 0 until rewards.length) {
+            read(rewards[i]) shouldBe pool.rewardInfos[i]
+            read(rewards[i].rewardState) shouldBe pool.rewardInfos[i].rewardState
+            read(rewards[i].endTime) shouldBe pool.rewardInfos[i].endTime
+            read(rewards[i].tokenMint) shouldBe pool.rewardInfos[i].tokenMint
+            read(rewards[i].authority) shouldBe pool.rewardInfos[i].authority
+        }
+        // reward infos are packed back to back
+        rewards[1].offset - rewards[0].offset shouldBe rewards.elementSize
+        read(AmmV3.PoolState.Fields.tickCurrent) shouldBe -72521
     }
 
     test("the pool's own addresses derive from its seeds") {
