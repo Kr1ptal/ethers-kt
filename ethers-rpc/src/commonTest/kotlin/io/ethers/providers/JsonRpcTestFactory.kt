@@ -8,7 +8,10 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.funSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import kotlinx.serialization.builtins.nullable
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.JsonElement as KJsonElement
 
@@ -65,6 +68,27 @@ object JsonRpcTestFactory {
 
                 result.isSuccess() shouldBe true
                 result.unwrap() shouldBe "0x1234567"
+            }
+
+            // a null result is a successful null, e.g. eth_getTransactionByHash for an unknown hash
+            test("null result decodes as null with a nullable serializer") {
+                server.enqueueJson(NULL_RESULT_RESPONSE)
+
+                val result = client.request("eth_getTransactionByHash", arrayOf("0x1234"), String.serializer().nullable)
+
+                result.isSuccess() shouldBe true
+                result.unwrap() shouldBe null
+            }
+
+            test("null result decodes as null with a decoder function") {
+                server.enqueueJson(NULL_RESULT_RESPONSE)
+
+                val result = client.request("eth_getTransactionByHash", arrayOf("0x1234")) {
+                    if (it is JsonNull) null else it.jsonPrimitive.content
+                }
+
+                result.isSuccess() shouldBe true
+                result.unwrap() shouldBe null
             }
 
             test("RPC error response") {
@@ -209,6 +233,8 @@ object JsonRpcTestFactory {
     }
 
     // Test response constants
+    private val NULL_RESULT_RESPONSE = """{"jsonrpc":"2.0","id":1,"result":null}"""
+
     private val SUCCESSFUL_RESPONSE = """
     {
         "jsonrpc": "2.0",

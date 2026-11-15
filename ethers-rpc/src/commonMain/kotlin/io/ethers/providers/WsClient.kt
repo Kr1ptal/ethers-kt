@@ -616,12 +616,11 @@ class WsClient(
         resultElement: KJsonElement?,
         error: RpcError?,
     ) {
-        val result = if (error == null && resultElement != null) request.resultDecoder(resultElement) else null
-
+        // decide on the element, not the decoded value: a null result, e.g. for an unknown transaction, is a success
         val response = when {
-            result == null && error == null -> HttpClient.ERROR_INVALID_RESPONSE
-            result != null -> success<T>(result)
-            else -> failure(error!!)
+            error != null -> failure(error)
+            resultElement != null -> success(request.resultDecoder(resultElement))
+            else -> HttpClient.ERROR_INVALID_RESPONSE
         }
 
         LOG.trc { "Handled response for request $id: $response" }
