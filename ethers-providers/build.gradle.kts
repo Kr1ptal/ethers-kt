@@ -1,5 +1,6 @@
 plugins {
     `project-conventions`
+    `jmh-conventions`
     `maven-publish-conventions`
 }
 
@@ -49,6 +50,16 @@ kotlin {
         val jvmSharedTest by getting {
             dependencies {
                 implementation(libs.bundles.kotest)
+            }
+        }
+
+        val jvmJmh by getting {
+            dependencies {
+                // JSON-RPC responses of both chains, parsed through the alternatives kotlinx offers
+                implementation(project(":ethers-solana"))
+                implementation(libs.kotlinx.serialization.io)
+                implementation(libs.jmh.core)
+                implementation(libs.jmh.generator)
             }
         }
     }
