@@ -503,6 +503,8 @@ class WsClient(
     }
 
     private fun handleMessage(text: String) {
+        if (handleResponseDirectly(text)) return
+
         val element = Kotlinx.DEFAULT.parseToJsonElement(text)
 
         if (element is JsonArray) {
@@ -537,6 +539,43 @@ class WsClient(
                 }
             }
         }
+    }
+
+    /**
+     * Decode a response to a single call straight into its result, without a JSON tree, and complete the call. Returns
+     * false, leaving the message to the tree route, if it is anything else or does not decode; the tree route then
+     * gives the outcome it always has.
+     */
+    private fun handleResponseDirectly(text: String): Boolean {
+        val id = WsMessageScanner.responseId(text)
+        if (id == WsMessageScanner.NONE) return false
+        val request = inFlightRequests[id] ?: return false
+        return completeDirectly(id, request, text)
+    }
+
+    private fun <T> completeDirectly(id: Long, request: PendingRequest<T>, text: String): Boolean {
+        // the same outcomes, in the same order, as handleMessage gives on a tree: an error wins over a result
+        val response = try {
+            val fields = Kotlinx.DEFAULT.decodeFromString(RpcResponseFieldsDeserializer(request.resultDeserializer), text)
+            // the scan stopped at the first id: a later method, or a different last id, is for the tree route to route
+            if (fields.hasMethod || (fields.id as? JsonPrimitive)?.longOrNull != id) return false
+            val error = fields.error
+            when {
+                error != null && error !is JsonNull -> failure(RpcError.fromJsonObject(error.jsonObject))
+                // the result is only absent while hasResult is false, so it holds a T, which may itself be nullable
+                @Suppress("UNCHECKED_CAST")
+                fields.hasResult
+                -> success(fields.result as T)
+                else -> failure(RpcError(RpcError.CODE_INVALID_RESPONSE, "Invalid response", JsonPrimitive(text)))
+            }
+        } catch (_: Exception) {
+            return false
+        }
+
+        inFlightRequests.remove(id)
+        LOG.trc { "Handled response for request $id: $response" }
+        request.response.complete(response)
+        return true
     }
 
     private fun handleBatchResponse(text: String, array: JsonArray) {
