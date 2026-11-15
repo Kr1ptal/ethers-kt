@@ -300,8 +300,8 @@ class SolanaProgramBuilderTest : FunSpec({
             IdlTypeDef("Maybe", named("a" to IdlType.Option(IdlType.Primitive.U8))),
             IdlTypeDef("Many", named("a" to IdlType.Vec(IdlType.Primitive.U8))),
             IdlTypeDef("WithShape", named("shape" to IdlType.Defined("Shape"))),
-            // zero-copy: u8, 7 bytes of padding, u64 = 16
-            IdlTypeDef("Padded", named("a" to IdlType.Primitive.U8, "b" to IdlType.Primitive.U64), serialization = IdlSerialization.Bytemuck, repr = IdlRepr.C()),
+            // zero-copy: u8, 7 bytes of padding, u64 = 16; bytemuckunsafe, as derive(Pod) rules padding out
+            IdlTypeDef("Padded", named("a" to IdlType.Primitive.U8, "b" to IdlType.Primitive.U64), serialization = IdlSerialization.BytemuckUnsafe, repr = IdlRepr.C()),
         )
         val instructions = listOf(
             // u32 + u16 = 6

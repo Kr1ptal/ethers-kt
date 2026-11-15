@@ -1,6 +1,7 @@
 package io.ethers.solana.idl.test
 
 import io.ethers.core.FastHex
+import io.ethers.solana.codec.SolanaCodec
 import io.ethers.solana.codec.SolanaDecodeError
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
@@ -121,5 +122,35 @@ class ZeroCopyLayoutsBindingsTest : FunSpec({
         val packedData = hex("07" + "01" + zeros(31) + ones(32))
         ZeroCopyLayouts.PackedWide.encode(packed) shouldBe packedData
         ZeroCopyLayouts.PackedWide.decode(packedData).unwrap() shouldBe packed
+    }
+
+    test("each codec's fixed encoded size is its exact layout size, trailing padding included") {
+        // the sizes the tests above derive, and each value encoding to exactly that many bytes
+        val cell = ZeroCopyLayouts.Cell(bigIntegerOf(1), 2)
+        val aligned = ZeroCopyLayouts.AlignedC(1, bigIntegerOf(2))
+        val packed = ZeroCopyLayouts.PackedC(1, bigIntegerOf(2), 3, bigIntegerOf(4))
+        val wrapper = ZeroCopyLayouts.Wrapper(bigIntegerOf(5))
+        val cases: List<Triple<SolanaCodec<*>, Int, ByteArray>> = listOf(
+            Triple(ZeroCopyLayouts.WideC, 56, ZeroCopyLayouts.WideC.encode(ZeroCopyLayouts.WideC(1, bigIntegerOf(2), 3, bigIntegerOf(-4), 5))),
+            Triple(ZeroCopyLayouts.AlignedC, 32, ZeroCopyLayouts.AlignedC.encode(aligned)),
+            Triple(ZeroCopyLayouts.Outer, 96, ZeroCopyLayouts.Outer.encode(ZeroCopyLayouts.Outer(1, aligned, 2))),
+            Triple(ZeroCopyLayouts.PackedC, 27, ZeroCopyLayouts.PackedC.encode(packed)),
+            Triple(ZeroCopyLayouts.Wrapper, 16, ZeroCopyLayouts.Wrapper.encode(wrapper)),
+            Triple(ZeroCopyLayouts.Holder, 56, ZeroCopyLayouts.Holder.encode(ZeroCopyLayouts.Holder(1, wrapper, packed, 2))),
+            Triple(ZeroCopyLayouts.Cell, 16, ZeroCopyLayouts.Cell.encode(cell)),
+            Triple(ZeroCopyLayouts.Grid, 40, ZeroCopyLayouts.Grid.encode(ZeroCopyLayouts.Grid(listOf(cell, cell), 3))),
+            Triple(
+                ZeroCopyLayouts.PodWide,
+                96,
+                ZeroCopyLayouts.PodWide.encode(ZeroCopyLayouts.PodWide(bigIntegerOf(1), bigIntegerOf(2), bigIntegerOf(3), bigIntegerOf(4), bigIntegerOf(5))),
+            ),
+            Triple(ZeroCopyLayouts.PackedWide, 65, ZeroCopyLayouts.PackedWide.encode(ZeroCopyLayouts.PackedWide(1, bigIntegerOf(2), bigIntegerOf(3)))),
+        )
+        for ((codec, size, encoded) in cases) {
+            codec.encodedSize shouldBe size
+            encoded.size shouldBe size
+        }
+        // an account is its discriminator followed by the layout
+        ZeroCopyLayouts.Holder.ACCOUNT.encode(ZeroCopyLayouts.Holder(1, wrapper, packed, 2)).size shouldBe 8 + 56
     }
 })
