@@ -71,8 +71,9 @@ import java.math.BigInteger
  * Each program derived account gets a `find` function deriving its address from its seeds. Integer seeds are
  * encoded in the byte order [seedByteOrders] gives, since IDLs do not record it.
  *
- * Every builder returns the instruction's typed class in the instruction hierarchy, the class decoding returns, holding
- * its resolved accounts, arguments and encoded `instruction`. Each instruction with accounts has up to three builders:
+ * Every builder returns the instruction's typed class in the instruction hierarchy, the class decoding returns. It extends
+ * the runtime instruction, so a transaction takes it as it is, and holds its resolved accounts and arguments. Each
+ * instruction with accounts has up to three builders:
  * - `ix(accounts, ...)`, which takes its accounts class;
  * - `ix(account = ..., ...)`, which takes each account as a parameter and derives, when they are null, the accounts the
  *   IDL lets it derive without on-chain data: fixed addresses, and PDAs seeded by constants, arguments and other
@@ -1248,25 +1249,19 @@ class SolanaProgramBuilder @JvmOverloads constructor(
     // --- instructions ---
 
     private fun addInstructions(programType: TypeSpec.Builder) {
-        val hierarchy = TypeSpec.interfaceBuilder(instructionHierarchy)
+        val hierarchy = TypeSpec.classBuilder(instructionHierarchy)
             .addModifiers(KModifier.SEALED)
             .addKdoc(
-                "An instruction of the %L program, as built or decoded: its typed accounts and arguments, and the [instruction] they " +
-                    "encode to, which a transaction takes.\n",
+                "An instruction of the %L program, as built or decoded: an [%T] that also holds its typed accounts and arguments, so " +
+                    "it can be passed to a transaction as it is. Equality is by the encoded instruction, as for any [%T].\n",
                 program.name,
+                Runtime.INSTRUCTION,
+                Runtime.INSTRUCTION,
             )
-            .addProperty("remainingAccounts", LIST.parameterizedBy(Runtime.ACCOUNT_META))
-            .addProperty(
-                PropertySpec.builder("instruction", Runtime.INSTRUCTION)
-                    .addKdoc("The encoded instruction: the one built, or the one decoded, as it was.\n")
-                    .build(),
-            )
-            .addProperty(
-                PropertySpec.builder("programId", Runtime.SOLANA_ADDRESS)
-                    .addKdoc("The program the instruction invokes.\n")
-                    .getter(FunSpec.getterBuilder().addStatement("return instruction.programId").build())
-                    .build(),
-            )
+            .primaryConstructor(wireConstructor().build())
+            .superclass(Runtime.INSTRUCTION)
+            .addSuperclassConstructorParameter("programId, keys, data")
+            .addProperty(PropertySpec.builder("remainingAccounts", LIST.parameterizedBy(Runtime.ACCOUNT_META), KModifier.ABSTRACT).build())
         program.instructions.forEach { hierarchy.addType(addInstruction(programType, it)) }
         programType.addType(hierarchy.build())
 
@@ -1339,18 +1334,14 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             ParameterSpec.builder("remainingAccounts", LIST.parameterizedBy(Runtime.ACCOUNT_META)).defaultValue("emptyList()").build(),
         )
         builder.addParameter(ParameterSpec.builder("programId", Runtime.SOLANA_ADDRESS).defaultValue("PROGRAM_ID").build())
-        val encoded = CodeBlock.of(
-            "%T(programId, %L, %N.encodeData(%L))",
-            Runtime.INSTRUCTION,
-            if (hasAccounts) CodeBlock.of("accounts.toAccountMetas(programId) + remainingAccounts") else CodeBlock.of("remainingAccounts"),
-            descriptorName,
-            if (argsFields.isNotEmpty()) "args" else "Unit",
-        )
+        // the same programId, keys and data the plain instruction was built from; the data is taken without copying
         val built = buildList {
             if (hasAccounts) add(CodeBlock.of("accounts"))
             if (argsFields.isNotEmpty()) add(CodeBlock.of("args"))
             add(CodeBlock.of("remainingAccounts"))
-            add(encoded)
+            add(CodeBlock.of("programId"))
+            add(if (hasAccounts) CodeBlock.of("accounts.toAccountMetas(programId) + remainingAccounts") else CodeBlock.of("remainingAccounts"))
+            add(CodeBlock.of("%T.fromBytes(%N.encodeData(%L))", Runtime.SOLANA_BYTES, descriptorName, if (argsFields.isNotEmpty()) "args" else "Unit"))
         }
         builder.addStatement("return %T(%L)", decodedClass, built.joinToCode(", "))
         programType.addFunction(builder.build())
@@ -1365,8 +1356,8 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             if (hasAccounts) add(PropertySpec.builder("accounts", accountsClass).addKdoc("The accounts, resolved.\n").build())
             if (argsFields.isNotEmpty()) add(PropertySpec.builder("args", argsClass).build())
             add(PropertySpec.builder("remainingAccounts", LIST.parameterizedBy(Runtime.ACCOUNT_META), KModifier.OVERRIDE).build())
-            add(PropertySpec.builder("instruction", Runtime.INSTRUCTION, KModifier.OVERRIDE).build())
         }
+        // a decoded instruction keeps the wire fields it was decoded from, privileges beyond the IDL's included
         val construct = CodeBlock.of(
             "%T(%L)",
             decodedClass,
@@ -1374,7 +1365,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
                 if (hasAccounts) add(CodeBlock.of("%T.read(reader)", accountsClass))
                 if (argsFields.isNotEmpty()) add(CodeBlock.of("args"))
                 add(CodeBlock.of("reader.remaining()"))
-                add(CodeBlock.of("instruction"))
+                add(CodeBlock.of("instruction.programId, instruction.keys, instruction.data"))
             }.joinToCode(", "),
         )
         val decode = FunSpec.builder("decode")
@@ -1392,24 +1383,42 @@ class SolanaProgramBuilder @JvmOverloads constructor(
                 construct,
             )
             .build()
-        // the constructor, and so `copy`, is internal: the accounts and arguments must stay those the instruction encodes
-        val constructor = FunSpec.constructorBuilder().addModifiers(KModifier.INTERNAL)
-        val typed = TypeSpec.classBuilder(decodedClass).addModifiers(KModifier.DATA)
-            .addAnnotation(ClassName("kotlin", "ConsistentCopyVisibility"))
+        // the constructor is internal: the accounts and arguments must stay those the wire fields encode. Not a data class,
+        // so equality is the base instruction's, by wire content
+        val constructor = wireConstructor(properties).addModifiers(KModifier.INTERNAL)
+        val typed = TypeSpec.classBuilder(decodedClass)
         for (property in properties) {
-            constructor.addParameter(property.name, property.type)
             typed.addProperty(property.toBuilder().initializer(property.name).build())
         }
+        val described = (properties.map { it.name } + "programId").joinToString(", ") { "$it=\$$it" }
         return typed.primaryConstructor(constructor.build())
             .addKdoc(
-                "The %L instruction, as its builders build it and [decode] decodes it. Pass [instruction] to a transaction, and " +
-                    "%L to build further instructions without resolving them again.\n",
+                "The %L instruction, as its builders build it and [decode] decodes it: an instruction a transaction takes as it is, " +
+                    "%L. A decoded instruction keeps the program id, accounts and data it was decoded from.\n",
                 ix.name,
-                if (hasAccounts) "[accounts] to the builder that takes them" else "nothing",
+                if (hasAccounts) "whose [accounts] the builder taking them reuses without resolving them again" else "with no accounts",
             )
-            .addSuperinterface(instructionHierarchy)
+            .superclass(instructionHierarchy)
+            .addSuperclassConstructorParameter("programId, keys, data")
+            .addFunction(
+                FunSpec.builder("toString")
+                    .addModifiers(KModifier.OVERRIDE)
+                    .returns(STRING)
+                    .addStatement("return %P", CodeBlock.of("%L(%L)", decodedClass.simpleName, described))
+                    .build(),
+            )
             .addType(TypeSpec.companionObjectBuilder().addFunction(decode).build())
             .build()
+    }
+
+    /** A constructor taking [properties], then the wire fields an instruction passes to the runtime instruction it extends. */
+    private fun wireConstructor(properties: List<PropertySpec> = emptyList()): FunSpec.Builder {
+        val constructor = FunSpec.constructorBuilder()
+        properties.forEach { constructor.addParameter(it.name, it.type) }
+        return constructor
+            .addParameter("programId", Runtime.SOLANA_ADDRESS)
+            .addParameter("keys", LIST.parameterizedBy(Runtime.ACCOUNT_META))
+            .addParameter("data", Runtime.SOLANA_BYTES)
     }
 
     /**

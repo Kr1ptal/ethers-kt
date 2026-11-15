@@ -453,10 +453,15 @@ class SolanaProgramBuilderTest : FunSpec({
             source shouldContain "@param nestedMyAccount Resolved when null from the `my_account` field of related account `nested.account`, which must agree."
             source shouldContain "nested = TestRelationAccounts.Nested( myAccount = resolved.required(2), account = resolved.required(3), ),"
             source shouldContain ").resolve(api, commitment).map { resolved -> testRelation(TestRelationAccounts("
-            // the builder taking the accounts class encodes as before, and wraps the instruction in its typed class
+            // the builder taking the accounts class encodes the same wire fields as before, into a typed instruction extending the runtime one
             source shouldContain "public fun testRelation( accounts: TestRelationAccounts, remainingAccounts: List<AccountMeta> = emptyList(), " +
-                "programId: SolanaAddress = PROGRAM_ID, ): Instruction.TestRelation = Instruction.TestRelation(accounts, remainingAccounts, io.ethers.solana.instruction.Instruction(programId, " +
-                "accounts.toAccountMetas(programId) + remainingAccounts, TEST_RELATION.encodeData(Unit)))"
+                "programId: SolanaAddress = PROGRAM_ID, ): Instruction.TestRelation = Instruction.TestRelation(accounts, remainingAccounts, programId, " +
+                "accounts.toAccountMetas(programId) + remainingAccounts, SolanaBytes.fromBytes(TEST_RELATION.encodeData(Unit)))"
+            source shouldContain "public sealed class Instruction( programId: SolanaAddress, keys: List<AccountMeta>, `data`: SolanaBytes, ) : " +
+                "io.ethers.solana.instruction.Instruction(programId, keys, data)"
+            // a decoded instruction passes on the wire fields it was decoded from
+            source shouldContain "TestRelation(TestRelationAccounts.read(reader), reader.remaining(), instruction.programId, instruction.keys, instruction.data)"
+            source shouldContain "public class TestRelation internal constructor("
             (source.contains("Partial")) shouldBe false
         }
 

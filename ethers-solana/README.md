@@ -420,8 +420,8 @@ change; the application still coordinates snapshots, reconnect recovery, and mul
 
 IDL-generated instruction builders derive the accounts their IDL says how to derive, as part of building the
 instruction. Every builder returns the instruction's typed class, such as `Program.Instruction.Withdraw`, which is also
-the class decoding returns. It holds the resolved `accounts`, the `args`, the `remainingAccounts` and the encoded
-`instruction`. Pass `instruction` to a transaction.
+the class decoding returns. It extends `Instruction`, so a transaction takes it as it is, and it holds the resolved
+`accounts`, the `args` and the `remainingAccounts`.
 
 - **Without RPC.** `Program.ix(user = me, args = args)` takes each account as a parameter. It derives fixed addresses and
   PDAs seeded by constants, arguments and other accounts' addresses when you pass null.

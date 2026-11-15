@@ -10,13 +10,18 @@ import io.ethers.providers.RpcError
 import io.ethers.providers.types.BatchRpcRequest
 import io.ethers.solana.codec.SolanaDecodeError
 import io.ethers.solana.instruction.Instruction
+import io.ethers.solana.instruction.SystemProgram
 import io.ethers.solana.program.SolanaAccountResolutionError
 import io.ethers.solana.providers.SolanaProvider
 import io.ethers.solana.types.AccountMeta
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.types.SolanaBytes
+import io.ethers.solana.types.transaction.SolanaTransactionConfig
+import io.ethers.solana.types.transaction.SolanaTransactionRequest
+import io.ethers.solana.types.transaction.SolanaTxLegacy
 import io.ethers.solana.types.transaction.SolanaTxV0
+import io.ethers.solana.types.transaction.SolanaTxV1
 import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
@@ -106,24 +111,57 @@ class ResolutionBindingsTest : FunSpec({
         test("the builder taking the accounts class encodes exactly as before: the descriptor's data and the accounts' metas") {
             val remaining = listOf(AccountMeta(address(11), false, true))
             val built = Resolution.init(accounts, INIT_ARGS, remaining)
-            built.instruction shouldBe Instruction(
+            val plain = Instruction(
                 Resolution.PROGRAM_ID,
                 accounts.toAccountMetas(Resolution.PROGRAM_ID) + remaining,
                 Resolution.INIT.encodeData(INIT_ARGS),
             )
+            // equal by wire content, either way round, with the same hash
+            built shouldBe plain
+            plain shouldBe built
+            built.hashCode() shouldBe plain.hashCode()
+            built.keys shouldBe plain.keys
+            built.data shouldBe plain.data
             built.remainingAccounts shouldBe remaining
+            built.toString() shouldBe "Init(accounts=$accounts, args=$INIT_ARGS, remainingAccounts=$remaining, programId=${Resolution.PROGRAM_ID})"
         }
 
-        test("decoding an instruction that was built gives back the same typed instruction") {
+        test("decoding an instruction that was built gives back the same typed instruction, keeping its wire fields") {
             val built = Resolution.init(payer = PAYER, args = INIT_ARGS, remainingAccounts = listOf(AccountMeta(address(11))))
-            Resolution.Instruction.Init.decode(built.instruction).unwrap() shouldBe built
-            Resolution.decodeInstruction(built.instruction).unwrap() shouldBe built
+            Resolution.Instruction.Init.decode(built).unwrap() shouldBe built
+            Resolution.decodeInstruction(built).unwrap() shouldBe built
             // and building from what was decoded encodes the same instruction
-            val decoded = Resolution.Instruction.Init.decode(built.instruction).unwrap()
+            val decoded = Resolution.Instruction.Init.decode(built).unwrap()
             Resolution.init(decoded.accounts, decoded.args, decoded.remainingAccounts, decoded.programId) shouldBe built
+
+            // a plain instruction decodes to a typed one with its exact keys and data
+            val plain = Instruction(built.programId, built.keys, built.data)
+            val typed = Resolution.decodeInstruction(plain).unwrap().shouldBeInstanceOf<Resolution.Instruction.Init>()
+            typed.keys shouldBe plain.keys
+            typed.data shouldBe plain.data
+            typed.accounts shouldBe built.accounts
         }
 
-        test("every builder returns the same typed instruction, whose instruction a transaction takes") {
+        test("a typed instruction compiles into every transaction kind exactly as the plain instruction does") {
+            val blockhash = SolanaBlockhash(ByteArray(32) { 1 })
+            val typed = Resolution.init(payer = PAYER, args = INIT_ARGS)
+            val plain = Instruction(typed.programId, typed.keys, typed.data)
+            val transfer = SystemProgram.transfer(PAYER, address(15), 1_000L)
+
+            fun legacy(vararg instructions: Instruction) = SolanaTxLegacy.compile(PAYER, blockhash, instructions.toList()).unwrap().serializeMessage().toList()
+            fun v0(vararg instructions: Instruction) = SolanaTxV0.compile(PAYER, blockhash, instructions.toList()).unwrap().serializeMessage().toList()
+            fun v1(vararg instructions: Instruction) = SolanaTxV1.compile(PAYER, blockhash, instructions.toList(), SolanaTransactionConfig()).unwrap().serializeMessage().toList()
+            fun request(vararg instructions: Instruction) = SolanaTransactionRequest().feePayer(PAYER).blockhash(blockhash).instructions(instructions.toList())
+
+            legacy(typed, transfer) shouldBe legacy(plain, transfer)
+            v0(typed, transfer) shouldBe v0(plain, transfer)
+            v1(typed, transfer) shouldBe v1(plain, transfer)
+            SolanaTxV0.compile(PAYER, blockhash, typed).unwrap().serializeMessage().toList() shouldBe v0(plain)
+            request(typed, transfer).compileV0().unwrap().serializeMessage().toList() shouldBe v0(plain, transfer)
+            SolanaTransactionRequest().feePayer(PAYER).blockhash(blockhash).instruction(typed).compileLegacy().unwrap().serializeMessage().toList() shouldBe legacy(plain)
+        }
+
+        test("every builder returns the same typed instruction, which a transaction takes as it is") {
             val offline: Resolution.Instruction.Deposit = Resolution.deposit(
                 user = USER,
                 authority = AUTHORITY,
@@ -150,9 +188,9 @@ class ResolutionBindingsTest : FunSpec({
             resolved shouldBe explicit
 
             val blockhash = SolanaBlockhash(ByteArray(32) { 1 })
-            val message = SolanaTxV0.compile(USER, blockhash, listOf(resolved.instruction, Resolution.init(payer = USER, args = INIT_ARGS).instruction)).unwrap()
+            val message = SolanaTxV0.compile(USER, blockhash, listOf(resolved, Resolution.init(payer = USER, args = INIT_ARGS))).unwrap()
             message.instructions.size shouldBe 2
-            SolanaTxV0.compile(USER, blockhash, resolved.instruction).unwrap().instructions.single().data shouldBe resolved.instruction.data
+            SolanaTxV0.compile(USER, blockhash, resolved).unwrap().instructions.single().data shouldBe resolved.data
         }
 
         test("an account given is used as given, and accounts derived from it follow it") {
@@ -173,8 +211,8 @@ class ResolutionBindingsTest : FunSpec({
             )
             val expected = Resolution.init(accounts, INIT_ARGS, listOf(AccountMeta(address(11), false, true)))
             instruction shouldBe expected
-            instruction.instruction.data.asByteArray().toList() shouldBe expected.instruction.data.asByteArray().toList()
-            instruction.instruction.keys shouldBe expected.instruction.keys
+            instruction.data.asByteArray().toList() shouldBe expected.data.asByteArray().toList()
+            instruction.keys shouldBe expected.keys
         }
 
         test("an alternate program id derives under it") {
@@ -250,8 +288,8 @@ class ResolutionBindingsTest : FunSpec({
             val next = Resolution.DepositArgs(POOL_ID, bigIntegerOf(5))
             val reused = Resolution.deposit(built.accounts, next)
             reused.accounts shouldBe built.accounts
-            reused.instruction.keys shouldBe built.instruction.keys
-            reused.instruction.data shouldBe Resolution.DEPOSIT.encodeData(next).let { SolanaBytes.fromBytes(it) }
+            reused.keys shouldBe built.keys
+            reused.data shouldBe Resolution.DEPOSIT.encodeData(next).let { SolanaBytes.fromBytes(it) }
             // the accounts of an offline-built instruction are reused just the same
             Resolution.deposit(Resolution.deposit(reused.accounts, ARGS).accounts, next) shouldBe reused
             client.requests.size shouldBe requests
@@ -306,7 +344,7 @@ class ResolutionBindingsTest : FunSpec({
             val built = deposit(client, program).unwrap()
             built.accounts.pool shouldBe pool
             built.accounts.vault shouldBe Resolution.DepositAccounts.findVault(pool, AUTHORITY, program).address
-            built.instruction.programId shouldBe program
+            built.programId shouldBe program
         }
     }
 

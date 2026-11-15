@@ -178,19 +178,23 @@ val b = Escrow.withdraw(user = me, authority = authority, args = args)
 val c = Escrow.resolveWithdraw(api, user = me, args = args).sendAwait().unwrap()
 ```
 
-The typed instruction holds:
+The typed instruction extends `io.ethers.solana.instruction.Instruction`, so every transaction API takes it as it is.
+On top of the inherited `programId`, `keys` and `data`, it holds:
 
 - `accounts`: the accounts class, with every derived and resolved account in it;
-- `args` and `remainingAccounts`;
-- `instruction`: the encoded instruction, which a transaction takes;
-- `programId`.
+- `args`;
+- `remainingAccounts`.
 
 ```kotlin
-val tx = SolanaTxV0.compile(me, blockhash, listOf(c.instruction, SystemProgram.transfer(me, to, 1_000L))).unwrap()
+val tx = SolanaTxV0.compile(me, blockhash, listOf(c, SystemProgram.transfer(me, to, 1_000L))).unwrap()
 ```
 
-`instruction` is computed once when the instruction is built, exactly as before, and is immutable. Decoding keeps the
-instruction it was given, so `Escrow.decodeInstruction(c.instruction).unwrap() == c`.
+Its wire fields are encoded once when it is built, exactly as before, and are immutable. Equality is by wire content,
+like any `Instruction`, so a typed instruction equals a plain one with the same program id, keys and data.
+
+Decoding keeps the program id, keys and data it was given, so `Escrow.decodeInstruction(c).unwrap() == c`. A decoded
+instruction can carry more privileges than its IDL requires, such as an extra writable flag. Rebuilding it from its
+`accounts` gives the IDL's privileges, so the rebuilt instruction is not equal to the decoded one.
 
 The second builder takes each account as a nullable parameter when the IDL lets it derive that account without
 on-chain data, and derives the account when you pass null. It needs no `api` and nothing it does is asynchronous.
@@ -214,9 +218,9 @@ builder takes, so you can resolve them once and reuse them:
 
 ```kotlin
 val built = Escrow.resolveWithdraw(api, user = me, args = args).sendAwait().unwrap()
-send(built.instruction)
+send(built)
 // later, no RPC
-send(Escrow.withdraw(built.accounts, nextArgs).instruction)
+send(Escrow.withdraw(built.accounts, nextArgs))
 ```
 
 Fixed addresses and PDAs never change, but accounts read from other accounts' data are only valid while that data
