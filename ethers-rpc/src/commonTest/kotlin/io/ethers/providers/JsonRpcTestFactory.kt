@@ -90,11 +90,12 @@ object JsonRpcTestFactory {
                 result.unwrap() shouldBe null
             }
 
-            // the call must fail, not wait forever for a response that was already received
+            // the call must fail, not wait forever for a response that was already received. The guard is generous:
+            // on Kotlin/Native the first exception's stack trace alone can take seconds to symbolicate.
             test("result that fails to decode fails the call") {
                 server.enqueueJson(UNDECODABLE_RESULT_RESPONSE)
 
-                val result = withTimeout(5.seconds) {
+                val result = withTimeout(30.seconds) {
                     client.request("eth_blockNumber", emptyArray<Any>(), stringSerializer)
                 }
 
@@ -235,7 +236,7 @@ object JsonRpcTestFactory {
                 batch.addRpcCall(RpcCall(client, "eth_blockNumber", emptyArray<Any>(), stringSerializer))
                 batch.addRpcCall(RpcCall(client, "eth_chainId", emptyArray<Any>(), stringSerializer))
 
-                withTimeout(5.seconds) {
+                withTimeout(30.seconds) {
                     batch.send()
                     batch.responses[0].await().unwrapError().code shouldBe RpcError.CODE_CALL_FAILED
                     batch.responses[1].await()

@@ -1,5 +1,6 @@
 package io.ethers.providers
 
+import io.ethers.core.Kotlinx
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.install
 import io.ktor.server.cio.CIO
@@ -17,6 +18,7 @@ import io.ktor.websocket.readText
 import kotlinx.atomicfu.atomic
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.json.JsonObject
 import io.ktor.server.websocket.WebSockets as ServerWebSockets
 
 /** Captured HTTP request from a mock server. */
@@ -58,6 +60,22 @@ interface MockWSServer : MockServer {
 private const val DEFAULT_TIMEOUT_MS = 1000L
 
 /**
+ * Placeholder for the id of the request a queued WebSocket response answers, e.g.
+ * `{"jsonrpc":"2.0","id":$REQUEST_ID,"result":"0x1"}`, for a test that cannot know which id that request will get.
+ */
+const val REQUEST_ID = "\$REQUEST_ID"
+
+/** The `id` of a JSON-RPC request as written, or `null` if it has none. */
+private fun requestIdOf(text: String): String {
+    val request = try {
+        Kotlinx.DEFAULT.parseToJsonElement(text) as? JsonObject
+    } catch (_: Exception) {
+        null
+    }
+    return request?.get("id")?.toString() ?: "null"
+}
+
+/**
  * How long a handler waits for a response to be enqueued. This is a guard against hanging forever when a test
  * forgets to enqueue, not a functional timeout, so it is generous - a tight value here flakes under the load of a
  * full multi-module test run.
@@ -92,10 +110,13 @@ private class EmbeddedMockServer(private val websocket: Boolean) : MockWSServer 
                     session.value = this
                     for (frame in incoming) {
                         if (frame !is Frame.Text) continue
-                        received.trySend(frame.readText())
+                        val text = frame.readText()
+                        received.trySend(text)
 
                         // reply only if a response was queued, mirroring MockWebServer's queue semantics
-                        responses.tryReceive().getOrNull()?.let { (_, body) -> send(Frame.Text(body)) }
+                        responses.tryReceive().getOrNull()?.let { (_, body) ->
+                            send(Frame.Text(body.replace(REQUEST_ID, requestIdOf(text))))
+                        }
                     }
                 }
             }

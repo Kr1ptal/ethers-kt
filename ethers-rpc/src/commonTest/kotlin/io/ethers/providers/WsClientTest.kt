@@ -43,6 +43,9 @@ import io.ktor.client.HttpClient as KtorHttpClient
 // to surface.
 private val RECONNECT_WINDOW = 5.seconds
 
+// Waits for a frame to cross the loopback socket. A loaded CI runner has taken over a second for that.
+private val DELIVERY_WINDOW = 5.seconds
+
 /** Stands in for any domain type that reaches the transport with a serializer of its own. */
 @Serializable(with = SerializableValueSerializer::class)
 data class SerializableValue(val value: String)
@@ -127,7 +130,7 @@ class WsClientTest : FunSpec({
                 """{"jsonrpc":"2.0","method":"eth_subscription","params":{"subscription":"0xsub123","result":"0xdeadbeef"}}""",
             )
 
-            eventually(1.seconds) { stream.isEmpty shouldBe false }
+            eventually(DELIVERY_WINDOW) { stream.isEmpty shouldBe false }
             val payload = stream.receive()!!
             payload shouldBe byteArrayOf(0xde.toByte(), 0xad.toByte(), 0xbe.toByte(), 0xef.toByte())
         }
@@ -136,7 +139,7 @@ class WsClientTest : FunSpec({
         test("a subscribe response that is not a subscription id fails the call") {
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":{"not":"an id"}}""")
 
-            val result = withTimeout(5.seconds) {
+            val result = withTimeout(30.seconds) {
                 wsClient.subscribe(arrayOf("newHeads"), JsonObject.serializer())
             }
 
@@ -151,7 +154,7 @@ class WsClientTest : FunSpec({
             batch.addRpcCall(RpcCall(wsClient, "eth_blockNumber", emptyArray<Any>(), stringSerializer))
             batch.addRpcCall(RpcCall(wsClient, "eth_chainId", emptyArray<Any>(), stringSerializer))
 
-            withTimeout(5.seconds) {
+            withTimeout(30.seconds) {
                 batch.send() shouldBe false
                 batch.responses[0].await().unwrap() shouldBe "0x1"
                 batch.responses[1].await().unwrapError().code shouldBe RpcError.CODE_INVALID_RESPONSE
@@ -245,7 +248,7 @@ class WsClientTest : FunSpec({
             // arrived just because the first has is a race - one that shows up on loaded CI machines.
 
             // First notification
-            eventually(1.seconds) {
+            eventually(DELIVERY_WINDOW) {
                 stream.isEmpty shouldBe false
             }
             val event1 = stream.receive()!!
@@ -254,7 +257,7 @@ class WsClientTest : FunSpec({
             event1["timestamp"]?.jsonPrimitive?.content shouldBe "0x1111"
 
             // Second notification
-            eventually(1.seconds) {
+            eventually(DELIVERY_WINDOW) {
                 stream.isEmpty shouldBe false
             }
             val event2 = stream.receive()!!
@@ -263,7 +266,7 @@ class WsClientTest : FunSpec({
             event2["timestamp"]?.jsonPrimitive?.content shouldBe "0x2222"
 
             // Third notification
-            eventually(1.seconds) {
+            eventually(DELIVERY_WINDOW) {
                 stream.isEmpty shouldBe false
             }
             val event3 = stream.receive()!!
@@ -398,7 +401,7 @@ class WsClientTest : FunSpec({
             mockServer.sendJson(notification1)
 
             val stream = subscriptionResult.unwrap()
-            eventually(1.seconds) {
+            eventually(DELIVERY_WINDOW) {
                 stream.isEmpty shouldBe false
             }
 
@@ -445,10 +448,15 @@ class WsClientTest : FunSpec({
             )
 
             val stringSerializer = String.serializer()
-            mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0x1234567"}""")
-            withTimeout(10.seconds) {
-                wsClient.request("eth_blockNumber", emptyArray<Any>(), stringSerializer)
-            }.isSuccess() shouldBe true
+            // Connect with a request that succeeds. Its read timeout counts from when it is queued, so on a loaded
+            // runner it can expire while the client is still connecting; try again until one succeeds. The reply
+            // carries the id of whichever request reaches the server.
+            withTimeout(30.seconds) {
+                while (true) {
+                    mockServer.enqueueJson("""{"jsonrpc":"2.0","id":$REQUEST_ID,"result":"0x1234567"}""")
+                    if (wsClient.request("eth_blockNumber", emptyArray<Any>(), stringSerializer).isSuccess()) break
+                }
+            }
 
             mockServer.closeConnection()
             // stop the server so the reconnect attempt is refused - previously this fell out of MockWebServer
