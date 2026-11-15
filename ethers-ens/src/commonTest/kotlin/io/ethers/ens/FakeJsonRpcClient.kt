@@ -11,8 +11,7 @@ import io.ethers.core.types.CallRequest
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import io.ethers.providers.types.BatchRpcRequest
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonElement as KJsonElement
+import kotlinx.serialization.DeserializationStrategy
 
 /**
  * A [JsonRpcClient] that answers from a queued script instead of the network, and records every request it saw.
@@ -48,21 +47,21 @@ class FakeJsonRpcClient : JsonRpcClient {
     override suspend fun <T> request(
         method: String,
         params: Array<*>,
-        resultDecoder: (KJsonElement) -> T,
+        resultDeserializer: DeserializationStrategy<T>,
     ): Result<T, RpcError> {
         val paramList = params.toList()
         recorded.add(RecordedRequest(method, paramList))
 
         val handled = handlers.firstNotNullOfOrNull { it(method, paramList) }
         if (handled != null) {
-            return success(resultDecoder(Kotlinx.DEFAULT.parseToJsonElement(handled)))
+            return success(Kotlinx.DEFAULT.decodeFromString(resultDeserializer, handled))
         }
 
         val next = queued[method]?.removeFirstOrNull() ?: return failure(
             RpcError(RpcError.CODE_INTERNAL_ERROR, "FakeJsonRpcClient: no queued response for '$method'"),
         )
 
-        return success(resultDecoder(Kotlinx.DEFAULT.parseToJsonElement(next)))
+        return success(Kotlinx.DEFAULT.decodeFromString(resultDeserializer, next))
     }
 
     override suspend fun requestBatch(batch: BatchRpcRequest): Boolean {
@@ -71,7 +70,7 @@ class FakeJsonRpcClient : JsonRpcClient {
 
     override suspend fun <T : Any> subscribe(
         params: Array<*>,
-        resultDecoder: (KJsonElement) -> T,
+        resultDeserializer: DeserializationStrategy<T>,
     ): Result<ChannelReceiver<T>, RpcError> {
         return failure(RpcError(RpcError.CODE_METHOD_NOT_FOUND, "FakeJsonRpcClient does not support subscriptions"))
     }

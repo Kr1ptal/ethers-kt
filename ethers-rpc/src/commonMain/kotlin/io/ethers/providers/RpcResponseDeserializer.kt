@@ -4,7 +4,6 @@ import io.ethers.core.Result
 import io.ethers.core.failure
 import io.ethers.core.success
 import kotlinx.serialization.DeserializationStrategy
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.descriptors.buildClassSerialDescriptor
 import kotlinx.serialization.encoding.CompositeDecoder
@@ -24,7 +23,7 @@ import kotlinx.serialization.json.long
  * response without an `id` whose `result` fails to decode: the tree route reports the missing `id`, while this one
  * throws while decoding the `result`, before it can know the `id` is missing. Either way the call fails.
  */
-internal class RpcResponseDeserializer<T>(private val result: KSerializer<T>) : DeserializationStrategy<Result<T, RpcError>> {
+internal class RpcResponseDeserializer<T>(private val result: DeserializationStrategy<T>) : DeserializationStrategy<Result<T, RpcError>> {
     override val descriptor: SerialDescriptor = buildClassSerialDescriptor("io.ethers.providers.RpcResponse") {
         element("id", JsonElement.serializer().descriptor, isOptional = true)
         element("result", result.descriptor, isOptional = true)

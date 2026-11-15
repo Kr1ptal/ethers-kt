@@ -44,8 +44,8 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlin.io.encoding.Base64
 
@@ -772,14 +772,14 @@ class ShowcaseBindingsTest : FunSpec({
 private class CannedClient(var response: String) : JsonRpcClient {
     var params: List<Any?> = emptyList()
 
-    override suspend fun <T> request(method: String, params: Array<*>, resultDecoder: (JsonElement) -> T): Result<T, RpcError> {
+    override suspend fun <T> request(method: String, params: Array<*>, resultDeserializer: DeserializationStrategy<T>): Result<T, RpcError> {
         this.params = listOf(method) + params.toList()
-        return success(resultDecoder(Kotlinx.DEFAULT.parseToJsonElement(response)))
+        return success(Kotlinx.DEFAULT.decodeFromString(resultDeserializer, response))
     }
 
-    override suspend fun <T : Any> subscribe(params: Array<*>, resultDecoder: (JsonElement) -> T): Result<ChannelReceiver<T>, RpcError> {
+    override suspend fun <T : Any> subscribe(params: Array<*>, resultDeserializer: DeserializationStrategy<T>): Result<ChannelReceiver<T>, RpcError> {
         this.params = params.toList()
-        return success(QueueChannel.spscUnbounded<T>().apply { offer(resultDecoder(Kotlinx.DEFAULT.parseToJsonElement(response))) })
+        return success(QueueChannel.spscUnbounded<T>().apply { offer(Kotlinx.DEFAULT.decodeFromString(resultDeserializer, response)) })
     }
 
     override suspend fun requestBatch(batch: BatchRpcRequest): Boolean = error("Unexpected batch")
