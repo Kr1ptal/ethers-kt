@@ -3,6 +3,8 @@ package io.ethers.providers
 import io.ethers.core.Kotlinx
 import io.ethers.core.isFailure
 import io.ethers.core.isSuccess
+import io.ethers.providers.types.BatchRpcRequest
+import io.ethers.providers.types.RpcCall
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.nondeterministic.eventually
@@ -128,6 +130,32 @@ class WsClientTest : FunSpec({
             eventually(1.seconds) { stream.isEmpty shouldBe false }
             val payload = stream.receive()!!
             payload shouldBe byteArrayOf(0xde.toByte(), 0xad.toByte(), 0xbe.toByte(), 0xef.toByte())
+        }
+
+        // the call must fail, not wait forever for a response that was already received
+        test("a subscribe response that is not a subscription id fails the call") {
+            mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":{"not":"an id"}}""")
+
+            val result = withTimeout(5.seconds) {
+                wsClient.subscribe(arrayOf("newHeads"), JsonObject.serializer())
+            }
+
+            result.isFailure() shouldBe true
+            result.unwrapError().code shouldBe RpcError.CODE_INVALID_RESPONSE
+        }
+
+        test("a malformed batch entry fails the calls it leaves unanswered") {
+            mockServer.enqueueJson("""[{"jsonrpc":"2.0","id":1,"result":"0x1"},"not a response"]""")
+
+            val batch = BatchRpcRequest(2)
+            batch.addRpcCall(RpcCall(wsClient, "eth_blockNumber", emptyArray<Any>(), stringSerializer))
+            batch.addRpcCall(RpcCall(wsClient, "eth_chainId", emptyArray<Any>(), stringSerializer))
+
+            withTimeout(5.seconds) {
+                batch.send() shouldBe false
+                batch.responses[0].await().unwrap() shouldBe "0x1"
+                batch.responses[1].await().unwrapError().code shouldBe RpcError.CODE_INVALID_RESPONSE
+            }
         }
     }
 
