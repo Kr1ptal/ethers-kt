@@ -2,16 +2,11 @@ package io.ethers.core.types.tracers
 
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.descriptors.buildClassSerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonDecoder
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.int
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import kotlin.reflect.KClass
 
 /**
  * Search for 4byte-identifiers, and collect them for post-processing.
@@ -35,14 +30,10 @@ data object FourByteTracer : Tracer<FourByteTracer.Result> {
     override val name: String
         get() = "4byteTracer"
 
-    override val resultType: KClass<Result>
-        get() = Result::class
+    override val resultSerializer: KSerializer<Result>
+        get() = ResultSerializer
 
     override val config: Map<String, Any?> = EMPTY_CONFIG
-
-    override fun decodeResult(json: Json, element: JsonElement): Result {
-        return json.decodeFromJsonElement(ResultSerializer, element)
-    }
 
     /**
      * Result of the 4byte tracer, mapping 4-byte identifiers (with data size suffix) to call counts.
@@ -55,10 +46,8 @@ data object FourByteTracer : Tracer<FourByteTracer.Result> {
 
         override fun serialize(encoder: Encoder, value: Result) = throw UnsupportedOperationException()
 
-        override fun deserialize(decoder: Decoder): Result {
-            val obj = (decoder as JsonDecoder).decodeJsonElement().jsonObject
-            val entries = obj.entries.associate { (k, v) -> k to v.jsonPrimitive.int }
-            return Result(entries)
-        }
+        private val entries = MapSerializer(String.serializer(), Int.serializer())
+
+        override fun deserialize(decoder: Decoder): Result = Result(decoder.decodeSerializableValue(entries))
     }
 }

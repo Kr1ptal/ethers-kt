@@ -11,7 +11,6 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
-import kotlinx.serialization.json.jsonPrimitive
 import io.ktor.client.HttpClient as KtorHttpClient
 
 /**
@@ -68,11 +67,11 @@ class BatchForwardingTest : FunSpec({
         sent.contains("\"cached\"") shouldBe false
     }
 
-    test("the forwarded batch decodes each result with its call's decoder function") {
+    test("the forwarded batch decodes each result with its call's deserializer") {
         val client = ForwardingClient(parent)
         server.enqueueJson("""[{"jsonrpc":"2.0","id":1,"result":"0x10"}]""")
 
-        val result = listOf(RpcCall(client, "eth_a", emptyArray<Any>()) { it.jsonPrimitive.content.length }).send()
+        val result = listOf(RpcCall(client, "eth_a", emptyArray<Any>(), String.serializer().map { it.length })).send()
 
         result.single().unwrap() shouldBe 4
     }

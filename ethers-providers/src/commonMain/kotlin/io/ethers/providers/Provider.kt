@@ -1,15 +1,11 @@
 package io.ethers.providers
 
 import io.ethers.core.FastHex
+import io.ethers.core.HexBigIntegerSerializer
+import io.ethers.core.HexLongSerializer
 import io.ethers.core.Kotlinx
 import io.ethers.core.Result
 import io.ethers.core.ThrowableError
-import io.ethers.core.asBytes
-import io.ethers.core.asBytesOrNull
-import io.ethers.core.asHash
-import io.ethers.core.asHexBigInteger
-import io.ethers.core.asHexByteArray
-import io.ethers.core.asHexLong
 import io.ethers.core.failure
 import io.ethers.core.isFailure
 import io.ethers.core.success
@@ -59,20 +55,22 @@ import io.github.artificialpb.bignum.times
 import io.github.artificialpb.bignum.toBigInteger
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.nullable
 import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.descriptors.buildClassSerialDescriptor
+import kotlinx.serialization.encoding.CompositeDecoder
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.encoding.decodeStructure
 import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonNull
-import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.encodeToJsonElement
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.serializer
 import kotlin.jvm.JvmStatic
-import kotlinx.serialization.json.JsonElement as KJsonElement
 
 @Suppress("MoveLambdaOutsideParentheses")
 class Provider(override val client: JsonRpcClient, override val chainId: Long) : Middleware {
@@ -90,11 +88,11 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
     //                                  EthApi implementation
     //-----------------------------------------------------------------------------------------------------------------
     override fun getBlockNumber(): RpcRequest<Long, RpcError> {
-        return RpcCall(client, "eth_blockNumber", EMPTY_ARRAY) { it.jsonPrimitive.asHexLong() }
+        return RpcCall(client, "eth_blockNumber", EMPTY_ARRAY, HexLongSerializer)
     }
 
     override fun getBalance(address: Address, blockId: BlockId): RpcRequest<BigInteger, RpcError> {
-        return RpcCall(client, "eth_getBalance", arrayOf(address, blockId.id)) { it.jsonPrimitive.asHexBigInteger() }
+        return RpcCall(client, "eth_getBalance", arrayOf(address, blockId.id), HexBigIntegerSerializer)
     }
 
     override fun getBlockHeader(blockId: BlockId): RpcRequest<BlockWithHashes?, RpcError> {
@@ -142,7 +140,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             is BlockId.Hash -> "eth_getUncleCountByBlockHash"
             is BlockId.Number, is BlockId.Name -> "eth_getUncleCountByBlockNumber"
         }
-        return RpcCall(client, method, params) { it.jsonPrimitive.asHexLong() }
+        return RpcCall(client, method, params, HexLongSerializer)
     }
 
     override fun getCode(address: Address, blockId: BlockId): RpcRequest<Bytes, RpcError> {
@@ -181,25 +179,12 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         val bundle = CallManyBundle(calls, blockOverride)
         val ctx = CallManyContext(blockId, transactionIndex)
 
-        return RpcCall(client, "eth_callMany", arrayOf(bundle, ctx, stateOverride)) { element ->
-            element.jsonArray.map { item ->
-                var result: Result<Bytes, CallFailedError>? = null
-
-                item.jsonObject.forEach { (field, value) ->
-                    when (field) {
-                        "output", "result", "value" -> result = success(value.jsonPrimitive.asBytes())
-                        "error" -> result = failure(CallFailedError(value.jsonPrimitive.content))
-                    }
-                }
-
-                result ?: throw IllegalStateException("No result or error found in response")
-            }
-        }
+        return RpcCall(client, "eth_callMany", arrayOf(bundle, ctx, stateOverride), ListSerializer(CallManyResultSerializer))
     }
 
     override fun estimateGas(call: IntoCallRequest, blockId: BlockId): RpcRequest<Long, RpcError> {
         val params = arrayOf(call.toCallRequest(), blockId.id)
-        return RpcCall(client, "eth_estimateGas", params) { it.jsonPrimitive.asHexLong() }
+        return RpcCall(client, "eth_estimateGas", params, HexLongSerializer)
     }
 
     override fun createAccessList(call: IntoCallRequest, blockId: BlockId): RpcRequest<CreateAccessList, RpcError> {
@@ -208,15 +193,15 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
     }
 
     override fun getGasPrice(): RpcRequest<BigInteger, RpcError> {
-        return RpcCall(client, "eth_gasPrice", EMPTY_ARRAY) { it.jsonPrimitive.asHexBigInteger() }
+        return RpcCall(client, "eth_gasPrice", EMPTY_ARRAY, HexBigIntegerSerializer)
     }
 
     override fun getBlobBaseFee(): RpcRequest<BigInteger, RpcError> {
-        return RpcCall(client, "eth_blobBaseFee", EMPTY_ARRAY) { it.jsonPrimitive.asHexBigInteger() }
+        return RpcCall(client, "eth_blobBaseFee", EMPTY_ARRAY, HexBigIntegerSerializer)
     }
 
     override fun getMaxPriorityFeePerGas(): RpcRequest<BigInteger, RpcError> {
-        return RpcCall(client, "eth_maxPriorityFeePerGas", EMPTY_ARRAY) { it.jsonPrimitive.asHexBigInteger() }
+        return RpcCall(client, "eth_maxPriorityFeePerGas", EMPTY_ARRAY, HexBigIntegerSerializer)
     }
 
     override fun getFeeHistory(
@@ -247,7 +232,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             is BlockId.Hash -> "eth_getBlockTransactionCountByHash"
             is BlockId.Number, is BlockId.Name -> "eth_getBlockTransactionCountByNumber"
         }
-        return RpcCall(client, method, params) { it.jsonPrimitive.asHexLong() }
+        return RpcCall(client, method, params, HexLongSerializer)
     }
 
     override fun getTransactionByBlockAndIndex(blockId: BlockId, index: Long): RpcRequest<RPCTransaction, RpcError> {
@@ -269,7 +254,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
     }
 
     override fun getTransactionCount(address: Address, blockId: BlockId): RpcRequest<Long, RpcError> {
-        return RpcCall(client, "eth_getTransactionCount", arrayOf(address, blockId.id)) { it.jsonPrimitive.asHexLong() }
+        return RpcCall(client, "eth_getTransactionCount", arrayOf(address, blockId.id), HexLongSerializer)
     }
 
     override fun getTransactionByHash(hash: Hash): RpcRequest<RPCTransaction?, RpcError> {
@@ -304,7 +289,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             client,
             "eth_sendRawTransaction",
             arrayOf(signedTransaction),
-            { PendingTransaction(it.jsonPrimitive.asHash(), this) },
+            Hash.serializer().map { PendingTransaction(it, this) },
         )
     }
 
@@ -318,11 +303,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             client,
             "eth_fillTransaction",
             arrayOf(callRequest),
-            { element ->
-                val raw = element.jsonObject["raw"]
-                val ret = if (raw != null) TransactionUnsigned.rlpDecode(raw.jsonPrimitive.asHexByteArray()) else null
-                ret ?: throw IllegalStateException("Invalid response")
-            },
+            FilledTransactionDeserializer,
         ).orElse { err ->
             when {
                 // If eth_fillTransaction is not supported, fallback to manually filling the transaction.
@@ -469,7 +450,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             client,
             "eth_newFilter",
             arrayOf(filter),
-            { element -> FilterPoller(element.jsonPrimitive.content, this, { el -> el.decodeListAs<Log>() }) },
+            String.serializer().map { id -> FilterPoller(id, this, ListSerializer(Log.serializer())) },
         )
     }
 
@@ -478,7 +459,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             client,
             "eth_newBlockFilter",
             EMPTY_ARRAY,
-            { element -> FilterPoller(element.jsonPrimitive.content, this, { el -> el.jsonArray.map { it.jsonPrimitive.asHash() } }) },
+            String.serializer().map { id -> FilterPoller(id, this, ListSerializer(Hash.serializer())) },
         )
     }
 
@@ -487,7 +468,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             client,
             "eth_newPendingTransactionFilter",
             EMPTY_ARRAY,
-            { element -> FilterPoller(element.jsonPrimitive.content, this, { el -> el.jsonArray.map { it.jsonPrimitive.asHash() } }) },
+            String.serializer().map { id -> FilterPoller(id, this, ListSerializer(Hash.serializer())) },
         )
     }
 
@@ -496,28 +477,28 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             client,
             "eth_newPendingTransactionFilter",
             arrayOf(true),
-            { element -> FilterPoller(element.jsonPrimitive.content, this, { el -> el.decodeListAs<RPCTransaction>() }) },
+            String.serializer().map { id -> FilterPoller(id, this, ListSerializer(RPCTransaction.serializer())) },
         )
     }
 
     override fun subscribeNewPendingTransactionHashes(): RpcSubscribe<Hash, RpcError> {
-        return RpcSubscribeCall(client, arrayOf("newPendingTransactions"), { it.jsonPrimitive.asHash() })
+        return RpcSubscribeCall(client, arrayOf("newPendingTransactions"), Hash.serializer())
     }
 
     override fun subscribeNewPendingTransactions(): RpcSubscribe<RPCTransaction, RpcError> {
         return RpcSubscribeCall(
             client,
             arrayOf<Any>("newPendingTransactions", true),
-            { it.decodeAs<RPCTransaction>() },
+            RPCTransaction.serializer(),
         )
     }
 
     override fun subscribeNewHeads(): RpcSubscribe<BlockWithHashes, RpcError> {
-        return RpcSubscribeCall(client, arrayOf("newHeads"), { it.decodeAs<BlockWithHashes>() })
+        return RpcSubscribeCall(client, arrayOf("newHeads"), BlockWithHashes.serializer())
     }
 
     override fun subscribeLogs(filter: LogFilter): RpcSubscribe<Log, RpcError> {
-        return RpcSubscribeCall(client, arrayOf("logs", filter), { it.decodeAs<Log>() })
+        return RpcSubscribeCall(client, arrayOf("logs", filter), Log.serializer())
     }
 
     //-----------------------------------------------------------------------------------------------------------------
@@ -543,10 +524,8 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             client,
             "debug_getRawTransaction",
             arrayOf(hash),
-            { element ->
-                if (element is JsonNull) null
-                else element.jsonPrimitive.asBytesOrNull()
-            },
+            // empty bytes mean the node has no such transaction, as null does
+            Bytes.serializer().nullable.map { bytes -> bytes?.takeIf { it.size > 0 } },
         )
     }
 
@@ -561,7 +540,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         config: TracerConfig<T>,
     ): RpcRequest<T, RpcError> {
         val params = arrayOf(call.toCallRequest(), blockId.id, config)
-        return RpcCall(client, "debug_traceCall", params) { config.tracer.decodeResult(Kotlinx.DEFAULT, it) }
+        return RpcCall(client, "debug_traceCall", params, config.tracer.resultSerializer)
     }
 
     override fun <T : Any> traceCallMany(
@@ -573,15 +552,14 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         val bundle = CallManyBundle(calls, config.blockOverrides)
         val ctx = CallManyContext(blockId, transactionIndex)
 
-        return RpcCall(client, "debug_traceCallMany", arrayOf(arrayOf(bundle), ctx, config)) { element ->
-            element.jsonArray.firstOrNull()?.jsonArray?.map { config.tracer.decodeResult(Kotlinx.DEFAULT, it) }
-                ?: emptyList()
-        }
+        // one list of traces per bundle, and the call sends a single bundle
+        val traces = ListSerializer(ListSerializer(config.tracer.resultSerializer))
+        return RpcCall(client, "debug_traceCallMany", arrayOf(arrayOf(bundle), ctx, config), traces.map { it.firstOrNull() ?: emptyList() })
     }
 
     override fun <T : Any> traceTransaction(txHash: Hash, config: TracerConfig<T>): RpcRequest<T, RpcError> {
         val params = arrayOf(txHash, config)
-        return RpcCall(client, "debug_traceTransaction", params) { config.tracer.decodeResult(Kotlinx.DEFAULT, it) }
+        return RpcCall(client, "debug_traceTransaction", params, config.tracer.resultSerializer)
     }
 
     override fun <T : Any> traceBlock(
@@ -593,33 +571,18 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             is BlockId.Hash -> "debug_traceBlockByHash"
             is BlockId.Number, is BlockId.Name -> "debug_traceBlockByNumber"
         }
-        return RpcCall(client, method, params) { element ->
-            element.jsonArray.map { item ->
-                var txHash: Hash? = null
-                var result: T? = null
-                var error: String? = null
-
-                item.jsonObject.forEach { (field, value) ->
-                    when (field) {
-                        "txHash" -> txHash = value.jsonPrimitive.asHash()
-                        "result" -> result = config.tracer.decodeResult(Kotlinx.DEFAULT, value)
-                        "error" -> error = value.jsonPrimitive.content
-                    }
-                }
-                TxTraceResult(txHash, result, error)
-            }
-        }
+        return RpcCall(client, method, params, ListSerializer(TxTraceResult.serializer(config.tracer.resultSerializer)))
     }
 
     //-----------------------------------------------------------------------------------------------------------------
     //                                  NetApi implementation
     //-----------------------------------------------------------------------------------------------------------------
     override fun isListening(): RpcRequest<Boolean, RpcError> {
-        return RpcCall(client, "net_listening", EMPTY_ARRAY) { it.jsonPrimitive.boolean }
+        return RpcCall(client, "net_listening", EMPTY_ARRAY, Boolean.serializer())
     }
 
     override fun getPeerCount(): RpcRequest<Long, RpcError> {
-        return RpcCall(client, "net_peerCount", EMPTY_ARRAY) { it.jsonPrimitive.asHexLong() }
+        return RpcCall(client, "net_peerCount", EMPTY_ARRAY, HexLongSerializer)
     }
 
     override fun getVersion(): RpcRequest<String, RpcError> {
@@ -696,12 +659,53 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
 }
 
 // Private inline extension functions for common decoding patterns
-private inline fun <reified T> KJsonElement.decodeAs(): T = Kotlinx.DEFAULT.decodeFromJsonElement(serializer(), this)
 
-private fun <T> KJsonElement.decodeAs(resultSerializer: KSerializer<T>): T = Kotlinx.DEFAULT.decodeFromJsonElement(resultSerializer, this)
+/** Decodes the transaction in an `eth_fillTransaction` result, from its RLP-encoded `raw` field. */
+private object FilledTransactionDeserializer : DeserializationStrategy<TransactionUnsigned> {
+    override val descriptor: SerialDescriptor = buildClassSerialDescriptor("io.ethers.providers.FilledTransaction") {
+        element("raw", Bytes.serializer().descriptor, isOptional = true)
+    }
 
-private inline fun <reified T> KJsonElement.decodeAsOrNull(): T? = if (this is JsonNull) null else decodeAs<T>()
+    override fun deserialize(decoder: Decoder): TransactionUnsigned {
+        var raw: Bytes? = null
+        decoder.decodeStructure(descriptor) {
+            while (true) {
+                val index = decodeElementIndex(descriptor)
+                if (index == CompositeDecoder.DECODE_DONE) break
+                raw = decodeSerializableElement(descriptor, index, Bytes.serializer())
+            }
+        }
+        return raw?.let { TransactionUnsigned.rlpDecode(it.asByteArray()) } ?: throw IllegalStateException("Invalid response")
+    }
+}
 
-private fun <T> KJsonElement.decodeAsOrNull(resultSerializer: KSerializer<T>): T? = if (this is JsonNull) null else decodeAs(resultSerializer)
+/**
+ * Decodes one transaction's outcome in an `eth_callMany` result: its output, under whichever of `output`, `result`
+ * or `value` the node uses, or its `error`. The last of them in the object wins, so the object is read as a map,
+ * whose entries both the text and the tree decoder visit in order; other entries are skipped.
+ */
+private object CallManyResultSerializer : KSerializer<Result<Bytes, CallFailedError>> {
+    override val descriptor: SerialDescriptor = MapSerializer(String.serializer(), JsonElement.serializer()).descriptor
 
-private inline fun <reified T> KJsonElement.decodeListAs(): List<T> = jsonArray.map { it.decodeAs<T>() }
+    override fun serialize(encoder: Encoder, value: Result<Bytes, CallFailedError>) = throw UnsupportedOperationException()
+
+    override fun deserialize(decoder: Decoder): Result<Bytes, CallFailedError> {
+        var result: Result<Bytes, CallFailedError>? = null
+        decoder.decodeStructure(descriptor) {
+            while (true) {
+                val keyIndex = decodeElementIndex(descriptor)
+                if (keyIndex == CompositeDecoder.DECODE_DONE) break
+                val key = decodeStringElement(descriptor, keyIndex)
+                // a map's value has its own index, which also moves the decoder past the key
+                val valueIndex = decodeElementIndex(descriptor)
+                when (key) {
+                    "output", "result", "value" -> result = success(decodeSerializableElement(descriptor, valueIndex, Bytes.serializer()))
+                    // any primitive's content, as nodes have sent numbers or null for the message
+                    "error" -> result = failure(CallFailedError(decodeSerializableElement(descriptor, valueIndex, JsonPrimitive.serializer()).content))
+                    else -> decodeSerializableElement(descriptor, valueIndex, JsonElement.serializer())
+                }
+            }
+        }
+        return result ?: throw IllegalStateException("No result or error found in response")
+    }
+}

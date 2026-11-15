@@ -5,10 +5,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.descriptors.buildClassSerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonDecoder
-import kotlinx.serialization.json.JsonElement
-import kotlin.reflect.KClass
 
 /**
  * Evaluate JS functions on the relevant EVM hooks.
@@ -22,12 +19,8 @@ data class JSTracer(
     override val name: String
         get() = code
 
-    override val resultType: KClass<Result>
-        get() = Result::class
-
-    override fun decodeResult(json: Json, element: JsonElement): Result {
-        return json.decodeFromJsonElement(ResultSerializer, element)
-    }
+    override val resultSerializer: KSerializer<Result>
+        get() = ResultSerializer
 
     /**
      * Result of a JS tracer, containing the raw JSON output as a string.

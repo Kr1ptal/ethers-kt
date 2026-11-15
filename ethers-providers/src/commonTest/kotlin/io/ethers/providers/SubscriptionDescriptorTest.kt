@@ -45,7 +45,7 @@ class SubscriptionDescriptorTest : FunSpec({
 
     test("numeric subscription ids and method-specific unsubscribe survive reconnect") {
         server.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":42}""")
-        val stream = client.subscribe(arrayOf("slot")) { it.jsonPrimitive.content }.unwrap()
+        val stream = client.subscribe(arrayOf("slot"), PRIMITIVE_CONTENT).unwrap()
         val subscribe = Kotlinx.DEFAULT.parseToJsonElement(server.takeReceivedText()!!).jsonObject
         subscribe["method"] shouldBe JsonPrimitive("slotSubscribe")
         subscribe.getValue("params").jsonArray.size shouldBe 0
@@ -73,7 +73,7 @@ class SubscriptionDescriptorTest : FunSpec({
 
     test("terminal notification is delivered before close and never unsubscribed or resubscribed") {
         server.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":7}""")
-        val stream = client.subscribe(arrayOf("signature", "test-signature")) { it.jsonPrimitive.content }.unwrap()
+        val stream = client.subscribe(arrayOf("signature", "test-signature"), PRIMITIVE_CONTENT).unwrap()
         val subscribe = Kotlinx.DEFAULT.parseToJsonElement(server.takeReceivedText()!!).jsonObject
         subscribe.getValue("params").jsonArray shouldBe listOf(JsonPrimitive("test-signature"))
         server.sendJson("""{"jsonrpc":"2.0","method":"signatureNotification","params":{"subscription":7,"result":"received"}}""")
@@ -91,7 +91,7 @@ class SubscriptionDescriptorTest : FunSpec({
     test("cancelling an in-flight subscription unsubscribes a late server response") {
         coroutineScope {
             val pending = async {
-                client.subscribe(arrayOf("root")) { it.jsonPrimitive.content }
+                client.subscribe(arrayOf("root"), PRIMITIVE_CONTENT)
             }
             server.takeReceivedText(5000)
             pending.cancelAndJoin()
@@ -104,7 +104,7 @@ class SubscriptionDescriptorTest : FunSpec({
 
     test("close during resubscription waits for the new numeric id") {
         server.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":42}""")
-        val stream = client.subscribe(arrayOf("slot")) { it.jsonPrimitive.content }.unwrap()
+        val stream = client.subscribe(arrayOf("slot"), PRIMITIVE_CONTENT).unwrap()
         server.takeReceivedText()
         server.closeConnection()
         server.takeReceivedText(5000)
@@ -117,3 +117,6 @@ class SubscriptionDescriptorTest : FunSpec({
         unsubscribe.getValue("params").jsonArray[0] shouldBe JsonPrimitive(43)
     }
 })
+
+/** Reads each event as a primitive's content, whether the node sends a string or a number. */
+private val PRIMITIVE_CONTENT = JsonPrimitive.serializer().map { it.content }
