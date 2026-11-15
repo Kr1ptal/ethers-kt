@@ -418,14 +418,30 @@ change; the application still coordinates snapshots, reconnect recovery, and mul
 
 ## Resolving instruction accounts
 
-IDL-generated bindings fill in the instruction accounts their IDL says how to derive. You call
-`<Instruction>Accounts.Partial(...).resolve(api, args)` explicitly, and it uses fixed addresses, PDA seeds, and
-Anchor `relations` (`has_one`). The pure instruction builders do not change. Underneath, `SolanaAccountResolver`
-derives each account from the addresses and fetched data of the accounts it depends on. It batches each round of
-fetches into one `getMultipleAccounts` request. Accounts you give are used as given and never re-derived. It returns
-a typed `SolanaAccountResolutionError` for each failure: a missing account, an account that does not exist on chain,
-a wrong owner or account type, undecodable data, ambiguous relations, invalid seeds, or a dependency cycle (with its
-path). See the `ethers-abigen-plugin` README for the rules.
+IDL-generated instruction builders derive the accounts their IDL says how to derive, as part of building the
+instruction:
+
+- **Without RPC.** `Program.ix(user = me, args = args)` takes each account as a parameter. It derives fixed addresses and
+  PDAs seeded by constants, arguments and other accounts' addresses when you pass null.
+- **With RPC.** Where some account can only come from on-chain data, through Anchor `relations` (`has_one`) or seeds
+  that read another account's data, `Program.ix(api, ...)` also resolves it. It returns a `SolanaResolvedInstruction`
+  with the `instruction` and the resolved `accounts`.
+- **Reuse.** You can pass `Program.ix(built.accounts, args)` to build further instructions without RPC. Fixed addresses
+  and PDAs never change. Accounts read from on-chain data are only valid while that data is unchanged.
+
+Underneath, `SolanaAccountResolver` fetches each round of accounts in one `getMultipleAccounts` request, and no round
+reads older state than the one before. Accounts you pass are used as given and never re-derived. Each failure is a
+typed `SolanaAccountResolutionError`:
+
+- a missing account;
+- an account that does not exist on chain;
+- an account with the wrong owner or account type;
+- undecodable data;
+- ambiguous relations;
+- invalid seeds;
+- a dependency cycle, with its path.
+
+See the `ethers-abigen-plugin` README for the rules.
 
 ## IDL constants
 

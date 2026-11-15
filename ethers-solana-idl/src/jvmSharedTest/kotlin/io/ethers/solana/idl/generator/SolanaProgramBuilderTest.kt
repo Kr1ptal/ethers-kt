@@ -445,72 +445,124 @@ class SolanaProgramBuilderTest : FunSpec({
 
         test("relations read the field named after the account from each account type that has it, in the scope seeds use") {
             val source = generate(fixture("relations")).replace(Regex("\\s+"), " ")
-            source shouldContain "public data class Partial @JvmOverloads constructor("
-            source shouldContain "SolanaAccountResolver.Account(\"my_account\", this.myAccount, false, listOf(SolanaAccountDerivation.Relations(listOf(" +
+            source shouldContain "SolanaAccountResolver.Account(\"my_account\", myAccount, false, listOf(SolanaAccountDerivation.Relations(listOf(" +
                 "SolanaRelationSource(1, listOf(SolanaRelationCandidate(MyAccount.ACCOUNT) { it.myAccount }))))))"
-            // the nested group's relation names the account in its own group
-            source shouldContain "SolanaAccountResolver.Account(\"nested.my_account\", this.nested.myAccount, false, listOf(SolanaAccountDerivation.Relations(listOf(" +
+            // the nested group's relation names the account in its own group, and its accounts are flattened into parameters
+            source shouldContain "SolanaAccountResolver.Account(\"nested.my_account\", nestedMyAccount, false, listOf(SolanaAccountDerivation.Relations(listOf(" +
                 "SolanaRelationSource(3, listOf(SolanaRelationCandidate(MyAccount.ACCOUNT) { it.myAccount }))))))"
-            source shouldContain "public val nested: Nested.Partial = Nested.Partial(),"
-            source shouldContain "Resolved, when not provided, from the `my_account` field of related account `nested.account`, which must agree."
-            source shouldContain "nested = Nested( myAccount = resolved.required(2), account = resolved.required(3), ),"
-            // the pure builder and accounts are untouched
+            source shouldContain "@param nestedMyAccount Resolved when null from the `my_account` field of related account `nested.account`, which must agree."
+            source shouldContain "nested = TestRelationAccounts.Nested( myAccount = resolved.required(2), account = resolved.required(3), ),"
+            source shouldContain ").let { accounts -> SolanaResolvedInstruction(testRelation(accounts, remainingAccounts, programId), accounts) }"
+            // the builder taking the accounts class is untouched
             source shouldContain "public fun testRelation( accounts: TestRelationAccounts, remainingAccounts: List<AccountMeta> = emptyList(), " +
-                "programId: SolanaAddress = PROGRAM_ID, ): io.ethers.solana.instruction.Instruction = io.ethers.solana.instruction.Instruction(programId, accounts.toAccountMetas(programId) + remainingAccounts, TEST_RELATION.encodeData(Unit))"
+                "programId: SolanaAddress = PROGRAM_ID, ): io.ethers.solana.instruction.Instruction = io.ethers.solana.instruction.Instruction(programId, " +
+                "accounts.toAccountMetas(programId) + remainingAccounts, TEST_RELATION.encodeData(Unit))"
+            (source.contains("Partial")) shouldBe false
         }
 
-        test("PDA seeds from arguments, account addresses and typed account data call the finder, taking arguments only when read") {
+        test("the deriving builder derives constant, argument and account address seeds and fixed addresses, dependencies first") {
+            val args = listOf(IdlField("index", IdlType.Primitive.U32))
+            val source = resolving(
+                listOf(
+                    IdlAccountItem.Single("vault", pda = IdlPda(listOf(IdlSeed.Account("pool"), IdlSeed.Account("owner")))),
+                    IdlAccountItem.Single("owner"),
+                    IdlAccountItem.Single("pool", pda = IdlPda(listOf(IdlSeed.Const(listOf(1)), IdlSeed.Arg("index")))),
+                    IdlAccountItem.Single("system", address = "11111111111111111111111111111111"),
+                ),
+                args,
+            )
+            source shouldContain "@Suppress(\"NAME_SHADOWING\") public fun ix( vault: SolanaAddress? = null, owner: SolanaAddress, pool: SolanaAddress? = null, " +
+                "system: SolanaAddress? = null, args: IxArgs, remainingAccounts: List<AccountMeta> = emptyList(), programId: SolanaAddress = PROGRAM_ID, )"
+            source shouldContain "val pool = pool ?: IxAccounts.findPool(index = args.index, programId = programId).address " +
+                "val vault = vault ?: IxAccounts.findVault(pool = pool, owner = owner, programId = programId).address " +
+                "val system = system ?: SolanaAddress(\"11111111111111111111111111111111\") " +
+                "return ix(IxAccounts( vault = vault, owner = owner, pool = pool, system = system, ), args, remainingAccounts, programId)"
+            source shouldContain "@param vault Derived when null from its PDA seeds, see [IxAccounts.findVault]."
+            source shouldContain "@param system Derived when null from its fixed address `11111111111111111111111111111111`."
+            // nothing reads on-chain data, so there is no builder taking an api
+            (source.contains("public fun ix( api: SolanaApi")) shouldBe false
+        }
+
+        test("accounts derived from on-chain data are required in the deriving builder, and resolved by the one taking an api") {
             val seeds = listOf(IdlSeed.Const(listOf(1)), IdlSeed.Account("config.fee_bps", "Config"), IdlSeed.Account("owner"))
             val source = resolving(listOf(IdlAccountItem.Single("owner"), IdlAccountItem.Single("config"), IdlAccountItem.Single("vault", pda = IdlPda(seeds))))
+            source shouldContain "public fun ix( owner: SolanaAddress, config: SolanaAddress, vault: SolanaAddress, remainingAccounts"
+            source shouldContain "@param vault Required: the overload that takes an api can resolve it from on-chain data."
+            source shouldContain "public fun ix( api: SolanaApi, owner: SolanaAddress, config: SolanaAddress, vault: SolanaAddress? = null, " +
+                "remainingAccounts: List<AccountMeta> = emptyList(), programId: SolanaAddress = PROGRAM_ID, commitment: Commitment = api.defaultCommitment, ): " +
+                "RpcRequest<SolanaResolvedInstruction<IxAccounts>, SolanaAccountResolutionError>"
             source shouldContain "SolanaAccountDerivation.Pda(listOf(SolanaAccountDependency.data(1, Config.ACCOUNT), SolanaAccountDependency.address(0))) { inputs -> " +
                 "IxAccounts.findVault(configFeeBps = inputs.data(1, Config.ACCOUNT).feeBps, owner = inputs.address(0), programId = programId).address }"
-            source shouldContain "public fun resolve( api: SolanaApi, programId: SolanaAddress = PROGRAM_ID, commitment: Commitment = api.defaultCommitment, ): " +
-                "RpcRequest<IxAccounts, SolanaAccountResolutionError>"
-
-            val args = listOf(IdlField("index", IdlType.Primitive.U32))
-            val withArgs = resolving(listOf(IdlAccountItem.Single("vault", pda = IdlPda(listOf(IdlSeed.Arg("index"))))), args)
-            withArgs shouldContain "IxAccounts.findVault(index = args.index, programId = programId).address"
-            withArgs shouldContain "public fun resolve( api: SolanaApi, args: IxArgs,"
         }
 
-        test("seeds and relations the IDL does not make resolvable are documented, and the account must be provided") {
+        test("PDAs whose seeds lead back to themselves, or read an optional account, are required in the deriving builder") {
+            val cycle = resolving(
+                listOf(
+                    IdlAccountItem.Single("left", pda = IdlPda(listOf(IdlSeed.Account("right")))),
+                    IdlAccountItem.Single("right", pda = IdlPda(listOf(IdlSeed.Account("left")))),
+                    IdlAccountItem.Single("anchor", pda = IdlPda(listOf(IdlSeed.Account("left")))),
+                ),
+            )
+            cycle shouldContain "public fun ix( left: SolanaAddress, right: SolanaAddress, anchor: SolanaAddress? = null,"
+            cycle shouldContain "@param left Required: its PDA seeds depend on accounts that depend on it."
+
+            val optional = resolving(
+                listOf(IdlAccountItem.Single("sponsor", optional = true), IdlAccountItem.Single("sponsored", pda = IdlPda(listOf(IdlSeed.Account("sponsor"))))),
+            )
+            optional shouldContain "public fun ix( sponsor: SolanaAddress? = null, sponsored: SolanaAddress, remainingAccounts"
+            optional shouldContain "@param sponsor Optional: absent when null."
+        }
+
+        test("seeds and relations the IDL does not make resolvable are documented, and the account stays required") {
             val seeds = listOf(IdlSeed.Account("config.authority", "Config"))
             val undeclared = resolving(listOf(IdlAccountItem.Single("config"), IdlAccountItem.Single("vault", pda = IdlPda(seeds))), declared = false)
-            undeclared shouldContain "@param vault Must be provided: the IDL gives no way to derive it. * Not resolved from its PDA seeds, as seed `config.authority` reads the data of an " +
-                "account whose type this program does not declare."
-            undeclared shouldContain "SolanaAccountResolver.Account(\"vault\", this.vault, false, listOf())"
+            // nothing is derived from on-chain data, so only the deriving builder
+            undeclared shouldContain "public fun ix( config: SolanaAddress, vault: SolanaAddress, remainingAccounts"
+            (undeclared.contains("public fun ix( api: SolanaApi")) shouldBe false
 
-            val raw = resolving(listOf(IdlAccountItem.Single("vault", pda = IdlPda(listOf(IdlSeed.Arg("flag"))))), listOf(IdlField("flag", IdlType.Primitive.BOOL)))
-            raw shouldContain "Not resolved from its PDA seeds, as the IDL does not determine the encoding of seed `flag`."
-            // nothing reads the arguments
-            raw shouldContain "public fun resolve( api: SolanaApi, programId: SolanaAddress"
-
-            val program = IdlPda(listOf(IdlSeed.Const(listOf(1))), program = IdlSeed.Arg("index"))
-            resolving(listOf(IdlAccountItem.Single("vault", pda = program)), listOf(IdlField("index", IdlType.Primitive.U32))) shouldContain
-                "Not resolved from its PDA seeds, as the program it derives under is argument `index`, which is not a pubkey."
-
-            val related = resolving(listOf(IdlAccountItem.Single("config"), IdlAccountItem.Single("owner", relations = listOf("config"))))
-            related shouldContain "Not resolved from its relation to `config`, as no account type of this program has a pubkey field `owner`."
-            resolving(listOf(IdlAccountItem.Single("config"), IdlAccountItem.Single("authority", relations = listOf("config")))) shouldContain
-                "SolanaRelationSource(0, listOf(SolanaRelationCandidate(Config.ACCOUNT) { it.authority }))"
+            val related = listOf(IdlAccountItem.Single("config"), IdlAccountItem.Single("authority", relations = listOf("config")))
+            val unrelated = listOf(
+                IdlAccountItem.Single("raw", pda = IdlPda(listOf(IdlSeed.Arg("flag")))),
+                IdlAccountItem.Single("owner", relations = listOf("config")),
+                IdlAccountItem.Single("fee_bps", relations = listOf("config")),
+                IdlAccountItem.Single("program", pda = IdlPda(listOf(IdlSeed.Const(listOf(1))), program = IdlSeed.Arg("index"))),
+            )
+            val args = listOf(IdlField("flag", IdlType.Primitive.BOOL), IdlField("index", IdlType.Primitive.U32))
+            val source = resolving(related + unrelated, args)
+            source shouldContain "Not resolved from its PDA seeds, as the IDL does not determine the encoding of seed `flag`."
+            source shouldContain "Not resolved from its relation to `config`, as no account type of this program has a pubkey field `owner`."
             // a field that is not a pubkey cannot name an account
-            resolving(listOf(IdlAccountItem.Single("config"), IdlAccountItem.Single("fee_bps", relations = listOf("config")))) shouldContain
-                "as no account type of this program has a pubkey field `fee_bps`"
+            source shouldContain "as no account type of this program has a pubkey field `fee_bps`"
+            source shouldContain "Not resolved from its PDA seeds, as the program it derives under is argument `index`, which is not a pubkey."
+            source shouldContain "SolanaAccountResolver.Account(\"raw\", raw, false, listOf())"
+            source shouldContain "SolanaRelationSource(0, listOf(SolanaRelationCandidate(Config.ACCOUNT) { it.authority }))"
         }
 
         test("fixed addresses come first, and optional accounts are never derived") {
             val fixed = IdlAccountItem.Single("program", address = "11111111111111111111111111111111", pda = IdlPda(listOf(IdlSeed.Const(listOf(1)))))
-            val source = resolving(listOf(fixed, IdlAccountItem.Single("extra", optional = true, pda = IdlPda(listOf(IdlSeed.Const(listOf(2)))))))
+            val accounts = listOf(fixed, IdlAccountItem.Single("extra", optional = true), IdlAccountItem.Single("config"), IdlAccountItem.Single("authority", relations = listOf("config")))
+            val source = resolving(accounts)
             source shouldContain "listOf(SolanaAccountDerivation.Fixed(SolanaAddress(\"11111111111111111111111111111111\")), SolanaAccountDerivation.Pda(listOf()) { _ ->"
-            source shouldContain "Resolved, when not provided, from the first of: its fixed address `11111111111111111111111111111111`; its PDA seeds, see [IxAccounts.findProgram]."
-            source shouldContain "SolanaAccountResolver.Account(\"extra\", this.extra, true, listOf())"
+            source shouldContain "Resolved when null from the first of: its fixed address `11111111111111111111111111111111`; its PDA seeds, see [IxAccounts.findProgram]."
+            source shouldContain "val program = program ?: SolanaAddress(\"11111111111111111111111111111111\")"
+            source shouldContain "SolanaAccountResolver.Account(\"extra\", extra, true, listOf())"
             source shouldContain "extra = resolved[1],"
-            source shouldContain "Optional: absent unless provided, and never derived."
+            source shouldContain "Optional: absent when null, and never derived."
         }
 
-        test("an account group named like the partial accounts class is rejected") {
-            shouldThrow<IllegalArgumentException> { resolving(listOf(IdlAccountItem.Group("partial", listOf(IdlAccountItem.Single("a"))))) }.message shouldBe
-                "instruction 'ix' account group 'partial': generated type 'Partial' is produced by both the group and the partial accounts"
+        test("account parameters that collide with each other or with the builder's own parameters are rejected") {
+            val group = IdlAccountItem.Group("escrow", listOf(IdlAccountItem.Single("vault")))
+            shouldThrow<IllegalArgumentException> { resolving(listOf(IdlAccountItem.Single("escrow_vault"), group)) }.message shouldBe
+                "instruction 'ix': accounts 'escrow_vault' and 'escrow.vault' both take the builder parameter 'escrowVault'"
+            shouldThrow<IllegalArgumentException> { resolving(listOf(IdlAccountItem.Single("program_id"))) }.message shouldBe
+                "instruction 'ix' account 'program_id': builder parameter 'programId' is also a parameter of the builder itself"
+            shouldThrow<IllegalArgumentException> { resolving(listOf(IdlAccountItem.Single("args")), listOf(IdlField("x", IdlType.Primitive.U8))) }
+                .message shouldContain "builder parameter 'args'"
+            // `args` and `api` are only taken where the builders take them
+            resolving(listOf(IdlAccountItem.Single("args"), IdlAccountItem.Single("api"))) shouldContain "public fun ix( args: SolanaAddress, api: SolanaAddress,"
+            val api = listOf(IdlAccountItem.Single("api"), IdlAccountItem.Single("config"), IdlAccountItem.Single("authority", relations = listOf("config")))
+            shouldThrow<IllegalArgumentException> { resolving(api) }.message shouldBe
+                "instruction 'ix' account 'api': builder parameter 'api' is also a parameter of the builder itself"
         }
     }
 

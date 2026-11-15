@@ -36,6 +36,7 @@ internal object Runtime {
     val SOLANA_ACCOUNT_ERROR = ClassName("io.ethers.solana.program", "SolanaAccountError")
     val ACCOUNT_RESOLVER = ClassName("io.ethers.solana.program", "SolanaAccountResolver")
     val RESOLVER_ACCOUNT = ACCOUNT_RESOLVER.nestedClass("Account")
+    val RESOLVED_INSTRUCTION = ClassName("io.ethers.solana.program", "SolanaResolvedInstruction")
     val RESOLUTION_ERROR = ClassName("io.ethers.solana.program", "SolanaAccountResolutionError")
     val ACCOUNT_DEPENDENCY = ClassName("io.ethers.solana.program", "SolanaAccountDependency")
     private val ACCOUNT_DERIVATION = ClassName("io.ethers.solana.program", "SolanaAccountDerivation")

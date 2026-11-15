@@ -71,9 +71,13 @@ import java.math.BigInteger
  * Each program derived account gets a `find` function deriving its address from its seeds. Integer seeds are
  * encoded in the byte order [seedByteOrders] gives, since IDLs do not record it.
  *
- * Each accounts class also has a `Partial` class, whose accounts may be left out, and whose `resolve` fills them in
- * from what the IDL evidences: fixed addresses, PDA seeds, and relations. It fetches the account data those read,
- * using the runtime's `SolanaAccountResolver`. The instruction builders themselves stay pure.
+ * Each instruction with accounts has three kinds of builder, all with the instruction's name:
+ * - one that takes its accounts class;
+ * - one that takes each account as a parameter and derives, when they are null, the accounts the IDL lets it derive
+ *   without on-chain data: fixed addresses, and PDAs seeded by constants, arguments and other accounts' addresses;
+ * - where some account can only be derived from on-chain data (relations and seeds reading account data), one that
+ *   also takes an api. It resolves those accounts with the runtime's `SolanaAccountResolver`, and returns the resolved
+ *   accounts with the instruction.
  *
  * When changing the generated output, bump [OUTPUT_VERSION].
  *
@@ -321,7 +325,6 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             val name = ix.name.toPascalCase()
             type("${name}Args", "instruction '${ix.name}'")
             type("${name}Accounts", "instruction '${ix.name}'")
-            checkGroupNames(ix, ix.accounts)
         }
 
         val members = HashMap<String, String>()
@@ -336,17 +339,6 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         for (ix in program.instructions) {
             member(ix.name.toUpperSnakeCase(), "instruction '${ix.name}'")
             member(ix.name.toCamelCase(), "instruction '${ix.name}'")
-        }
-    }
-
-    /** An account group's class is nested in its accounts class, beside that class's [PARTIAL] class. */
-    private fun checkGroupNames(ix: IdlInstruction, items: List<IdlAccountItem>) {
-        for (item in items) {
-            if (item !is IdlAccountItem.Group) continue
-            require(item.name.toPascalCase() != PARTIAL) {
-                "instruction '${ix.name}' account group '${item.name}': generated type '$PARTIAL' is produced by both the group and the partial accounts"
-            }
-            checkGroupNames(ix, item.accounts)
         }
     }
 
@@ -1303,7 +1295,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             programType.addType(struct(argsClass, argsFields).addKdoc("Arguments of the %L instruction.\n", ix.name).build())
         }
         if (hasAccounts) {
-            programType.addType(accounts(accountsClass, ix.accounts, ix, resolutionPlan(ix, accountsClass, argsClass)).addKdoc("Accounts of the %L instruction.\n", ix.name).build())
+            programType.addType(accounts(accountsClass, ix.accounts, ix).addKdoc("Accounts of the %L instruction.\n", ix.name).build())
         }
 
         // descriptor
@@ -1335,6 +1327,11 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             if (argsFields.isNotEmpty()) "args" else "Unit",
         )
         programType.addFunction(builder.build())
+        if (hasAccounts) {
+            val plan = resolutionPlan(ix, accountsClass, if (argsFields.isEmpty()) null else argsClass)
+            programType.addFunction(derivingBuilder(plan))
+            if (plan.resolves) programType.addFunction(resolvingBuilder(plan))
+        }
 
         // decoded form
         val properties = buildList {
@@ -1377,7 +1374,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
      * An account roles class of [ix]: one property per account, nested classes for account groups, and a `find`
      * function for each program derived account.
      */
-    private fun accounts(name: ClassName, items: List<IdlAccountItem>, ix: IdlInstruction, plan: ResolutionPlan, prefix: List<String> = emptyList()): TypeSpec.Builder {
+    private fun accounts(name: ClassName, items: List<IdlAccountItem>, ix: IdlInstruction): TypeSpec.Builder {
         val constructor = FunSpec.constructorBuilder()
         val finders = mutableListOf<FunSpec>()
         val builder = TypeSpec.classBuilder(name).addModifiers(KModifier.DATA)
@@ -1390,7 +1387,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             when (item) {
                 is IdlAccountItem.Group -> {
                     val groupClass = name.nestedClass(item.name.toPascalCase())
-                    builder.addType(accounts(groupClass, item.accounts, ix, plan, prefix + item.name).build())
+                    builder.addType(accounts(groupClass, item.accounts, ix).build())
                     type = groupClass
                     parameter = ParameterSpec.builder(property, type).build()
                     metas.addStatement("addAll(%N.toAccountMetas(programId))", property)
@@ -1461,28 +1458,40 @@ class SolanaProgramBuilder @JvmOverloads constructor(
                     .addFunctions(finders)
                     .build(),
             )
-            .addType(partialAccounts(name, items, plan, prefix))
     }
 
     // --- account resolution ---
 
     /** A single account of an instruction at [role], whose seeds and relations name accounts in [scopes], with its accounts class [owner]. */
-    private class FlatAccount(val role: List<String>, val item: IdlAccountItem.Single, val scopes: List<List<IdlAccountItem>>, val owner: ClassName)
+    private class FlatAccount(val role: List<String>, val item: IdlAccountItem.Single, val scopes: List<List<IdlAccountItem>>, val owner: ClassName) {
+        /** The name of the builder parameter that takes this account. */
+        val parameter: String = role.joinToString("_").toCamelCase()
 
-    /** How each account of an instruction is resolved, by its role, and whether resolving takes the instruction's arguments. */
+        val path: String get() = role.joinToString(".")
+    }
+
+    /** How an account is derived without on-chain data: [expression] computes it from the builder's parameters. */
+    private class OfflineDerivation(val expression: CodeBlock, val dependencies: List<Int>, val note: String)
+
+    /**
+     * How the builders of [ix] resolve its [accounts]. The deriving builder derives the accounts in [offline], in that
+     * order; the resolving builder, generated when [resolves], hands [derivations] to the runtime resolver.
+     */
     private class ResolutionPlan(
-        val items: List<IdlAccountItem>,
+        val ix: IdlInstruction,
         val accountsClass: ClassName,
-        val argsClass: ClassName,
+        val argsClass: ClassName?,
         val accounts: List<FlatAccount>,
-        val derivations: Map<List<String>, List<CodeBlock>>,
-        val notes: Map<List<String>, List<String>>,
-        val usesArgs: Boolean,
+        val derivations: List<List<CodeBlock>>,
+        val resolvingNotes: List<List<String>>,
+        val offline: Map<Int, OfflineDerivation>,
+        val derivingNotes: List<List<String>>,
+        val resolves: Boolean,
     ) {
         val indices: Map<List<String>, Int> = accounts.withIndex().associate { it.value.role to it.index }
     }
 
-    private fun resolutionPlan(ix: IdlInstruction, accountsClass: ClassName, argsClass: ClassName): ResolutionPlan {
+    private fun resolutionPlan(ix: IdlInstruction, accountsClass: ClassName, argsClass: ClassName?): ResolutionPlan {
         val accounts = ArrayList<FlatAccount>()
         fun visit(items: List<IdlAccountItem>, prefix: List<String>, owner: ClassName) {
             for (item in items) {
@@ -1495,15 +1504,16 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         visit(ix.accounts, emptyList(), accountsClass)
         val indices = accounts.withIndex().associate { it.value.role to it.index }
 
-        var usesArgs = false
-        val derivations = HashMap<List<String>, List<CodeBlock>>()
-        val notes = HashMap<List<String>, List<String>>()
-        for (account in accounts) {
+        val derivations = ArrayList<List<CodeBlock>>()
+        val resolvingNotes = ArrayList<List<String>>()
+        val readsData = BooleanArray(accounts.size)
+        val candidates = HashMap<Int, OfflineDerivation>()
+        accounts.forEachIndexed { index, account ->
             val item = account.item
             if (item.optional) {
-                derivations[account.role] = emptyList()
-                notes[account.role] = listOf("Optional: absent unless provided, and never derived.")
-                continue
+                derivations.add(emptyList())
+                resolvingNotes.add(listOf("Optional: absent when null, and never derived."))
+                return@forEachIndexed
             }
             val ways = ArrayList<CodeBlock>()
             val used = ArrayList<String>()
@@ -1511,6 +1521,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             item.address?.let {
                 ways.add(CodeBlock.of("%T(%T(%S))", Runtime.DERIVATION_FIXED, Runtime.SOLANA_ADDRESS, it))
                 used.add("its fixed address `$it`")
+                candidates[index] = OfflineDerivation(CodeBlock.of("%T(%S)", Runtime.SOLANA_ADDRESS, it), emptyList(), "its fixed address `$it`")
             }
             item.pda?.let { pda ->
                 val finder = pdaFinder(ix, item, pda, account.scopes)
@@ -1519,29 +1530,45 @@ class SolanaProgramBuilder @JvmOverloads constructor(
                     unused.add("from its PDA seeds, as ${unresolvable.joinToString("; ") { it.reason }}")
                     return@let
                 }
+                val finderLink = "[${account.owner.simpleNames.drop(1).joinToString(".")}.${finder.spec.name}]"
                 val dependencies = LinkedHashMap<Pair<Int, String?>, CodeBlock>()
-                val arguments = finder.inputs.map { (name, input) ->
+                val offlineDependencies = ArrayList<Int>()
+                var offline = true
+                val arguments = ArrayList<CodeBlock>()
+                val offlineArguments = ArrayList<CodeBlock>()
+                for ((name, input) in finder.inputs) {
                     when (input) {
                         is SeedInput.Arg -> {
-                            usesArgs = true
-                            CodeBlock.of("%N = args.%L", name, propertyPath(IdlFields.Named(ix.args), input.path.split('.')))
+                            val value = CodeBlock.of("%N = args.%L", name, propertyPath(IdlFields.Named(ix.args), input.path.split('.')))
+                            arguments.add(value)
+                            offlineArguments.add(value)
                         }
                         is SeedInput.AccountAddress -> {
-                            val index = indices.getValue(roleOf(account, input.path).first)
-                            dependencies.getOrPut(index to null) { CodeBlock.of("%T.address(%L)", Runtime.ACCOUNT_DEPENDENCY, index) }
-                            CodeBlock.of("%N = inputs.address(%L)", name, index)
+                            val dependency = indices.getValue(roleOf(account, input.path).first)
+                            dependencies.getOrPut(dependency to null) { CodeBlock.of("%T.address(%L)", Runtime.ACCOUNT_DEPENDENCY, dependency) }
+                            arguments.add(CodeBlock.of("%N = inputs.address(%L)", name, dependency))
+                            offlineArguments.add(CodeBlock.of("%N = %N", name, accounts[dependency].parameter))
+                            offlineDependencies.add(dependency)
+                            // an absent optional account cannot be derived from
+                            if (accounts[dependency].item.optional) offline = false
                         }
                         is SeedInput.AccountData -> {
                             val (role, fields) = roleOf(account, input.path)
-                            val index = indices.getValue(role)
+                            val dependency = indices.getValue(role)
                             val type = classOf(input.type)
-                            dependencies.getOrPut(index to input.type) { CodeBlock.of("%T.data(%L, %T.ACCOUNT)", Runtime.ACCOUNT_DEPENDENCY, index, type) }
+                            dependencies.getOrPut(dependency to input.type) { CodeBlock.of("%T.data(%L, %T.ACCOUNT)", Runtime.ACCOUNT_DEPENDENCY, dependency, type) }
                             val body = (typeDefs.getValue(input.type).body as IdlTypeBody.Struct).fields
-                            CodeBlock.of("%N = inputs.data(%L, %T.ACCOUNT).%L", name, index, type, propertyPath(body, fields))
+                            arguments.add(CodeBlock.of("%N = inputs.data(%L, %T.ACCOUNT).%L", name, dependency, type, propertyPath(body, fields)))
+                            readsData[index] = true
+                            offline = false
                         }
                         is SeedInput.Unresolvable -> throw IllegalStateException("unresolvable seeds are not derived")
                     }
-                } + listOfNotNull(if (finder.takesProgramId) CodeBlock.of("programId = programId") else null)
+                }
+                if (finder.takesProgramId) {
+                    arguments.add(CodeBlock.of("programId = programId"))
+                    offlineArguments.add(CodeBlock.of("programId = programId"))
+                }
                 ways.add(
                     CodeBlock.of(
                         "%T(listOf(%L)) { %L ->\n⇥%T.%N(%L).address\n⇤}",
@@ -1553,7 +1580,12 @@ class SolanaProgramBuilder @JvmOverloads constructor(
                         arguments.joinToCode(", "),
                     ),
                 )
-                used.add("its PDA seeds, see [${account.owner.simpleNames.drop(1).joinToString(".")}.${finder.spec.name}]")
+                used.add("its PDA seeds, see $finderLink")
+                // a fixed address comes first
+                if (offline && index !in candidates) {
+                    val expression = CodeBlock.of("%T.%N(%L).address", account.owner, finder.spec.name, offlineArguments.joinToCode(", "))
+                    candidates[index] = OfflineDerivation(expression, offlineDependencies.distinct(), "its PDA seeds, see $finderLink")
+                }
             }
             val sources = ArrayList<CodeBlock>()
             val related = ArrayList<String>()
@@ -1563,34 +1595,85 @@ class SolanaProgramBuilder @JvmOverloads constructor(
                     unused.add("from its relation to `$relation`, which names no single account it can see")
                     continue
                 }
-                val candidates = relationCandidates(item.name)
-                if (candidates.isEmpty()) {
+                val relationCandidates = relationCandidates(item.name)
+                if (relationCandidates.isEmpty()) {
                     unused.add("from its relation to `$relation`, as no account type of this program has a pubkey field `${item.name}`")
                     continue
                 }
-                sources.add(CodeBlock.of("%T(%L, listOf(%L))", Runtime.RELATION_SOURCE, indices.getValue(path.first), candidates.joinToCode(", ")))
+                sources.add(CodeBlock.of("%T(%L, listOf(%L))", Runtime.RELATION_SOURCE, indices.getValue(path.first), relationCandidates.joinToCode(", ")))
                 related.add("`${path.first.joinToString(".")}`")
             }
             if (sources.isNotEmpty()) {
                 ways.add(CodeBlock.of("%T(listOf(%L))", Runtime.DERIVATION_RELATIONS, sources.joinToCode(", ")))
                 used.add("the `${item.name}` field of related account${if (related.size == 1) "" else "s"} ${related.joinToString(", ")}, which must agree")
+                readsData[index] = true
             }
-            derivations[account.role] = ways
-            notes[account.role] = buildList {
-                when (used.size) {
-                    0 -> add("Must be provided: the IDL gives no way to derive it.")
-                    1 -> add("Resolved, when not provided, from ${used[0]}.")
-                    else -> add("Resolved, when not provided, from the first of: ${used.joinToString("; ")}.")
-                }
-                unused.forEach { add("Not resolved $it.") }
+            derivations.add(ways)
+            resolvingNotes.add(
+                buildList {
+                    when (used.size) {
+                        0 -> Unit
+                        1 -> add("Resolved when null from ${used[0]}.")
+                        else -> add("Resolved when null from the first of: ${used.joinToString("; ")}.")
+                    }
+                    unused.forEach { add("Not resolved $it.") }
+                },
+            )
+        }
+
+        // accounts whose offline derivations lead back to themselves are required, so the deriving builder never fails
+        fun reachesItself(start: Int): Boolean {
+            val seen = HashSet<Int>()
+            val pending = ArrayDeque(candidates.getValue(start).dependencies)
+            while (pending.isNotEmpty()) {
+                val next = pending.removeFirst()
+                if (next == start) return true
+                if (seen.add(next)) candidates[next]?.let { pending.addAll(it.dependencies) }
+            }
+            return false
+        }
+        val cyclic = candidates.keys.filter(::reachesItself).toSet()
+        // dependencies first, so each derived account's local exists before it is read
+        val offline = LinkedHashMap<Int, OfflineDerivation>()
+        fun order(index: Int) {
+            if (index in offline || index in cyclic) return
+            val derivation = candidates[index] ?: return
+            derivation.dependencies.forEach(::order)
+            offline[index] = derivation
+        }
+        candidates.keys.sorted().forEach(::order)
+
+        val resolves = accounts.indices.any { readsData[it] && it !in offline }
+        val derivingNotes = accounts.indices.map { index ->
+            val item = accounts[index].item
+            when {
+                item.optional -> listOf("Optional: absent when null.")
+                index in offline -> listOf("Derived when null from ${offline.getValue(index).note}.")
+                index in cyclic -> listOf("Required: its PDA seeds depend on accounts that depend on it.")
+                resolves && derivations[index].isNotEmpty() -> listOf("Required: the overload that takes an api can resolve it from on-chain data.")
+                else -> emptyList()
             }
         }
-        return ResolutionPlan(ix.accounts, accountsClass, argsClass, accounts, derivations, notes, usesArgs)
+
+        // the builders take each account as a parameter beside their own
+        val reserved = listOfNotNull(if (argsClass != null) "args" else null, "remainingAccounts", "programId") +
+            if (resolves) listOf("api", "commitment") else emptyList()
+        val parameters = HashMap<String, FlatAccount>()
+        for (account in accounts) {
+            val other = parameters.put(account.parameter, account)
+            require(other == null) {
+                "instruction '${ix.name}': accounts '${other!!.path}' and '${account.path}' both take the builder parameter '${account.parameter}'"
+            }
+            require(account.parameter !in reserved) {
+                "instruction '${ix.name}' account '${account.path}': builder parameter '${account.parameter}' is also a parameter of the builder itself"
+            }
+        }
+        return ResolutionPlan(ix, accountsClass, argsClass, accounts, derivations, resolvingNotes, offline, derivingNotes, resolves)
     }
 
     /** The full role of the account [path] names from [account], with the rest of the path, as [IdlPaths.account] looks it up. */
     private fun roleOf(account: FlatAccount, path: String): Pair<List<String>, List<String>> = requireNotNull(roleOfOrNull(account, path)) {
-        "account path '$path' does not resolve from '${account.role.joinToString(".")}'"
+        "account path '$path' does not resolve from '${account.path}'"
     }
 
     private fun roleOfOrNull(account: FlatAccount, path: String): Pair<List<String>, List<String>>? {
@@ -1622,46 +1705,8 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         return names.joinToCode(".")
     }
 
-    /**
-     * The `Partial` class of an accounts class [accountsClass]: each account optional, to be resolved by `resolve` on the
-     * instruction's top level class.
-     */
-    private fun partialAccounts(accountsClass: ClassName, items: List<IdlAccountItem>, plan: ResolutionPlan, prefix: List<String>): TypeSpec {
-        val name = accountsClass.nestedClass(PARTIAL)
-        val constructor = FunSpec.constructorBuilder().addAnnotation(Runtime.JVM_OVERLOADS)
-        val builder = TypeSpec.classBuilder(name).addModifiers(KModifier.DATA)
-            .addKdoc("These accounts, each of which may be left out to be resolved from the IDL.\n")
-        for (item in items) {
-            val property = item.name.toCamelCase()
-            val parameter = when (item) {
-                is IdlAccountItem.Group -> {
-                    val type = accountsClass.nestedClass(item.name.toPascalCase()).nestedClass(PARTIAL)
-                    ParameterSpec.builder(property, type).defaultValue("%T()", type)
-                }
-                is IdlAccountItem.Single -> ParameterSpec.builder(property, Runtime.SOLANA_ADDRESS.copy(nullable = true)).defaultValue("null").apply {
-                    item.docs.forEach { addKdoc("%L\n", it) }
-                    plan.notes.getValue(prefix + item.name).forEach { addKdoc("%L\n", it) }
-                }
-            }.build()
-            constructor.addParameter(parameter)
-            builder.addProperty(PropertySpec.builder(property, parameter.type).initializer(property).build())
-        }
-        builder.primaryConstructor(constructor.build())
-        if (prefix.isEmpty()) builder.addFunction(resolveFunction(plan))
-        return builder.build()
-    }
-
-    private fun resolveFunction(plan: ResolutionPlan): FunSpec {
-        val accounts = plan.accounts.map { account ->
-            CodeBlock.of(
-                "%T(%S, this.%L, %L, listOf(%L))",
-                Runtime.RESOLVER_ACCOUNT,
-                account.role.joinToString("."),
-                account.role.joinToCode(".") { CodeBlock.of("%N", it.toCamelCase()) },
-                account.item.optional,
-                plan.derivations.getValue(account.role).joinToCode(",\n"),
-            )
-        }
+    /** `Accounts(a = ..., group = Group(...))` for the accounts of [plan], each value given by [value]. */
+    private fun constructAccounts(plan: ResolutionPlan, value: (Int, FlatAccount) -> CodeBlock): CodeBlock {
         fun construct(type: ClassName, items: List<IdlAccountItem>, prefix: List<String>): CodeBlock = CodeBlock.of(
             "%T(\n⇥%L,\n⇤)",
             type,
@@ -1674,24 +1719,110 @@ class SolanaProgramBuilder @JvmOverloads constructor(
                     )
                     is IdlAccountItem.Single -> {
                         val index = plan.indices.getValue(prefix + item.name)
-                        if (item.optional) CodeBlock.of("%N = resolved[%L]", item.name.toCamelCase(), index) else CodeBlock.of("%N = resolved.required(%L)", item.name.toCamelCase(), index)
+                        CodeBlock.of("%N = %L", item.name.toCamelCase(), value(index, plan.accounts[index]))
                     }
                 }
             }.joinToCode(",\n"),
         )
-        return FunSpec.builder("resolve")
-            .addKdoc(
-                "Resolve the accounts left out, as each one's documentation describes, fetching the accounts whose data that reads " +
-                    "from [api] at [commitment]. Accounts given here are used as they are, and never checked against a derivation.\n",
+        return construct(plan.accountsClass, plan.ix.accounts, emptyList())
+    }
+
+    /** The parameters every builder ends with: the arguments, if any, remaining accounts and program id. */
+    private fun FunSpec.Builder.addTrailingParameters(plan: ResolutionPlan): FunSpec.Builder {
+        plan.argsClass?.let { addParameter("args", it) }
+        addParameter(ParameterSpec.builder("remainingAccounts", LIST.parameterizedBy(Runtime.ACCOUNT_META)).defaultValue("emptyList()").build())
+        return addParameter(ParameterSpec.builder("programId", Runtime.SOLANA_ADDRESS).defaultValue("PROGRAM_ID").build())
+    }
+
+    /** The call of the builder that takes the accounts class, with [accounts] and the trailing parameters. */
+    private fun buildCall(plan: ResolutionPlan, accounts: CodeBlock) = CodeBlock.of(
+        "%N(%L, %LremainingAccounts, programId)",
+        plan.ix.name.toCamelCase(),
+        accounts,
+        if (plan.argsClass != null) "args, " else "",
+    )
+
+    /**
+     * The builder that takes each account as a parameter, deriving the accounts it can without on-chain data when they are
+     * null: fixed addresses, and PDAs whose seeds are constants, arguments and other accounts' addresses.
+     */
+    private fun derivingBuilder(plan: ResolutionPlan): FunSpec {
+        val builder = FunSpec.builder(plan.ix.name.toCamelCase())
+            .addAnnotation(Runtime.JVM_STATIC)
+            .addAnnotation(AnnotationSpec.builder(Suppress::class).addMember("%S", "NAME_SHADOWING").build())
+            .returns(Runtime.INSTRUCTION)
+        plan.ix.docs.forEach { builder.addKdoc("%L\n", it) }
+        builder.addKdoc(
+            "%L",
+            (if (plan.ix.docs.isEmpty()) "" else "\n") +
+                "Takes each account as a parameter, deriving those documented as derived when they are null, without on-chain data. " +
+                "An account given is used as given. The instruction is the one the builder taking [${plan.accountsClass.simpleName}] " +
+                "builds from the same accounts.\n",
+        )
+        plan.accounts.forEachIndexed { index, account ->
+            val nullable = account.item.optional || index in plan.offline
+            builder.addParameter(
+                ParameterSpec.builder(account.parameter, Runtime.SOLANA_ADDRESS.copy(nullable = nullable)).apply {
+                    if (nullable) defaultValue("null")
+                    account.item.docs.forEach { addKdoc("%L\n", it) }
+                    plan.derivingNotes[index].forEach { addKdoc("%L\n", it) }
+                }.build(),
             )
-            .addAnnotation(Runtime.JVM_OVERLOADS)
-            .addParameter("api", Runtime.SOLANA_API)
-            .apply { if (plan.usesArgs) addParameter("args", plan.argsClass) }
-            .addParameter(ParameterSpec.builder("programId", Runtime.SOLANA_ADDRESS).defaultValue("PROGRAM_ID").build())
-            .addParameter(ParameterSpec.builder("commitment", Runtime.COMMITMENT).defaultValue("api.defaultCommitment").build())
-            .returns(Runtime.RPC_REQUEST.parameterizedBy(plan.accountsClass, Runtime.RESOLUTION_ERROR))
-            .addCode("val resolver = %T(\n⇥programId,\nlistOf(\n⇥%L,\n⇤),\n⇤)\n", Runtime.ACCOUNT_RESOLVER, accounts.joinToCode(",\n"))
-            .addCode("return resolver.resolve(api, commitment).map { resolved ->\n⇥%L\n⇤}\n", construct(plan.accountsClass, plan.items, emptyList()))
+        }
+        builder.addTrailingParameters(plan)
+        for ((index, derivation) in plan.offline) {
+            val parameter = plan.accounts[index].parameter
+            builder.addStatement("val %N = %N ?: %L", parameter, parameter, derivation.expression)
+        }
+        val accounts = constructAccounts(plan) { _, account -> CodeBlock.of("%N", account.parameter) }
+        return builder.addCode("return %L\n", buildCall(plan, accounts)).build()
+    }
+
+    /**
+     * The builder that also resolves the accounts derived from on-chain data, fetching them from an api, and returns the
+     * resolved accounts with the instruction.
+     */
+    private fun resolvingBuilder(plan: ResolutionPlan): FunSpec {
+        val resolved = Runtime.RESOLVED_INSTRUCTION.parameterizedBy(plan.accountsClass)
+        val builder = FunSpec.builder(plan.ix.name.toCamelCase())
+            .addAnnotation(Runtime.JVM_STATIC)
+            .returns(Runtime.RPC_REQUEST.parameterizedBy(resolved, Runtime.RESOLUTION_ERROR))
+        plan.ix.docs.forEach { builder.addKdoc("%L\n", it) }
+        builder.addKdoc(
+            "%L",
+            (if (plan.ix.docs.isEmpty()) "" else "\n") +
+                "Resolves each account documented as resolved when it is null, fetching the accounts whose data that reads from " +
+                "[api] at [commitment], and builds the instruction. An account given is used as given, and never checked against a " +
+                "derivation. The resolved accounts can be reused with the builder that takes them, without fetching again, as long as " +
+                "the on-chain data they were read from has not changed; fixed addresses and PDAs never change.\n",
+        )
+        builder.addParameter("api", Runtime.SOLANA_API)
+        val entries = plan.accounts.mapIndexed { index, account ->
+            val nullable = account.item.optional || plan.derivations[index].isNotEmpty()
+            builder.addParameter(
+                ParameterSpec.builder(account.parameter, Runtime.SOLANA_ADDRESS.copy(nullable = nullable)).apply {
+                    if (nullable) defaultValue("null")
+                    account.item.docs.forEach { addKdoc("%L\n", it) }
+                    plan.resolvingNotes[index].forEach { addKdoc("%L\n", it) }
+                }.build(),
+            )
+            CodeBlock.of(
+                "%T(%S, %N, %L, listOf(%L))",
+                Runtime.RESOLVER_ACCOUNT,
+                account.path,
+                account.parameter,
+                account.item.optional,
+                plan.derivations[index].joinToCode(",\n"),
+            )
+        }
+        builder.addTrailingParameters(plan)
+        builder.addParameter(ParameterSpec.builder("commitment", Runtime.COMMITMENT).defaultValue("api.defaultCommitment").build())
+        val accounts = constructAccounts(plan) { index, account ->
+            if (account.item.optional) CodeBlock.of("resolved[%L]", index) else CodeBlock.of("resolved.required(%L)", index)
+        }
+        return builder
+            .addCode("return %T(\n⇥programId,\nlistOf(\n⇥%L,\n⇤),\n⇤).resolve(api, commitment).map { resolved ->\n⇥", Runtime.ACCOUNT_RESOLVER, entries.joinToCode(",\n"))
+            .addCode("%L.let { accounts -> %T(%L, accounts) }\n⇤}\n", accounts, Runtime.RESOLVED_INSTRUCTION, buildCall(plan, CodeBlock.of("accounts")))
             .build()
     }
 
@@ -2153,9 +2284,6 @@ class SolanaProgramBuilder @JvmOverloads constructor(
          * previously generated bindings.
          */
         const val OUTPUT_VERSION = "6"
-
-        /** The class nested in each accounts class whose accounts may be left out to be resolved. */
-        private const val PARTIAL = "Partial"
 
         private const val FETCH_ALIAS = "fetchProgramAccount"
         private const val WATCH_ALIAS = "watchProgramAccount"
