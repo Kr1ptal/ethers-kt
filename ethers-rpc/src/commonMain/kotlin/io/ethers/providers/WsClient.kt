@@ -113,6 +113,9 @@ class WsClient(
     private val subscriptionQueue = QueueChannel.mpscUnbounded<PendingSubscriptionRequest<*>>()
     private val unsubscribeQueue = QueueChannel.mpscUnbounded<Long>()
 
+    /** Where the scan found a notification's fields; only the processor loop uses it, one message at a time. */
+    private val notificationPosition = WsMessageScanner.NotificationPosition()
+
     private val reconnect = atomic(false)
     private val stopping = atomic(false)
 
@@ -503,7 +506,7 @@ class WsClient(
     }
 
     private fun handleMessage(text: String) {
-        if (handleResponseDirectly(text)) return
+        if (handleResponseDirectly(text) || handleNotificationDirectly(text)) return
 
         val element = Kotlinx.DEFAULT.parseToJsonElement(text)
 
@@ -754,12 +757,54 @@ class WsClient(
         val resultEl = paramsObj["result"] ?: return
         val subscription = serverIdToSubscription[subscriptionId] ?: return
         if (method != subscription.descriptor.notificationMethod || subscription.closed.value) return
-        if (subscription.handleNotification(resultEl)) {
+        deliverFromTree(subscription, subscriptionId, resultEl)
+    }
+
+    private fun <T : Any> deliverFromTree(subscription: Subscription<T>, subscriptionId: JsonPrimitive, resultEl: KJsonElement) {
+        subscription.deliver(subscriptionId, Kotlinx.DEFAULT.decodeFromJsonElement(subscription.resultDeserializer, resultEl))
+    }
+
+    /**
+     * Decode a notification for an open subscription straight into its event, without a JSON tree, and deliver it.
+     * Returns false, leaving the message to the tree route, if it is anything else or does not decode; the tree route
+     * then gives the outcome it always has.
+     */
+    private fun handleNotificationDirectly(text: String): Boolean {
+        val position = notificationPosition
+        if (!WsMessageScanner.notification(text, position)) return false
+        val subscriptionId = position.subscriptionId(text) ?: return false
+        val subscription = serverIdToSubscription[subscriptionId] ?: return false
+        if (!position.isMethod(text, subscription.descriptor.notificationMethod) || subscription.closed.value) return false
+        return deliverDirectly(subscription, subscriptionId, text)
+    }
+
+    private fun <T : Any> deliverDirectly(subscription: Subscription<T>, subscriptionId: JsonPrimitive, text: String): Boolean {
+        val fields = try {
+            Kotlinx.DEFAULT.decodeFromString(subscription.notificationDeserializer, text)
+        } catch (_: Exception) {
+            return false
+        }
+
+        // the scan stopped at the first method and subscription: the tree route reads the last ones, and an id or
+        // error that it would fail to read
+        if (!fields.hasResult || fields.hasIdOrError || fields.subscription != subscriptionId) return false
+        if (fields.method != subscription.descriptor.notificationMethod) return false
+
+        // the result is only absent while hasResult is false
+        @Suppress("UNCHECKED_CAST")
+        subscription.deliver(subscriptionId, fields.result as T)
+        return true
+    }
+
+    /** Deliver [event] to [subscription], ending the subscription if it was its last. */
+    private fun <T : Any> Subscription<T>.deliver(subscriptionId: JsonPrimitive, event: T) {
+        stream.offer(event)
+        if (descriptor.isTerminal(event)) {
             // The server has already removed this one-shot subscription. Remove it before closing the
             // stream so the close callback neither unsubscribes nor resurrects it on reconnect.
-            requestIdToSubscription.remove(subscription.requestId)
+            requestIdToSubscription.remove(requestId)
             serverIdToSubscription.remove(subscriptionId)
-            subscription.stream.close()
+            stream.close()
         }
     }
 
@@ -899,11 +944,7 @@ class WsClient(
     ) {
         var awaitingResubscribe = false
 
-        /** Deliver the event and tell whether it was the subscription's last. */
-        fun handleNotification(event: KJsonElement): Boolean {
-            val value = Kotlinx.DEFAULT.decodeFromJsonElement(resultDeserializer, event)
-            stream.offer(value)
-            return descriptor.isTerminal(value)
-        }
+        /** Reads this subscription's notifications straight into its events. */
+        val notificationDeserializer = RpcNotificationDeserializer(resultDeserializer)
     }
 }

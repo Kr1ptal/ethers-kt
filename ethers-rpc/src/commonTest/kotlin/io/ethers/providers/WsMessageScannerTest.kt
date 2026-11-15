@@ -6,6 +6,8 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 
 /** The response id a tree gives: what WsClient routes on when it parses a message into a tree. */
@@ -94,6 +96,71 @@ class WsMessageScannerTest : FunSpec({
 
         for (message in messages) {
             withClue(message) { WsMessageScanner.responseId(message) shouldBe 1L }
+        }
+    }
+
+    test("finds a notification's method and subscription where a tree finds them") {
+        val messages = listOf(
+            """{"jsonrpc":"2.0","method":"eth_subscription","params":{"subscription":"0xabc","result":{"a":1}}}""",
+            """{"jsonrpc":"2.0","method":"accountNotification","params":{"result":{"a":"x"},"subscription":23784}}""",
+            """{"params":{"result":[1,"]",{"x":"}"}],"subscription":-5},"method":"m"}""",
+            """ { "method" : "m" , "params" : { "subscription" : "s" , "result" : 1 } } """,
+            """{"method":"m","params":{"s":"a\\","t":"\"}{","subscription":"s","result":1}}""",
+            """{"method":"m","params":{"subscription":1e2,"result":1}}""",
+            """{"method":"m","x":{"method":"other","params":{"subscription":"inner"}},"params":{"subscription":"s"}}""",
+            """{"method":"m","params":{"result":{"data":["${"A".repeat(5000)}","base64"]},"subscription" : "s" } } """,
+            """{"method":"m","params":{"result":1,"subscription":"a\\b"}}""",
+        )
+
+        for (message in messages) {
+            withClue(message) {
+                val tree = Kotlinx.DEFAULT.parseToJsonElement(message).jsonObject
+                val position = WsMessageScanner.NotificationPosition()
+                WsMessageScanner.notification(message, position) shouldBe true
+                position.isMethod(message, tree.getValue("method").jsonPrimitive.content) shouldBe true
+                position.isMethod(message, "other") shouldBe false
+                position.subscriptionId(message) shouldBe tree.getValue("params").jsonObject.getValue("subscription")
+            }
+        }
+    }
+
+    // declining only costs the tree route
+    test("declines notifications it cannot read") {
+        val messages = listOf(
+            """{"method":"m","params":{"result":1}}""",
+            """{"method":"m"}""",
+            """{"params":{"subscription":"s"}}""",
+            """{"method":1,"params":{"subscription":"s"}}""",
+            """{"method":null,"params":{"subscription":"s"}}""",
+            """{"method":"m","params":["s"]}""",
+            """{"method":"m","params":{"result":1""",
+            "{\"method\":\"\\u006d\",\"params\":{\"subscription\":\"s\"}}",
+            "{\"\\u006dethod\":\"m\",\"params\":{\"subscription\":\"s\"}}",
+            "{\"method\":\"m\",\"params\":{\"\\u0073ubscription\":\"s\"}}",
+            """[{"method":"m","params":{"subscription":"s"}}]""",
+            "",
+            "not json",
+        )
+
+        for (message in messages) {
+            withClue(message) { WsMessageScanner.notification(message, WsMessageScanner.NotificationPosition()) shouldBe false }
+        }
+    }
+
+    // read backwards, the end of a message is taken on trust: the decode reads the whole message and rejects it unless
+    // its last params.subscription is this one
+    test("a trailing subscription is read without checking what comes before it") {
+        val messages = listOf(
+            """{"method":"m","params":{"subscription":"s","result":1},"x":{"subscription":"t"}}""",
+            """{"method":"m","params":{"result":"1,"subscription":"t"}}""",
+        )
+
+        for (message in messages) {
+            withClue(message) {
+                val position = WsMessageScanner.NotificationPosition()
+                WsMessageScanner.notification(message, position) shouldBe true
+                position.subscriptionId(message) shouldBe JsonPrimitive("t")
+            }
         }
     }
 })
