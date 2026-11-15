@@ -17,8 +17,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import kotlinx.atomicfu.atomic
 import kotlinx.coroutines.CancellationException
-import kotlinx.serialization.KSerializer
-import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
@@ -80,9 +79,9 @@ class HttpClient(
                         var index = -1
                         val result = obj.decodeNextResult { id ->
                             index = requestIndexPerId[id] ?: throw Exception("Invalid response ID: $id")
-                            batch.requests[index].resultDecoder
+                            batch.requests[index].resultDeserializer
                         }
-                        batch.responses[index].complete(result)
+                        batch.complete(index, result)
                     }
                     return true
                 } catch (_: Exception) {
@@ -94,7 +93,7 @@ class HttpClient(
                 LOG.err { "Batch request failed: $error" }
 
                 for (i in batch.responses.indices) {
-                    batch.responses[i].complete(failure(error))
+                    batch.complete(i, failure(error))
                 }
                 return false
             }
@@ -105,9 +104,9 @@ class HttpClient(
                 var index = -1
                 val result = obj.decodeNextResult { id ->
                     index = requestIndexPerId[id] ?: throw Exception("Invalid response ID: $id")
-                    batch.requests[index].resultDecoder
+                    batch.requests[index].resultDeserializer
                 }
-                batch.responses[index].complete(result)
+                batch.complete(index, result)
             }
             true
         } catch (e: CancellationException) {
@@ -116,27 +115,19 @@ class HttpClient(
             LOG.err(e) { "Error processing batch response" }
             val rpcResponse = getResponseFromException(e)
             for (i in batch.responses.indices) {
-                batch.responses[i].complete(rpcResponse)
+                batch.complete(i, rpcResponse)
             }
             false
         }
-    }
-
-    override suspend fun <T> request(
-        method: String,
-        params: Array<*>,
-        resultDecoder: (KJsonElement) -> T,
-    ): Result<T, RpcError> = execute(method, params) { text ->
-        Kotlinx.DEFAULT.parseToJsonElement(text).jsonObject.decodeNextResult { resultDecoder }
     }
 
     /** Decodes the response straight into [T], without first parsing it into a [KJsonElement] tree. */
     override suspend fun <T> request(
         method: String,
         params: Array<*>,
-        resultSerializer: KSerializer<T>,
+        resultDeserializer: DeserializationStrategy<T>,
     ): Result<T, RpcError> = execute(method, params) { text ->
-        Kotlinx.DEFAULT.decodeFromString(RpcResponseDeserializer(resultSerializer), text)
+        Kotlinx.DEFAULT.decodeFromString(RpcResponseDeserializer(resultDeserializer), text)
     }
 
     /** Send a single request and turn its response body into a result with [decode]. */
@@ -179,19 +170,21 @@ class HttpClient(
         }
     }
 
-    private fun <T> JsonObject.decodeNextResult(getDecoder: (id: Long) -> (KJsonElement) -> T): Result<T, RpcError> {
+    private fun <T> JsonObject.decodeNextResult(
+        getDeserializer: (id: Long) -> DeserializationStrategy<T>,
+    ): Result<T, RpcError> {
         val id = this["id"]?.jsonPrimitive?.long ?: return ERROR_NO_ID_RESPONSE
         val resultEl = this["result"]
         val errorEl = this["error"]
 
         return when {
-            resultEl != null -> success(getDecoder(id)(resultEl))
+            resultEl != null -> success(Kotlinx.DEFAULT.decodeFromJsonElement(getDeserializer(id), resultEl))
             errorEl != null -> {
-                getDecoder(id)
+                getDeserializer(id)
                 failure(RpcError.fromJsonObject(errorEl.jsonObject))
             }
             else -> {
-                getDecoder(id)
+                getDeserializer(id)
                 ERROR_INVALID_RESPONSE
             }
         }
@@ -199,7 +192,7 @@ class HttpClient(
 
     override suspend fun <T : Any> subscribe(
         params: Array<*>,
-        resultDecoder: (KJsonElement) -> T,
+        resultDeserializer: DeserializationStrategy<T>,
     ): Result<ChannelReceiver<T>, RpcError> {
         return ERROR_SUBSCRIPTION_UNSUPPORTED
     }

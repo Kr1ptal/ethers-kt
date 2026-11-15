@@ -37,7 +37,11 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) : Platfor
     // Enable batchSent modification for batch execution via JsonRpcClient.requestBatch
     internal val batchSent = atomic(false)
 
-    internal val requests: List<RpcCall<*>>
+    /**
+     * The calls in this batch, in the order they were added. [JsonRpcClient.requestBatch] sends them and completes
+     * each one's response with [complete].
+     */
+    val requests: List<RpcCall<*>>
         field = ArrayList(defaultSize)
 
     internal val responses: List<CompletableDeferred<Result<*, RpcError>>>
@@ -79,6 +83,22 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) : Platfor
         markAsSent()
         return client.requestBatch(this)
     }
+
+    /**
+     * Send the batch through [client] rather than the client its calls were made with, without blocking the calling
+     * thread. A [JsonRpcClient] that wraps another uses this to forward a batch, or a new batch it builds, to the
+     * wrapped client.
+     */
+    suspend fun sendWith(client: JsonRpcClient): Boolean {
+        markAsSent()
+        return client.requestBatch(this)
+    }
+
+    /**
+     * Complete the response of the call at [index] in [requests] with [result], which must be a result of that
+     * call's type. Returns false if the response was already completed.
+     */
+    fun complete(index: Int, result: Result<*, RpcError>): Boolean = responses[index].complete(result)
 
     internal fun sendDeferred(): Deferred<Boolean> = CoroutineScope(Dispatchers.Default)
         .async(start = CoroutineStart.UNDISPATCHED) { send() }

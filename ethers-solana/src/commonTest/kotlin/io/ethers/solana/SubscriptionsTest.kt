@@ -26,7 +26,7 @@ import io.ethers.solana.types.rpc.SolanaAccountConfig
 import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
-import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
@@ -184,14 +184,14 @@ private class SubscriptionClient : JsonRpcClient {
     private val config = RpcClientConfig().subscriptionDescriptor(SolanaSubscriptionDescriptor)
     lateinit var descriptor: SubscriptionDescriptor.Resolved
     lateinit var params: Array<*>
-    override suspend fun <T : Any> subscribe(params: Array<*>, resultDecoder: (JsonElement) -> T): Result<ChannelReceiver<T>, RpcError> {
+    override suspend fun <T : Any> subscribe(params: Array<*>, resultDeserializer: DeserializationStrategy<T>): Result<ChannelReceiver<T>, RpcError> {
         this.descriptor = config.subscriptionDescriptor.resolve(params)
         this.params = descriptor.params
         val channel = QueueChannel.spscUnbounded<T>()
-        channel.offer(resultDecoder(Kotlinx.DEFAULT.parseToJsonElement(event)))
+        channel.offer(Kotlinx.DEFAULT.decodeFromString(resultDeserializer, event))
         return success(channel)
     }
-    override suspend fun <T> request(method: String, params: Array<*>, resultDecoder: (JsonElement) -> T): Result<T, RpcError> = error("Unexpected request")
+    override suspend fun <T> request(method: String, params: Array<*>, resultDeserializer: DeserializationStrategy<T>): Result<T, RpcError> = error("Unexpected request")
     override suspend fun requestBatch(batch: BatchRpcRequest): Boolean = error("Unexpected batch")
     override fun close() = Unit
 }

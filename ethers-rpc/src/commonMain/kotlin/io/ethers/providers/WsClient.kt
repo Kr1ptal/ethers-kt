@@ -27,6 +27,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -566,11 +567,11 @@ class WsClient(
 
             val response = when {
                 resultEl == null && error == null -> HttpClient.ERROR_INVALID_RESPONSE
-                resultEl != null -> success(batch.request.requests[responseIndex].resultDecoder(resultEl))
+                resultEl != null -> success(Kotlinx.DEFAULT.decodeFromJsonElement(batch.request.requests[responseIndex].resultDeserializer, resultEl))
                 else -> failure(error!!)
             }
 
-            batch.request.responses[responseIndex].complete(response)
+            batch.request.complete(responseIndex, response)
         }
 
         batch?.response?.complete(true)
@@ -619,7 +620,7 @@ class WsClient(
         // decide on the element, not the decoded value: a null result, e.g. for an unknown transaction, is a success
         val response = when {
             error != null -> failure(error)
-            resultElement != null -> success(request.resultDecoder(resultElement))
+            resultElement != null -> success(Kotlinx.DEFAULT.decodeFromJsonElement(request.resultDeserializer, resultElement))
             else -> HttpClient.ERROR_INVALID_RESPONSE
         }
 
@@ -642,7 +643,7 @@ class WsClient(
                 serverId = resultElement!!.jsonPrimitive,
                 descriptor = request.descriptor,
                 closed = closed,
-                resultDecoder = request.resultDecoder,
+                resultDeserializer = request.resultDeserializer,
                 stream = QueueChannel.spscUnbounded {
                     closed.value = true
                     unsubscribeQueue.enqueue(id)
@@ -726,12 +727,12 @@ class WsClient(
     override suspend fun <T> request(
         method: String,
         params: Array<*>,
-        resultDecoder: (KJsonElement) -> T,
+        resultDeserializer: DeserializationStrategy<T>,
     ): Result<T, RpcError> {
         val request = PendingRequest(
             method,
             params,
-            resultDecoder,
+            resultDeserializer,
             CompletableDeferred(),
         )
 
@@ -743,11 +744,11 @@ class WsClient(
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     override suspend fun <T : Any> subscribe(
         params: Array<*>,
-        resultDecoder: (KJsonElement) -> T,
+        resultDeserializer: DeserializationStrategy<T>,
     ): Result<ChannelReceiver<T>, RpcError> {
         val request = PendingSubscriptionRequest(
             subscriptionDescriptor.resolve(params),
-            resultDecoder,
+            resultDeserializer,
             CompletableDeferred(),
         )
 
@@ -767,7 +768,7 @@ class WsClient(
     private class PendingRequest<T>(
         val method: String,
         val params: Array<*>,
-        val resultDecoder: (KJsonElement) -> T,
+        val resultDeserializer: DeserializationStrategy<T>,
         val response: CompletableDeferred<Result<T, RpcError>>,
     ) : ExpiringRequest() {
         override fun expireRequest() {
@@ -781,7 +782,7 @@ class WsClient(
     ) : ExpiringRequest() {
         override fun expireRequest() {
             for (i in request.responses.indices) {
-                request.responses[i].complete(HttpClient.ERROR_CALL_TIMEOUT)
+                request.complete(i, HttpClient.ERROR_CALL_TIMEOUT)
             }
             response.complete(false)
         }
@@ -789,7 +790,7 @@ class WsClient(
 
     private class PendingSubscriptionRequest<T : Any>(
         val descriptor: SubscriptionDescriptor.Resolved,
-        val resultDecoder: (KJsonElement) -> T,
+        val resultDeserializer: DeserializationStrategy<T>,
         val response: CompletableDeferred<Result<ChannelReceiver<T>, RpcError>>,
     ) : ExpiringRequest() {
         override fun expireRequest() {
@@ -828,13 +829,13 @@ class WsClient(
         var serverId: kotlinx.serialization.json.JsonPrimitive,
         val descriptor: SubscriptionDescriptor.Resolved,
         val closed: kotlinx.atomicfu.AtomicBoolean,
-        val resultDecoder: (KJsonElement) -> T,
+        val resultDeserializer: DeserializationStrategy<T>,
         val stream: Channel<T>,
     ) {
         var awaitingResubscribe = false
 
         fun handleNotification(event: KJsonElement) {
-            stream.offer(resultDecoder(event))
+            stream.offer(Kotlinx.DEFAULT.decodeFromJsonElement(resultDeserializer, event))
         }
     }
 }
