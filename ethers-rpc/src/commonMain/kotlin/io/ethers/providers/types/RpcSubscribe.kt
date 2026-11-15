@@ -8,11 +8,9 @@ import io.ethers.core.failure
 import io.ethers.core.isFailure
 import io.ethers.core.isSuccess
 import io.ethers.core.success
-import io.ethers.providers.JsonElementDeserializer
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import kotlinx.serialization.DeserializationStrategy
-import kotlinx.serialization.json.JsonElement
 import kotlin.jvm.JvmSynthetic
 
 /**
@@ -179,12 +177,6 @@ class RpcSubscribeCall<T : Any>(
     private val params: Array<*>,
     private val resultDeserializer: DeserializationStrategy<T>,
 ) : RpcSubscribe<T, RpcError> {
-    constructor(
-        client: JsonRpcClient,
-        params: Array<*>,
-        resultDecoder: (JsonElement) -> T,
-    ) : this(client, params, JsonElementDeserializer(resultDecoder))
-
     override suspend fun send(): Result<ChannelReceiver<T>, RpcError> {
         return client.subscribe(params, resultDeserializer)
     }

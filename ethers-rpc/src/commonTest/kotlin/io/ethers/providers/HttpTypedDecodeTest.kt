@@ -4,31 +4,19 @@ import io.ethers.core.Kotlinx
 import io.ethers.core.Result
 import io.ethers.core.isFailure
 import io.ethers.providers.types.RpcCall
-import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.string.shouldContain
-import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 import kotlinx.serialization.DeserializationStrategy
-import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.SerializationException
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.nullable
 import kotlinx.serialization.builtins.serializer
-import kotlinx.serialization.descriptors.SerialDescriptor
-import kotlinx.serialization.encoding.AbstractDecoder
-import kotlinx.serialization.encoding.CompositeDecoder
-import kotlinx.serialization.json.JsonNull
-import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
-import kotlinx.serialization.modules.EmptySerializersModule
-import kotlinx.serialization.modules.SerializersModule
 import io.ktor.client.HttpClient as KtorHttpClient
 import kotlinx.serialization.json.JsonElement as KJsonElement
 
@@ -128,11 +116,6 @@ class HttpTypedDecodeTest : FunSpec({
         return client.request("m", emptyArray<Any>(), serializer).outcome()
     }
 
-    suspend fun <T> outcome(status: Int, body: String, decoder: (KJsonElement) -> T): Any? {
-        server.enqueue(status, body)
-        return client.request("m", emptyArray<Any>(), decoder).outcome()
-    }
-
     test("decoding a response straight into the result matches decoding it through a JSON tree") {
         for (case in CASES) {
             val decodeTree = { element: KJsonElement -> Kotlinx.DEFAULT.decodeFromJsonElement(case.serializer, element) }
@@ -150,44 +133,32 @@ class HttpTypedDecodeTest : FunSpec({
                 }
 
                 for (status in listOf(200, 500)) {
-                    val serializerExpected = treeOutcome(body, decodeTree)
-                    check("serializer, HTTP $status", outcome(status, body, case.serializer), serializerExpected)
-                    check("tree decoder, HTTP $status", outcome(status, body, decodeTree), serializerExpected)
-                    // a decoder function sees exactly the result's subtree
-                    check("identity decoder, HTTP $status", outcome(status, body) { it }, treeOutcome(body) { it })
+                    val expected = treeOutcome(body, decodeTree)
+                    check("serializer, HTTP $status", outcome(status, body, case.serializer), expected)
+                    // a mapped strategy decodes exactly as the one it maps
+                    check("mapped serializer, HTTP $status", outcome(status, body, case.serializer.map { it }), expected)
                 }
             }
         }
     }
 
-    test("a call passes its deserializer to the client unchanged, and wraps a decoder function in one") {
+    test("a call passes its deserializer to the client unchanged") {
         val recording = RecordingClient(client)
         val serializer = ListSerializer(String.serializer())
-        val response = """{"result":["x","y"],"id":1,"jsonrpc":"2.0"}"""
 
-        server.enqueueJson(response)
+        server.enqueueJson("""{"result":["x","y"],"id":1,"jsonrpc":"2.0"}""")
         RpcCall(recording, "m", emptyArray<Any>(), serializer).send().outcome() shouldBe listOf("x", "y")
         recording.deserializers.single() shouldBeSameInstanceAs serializer
-
-        val decoder = { element: KJsonElement -> element.jsonArray.map { it.jsonPrimitive.content } }
-        val call = RpcCall(recording, "m", emptyArray<Any>(), decoder)
-        call.resultDecoder shouldBeSameInstanceAs decoder
-        server.enqueueJson(response)
-        call.send().outcome() shouldBe listOf("x", "y")
-        recording.deserializers.last().shouldBeInstanceOf<JsonElementDeserializer<*>>().resultDecoder shouldBeSameInstanceAs decoder
     }
 
-    test("a call made with a deserializer still offers a decoder function of the result's tree") {
-        val call = RpcCall(client, "m", emptyArray<Any>(), Item.serializer().nullable)
-        call.resultDecoder(Kotlinx.DEFAULT.parseToJsonElement("""{"a":5,"b":"q"}""")) shouldBe Item(5, "q")
-        call.resultDecoder(JsonNull) shouldBe null
-    }
+    test("a mapped strategy transforms the decoded value, and a failing transform fails the call") {
+        val mapped = Item.serializer().map { "${it.a}:${it.b}" }
+        mapped.descriptor shouldBe Item.serializer().descriptor
 
-    test("a decoder function only decodes JSON") {
-        val error = shouldThrow<SerializationException> {
-            JsonElementDeserializer { it }.deserialize(NonJsonDecoder)
-        }
-        error.message shouldContain "cannot read from"
+        outcome(200, """{"jsonrpc":"2.0","id":1,"result":{"a":5,"b":"q"}}""", mapped) shouldBe "5:q"
+        outcome(200, """{"jsonrpc":"2.0","id":1,"result":{"a":5}}""", Item.serializer().map { require(it.b != null) }) shouldBe CALL_FAILED
+        // an error response never reaches the transform
+        outcome(200, """{"jsonrpc":"2.0","id":1,"error":{"code":-32000,"message":"boom"}}""", mapped) shouldBe Triple(-32000, "boom", null)
     }
 })
 
@@ -199,12 +170,4 @@ private class RecordingClient(private val delegate: HttpClient) : JsonRpcClient 
         deserializers += resultDeserializer
         return delegate.request(method, params, resultDeserializer)
     }
-}
-
-/** A [Decoder] of some format other than JSON. */
-@OptIn(ExperimentalSerializationApi::class)
-private object NonJsonDecoder : AbstractDecoder() {
-    override val serializersModule: SerializersModule = EmptySerializersModule()
-
-    override fun decodeElementIndex(descriptor: SerialDescriptor): Int = CompositeDecoder.DECODE_DONE
 }

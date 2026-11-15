@@ -1,6 +1,5 @@
 package io.ethers.providers.types
 
-import io.ethers.core.Kotlinx
 import io.ethers.core.Result
 import io.ethers.core.Result.Consumer
 import io.ethers.core.ThrowableError
@@ -8,14 +7,12 @@ import io.ethers.core.failure
 import io.ethers.core.isFailure
 import io.ethers.core.isSuccess
 import io.ethers.core.success
-import io.ethers.providers.JsonElementDeserializer
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.serialization.DeserializationStrategy
-import kotlinx.serialization.json.JsonElement
 import kotlin.jvm.JvmSynthetic
 
 /**
@@ -165,20 +162,6 @@ class RpcCall<T>(
     val params: Array<*>,
     val resultDeserializer: DeserializationStrategy<T>,
 ) : RpcRequest<T, RpcError>() {
-    constructor(
-        client: JsonRpcClient,
-        method: String,
-        params: Array<*>,
-        resultDecoder: (JsonElement) -> T,
-    ) : this(client, method, params, JsonElementDeserializer(resultDecoder))
-
-    /** Decodes the result from its JSON tree, with [resultDeserializer]. */
-    val resultDecoder: (JsonElement) -> T
-        get() = when (val deserializer = resultDeserializer) {
-            is JsonElementDeserializer<T> -> deserializer.resultDecoder
-            else -> { element -> Kotlinx.DEFAULT.decodeFromJsonElement(deserializer, element) }
-        }
-
     override suspend fun send(): Result<T, RpcError> = client.request(method, params, resultDeserializer)
 
     override fun batch(batch: BatchRpcRequest): BatchRpcResponse<Result<T, RpcError>> = batch.addRpcCall(this)

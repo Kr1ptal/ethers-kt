@@ -16,7 +16,6 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.descriptors.buildClassSerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -24,8 +23,6 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.jvm.JvmOverloads
-import kotlin.reflect.KClass
-import kotlinx.serialization.json.JsonElement as KJsonElement
 
 /**
  * Trace transaction call frames.
@@ -40,8 +37,8 @@ data class CallTracer(
     override val name: String
         get() = "callTracer"
 
-    override val resultType: KClass<CallFrame>
-        get() = CallFrame::class
+    override val resultSerializer: KSerializer<CallFrame>
+        get() = CallFrameSerializer
 
     override val config: Map<String, Any?> =
         when {
@@ -50,10 +47,6 @@ data class CallTracer(
             withLog -> CONFIG_ALL_CALLS_WITH_LOGS
             else -> CONFIG_ALL_CALLS_NO_LOGS
         }
-
-    override fun decodeResult(json: Json, element: KJsonElement): CallFrame {
-        return json.decodeFromJsonElement(CallFrameSerializer, element)
-    }
 
     @Serializable(with = CallFrameSerializer::class)
     data class CallFrame(

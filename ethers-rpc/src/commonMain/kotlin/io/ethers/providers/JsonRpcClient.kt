@@ -9,13 +9,11 @@ import io.ethers.providers.types.BatchRpcRequest
 import io.ktor.client.plugins.websocket.WebSockets
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.KSerializer
-import kotlinx.serialization.SerializationException
 import kotlinx.serialization.descriptors.PrimitiveKind
 import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
-import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -64,50 +62,6 @@ interface JsonRpcClient : AutoCloseable {
         params: Array<*>,
         resultDeserializer: DeserializationStrategy<T>,
     ): Result<ChannelReceiver<T>, RpcError>
-}
-
-/**
- * Execute an RPC request without blocking the calling thread, decoding the result with a function of its JSON tree.
- *
- * Prefer [JsonRpcClient.request] with a [DeserializationStrategy], which can decode the result without first
- * building the tree.
- *
- * @param method RPC function name
- * @param params RPC function parameters
- * @param resultDecoder function to convert JSON result into object return [T].
- */
-suspend fun <T> JsonRpcClient.request(
-    method: String,
-    params: Array<*>,
-    resultDecoder: (KJsonElement) -> T,
-): Result<T, RpcError> = request(method, params, JsonElementDeserializer(resultDecoder))
-
-/**
- * Subscribe to a stream using the client's configured protocol, decoding each event with a function of its JSON
- * tree.
- *
- * Prefer [JsonRpcClient.subscribe] with a [DeserializationStrategy].
- *
- * @param params the stream name followed by its arguments
- * @param resultDecoder function to convert JSON result into return object [T]
- */
-suspend fun <T : Any> JsonRpcClient.subscribe(
-    params: Array<*>,
-    resultDecoder: (KJsonElement) -> T,
-): Result<ChannelReceiver<T>, RpcError> = subscribe(params, JsonElementDeserializer(resultDecoder))
-
-/**
- * Adapts a [resultDecoder] function of a JSON tree to a [DeserializationStrategy], by reading the value into a
- * [KJsonElement] and passing it on. Like the function, it only decodes JSON.
- */
-internal class JsonElementDeserializer<T>(val resultDecoder: (KJsonElement) -> T) : DeserializationStrategy<T> {
-    override val descriptor: SerialDescriptor get() = JsonElement.serializer().descriptor
-
-    override fun deserialize(decoder: Decoder): T {
-        val json = decoder as? JsonDecoder
-            ?: throw SerializationException("A JSON result decoder cannot read from ${decoder::class.simpleName}")
-        return resultDecoder(json.decodeJsonElement())
-    }
 }
 
 /**

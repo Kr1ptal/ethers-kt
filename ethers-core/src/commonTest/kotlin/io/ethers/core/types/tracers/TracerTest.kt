@@ -9,12 +9,12 @@ import io.ethers.core.types.StateOverrideSerializer
 import io.kotest.assertions.json.shouldEqualJson
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
-import kotlin.reflect.KClass
 
 private object CustomDefaultDecodeTracer : Tracer<CustomDefaultDecodeResult> {
     override val name: String = "customDefaultDecodeTracer"
-    override val resultType: KClass<CustomDefaultDecodeResult> = CustomDefaultDecodeResult::class
+    override val resultSerializer: KSerializer<CustomDefaultDecodeResult> = CustomDefaultDecodeResult.serializer()
     override val config: Map<String, Any?> = mapOf(
         "enabled" to true,
         "steps" to listOf(1, 2, 3),
@@ -122,11 +122,8 @@ class TracerTest : FunSpec({
     }
 
     context("result deserialization") {
-        test("custom tracer can rely on default resultType decoder") {
-            val result = CustomDefaultDecodeTracer.decodeResult(
-                Kotlinx.DEFAULT,
-                Kotlinx.DEFAULT.parseToJsonElement("""{"data":"ok","count":2}"""),
-            )
+        test("custom tracer decodes its result with its serializer") {
+            val result = Kotlinx.DEFAULT.decodeFromString(CustomDefaultDecodeTracer.resultSerializer, """{"data":"ok","count":2}""")
 
             result shouldBe CustomDefaultDecodeResult("ok", 2)
         }
