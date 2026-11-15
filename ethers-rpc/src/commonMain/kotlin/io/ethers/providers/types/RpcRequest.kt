@@ -158,20 +158,32 @@ abstract class RpcRequest<T, E : ThrowableError> : PlatformRpcRequest<T, E>() {
 /**
  * Normal RPC request.
  */
-class RpcCall<T>(
+class RpcCall<T> private constructor(
     val client: JsonRpcClient,
     val method: String,
     val params: Array<*>,
     val resultDecoder: (JsonElement) -> T,
+    // kept so a client can decode the response straight into T, without a JsonElement tree
+    private val resultSerializer: KSerializer<T>?,
 ) : RpcRequest<T, RpcError>() {
     constructor(
         client: JsonRpcClient,
         method: String,
         params: Array<*>,
-        resultSerializer: KSerializer<T>,
-    ) : this(client, method, params, decoderFor(resultSerializer))
+        resultDecoder: (JsonElement) -> T,
+    ) : this(client, method, params, resultDecoder, null)
 
-    override suspend fun send(): Result<T, RpcError> = client.request(method, params, resultDecoder)
+    constructor(
+        client: JsonRpcClient,
+        method: String,
+        params: Array<*>,
+        resultSerializer: KSerializer<T>,
+    ) : this(client, method, params, decoderFor(resultSerializer), resultSerializer)
+
+    override suspend fun send(): Result<T, RpcError> {
+        val serializer = resultSerializer
+        return if (serializer != null) client.request(method, params, serializer) else client.request(method, params, resultDecoder)
+    }
 
     override fun batch(batch: BatchRpcRequest): BatchRpcResponse<Result<T, RpcError>> = batch.addRpcCall(this)
 

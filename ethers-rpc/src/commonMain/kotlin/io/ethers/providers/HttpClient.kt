@@ -17,6 +17,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import kotlinx.atomicfu.atomic
 import kotlinx.coroutines.CancellationException
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -125,6 +126,24 @@ class HttpClient(
         method: String,
         params: Array<*>,
         resultDecoder: (KJsonElement) -> T,
+    ): Result<T, RpcError> = execute(method, params) { text ->
+        Kotlinx.DEFAULT.parseToJsonElement(text).jsonObject.decodeNextResult { resultDecoder }
+    }
+
+    /** Decodes the response straight into [T], without first parsing it into a [KJsonElement] tree. */
+    override suspend fun <T> request(
+        method: String,
+        params: Array<*>,
+        resultSerializer: KSerializer<T>,
+    ): Result<T, RpcError> = execute(method, params) { text ->
+        Kotlinx.DEFAULT.decodeFromString(RpcResponseDeserializer(resultSerializer), text)
+    }
+
+    /** Send a single request and turn its response body into a result with [decode]. */
+    private suspend inline fun <T> execute(
+        method: String,
+        params: Array<*>,
+        decode: (text: String) -> Result<T, RpcError>,
     ): Result<T, RpcError> {
         val json = buildJsonRpcRequest(method, requestId.getAndIncrement(), params)
         LOG.trc { "Request: $json" }
@@ -140,8 +159,7 @@ class HttpClient(
 
             if (response.status.value !in 200..299) {
                 try {
-                    val obj = Kotlinx.DEFAULT.parseToJsonElement(text).jsonObject
-                    return obj.decodeNextResult { resultDecoder }
+                    return decode(text)
                 } catch (_: Exception) {
                 }
 
@@ -152,8 +170,7 @@ class HttpClient(
                 return failure(error)
             }
 
-            val obj = Kotlinx.DEFAULT.parseToJsonElement(text).jsonObject
-            obj.decodeNextResult { resultDecoder }
+            decode(text)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
