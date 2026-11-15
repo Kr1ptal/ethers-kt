@@ -439,6 +439,23 @@ struct field, an unknown variant, or an invalid address. It also fails for anyth
 an expression, a cast, a path or a reference to another constant. Legacy IDLs can record those as unevaluated
 source text, and the generator never evaluates them.
 
+## Custom and typed instructions
+
+`Instruction(programId, keys, data)` invokes any program. It is an open class, so a typed instruction
+can extend it, compute the wire fields from its own accounts and arguments, and be passed to every
+API that takes an `Instruction`:
+
+```kotlin
+class Withdraw(val authority: SolanaAddress, val vault: SolanaAddress, val amount: Long) :
+    Instruction(PROGRAM_ID, listOf(AccountMeta.signer(authority), AccountMeta.writable(vault)), encode(amount))
+
+SolanaTransactionRequest { instruction(Withdraw(authority, vault, 100)) }
+```
+
+`programId`, `keys` and `data` are final, so a subclass cannot change the bytes it compiles to.
+Equality is by wire content: a subclass equals a plain `Instruction` with the same three fields, and
+`copy(...)` returns a plain `Instruction`. Only `toString` can be overridden.
+
 ## Idempotent associated token accounts
 
 Use `AssociatedTokenProgram.createAccountIdempotent(payer, owner, mint)` to derive the SPL Token
