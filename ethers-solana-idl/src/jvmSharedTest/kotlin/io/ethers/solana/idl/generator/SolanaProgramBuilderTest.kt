@@ -452,11 +452,11 @@ class SolanaProgramBuilderTest : FunSpec({
                 "SolanaRelationSource(3, listOf(SolanaRelationCandidate(MyAccount.ACCOUNT) { it.myAccount }))))))"
             source shouldContain "@param nestedMyAccount Resolved when null from the `my_account` field of related account `nested.account`, which must agree."
             source shouldContain "nested = TestRelationAccounts.Nested( myAccount = resolved.required(2), account = resolved.required(3), ),"
-            source shouldContain ").let { accounts -> SolanaResolvedInstruction(testRelation(accounts, remainingAccounts, programId), accounts) }"
-            // the builder taking the accounts class is untouched
+            source shouldContain ").resolve(api, commitment).map { resolved -> testRelation(TestRelationAccounts("
+            // the builder taking the accounts class encodes as before, and wraps the instruction in its typed class
             source shouldContain "public fun testRelation( accounts: TestRelationAccounts, remainingAccounts: List<AccountMeta> = emptyList(), " +
-                "programId: SolanaAddress = PROGRAM_ID, ): io.ethers.solana.instruction.Instruction = io.ethers.solana.instruction.Instruction(programId, " +
-                "accounts.toAccountMetas(programId) + remainingAccounts, TEST_RELATION.encodeData(Unit))"
+                "programId: SolanaAddress = PROGRAM_ID, ): Instruction.TestRelation = Instruction.TestRelation(accounts, remainingAccounts, io.ethers.solana.instruction.Instruction(programId, " +
+                "accounts.toAccountMetas(programId) + remainingAccounts, TEST_RELATION.encodeData(Unit)))"
             (source.contains("Partial")) shouldBe false
         }
 
@@ -480,17 +480,17 @@ class SolanaProgramBuilderTest : FunSpec({
             source shouldContain "@param vault Derived when null from its PDA seeds, see [IxAccounts.findVault]."
             source shouldContain "@param system Derived when null from its fixed address `11111111111111111111111111111111`."
             // nothing reads on-chain data, so there is no builder taking an api
-            (source.contains("public fun ix( api: SolanaApi")) shouldBe false
+            (source.contains("fun resolveIx(")) shouldBe false
         }
 
         test("accounts derived from on-chain data are required in the deriving builder, and resolved by the one taking an api") {
             val seeds = listOf(IdlSeed.Const(listOf(1)), IdlSeed.Account("config.fee_bps", "Config"), IdlSeed.Account("owner"))
             val source = resolving(listOf(IdlAccountItem.Single("owner"), IdlAccountItem.Single("config"), IdlAccountItem.Single("vault", pda = IdlPda(seeds))))
             source shouldContain "public fun ix( owner: SolanaAddress, config: SolanaAddress, vault: SolanaAddress, remainingAccounts"
-            source shouldContain "@param vault Required: the overload that takes an api can resolve it from on-chain data."
-            source shouldContain "public fun ix( api: SolanaApi, owner: SolanaAddress, config: SolanaAddress, vault: SolanaAddress? = null, " +
+            source shouldContain "@param vault Required: [resolveIx] resolves it from on-chain data when it is null."
+            source shouldContain "public fun resolveIx( api: SolanaApi, owner: SolanaAddress, config: SolanaAddress, vault: SolanaAddress? = null, " +
                 "remainingAccounts: List<AccountMeta> = emptyList(), programId: SolanaAddress = PROGRAM_ID, commitment: Commitment = api.defaultCommitment, ): " +
-                "RpcRequest<SolanaResolvedInstruction<IxAccounts>, SolanaAccountResolutionError>"
+                "RpcRequest<Instruction.Ix, SolanaAccountResolutionError>"
             source shouldContain "SolanaAccountDerivation.Pda(listOf(SolanaAccountDependency.data(1, Config.ACCOUNT), SolanaAccountDependency.address(0))) { inputs -> " +
                 "IxAccounts.findVault(configFeeBps = inputs.data(1, Config.ACCOUNT).feeBps, owner = inputs.address(0), programId = programId).address }"
         }
@@ -518,7 +518,7 @@ class SolanaProgramBuilderTest : FunSpec({
             val undeclared = resolving(listOf(IdlAccountItem.Single("config"), IdlAccountItem.Single("vault", pda = IdlPda(seeds))), declared = false)
             // nothing is derived from on-chain data, so only the deriving builder
             undeclared shouldContain "public fun ix( config: SolanaAddress, vault: SolanaAddress, remainingAccounts"
-            (undeclared.contains("public fun ix( api: SolanaApi")) shouldBe false
+            (undeclared.contains("fun resolveIx(")) shouldBe false
 
             val related = listOf(IdlAccountItem.Single("config"), IdlAccountItem.Single("authority", relations = listOf("config")))
             val unrelated = listOf(
@@ -563,6 +563,21 @@ class SolanaProgramBuilderTest : FunSpec({
             val api = listOf(IdlAccountItem.Single("api"), IdlAccountItem.Single("config"), IdlAccountItem.Single("authority", relations = listOf("config")))
             shouldThrow<IllegalArgumentException> { resolving(api) }.message shouldBe
                 "instruction 'ix' account 'api': builder parameter 'api' is also a parameter of the builder itself"
+        }
+
+        test("a resolving builder whose name another instruction's builder takes is rejected, and only generated where needed") {
+            val related = listOf(IdlAccountItem.Single("config"), IdlAccountItem.Single("authority", relations = listOf("config")))
+            fun program(withdraw: List<IdlAccountItem>) = program(
+                instructions = listOf(
+                    IdlInstruction("withdraw", IdlDiscriminator(listOf(1)), accounts = withdraw),
+                    IdlInstruction("resolve_withdraw", IdlDiscriminator(listOf(2))),
+                ),
+                types = listOf(config),
+            ).copy(accounts = listOf(configAccount))
+            shouldThrow<IllegalArgumentException> { generate(program(related)) }.message shouldBe
+                "generated member 'resolveWithdraw' is produced by both instruction 'withdraw' and instruction 'resolve_withdraw'"
+            // without on-chain data to resolve, there is no resolveWithdraw to collide with
+            generate(program(listOf(IdlAccountItem.Single("config")))) shouldContain "public fun resolveWithdraw("
         }
     }
 

@@ -419,13 +419,14 @@ change; the application still coordinates snapshots, reconnect recovery, and mul
 ## Resolving instruction accounts
 
 IDL-generated instruction builders derive the accounts their IDL says how to derive, as part of building the
-instruction:
+instruction. Every builder returns the instruction's typed class, such as `Program.Instruction.Withdraw`, which is also
+the class decoding returns. It holds the resolved `accounts`, the `args`, the `remainingAccounts` and the encoded
+`instruction`. Pass `instruction` to a transaction.
 
 - **Without RPC.** `Program.ix(user = me, args = args)` takes each account as a parameter. It derives fixed addresses and
   PDAs seeded by constants, arguments and other accounts' addresses when you pass null.
 - **With RPC.** Where some account can only come from on-chain data, through Anchor `relations` (`has_one`) or seeds
-  that read another account's data, `Program.ix(api, ...)` also resolves it. It returns a `SolanaResolvedInstruction`
-  with the `instruction` and the resolved `accounts`.
+  that read another account's data, `Program.resolveIx(api, ...)` also resolves it.
 - **Reuse.** You can pass `Program.ix(built.accounts, args)` to build further instructions without RPC. Fixed addresses
   and PDAs never change. Accounts read from on-chain data are only valid while that data is unchanged.
 

@@ -164,19 +164,33 @@ as an instruction argument.
 
 #### Building instructions and resolving their accounts
 
-Each instruction with accounts has up to three builders, all with the instruction's name:
+Each instruction with accounts has up to three builders. All of them return the instruction's typed class, such as
+`Escrow.Instruction.Withdraw`. This is the same class decoding returns:
 
 ```kotlin
 // 1. every account, as the accounts class: no derivation, no RPC
-Escrow.withdraw(Escrow.WithdrawAccounts(user, pool, vault, authority, systemProgram), args)
+val a = Escrow.withdraw(Escrow.WithdrawAccounts(user, pool, vault, authority, systemProgram), args)
 
 // 2. every account as a parameter: null derives the account offline, without RPC
-Escrow.withdraw(user = me, authority = authority, args = args)
+val b = Escrow.withdraw(user = me, authority = authority, args = args)
 
 // 3. only where an account needs on-chain data: also resolves those accounts, over RPC
-val built = Escrow.withdraw(api, user = me, args = args).sendAwait().unwrap()
-send(built.instruction)
+val c = Escrow.resolveWithdraw(api, user = me, args = args).sendAwait().unwrap()
 ```
+
+The typed instruction holds:
+
+- `accounts`: the accounts class, with every derived and resolved account in it;
+- `args` and `remainingAccounts`;
+- `instruction`: the encoded instruction, which a transaction takes;
+- `programId`.
+
+```kotlin
+val tx = SolanaTxV0.compile(me, blockhash, listOf(c.instruction, SystemProgram.transfer(me, to, 1_000L))).unwrap()
+```
+
+`instruction` is computed once when the instruction is built, exactly as before, and is immutable. Decoding keeps the
+instruction it was given, so `Escrow.decodeInstruction(c.instruction).unwrap() == c`.
 
 The second builder takes each account as a nullable parameter when the IDL lets it derive that account without
 on-chain data, and derives the account when you pass null. It needs no `api` and nothing it does is asynchronous.
@@ -192,23 +206,23 @@ PDAs that read an optional account. An account you pass is used as given. Passin
 which can take up to 255 hashes. Passing every account builds the same instruction, byte for byte, as the first
 builder.
 
-The third builder is only generated when some account can only be derived from on-chain data. Such an account either
-has `relations` (Anchor's `has_one`), or a PDA seed that reads a field of another account's data. That builder also
-takes those accounts as nullable parameters. It resolves every null account and returns a `SolanaResolvedInstruction`
-holding the `instruction` and the resolved `accounts`. The accounts are the accounts class the first builder takes, so
-you can resolve them once and reuse them:
+`resolve<Instruction>`, such as `resolveWithdraw`, is only generated when some account can only be derived from
+on-chain data. Such an account either has `relations` (Anchor's `has_one`), or a PDA seed that reads a field of another
+account's data. Its name says it makes RPC calls, like `fetch` and `watch`. It also takes those accounts as nullable
+parameters, and resolves every null one before building. The resolved `accounts` are the accounts class the first
+builder takes, so you can resolve them once and reuse them:
 
 ```kotlin
-val built = Escrow.withdraw(api, user = me, args = args).sendAwait().unwrap()
+val built = Escrow.resolveWithdraw(api, user = me, args = args).sendAwait().unwrap()
 send(built.instruction)
 // later, no RPC
-send(Escrow.withdraw(built.accounts, nextArgs))
+send(Escrow.withdraw(built.accounts, nextArgs).instruction)
 ```
 
 Fixed addresses and PDAs never change, but accounts read from other accounts' data are only valid while that data
 is unchanged on-chain. If an account has changed it, for example a new authority, resolve again.
 
-The third builder resolves each null account from the first of these that applies:
+`resolve<Instruction>` resolves each null account from the first of these that applies:
 
 1. its fixed address;
 2. its PDA seeds, including seeds that read a field of another account's data. A field seed is resolved only when its
@@ -217,9 +231,9 @@ The third builder resolves each null account from the first of these that applie
    discriminator identifies. Only types with a pubkey field named after this account count. When there are several
    related accounts, they must all name the same address.
 
-Optional accounts are never derived by either builder, and are absent when null. A way of deriving an account that
-depends on an absent optional account is skipped. Each builder parameter documents how the account is derived, or
-why it is not.
+Optional accounts are never derived by any builder, and are absent when null. A way of deriving an account that depends
+on an absent optional account is skipped. Each builder parameter documents how the account is derived, or why it is
+not.
 
 Accounts whose data a derivation reads are fetched with `getMultipleAccounts`. Each round fetches every account it
 needs in one request, and no round reads older state than the round before it. Only accounts the program owns are
@@ -238,16 +252,19 @@ not throw:
 | `DependencyCycle` | accounts can only be derived from each other; give one of them to break the cycle |
 | `Rpc` | a fetch failed |
 
-Nothing is inferred from names alone, and nothing is guessed. Neither builder derives an account from:
+Nothing is inferred from names alone, and nothing is guessed. No builder derives an account from:
 
 - a seed whose encoding the IDL does not determine. This is the same case where `find` takes the seed's bytes;
 - a seed read from an account type this program does not declare;
 - a `program` that is not a pubkey;
 - a relation that no account type can follow.
 
-Account parameters must not collide with each other or with the builder's own parameters: `args`, `remainingAccounts`
-and `programId`, plus `api` and `commitment` for the third builder. A collision fails generation, naming the
-instruction and the account.
+Generation fails, naming the instruction, account or member, when:
+
+- account parameters collide with each other;
+- an account parameter collides with a builder's own parameter: `args`, `remainingAccounts` and `programId`, plus `api`
+  and `commitment` for `resolve<Instruction>`;
+- a `resolve<Instruction>` builder collides with another member, such as another instruction's builder.
 
 ### Local testing of the plugin
 

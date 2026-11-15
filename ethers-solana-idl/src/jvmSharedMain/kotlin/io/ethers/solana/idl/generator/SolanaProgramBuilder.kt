@@ -71,13 +71,14 @@ import java.math.BigInteger
  * Each program derived account gets a `find` function deriving its address from its seeds. Integer seeds are
  * encoded in the byte order [seedByteOrders] gives, since IDLs do not record it.
  *
- * Each instruction with accounts has three kinds of builder, all with the instruction's name:
- * - one that takes its accounts class;
- * - one that takes each account as a parameter and derives, when they are null, the accounts the IDL lets it derive
- *   without on-chain data: fixed addresses, and PDAs seeded by constants, arguments and other accounts' addresses;
- * - where some account can only be derived from on-chain data (relations and seeds reading account data), one that
- *   also takes an api. It resolves those accounts with the runtime's `SolanaAccountResolver`, and returns the resolved
- *   accounts with the instruction.
+ * Every builder returns the instruction's typed class in the instruction hierarchy, the class decoding returns, holding
+ * its resolved accounts, arguments and encoded `instruction`. Each instruction with accounts has up to three builders:
+ * - `ix(accounts, ...)`, which takes its accounts class;
+ * - `ix(account = ..., ...)`, which takes each account as a parameter and derives, when they are null, the accounts the
+ *   IDL lets it derive without on-chain data: fixed addresses, and PDAs seeded by constants, arguments and other
+ *   accounts' addresses;
+ * - `resolveIx(api, ...)`, only where some account can only be derived from on-chain data (relations and seeds reading
+ *   account data). It resolves those accounts with the runtime's `SolanaAccountResolver` before building.
  *
  * When changing the generated output, bump [OUTPUT_VERSION].
  *
@@ -103,6 +104,9 @@ class SolanaProgramBuilder @JvmOverloads constructor(
     private val accountTypes = program.accounts.mapTo(HashSet()) { it.name }
     private val eventTypes = program.events.mapTo(HashSet()) { it.name }
     private val kotlinTypeNames = kotlinTypeNames()
+
+    /** How each instruction's builders resolve its accounts, by instruction name. */
+    private val plans = HashMap<String, ResolutionPlan>()
 
     /** Computed zero-copy layouts, by type name. */
     private val zeroCopyLayouts = HashMap<String, ZeroCopyLayout>()
@@ -339,6 +343,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         for (ix in program.instructions) {
             member(ix.name.toUpperSnakeCase(), "instruction '${ix.name}'")
             member(ix.name.toCamelCase(), "instruction '${ix.name}'")
+            if (ix.accounts.isNotEmpty() && plan(ix).resolves) member(resolvingName(ix), "instruction '${ix.name}'")
         }
     }
 
@@ -1245,8 +1250,23 @@ class SolanaProgramBuilder @JvmOverloads constructor(
     private fun addInstructions(programType: TypeSpec.Builder) {
         val hierarchy = TypeSpec.interfaceBuilder(instructionHierarchy)
             .addModifiers(KModifier.SEALED)
-            .addKdoc("An instruction of the %L program, decoded from its data and accounts.\n", program.name)
+            .addKdoc(
+                "An instruction of the %L program, as built or decoded: its typed accounts and arguments, and the [instruction] they " +
+                    "encode to, which a transaction takes.\n",
+                program.name,
+            )
             .addProperty("remainingAccounts", LIST.parameterizedBy(Runtime.ACCOUNT_META))
+            .addProperty(
+                PropertySpec.builder("instruction", Runtime.INSTRUCTION)
+                    .addKdoc("The encoded instruction: the one built, or the one decoded, as it was.\n")
+                    .build(),
+            )
+            .addProperty(
+                PropertySpec.builder("programId", Runtime.SOLANA_ADDRESS)
+                    .addKdoc("The program the instruction invokes.\n")
+                    .getter(FunSpec.getterBuilder().addStatement("return instruction.programId").build())
+                    .build(),
+            )
         program.instructions.forEach { hierarchy.addType(addInstruction(programType, it)) }
         programType.addType(hierarchy.build())
 
@@ -1311,7 +1331,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         val builder = FunSpec.builder(ix.name.toCamelCase())
             .addAnnotation(Runtime.JVM_STATIC)
             .addAnnotation(Runtime.JVM_OVERLOADS)
-            .returns(Runtime.INSTRUCTION)
+            .returns(decodedClass)
         ix.docs.forEach { builder.addKdoc("%L\n", it) }
         if (hasAccounts) builder.addParameter("accounts", accountsClass)
         if (argsFields.isNotEmpty()) builder.addParameter("args", argsClass)
@@ -1319,25 +1339,33 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             ParameterSpec.builder("remainingAccounts", LIST.parameterizedBy(Runtime.ACCOUNT_META)).defaultValue("emptyList()").build(),
         )
         builder.addParameter(ParameterSpec.builder("programId", Runtime.SOLANA_ADDRESS).defaultValue("PROGRAM_ID").build())
-        builder.addStatement(
-            "return %T(programId, %L, %N.encodeData(%L))",
+        val encoded = CodeBlock.of(
+            "%T(programId, %L, %N.encodeData(%L))",
             Runtime.INSTRUCTION,
             if (hasAccounts) CodeBlock.of("accounts.toAccountMetas(programId) + remainingAccounts") else CodeBlock.of("remainingAccounts"),
             descriptorName,
             if (argsFields.isNotEmpty()) "args" else "Unit",
         )
+        val built = buildList {
+            if (hasAccounts) add(CodeBlock.of("accounts"))
+            if (argsFields.isNotEmpty()) add(CodeBlock.of("args"))
+            add(CodeBlock.of("remainingAccounts"))
+            add(encoded)
+        }
+        builder.addStatement("return %T(%L)", decodedClass, built.joinToCode(", "))
         programType.addFunction(builder.build())
         if (hasAccounts) {
-            val plan = resolutionPlan(ix, accountsClass, if (argsFields.isEmpty()) null else argsClass)
+            val plan = plan(ix)
             programType.addFunction(derivingBuilder(plan))
             if (plan.resolves) programType.addFunction(resolvingBuilder(plan))
         }
 
         // decoded form
         val properties = buildList {
-            if (hasAccounts) add(PropertySpec.builder("accounts", accountsClass).build())
+            if (hasAccounts) add(PropertySpec.builder("accounts", accountsClass).addKdoc("The accounts, resolved.\n").build())
             if (argsFields.isNotEmpty()) add(PropertySpec.builder("args", argsClass).build())
             add(PropertySpec.builder("remainingAccounts", LIST.parameterizedBy(Runtime.ACCOUNT_META), KModifier.OVERRIDE).build())
+            add(PropertySpec.builder("instruction", Runtime.INSTRUCTION, KModifier.OVERRIDE).build())
         }
         val construct = CodeBlock.of(
             "%T(%L)",
@@ -1346,6 +1374,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
                 if (hasAccounts) add(CodeBlock.of("%T.read(reader)", accountsClass))
                 if (argsFields.isNotEmpty()) add(CodeBlock.of("args"))
                 add(CodeBlock.of("reader.remaining()"))
+                add(CodeBlock.of("instruction"))
             }.joinToCode(", "),
         )
         val decode = FunSpec.builder("decode")
@@ -1363,8 +1392,21 @@ class SolanaProgramBuilder @JvmOverloads constructor(
                 construct,
             )
             .build()
-        return valueClass(decodedClass, emptyList(), properties)
-            .addKdoc("The %L instruction, decoded.\n", ix.name)
+        // the constructor, and so `copy`, is internal: the accounts and arguments must stay those the instruction encodes
+        val constructor = FunSpec.constructorBuilder().addModifiers(KModifier.INTERNAL)
+        val typed = TypeSpec.classBuilder(decodedClass).addModifiers(KModifier.DATA)
+            .addAnnotation(ClassName("kotlin", "ConsistentCopyVisibility"))
+        for (property in properties) {
+            constructor.addParameter(property.name, property.type)
+            typed.addProperty(property.toBuilder().initializer(property.name).build())
+        }
+        return typed.primaryConstructor(constructor.build())
+            .addKdoc(
+                "The %L instruction, as its builders build it and [decode] decodes it. Pass [instruction] to a transaction, and " +
+                    "%L to build further instructions without resolving them again.\n",
+                ix.name,
+                if (hasAccounts) "[accounts] to the builder that takes them" else "nothing",
+            )
             .addSuperinterface(instructionHierarchy)
             .addType(TypeSpec.companionObjectBuilder().addFunction(decode).build())
             .build()
@@ -1650,7 +1692,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
                 item.optional -> listOf("Optional: absent when null.")
                 index in offline -> listOf("Derived when null from ${offline.getValue(index).note}.")
                 index in cyclic -> listOf("Required: its PDA seeds depend on accounts that depend on it.")
-                resolves && derivations[index].isNotEmpty() -> listOf("Required: the overload that takes an api can resolve it from on-chain data.")
+                resolves && derivations[index].isNotEmpty() -> listOf("Required: [${resolvingName(ix)}] resolves it from on-chain data when it is null.")
                 else -> emptyList()
             }
         }
@@ -1750,7 +1792,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         val builder = FunSpec.builder(plan.ix.name.toCamelCase())
             .addAnnotation(Runtime.JVM_STATIC)
             .addAnnotation(AnnotationSpec.builder(Suppress::class).addMember("%S", "NAME_SHADOWING").build())
-            .returns(Runtime.INSTRUCTION)
+            .returns(instructionHierarchy.nestedClass(plan.ix.name.toPascalCase()))
         plan.ix.docs.forEach { builder.addKdoc("%L\n", it) }
         builder.addKdoc(
             "%L",
@@ -1778,23 +1820,33 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         return builder.addCode("return %L\n", buildCall(plan, accounts)).build()
     }
 
+    /** The name of the builder that resolves [ix]'s accounts over RPC, like the `find`, `fetch` and `watch` verbs. */
+    private fun resolvingName(ix: IdlInstruction) = "resolve${ix.name.toPascalCase()}"
+
+    /** The plan of each instruction with accounts, made once for the collision checks and generation. */
+    private fun plan(ix: IdlInstruction): ResolutionPlan = plans.getOrPut(ix.name) {
+        val baseName = ix.name.toPascalCase()
+        resolutionPlan(ix, programClass.nestedClass("${baseName}Accounts"), if (ix.args.isEmpty()) null else programClass.nestedClass("${baseName}Args"))
+    }
+
     /**
      * The builder that also resolves the accounts derived from on-chain data, fetching them from an api, and returns the
-     * resolved accounts with the instruction.
+     * typed instruction, whose accounts are the resolved ones.
      */
     private fun resolvingBuilder(plan: ResolutionPlan): FunSpec {
-        val resolved = Runtime.RESOLVED_INSTRUCTION.parameterizedBy(plan.accountsClass)
-        val builder = FunSpec.builder(plan.ix.name.toCamelCase())
+        val typed = instructionHierarchy.nestedClass(plan.ix.name.toPascalCase())
+        val builder = FunSpec.builder(resolvingName(plan.ix))
             .addAnnotation(Runtime.JVM_STATIC)
-            .returns(Runtime.RPC_REQUEST.parameterizedBy(resolved, Runtime.RESOLUTION_ERROR))
+            .returns(Runtime.RPC_REQUEST.parameterizedBy(typed, Runtime.RESOLUTION_ERROR))
         plan.ix.docs.forEach { builder.addKdoc("%L\n", it) }
         builder.addKdoc(
             "%L",
             (if (plan.ix.docs.isEmpty()) "" else "\n") +
                 "Resolves each account documented as resolved when it is null, fetching the accounts whose data that reads from " +
                 "[api] at [commitment], and builds the instruction. An account given is used as given, and never checked against a " +
-                "derivation. The resolved accounts can be reused with the builder that takes them, without fetching again, as long as " +
-                "the on-chain data they were read from has not changed; fixed addresses and PDAs never change.\n",
+                "derivation. The result's `accounts` can be passed to the builder that takes them to build further instructions " +
+                "without fetching again, as long as the on-chain data they were read from has not changed; fixed addresses and PDAs " +
+                "never change.\n",
         )
         builder.addParameter("api", Runtime.SOLANA_API)
         val entries = plan.accounts.mapIndexed { index, account ->
@@ -1822,7 +1874,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         }
         return builder
             .addCode("return %T(\n⇥programId,\nlistOf(\n⇥%L,\n⇤),\n⇤).resolve(api, commitment).map { resolved ->\n⇥", Runtime.ACCOUNT_RESOLVER, entries.joinToCode(",\n"))
-            .addCode("%L.let { accounts -> %T(%L, accounts) }\n⇤}\n", accounts, Runtime.RESOLVED_INSTRUCTION, buildCall(plan, CodeBlock.of("accounts")))
+            .addCode("%L\n⇤}\n", buildCall(plan, accounts))
             .build()
     }
 

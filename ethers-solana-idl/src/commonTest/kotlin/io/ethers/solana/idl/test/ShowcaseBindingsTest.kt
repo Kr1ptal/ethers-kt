@@ -540,14 +540,14 @@ class ShowcaseBindingsTest : FunSpec({
         val swapArgs = Showcase.SwapArgs(bigIntegerOf(100), bigIntegerOf(90), Showcase.Mode.Unit)
 
         test("a builder lays out accounts by role and data as discriminator plus arguments") {
-            val instruction = Showcase.initialize(Showcase.InitializeAccounts(CONFIG, PAYER), Showcase.InitializeArgs(30, "hi"))
+            val instruction = Showcase.initialize(Showcase.InitializeAccounts(CONFIG, PAYER), Showcase.InitializeArgs(30, "hi")).instruction
             instruction.programId shouldBe Showcase.PROGRAM_ID
             instruction.keys shouldBe listOf(AccountMeta.writable(CONFIG), AccountMeta.signerAndWritable(PAYER), AccountMeta(SYSTEM_PROGRAM))
             instruction.data shouldBe SolanaBytes.fromHex("afaf6d1f0d989bed 1e00 02000000 6869".replace(" ", ""))
         }
 
         test("an absent optional account is passed as the program id, and account groups are flattened in order") {
-            val instruction = Showcase.swap(swapAccounts, swapArgs, listOf(AccountMeta(EXTRA)))
+            val instruction = Showcase.swap(swapAccounts, swapArgs, listOf(AccountMeta(EXTRA))).instruction
             instruction.keys shouldBe listOf(
                 AccountMeta(CONFIG),
                 AccountMeta.signer(USER),
@@ -560,24 +560,24 @@ class ShowcaseBindingsTest : FunSpec({
         }
 
         test("decoding recovers arguments, account roles and remaining accounts") {
-            val instruction = Showcase.swap(swapAccounts.copy(referrer = REFERRER), swapArgs, listOf(AccountMeta(EXTRA)))
+            val instruction = Showcase.swap(swapAccounts.copy(referrer = REFERRER), swapArgs, listOf(AccountMeta(EXTRA))).instruction
             val decoded = Showcase.decodeInstruction(instruction).unwrap().shouldBeInstanceOf<Showcase.Instruction.Swap>()
             decoded.args shouldBe swapArgs
             decoded.accounts shouldBe swapAccounts.copy(referrer = REFERRER)
             decoded.remainingAccounts shouldBe listOf(AccountMeta(EXTRA))
 
-            Showcase.decodeInstruction(Showcase.swap(swapAccounts, swapArgs)).unwrap()
+            Showcase.decodeInstruction(Showcase.swap(swapAccounts, swapArgs).instruction).unwrap()
                 .shouldBeInstanceOf<Showcase.Instruction.Swap>().accounts.referrer.shouldBeNull()
-            Showcase.decodeInstruction(Showcase.ping()).unwrap() shouldBe Showcase.Instruction.Ping(emptyList())
+            Showcase.decodeInstruction(Showcase.ping().instruction).unwrap() shouldBe Showcase.ping()
         }
 
         test("elevated privileges are accepted; missing required privileges are not") {
-            val elevated = Showcase.swap(swapAccounts, swapArgs).let { ix ->
+            val elevated = Showcase.swap(swapAccounts, swapArgs).instruction.let { ix ->
                 ix.copy(keys = ix.keys.map { AccountMeta.signerAndWritable(it.publicKey) })
             }
             Showcase.decodeInstruction(elevated).unwrap().shouldBeInstanceOf<Showcase.Instruction.Swap>()
 
-            val unsigned = Showcase.swap(swapAccounts, swapArgs).let { ix ->
+            val unsigned = Showcase.swap(swapAccounts, swapArgs).instruction.let { ix ->
                 ix.copy(keys = ix.keys.map { AccountMeta(it.publicKey, signer = false, writable = it.writable) })
             }
             Showcase.decodeInstruction(unsigned).unwrapError().shouldBeInstanceOf<SolanaDecodeError.InvalidAccounts>().message shouldBe
@@ -590,7 +590,7 @@ class ShowcaseBindingsTest : FunSpec({
         }
 
         test("instructions are identified by discriminator, not program id, so an alternate deployment decodes too") {
-            val instruction = Showcase.swap(swapAccounts, swapArgs, programId = EXTRA)
+            val instruction = Showcase.swap(swapAccounts, swapArgs, programId = EXTRA).instruction
             instruction.programId shouldBe EXTRA
             // the absent optional account's placeholder is the deployment's own id
             instruction.keys[4] shouldBe AccountMeta(EXTRA)
@@ -599,13 +599,13 @@ class ShowcaseBindingsTest : FunSpec({
         }
 
         test("an inner instruction is decoded without requiring signers, which a program can supply through invoke_signed") {
-            val unsigned = Showcase.swap(swapAccounts, swapArgs).let { ix ->
+            val unsigned = Showcase.swap(swapAccounts, swapArgs).instruction.let { ix ->
                 ix.copy(keys = ix.keys.map { AccountMeta(it.publicKey, signer = false, writable = it.writable) })
             }
             Showcase.decodeInstruction(unsigned, checkSigners = false).unwrap().shouldBeInstanceOf<Showcase.Instruction.Swap>()
 
             val executed = listOf(
-                ExecutedInstruction(InstructionPosition(0), Showcase.ping()),
+                ExecutedInstruction(InstructionPosition(0), Showcase.ping().instruction),
                 ExecutedInstruction(InstructionPosition(0, 0, 2), unsigned),
                 ExecutedInstruction(InstructionPosition(1), Instruction(EXTRA, emptyList(), hex("09"))),
             )

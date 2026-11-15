@@ -9,11 +9,14 @@ import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import io.ethers.providers.types.BatchRpcRequest
 import io.ethers.solana.codec.SolanaDecodeError
+import io.ethers.solana.instruction.Instruction
 import io.ethers.solana.program.SolanaAccountResolutionError
 import io.ethers.solana.providers.SolanaProvider
 import io.ethers.solana.types.AccountMeta
 import io.ethers.solana.types.SolanaAddress
+import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.types.SolanaBytes
+import io.ethers.solana.types.transaction.SolanaTxV0
 import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
@@ -84,16 +87,72 @@ class ResolutionBindingsTest : FunSpec({
     }
 
     /** Resolve deposit with everything that can be left out left out. */
-    suspend fun deposit(client: AccountsClient, programId: SolanaAddress = Resolution.PROGRAM_ID) = Resolution.deposit(SolanaProvider(client), user = USER, settlementPool = SETTLEMENT_POOL, args = ARGS, programId = programId).send()
+    suspend fun deposit(client: AccountsClient, programId: SolanaAddress = Resolution.PROGRAM_ID) = Resolution.resolveDeposit(SolanaProvider(client), user = USER, settlementPool = SETTLEMENT_POOL, args = ARGS, programId = programId).send()
 
     context("deriving builder, without on-chain data") {
         val config = Resolution.InitAccounts.findConfig().address
         val pool = Resolution.InitAccounts.findPool(POOL_ID).address
         val accounts = Resolution.InitAccounts(PAYER, config, pool, Resolution.InitAccounts.findVault(pool, PAYER).address)
 
-        test("constant, argument and account address seeds and fixed addresses are derived when left out") {
+        test("constant, argument and account address seeds and fixed addresses are derived when left out, and visible in its accounts") {
             accounts.systemProgram shouldBe SYSTEM_PROGRAM
-            Resolution.init(payer = PAYER, args = INIT_ARGS) shouldBe Resolution.init(accounts, INIT_ARGS)
+            val built = Resolution.init(payer = PAYER, args = INIT_ARGS)
+            built shouldBe Resolution.init(accounts, INIT_ARGS)
+            built.accounts shouldBe accounts
+            built.args shouldBe INIT_ARGS
+            built.programId shouldBe Resolution.PROGRAM_ID
+        }
+
+        test("the builder taking the accounts class encodes exactly as before: the descriptor's data and the accounts' metas") {
+            val remaining = listOf(AccountMeta(address(11), false, true))
+            val built = Resolution.init(accounts, INIT_ARGS, remaining)
+            built.instruction shouldBe Instruction(
+                Resolution.PROGRAM_ID,
+                accounts.toAccountMetas(Resolution.PROGRAM_ID) + remaining,
+                Resolution.INIT.encodeData(INIT_ARGS),
+            )
+            built.remainingAccounts shouldBe remaining
+        }
+
+        test("decoding an instruction that was built gives back the same typed instruction") {
+            val built = Resolution.init(payer = PAYER, args = INIT_ARGS, remainingAccounts = listOf(AccountMeta(address(11))))
+            Resolution.Instruction.Init.decode(built.instruction).unwrap() shouldBe built
+            Resolution.decodeInstruction(built.instruction).unwrap() shouldBe built
+            // and building from what was decoded encodes the same instruction
+            val decoded = Resolution.Instruction.Init.decode(built.instruction).unwrap()
+            Resolution.init(decoded.accounts, decoded.args, decoded.remainingAccounts, decoded.programId) shouldBe built
+        }
+
+        test("every builder returns the same typed instruction, whose instruction a transaction takes") {
+            val offline: Resolution.Instruction.Deposit = Resolution.deposit(
+                user = USER,
+                authority = AUTHORITY,
+                mint = MINT,
+                position = address(12),
+                feeReceiver = address(13),
+                settlementPool = SETTLEMENT_POOL,
+                settlementAuthority = SETTLEMENT_AUTHORITY,
+                args = ARGS,
+            )
+            val explicit: Resolution.Instruction.Deposit = Resolution.deposit(offline.accounts, ARGS)
+            val resolved: Resolution.Instruction.Deposit = Resolution.resolveDeposit(
+                SolanaProvider(AccountsClient()),
+                user = USER,
+                authority = AUTHORITY,
+                mint = MINT,
+                position = address(12),
+                feeReceiver = address(13),
+                settlementPool = SETTLEMENT_POOL,
+                settlementAuthority = SETTLEMENT_AUTHORITY,
+                args = ARGS,
+            ).send().unwrap()
+            offline shouldBe explicit
+            resolved shouldBe explicit
+
+            val blockhash = SolanaBlockhash(ByteArray(32) { 1 })
+            val message = SolanaTxV0.compile(USER, blockhash, listOf(resolved.instruction, Resolution.init(payer = USER, args = INIT_ARGS).instruction)).unwrap()
+            message.instructions.size shouldBe 2
+            SolanaTxV0.compile(USER, blockhash, resolved.instruction).unwrap().instructions.single().data shouldBe resolved.instruction.data
         }
 
         test("an account given is used as given, and accounts derived from it follow it") {
@@ -114,8 +173,8 @@ class ResolutionBindingsTest : FunSpec({
             )
             val expected = Resolution.init(accounts, INIT_ARGS, listOf(AccountMeta(address(11), false, true)))
             instruction shouldBe expected
-            instruction.data.asByteArray().toList() shouldBe expected.data.asByteArray().toList()
-            instruction.keys shouldBe expected.keys
+            instruction.instruction.data.asByteArray().toList() shouldBe expected.instruction.data.asByteArray().toList()
+            instruction.instruction.keys shouldBe expected.instruction.keys
         }
 
         test("an alternate program id derives under it") {
@@ -139,7 +198,7 @@ class ResolutionBindingsTest : FunSpec({
                 settlementAuthority = SETTLEMENT_AUTHORITY,
                 args = ARGS,
             )
-            val decoded = Resolution.Instruction.Deposit.decode(instruction).unwrap().accounts
+            val decoded = instruction.accounts
             decoded.pool shouldBe POOL_ADDRESS
             decoded.vault shouldBe Resolution.DepositAccounts.findVault(POOL_ADDRESS, AUTHORITY).address
             decoded.metadata shouldBe Resolution.DepositAccounts.findMetadata(MINT, METADATA_PROGRAM).address
@@ -147,7 +206,7 @@ class ResolutionBindingsTest : FunSpec({
 
             val left = address(3)
             val right = address(4)
-            val tangle = Resolution.Instruction.Tangle.decode(Resolution.tangle(left = left, right = right, mint = MINT)).unwrap().accounts
+            val tangle = Resolution.tangle(left = left, right = right, mint = MINT).accounts
             tangle.anchor shouldBe Resolution.TangleAccounts.findAnchor(left).address
             tangle.config shouldBe Resolution.TangleAccounts.findConfig().address
         }
@@ -180,7 +239,7 @@ class ResolutionBindingsTest : FunSpec({
 
             client.requests shouldBe listOf(listOf(POOL_ADDRESS, CONFIG_ADDRESS, SETTLEMENT_POOL))
             client.minContextSlots shouldBe listOf(null)
-            built.instruction shouldBe Resolution.deposit(accounts, ARGS)
+            built shouldBe Resolution.deposit(accounts, ARGS)
         }
 
         test("the resolved accounts build further instructions without fetching again") {
@@ -190,15 +249,18 @@ class ResolutionBindingsTest : FunSpec({
 
             val next = Resolution.DepositArgs(POOL_ID, bigIntegerOf(5))
             val reused = Resolution.deposit(built.accounts, next)
-            reused.keys shouldBe built.instruction.keys
-            reused.data shouldBe Resolution.DEPOSIT.encodeData(next).let { SolanaBytes.fromBytes(it) }
+            reused.accounts shouldBe built.accounts
+            reused.instruction.keys shouldBe built.instruction.keys
+            reused.instruction.data shouldBe Resolution.DEPOSIT.encodeData(next).let { SolanaBytes.fromBytes(it) }
+            // the accounts of an offline-built instruction are reused just the same
+            Resolution.deposit(Resolution.deposit(reused.accounts, ARGS).accounts, next) shouldBe reused
             client.requests.size shouldBe requests
         }
 
         test("no round: accounts given are used as given, and nothing is fetched when nothing left out reads data") {
             val none = AccountsClient()
             val given = address(9)
-            val built = Resolution.deposit(
+            val built = Resolution.resolveDeposit(
                 SolanaProvider(none),
                 user = USER,
                 authority = given,
@@ -219,7 +281,7 @@ class ResolutionBindingsTest : FunSpec({
             client.accounts[POOL_ADDRESS] = account(Resolution.Pool.ACCOUNT.encode(POOL))
             client.accounts[AUTHORITY] = account(Resolution.Profile.ACCOUNT.encode(Resolution.Profile(LEDGER)))
             val sponsor = address(14)
-            val built = Resolution.chain(SolanaProvider(client), sponsor = sponsor, args = CHAIN_ARGS).send().unwrap()
+            val built = Resolution.resolveChain(SolanaProvider(client), sponsor = sponsor, args = CHAIN_ARGS).send().unwrap()
             built.accounts shouldBe Resolution.ChainAccounts(
                 pool = POOL_ADDRESS,
                 authority = AUTHORITY,
@@ -252,7 +314,7 @@ class ResolutionBindingsTest : FunSpec({
         test("an account whose only derivation needs an absent optional account is missing, naming it") {
             val client = AccountsClient()
             client.accounts[POOL_ADDRESS] = account(Resolution.Pool.ACCOUNT.encode(POOL))
-            Resolution.chain(SolanaProvider(client), args = CHAIN_ARGS).send().unwrapError() shouldBe SolanaAccountResolutionError.MissingAccount(
+            Resolution.resolveChain(SolanaProvider(client), args = CHAIN_ARGS).send().unwrapError() shouldBe SolanaAccountResolutionError.MissingAccount(
                 "sponsored",
                 "it was not provided, and every way to derive it depends on an optional account that was not provided: 'sponsor'",
             )
@@ -260,7 +322,7 @@ class ResolutionBindingsTest : FunSpec({
 
         test("a seed that cannot derive an address is invalid") {
             val long = Resolution.ChainArgs(POOL_ID, "x".repeat(40))
-            val error = Resolution.chain(SolanaProvider(AccountsClient()), sponsor = address(14), args = long).send().unwrapError()
+            val error = Resolution.resolveChain(SolanaProvider(AccountsClient()), sponsor = address(14), args = long).send().unwrapError()
                 .shouldBeInstanceOf<SolanaAccountResolutionError.InvalidSeeds>()
             error.account shouldBe "named"
         }
@@ -310,11 +372,11 @@ class ResolutionBindingsTest : FunSpec({
             val client = AccountsClient()
             val config = Resolution.TangleAccounts.findConfig().address
             client.accounts[config] = account(Resolution.Config.ACCOUNT.encode(CONFIG))
-            Resolution.tangle(SolanaProvider(client)).send().unwrapError() shouldBe
+            Resolution.resolveTangle(SolanaProvider(client)).send().unwrapError() shouldBe
                 SolanaAccountResolutionError.DependencyCycle(listOf("left", "right", "left"))
 
             val left = address(3)
-            val built = Resolution.tangle(SolanaProvider(client), left = left).send().unwrap()
+            val built = Resolution.resolveTangle(SolanaProvider(client), left = left).send().unwrap()
             built.accounts.right shouldBe Resolution.TangleAccounts.findRight(left).address
             built.accounts.anchor shouldBe Resolution.TangleAccounts.findAnchor(left).address
             built.accounts.mint shouldBe MINT
