@@ -174,4 +174,78 @@ class FastBase64Test : FunSpec({
             shouldThrow<IllegalArgumentException> { FastBase64.decode(input) }.message shouldBe message
         }
     }
+
+    context("encode") {
+        context("RFC 4648 vectors") {
+            withData(
+                mapOf(
+                    "empty" to ("" to ""),
+                    "f" to ("f" to "Zg=="),
+                    "fo" to ("fo" to "Zm8="),
+                    "foo" to ("foo" to "Zm9v"),
+                    "foob" to ("foob" to "Zm9vYg=="),
+                    "fooba" to ("fooba" to "Zm9vYmE="),
+                    "foobar" to ("foobar" to "Zm9vYmFy"),
+                ),
+            ) { (plain, encoded) ->
+                FastBase64.encode(plain.encodeToByteArray()) shouldBe encoded
+            }
+        }
+
+        test("encodes every length up to 300 bytes and sizes up to 64 KiB as the stdlib does, and round-trips") {
+            val random = Random(65)
+            for (size in (0..300) + listOf(1023, 1024, 1025, 10_136, 65_535, 65_536)) {
+                for (bytes in listOf(random.nextBytes(size), ByteArray(size), ByteArray(size) { -1 })) {
+                    val encoded = FastBase64.encode(bytes)
+                    encoded shouldBe Base64.encode(bytes)
+                    FastBase64.decode(encoded) shouldBe bytes
+                }
+            }
+        }
+
+        test("encodes every 3-byte group, and every 1- and 2-byte tail, as the stdlib does") {
+            // all 2^24 groups, 2^16 groups per call; odd high bytes leave a 1- or 2-byte tail behind them
+            val bytes = ByteArray(3 shl 16)
+            for (high in 0 until 256) {
+                for (low in 0 until (1 shl 16)) {
+                    bytes[3 * low] = high.toByte()
+                    bytes[3 * low + 1] = (low shr 8).toByte()
+                    bytes[3 * low + 2] = low.toByte()
+                }
+                FastBase64.encode(bytes) shouldBe Base64.encode(bytes)
+            }
+            for (first in 0 until 256) {
+                FastBase64.encode(byteArrayOf(first.toByte())) shouldBe Base64.encode(byteArrayOf(first.toByte()))
+                for (second in 0 until 256) {
+                    val tail = byteArrayOf(first.toByte(), second.toByte())
+                    FastBase64.encode(tail) shouldBe Base64.encode(tail)
+                }
+            }
+        }
+
+        test("encodes a range of a longer array, ignoring the bytes around it, as the stdlib does") {
+            val random = Random(8)
+            for (size in 0..40) {
+                val bytes = random.nextBytes(size + 10)
+                for (start in 0..5) {
+                    val end = start + size
+                    FastBase64.encode(bytes, start, end) shouldBe Base64.encode(bytes, start, end)
+                    FastBase64.encode(bytes, start, end) shouldBe FastBase64.encode(bytes.copyOfRange(start, end))
+                }
+            }
+            FastBase64.encode(byteArrayOf(1, 2, 3), 1, 1) shouldBe ""
+        }
+
+        test("a range outside the input throws IndexOutOfBoundsException and a reversed one IllegalArgumentException, as the stdlib does") {
+            val bytes = "foo".encodeToByteArray()
+            for ((start, end) in listOf(-1 to 3, 0 to 4, 4 to 4, -1 to -1, -1 to 9)) {
+                shouldThrow<IndexOutOfBoundsException> { FastBase64.encode(bytes, start, end) }
+                shouldThrow<IndexOutOfBoundsException> { Base64.encode(bytes, start, end) }
+            }
+            for ((start, end) in listOf(3 to 0, 2 to 1)) {
+                shouldThrow<IllegalArgumentException> { FastBase64.encode(bytes, start, end) }.message shouldBe "Start $start is after end $end"
+                shouldThrow<IllegalArgumentException> { Base64.encode(bytes, start, end) }
+            }
+        }
+    }
 })

@@ -4,19 +4,87 @@ import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmStatic
 
 /**
- * Base64 decoder for the standard alphabet of RFC 4648, with required padding.
+ * Base64 encoder and decoder for the standard alphabet of RFC 4648, with required padding.
  *
- * Accepts exactly what `kotlin.io.encoding.Base64.Default` accepts: no whitespace or line breaks, padding to a
+ * [encode] produces exactly what `kotlin.io.encoding.Base64.Default` produces. [decode] accepts exactly what `kotlin.io.encoding.Base64.Default` accepts: no whitespace or line breaks, padding to a
  * multiple of four characters, and zero bits after the last byte. Invalid input throws [IllegalArgumentException].
  */
 object FastBase64 {
     private const val PAD = '='
+    private const val PAD_BYTE = PAD.code.toByte()
+    private const val ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
     private val EMPTY = ByteArray(0)
 
     // the 6-bit value of each alphabet character, -1 for the rest
     private val DECODE_TABLE = IntArray(256) { -1 }.also { table ->
-        val alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
-        for (i in alphabet.indices) table[alphabet[i].code] = i
+        for (i in ALPHABET.indices) table[ALPHABET[i].code] = i
+    }
+
+    // the two characters of each 12-bit value, the first in bits 8-15 and the second in bits 0-7
+    private val ENCODE_PAIRS = IntArray(4096) { (ALPHABET[it shr 6].code shl 8) or ALPHABET[it and 63].code }
+
+    /**
+     * Encode the bytes of [input] between [start] (inclusive) and [end] (exclusive) to padded base64.
+     *
+     * @throws IndexOutOfBoundsException if the range is outside [input]
+     * @throws IllegalArgumentException if [start] is after [end]
+     */
+    @JvmStatic
+    @JvmOverloads
+    fun encode(input: ByteArray, start: Int = 0, end: Int = input.size): String {
+        if (start < 0 || end > input.size) throw IndexOutOfBoundsException("Range [$start, $end) is outside [0, ${input.size})")
+        require(start <= end) { "Start $start is after end $end" }
+        val length = end - start
+        if (length == 0) return ""
+
+        // ASCII bytes turn into a String without the char-to-byte compaction a CharArray would need on the JVM
+        val output = ByteArray((length + 2) / 3 * 4)
+        var i = start
+        var out = 0
+        // two 3-byte groups per iteration, each split into two 12-bit halves looked up as character pairs
+        val sixEnd = end - length % 6
+        while (i < sixEnd) {
+            encodeGroup(input, i, output, out)
+            encodeGroup(input, i + 3, output, out + 4)
+            i += 6
+            out += 8
+        }
+        if (end - i >= 3) {
+            encodeGroup(input, i, output, out)
+            i += 3
+            out += 4
+        }
+
+        when (end - i) {
+            1 -> {
+                val bits = input[i].toInt() and 0xff
+                val pair = ENCODE_PAIRS[bits shl 4]
+                output[out] = (pair shr 8).toByte()
+                output[out + 1] = pair.toByte()
+                output[out + 2] = PAD_BYTE
+                output[out + 3] = PAD_BYTE
+            }
+            2 -> {
+                val bits = ((input[i].toInt() and 0xff) shl 10) or ((input[i + 1].toInt() and 0xff) shl 2)
+                val pair = ENCODE_PAIRS[bits shr 6]
+                output[out] = (pair shr 8).toByte()
+                output[out + 1] = pair.toByte()
+                output[out + 2] = ALPHABET[bits and 63].code.toByte()
+                output[out + 3] = PAD_BYTE
+            }
+        }
+        return output.decodeToString()
+    }
+
+    @Suppress("NOTHING_TO_INLINE")
+    private inline fun encodeGroup(input: ByteArray, i: Int, output: ByteArray, out: Int) {
+        val bits = ((input[i].toInt() and 0xff) shl 16) or ((input[i + 1].toInt() and 0xff) shl 8) or (input[i + 2].toInt() and 0xff)
+        val high = ENCODE_PAIRS[bits ushr 12]
+        val low = ENCODE_PAIRS[bits and 0xfff]
+        output[out] = (high shr 8).toByte()
+        output[out + 1] = high.toByte()
+        output[out + 2] = (low shr 8).toByte()
+        output[out + 3] = low.toByte()
     }
 
     /**

@@ -37,24 +37,36 @@ open class FastBase64Benchmark {
     @Param("32", "165", "1544", "10136", "65536")
     var size: Int = 0
 
+    private lateinit var bytes: ByteArray
     private lateinit var encoded: String
 
     @Setup
     fun setup() {
-        val bytes = Random(64).nextBytes(size)
+        bytes = Random(64).nextBytes(size)
         encoded = Base64.encode(bytes)
-        check(FastBase64.decode(encoded).contentEquals(bytes)) { "FastBase64 does not round-trip" }
+        check(FastBase64.decode(encoded).contentEquals(bytes)) { "FastBase64 does not decode what the stdlib encodes" }
+        check(FastBase64.encode(bytes) == encoded) { "FastBase64 does not encode as the stdlib does" }
     }
 
     @Benchmark
-    fun fast(): ByteArray = FastBase64.decode(encoded)
+    fun decodeFast(): ByteArray = FastBase64.decode(encoded)
 
     /** The multiplatform stdlib decoder FastBase64 replaces. */
     @Benchmark
-    fun stdlib(): ByteArray = Base64.decode(encoded)
+    fun decodeStdlib(): ByteArray = Base64.decode(encoded)
 
     @Benchmark
-    fun jdk(): ByteArray = JdkBase64.getDecoder().decode(encoded)
+    fun decodeJdk(): ByteArray = JdkBase64.getDecoder().decode(encoded)
+
+    @Benchmark
+    fun encodeFast(): String = FastBase64.encode(bytes)
+
+    /** The multiplatform stdlib encoder FastBase64 replaces. */
+    @Benchmark
+    fun encodeStdlib(): String = Base64.encode(bytes)
+
+    @Benchmark
+    fun encodeJdk(): String = JdkBase64.getEncoder().encodeToString(bytes)
 
     companion object {
         @JvmStatic
