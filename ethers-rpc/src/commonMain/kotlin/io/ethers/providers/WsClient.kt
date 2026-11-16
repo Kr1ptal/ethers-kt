@@ -627,7 +627,10 @@ class WsClient(
             throw e
         }
 
-        batch?.response?.complete(true)
+        // the batch has left the in-flight requests, so a call the response did not answer would never time out
+        if (batch != null) {
+            batch.response.complete(!batch.request.failUnanswered(HttpClient.missingResponse(text)))
+        }
     }
 
     private fun getBatchFromRequestId(requestId: Long): Pair<PendingBatchRequest, HashMap<Long, Int>>? {
