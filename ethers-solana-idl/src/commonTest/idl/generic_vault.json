@@ -1,0 +1,859 @@
+{
+  "address": "GenericVau1t1111111111111111111111111111111",
+  "metadata": {
+    "name": "generic_vault",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Exercises generic type definitions"
+  },
+  "instructions": [
+    {
+      "name": "deposit",
+      "docs": [
+        "Deposit into a vault keyed by the amount's first value."
+      ],
+      "discriminator": [
+        242,
+        35,
+        198,
+        137,
+        82,
+        225,
+        242,
+        182
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "amount.first"
+              }
+            ]
+          }
+        },
+        {
+          "name": "depositor",
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": {
+            "defined": {
+              "name": "Pair",
+              "generics": [
+                {
+                  "kind": "type",
+                  "type": "u64"
+                },
+                {
+                  "kind": "type",
+                  "type": "i32"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "ring",
+          "type": {
+            "defined": {
+              "name": "Bounded",
+              "generics": [
+                {
+                  "kind": "type",
+                  "type": "u16"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "hint",
+          "type": {
+            "option": {
+              "defined": {
+                "name": "Slot",
+                "generics": [
+                  {
+                    "kind": "type",
+                    "type": "u32"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "name": "batches",
+          "type": {
+            "vec": {
+              "array": [
+                {
+                  "defined": {
+                    "name": "Pair",
+                    "generics": [
+                      {
+                        "kind": "type",
+                        "type": "u8"
+                      },
+                      {
+                        "kind": "type",
+                        "type": "u8"
+                      }
+                    ]
+                  }
+                },
+                2
+              ]
+            }
+          }
+        },
+        {
+          "name": "holder",
+          "type": {
+            "defined": {
+              "name": "Holder",
+              "generics": [
+                {
+                  "kind": "type",
+                  "type": "u32"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "returns": {
+        "defined": {
+          "name": "Slot",
+          "generics": [
+            {
+              "kind": "type",
+              "type": "u64"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "relabel",
+      "discriminator": [
+        128,
+        157,
+        206,
+        146,
+        245,
+        71,
+        8,
+        233
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "labels",
+          "type": {
+            "array": [
+              {
+                "defined": {
+                  "name": "Label",
+                  "generics": [
+                    {
+                      "kind": "const",
+                      "value": "4"
+                    }
+                  ]
+                }
+              },
+              2
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Oracle",
+      "discriminator": [
+        139,
+        194,
+        131,
+        179,
+        140,
+        179,
+        229,
+        244
+      ]
+    },
+    {
+      "name": "Vault",
+      "discriminator": [
+        211,
+        8,
+        232,
+        43,
+        2,
+        152,
+        117,
+        119
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "Deposited",
+      "discriminator": [
+        111,
+        141,
+        26,
+        45,
+        161,
+        35,
+        100,
+        57
+      ]
+    }
+  ],
+  "types": [
+    {
+      "name": "Amount",
+      "type": {
+        "kind": "type",
+        "alias": "u64"
+      }
+    },
+    {
+      "name": "Bounded",
+      "docs": [
+        "A ring of two values."
+      ],
+      "generics": [
+        {
+          "kind": "type",
+          "name": "T"
+        }
+      ],
+      "type": {
+        "kind": "type",
+        "alias": {
+          "defined": {
+            "name": "RingBuffer",
+            "generics": [
+              {
+                "kind": "type",
+                "type": {
+                  "generic": "T"
+                }
+              },
+              {
+                "kind": "const",
+                "value": "2"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "Deposited",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "amounts",
+            "type": {
+              "defined": {
+                "name": "Pair",
+                "generics": [
+                  {
+                    "kind": "type",
+                    "type": "u64"
+                  },
+                  {
+                    "kind": "type",
+                    "type": "u64"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "name": "labels",
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "Label",
+                  "generics": [
+                    {
+                      "kind": "const",
+                      "value": "4"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Holder",
+      "generics": [
+        {
+          "kind": "type",
+          "name": "T"
+        }
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "maybe",
+            "type": {
+              "option": {
+                "generic": "T"
+              }
+            }
+          },
+          {
+            "name": "many",
+            "type": {
+              "vec": {
+                "generic": "T"
+              }
+            }
+          },
+          {
+            "name": "pairs",
+            "type": {
+              "array": [
+                {
+                  "defined": {
+                    "name": "Pair",
+                    "generics": [
+                      {
+                        "kind": "type",
+                        "type": {
+                          "generic": "T"
+                        }
+                      },
+                      {
+                        "kind": "type",
+                        "type": "u8"
+                      }
+                    ]
+                  }
+                },
+                2
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Label",
+      "generics": [
+        {
+          "kind": "const",
+          "name": "N",
+          "type": "usize"
+        }
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "array": [
+              "u8",
+              {
+                "generic": "N"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle",
+      "serialization": "bytemuck",
+      "repr": {
+        "kind": "c"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "ticks",
+            "type": {
+              "defined": {
+                "name": "Ticks",
+                "generics": [
+                  {
+                    "kind": "const",
+                    "value": "4"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "name": "updated",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Pair",
+      "generics": [
+        {
+          "kind": "type",
+          "name": "A"
+        },
+        {
+          "kind": "type",
+          "name": "B"
+        }
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "first",
+            "type": {
+              "generic": "A"
+            }
+          },
+          {
+            "name": "second",
+            "type": {
+              "generic": "B"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "RingBuffer",
+      "docs": [
+        "A fixed-capacity ring."
+      ],
+      "generics": [
+        {
+          "kind": "type",
+          "name": "T"
+        },
+        {
+          "kind": "const",
+          "name": "N",
+          "type": "usize"
+        }
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "head",
+            "type": "u8"
+          },
+          {
+            "name": "items",
+            "type": {
+              "array": [
+                {
+                  "generic": "T"
+                },
+                {
+                  "generic": "N"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Slot",
+      "generics": [
+        {
+          "kind": "type",
+          "name": "T"
+        }
+      ],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Empty"
+          },
+          {
+            "name": "Filled",
+            "fields": [
+              {
+                "generic": "T"
+              }
+            ]
+          },
+          {
+            "name": "Locked",
+            "fields": [
+              {
+                "name": "owner",
+                "type": "pubkey"
+              },
+              {
+                "name": "value",
+                "type": {
+                  "generic": "T"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "Ticks",
+      "serialization": "bytemuck",
+      "repr": {
+        "kind": "c"
+      },
+      "generics": [
+        {
+          "kind": "const",
+          "name": "N",
+          "type": "usize"
+        }
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "values",
+            "type": {
+              "array": [
+                "u64",
+                {
+                  "generic": "N"
+                }
+              ]
+            }
+          },
+          {
+            "name": "count",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Unused",
+      "generics": [
+        {
+          "kind": "type",
+          "name": "T"
+        }
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "value",
+            "type": {
+              "generic": "T"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Vault",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "label",
+            "type": {
+              "defined": {
+                "name": "Label",
+                "generics": [
+                  {
+                    "kind": "const",
+                    "value": "8"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "name": "balances",
+            "type": {
+              "defined": {
+                "name": "Pair",
+                "generics": [
+                  {
+                    "kind": "type",
+                    "type": {
+                      "defined": {
+                        "name": "Amount"
+                      }
+                    }
+                  },
+                  {
+                    "kind": "type",
+                    "type": "i32"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "name": "history",
+            "type": {
+              "defined": {
+                "name": "RingBuffer",
+                "generics": [
+                  {
+                    "kind": "type",
+                    "type": "u64"
+                  },
+                  {
+                    "kind": "const",
+                    "value": "3"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "name": "slot",
+            "type": {
+              "defined": {
+                "name": "Slot",
+                "generics": [
+                  {
+                    "kind": "type",
+                    "type": {
+                      "defined": {
+                        "name": "Pair",
+                        "generics": [
+                          {
+                            "kind": "type",
+                            "type": "u64"
+                          },
+                          {
+                            "kind": "type",
+                            "type": "u8"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "name": "window",
+            "type": {
+              "defined": {
+                "name": "Window",
+                "generics": [
+                  {
+                    "kind": "type",
+                    "type": "u16"
+                  },
+                  {
+                    "kind": "const",
+                    "value": "2"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Window",
+      "generics": [
+        {
+          "kind": "type",
+          "name": "T"
+        },
+        {
+          "kind": "const",
+          "name": "N",
+          "type": "usize"
+        }
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "buffer",
+            "type": {
+              "defined": {
+                "name": "RingBuffer",
+                "generics": [
+                  {
+                    "kind": "type",
+                    "type": {
+                      "generic": "T"
+                    }
+                  },
+                  {
+                    "kind": "type",
+                    "type": {
+                      "generic": "N"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "name": "latest",
+            "type": {
+              "option": {
+                "generic": "T"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "constants": [
+    {
+      "name": "DEFAULT_AMOUNT",
+      "type": {
+        "defined": {
+          "name": "Pair",
+          "generics": [
+            {
+              "kind": "type",
+              "type": "u64"
+            },
+            {
+              "kind": "type",
+              "type": "i32"
+            }
+          ]
+        }
+      },
+      "value": "Pair { first: 1000, second: -2 }"
+    },
+    {
+      "name": "LOCKED_SLOT",
+      "type": {
+        "defined": {
+          "name": "Slot",
+          "generics": [
+            {
+              "kind": "type",
+              "type": {
+                "defined": {
+                  "name": "Pair",
+                  "generics": [
+                    {
+                      "kind": "type",
+                      "type": "u64"
+                    },
+                    {
+                      "kind": "type",
+                      "type": "u8"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      },
+      "value": "Locked { owner: SysvarRent111111111111111111111111111111111, value: Pair { first: 5, second: 6 } }"
+    },
+    {
+      "name": "MAIN_LABEL",
+      "type": {
+        "defined": {
+          "name": "Label",
+          "generics": [
+            {
+              "kind": "const",
+              "value": "4"
+            }
+          ]
+        }
+      },
+      "value": "Label([109, 97, 105, 110])"
+    },
+    {
+      "name": "START_RING",
+      "type": {
+        "defined": {
+          "name": "Bounded",
+          "generics": [
+            {
+              "kind": "type",
+              "type": "u16"
+            }
+          ]
+        }
+      },
+      "value": "RingBuffer { head: 1, items: [2, 3] }"
+    },
+    {
+      "name": "EMPTY_TICKS",
+      "type": {
+        "option": {
+          "defined": {
+            "name": "Ticks",
+            "generics": [
+              {
+                "kind": "const",
+                "value": "4"
+              }
+            ]
+          }
+        }
+      },
+      "value": "Some(Ticks { values: [0, 0, 0, 1], count: 1 })"
+    }
+  ]
+}
