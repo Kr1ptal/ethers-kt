@@ -4,7 +4,7 @@ plugins {
     `signing-conventions`
     `java-gradle-plugin`
     `ktlint-conventions`
-    id("com.gradle.plugin-publish") version "2.1.1"
+    id("com.gradle.plugin-publish") version "2.2.1"
     alias(libs.plugins.shadow)
 }
 
