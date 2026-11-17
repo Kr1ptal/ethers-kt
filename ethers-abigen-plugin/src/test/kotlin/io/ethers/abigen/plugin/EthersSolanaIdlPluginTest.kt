@@ -229,6 +229,84 @@ class EthersSolanaIdlPluginTest : FunSpec({
         build.generatedFiles() shouldBe listOf("com/example/extra/Showcase.kt")
     }
 
+    context("generator overrides") {
+        val token = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        val dsl = listOf(
+            "rename('showcase', 'type:Mode', 'SwapMode')",
+            "accountDefault('showcase', 'swap.referrer', '$token')",
+            "customCodec('showcase', 'showcase::Point', 'com.example.PointCodec', 8)",
+            "typeSubstitution('showcase', 'Amount', 'com.example.TokenAmount', 'com.example.TokenAmount.Codec', 8, 8)",
+        )
+        fun showcase(build: SolanaIdlBuild) = File(build.outputDir, "io/ethers/programs/Showcase.kt").readText()
+
+        test("the DSL configures custom codecs, substitutions, renames and account defaults") {
+            val build = SolanaIdlBuild(dsl.joinToString("\n"))
+            build.outcome(TASK) shouldBe TaskOutcome.SUCCESS
+            val generated = showcase(build)
+            generated shouldContain "public sealed class SwapMode"
+            generated shouldContain "SolanaAddress? = SolanaAddress(\"$token\")"
+            generated shouldContain "public companion object : SolanaCodec<ShowcasePoint> by PointCodec"
+            generated shouldContain "TokenAmount.Codec.read(this)"
+            build.outcome(TASK) shouldBe TaskOutcome.UP_TO_DATE
+
+            // a changed override regenerates
+            build.writeExtension((dsl.drop(1) + "rename('showcase', 'type:Mode', 'TradeMode')").joinToString("\n"))
+            build.outcome(TASK) shouldBe TaskOutcome.SUCCESS
+            showcase(build) shouldContain "public sealed class TradeMode"
+        }
+
+        test("the order overrides are configured in does not change the output or the cache key") {
+            val build = SolanaIdlBuild(dsl.joinToString("\n"))
+            build.outcome(TASK) shouldBe TaskOutcome.SUCCESS
+            val first = showcase(build)
+            build.writeExtension(dsl.reversed().joinToString("\n"))
+            build.outcome("clean", TASK) shouldBe TaskOutcome.FROM_CACHE
+            showcase(build) shouldBe first
+        }
+
+        test("overrides files are task inputs, merged with the DSL") {
+            val build = SolanaIdlBuild("overridesFile('overrides.json')\n" + dsl[1])
+            val file = File(build.dir, "overrides.json")
+            file.writeText("""{"showcase": {"renames": {"type:Mode": "SwapMode"}}}""")
+            build.outcome(TASK) shouldBe TaskOutcome.SUCCESS
+            showcase(build) shouldContain "public sealed class SwapMode"
+            showcase(build) shouldContain "SolanaAddress(\"$token\")"
+            build.outcome(TASK) shouldBe TaskOutcome.UP_TO_DATE
+
+            file.writeText("""{"showcase": {"renames": {"type:Mode": "TradeMode"}}}""")
+            build.outcome(TASK) shouldBe TaskOutcome.SUCCESS
+            showcase(build) shouldContain "public sealed class TradeMode"
+
+            // the file and the DSL must agree on a target both configure
+            build.writeExtension("overridesFile('overrides.json')\nrename('showcase', 'type:Mode', 'SwapMode')")
+            build.runner(TASK).buildAndFail().output shouldContain
+                "program 'showcase': conflicting rename for 'type:Mode': SwapMode and TradeMode"
+        }
+
+        test("the task with overrides is compatible with the configuration cache") {
+            val build = SolanaIdlBuild("overridesFile('overrides.json')\n" + dsl.joinToString("\n"))
+            File(build.dir, "overrides.json").writeText("""{"showcase": {"renames": {"constant:MAX_FEE": "FEE_LIMIT"}}}""")
+            build.runner("clean", TASK, "--configuration-cache").build().task(":$TASK")?.outcome shouldBe TaskOutcome.SUCCESS
+            val reused = build.runner("clean", TASK, "--configuration-cache").build()
+            reused.output shouldContain "Reusing configuration cache"
+            reused.task(":$TASK")?.outcome shouldBe TaskOutcome.FROM_CACHE
+            showcase(build) shouldContain "FEE_LIMIT"
+        }
+
+        test("overrides for unknown programs or targets, and conflicting ones, fail the build") {
+            SolanaIdlBuild("rename('shwocase', 'type:Mode', 'SwapMode')").runner(TASK).buildAndFail().output shouldContain
+                "generatorOverrides names programs that no IDL declares: [shwocase]"
+            SolanaIdlBuild("rename('showcase', 'type:Missing', 'X')").runner(TASK).buildAndFail().output shouldContain
+                "rename 'type:Missing': the program declares no type 'Missing'"
+            SolanaIdlBuild("rename('showcase', 'type:Mode', 'A')\nrename('showcase', 'type:Mode', 'B')").runner(TASK).buildAndFail().output shouldContain
+                "ethersSolanaIdl overrides of program 'showcase': conflicting rename for 'type:Mode': A and B"
+            SolanaIdlBuild("accountDefault('showcase', 'swap.referrer', 'nope!')").runner(TASK).buildAndFail().output shouldContain
+                "account default for 'swap.referrer': 'nope!' is not a base58 address"
+            SolanaIdlBuild("customCodec('showcase', 'showcase::Point', 'com.example.PointCodec', 4)").runner(TASK).buildAndFail().output shouldContain
+                "custom codec for type 'showcase::Point': declares size 4, but the IDL lays the type out in 8 bytes"
+        }
+    }
+
     test("setting the sources replaces the default one") {
         val build = SolanaIdlBuild("sources.set([]); directorySource('src/main/idl-extra')")
         build.copyIdl("../idl-extra/com/example")

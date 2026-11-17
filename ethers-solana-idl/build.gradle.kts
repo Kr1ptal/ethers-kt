@@ -18,6 +18,12 @@ val ammV3Idl = layout.projectDirectory.file("src/jvmSharedTest/resources/idl/amm
 // Meteora's DLMM: unpacked zero-copy accounts.
 val dlmmIdl = layout.projectDirectory.file("src/jvmSharedTest/resources/idl/dlmm.json")
 
+// Custom codecs, type substitutions, renames and account defaults of the ledger IDL.
+val generatorOverrides = layout.projectDirectory.file("src/commonTest/overrides.json")
+
+// The handwritten codecs and types those overrides name, which every source set compiling the bindings needs.
+val testCodecsDir = layout.projectDirectory.dir("src/testCodecs/kotlin")
+
 // Must live under `build/generated` - `ktlint-conventions` excludes that path, and generated code is not
 // formatted to this project's ktlint config.
 val generatedSourceDir = layout.buildDirectory.dir("generated/source/solanaIdl/commonTest/kotlin")
@@ -36,6 +42,9 @@ val generateProgramBindings by tasks.registering(JavaExec::class) {
     inputs.file(dlmmIdl)
         .withPropertyName("dlmmIdl")
         .withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file(generatorOverrides)
+        .withPropertyName("generatorOverrides")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
     outputs.dir(generatedSourceDir).withPropertyName("generatedSources")
     outputs.cacheIf { true }
 
@@ -50,7 +59,8 @@ val generateProgramBindings by tasks.registering(JavaExec::class) {
             // one seed the showcase program encodes big-endian, the others keep the little-endian default
             listOf("--seed-byte-order", "showcase:position:config.fee_bps=BIG_ENDIAN") +
             // Raydium encodes every integer seed big-endian
-            listOf("--seed-byte-order", "amm_v3=BIG_ENDIAN"),
+            listOf("--seed-byte-order", "amm_v3=BIG_ENDIAN") +
+            listOf("--overrides", generatorOverrides.asFile.absolutePath),
     )
 }
 
@@ -68,6 +78,7 @@ kotlin {
         val commonTest by getting {
             // registering the task itself wires up the dependency for every consumer: compile, ktlint, sourcesJar
             kotlin.srcDir(generateProgramBindings)
+            kotlin.srcDir(testCodecsDir)
 
             dependencies {
                 // the generated bindings run against the Solana runtime, which the generator itself does not need
@@ -85,6 +96,7 @@ kotlin {
         // benchmarks the generated test bindings, so compiles them into its own JVM-only source set too
         val jvmJmh by getting {
             kotlin.srcDir(generateProgramBindings)
+            kotlin.srcDir(testCodecsDir)
 
             dependencies {
                 implementation(project(":ethers-solana"))
