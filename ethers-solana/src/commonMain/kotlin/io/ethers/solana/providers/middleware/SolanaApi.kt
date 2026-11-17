@@ -1,5 +1,6 @@
 package io.ethers.solana.providers.middleware
 
+import io.ethers.core.FastBase64
 import io.ethers.core.Result
 import io.ethers.core.failure
 import io.ethers.core.isFailure
@@ -95,7 +96,6 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 import kotlinx.serialization.serializer
-import kotlin.io.encoding.Base64
 
 /**
  * Solana JSON-RPC capabilities, composable over an existing ethers JsonRpcClient.
@@ -325,7 +325,7 @@ interface SolanaApi {
     private fun submit(transaction: ByteArray, options: SolanaSendConfig, tracking: ConfirmationTracking): RpcRequest<PendingSolanaTransaction, RpcError> {
         return rpc(
             "sendTransaction",
-            Base64.encode(transaction),
+            FastBase64.encode(transaction),
             buildJsonObject {
                 put("encoding", "base64")
                 put("preflightCommitment", (options.preflightCommitment ?: defaultCommitment).toString())
@@ -343,7 +343,7 @@ interface SolanaApi {
     fun simulateTransaction(transaction: ByteArray, commitment: Commitment): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = simulateTransaction(transaction, SolanaSimulationConfig(commitment = commitment))
 
     /** Simulate with explicit options; see [SolanaSimulationConfig]. */
-    fun simulateTransaction(transaction: ByteArray, config: SolanaSimulationConfig): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = typedRpc("simulateTransaction", Base64.encode(transaction), simulationConfig(config))
+    fun simulateTransaction(transaction: ByteArray, config: SolanaSimulationConfig): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = typedRpc("simulateTransaction", FastBase64.encode(transaction), simulationConfig(config))
 
     fun simulateTransaction(request: SolanaTransactionRequest): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = simulateTransaction(request, emptyList(), defaultCommitment)
 
@@ -469,7 +469,7 @@ interface SolanaApi {
     fun getFeeForMessage(message: SolanaTransactionCompiled, config: SolanaReadConfig): RpcRequest<ContextValue<BigInteger?>, RpcError> = getFeeForMessage(message.serializeMessage(), config)
     fun getFeeForMessage(message: ByteArray): RpcRequest<ContextValue<BigInteger?>, RpcError> = getFeeForMessage(message, defaultCommitment)
     fun getFeeForMessage(message: ByteArray, commitment: Commitment): RpcRequest<ContextValue<BigInteger?>, RpcError> = getFeeForMessage(message, SolanaReadConfig(commitment = commitment))
-    fun getFeeForMessage(message: ByteArray, config: SolanaReadConfig): RpcRequest<ContextValue<BigInteger?>, RpcError> = rpc("getFeeForMessage", Base64.encode(message), readConfig(config), deserializer = ContextValue.serializer(U64Serializer.nullable))
+    fun getFeeForMessage(message: ByteArray, config: SolanaReadConfig): RpcRequest<ContextValue<BigInteger?>, RpcError> = rpc("getFeeForMessage", FastBase64.encode(message), readConfig(config), deserializer = ContextValue.serializer(U64Serializer.nullable))
 
     fun getRecentPrioritizationFees(): RpcRequest<List<PrioritizationFee>, RpcError> = getRecentPrioritizationFees(emptyList())
     fun getRecentPrioritizationFees(addresses: List<SolanaAddress> = emptyList()): RpcRequest<List<PrioritizationFee>, RpcError> {

@@ -3,7 +3,6 @@ package io.ethers.solana.types
 import io.ethers.core.FastBase64
 import io.ethers.core.FastHex
 import io.ethers.crypto.Base58
-import kotlin.io.encoding.Base64
 import kotlin.jvm.JvmField
 import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmStatic
@@ -62,7 +61,7 @@ class SolanaBytes private constructor(private val value: ByteArray) {
     }
 
     fun toBase58(): String = Base58.encode(value)
-    fun toBase64(): String = Base64.encode(value)
+    fun toBase64(): String = FastBase64.encode(value)
 
     /** Lowercase hexadecimal without a prefix. */
     fun toHex(): String = FastHex.encodeWithoutPrefix(value)
