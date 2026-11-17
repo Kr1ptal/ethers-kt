@@ -21,7 +21,7 @@ fun interface SubscriptionDescriptor {
 
     companion object {
         val ETHEREUM = SubscriptionDescriptor { params ->
-            Resolved("eth_subscribe", "eth_unsubscribe", "eth_subscription", params.copyOf())
+            Resolved("eth_subscribe", "eth_unsubscribe", "eth_subscription", params)
         }
     }
 }
