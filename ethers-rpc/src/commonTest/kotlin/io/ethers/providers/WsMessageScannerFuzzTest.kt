@@ -126,10 +126,20 @@ private class MessageGen(val random: Random) {
     }
 }
 
-/** The id [WsMessageScanner.responseId] gives: the first top-level `id`, as a tree reads it, unless `method` comes first. */
+/**
+ * The id [WsMessageScanner.responseId] gives, as a tree reads it: one written last, read backwards and taken on trust,
+ * if a `result` comes before any `id` or `method`; otherwise the first top-level `id`, unless `method` comes first.
+ */
 private fun expectedResponseId(message: Node.Obj): Long {
-    val (key, value) = message.entries.firstOrNull { it.first == "id" || it.first == "method" } ?: return WsMessageScanner.NONE
-    if (key == "method") return WsMessageScanner.NONE
+    val first = message.entries.firstOrNull { it.first == "id" || it.first == "method" || it.first == "result" }
+    val last = message.entries.lastOrNull()
+    val value = if (first?.first == "result" && last?.first == "id" && (last.second as? Node.Raw)?.readableBackwards == true) {
+        last.second
+    } else {
+        val (key, value) = message.entries.firstOrNull { it.first == "id" || it.first == "method" } ?: return WsMessageScanner.NONE
+        if (key == "method") return WsMessageScanner.NONE
+        value
+    }
     val id = Kotlinx.DEFAULT.parseToJsonElement(value.render(EXACT))
     return (id as? JsonPrimitive)?.longOrNull ?: WsMessageScanner.NONE
 }

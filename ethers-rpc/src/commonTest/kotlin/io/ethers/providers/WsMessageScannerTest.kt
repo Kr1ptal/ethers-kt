@@ -52,7 +52,7 @@ class WsMessageScannerTest : FunSpec({
             """{"method":null,"id":3,"result":1}""",
             """{"jsonrpc":"2.0","method":"accountNotification","params":{"result":1,"subscription":23784}}""",
             """[{"id":1,"result":1}]""",
-            // a result before the id
+            // a result before the id, as Agave and Nethermind write it
             """{"jsonrpc":"2.0","result":{"id":5,"method":"m","list":[1,"]}"]},"id":42}""",
             """{"result":1 , "id" : 42 }${"\n"}""",
             """{"result":1,"id":"7"}""",
@@ -85,7 +85,6 @@ class WsMessageScannerTest : FunSpec({
             """{"id":,"result":1}""",
             """{id:1,"result":1}""",
             """{"result":[1,{"a":"]"},"id":1""",
-            """{"result":"1,"id":1}""",
             "",
             "not json",
             "   ",
@@ -158,6 +157,20 @@ class WsMessageScannerTest : FunSpec({
 
         for (message in messages) {
             withClue(message) { WsMessageScanner.notification(message, WsMessageScanner.NotificationPosition()) shouldBe false }
+        }
+    }
+
+    // WsClient decodes the whole message next, and routes it through the tree unless it has no method and the same id
+    test("an id written after the result is read without checking what comes before it") {
+        val messages = listOf(
+            """{"result":"1,"id":1}""",
+            """{"result":1,"method":"m","id":1}""",
+            """{"result":[1,{"a":"]"},"id":1}""",
+            """{"result":1,"id":2,"id":1}""",
+        )
+
+        for (message in messages) {
+            withClue(message) { WsMessageScanner.responseId(message) shouldBe 1L }
         }
     }
 

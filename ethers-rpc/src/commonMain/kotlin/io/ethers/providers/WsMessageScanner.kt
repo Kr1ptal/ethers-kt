@@ -19,19 +19,41 @@ internal object WsMessageScanner {
      * The `id` of what may be a response to a single call: the first top-level `id` of the JSON object [text], read as
      * `JsonPrimitive.longOrNull` reads it, if no `method` key comes before it. Returns [NONE] for anything else.
      *
-     * The scan stops at the `id`, so it does not see a later `method` or a repeated `id`. The caller decodes the whole
-     * message anyway and must check both there.
+     * An `id` written after the `result`, as Agave and Nethermind write it, is read backwards from the end of the
+     * message instead, so a large result is not skipped to reach it; it is taken on trust, whatever comes before it.
+     * Either way the scan does not see all of the message: the caller decodes the whole message anyway and must check
+     * there that it has no `method` and that its last `id` is this one.
      */
     fun responseId(text: String): Long {
         var id = NONE
-        scanObject(text, skipWhitespace(text, 0)) { keyStart, keyEnd, valueStart, valueEnd ->
+        var resultFirst = false
+        scanObject(text, skipWhitespace(text, 0)) { keyStart, keyEnd, valueStart ->
             when {
                 isKey(text, keyStart, keyEnd, "id") -> {
-                    id = readLong(text, valueStart, valueEnd)
+                    id = readLong(text, valueStart)
                     true
                 }
                 isKey(text, keyStart, keyEnd, "method") -> true
+                isKey(text, keyStart, keyEnd, "result") -> {
+                    resultFirst = true
+                    true
+                }
                 else -> false
+            }
+        }
+        if (!resultFirst) return id
+
+        val trailing = trailingValue(text, "id", 1)
+        if (trailing != NO_RANGE) return readLong(text, rangeStart(trailing), rangeEnd(trailing))
+
+        // no id at the end: skip the result after all
+        scanObject(text, skipWhitespace(text, 0)) { keyStart, keyEnd, valueStart ->
+            when {
+                isKey(text, keyStart, keyEnd, "id") -> {
+                    id = readLong(text, valueStart)
+                    true
+                }
+                else -> isKey(text, keyStart, keyEnd, "method")
             }
         }
         return id
@@ -49,21 +71,30 @@ internal object WsMessageScanner {
     fun notification(text: String, out: NotificationPosition): Boolean {
         out.methodStart = -1
         out.subscriptionStart = -1
-        trailingSubscription(text, out)
+        val trailing = trailingValue(text, "subscription", 2)
+        if (trailing != NO_RANGE) {
+            out.subscriptionStart = rangeStart(trailing)
+            out.subscriptionEnd = rangeEnd(trailing)
+        }
         var paramsSeen = false
-        scanObject(text, skipWhitespace(text, 0)) { keyStart, keyEnd, valueStart, valueEnd ->
+        scanObject(text, skipWhitespace(text, 0)) { keyStart, keyEnd, valueStart ->
             if (out.methodStart < 0 && isKey(text, keyStart, keyEnd, "method")) {
                 // a method with escapes, or not a string, is left to the tree route
-                if (text[valueStart] != '"' || hasEscape(text, valueStart + 1, valueEnd - 1)) return false
+                if (text[valueStart] != '"') return false
+                val valueEnd = skipString(text, valueStart)
+                if (valueEnd < 0 || hasEscape(text, valueStart + 1, valueEnd - 1)) return false
                 out.methodStart = valueStart + 1
                 out.methodEnd = valueEnd - 1
             } else if (out.subscriptionStart < 0 && !paramsSeen && isKey(text, keyStart, keyEnd, "params")) {
                 paramsSeen = true
                 if (text[valueStart] != '{') return false
-                scanObject(text, valueStart) { innerKeyStart, innerKeyEnd, innerValueStart, innerValueEnd ->
+                scanObject(text, valueStart) { innerKeyStart, innerKeyEnd, innerValueStart ->
                     if (isKey(text, innerKeyStart, innerKeyEnd, "subscription")) {
-                        out.subscriptionStart = innerValueStart
-                        out.subscriptionEnd = innerValueEnd
+                        val innerValueEnd = skipValue(text, innerValueStart)
+                        if (innerValueEnd >= 0) {
+                            out.subscriptionStart = innerValueStart
+                            out.subscriptionEnd = innerValueEnd
+                        }
                         true
                     } else {
                         false
@@ -76,41 +107,47 @@ internal object WsMessageScanner {
     }
 
     /**
-     * Find a `"subscription": <value>` written last in the last object of [text], as in `..."subscription":23784}}`,
-     * by reading backwards, and write its value's position into [out]. The value must be a number or a string without
-     * escapes. Finds nothing for any other ending.
+     * The range of a `"[key]": <value>` written last in [text], before [closingBraces] closing braces, as in
+     * `..."subscription":23784}}` or `..."id":1}`, found by reading backwards: packed by [range], or [NO_RANGE]. The
+     * value must be a number, a literal or a string without escapes. Finds nothing for any other ending.
      */
-    private fun trailingSubscription(text: String, out: NotificationPosition) {
-        // the closing braces of the message and of params
-        var i = skipWhitespaceBack(text, text.length - 1)
-        if (i < 0 || text[i] != '}') return
-        i = skipWhitespaceBack(text, i - 1)
-        if (i < 0 || text[i] != '}') return
-        i = skipWhitespaceBack(text, i - 1)
-        if (i < 0) return
+    private fun trailingValue(text: String, key: String, closingBraces: Int): Long {
+        var i = text.length - 1
+        repeat(closingBraces) {
+            i = skipWhitespaceBack(text, i)
+            if (i < 0 || text[i] != '}') return NO_RANGE
+            i--
+        }
+        i = skipWhitespaceBack(text, i)
+        if (i < 0) return NO_RANGE
 
         val valueEnd = i + 1
         val valueStart: Int
         if (text[i] == '"') {
             val open = text.lastIndexOf('"', i - 1)
-            if (open < 0 || hasEscape(text, open + 1, i)) return
+            if (open < 0 || hasEscape(text, open + 1, i)) return NO_RANGE
             valueStart = open
         } else {
             while (i >= 0 && (text[i].isLetterOrDigit() || text[i] == '-' || text[i] == '+' || text[i] == '.')) i--
             valueStart = i + 1
-            if (valueStart == valueEnd) return
+            if (valueStart == valueEnd) return NO_RANGE
         }
 
         i = skipWhitespaceBack(text, valueStart - 1)
-        if (i < 0 || text[i] != ':') return
+        if (i < 0 || text[i] != ':') return NO_RANGE
         i = skipWhitespaceBack(text, i - 1)
-        val key = "subscription"
         val keyStart = i - key.length
-        if (keyStart < 1 || text[i] != '"' || text[keyStart - 1] != '"' || !text.regionMatches(keyStart, key, 0, key.length)) return
+        if (keyStart < 1 || text[i] != '"' || text[keyStart - 1] != '"' || !text.regionMatches(keyStart, key, 0, key.length)) return NO_RANGE
 
-        out.subscriptionStart = valueStart
-        out.subscriptionEnd = valueEnd
+        return range(valueStart, valueEnd)
     }
+
+    /** No range, from [trailingValue]. */
+    private const val NO_RANGE = -1L
+
+    private fun range(start: Int, end: Int): Long = (start.toLong() shl 32) or end.toLong()
+    private fun rangeStart(range: Long): Int = (range ushr 32).toInt()
+    private fun rangeEnd(range: Long): Int = range.toInt()
 
     private fun skipWhitespaceBack(text: String, from: Int): Int {
         var i = from
@@ -161,13 +198,14 @@ internal object WsMessageScanner {
 
     /**
      * Walk the keys of the object starting at [start], calling [onEntry] with each key's range, without its quotes, and
-     * its value's range, until it returns true or the object ends. Stops early on anything it cannot read, including a
-     * key with escapes.
+     * where its value starts, until it returns true or the object ends. A value is skipped only to reach the next key,
+     * so one [onEntry] reads, or ends the walk at, is never skipped. Stops early on anything it cannot read, including a
+     * key with escapes; a value [onEntry] reads may still be unterminated.
      */
     private inline fun scanObject(
         text: String,
         start: Int,
-        onEntry: (keyStart: Int, keyEnd: Int, valueStart: Int, valueEnd: Int) -> Boolean,
+        onEntry: (keyStart: Int, keyEnd: Int, valueStart: Int) -> Boolean,
     ) {
         if (start >= text.length || text[start] != '{') return
         var i = start + 1
@@ -182,10 +220,11 @@ internal object WsMessageScanner {
             i = skipWhitespace(text, keyEnd)
             if (i >= text.length || text[i] != ':') return
             val valueStart = skipWhitespace(text, i + 1)
+            if (valueStart >= text.length) return
+            if (onEntry(keyStart, keyEnd - 1, valueStart)) return
+
             i = skipValue(text, valueStart)
             if (i < 0) return
-
-            if (onEntry(keyStart, keyEnd - 1, valueStart, i)) return
 
             i = skipWhitespace(text, i)
             if (i >= text.length || text[i] != ',') return
@@ -200,6 +239,12 @@ internal object WsMessageScanner {
     private fun hasEscape(text: String, start: Int, end: Int): Boolean {
         for (k in start until end) if (text[k] == '\\') return true
         return false
+    }
+
+    /** The value in [text] starting at [start] read as a `Long`, or [NONE] if it is not one or does not end. */
+    private fun readLong(text: String, start: Int): Long {
+        val end = skipValue(text, start)
+        return if (end < 0) NONE else readLong(text, start, end)
     }
 
     /** The value in [text] from [start] to [end] read as a `Long`, or [NONE]. */
