@@ -44,7 +44,7 @@ struct TransferFixture {
         bob = try KeypairSigner.companion.fromSeed(data: Data(repeating: 2, count: 32))
         let blockhash = try SolanaBlockhash.companion.fromData(data: Data(repeating: 3, count: 32))
         // `lamports:` takes the BigInteger overload; the Int64 one shares its selector, so Kotlin mangles its label
-        let transfer = try SystemProgram.shared.transfer(from: bob.publicKey, to: alice.publicKey, lamports_: 42)
+        let transfer = SystemProgram.shared.transfer(from: bob.publicKey, to: alice.publicKey, lamports_: 42)
         tx = try value(SolanaTxLegacy.companion.compile(feePayer: alice.publicKey, blockhash: blockhash, instruction: transfer))
         let bobSignature = bob.signMessage(message: tx.serializeMessage())
         partial = try tx.signingBuilder().addSignature(signer: bob.publicKey, signature: bobSignature).serializePartialData()
@@ -136,21 +136,17 @@ func solanaTests(_ t: Harness, _ f: TransferFixture) {
         }
     }
 
-    t.test("validating constructors and request setters throw instead of aborting") {
-        for (name, call) in [
-            ("DataSlice", { _ = try DataSlice(offset: -1, length: 0) }),
-            ("SolanaSendConfig", { _ = try SolanaSendConfig(skipPreflight: false, preflightCommitment: nil, maxRetries: KotlinInt(value: -1), minContextSlot: nil) }),
-            ("computeUnitLimit", { _ = try SolanaTransactionRequest().computeUnitLimit(computeUnitLimit: KotlinLong(value: -1)) }),
-            ("DataSlice copy", { _ = try DataSlice(offset: 0, length: 0).doCopy(offset: -1, length: 0) }),
-            ("memo", { _ = try MemoProgram.shared.memo(message: "fine", signers: []) }),
-        ] as [(String, () throws -> Void)] {
-            do {
-                try call()
-                t.check(name == "memo", "\(name) accepted an invalid value")
-            } catch {
-                t.check((error as NSError).kotlinException is KotlinIllegalArgumentException, "\(name) threw \(error)")
-            }
-        }
+    t.test("checks only a caller's bug can fail take no try") {
+        // compiling this without `try` is the check: a bad value here is a bug, so it traps rather than throws
+        let slice = DataSlice(offset: 0, length: 8).doCopy(offset: 4, length: 8)
+        t.check(slice.offset == 4, "a data slice copies")
+        let config = SolanaSendConfig(skipPreflight: false, preflightCommitment: nil, maxRetries: KotlinInt(value: 3), minContextSlot: nil)
+        t.check(config.maxRetries?.int32Value == 3, "a send config builds")
+        let request = SolanaTransactionRequest().computeUnitLimit(computeUnitLimit: KotlinLong(value: 200_000))
+        request.heapSize = KotlinLong(value: 65_536)
+        t.check(request.computeUnitLimit?.int64Value == 200_000 && request.heapSize?.int64Value == 65_536, "request limits set by chain and by property")
+        let memo = MemoProgram.shared.memo(message: "fine", signers: [])
+        t.check(memo.programId == Programs.shared.MEMO, "a memo builds")
     }
 
     t.test("an unsupported transaction type comes from fromVersion") {
@@ -179,10 +175,10 @@ func solanaTests(_ t: Harness, _ f: TransferFixture) {
 
     t.test("signing, verifying and deriving addresses take Data") {
         let message: Data = SolanaDataKt.serializeMessageData(f.tx)
-        let signature = try f.alice.signMessage(data: message)
+        let signature = f.alice.signMessage(data: message)
         t.check(f.alice.publicKey.verify(signature: signature, data: message), "alice's signature verifies")
         t.check(!f.bob.publicKey.verify(signature: signature, data: message), "it does not verify for bob")
-        _ = try Ed25519Program.shared.verify(publicKey: f.alice.publicKey, data: message, signature: signature)
+        _ = Ed25519Program.shared.verify(publicKey: f.alice.publicKey, data: message, signature: signature)
         t.check(f.alice.toSecretKeyData().count == 64, "the secret key is 64 bytes")
 
         let pda = try SolanaAddress.companion.findProgramAddress(seedData: [Data("vault".utf8), f.alice.publicKey.toData()], programId: f.bob.publicKey)
@@ -221,16 +217,6 @@ func confirmationTests(_ t: Harness) async {
             t.check(timedOut != nil, "timed out, got \(String(describing: error))")
             // the raw Duration is hidden: Swift reads the wait in seconds
             t.check((timedOut?.waitedSeconds ?? 0) >= 0.05 && (timedOut?.waitedSeconds ?? 99) < 30, "waited \(String(describing: timedOut?.waitedSeconds)) seconds")
-        }
-
-        await t.testAsync("confirmation rejects NaN seconds by throwing") {
-            let pending = SwiftFixturesKt.pendingSolanaTransaction(confirmationStatus: "confirmed")
-            do {
-                _ = try await pending.confirmation(commitment: Commitment.confirmed, intervalSeconds: .nan, timeoutSeconds: 1)
-                t.fail("NaN was accepted")
-            } catch {
-                t.check((error as NSError).kotlinException is KotlinIllegalArgumentException, "threw \(error)")
-            }
         }
     }.value
 }

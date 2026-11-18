@@ -16,7 +16,6 @@ import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
 import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmSynthetic
-import kotlin.native.HiddenFromObjC
 import kotlin.native.ObjCName
 
 /**
@@ -55,9 +54,7 @@ class SolanaTransactionRequest() {
         this.heapSize = other.heapSize
     }
 
-    // make property setters unavailable from Java since we provide custom chained functions. The validating
-    // properties are hidden from Objective-C too: a property setter cannot declare @Throws, so a bad value assigned
-    // from Swift would abort the process. Swift sets them through the throwing chained functions instead.
+    // make property setters unavailable from Java since we provide custom chained functions
     var feePayer: SolanaAddress? = null
         @JvmSynthetic set
 
@@ -69,7 +66,6 @@ class SolanaTransactionRequest() {
         @JvmSynthetic set
 
     /** Compute units the transaction may consume, encoded per version. */
-    @HiddenFromObjC
     var computeUnitLimit: Long? = null
         @JvmSynthetic set(value) {
             require(value == null || value in 0..U32_MAX) { "Compute unit limit must fit an unsigned 32-bit integer" }
@@ -77,7 +73,6 @@ class SolanaTransactionRequest() {
         }
 
     /** Micro-lamports per compute unit, as the ComputeBudget program states it. */
-    @HiddenFromObjC
     var computeUnitPrice: BigInteger? = null
         @JvmSynthetic set(value) {
             value?.let(::requireU64)
@@ -91,7 +86,6 @@ class SolanaTransactionRequest() {
      * turned into `ceil(priorityFee * 1_000_000 / computeUnitLimit)` micro-lamports, which the runtime
      * charges back at no less than the requested total; stating it there needs a compute unit limit.
      */
-    @HiddenFromObjC
     var priorityFee: BigInteger? = null
         @JvmSynthetic set(value) {
             value?.let(::requireU64)
@@ -99,7 +93,6 @@ class SolanaTransactionRequest() {
         }
 
     /** Combined size of the accounts the transaction may load, encoded per version. */
-    @HiddenFromObjC
     var loadedAccountsDataSizeLimit: Long? = null
         @JvmSynthetic set(value) {
             require(value == null || value in 0..U32_MAX) { "Loaded accounts data size limit must fit an unsigned 32-bit integer" }
@@ -107,7 +100,6 @@ class SolanaTransactionRequest() {
         }
 
     /** Heap space the transaction may use, encoded per version. */
-    @HiddenFromObjC
     var heapSize: Long? = null
         @JvmSynthetic set(value) {
             require(value == null || value in 0..U32_MAX) { "Heap size must fit an unsigned 32-bit integer" }
@@ -139,19 +131,12 @@ class SolanaTransactionRequest() {
 
     fun instructions(instructions: List<Instruction>) = apply { this.instructions = instructions }
     fun instruction(instruction: Instruction) = apply { this.instructions += instruction }
-    @Throws(IllegalArgumentException::class)
     fun computeUnitLimit(computeUnitLimit: Long?) = apply { this.computeUnitLimit = computeUnitLimit }
-    @Throws(IllegalArgumentException::class)
     fun computeUnitPrice(computeUnitPrice: BigInteger?) = apply { this.computeUnitPrice = computeUnitPrice }
-    @Throws(IllegalArgumentException::class)
     fun computeUnitPrice(computeUnitPrice: Long) = apply { this.computeUnitPrice = bigIntegerOf(computeUnitPrice) }
-    @Throws(IllegalArgumentException::class)
     fun priorityFee(priorityFee: BigInteger?) = apply { this.priorityFee = priorityFee }
-    @Throws(IllegalArgumentException::class)
     fun priorityFee(priorityFee: Long) = apply { this.priorityFee = bigIntegerOf(priorityFee) }
-    @Throws(IllegalArgumentException::class)
     fun loadedAccountsDataSizeLimit(loadedAccountsDataSizeLimit: Long?) = apply { this.loadedAccountsDataSizeLimit = loadedAccountsDataSizeLimit }
-    @Throws(IllegalArgumentException::class)
     fun heapSize(heapSize: Long?) = apply { this.heapSize = heapSize }
 
     /**

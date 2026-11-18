@@ -23,11 +23,9 @@ class SolanaBytes private constructor(private val value: ByteArray) {
     val size: Int get() = value.size
     val isEmpty: Boolean get() = value.isEmpty()
 
-    @Throws(IndexOutOfBoundsException::class, IllegalArgumentException::class)
     operator fun get(index: Int): Byte = value[index]
 
     /** Copy from [fromIndex] (inclusive) to [toIndex] (exclusive), rejecting invalid ranges. */
-    @Throws(IndexOutOfBoundsException::class, IllegalArgumentException::class)
     fun slice(fromIndex: Int, toIndex: Int): SolanaBytes {
         if (fromIndex !in 0..size || toIndex !in 0..size) {
             throw IndexOutOfBoundsException("Range [$fromIndex, $toIndex) is outside 0..$size")
@@ -57,7 +55,6 @@ class SolanaBytes private constructor(private val value: ByteArray) {
 
     /** Copy all bytes, validating the destination range before writing anything. */
     @JvmOverloads
-    @Throws(IndexOutOfBoundsException::class, IllegalArgumentException::class)
     fun copyInto(destination: ByteArray, destinationOffset: Int = 0) {
         if (destinationOffset < 0 || destinationOffset > destination.size || size > destination.size - destinationOffset) {
             throw IndexOutOfBoundsException("Insufficient destination space at offset $destinationOffset for $size bytes")

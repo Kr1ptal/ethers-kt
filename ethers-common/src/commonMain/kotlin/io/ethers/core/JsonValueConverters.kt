@@ -13,7 +13,6 @@ import kotlinx.serialization.serializerOrNull
 
 @Suppress("UNCHECKED_CAST")
 @OptIn(InternalSerializationApi::class)
-@Throws(IllegalArgumentException::class)
 fun Any?.toJsonElement(): JsonElement = when (this) {
     null -> JsonNull
     is JsonElement -> this

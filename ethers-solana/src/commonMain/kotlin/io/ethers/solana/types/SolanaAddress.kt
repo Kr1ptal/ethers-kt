@@ -112,7 +112,6 @@ constructor(bytes: ByteArray) {
 
         @JvmStatic
         @JvmOverloads
-        @Throws(IllegalArgumentException::class)
         fun findAssociatedTokenAddress(owner: SolanaAddress, mint: SolanaAddress, tokenProgram: SolanaAddress = Programs.TOKEN): ProgramDerivedAddress {
             return findProgramAddress(listOf(owner.asByteArray(), tokenProgram.asByteArray(), mint.asByteArray()), Programs.ASSOCIATED_TOKEN)
         }

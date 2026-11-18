@@ -67,8 +67,11 @@ try {
 
 ## Swift
 
-On Apple targets every function that can throw declares it, so Swift calls it with `try` and a failure arrives as a
-thrown `Error` instead of aborting the process. Call `unwrap()` on a `Result`: a `Failure` is thrown, and the
+On Apple targets a function declares a throw when outside data can make it fail: decoding bytes or text, keys and
+signatures, signatures gathered from other parties. Swift calls it with `try`, and the failure arrives as a thrown
+`Error`. A check that only a caller's bug can fail, such as a negative amount, an out-of-range limit or a mismatched
+argument in an instruction builder, declares nothing and traps, as Swift's own precondition failures do. Validate
+amounts where you read them, for example with `SolUnit`'s text conversions, which throw. Call `unwrap()` on a `Result`: a `Failure` is thrown, and the
 original `SolanaTransactionError` stays reachable through
 `((error as NSError).kotlinException as? SolanaTransactionException)?.error`. `onSuccess`, `onFailure`,
 `unwrapOrElse` and `unwrapErrorOrElse` take Swift closures, typed by the `Result`'s own value and error types. The

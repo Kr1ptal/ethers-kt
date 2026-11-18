@@ -32,7 +32,6 @@ object TokenProgram {
      */
     @JvmStatic
     @JvmOverloads
-    @Throws(IllegalArgumentException::class)
     fun transferChecked(
         from: SolanaAddress,
         to: SolanaAddress,
@@ -50,7 +49,6 @@ object TokenProgram {
 
     @JvmStatic
     @JvmOverloads
-    @Throws(IllegalArgumentException::class)
     fun transferChecked(
         from: SolanaAddress,
         to: SolanaAddress,
@@ -64,7 +62,6 @@ object TokenProgram {
     /** Let [delegate] move up to [amount] from [account], checked against the mint's [decimals]. */
     @JvmStatic
     @JvmOverloads
-    @Throws(IllegalArgumentException::class)
     fun approveChecked(
         account: SolanaAddress,
         mint: SolanaAddress,
@@ -97,7 +94,6 @@ object TokenProgram {
     /** Destroy [amount] tokens held by [account], reducing the mint's supply. */
     @JvmStatic
     @JvmOverloads
-    @Throws(IllegalArgumentException::class)
     fun burnChecked(
         account: SolanaAddress,
         mint: SolanaAddress,
@@ -115,7 +111,6 @@ object TokenProgram {
     /** Create [amount] new tokens in [account], which only the mint authority may do. */
     @JvmStatic
     @JvmOverloads
-    @Throws(IllegalArgumentException::class)
     fun mintToChecked(
         mint: SolanaAddress,
         account: SolanaAddress,
@@ -148,13 +143,11 @@ object TokenProgram {
     /** Initialize an allocated mint using the rent sysvar. Include with account creation in the same transaction. */
     @JvmStatic
     @JvmOverloads
-    @Throws(IllegalArgumentException::class)
     fun initializeMint(mint: SolanaAddress, decimals: Int, mintAuthority: SolanaAddress, freezeAuthority: SolanaAddress? = null, tokenProgram: SolanaAddress = ID): Instruction = Instruction(tokenProgram, listOf(AccountMeta.writable(mint), AccountMeta(Programs.SYSVAR_RENT)), byteArrayOf(0, requireDecimals(decimals).toByte()) + mintAuthority.asByteArray() + authorityOption(freezeAuthority))
 
     /** Initialize an allocated mint without a rent sysvar account. Include with account creation in the same transaction. */
     @JvmStatic
     @JvmOverloads
-    @Throws(IllegalArgumentException::class)
     fun initializeMint2(mint: SolanaAddress, decimals: Int, mintAuthority: SolanaAddress, freezeAuthority: SolanaAddress? = null, tokenProgram: SolanaAddress = ID): Instruction = Instruction(tokenProgram, listOf(AccountMeta.writable(mint)), byteArrayOf(20, requireDecimals(decimals).toByte()) + mintAuthority.asByteArray() + authorityOption(freezeAuthority))
 
     /** Initialize an allocated token account using the rent sysvar. Include with account creation in the same transaction. */
@@ -170,7 +163,6 @@ object TokenProgram {
     /** Initialize an allocated multisig; member accounts do not sign initialization. Uses the rent sysvar. */
     @JvmStatic
     @JvmOverloads
-    @Throws(IllegalArgumentException::class)
     fun initializeMultisig(account: SolanaAddress, requiredSignatures: Int, signers: List<SolanaAddress>, tokenProgram: SolanaAddress = ID): Instruction {
         require(signers.size in 1..11) { "Multisig must have between 1 and 11 signers" }
         require(requiredSignatures in 1..signers.size) { "Required signatures must be between 1 and the signer count" }
@@ -180,7 +172,6 @@ object TokenProgram {
     /** Initialize an allocated multisig; member accounts do not sign initialization. Does not require the rent sysvar. */
     @JvmStatic
     @JvmOverloads
-    @Throws(IllegalArgumentException::class)
     fun initializeMultisig2(account: SolanaAddress, requiredSignatures: Int, signers: List<SolanaAddress>, tokenProgram: SolanaAddress = ID): Instruction {
         require(signers.size in 1..11) { "Multisig must have between 1 and 11 signers" }
         require(requiredSignatures in 1..signers.size) { "Required signatures must be between 1 and the signer count" }
@@ -248,13 +239,11 @@ object Token2022Program {
     /** Token-2022 version of [TokenProgram.initializeMint]. Extension-specific setup remains the caller's responsibility. */
     @JvmStatic
     @JvmOverloads
-    @Throws(IllegalArgumentException::class)
     fun initializeMint(mint: SolanaAddress, decimals: Int, mintAuthority: SolanaAddress, freezeAuthority: SolanaAddress? = null): Instruction = TokenProgram.initializeMint(mint, decimals, mintAuthority, freezeAuthority, ID)
 
     /** Token-2022 version of [TokenProgram.initializeMint2]. Extension-specific setup remains the caller's responsibility. */
     @JvmStatic
     @JvmOverloads
-    @Throws(IllegalArgumentException::class)
     fun initializeMint2(mint: SolanaAddress, decimals: Int, mintAuthority: SolanaAddress, freezeAuthority: SolanaAddress? = null): Instruction = TokenProgram.initializeMint2(mint, decimals, mintAuthority, freezeAuthority, ID)
 
     /** Token-2022 version of [TokenProgram.initializeAccount]. Extension-specific setup remains the caller's responsibility. */
@@ -267,12 +256,10 @@ object Token2022Program {
 
     /** Token-2022 version of [TokenProgram.initializeMultisig]. Extension-specific setup remains the caller's responsibility. */
     @JvmStatic
-    @Throws(IllegalArgumentException::class)
     fun initializeMultisig(account: SolanaAddress, requiredSignatures: Int, signers: List<SolanaAddress>): Instruction = TokenProgram.initializeMultisig(account, requiredSignatures, signers, ID)
 
     /** Token-2022 version of [TokenProgram.initializeMultisig2]. Extension-specific setup remains the caller's responsibility. */
     @JvmStatic
-    @Throws(IllegalArgumentException::class)
     fun initializeMultisig2(account: SolanaAddress, requiredSignatures: Int, signers: List<SolanaAddress>): Instruction = TokenProgram.initializeMultisig2(account, requiredSignatures, signers, ID)
 
     /** Token-2022 version of [TokenProgram.setAuthority]. Extension-specific setup remains the caller's responsibility. */
@@ -297,7 +284,6 @@ object Token2022Program {
     /** Token-2022 version of [TokenProgram.approveChecked]. */
     @JvmStatic
     @JvmOverloads
-    @Throws(IllegalArgumentException::class)
     fun approveChecked(account: SolanaAddress, mint: SolanaAddress, delegate: SolanaAddress, owner: SolanaAddress, amount: BigInteger, decimals: Int, signers: List<SolanaAddress> = emptyList()): Instruction = TokenProgram.approveChecked(account, mint, delegate, owner, amount, decimals, signers, ID)
 
     /** Token-2022 version of [TokenProgram.revoke]. */
@@ -308,13 +294,11 @@ object Token2022Program {
     /** Token-2022 version of [TokenProgram.burnChecked]. */
     @JvmStatic
     @JvmOverloads
-    @Throws(IllegalArgumentException::class)
     fun burnChecked(account: SolanaAddress, mint: SolanaAddress, owner: SolanaAddress, amount: BigInteger, decimals: Int, signers: List<SolanaAddress> = emptyList()): Instruction = TokenProgram.burnChecked(account, mint, owner, amount, decimals, signers, ID)
 
     /** Token-2022 version of [TokenProgram.mintToChecked]. */
     @JvmStatic
     @JvmOverloads
-    @Throws(IllegalArgumentException::class)
     fun mintToChecked(mint: SolanaAddress, account: SolanaAddress, authority: SolanaAddress, amount: BigInteger, decimals: Int, signers: List<SolanaAddress> = emptyList()): Instruction = TokenProgram.mintToChecked(mint, account, authority, amount, decimals, signers, ID)
 
     /** Token-2022 version of [TokenProgram.closeAccount]. */
@@ -325,7 +309,6 @@ object Token2022Program {
     /** Token-2022 TransferChecked, including multisig owners. */
     @JvmStatic
     @JvmOverloads
-    @Throws(IllegalArgumentException::class)
     fun transferChecked(
         from: SolanaAddress,
         to: SolanaAddress,
@@ -338,7 +321,6 @@ object Token2022Program {
 
     @JvmStatic
     @JvmOverloads
-    @Throws(IllegalArgumentException::class)
     fun transferChecked(
         from: SolanaAddress,
         to: SolanaAddress,

@@ -85,8 +85,8 @@ class ThrowContractTest : FunSpec({
         }
     }
 
-    // Not data classes, so their copy can declare @Throws; these pin that they still behave like data classes.
-    context("validating classes copy like data classes, throwing only the declared type") {
+    // A copy re-runs the constructor's checks, so an invalid copy fails as an invalid construction does.
+    context("validating data classes check their copies too") {
         test("DataSlice") {
             val slice = DataSlice(1, 2)
             slice.copy(length = 3) shouldBe DataSlice(1, 3)

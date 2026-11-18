@@ -101,14 +101,12 @@ fun KeypairSigner.Companion.fromSeed(data: NSData): KeypairSigner = fromSeed(dat
 fun KeypairSigner.Companion.fromSecretKey(data: NSData): KeypairSigner = fromSecretKey(data.toByteArray())
 
 /** As [KeypairSigner.signMessage], signing the exact bytes of [data]. */
-@Throws(IllegalArgumentException::class)
 fun KeypairSigner.signMessage(data: NSData): SolanaSignature = signMessage(data.toByteArray())
 
 /** As [KeypairSigner.toSecretKey]: the 64-byte seed and public key. Keep it as secret as the signer itself. */
 fun KeypairSigner.toSecretKeyData(): NSData = toSecretKey().toNSData()
 
 /** As [Ed25519Program.verify], for a signature over [data]. */
-@Throws(IllegalArgumentException::class)
 fun Ed25519Program.verify(publicKey: SolanaAddress, data: NSData, signature: SolanaSignature): Instruction = verify(publicKey, data.toByteArray(), signature)
 
 /** As [TokenAccount.decode], from an account's data. */

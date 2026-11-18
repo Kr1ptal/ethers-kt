@@ -45,7 +45,6 @@ sealed interface SolanaTransactionUnsigned : SolanaTransactionCompiled {
      *
      * @throws IllegalArgumentException if [signatures] does not hold exactly one slot per required signature
      */
-    @Throws(IllegalArgumentException::class)
     fun encodeEnvelope(signatures: List<SolanaSignature?>): ByteArray
 
     override fun serializeForSimulation(): ByteArray = encodeEnvelope(List(header.requiredSignatures) { null })

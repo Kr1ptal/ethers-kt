@@ -98,7 +98,6 @@ object FastHex {
      * Encode [buffer] range to hex string prefixed with '0x'.
      * */
     @JvmStatic
-    @Throws(IndexOutOfBoundsException::class)
     fun encodeWithPrefix(buffer: ByteArray, offset: Int, len: Int): String {
         return encodeToAsciiBytes(buffer, offset, len, true).decodeToString()
     }
@@ -115,7 +114,6 @@ object FastHex {
      * Encode [buffer] range to hex string without '0x' prefix.
      * */
     @JvmStatic
-    @Throws(IndexOutOfBoundsException::class)
     fun encodeWithoutPrefix(buffer: ByteArray, offset: Int, len: Int): String {
         return encodeToAsciiBytes(buffer, offset, len, false).decodeToString()
     }
@@ -203,7 +201,7 @@ object FastHex {
      * handles uneven length by implicitly adding a leading zero.
      * */
     @JvmStatic
-    @Throws(IllegalArgumentException::class, IndexOutOfBoundsException::class)
+    @Throws(IllegalArgumentException::class)
     fun decode(hex: CharSequence, offset: Int = 0, length: Int = hex.length - offset): ByteArray {
         return decodeCharSequence(hex, offset, length, ::decodeHexByte)
     }
@@ -213,7 +211,7 @@ object FastHex {
      * handles uneven length by implicitly adding a leading zero.
      * */
     @JvmStatic
-    @Throws(IllegalArgumentException::class, IndexOutOfBoundsException::class)
+    @Throws(IllegalArgumentException::class)
     fun decode(hex: ByteArray, offset: Int = 0, length: Int = hex.size - offset): ByteArray {
         return decodeByteArray(hex, offset, length, ::decodeHexByte)
     }
@@ -223,7 +221,7 @@ object FastHex {
      * handles uneven length by implicitly adding a leading zero.
      * */
     @JvmStatic
-    @Throws(IllegalArgumentException::class, IndexOutOfBoundsException::class)
+    @Throws(IllegalArgumentException::class)
     fun decode(hex: CharArray, offset: Int = 0, length: Int = hex.size - offset): ByteArray {
         return decodeCharArray(hex, offset, length, ::decodeHexByte)
     }
@@ -239,7 +237,6 @@ object FastHex {
      * Use [decode] if you are unsure of the input.
      * */
     @JvmStatic
-    @Throws(IndexOutOfBoundsException::class)
     fun decodeUnsafe(hex: CharSequence, offset: Int = 0, length: Int = hex.length - offset): ByteArray {
         return decodeCharSequence(hex, offset, length, ::decodeHexByteUnsafe)
     }
@@ -255,7 +252,6 @@ object FastHex {
      * Use [decode] if you are unsure of the input.
      * */
     @JvmStatic
-    @Throws(IndexOutOfBoundsException::class)
     fun decodeUnsafe(hex: ByteArray, offset: Int = 0, length: Int = hex.size - offset): ByteArray {
         return decodeByteArray(hex, offset, length, ::decodeHexByteUnsafe)
     }
@@ -271,7 +267,6 @@ object FastHex {
      * Use [decode] if you are unsure of the input.
      * */
     @JvmStatic
-    @Throws(IndexOutOfBoundsException::class)
     fun decodeUnsafe(hex: CharArray, offset: Int = 0, length: Int = hex.size - offset): ByteArray {
         return decodeCharArray(hex, offset, length, ::decodeHexByteUnsafe)
     }

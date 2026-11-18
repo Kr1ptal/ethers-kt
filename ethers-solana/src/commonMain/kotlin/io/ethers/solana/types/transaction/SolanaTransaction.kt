@@ -97,7 +97,6 @@ interface SolanaTransaction {
      * Estimate base + priority fee in lamports. A nonzero price requires an explicit compute-unit limit;
      * runtime defaults depend on the invoked programs. The node's getFeeForMessage is authoritative.
      */
-    @Throws(IllegalArgumentException::class)
     fun estimateFee(lamportsPerSignature: BigInteger): BigInteger {
         requireU64(lamportsPerSignature)
         val priority = priorityFee

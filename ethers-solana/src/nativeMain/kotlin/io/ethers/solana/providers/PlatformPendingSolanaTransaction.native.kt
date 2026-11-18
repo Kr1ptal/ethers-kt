@@ -35,7 +35,7 @@ actual interface PlatformPendingSolanaTransaction {
      * @param timeoutSeconds how long to wait when expiry cannot be checked, because no blockhash was supplied
      * @throws IllegalArgumentException if either duration is NaN
      */
-    @Throws(IllegalArgumentException::class, CancellationException::class)
+    @Throws(CancellationException::class)
     suspend fun confirmation(
         commitment: Commitment,
         intervalSeconds: Double,

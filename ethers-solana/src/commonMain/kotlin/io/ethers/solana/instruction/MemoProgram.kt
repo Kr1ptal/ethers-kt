@@ -14,6 +14,5 @@ object MemoProgram {
     /** Attach UTF-8 text, optionally requiring the listed accounts to sign the transaction. */
     @JvmStatic
     @JvmOverloads
-    @Throws(IllegalArgumentException::class)
     fun memo(message: String, signers: List<SolanaAddress> = emptyList()): Instruction = Instruction(ID, signers.map(AccountMeta::signer), message.encodeUtf8Strict())
 }
