@@ -11,6 +11,7 @@ import io.kotest.assertions.nondeterministic.eventually
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.string.shouldContain
 import io.ktor.client.plugins.websocket.WebSockets
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeout
@@ -40,8 +41,9 @@ import io.ktor.client.HttpClient as KtorHttpClient
 // Waits that span a reconnect have to allow for a full WebSocket handshake against the mock server, not just a
 // local round trip - CI runners are far slower than a dev machine. `eventually` returns as soon as the condition
 // holds, so a generous budget costs nothing when things are fast, it only bounds how long a genuine failure takes
-// to surface.
-private val RECONNECT_WINDOW = 5.seconds
+// to surface. A reconnect can include WsClient.RECONNECT_BACKOFF and a slow handshake on each side, so this is a
+// must-not-hang guard rather than a timing expectation.
+private val RECONNECT_WINDOW = 30.seconds
 
 // Waits for a frame to cross the loopback socket. A loaded CI runner has taken over a second for that.
 private val DELIVERY_WINDOW = 5.seconds
@@ -343,10 +345,21 @@ class WsClientTest : FunSpec({
             // Queue the new subscription response for auto-resubscription
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"$newSubscriptionId"}""")
 
+            // Drop the original subscribe request so the next message the server takes is the resubscribe
+            mockServer.takeReceivedText() shouldNotBe null
+
             // Close the connection from server side to trigger reconnection
             mockServer.closeConnection()
 
-            // Verify stream is still open and receives messages after reconnection
+            // Wait for the client to resubscribe over the new connection before notifying it. A reconnect spans
+            // the close handshake, a fresh handshake and possibly a backoff, which a loaded runner can stretch
+            // past any short window.
+            val resubscribe = mockServer.takeReceivedText(RECONNECT_WINDOW.inWholeMilliseconds)
+            resubscribe shouldNotBe null
+            resubscribe!! shouldContain "eth_subscribe"
+
+            // Verify stream is still open and receives messages after reconnection. The server answers the
+            // resubscribe just after recording it, so retry the notification until it follows that response.
             val notification = """
             {
                 "jsonrpc": "2.0",
@@ -361,7 +374,7 @@ class WsClientTest : FunSpec({
             }
             """.trimIndent()
 
-            eventually(RECONNECT_WINDOW) {
+            eventually(DELIVERY_WINDOW) {
                 mockServer.sendJson(notification)
                 stream.isClosed shouldBe false
                 stream.isEmpty shouldBe false
