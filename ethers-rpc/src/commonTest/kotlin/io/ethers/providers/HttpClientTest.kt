@@ -4,6 +4,8 @@ import io.ethers.core.Kotlinx
 import io.ethers.core.isFailure
 import io.ethers.core.isSuccess
 import io.ethers.providers.SerializableValue
+import io.ethers.providers.types.BatchRpcRequest
+import io.ethers.providers.types.RpcCall
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.core.spec.style.FunSpec
@@ -11,11 +13,13 @@ import io.kotest.core.spec.style.funSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
+import kotlin.time.Duration.Companion.seconds
 import io.ktor.client.HttpClient as KtorHttpClient
 
 /**
@@ -73,6 +77,23 @@ private fun httpSpecificTests() = funSpec {
             val error = result.unwrapError()
             error.code shouldBe RpcError.CODE_CALL_FAILED
             error.message shouldContain "HTTP 500"
+        }
+
+        test("HTTP error with a batch response that leaves out a call fails that call with the HTTP error") {
+            server.enqueue(500, """[{"jsonrpc":"2.0","id":2,"error":{"code":-32000,"message":"boom"}}]""")
+
+            val batch = BatchRpcRequest(2)
+            batch.addRpcCall(RpcCall(client, "eth_blockNumber", emptyArray<Any>(), stringSerializer))
+            batch.addRpcCall(RpcCall(client, "eth_chainId", emptyArray<Any>(), stringSerializer))
+
+            withTimeout(30.seconds) {
+                val sent = batch.send()
+                val missing = batch.responses[0].await().unwrapError()
+                missing.code shouldBe RpcError.CODE_CALL_FAILED
+                missing.message shouldContain "HTTP 500"
+                batch.responses[1].await().unwrapError().message shouldBe "boom"
+                sent shouldBe false
+            }
         }
 
         test("empty response body") {

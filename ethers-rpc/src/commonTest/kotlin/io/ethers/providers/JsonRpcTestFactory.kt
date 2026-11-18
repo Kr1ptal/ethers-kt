@@ -244,6 +244,23 @@ object JsonRpcTestFactory {
                 }
             }
 
+            test("batch response that leaves out a call fails that call") {
+                server.enqueueJson(PARTIAL_BATCH_RESPONSE)
+
+                val batch = BatchRpcRequest(3)
+                batch.addRpcCall(RpcCall(client, "eth_blockNumber", emptyArray<Any>(), stringSerializer))
+                batch.addRpcCall(RpcCall(client, "eth_chainId", emptyArray<Any>(), stringSerializer))
+                batch.addRpcCall(RpcCall(client, "eth_gasPrice", emptyArray<Any>(), stringSerializer))
+
+                withTimeout(30.seconds) {
+                    val sent = batch.send()
+                    batch.responses[0].await().unwrapError().code shouldBe RpcError.CODE_INVALID_RESPONSE
+                    batch.responses[1].await().unwrap() shouldBe "0x2"
+                    batch.responses[2].await().unwrapError().code shouldBe RpcError.CODE_INVALID_RESPONSE
+                    sent shouldBe false
+                }
+            }
+
             test("batch with invalid request ID in response") {
                 server.enqueueJson(BATCH_INVALID_ID_RESPONSE)
 
@@ -267,6 +284,9 @@ object JsonRpcTestFactory {
     private val UNDECODABLE_RESULT_BATCH_RESPONSE = """
         [{"jsonrpc":"2.0","id":1,"result":{"not":"a string"}},{"jsonrpc":"2.0","id":2,"result":"0x1"}]
     """.trimIndent()
+
+    // a response to the second of three calls only
+    private val PARTIAL_BATCH_RESPONSE = """[{"jsonrpc":"2.0","id":2,"result":"0x2"}]"""
 
     private val SUCCESSFUL_RESPONSE = """
     {
