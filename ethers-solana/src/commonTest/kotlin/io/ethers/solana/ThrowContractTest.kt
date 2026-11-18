@@ -23,6 +23,7 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Regressions for paths that threw where their contract says they do not, or threw a type their `@Throws` does not
@@ -153,6 +154,13 @@ class ThrowContractTest : FunSpec({
             shouldThrow<IllegalArgumentException> { SolUnit.SOL.toLamports(Double.NaN) }
             shouldThrow<IllegalArgumentException> { SolUnit.SOL.toLamports(Double.POSITIVE_INFINITY) }
             SolUnit.SOL.toLamports(1.5) shouldBe SolUnit.SOL.toLamports("1.5")
+        }
+
+        test("text whose exponent is out of range").config(timeout = 10.seconds) {
+            for (text in listOf("1e2147483647", "1e-2147483647", "1e2147483640", "-1e-2147483640", "1e99999999999")) {
+                shouldThrow<IllegalArgumentException> { SolUnit.SOL.toLamports(text) }
+                shouldThrow<IllegalArgumentException> { SolUnit.LAMPORT.toSol(text) }
+            }
         }
     }
 })
