@@ -224,7 +224,6 @@ data class SolUnit(val decimals: Int) {
      * Convert an [amount] from the current unit to [toUnit], truncating values less than 1 micro-lamport.
      */
     fun convert(amount: Double, toUnit: SolUnit): BigDecimal {
-        require(amount.isFinite()) { "Cannot convert a non-finite amount, got $amount" }
         return convert(amount.toBigDecimal(), toUnit)
     }
 
