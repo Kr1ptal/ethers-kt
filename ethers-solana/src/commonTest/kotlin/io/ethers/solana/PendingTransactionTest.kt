@@ -175,7 +175,7 @@ class PendingTransactionTest : FunSpec({
             feePayer(signer.publicKey)
             blockhash(blockhash)
             instruction(SystemProgram.transfer(signer.publicKey, Programs.SYSTEM, 1L))
-        }.compileLegacy().unwrap().sign(signer)
+        }.compileLegacy().unwrap().sign(signer).unwrap()
 
         val calls = mutableListOf<String>()
         val provider = providerFor(
@@ -286,7 +286,7 @@ class PendingTransactionTest : FunSpec({
             feePayer(signer.publicKey)
             blockhash(blockhash)
             instruction(SystemProgram.advanceNonceAccount(Programs.SYSVAR_RENT, signer.publicKey))
-        }.compileLegacy().unwrap().sign(signer)
+        }.compileLegacy().unwrap().sign(signer).unwrap()
         val calls = mutableListOf<String>()
         val provider = providerFor(
             mapOf(
@@ -392,7 +392,7 @@ class PendingTransactionTest : FunSpec({
             feePayer(signer.publicKey)
             blockhash(blockhash)
             instruction(SystemProgram.transfer(signer.publicKey, Programs.SYSTEM, 1L))
-        }.compileLegacy().unwrap().sign(signer)
+        }.compileLegacy().unwrap().sign(signer).unwrap()
         val calls = mutableListOf<String>()
         val provider = providerFor(mapOf("sendTransaction" to mutableListOf("\"${tx.id}\"")), calls)
         val api = object : SolanaApi {
@@ -477,7 +477,7 @@ class PendingTransactionTest : FunSpec({
                 feePayer(signer.publicKey)
                 blockhash(blockhash)
                 instruction(SystemProgram.transfer(signer.publicKey, Programs.SYSTEM, 1L))
-            }.compileLegacy().unwrap().sign(signer)
+            }.compileLegacy().unwrap().sign(signer).unwrap()
 
             // the failure belongs to the send, not to confirmation: there is no transaction to track
             provider.sendTransaction(signed).send().unwrapError().code shouldBe -32002

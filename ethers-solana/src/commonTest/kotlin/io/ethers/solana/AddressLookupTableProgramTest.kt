@@ -40,7 +40,7 @@ class AddressLookupTableProgramTest : FunSpec({
             instruction(created.instruction)
         }.compileLegacy().unwrap()
         tx.signers shouldBe listOf(payer.publicKey)
-        tx.sign(payer).signatures.size shouldBe 1
+        tx.sign(payer).unwrap().signatures.size shouldBe 1
     }
 
     test("lookup table slots support full u64 and reject out-of-range values") {

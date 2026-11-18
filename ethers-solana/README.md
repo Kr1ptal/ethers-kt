@@ -29,7 +29,7 @@ suspend fun transfer(seed: ByteArray, recipient: SolanaAddress) {
             signer.publicKey, latest.blockhash,
             SystemProgram.transfer(signer.publicKey, recipient, 1_000L),
         ).unwrap()
-        val transaction = message.sign(signer)
+        val transaction = message.sign(signer).unwrap()
         val pending = provider.sendTransaction(transaction).send().unwrap()
         println(pending.signature)
         println(pending.confirmation().unwrap().confirmationStatus)
@@ -56,7 +56,7 @@ try {
     var latest = provider.getLatestBlockhash().sendAwait().unwrap().getValue();
     var instruction = SystemProgram.transfer(signer.getPublicKey(), recipient, 1_000L);
     var message = SolanaTxV0.compile(signer.getPublicKey(), latest.getBlockhash(), instruction).unwrap();
-    var transaction = message.sign(signer);
+    var transaction = message.sign(signer).unwrap();
     var pending = provider.sendTransaction(transaction).sendAwait().unwrap();
     System.out.println(pending.getSignature());
     System.out.println(pending.awaitConfirmation().unwrap().getConfirmationStatus());
@@ -99,7 +99,7 @@ _ = try builder.addSignature(signer: payer, signature: SolanaSignature.companion
 let signed = try builder.build().unwrap()!
 let bytes: Data = signed.serializeData()
 
-let transaction = try unsigned.sign(signers: [aliceSigner, bobSigner])
+let transaction = try unsigned.sign(signers: [aliceSigner, bobSigner]).unwrap()!
 ```
 
 ## Transaction types and signing
@@ -116,7 +116,8 @@ val signed = builder.sign(bob).build().unwrap()     // Result; every slot must h
 // build() reports every empty and every failing slot at once, as SolanaTransactionError.UnsignedSlots.
 ```
 
-`unsigned.sign(vararg signers)` and `unsigned.sign(signers: List)` require all signers. The nested builder collects signatures for a fixed
+`unsigned.sign(vararg signers)` and `unsigned.sign(signers: List)` require all signers and return a `Result`,
+failing with `UnsignedSlots` when a signature is missing or invalid. The nested builder collects signatures for a fixed
 unsigned payload; it is mutable, not thread-safe, and is not a transaction itself. `build()` returns an immutable
 fully signed snapshot. Constructors and imports verify every supplied signature against its ordered signer slot.
 A signed transaction's `id` is its first signature. Replacing the message or blockhash returns an unsigned
@@ -147,7 +148,7 @@ val config = SolanaTransactionConfig(
     heapSize = 65_536,
 )
 val unsigned = SolanaTxV1.compile(feePayer, blockhash, instructions, config).unwrap()
-val signed = unsigned.sign(signer)
+val signed = unsigned.sign(signer).unwrap()
 val simulation = provider.simulateTransaction(signed).send().unwrap()
 ```
 

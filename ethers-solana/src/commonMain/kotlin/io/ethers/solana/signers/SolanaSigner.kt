@@ -22,7 +22,7 @@ interface SolanaSigner {
     fun signMessage(message: ByteArray): SolanaSignature
 
     @Throws(IllegalArgumentException::class)
-    fun signTransaction(transaction: SolanaTransactionUnsigned): SolanaTransactionSigned = transaction.sign(this)
+    fun signTransaction(transaction: SolanaTransactionUnsigned): SolanaTransactionSigned = transaction.sign(this).unwrap()
 
     /**
      * Safe alternative to [signMessage], reporting a signer that could not produce a signature as a

@@ -161,16 +161,13 @@ func solanaTests(_ t: Harness, _ f: TransferFixture) {
         t.check((decoded as? NSObject)?.isEqual(f.tx) == true, "the message decodes to the same transaction")
     }
 
-    t.test("sign takes a Swift array") {
-        let signed = try f.tx.sign(signers: [f.alice, f.bob])
+    t.test("sign takes a Swift array and returns a Result") {
+        let signed = try value(f.tx.sign(signers: [f.alice, f.bob]))
         let built = try value(f.tx.signingBuilder().sign(signers: [f.bob]).sign(signers: [f.alice]).build())
         t.check(built == signed, "the builder takes arrays too")
-        do {
-            _ = try f.tx.sign(signers: [f.alice])
-            t.fail("a missing signer produced a transaction")
-        } catch {
-            t.check((error as NSError).kotlinException is KotlinIllegalArgumentException, "threw \(error)")
-        }
+        // a missing signature is a value, not a thrown error
+        let missing = f.tx.sign(signers: [f.alice])
+        t.check(missing.unwrapErrorOrNull() is SolanaTransactionErrorUnsignedSlots, "a missing signer fails, got \(missing)")
     }
 
     t.test("signing, verifying and deriving addresses take Data") {

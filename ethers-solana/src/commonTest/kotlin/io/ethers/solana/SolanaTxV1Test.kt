@@ -58,7 +58,7 @@ class SolanaTxV1Test : FunSpec({
         ).unwrap()
         tx.serializeMessage() shouldBe expected
         decode(expected).serializeMessage() shouldBe expected
-        val signed = tx.sign(alice)
+        val signed = tx.sign(alice).unwrap()
         signed.id.toByteArray() shouldBe FastHex.decode("cc7a3989600e8a7b6cf4c4a917e46b6887f7151b393f4672b354f018c10e9a66f1d22955779cfe3502534d6cf74b7c94b83704a924886ac5355b3e349620c605")
         signed.serialize() shouldBe expected + signed.id.toByteArray()
         SolanaTransactionSigned.fromBase64(signed.toBase64()).unwrap().serialize() shouldBe signed.serialize()
@@ -94,7 +94,7 @@ class SolanaTxV1Test : FunSpec({
     test("inline priority fee is total lamports and ComputeBudget instructions are ignored") {
         val tx = SolanaTxV1.compile(alice.publicKey, blockhash, Instruction(Programs.COMPUTE_BUDGET, emptyList(), byteArrayOf()), config).unwrap()
         tx.estimateFee(bigIntegerOf(5000)) shouldBe bigIntegerOf(10000)
-        tx.sign(alice).estimateFee(bigIntegerOf(5000)) shouldBe bigIntegerOf(10000)
+        tx.sign(alice).unwrap().estimateFee(bigIntegerOf(5000)) shouldBe bigIntegerOf(10000)
         tx.withConfig(empty).estimateFee(bigIntegerOf(5000)) shouldBe bigIntegerOf(5000)
         shouldThrow<IllegalArgumentException> { tx.estimateFee(bigIntegerOf(-1)) }
     }
@@ -110,7 +110,7 @@ class SolanaTxV1Test : FunSpec({
         val imported = SolanaTransactionSigned.Builder.fromBase64Partial(builder.toBase64Partial()).unwrap()
         imported.missingSigners shouldBe listOf(alice.publicKey)
         val signed = imported.sign(alice).build().unwrap()
-        signed.serialize() shouldBe tx.sign(bob, alice).serialize()
+        signed.serialize() shouldBe tx.sign(bob, alice).unwrap().serialize()
         signed.serialize().takeLast(128).toByteArray() shouldBe signed.signatures.flatMap { it.toByteArray().toList() }.toByteArray()
         signed.serializeForSimulation() shouldBe signed.serialize()
         SolanaTransactionCompiled.deserialize(tx.serializeForSimulation()).unwrap()::class shouldBe SolanaTxV1::class
@@ -124,7 +124,7 @@ class SolanaTxV1Test : FunSpec({
         val wrongConfig = tx.withConfig(empty).signingBuilder().addSignature(alice.publicKey, signed.id).sign(bob)
         wrongConfig.build().unwrapError() shouldBe SolanaTransactionError.UnsignedSlots(emptyList(), listOf(0))
         builder.clearSignatures()
-        signed.serialize() shouldBe tx.sign(alice, bob).serialize()
+        signed.serialize() shouldBe tx.sign(alice, bob).unwrap().serialize()
     }
 
     test("reject malformed masks, truncated fields, trailing bytes and wrong envelopes") {
@@ -140,7 +140,7 @@ class SolanaTxV1Test : FunSpec({
         for (length in message.indices) {
             shouldThrow<IllegalArgumentException> { decode(message.copyOf(length)) }
         }
-        val signed = tx.sign(alice).serialize()
+        val signed = tx.sign(alice).unwrap().serialize()
         for (length in signed.indices) {
             shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.deserialize(signed.copyOf(length)).unwrap() }
         }
@@ -157,7 +157,7 @@ class SolanaTxV1Test : FunSpec({
         val tx = sized(4096 - 174)
         tx.serializeForSimulation().size shouldBe 4096
         decode(tx.serializeMessage()).serializeMessage() shouldBe tx.serializeMessage()
-        val signed = tx.sign(alice)
+        val signed = tx.sign(alice).unwrap()
         SolanaTransactionSigned.deserialize(signed.serialize()).unwrap().serialize() shouldBe signed.serialize()
         shouldThrow<IllegalArgumentException> { sized(4096 - 173) }
         shouldThrow<IllegalArgumentException> { sized(65536) }

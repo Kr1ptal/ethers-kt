@@ -114,7 +114,7 @@ class SolanaTransactionRequestTest : FunSpec({
             tx.instructions.map { tx.accounts[it.programIdIndex] to it.data } shouldBe expected.map { it.programId to it.data }
             tx.instructions.count { it.data == advance.data && tx.accounts[it.programIdIndex] == Programs.SYSTEM } shouldBe 1
             tx.confirmationTracking() shouldBe ConfirmationTracking.DurableNonce(nonceAccount, blockhash)
-            decodeConfirmationTracking(tx.sign(alice).serialize()) shouldBe tx.confirmationTracking()
+            decodeConfirmationTracking(tx.sign(alice).unwrap().serialize()) shouldBe tx.confirmationTracking()
         }
         // V1 has inline compute settings, so the original instruction sequence stays intact.
         val v1 = req.compileV1().unwrap()
@@ -134,7 +134,7 @@ class SolanaTransactionRequestTest : FunSpec({
             tx.recentBlockhash shouldBe nonce
             tx.signers.toSet() shouldBe setOf(alice.publicKey, bob.publicKey)
             tx.confirmationTracking() shouldBe ConfirmationTracking.DurableNonce(nonceAccount, nonce)
-            decodeConfirmationTracking(tx.sign(alice, bob).serialize()) shouldBe tx.confirmationTracking()
+            decodeConfirmationTracking(tx.sign(alice, bob).unwrap().serialize()) shouldBe tx.confirmationTracking()
         }
     }
 

@@ -42,7 +42,7 @@ class TransactionBoundaryTest : FunSpec({
             )
             for (tx in messages) {
                 tx.envelopeSize() shouldBe tx.serializeForSimulation().size.toLong()
-                tx.envelopeSize() shouldBe tx.sign(signer).serialize().size.toLong()
+                tx.envelopeSize() shouldBe tx.sign(signer).unwrap().serialize().size.toLong()
             }
         }
     }
@@ -115,7 +115,7 @@ class TransactionBoundaryTest : FunSpec({
                 val tx = construct(dataSize)
                 tx.serializeForSimulation().size shouldBe 1232
                 tx.signingBuilder().serializePartial().size shouldBe 1232
-                tx.sign(*signers.toTypedArray()).serialize().size shouldBe 1232
+                tx.sign(*signers.toTypedArray()).unwrap().serialize().size shouldBe 1232
                 shouldThrow<IllegalArgumentException> { construct(dataSize + 1) }
                 // An otherwise well-formed unsigned message whose eventual envelope needs 1233 bytes.
                 val encoder = SolanaMessageEncoder()
@@ -160,7 +160,7 @@ class TransactionBoundaryTest : FunSpec({
                 for (end in message.indices) {
                     shouldThrow<IllegalArgumentException> { SolanaTransactionUnsigned.deserializeMessage(message.copyOf(end)).unwrap() }
                 }
-                val wire = tx.sign(signer).serialize()
+                val wire = tx.sign(signer).unwrap().serialize()
                 SolanaTransactionSigned.deserialize(wire).unwrap().serialize() shouldBe wire
                 for (end in wire.indices) {
                     shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.deserialize(wire.copyOf(end)).unwrap() }

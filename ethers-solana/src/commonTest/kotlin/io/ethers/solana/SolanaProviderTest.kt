@@ -316,7 +316,7 @@ class SolanaProviderTest : FunSpec({
         provider.requestAirdrop(address, BigInteger("18446744073709551615")).send().unwrap() shouldBe signature
         assertRequest("requestAirdrop", """["$address",18446744073709551615,{"commitment":"confirmed"}]""")
         val signer = KeypairSigner.fromSeed(ByteArray(32))
-        val transaction = SolanaTxV0.compile(signer.publicKey, blockhash, SystemProgram.transfer(signer.publicKey, address, 1L)).unwrap().sign(signer)
+        val transaction = SolanaTxV0.compile(signer.publicKey, blockhash, SystemProgram.transfer(signer.publicKey, address, 1L)).unwrap().sign(signer).unwrap()
         provider.sendTransaction(transaction).send().unwrap().signature shouldBe signature
         assertRequest("sendTransaction", """["${transaction.toBase64()}",{"encoding":"base64","preflightCommitment":"confirmed"}]""")
         provider.sendTransaction(transaction, preflightCommitment = Commitment.FINALIZED).send().unwrap().signature shouldBe signature
@@ -402,7 +402,7 @@ class SolanaProviderTest : FunSpec({
         fun instruction(size: Int) = Instruction(Programs.SYSTEM, emptyList(), ByteArray(size))
         for (size in listOf(1232, 1233, 4096)) {
             // 42 fixed + 64 account bytes + 4 instruction header + 64 signature.
-            val signed = SolanaTxV1.compile(signer.publicKey, blockhash, instruction(size - 174), SolanaTransactionConfig()).unwrap().sign(signer)
+            val signed = SolanaTxV1.compile(signer.publicKey, blockhash, instruction(size - 174), SolanaTransactionConfig()).unwrap().sign(signer).unwrap()
             signed.serialize().size shouldBe size
             response = "\"${signed.id}\""
             provider.sendTransaction(signed).send().unwrap().signature shouldBe signed.id
@@ -418,7 +418,7 @@ class SolanaProviderTest : FunSpec({
                     continue
                 }
                 val tx = if (version == "legacy") SolanaTxLegacy.compile(signer.publicKey, blockhash, instruction(dataSize)).unwrap() else SolanaTxV0.compile(signer.publicKey, blockhash, instruction(dataSize)).unwrap()
-                val signed = tx.sign(signer)
+                val signed = tx.sign(signer).unwrap()
                 signed.serialize().size shouldBe size
                 response = "\"${signed.id}\""
                 provider.sendTransaction(signed).send().unwrap().signature shouldBe signed.id
@@ -442,7 +442,7 @@ class SolanaProviderTest : FunSpec({
     test("v1 uses tail-signature envelopes for send/simulation and message-only bytes for fees") {
         val signer = KeypairSigner.fromSeed(ByteArray(32) { 1 })
         val tx = SolanaTxV1.compile(signer.publicKey, blockhash, SystemProgram.transfer(signer.publicKey, address, 1), SolanaTransactionConfig(computeUnitLimit = 20000, loadedAccountsDataSizeLimit = 65536)).unwrap()
-        val signed = tx.sign(signer)
+        val signed = tx.sign(signer).unwrap()
         response = "\"${signed.id}\""
         provider.sendTransaction(signed).send().unwrap().signature shouldBe signed.id
         assertRequest("sendTransaction", """["${signed.toBase64()}",{"encoding":"base64","preflightCommitment":"confirmed"}]""")

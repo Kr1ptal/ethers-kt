@@ -38,7 +38,7 @@ class ThrowContractTest : FunSpec({
 
     context("functions returning a Result fail instead of throwing") {
         test("a fully signed envelope with a bad signature") {
-            val envelope = tx.sign(payer).serialize()
+            val envelope = tx.sign(payer).unwrap().serialize()
             envelope[1] = (envelope[1] + 1).toByte() // first signature byte, still non-zero
             val error = SolanaTransactionCompiled.deserialize(envelope).unwrapError()
             error.shouldBeInstanceOf<SolanaTransactionError.InvalidSignature>()

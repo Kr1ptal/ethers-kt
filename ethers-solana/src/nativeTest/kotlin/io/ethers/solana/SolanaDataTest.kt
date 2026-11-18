@@ -78,7 +78,7 @@ class SolanaDataTest : FunSpec({
         val signature = SolanaSignature.fromData(alice.signMessage(tx.serializeMessageData().toByteArray()).toData())
         val signed = builder.addSignature(alice.publicKey, signature).build().unwrap()
 
-        val expected = tx.sign(alice, bob).serialize()
+        val expected = tx.sign(alice, bob).unwrap().serialize()
         signed.serializeData().toByteArray() shouldBe expected
         SolanaTransactionSigned.deserialize(expected.toNSData()).unwrap() shouldBe signed
         SolanaTransactionCompiled.deserialize(expected.toNSData()).unwrap() shouldBe signed
