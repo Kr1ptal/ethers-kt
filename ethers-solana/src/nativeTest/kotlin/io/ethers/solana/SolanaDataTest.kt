@@ -8,6 +8,7 @@ import io.ethers.solana.signers.KeypairSigner
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.types.SolanaBytes
+import io.ethers.solana.types.SolanaDecodingError
 import io.ethers.solana.types.SolanaSignature
 import io.ethers.solana.types.createProgramAddress
 import io.ethers.solana.types.decode
@@ -40,8 +41,8 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 
 class SolanaDataTest : FunSpec({
-    val alice = KeypairSigner.fromSeed(ByteArray(32) { 1 })
-    val bob = KeypairSigner.fromSeed(ByteArray(32) { 2 })
+    val alice = KeypairSigner.fromSeed(ByteArray(32) { 1 }).unwrap()
+    val bob = KeypairSigner.fromSeed(ByteArray(32) { 2 }).unwrap()
     val blockhash = SolanaBlockhash(ByteArray(32) { 3 })
     val tx = SolanaTxLegacy.compile(alice.publicKey, blockhash, SystemProgram.transfer(bob.publicKey, alice.publicKey, 42L)).unwrap()
 
@@ -52,30 +53,31 @@ class SolanaDataTest : FunSpec({
     }
 
     test("primitives round trip through NSData") {
-        SolanaAddress.fromData(alice.publicKey.toData()) shouldBe alice.publicKey
-        SolanaBlockhash.fromData(blockhash.toData()) shouldBe blockhash
+        SolanaAddress.fromData(alice.publicKey.toData()).unwrap() shouldBe alice.publicKey
+        SolanaBlockhash.fromData(blockhash.toData()).unwrap() shouldBe blockhash
         val signature = alice.signMessage(tx.serializeMessage())
-        SolanaSignature.fromData(signature.toData()) shouldBe signature
+        SolanaSignature.fromData(signature.toData()).unwrap() shouldBe signature
         SolanaBytes.fromData(ByteArray(5) { 7 }.toNSData()) shouldBe SolanaBytes.fromBytes(ByteArray(5) { 7 })
         SolanaBytes.fromData(ByteArray(0).toNSData()) shouldBe SolanaBytes.EMPTY
     }
 
-    test("primitives reject NSData of the wrong length") {
-        shouldThrow<IllegalArgumentException> { SolanaAddress.fromData(ByteArray(31).toNSData()) }
-        shouldThrow<IllegalArgumentException> { SolanaSignature.fromData(ByteArray(63).toNSData()) }
-        shouldThrow<IllegalArgumentException> { SolanaBlockhash.fromData(ByteArray(0).toNSData()) }
-        shouldThrow<IllegalArgumentException> { KeypairSigner.fromSeed(ByteArray(31).toNSData()) }
+    test("primitives fail on NSData of the wrong length") {
+        SolanaAddress.fromData(ByteArray(31).toNSData()).unwrapError().shouldBeInstanceOf<SolanaDecodingError>()
+        SolanaSignature.fromData(ByteArray(63).toNSData()).unwrapError().shouldBeInstanceOf<SolanaDecodingError>()
+        SolanaBlockhash.fromData(ByteArray(0).toNSData()).unwrapError().shouldBeInstanceOf<SolanaDecodingError>()
+        KeypairSigner.fromSeed(ByteArray(31).toNSData()).unwrapError().shouldBeInstanceOf<SolanaDecodingError>()
+        KeypairSigner.fromSecretKey(ByteArray(64).toNSData()).unwrapError().shouldBeInstanceOf<SolanaDecodingError>()
     }
 
     test("keypairs import from NSData") {
-        KeypairSigner.fromSeed(ByteArray(32) { 1 }.toNSData()) shouldBe alice
-        KeypairSigner.fromSecretKey(alice.toSecretKey().toNSData()) shouldBe alice
+        KeypairSigner.fromSeed(ByteArray(32) { 1 }.toNSData()).unwrap() shouldBe alice
+        KeypairSigner.fromSecretKey(alice.toSecretKey().toNSData()).unwrap() shouldBe alice
     }
 
     test("a partially signed envelope is completed and serialized through NSData") {
         val partial = tx.signingBuilder().sign(bob).serializePartialData()
         val builder = SolanaTransactionSigned.Builder.deserializePartial(partial).unwrap()
-        val signature = SolanaSignature.fromData(alice.signMessage(tx.serializeMessageData().toByteArray()).toData())
+        val signature = SolanaSignature.fromData(alice.signMessage(tx.serializeMessageData().toByteArray()).toData()).unwrap()
         val signed = builder.addSignature(alice.publicKey, signature).build().unwrap()
 
         val expected = tx.sign(alice, bob).unwrap().serialize()
@@ -92,7 +94,7 @@ class SolanaDataTest : FunSpec({
     }
 
     test("an unknown signer is rejected as IllegalArgumentException") {
-        val stranger = KeypairSigner.fromSeed(ByteArray(32) { 9 })
+        val stranger = KeypairSigner.fromSeed(ByteArray(32) { 9 }).unwrap()
         shouldThrow<IllegalArgumentException> { tx.signingBuilder().sign(stranger) }
         shouldThrow<IllegalArgumentException> { tx.signingBuilder().addSignature(stranger.publicKey, stranger.signMessage(tx.serializeMessage())) }
     }

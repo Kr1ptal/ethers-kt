@@ -1,6 +1,9 @@
 package io.ethers.solana.types
 
 import io.ethers.core.FastHex
+import io.ethers.core.Result
+import io.ethers.core.failure
+import io.ethers.core.success
 import io.ethers.crypto.Base58
 import kotlin.io.encoding.Base64
 import kotlin.jvm.JvmField
@@ -87,21 +90,32 @@ class SolanaBytes private constructor(private val value: ByteArray) {
         @JvmStatic
         fun fromBytes(bytes: ByteArray): SolanaBytes = if (bytes.isEmpty()) EMPTY else SolanaBytes(bytes)
 
+        /** Decode Base58 [value], failing if it holds a character outside the Base58 alphabet. */
         @JvmStatic
-        @Throws(IllegalArgumentException::class)
-        fun fromBase58(value: String): SolanaBytes = if (value.isEmpty()) EMPTY else SolanaBytes(Base58.decode(value))
+        fun fromBase58(value: String): Result<SolanaBytes, SolanaDecodingError> {
+            val decoded = Base58.decodeOrNull(value) ?: return failure(SolanaDecodingError("Data is not valid Base58"))
+            return success(fromBytes(decoded))
+        }
 
+        /** Decode padded Base64 [value], failing if it is not valid Base64. */
         @JvmStatic
-        @Throws(IllegalArgumentException::class)
-        fun fromBase64(value: String): SolanaBytes = if (value.isEmpty()) EMPTY else SolanaBytes(Base64.decode(value))
+        fun fromBase64(value: String): Result<SolanaBytes, SolanaDecodingError> {
+            // the standard library offers no non-throwing decoder
+            val decoded = try {
+                Base64.decode(value)
+            } catch (e: IllegalArgumentException) {
+                return failure(SolanaDecodingError("Data is not valid Base64: ${e.message}"))
+            }
+            return success(fromBytes(decoded))
+        }
 
-        /** Decode hexadecimal with an optional 0x/0X prefix. Invalid or odd-length hex is rejected. */
+        /** Decode hexadecimal with an optional 0x/0X prefix, failing on invalid or odd-length hex. */
         @JvmStatic
-        @Throws(IllegalArgumentException::class)
-        fun fromHex(value: String): SolanaBytes {
-            require(value.length % 2 == 0) { "Hex data must contain an even number of digits" }
-            val decoded = FastHex.decode(value)
-            return if (decoded.isEmpty()) EMPTY else SolanaBytes(decoded)
+        fun fromHex(value: String): Result<SolanaBytes, SolanaDecodingError> {
+            if (value.isEmpty()) return success(EMPTY)
+            if (value.length % 2 != 0) return failure(SolanaDecodingError("Hex data must contain an even number of digits"))
+            if (!FastHex.isValidHex(value)) return failure(SolanaDecodingError("Data is not valid hex"))
+            return success(fromBytes(FastHex.decodeUnsafe(value)))
         }
     }
 }

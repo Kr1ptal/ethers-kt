@@ -91,19 +91,21 @@ object Base58 {
     }
 
     @Throws(IllegalArgumentException::class)
-    fun decode(input: String): ByteArray {
+    fun decode(input: String): ByteArray = decodeOrNull(input) ?: run {
+        val i = input.indices.first { digit58(input[it]) < 0 }
+        throw IllegalArgumentException("Illegal character ${input[i]} at $i")
+    }
+
+    /** As [decode], returning null instead of throwing when [input] holds a character outside the Base58 alphabet. */
+    fun decodeOrNull(input: String): ByteArray? {
         if (input.isEmpty()) {
             return ByteArray(0)
         }
         val input58 = ByteArray(input.length)
         // Transform the String to a base58 byte sequence
         for (i in input.indices) {
-            val c = input[i]
-            var digit58 = -1
-            if (c.code in 0..127) {
-                digit58 = INDEXES[c.code]
-            }
-            require(digit58 >= 0) { "Illegal character $c at $i" }
+            val digit58 = digit58(input[i])
+            if (digit58 < 0) return null
             input58[i] = digit58.toByte()
         }
         // Count leading zeroes
@@ -128,6 +130,8 @@ object Base58 {
         }
         return copyOfRange(temp, j - zeroCount, temp.size)
     }
+
+    private fun digit58(c: Char): Int = if (c.code in 0..127) INDEXES[c.code] else -1
 
     // number -> number / 58, returns number % 58
     private fun divmod58(number: ByteArray, startAt: Int): Byte {

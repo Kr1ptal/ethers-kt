@@ -1,5 +1,6 @@
 package io.ethers.solana.types
 
+import io.ethers.core.Result
 import io.ethers.crypto.Base58
 import io.ethers.crypto.Hashing
 import io.ethers.solana.signers.Ed25519
@@ -51,6 +52,20 @@ constructor(bytes: ByteArray) {
     override fun hashCode(): Int = value.contentHashCode()
 
     companion object {
+        /**
+         * Decode an address from Base58 [value], failing if it is not valid Base58 or not 32 bytes. Prefer this
+         * over the throwing constructor for text from outside the program, such as user input or a QR code.
+         */
+        @JvmStatic
+        fun fromBase58(value: String): Result<SolanaAddress, SolanaDecodingError> = decodeFixedSizeBase58(value, 32, "Address", ::SolanaAddress)
+
+        /**
+         * Wrap [bytes] as an address, failing unless they are exactly 32 bytes. Takes ownership of [bytes] rather than
+         * copying, so do not mutate the array afterwards.
+         */
+        @JvmStatic
+        fun fromBytes(bytes: ByteArray): Result<SolanaAddress, SolanaDecodingError> = decodeFixedSize(bytes, 32, "Address", ::SolanaAddress)
+
         /** Derive a System Program seeded address (not a PDA). The base authorizes its operations. */
         @JvmStatic
         @Throws(IllegalArgumentException::class)

@@ -26,8 +26,8 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 
 class SolanaTransactionResultTest : FunSpec({
-    val alice = KeypairSigner.fromSeed(ByteArray(32) { 1 })
-    val bob = KeypairSigner.fromSeed(ByteArray(32) { 2 })
+    val alice = KeypairSigner.fromSeed(ByteArray(32) { 1 }).unwrap()
+    val bob = KeypairSigner.fromSeed(ByteArray(32) { 2 }).unwrap()
     val blockhash = SolanaBlockhash(ByteArray(32) { 3 })
     val config = SolanaTransactionConfig()
     val transfer = SystemProgram.transfer(alice.publicKey, bob.publicKey, 42L)
@@ -173,7 +173,7 @@ class SolanaTransactionResultTest : FunSpec({
         tx.signingBuilder().sign(listOf(bob)).sign(listOf(alice)).build().unwrap() shouldBe tx.sign(alice, bob).unwrap()
         tx.sign(listOf(alice)).unwrapError() shouldBe SolanaTransactionError.UnsignedSlots(listOf(1), emptyList())
         tx.sign(emptyList()).unwrapError() shouldBe SolanaTransactionError.UnsignedSlots(listOf(0, 1), emptyList())
-        val stranger = KeypairSigner.fromSeed(ByteArray(32) { 9 })
+        val stranger = KeypairSigner.fromSeed(ByteArray(32) { 9 }).unwrap()
         shouldThrow<IllegalArgumentException> { tx.signingBuilder().sign(listOf(alice, stranger)) }
         shouldThrow<IllegalArgumentException> { tx.sign(alice, bob, stranger) }
     }

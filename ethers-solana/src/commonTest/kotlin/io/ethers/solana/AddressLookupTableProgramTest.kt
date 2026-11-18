@@ -15,7 +15,7 @@ import io.kotest.matchers.shouldBe
 
 class AddressLookupTableProgramTest : FunSpec({
     val authority = SolanaAddress(ByteArray(32) { 1 })
-    val payer = KeypairSigner.fromSeed(ByteArray(32) { 2 })
+    val payer = KeypairSigner.fromSeed(ByteArray(32) { 2 }).unwrap()
     val table = SolanaAddress(ByteArray(32) { 3 })
     val recipient = SolanaAddress(ByteArray(32) { 4 })
 

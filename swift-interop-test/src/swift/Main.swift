@@ -40,9 +40,9 @@ struct TransferFixture {
     let partial: Data
 
     init() throws {
-        alice = try KeypairSigner.companion.fromSeed(data: Data(repeating: 1, count: 32))
-        bob = try KeypairSigner.companion.fromSeed(data: Data(repeating: 2, count: 32))
-        let blockhash = try SolanaBlockhash.companion.fromData(data: Data(repeating: 3, count: 32))
+        alice = try value(KeypairSigner.companion.fromSeed(data: Data(repeating: 1, count: 32)))
+        bob = try value(KeypairSigner.companion.fromSeed(data: Data(repeating: 2, count: 32)))
+        let blockhash = try value(SolanaBlockhash.companion.fromData(data: Data(repeating: 3, count: 32)))
         // `lamports:` takes the BigInteger overload; the Int64 one shares its selector, so Kotlin mangles its label
         let transfer = SystemProgram.shared.transfer(from: bob.publicKey, to: alice.publicKey, lamports_: 42)
         tx = try value(SolanaTxLegacy.companion.compile(feePayer: alice.publicKey, blockhash: blockhash, instruction: transfer))
@@ -101,7 +101,7 @@ func solanaTests(_ t: Harness, _ f: TransferFixture) {
     t.test("README flow: complete a partially signed envelope through Data") {
         let builder = try value(SolanaTransactionSignedBuilder.companion.deserializePartial(data: f.partial))
         let signatureBytes = f.alice.signMessage(message: f.tx.serializeMessage()).toData()
-        _ = try builder.addSignature(signer: f.alice.publicKey, signature: SolanaSignature.companion.fromData(data: signatureBytes))
+        _ = try builder.addSignature(signer: f.alice.publicKey, signature: value(SolanaSignature.companion.fromData(data: signatureBytes)))
         let signed = try value(builder.build())
         let bytes: Data = signed.serializeData()
 
@@ -110,23 +110,28 @@ func solanaTests(_ t: Harness, _ f: TransferFixture) {
         t.check(decoded.serializeData() == bytes, "re-serializing gives the same bytes")
     }
 
-    t.test("Data inputs of the wrong length throw IllegalArgumentException") {
-        for (name, call) in [
-            ("address", { _ = try SolanaAddress.companion.fromData(data: Data(count: 31)) }),
-            ("signature", { _ = try SolanaSignature.companion.fromData(data: Data(count: 63)) }),
-            ("seed", { _ = try KeypairSigner.companion.fromSeed(data: Data(count: 31)) }),
-        ] as [(String, () throws -> Void)] {
-            do {
-                try call()
-                t.fail("\(name) accepted a short input")
-            } catch {
-                t.check((error as NSError).kotlinException is KotlinIllegalArgumentException, "\(name) threw \(error)")
-            }
+    t.test("Data inputs of the wrong length fail as a Result") {
+        let failures: [(String, AnyObject?)] = [
+            ("address", SolanaAddress.companion.fromData(data: Data(count: 31)).unwrapErrorOrNull()),
+            ("signature", SolanaSignature.companion.fromData(data: Data(count: 63)).unwrapErrorOrNull()),
+            ("blockhash", SolanaBlockhash.companion.fromData(data: Data(count: 0)).unwrapErrorOrNull()),
+            ("seed", KeypairSigner.companion.fromSeed(data: Data(count: 31)).unwrapErrorOrNull()),
+            ("secret key", KeypairSigner.companion.fromSecretKey(data: Data(count: 64)).unwrapErrorOrNull()),
+        ]
+        for (name, error) in failures {
+            t.check(error is SolanaDecodingError, "\(name) failed with \(String(describing: error))")
         }
     }
 
+    t.test("text factories return a Result") {
+        let address = try value(SolanaAddress.companion.fromBase58(value: f.alice.publicKey.toBase58()))
+        t.check(address == f.alice.publicKey, "an address decodes from Base58")
+        t.check(SolanaAddress.companion.fromBase58(value: "not base58!").unwrapErrorOrNull() is SolanaDecodingError, "bad Base58 fails")
+        t.check(SolanaBytes.companion.fromHex(value: "0xzz").unwrapErrorOrNull() is SolanaDecodingError, "bad hex fails")
+    }
+
     t.test("an unknown signer throws instead of aborting") {
-        let stranger = try KeypairSigner.companion.fromSeed(data: Data(repeating: 9, count: 32))
+        let stranger = try value(KeypairSigner.companion.fromSeed(data: Data(repeating: 9, count: 32)))
         let signature = stranger.signMessage(message: f.tx.serializeMessage())
         do {
             _ = try f.tx.signingBuilder().addSignature(signer: stranger.publicKey, signature: signature)
@@ -190,7 +195,7 @@ func solanaTests(_ t: Harness, _ f: TransferFixture) {
     }
 
     t.test("keys and primitives round trip through Data") {
-        t.check(try SolanaAddress.companion.fromData(data: f.alice.publicKey.toData()) == f.alice.publicKey, "address")
+        t.check(try value(SolanaAddress.companion.fromData(data: f.alice.publicKey.toData())) == f.alice.publicKey, "address")
         t.check(f.alice.publicKey.toData().count == 32, "an address is 32 bytes")
     }
 }

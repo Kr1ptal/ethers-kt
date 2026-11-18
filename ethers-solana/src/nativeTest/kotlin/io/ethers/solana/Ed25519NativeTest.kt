@@ -11,7 +11,7 @@ import io.kotest.matchers.shouldBe
  * verify as false rather than throw, since `verify` runs inside the `Result`-returning transaction decoders.
  */
 class Ed25519NativeTest : FunSpec({
-    val signer = KeypairSigner.fromSeed(ByteArray(32) { 1 })
+    val signer = KeypairSigner.fromSeed(ByteArray(32) { 1 }).unwrap()
     val message = "message".encodeToByteArray()
     val signature = signer.signMessage(message)
 

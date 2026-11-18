@@ -1,7 +1,9 @@
 package io.ethers.solana.types
 
+import io.ethers.core.Result
 import io.ethers.crypto.Base58
 import kotlinx.serialization.Serializable
+import kotlin.jvm.JvmStatic
 import kotlin.native.ObjCName
 
 @Serializable(with = SolanaBlockhashSerializer::class)
@@ -35,8 +37,22 @@ constructor(bytes: ByteArray) {
     override fun equals(other: Any?): Boolean = other is SolanaBlockhash && value.contentEquals(other.value)
     override fun hashCode(): Int = value.contentHashCode()
 
-    /** Holds the platform factories, such as the Apple `NSData` one. */
-    companion object
+    /** Safe factories returning a [Result]; platform ones, such as the Apple `NSData` factory, extend it. */
+    companion object {
+        /**
+         * Decode a blockhash from Base58 [value], failing if it is not valid Base58 or not 32 bytes. Prefer this
+         * over the throwing constructor for text from outside the program, such as user input or a QR code.
+         */
+        @JvmStatic
+        fun fromBase58(value: String): Result<SolanaBlockhash, SolanaDecodingError> = decodeFixedSizeBase58(value, 32, "Blockhash", ::SolanaBlockhash)
+
+        /**
+         * Wrap [bytes] as a blockhash, failing unless they are exactly 32 bytes. Takes ownership of [bytes] rather than
+         * copying, so do not mutate the array afterwards.
+         */
+        @JvmStatic
+        fun fromBytes(bytes: ByteArray): Result<SolanaBlockhash, SolanaDecodingError> = decodeFixedSize(bytes, 32, "Blockhash", ::SolanaBlockhash)
+    }
 }
 
 object SolanaBlockhashSerializer : Base58Serializer<SolanaBlockhash>("io.ethers.solana.SolanaBlockhash", ::SolanaBlockhash)

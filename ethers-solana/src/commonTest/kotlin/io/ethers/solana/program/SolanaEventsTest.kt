@@ -54,7 +54,7 @@ private val PROGRAM = SolanaAddress(ByteArray(32) { 3 })
 private val OTHER = SolanaAddress(ByteArray(32) { 4 })
 private val AUTHORITY = SolanaAddress.findProgramAddress(listOf("__event_authority".encodeToByteArray()), PROGRAM).address
 private val SIGNATURE = SolanaSignature(ByteArray(64) { 7 })
-private val EVENT_TAG = SolanaBytes.fromHex("e445a52e51cb9a1d")
+private val EVENT_TAG = SolanaBytes.fromHex("e445a52e51cb9a1d").unwrap()
 
 private data class Pinged(val n: Int, override val context: SolanaEventContext) : SolanaEvent {
     companion object : SolanaEventFactory<Pinged> {
@@ -256,7 +256,7 @@ class SolanaEventsTest : FunSpec({
 
     test("return data decodes only when the expected program set it") {
         val get = SolanaInstructionDescriptor.Returning("get", SolanaDiscriminator.of(1), SolanaCodec.UNIT, SolanaCodec.of({ readU64() }, { writeU64(it) }))
-        val returned = ReturnData(PROGRAM, SolanaBytes.fromHex("2a00000000000000"))
+        val returned = ReturnData(PROGRAM, SolanaBytes.fromHex("2a00000000000000").unwrap())
         get.decodeReturn(returned, PROGRAM).unwrap().toString() shouldBe "42"
         get.decodeReturn(returned, OTHER).unwrapError().shouldBeInstanceOf<SolanaDecodeError.Unrecognized>()
     }

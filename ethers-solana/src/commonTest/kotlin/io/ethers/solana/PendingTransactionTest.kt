@@ -170,7 +170,7 @@ class PendingTransactionTest : FunSpec({
     }
 
     test("submitting raw bytes still detects expiry, by recovering their blockhash") {
-        val signer = KeypairSigner.fromSeed(ByteArray(32) { 7 })
+        val signer = KeypairSigner.fromSeed(ByteArray(32) { 7 }).unwrap()
         val signed = SolanaTransactionRequest {
             feePayer(signer.publicKey)
             blockhash(blockhash)
@@ -281,7 +281,7 @@ class PendingTransactionTest : FunSpec({
     }
 
     test("typed and raw nonce submissions track the nonce account") {
-        val signer = KeypairSigner.fromSeed(ByteArray(32) { 7 })
+        val signer = KeypairSigner.fromSeed(ByteArray(32) { 7 }).unwrap()
         val signed = SolanaTransactionRequest {
             feePayer(signer.publicKey)
             blockhash(blockhash)
@@ -387,7 +387,7 @@ class PendingTransactionTest : FunSpec({
     }
 
     test("typed send overloads never enter the raw decoding path") {
-        val signer = KeypairSigner.fromSeed(ByteArray(32) { 7 })
+        val signer = KeypairSigner.fromSeed(ByteArray(32) { 7 }).unwrap()
         val tx = SolanaTransactionRequest {
             feePayer(signer.publicKey)
             blockhash(blockhash)
@@ -472,7 +472,7 @@ class PendingTransactionTest : FunSpec({
         )
         val provider = SolanaProvider(HttpClient("https://example.invalid", ktor), defaultCommitment = Commitment.CONFIRMED)
         try {
-            val signer = KeypairSigner.fromSeed(ByteArray(32) { 7 })
+            val signer = KeypairSigner.fromSeed(ByteArray(32) { 7 }).unwrap()
             val signed = SolanaTransactionRequest {
                 feePayer(signer.publicKey)
                 blockhash(blockhash)

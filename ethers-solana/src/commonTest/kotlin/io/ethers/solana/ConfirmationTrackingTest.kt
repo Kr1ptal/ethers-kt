@@ -16,7 +16,7 @@ import io.kotest.matchers.shouldBe
 import kotlin.random.Random
 
 class ConfirmationTrackingTest : FunSpec({
-    val signer = KeypairSigner.fromSeed(ByteArray(32) { 7 })
+    val signer = KeypairSigner.fromSeed(ByteArray(32) { 7 }).unwrap()
     val hash = SolanaBlockhash(ByteArray(32) { 2 })
 
     fun request(nonce: Boolean = false) = SolanaTransactionRequest {

@@ -30,8 +30,8 @@ import kotlin.time.Duration.Companion.seconds
  * name. Either one aborts a Swift caller, and the first also breaks a JVM caller relying on the returned `Result`.
  */
 class ThrowContractTest : FunSpec({
-    val payer = KeypairSigner.fromSeed(ByteArray(32) { 1 })
-    val recipient = KeypairSigner.fromSeed(ByteArray(32) { 2 }).publicKey
+    val payer = KeypairSigner.fromSeed(ByteArray(32) { 1 }).unwrap()
+    val recipient = KeypairSigner.fromSeed(ByteArray(32) { 2 }).unwrap().publicKey
     val blockhash = SolanaBlockhash(ByteArray(32) { 3 })
     val transfer = SystemProgram.transfer(payer.publicKey, recipient, 1L)
     val tx = SolanaTxLegacy.compile(payer.publicKey, blockhash, transfer).unwrap()

@@ -32,8 +32,8 @@ import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.jsonObject
 
 class SolanaTxV1Test : FunSpec({
-    val alice = KeypairSigner.fromSeed(FastHex.decode("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60"))
-    val bob = KeypairSigner.fromSeed(ByteArray(32) { 2 })
+    val alice = KeypairSigner.fromSeed(FastHex.decode("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60")).unwrap()
+    val bob = KeypairSigner.fromSeed(ByteArray(32) { 2 }).unwrap()
     val blockhash = SolanaBlockhash(ByteArray(32))
     val empty = SolanaTransactionConfig()
     val config = SolanaTransactionConfig(bigIntegerOf(5000), 20000, 65536, 65536)

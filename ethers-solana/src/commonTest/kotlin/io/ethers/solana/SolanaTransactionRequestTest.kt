@@ -33,8 +33,8 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 
 class SolanaTransactionRequestTest : FunSpec({
-    val alice = KeypairSigner.fromSeed(ByteArray(32) { 1 })
-    val bob = KeypairSigner.fromSeed(ByteArray(32) { 2 })
+    val alice = KeypairSigner.fromSeed(ByteArray(32) { 1 }).unwrap()
+    val bob = KeypairSigner.fromSeed(ByteArray(32) { 2 }).unwrap()
     val blockhash = SolanaBlockhash(ByteArray(32) { 3 })
     val transfer = SystemProgram.transfer(alice.publicKey, bob.publicKey, 42L)
 

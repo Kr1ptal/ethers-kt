@@ -30,9 +30,9 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 
 class TransactionDecompilerTest : FunSpec({
-    val alice = KeypairSigner.fromSeed(ByteArray(32) { 1 })
-    val bob = KeypairSigner.fromSeed(ByteArray(32) { 2 })
-    val carol = KeypairSigner.fromSeed(ByteArray(32) { 3 })
+    val alice = KeypairSigner.fromSeed(ByteArray(32) { 1 }).unwrap()
+    val bob = KeypairSigner.fromSeed(ByteArray(32) { 2 }).unwrap()
+    val carol = KeypairSigner.fromSeed(ByteArray(32) { 3 }).unwrap()
     val blockhash = SolanaBlockhash(ByteArray(32) { 9 })
 
     // enough movable accounts that a table pays for itself

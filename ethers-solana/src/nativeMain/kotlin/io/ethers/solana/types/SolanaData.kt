@@ -27,8 +27,8 @@ import platform.posix.memcpy
 // carry a `Data` suffix. Where the `ByteArray` parameter is already named `data`, the twin's is named `accountData`.
 
 /**
- * Copy [this] into a new [ByteArray]. Data over 2 GiB has no `ByteArray` to go into: functions returning a value
- * declare the [IllegalArgumentException] this throws, and those returning a `Result` use [toByteArrayOrFailure].
+ * Copy [this] into a new [ByteArray]. Data over 2 GiB has no `ByteArray` to go into, so this throws
+ * [IllegalArgumentException]; functions returning a `Result` check first, through [decodeBytes] or [decodeValue].
  */
 internal fun NSData.toByteArray(): ByteArray {
     val size = length
@@ -36,6 +36,12 @@ internal fun NSData.toByteArray(): ByteArray {
     val bytes = ByteArray(size.toInt())
     if (bytes.isNotEmpty()) bytes.usePinned { memcpy(it.addressOf(0), this.bytes, size) }
     return bytes
+}
+
+/** As [toByteArray], reporting data too large for a `ByteArray` as a [SolanaDecodingError] rather than throwing. */
+private inline fun <T> NSData.decodeValue(decode: (ByteArray) -> Result<T, SolanaDecodingError>): Result<T, SolanaDecodingError> {
+    if (length > Int.MAX_VALUE.toULong()) return Result.failure(SolanaDecodingError("NSData of $length bytes does not fit a ByteArray"))
+    return decode(toByteArray())
 }
 
 /** As [toByteArray], reporting data too large for a `ByteArray` as a failure rather than throwing. */
@@ -50,29 +56,25 @@ internal fun ByteArray.toNSData(): NSData {
     return usePinned { NSData.create(bytes = it.addressOf(0), length = size.toULong()) }
 }
 
-/** As the `SolanaAddress(ByteArray)` constructor, from 32 bytes of [data]. */
-@Throws(IllegalArgumentException::class)
-fun SolanaAddress.Companion.fromData(data: NSData): SolanaAddress = SolanaAddress(data.toByteArray())
+/** As [SolanaAddress.fromBytes], from 32 bytes of [data]. */
+fun SolanaAddress.Companion.fromData(data: NSData): Result<SolanaAddress, SolanaDecodingError> = data.decodeValue(::fromBytes)
 
 /** A copy of the address's 32 bytes. */
 fun SolanaAddress.toData(): NSData = asByteArray().toNSData()
 
-/** As the `SolanaSignature(ByteArray)` constructor, from 64 bytes of [data]. */
-@Throws(IllegalArgumentException::class)
-fun SolanaSignature.Companion.fromData(data: NSData): SolanaSignature = SolanaSignature(data.toByteArray())
+/** As [SolanaSignature.fromBytes], from 64 bytes of [data]. */
+fun SolanaSignature.Companion.fromData(data: NSData): Result<SolanaSignature, SolanaDecodingError> = data.decodeValue(::fromBytes)
 
 /** A copy of the signature's 64 bytes. */
 fun SolanaSignature.toData(): NSData = asByteArray().toNSData()
 
-/** As the `SolanaBlockhash(ByteArray)` constructor, from 32 bytes of [data]. */
-@Throws(IllegalArgumentException::class)
-fun SolanaBlockhash.Companion.fromData(data: NSData): SolanaBlockhash = SolanaBlockhash(data.toByteArray())
+/** As [SolanaBlockhash.fromBytes], from 32 bytes of [data]. */
+fun SolanaBlockhash.Companion.fromData(data: NSData): Result<SolanaBlockhash, SolanaDecodingError> = data.decodeValue(::fromBytes)
 
 /** A copy of the blockhash's 32 bytes. */
 fun SolanaBlockhash.toData(): NSData = asByteArray().toNSData()
 
 /** As [SolanaBytes.fromBytes], from a copy of [data]. Also how Swift passes `Data` as an [Instruction]'s data. */
-@Throws(IllegalArgumentException::class)
 fun SolanaBytes.Companion.fromData(data: NSData): SolanaBytes = fromBytes(data.toByteArray())
 
 /** A copy of the bytes. */
@@ -93,12 +95,10 @@ fun SolanaAddress.Companion.createProgramAddress(seedData: List<NSData>, program
 fun SolanaAddress.Companion.findProgramAddress(seedData: List<NSData>, programId: SolanaAddress): ProgramDerivedAddress = findProgramAddress(seedData.map { it.toByteArray() }, programId)
 
 /** As [KeypairSigner.fromSeed], from a 32-byte seed. */
-@Throws(IllegalArgumentException::class)
-fun KeypairSigner.Companion.fromSeed(data: NSData): KeypairSigner = fromSeed(data.toByteArray())
+fun KeypairSigner.Companion.fromSeed(data: NSData): Result<KeypairSigner, SolanaDecodingError> = data.decodeValue(::fromSeed)
 
 /** As [KeypairSigner.fromSecretKey], from a 64-byte seed and public key. */
-@Throws(IllegalArgumentException::class)
-fun KeypairSigner.Companion.fromSecretKey(data: NSData): KeypairSigner = fromSecretKey(data.toByteArray())
+fun KeypairSigner.Companion.fromSecretKey(data: NSData): Result<KeypairSigner, SolanaDecodingError> = data.decodeValue(::fromSecretKey)
 
 /** As [KeypairSigner.signMessage], signing the exact bytes of [data]. */
 fun KeypairSigner.signMessage(data: NSData): SolanaSignature = signMessage(data.toByteArray())

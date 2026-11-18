@@ -1511,7 +1511,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         val hex = bytes.joinToString("") { "%02x".format(it) }
         return PropertySpec.builder(name, Runtime.SOLANA_BYTES)
             .addAnnotation(Runtime.JVM_FIELD)
-            .initializer("%T.fromHex(%S)", Runtime.SOLANA_BYTES, hex)
+            .initializer("%T.fromHex(%S).unwrap()", Runtime.SOLANA_BYTES, hex)
     }
 
     companion object {
@@ -1519,7 +1519,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
          * Version of the generated output. Bump it whenever the output changes, so build tools invalidate
          * previously generated bindings.
          */
-        const val OUTPUT_VERSION = "3"
+        const val OUTPUT_VERSION = "4"
 
         private const val FETCH_ALIAS = "fetchProgramAccount"
         private const val WATCH_ALIAS = "watchProgramAccount"

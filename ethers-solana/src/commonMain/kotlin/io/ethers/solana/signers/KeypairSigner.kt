@@ -1,8 +1,13 @@
 package io.ethers.solana.signers
 
+import io.ethers.core.Result
+import io.ethers.core.failure
+import io.ethers.core.success
 import io.ethers.crypto.Hashing
 import io.ethers.solana.types.SolanaAddress
+import io.ethers.solana.types.SolanaDecodingError
 import io.ethers.solana.types.SolanaSignature
+import io.ethers.solana.types.decodeFixedSize
 import kotlin.jvm.JvmStatic
 
 class KeypairSigner private constructor(seed: ByteArray) : SolanaSigner {
@@ -27,20 +32,24 @@ class KeypairSigner private constructor(seed: ByteArray) : SolanaSigner {
     override fun hashCode(): Int = publicKey.hashCode()
 
     companion object {
-        @JvmStatic fun generate(): KeypairSigner = fromSeed(Hashing.generateRandomBytes(32))
+        @JvmStatic fun generate(): KeypairSigner = KeypairSigner(Hashing.generateRandomBytes(32))
+
+        /** Import a 32-byte Ed25519 seed, failing if it is any other length. The seed is copied. */
         @JvmStatic
-        @Throws(IllegalArgumentException::class)
-        fun fromSeed(seed: ByteArray): KeypairSigner {
-            require(seed.size == 32) { "Seed must contain exactly 32 bytes" }
-            return KeypairSigner(seed)
-        }
+        fun fromSeed(seed: ByteArray): Result<KeypairSigner, SolanaDecodingError> = decodeFixedSize(seed, 32, "Seed", ::KeypairSigner)
+
+        /**
+         * Import Solana's 64-byte secret key format: the seed followed by its public key, as exported by
+         * [toSecretKey] and the Solana CLI. Fails if it is any other length or its public half does not match the seed.
+         */
         @JvmStatic
-        @Throws(IllegalArgumentException::class)
-        fun fromSecretKey(secretKey: ByteArray): KeypairSigner {
-            require(secretKey.size == 64) { "Secret key must contain a 32-byte seed and 32-byte public key" }
-            val signer = fromSeed(secretKey.copyOfRange(0, 32))
-            require(signer.publicKey.asByteArray().contentEquals(secretKey.copyOfRange(32, 64))) { "Secret key public half does not match its seed" }
-            return signer
+        fun fromSecretKey(secretKey: ByteArray): Result<KeypairSigner, SolanaDecodingError> {
+            if (secretKey.size != 64) return failure(SolanaDecodingError("Secret key must contain a 32-byte seed and 32-byte public key, got ${secretKey.size} bytes"))
+            val signer = KeypairSigner(secretKey.copyOfRange(0, 32))
+            if (!signer.publicKey.asByteArray().contentEquals(secretKey.copyOfRange(32, 64))) {
+                return failure(SolanaDecodingError("Secret key public half does not match its seed"))
+            }
+            return success(signer)
         }
     }
 }

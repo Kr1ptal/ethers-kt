@@ -151,10 +151,10 @@ class BorshCodecTest : FunSpec({
         }
 
         test("bytes and fixed bytes") {
-            decode("03000000 aabbcc") { readBytes() } shouldBe SolanaBytes.fromHex("aabbcc")
-            encode { writeBytes(SolanaBytes.fromHex("aabbcc")) } shouldBe hex("03000000 aabbcc")
-            decode("aabb") { readFixedBytes(2) } shouldBe SolanaBytes.fromHex("aabb")
-            shouldThrow<IllegalArgumentException> { encode { writeFixedBytes(SolanaBytes.fromHex("aa"), 2) } }
+            decode("03000000 aabbcc") { readBytes() } shouldBe SolanaBytes.fromHex("aabbcc").unwrap()
+            encode { writeBytes(SolanaBytes.fromHex("aabbcc").unwrap()) } shouldBe hex("03000000 aabbcc")
+            decode("aabb") { readFixedBytes(2) } shouldBe SolanaBytes.fromHex("aabb").unwrap()
+            shouldThrow<IllegalArgumentException> { encode { writeFixedBytes(SolanaBytes.fromHex("aa").unwrap(), 2) } }
         }
 
         test("a length beyond the remaining bytes is rejected before reading elements") {
@@ -178,7 +178,7 @@ class BorshCodecTest : FunSpec({
             val error = malformed("0102") { readU32() }
             error.reason shouldBe SolanaDecodeError.Reason.TRUNCATED
             error.offset shouldBe 0
-            error.data shouldBe SolanaBytes.fromHex("0102")
+            error.data shouldBe SolanaBytes.fromHex("0102").unwrap()
         }
 
         test("trailing bytes are rejected") {
@@ -242,7 +242,7 @@ class BorshCodecTest : FunSpec({
 
     test("raw writes grow the buffer") {
         val address = SolanaAddress(ByteArray(32) { 7 })
-        val bytes = SolanaBytes.fromHex("aa".repeat(20))
+        val bytes = SolanaBytes.fromHex("aa".repeat(20)).unwrap()
 
         // each write starts past the buffer's capacity, so must grow it
         fun grown(write: BorshWriter.() -> Unit): ByteArray = BorshWriter(8).apply { writeU64(bigIntegerOf(1)) }.apply(write).toByteArray()

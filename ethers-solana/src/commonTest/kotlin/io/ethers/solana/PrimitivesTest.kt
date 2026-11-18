@@ -6,6 +6,7 @@ import io.ethers.solana.signers.KeypairSigner
 import io.ethers.solana.types.Programs
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
+import io.ethers.solana.types.SolanaDecodingError
 import io.ethers.solana.types.SolanaSignature
 import io.ethers.solana.types.U64Serializer
 import io.ethers.solana.utils.SolUnit
@@ -16,12 +17,13 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 
 class PrimitivesTest : FunSpec({
     test("RFC 8032 Ed25519 vector 1 on every platform") {
         val seed = FastHex.decode("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60")
-        val signer = KeypairSigner.fromSeed(seed)
+        val signer = KeypairSigner.fromSeed(seed).unwrap()
         signer.publicKey.toByteArray() shouldBe FastHex.decode("d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a")
         val signature = signer.signMessage(byteArrayOf())
         signature.toByteArray() shouldBe FastHex.decode("e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b")
@@ -39,18 +41,18 @@ class PrimitivesTest : FunSpec({
         val aboveOrder = signature.toByteArray().also { it[63] = 0x11 }
         signer.publicKey.verify(SolanaSignature(aboveOrder), byteArrayOf()) shouldBe false
 
-        KeypairSigner.fromSecretKey(signer.toSecretKey()).publicKey shouldBe signer.publicKey
+        KeypairSigner.fromSecretKey(signer.toSecretKey()).unwrap().publicKey shouldBe signer.publicKey
         // a keypair is identified by its public key, so a reimported signer equals the original
-        KeypairSigner.fromSecretKey(signer.toSecretKey()) shouldBe signer
-        KeypairSigner.fromSecretKey(signer.toSecretKey()).hashCode() shouldBe signer.hashCode()
-        KeypairSigner.fromSeed(ByteArray(32) { 7 }) shouldNotBe signer
+        KeypairSigner.fromSecretKey(signer.toSecretKey()).unwrap() shouldBe signer
+        KeypairSigner.fromSecretKey(signer.toSecretKey()).unwrap().hashCode() shouldBe signer.hashCode()
+        KeypairSigner.fromSeed(ByteArray(32) { 7 }).unwrap() shouldNotBe signer
         seed.fill(0)
         signer.signMessage(byteArrayOf()) shouldBe signature
         val exported = signer.toSecretKey()
         exported[63] = (exported[63].toInt() xor 1).toByte()
-        shouldThrow<IllegalArgumentException> { KeypairSigner.fromSecretKey(exported) }
-        shouldThrow<IllegalArgumentException> { KeypairSigner.fromSeed(ByteArray(31)) }
-        shouldThrow<IllegalArgumentException> { KeypairSigner.fromSecretKey(ByteArray(32)) }
+        KeypairSigner.fromSecretKey(exported).unwrapError().shouldBeInstanceOf<SolanaDecodingError>()
+        KeypairSigner.fromSeed(ByteArray(31)).unwrapError().shouldBeInstanceOf<SolanaDecodingError>()
+        KeypairSigner.fromSecretKey(ByteArray(32)).unwrapError().shouldBeInstanceOf<SolanaDecodingError>()
     }
 
     test("base58 types adopt their bytes, validate length, and copy on toByteArray") {
@@ -90,7 +92,7 @@ class PrimitivesTest : FunSpec({
     }
 
     test("SolanaAddress serializer preserves base58 addresses including off-curve PDAs") {
-        val owner = KeypairSigner.fromSeed(ByteArray(32)).publicKey
+        val owner = KeypairSigner.fromSeed(ByteArray(32)).unwrap().publicKey
         val pda = SolanaAddress.findAssociatedTokenAddress(owner, Programs.TOKEN).address
         pda.isOnCurve() shouldBe false
         val serializer = SolanaAddress.serializer()

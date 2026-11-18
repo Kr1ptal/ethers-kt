@@ -35,14 +35,14 @@ import io.kotest.matchers.types.shouldNotBeSameInstanceAs
 import kotlin.io.encoding.Base64
 
 class TransactionTest : FunSpec({
-    val alice = KeypairSigner.fromSeed(ByteArray(32) { 1 })
-    val bob = KeypairSigner.fromSeed(ByteArray(32) { 2 })
+    val alice = KeypairSigner.fromSeed(ByteArray(32) { 1 }).unwrap()
+    val bob = KeypairSigner.fromSeed(ByteArray(32) { 2 }).unwrap()
     val blockhash = SolanaBlockhash(ByteArray(32) { 3 })
 
     test("message bytes and signature agree with the independent Solana CLI") {
         // solana transfer SYSTEM 0.000000042 --sign-only --dump-transaction-message;
         // RFC8032 vector 1 key is both sender and fee payer, with a zero blockhash.
-        val signer = KeypairSigner.fromSeed(FastHex.decode("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60"))
+        val signer = KeypairSigner.fromSeed(FastHex.decode("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60")).unwrap()
         val message = SolanaTxLegacy.compile(signer.publicKey, SolanaBlockhash(ByteArray(32)), SystemProgram.transfer(signer.publicKey, Programs.SYSTEM, 42L)).unwrap()
         Base64.encode(message.serializeMessage()) shouldBe "AQAAAtdamAGCsQq31Uv+08lkBzoO4XLz2qYjJa8CGmj3B1EaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEBAgABDAIAAAAqAAAAAAAAAA=="
         message.sign(signer).unwrap().id.toString() shouldBe "634LhRk4qrhs1pFXm9mCE7it3Ha7hebHSrD1ySBpNoKHmkLMooaM6fgqNFZPa57TbLMCvCM7joA81XMpkqP5yueK"
@@ -139,7 +139,7 @@ class TransactionTest : FunSpec({
 
     test("lookup tables load writable then readonly accounts, keeping signers static") {
         // the table must cover two movable accounts, or naming it would cost more than it saves
-        val carol = KeypairSigner.fromSeed(ByteArray(32) { 9 }).publicKey
+        val carol = KeypairSigner.fromSeed(ByteArray(32) { 9 }).unwrap().publicKey
         val table = AddressLookupTableAccount(SolanaAddress(ByteArray(32) { 5 }), listOf(bob.publicKey, carol, alice.publicKey))
         val instructions = listOf(
             SystemProgram.transfer(alice.publicKey, bob.publicKey, 1),
