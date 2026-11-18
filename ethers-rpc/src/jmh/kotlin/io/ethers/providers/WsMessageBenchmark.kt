@@ -43,8 +43,8 @@ import kotlin.random.Random
  * - `tree`: what `WsClient.handleMessage` does: the message parsed into a `JsonElement` tree, its `id`, `method`,
  *   `params`, `result` and `error` looked up, and the result decoded from the tree with the call's deserializer
  * - `direct`: the lower bound, decoding the message straight into the value with a deserializer known up front
- * - `client`: what `WsClient` does now: [WsMessageScanner] picks the route, a response to a call is decoded straight
- *   into its result, and anything else goes through `tree`
+ * - `client`: what `WsClient` does now: [WsMessageScanner] picks the route, and a response to a call or a
+ *   notification for a subscription is decoded straight into its value
  */
 @Fork(value = 1)
 @Warmup(iterations = 3, time = 1)
@@ -65,6 +65,10 @@ open class WsMessageBenchmark {
     private lateinit var message: String
     private lateinit var deserializer: DeserializationStrategy<Any?>
     private lateinit var envelope: DeserializationStrategy<Any?>
+
+    // WsClient keeps one per subscription, and one scan position
+    private lateinit var notification: RpcNotificationDeserializer<Any?>
+    private val position = WsMessageScanner.NotificationPosition()
 
     @Setup
     fun setup() {
@@ -92,6 +96,8 @@ open class WsMessageBenchmark {
             }
             else -> error("Unknown fixture $fixture")
         }
+
+        notification = RpcNotificationDeserializer(deserializer)
 
         val expected = tree()
         check(expected != null)
@@ -132,9 +138,17 @@ open class WsMessageBenchmark {
     fun client(): Any? {
         // WsClient also checks the id against its in-flight calls, and decides between result and error
         val id = WsMessageScanner.responseId(message)
-        if (id == WsMessageScanner.NONE) return tree()
-        val fields = Kotlinx.DEFAULT.decodeFromString(RpcResponseFieldsDeserializer(deserializer), message)
-        if (fields.hasMethod || (fields.id as? JsonPrimitive)?.longOrNull != id) return tree()
+        if (id != WsMessageScanner.NONE) {
+            val fields = Kotlinx.DEFAULT.decodeFromString(RpcResponseFieldsDeserializer(deserializer), message)
+            if (fields.hasMethod || (fields.id as? JsonPrimitive)?.longOrNull != id) return tree()
+            return fields.result
+        }
+
+        // WsClient also looks the subscription up, and checks the method and that it is open
+        if (!WsMessageScanner.notification(message, position)) return tree()
+        val subscriptionId = position.subscriptionId(message) ?: return tree()
+        val fields = Kotlinx.DEFAULT.decodeFromString(notification, message)
+        if (!fields.hasResult || fields.hasIdOrError || fields.subscription != subscriptionId) return tree()
         return fields.result
     }
 
