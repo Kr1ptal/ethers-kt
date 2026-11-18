@@ -28,7 +28,6 @@ object Hashing {
      * */
     @JvmStatic
     fun generateRandomBytes(size: Int): ByteArray {
-        require(size >= 0) { "Cannot generate a negative number of random bytes, got $size" }
         return CryptographyRandom.nextBytes(size)
     }
 
