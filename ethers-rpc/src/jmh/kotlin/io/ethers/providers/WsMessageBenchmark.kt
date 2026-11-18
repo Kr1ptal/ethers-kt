@@ -15,6 +15,7 @@ import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.decodeStructure
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
@@ -42,6 +43,8 @@ import kotlin.random.Random
  * - `tree`: what `WsClient.handleMessage` does: the message parsed into a `JsonElement` tree, its `id`, `method`,
  *   `params`, `result` and `error` looked up, and the result decoded from the tree with the call's deserializer
  * - `direct`: the lower bound, decoding the message straight into the value with a deserializer known up front
+ * - `client`: what `WsClient` does now: [WsMessageScanner] picks the route, a response to a call is decoded straight
+ *   into its result, and anything else goes through `tree`
  */
 @Fork(value = 1)
 @Warmup(iterations = 3, time = 1)
@@ -93,6 +96,7 @@ open class WsMessageBenchmark {
         val expected = tree()
         check(expected != null)
         check(direct() == expected) { "direct differs for $fixture" }
+        check(client() == expected) { "client differs for $fixture" }
     }
 
     @Benchmark
@@ -122,6 +126,16 @@ open class WsMessageBenchmark {
     fun direct(): Any? = when (val value = Kotlinx.DEFAULT.decodeFromString(envelope, message)) {
         is Result<*, *> -> value.unwrap()
         else -> value
+    }
+
+    @Benchmark
+    fun client(): Any? {
+        // WsClient also checks the id against its in-flight calls, and decides between result and error
+        val id = WsMessageScanner.responseId(message)
+        if (id == WsMessageScanner.NONE) return tree()
+        val fields = Kotlinx.DEFAULT.decodeFromString(RpcResponseFieldsDeserializer(deserializer), message)
+        if (fields.hasMethod || (fields.id as? JsonPrimitive)?.longOrNull != id) return tree()
+        return fields.result
     }
 
     /** Reads `params.result` of a notification with [result], skipping every other key. */
