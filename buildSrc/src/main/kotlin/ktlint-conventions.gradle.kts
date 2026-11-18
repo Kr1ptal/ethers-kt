@@ -1,5 +1,7 @@
 import org.gradle.accessors.dm.LibrariesForLibs
+import org.jetbrains.kotlin.gradle.dsl.KotlinProjectExtension
 import org.jlleitschuh.gradle.ktlint.reporter.ReporterType
+import org.jlleitschuh.gradle.ktlint.tasks.BaseKtLintCheckTask
 
 plugins {
     id("org.jlleitschuh.gradle.ktlint")
@@ -37,4 +39,28 @@ ktlint {
             "ktlint_standard_blank-line-between-when-conditions" to "disabled",
         ),
     )
+}
+
+// The plugin lints each Kotlin source set as a whole, and KSP, abigen and the static data generators add their task
+// outputs to source sets. Every check therefore depended on code generation, and through it on compiling the upstream
+// modules for every target, although the filter above then skips the generated files. Linting only the directories
+// outside the build directory, which no task produces, keeps checks free of compilation. It also lets `ktlintCheck`
+// run on a host that cannot compile the Apple targets.
+plugins.withId("org.jetbrains.kotlin.multiplatform") { lintCheckedInSourcesOnly() }
+plugins.withId("org.jetbrains.kotlin.jvm") { lintCheckedInSourcesOnly() }
+
+fun lintCheckedInSourcesOnly() {
+    val kotlin = extensions.getByType<KotlinProjectExtension>()
+    val buildDir = layout.buildDirectory.get().asFile
+    // After evaluation, since the plugin adds the sources of a source set created late, such as `jvmJmh`, after any
+    // action registered earlier would run.
+    afterEvaluate {
+        tasks.withType<BaseKtLintCheckTask>().matching { it.name.endsWith("SourceSet") }.configureEach {
+            val sourceSetName = name.removePrefix("runKtlintCheckOver").removePrefix("runKtlintFormatOver")
+                .removeSuffix("SourceSet").replaceFirstChar { it.lowercase() }
+            val sourceSet = kotlin.sourceSets.findByName(sourceSetName) ?: error("No Kotlin source set for $path")
+            setSource(sourceSet.kotlin.srcDirs.filterNot { it.startsWith(buildDir) })
+            include("**/*.kt")
+        }
+    }
 }
