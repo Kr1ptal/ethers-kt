@@ -58,6 +58,7 @@ object JsonRpcTestFactory {
 
         afterEach {
             client.close()
+            server.stop()
         }
 
         context("Common JSON-RPC client tests") {

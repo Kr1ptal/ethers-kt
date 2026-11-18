@@ -78,6 +78,7 @@ class WsClientTest : FunSpec({
 
         afterEach {
             wsClient.close()
+            mockServer.stop()
         }
 
         test("complex Map / BigInteger / ByteArray params are emitted as proper JSON") {
@@ -173,6 +174,7 @@ class WsClientTest : FunSpec({
 
         afterEach {
             wsClient.close()
+            mockServer.stop()
         }
 
         test("subscription with multiple notifications") {
