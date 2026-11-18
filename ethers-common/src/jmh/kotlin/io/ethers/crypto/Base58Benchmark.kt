@@ -41,6 +41,9 @@ open class Base58Benchmark {
     private lateinit var bytes: ByteArray
     private lateinit var encoded: String
 
+    /** [encoded] with its last character swapped for one outside the alphabet, the worst case for a rejection. */
+    private lateinit var invalid: String
+
     @Setup
     fun setup() {
         bytes = Random(42).nextBytes(size)
@@ -49,6 +52,8 @@ open class Base58Benchmark {
         if (leadingZeros < size) bytes[leadingZeros] = (bytes[leadingZeros].toInt() or 1).toByte()
         encoded = Base58.encode(bytes)
         check(Base58.decode(encoded).contentEquals(bytes)) { "Base58 does not round-trip" }
+        invalid = encoded.dropLast(1) + "0"
+        check(Base58.decodeOrNull(invalid) == null) { "Invalid Base58 decodes" }
     }
 
     @Benchmark
@@ -56,6 +61,12 @@ open class Base58Benchmark {
 
     @Benchmark
     fun decode(): ByteArray = Base58.decode(encoded)
+
+    @Benchmark
+    fun decodeOrNull(): ByteArray? = Base58.decodeOrNull(encoded)
+
+    @Benchmark
+    fun decodeOrNullInvalid(): ByteArray? = Base58.decodeOrNull(invalid)
 
     companion object {
         @JvmStatic
