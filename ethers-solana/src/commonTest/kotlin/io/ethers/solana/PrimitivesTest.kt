@@ -55,6 +55,16 @@ class PrimitivesTest : FunSpec({
         KeypairSigner.fromSecretKey(ByteArray(32)).unwrapError().shouldBeInstanceOf<SolanaDecodingError>()
     }
 
+    test("random keypairs are distinct, usable, and round-trip their secret key") {
+        val first = KeypairSigner.random()
+        val second = KeypairSigner.random()
+        first shouldNotBe second
+        val signature = first.signMessage(byteArrayOf(1, 2, 3))
+        first.publicKey.verify(signature, byteArrayOf(1, 2, 3)) shouldBe true
+        second.publicKey.verify(signature, byteArrayOf(1, 2, 3)) shouldBe false
+        KeypairSigner.fromSecretKey(first.toSecretKey()).unwrap() shouldBe first
+    }
+
     test("base58 types adopt their bytes, validate length, and copy on toByteArray") {
         val source = ByteArray(32)
         val key = SolanaAddress(source)

@@ -24,8 +24,8 @@ class LocalValidatorTest : FunSpec({
         require(URI(http!!).host in setOf("localhost", "127.0.0.1", "::1"))
         val provider = SolanaProvider.builder(http).defaultCommitment(Commitment.CONFIRMED).build().unwrap()
         try {
-            val sender = KeypairSigner.generate()
-            val recipient = KeypairSigner.generate().publicKey
+            val sender = KeypairSigner.random()
+            val recipient = KeypairSigner.random().publicKey
             provider.requestAirdrop(sender.publicKey, 1000000000L).send().unwrap()
             eventually(30.seconds) { provider.getBalance(sender.publicKey).send().unwrap().value shouldBe bigIntegerOf(1000000000L) }
             val latest = provider.getLatestBlockhash().send().unwrap().value
@@ -51,8 +51,8 @@ class LocalValidatorTest : FunSpec({
         require(URI(ws!!).host in setOf("localhost", "127.0.0.1", "::1"))
         val provider = SolanaProvider.builder(http).webSocketUrl(ws).defaultCommitment(Commitment.CONFIRMED).build().unwrap()
         try {
-            val sender = KeypairSigner.generate()
-            val recipient = KeypairSigner.generate().publicKey
+            val sender = KeypairSigner.random()
+            val recipient = KeypairSigner.random().publicKey
             provider.requestAirdrop(sender.publicKey, 1000000000L).send().unwrap()
             eventually(30.seconds) { provider.getBalance(sender.publicKey).send().unwrap().value shouldBe bigIntegerOf(1000000000L) }
             val latest = provider.getLatestBlockhash().send().unwrap().value

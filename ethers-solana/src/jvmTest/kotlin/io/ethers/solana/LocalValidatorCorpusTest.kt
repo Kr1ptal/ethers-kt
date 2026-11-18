@@ -77,8 +77,8 @@ class LocalValidatorCorpusTest : FunSpec({
         }
         val provider = SolanaProvider.builder(endpoint).defaultCommitment(Commitment.CONFIRMED).build().unwrap()
         try {
-            val signers = List(12) { KeypairSigner.generate() }
-            val recipients = List(47) { KeypairSigner.generate().publicKey }
+            val signers = List(12) { KeypairSigner.random() }
+            val recipients = List(47) { KeypairSigner.random().publicKey }
             for (signer in signers) provider.requestAirdrop(signer.publicKey, 10000000000L).send().unwrap()
             eventually(30.seconds) {
                 for (signer in signers) provider.getBalance(signer.publicKey).send().unwrap().value shouldBe bigIntegerOf(10000000000L)

@@ -32,7 +32,9 @@ class KeypairSigner private constructor(seed: ByteArray) : SolanaSigner {
     override fun hashCode(): Int = publicKey.hashCode()
 
     companion object {
-        @JvmStatic fun generate(): KeypairSigner = KeypairSigner(Hashing.generateRandomBytes(32))
+        /** Create a new [KeypairSigner] from random entropy, using [Hashing.generateRandomBytes]. */
+        @JvmStatic
+        fun random(): KeypairSigner = KeypairSigner(Hashing.generateRandomBytes(32))
 
         /** Import a 32-byte Ed25519 seed, failing if it is any other length. The seed is copied. */
         @JvmStatic
