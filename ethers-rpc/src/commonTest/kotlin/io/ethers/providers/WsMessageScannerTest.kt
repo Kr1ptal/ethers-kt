@@ -52,6 +52,19 @@ class WsMessageScannerTest : FunSpec({
             """{"method":null,"id":3,"result":1}""",
             """{"jsonrpc":"2.0","method":"accountNotification","params":{"result":1,"subscription":23784}}""",
             """[{"id":1,"result":1}]""",
+            // a result before the id, as Agave and Nethermind write it
+            """{"jsonrpc":"2.0","result":{"id":5,"method":"m","list":[1,"]}"]},"id":42}""",
+            """{"result":1 , "id" : 42 }${"\n"}""",
+            """{"result":1,"id":"7"}""",
+            """{"result":1,"id":-9223372036854775808}""",
+            """{"result":1,"id":1.5}""",
+            """{"result":1,"id":null}""",
+            "{\"result\":1,\"id\":\"1\\u0032\"}",
+            """{"result":1,"id":3,"jsonrpc":"2.0"}""",
+            """{"result":1,"method":"m","id":3,"x":1}""",
+            """{"result":{"id":5},"x":{"id":6}}""",
+            """{"result":1,"x":{"id":6}}""",
+            """{"result":1,"error":{"code":1,"message":"m"},"id":3}""",
             """"id"""",
             """null""",
             """42""",
@@ -72,7 +85,6 @@ class WsMessageScannerTest : FunSpec({
             """{"id":,"result":1}""",
             """{id:1,"result":1}""",
             """{"result":[1,{"a":"]"},"id":1""",
-            """{"result":"1,"id":1}""",
             "",
             "not json",
             "   ",
@@ -134,6 +146,7 @@ class WsMessageScannerTest : FunSpec({
             """{"method":null,"params":{"subscription":"s"}}""",
             """{"method":"m","params":["s"]}""",
             """{"method":"m","params":{"result":1""",
+            """{"params":{"subscription":"s"},"method":"m""",
             "{\"method\":\"\\u006d\",\"params\":{\"subscription\":\"s\"}}",
             "{\"\\u006dethod\":\"m\",\"params\":{\"subscription\":\"s\"}}",
             "{\"method\":\"m\",\"params\":{\"\\u0073ubscription\":\"s\"}}",
@@ -144,6 +157,38 @@ class WsMessageScannerTest : FunSpec({
 
         for (message in messages) {
             withClue(message) { WsMessageScanner.notification(message, WsMessageScanner.NotificationPosition()) shouldBe false }
+        }
+    }
+
+    // WsClient decodes the whole message next, and routes it through the tree unless it has no method and the same id
+    test("an id written after the result is read without checking what comes before it") {
+        val messages = listOf(
+            """{"result":"1,"id":1}""",
+            """{"result":1,"method":"m","id":1}""",
+            """{"result":[1,{"a":"]"},"id":1}""",
+            """{"result":1,"id":2,"id":1}""",
+        )
+
+        for (message in messages) {
+            withClue(message) { WsMessageScanner.responseId(message) shouldBe 1L }
+        }
+    }
+
+    // WsClient keeps one position, which caches the last id it read
+    test("a cached subscription id is reused only for the same id") {
+        val position = WsMessageScanner.NotificationPosition()
+        val subscriptions = listOf("123", "12", "1234", "1234", "\"12\"", "12", "\"0xab\"", "\"0xabc\"", "\"0xab\"", "-12", "12")
+
+        for (subscription in subscriptions) {
+            for (message in listOf(
+                """{"method":"m","params":{"subscription":$subscription,"result":1}}""",
+                """{"method":"m","params":{"result":1,"subscription":$subscription}}""",
+            )) {
+                withClue(message) {
+                    WsMessageScanner.notification(message, position) shouldBe true
+                    position.subscriptionId(message) shouldBe Kotlinx.DEFAULT.parseToJsonElement(subscription)
+                }
+            }
         }
     }
 
