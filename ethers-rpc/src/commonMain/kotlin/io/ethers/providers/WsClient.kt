@@ -754,8 +754,7 @@ class WsClient(
         val resultEl = paramsObj["result"] ?: return
         val subscription = serverIdToSubscription[subscriptionId] ?: return
         if (method != subscription.descriptor.notificationMethod || subscription.closed.value) return
-        subscription.handleNotification(resultEl)
-        if (subscription.descriptor.isTerminal(resultEl)) {
+        if (subscription.handleNotification(resultEl)) {
             // The server has already removed this one-shot subscription. Remove it before closing the
             // stream so the close callback neither unsubscribes nor resurrects it on reconnect.
             requestIdToSubscription.remove(subscription.requestId)
@@ -900,8 +899,11 @@ class WsClient(
     ) {
         var awaitingResubscribe = false
 
-        fun handleNotification(event: KJsonElement) {
-            stream.offer(Kotlinx.DEFAULT.decodeFromJsonElement(resultDeserializer, event))
+        /** Deliver the event and tell whether it was the subscription's last. */
+        fun handleNotification(event: KJsonElement): Boolean {
+            val value = Kotlinx.DEFAULT.decodeFromJsonElement(resultDeserializer, event)
+            stream.offer(value)
+            return descriptor.isTerminal(value)
         }
     }
 }

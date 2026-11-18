@@ -11,7 +11,6 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import kotlin.time.Duration.Companion.seconds
 import io.ktor.client.HttpClient as KtorHttpClient
 
@@ -30,9 +29,12 @@ class SubscriptionDescriptorTest : FunSpec({
                 SubscriptionDescriptor { params ->
                     resolutions++
                     val name = params[0] as String
-                    SubscriptionDescriptor.Resolved("${name}Subscribe", "${name}Unsubscribe", "${name}Notification", params.copyOfRange(1, params.size)) {
-                        name == "signature" && it.jsonPrimitive.content == "done"
-                    }
+                    SubscriptionDescriptor.Resolved(
+                        "${name}Subscribe",
+                        "${name}Unsubscribe",
+                        "${name}Notification",
+                        params.copyOfRange(1, params.size),
+                    ) { event -> name == "signature" && event == "done" }
                 },
             ),
         )
