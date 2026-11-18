@@ -543,35 +543,46 @@ class WsClient(
         var batch: PendingBatchRequest? = null
         var requestIndexPerId: HashMap<Long, Int>? = null
 
-        for (element in array) {
-            val obj = element.jsonObject
-            val responseId = obj["id"]?.jsonPrimitive?.longOrNull ?: -1L
+        try {
+            for (element in array) {
+                val obj = element.jsonObject
+                val responseId = obj["id"]?.jsonPrimitive?.longOrNull ?: -1L
 
-            if (batch == null && responseId != -1L) {
-                val data = getBatchFromRequestId(responseId)
-                if (data != null) {
-                    batch = data.first
-                    requestIndexPerId = data.second
+                if (batch == null && responseId != -1L) {
+                    val data = getBatchFromRequestId(responseId)
+                    if (data != null) {
+                        batch = data.first
+                        requestIndexPerId = data.second
+                    }
                 }
+
+                val errorEl = obj["error"]
+                val resultEl = obj["result"]
+                val error = if (errorEl != null && errorEl !is JsonNull) RpcError.fromJsonObject(errorEl.jsonObject) else null
+
+                if (batch == null || requestIndexPerId == null || responseId == -1L) {
+                    throw Exception("Invalid response, no matching batch found for ID $responseId: $text")
+                }
+
+                val responseIndex = requestIndexPerId[responseId]!!
+
+                val response = when {
+                    resultEl == null && error == null -> HttpClient.ERROR_INVALID_RESPONSE
+                    resultEl != null -> decodeResult(batch.request.requests[responseIndex].resultDeserializer, resultEl)
+                    else -> failure(error!!)
+                }
+
+                batch.request.complete(responseIndex, response)
             }
-
-            val errorEl = obj["error"]
-            val resultEl = obj["result"]
-            val error = if (errorEl != null && errorEl !is JsonNull) RpcError.fromJsonObject(errorEl.jsonObject) else null
-
-            if (batch == null || requestIndexPerId == null || responseId == -1L) {
-                throw Exception("Invalid response, no matching batch found for ID $responseId: $text")
+        } catch (e: Exception) {
+            // the batch has already left the in-flight requests, so fail the calls this response did not answer
+            val unanswered = batch
+            if (unanswered != null) {
+                val invalid = failure(RpcError(RpcError.CODE_INVALID_RESPONSE, "Invalid batch response: ${e.message}", JsonPrimitive(text), e))
+                for (i in unanswered.request.responses.indices) unanswered.request.complete(i, invalid)
+                unanswered.response.complete(false)
             }
-
-            val responseIndex = requestIndexPerId[responseId]!!
-
-            val response = when {
-                resultEl == null && error == null -> HttpClient.ERROR_INVALID_RESPONSE
-                resultEl != null -> success(Kotlinx.DEFAULT.decodeFromJsonElement(batch.request.requests[responseIndex].resultDeserializer, resultEl))
-                else -> failure(error!!)
-            }
-
-            batch.request.complete(responseIndex, response)
+            throw e
         }
 
         batch?.response?.complete(true)
@@ -620,12 +631,25 @@ class WsClient(
         // decide on the element, not the decoded value: a null result, e.g. for an unknown transaction, is a success
         val response = when {
             error != null -> failure(error)
-            resultElement != null -> success(Kotlinx.DEFAULT.decodeFromJsonElement(request.resultDeserializer, resultElement))
+            resultElement != null -> decodeResult(request.resultDeserializer, resultElement)
             else -> HttpClient.ERROR_INVALID_RESPONSE
         }
 
         LOG.trc { "Handled response for request $id: $response" }
         request.response.complete(response)
+    }
+
+    /**
+     * Decode a received result. A result that does not decode fails its call: the call has already left the in-flight
+     * requests, so throwing here would leave it waiting forever.
+     */
+    private fun <T> decodeResult(deserializer: DeserializationStrategy<T>, element: KJsonElement): Result<T, RpcError> {
+        return try {
+            success(Kotlinx.DEFAULT.decodeFromJsonElement(deserializer, element))
+        } catch (e: Exception) {
+            LOG.err(e) { "Error decoding result: $element" }
+            failure(RpcError(RpcError.CODE_CALL_FAILED, e.message ?: "result decoding failed", null, e))
+        }
     }
 
     private fun <T : Any> handleSubscriptionResponse(
@@ -636,11 +660,14 @@ class WsClient(
     ) {
         if (error != null) {
             request.response.complete(failure(error))
+        } else if (resultElement !is JsonPrimitive) {
+            val invalid = RpcError(RpcError.CODE_INVALID_RESPONSE, "Invalid subscription id: $resultElement")
+            request.response.complete(failure(invalid))
         } else {
             val closed = atomic(false)
             val subscription = Subscription(
                 requestId = id,
-                serverId = resultElement!!.jsonPrimitive,
+                serverId = resultElement,
                 descriptor = request.descriptor,
                 closed = closed,
                 resultDeserializer = request.resultDeserializer,

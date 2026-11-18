@@ -50,6 +50,7 @@ private fun httpSpecificTests() = funSpec {
 
         afterEach {
             client.close()
+            server.stop()
         }
 
         test("HTTP error with JSON response") {
