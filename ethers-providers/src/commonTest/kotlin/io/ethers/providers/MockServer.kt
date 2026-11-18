@@ -15,6 +15,7 @@ import io.ktor.websocket.Frame
 import io.ktor.websocket.close
 import io.ktor.websocket.readText
 import kotlinx.atomicfu.atomic
+import kotlinx.atomicfu.update
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.withTimeoutOrNull
 import io.ktor.server.websocket.WebSockets as ServerWebSockets
@@ -63,6 +64,29 @@ private const val DEFAULT_TIMEOUT_MS = 1000L
  * full multi-module test run.
  */
 private const val RESPONSE_WAIT_MS = 10_000L
+
+/**
+ * The mock servers started and not yet stopped.
+ *
+ * Every running server holds one of `Dispatchers.IO`'s threads in its selector. Leaked servers add up across a run
+ * until IO's 64 threads are all taken, and from then on every network call in every test waits for a selector to
+ * time out and free one: on CI, seconds per request. `io.kotest.provided.ProjectConfig` fails a spec that leaves one
+ * running, and stops it, so a leak fails where it happens.
+ */
+internal object RunningMockServers {
+    private val servers = atomic(emptyList<MockServer>())
+
+    fun add(server: MockServer) = servers.update { it + server }
+
+    fun remove(server: MockServer) = servers.update { it - server }
+
+    /** Stop every server still running, returning how many there were. */
+    suspend fun stopAll(): Int {
+        val leaked = servers.getAndSet(emptyList())
+        for (server in leaked) server.stop()
+        return leaked.size
+    }
+}
 
 /**
  * An embedded ktor server bound to an ephemeral loopback port.
@@ -121,6 +145,7 @@ private class EmbeddedMockServer(private val websocket: Boolean) : MockWSServer 
     suspend fun start() {
         server.start(wait = false)
         port = server.engine.resolvedConnectors().first().port
+        RunningMockServers.add(this)
     }
 
     override fun enqueueJson(json: String) = enqueue(200, json)
@@ -154,6 +179,7 @@ private class EmbeddedMockServer(private val websocket: Boolean) : MockWSServer 
     }
 
     override suspend fun stop() {
+        RunningMockServers.remove(this)
         server.stop(gracePeriodMillis = 0, timeoutMillis = 500)
     }
 }

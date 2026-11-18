@@ -83,7 +83,8 @@ class HttpClient(
                         }
                         batch.complete(index, result)
                     }
-                    return true
+                    // calls the response left out fail with the HTTP error below
+                    if (!batch.hasUnanswered()) return true
                 } catch (_: Exception) {
                 }
 
@@ -108,7 +109,7 @@ class HttpClient(
                 }
                 batch.complete(index, result)
             }
-            true
+            !batch.failUnanswered(missingResponse(text))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -242,6 +243,11 @@ class HttpClient(
                 RpcError.CODE_INVALID_RESPONSE,
                 "Invalid response, no 'result' or 'error' fields in response",
             ),
+        )
+
+        /** The result of a batched call that the batch response, [text], did not answer. */
+        internal fun missingResponse(text: String) = failure(
+            RpcError(RpcError.CODE_INVALID_RESPONSE, "No response to this call in the batch response", JsonPrimitive(text)),
         )
 
         internal val ERROR_CALL_TIMEOUT = failure(RpcError(RpcError.CODE_CALL_TIMEOUT, "Call timeout", null))

@@ -18,6 +18,7 @@ import io.ethers.solana.providers.SolanaSubscriptionDescriptor
 import io.ethers.solana.types.Programs
 import io.ethers.solana.types.SolanaSignature
 import io.ethers.solana.types.rpc.Commitment
+import io.ethers.solana.types.rpc.ContextValue
 import io.ethers.solana.types.rpc.DataSlice
 import io.ethers.solana.types.rpc.RpcContext
 import io.ethers.solana.types.rpc.SignatureNotification
@@ -49,7 +50,7 @@ class SubscriptionsTest : FunSpec({
             resolved.params.toList() shouldBe listOf("argument")
             params[1] = "changed"
             resolved.params.toList() shouldBe listOf("argument")
-            resolved.isTerminal(Kotlinx.DEFAULT.parseToJsonElement(contextual("{\"err\":null}"))) shouldBe (name == "signature")
+            resolved.isTerminal(Kotlinx.DEFAULT.decodeFromString(SIGNATURE_EVENT, contextual("{\"err\":null}"))) shouldBe (name == "signature")
         }
         SolanaSubscriptionDescriptor.resolve(emptyArray<Any>()).subscribeMethod shouldBe "Subscribe"
         SolanaSubscriptionDescriptor.resolve(arrayOf("unknown")).subscribeMethod shouldBe "unknownSubscribe"
@@ -158,13 +159,26 @@ class SubscriptionsTest : FunSpec({
         val received = provider.subscribeSignature(signature, enableReceivedNotification = true).send().unwrap().receive()!!
         received.context shouldBe RpcContext(bigIntegerOf(42))
         received.value shouldBe SignatureNotification.Received
-        client.descriptor.isTerminal(Kotlinx.DEFAULT.parseToJsonElement(client.event)) shouldBe false
+        client.descriptor.isTerminal(received) shouldBe false
         client.event = contextual("""{"err":{"InstructionError":[0,"InvalidArgument"]}}""")
         val status = provider.subscribeSignature(signature).send().unwrap().receive()!!
         status.context shouldBe RpcContext(bigIntegerOf(42))
         (status.value as SignatureNotification.Status).err shouldBe io.ethers.solana.types.rpc.TransactionError.InstructionFailure(0, io.ethers.solana.types.rpc.InstructionError.InvalidArgument)
-        client.descriptor.isTerminal(Kotlinx.DEFAULT.parseToJsonElement(client.event)) shouldBe true
+        client.descriptor.isTerminal(status) shouldBe true
         client.descriptor.unsubscribeMethod shouldBe "signatureUnsubscribe"
+    }
+
+    test("a signature status is recognized decoded as a ContextValue or as JSON, and nothing else is") {
+        val isTerminal = SolanaSubscriptionDescriptor.resolve(arrayOf("signature")).isTerminal
+        val status = contextual("""{"err":null}""")
+        val received = contextual("\"receivedSignature\"")
+
+        isTerminal(Kotlinx.DEFAULT.decodeFromString(SIGNATURE_EVENT, status)) shouldBe true
+        isTerminal(Kotlinx.DEFAULT.decodeFromString(SIGNATURE_EVENT, received)) shouldBe false
+        isTerminal(Kotlinx.DEFAULT.parseToJsonElement(status)) shouldBe true
+        isTerminal(Kotlinx.DEFAULT.parseToJsonElement(received)) shouldBe false
+        isTerminal(status) shouldBe false
+        isTerminal(Kotlinx.DEFAULT.parseToJsonElement("[1]")) shouldBe false
     }
 
     test("slot and root subscriptions have empty params and precise numeric results") {
@@ -178,6 +192,8 @@ class SubscriptionsTest : FunSpec({
         client.descriptor.subscribeMethod shouldBe "rootSubscribe"
     }
 })
+
+private val SIGNATURE_EVENT = ContextValue.serializer(SignatureNotification.serializer())
 
 private class SubscriptionClient : JsonRpcClient {
     var event = "null"

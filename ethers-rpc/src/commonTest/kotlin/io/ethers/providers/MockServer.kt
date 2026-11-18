@@ -1,5 +1,6 @@
 package io.ethers.providers
 
+import io.ethers.core.Kotlinx
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.install
 import io.ktor.server.cio.CIO
@@ -15,8 +16,10 @@ import io.ktor.websocket.Frame
 import io.ktor.websocket.close
 import io.ktor.websocket.readText
 import kotlinx.atomicfu.atomic
+import kotlinx.atomicfu.update
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.json.JsonObject
 import io.ktor.server.websocket.WebSockets as ServerWebSockets
 
 /** Captured HTTP request from a mock server. */
@@ -58,11 +61,50 @@ interface MockWSServer : MockServer {
 private const val DEFAULT_TIMEOUT_MS = 1000L
 
 /**
+ * Placeholder for the id of the request a queued WebSocket response answers, e.g.
+ * `{"jsonrpc":"2.0","id":$REQUEST_ID,"result":"0x1"}`, for a test that cannot know which id that request will get.
+ */
+const val REQUEST_ID = "\$REQUEST_ID"
+
+/** The `id` of a JSON-RPC request as written, or `null` if it has none. */
+private fun requestIdOf(text: String): String {
+    val request = try {
+        Kotlinx.DEFAULT.parseToJsonElement(text) as? JsonObject
+    } catch (_: Exception) {
+        null
+    }
+    return request?.get("id")?.toString() ?: "null"
+}
+
+/**
  * How long a handler waits for a response to be enqueued. This is a guard against hanging forever when a test
  * forgets to enqueue, not a functional timeout, so it is generous - a tight value here flakes under the load of a
  * full multi-module test run.
  */
 private const val RESPONSE_WAIT_MS = 10_000L
+
+/**
+ * The mock servers started and not yet stopped.
+ *
+ * Every running server holds one of `Dispatchers.IO`'s threads in its selector. Leaked servers add up across a run
+ * until IO's 64 threads are all taken, and from then on every network call in every test waits for a selector to
+ * time out and free one: on CI, seconds per request. `io.kotest.provided.ProjectConfig` fails a spec that leaves one
+ * running, and stops it, so a leak fails where it happens.
+ */
+internal object RunningMockServers {
+    private val servers = atomic(emptyList<MockServer>())
+
+    fun add(server: MockServer) = servers.update { it + server }
+
+    fun remove(server: MockServer) = servers.update { it - server }
+
+    /** Stop every server still running, returning how many there were. */
+    suspend fun stopAll(): Int {
+        val leaked = servers.getAndSet(emptyList())
+        for (server in leaked) server.stop()
+        return leaked.size
+    }
+}
 
 /**
  * An embedded ktor server bound to an ephemeral loopback port.
@@ -92,10 +134,13 @@ private class EmbeddedMockServer(private val websocket: Boolean) : MockWSServer 
                     session.value = this
                     for (frame in incoming) {
                         if (frame !is Frame.Text) continue
-                        received.trySend(frame.readText())
+                        val text = frame.readText()
+                        received.trySend(text)
 
                         // reply only if a response was queued, mirroring MockWebServer's queue semantics
-                        responses.tryReceive().getOrNull()?.let { (_, body) -> send(Frame.Text(body)) }
+                        responses.tryReceive().getOrNull()?.let { (_, body) ->
+                            send(Frame.Text(body.replace(REQUEST_ID, requestIdOf(text))))
+                        }
                     }
                 }
             }
@@ -121,6 +166,7 @@ private class EmbeddedMockServer(private val websocket: Boolean) : MockWSServer 
     suspend fun start() {
         server.start(wait = false)
         port = server.engine.resolvedConnectors().first().port
+        RunningMockServers.add(this)
     }
 
     override fun enqueueJson(json: String) = enqueue(200, json)
@@ -154,6 +200,7 @@ private class EmbeddedMockServer(private val websocket: Boolean) : MockWSServer 
     }
 
     override suspend fun stop() {
+        RunningMockServers.remove(this)
         server.stop(gracePeriodMillis = 0, timeoutMillis = 500)
     }
 }

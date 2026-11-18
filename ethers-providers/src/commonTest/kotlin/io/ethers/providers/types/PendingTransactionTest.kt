@@ -20,8 +20,11 @@ import kotlinx.serialization.json.JsonElement
 import kotlin.time.Duration.Companion.milliseconds
 
 class PendingTransactionTest : FunSpec({
+    lateinit var mockWebServer: MockServer
+    beforeSpec { mockWebServer = mockServerHttp() }
+    afterSpec { mockWebServer.stop() }
+
     context("inclusion()") {
-        val mockWebServer = mockServerHttp()
         val provider = Provider.builder(mockWebServer.url).build(chainId = 999999).unwrap()
         val minedBlockNumber = 18341180L
         val txHash = Hash("0xce15f8ce74845b0d254fcbfda722ba89976ca6e09936d6761a648a6492b82e9b")

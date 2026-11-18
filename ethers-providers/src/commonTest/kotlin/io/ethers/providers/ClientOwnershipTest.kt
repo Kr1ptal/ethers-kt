@@ -28,6 +28,10 @@ class ClientOwnershipTest : FunSpec({
 
         serverB.enqueueJson("""{"jsonrpc":"2.0","id":2,"result":"0x2"}""")
         providerB.getBlockNumber().send().isSuccess() shouldBe true
+
+        providerB.close()
+        serverA.stop()
+        serverB.stop()
     }
 
     test("closing a provider does not close a caller-supplied client") {
@@ -47,6 +51,7 @@ class ClientOwnershipTest : FunSpec({
 
         second.close()
         ownClient.close()
+        server.stop()
     }
 
     test("closing a provider still releases its own client") {
@@ -62,5 +67,6 @@ class ClientOwnershipTest : FunSpec({
         // transport errors - using a provider after closing it is a programming error, not an RPC failure.
         server.enqueueJson("""{"jsonrpc":"2.0","id":2,"result":"0x2"}""")
         shouldThrow<Throwable> { provider.getBlockNumber().send() }
+        server.stop()
     }
 })

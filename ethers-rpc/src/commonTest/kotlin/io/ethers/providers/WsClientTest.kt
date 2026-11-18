@@ -3,12 +3,15 @@ package io.ethers.providers
 import io.ethers.core.Kotlinx
 import io.ethers.core.isFailure
 import io.ethers.core.isSuccess
+import io.ethers.providers.types.BatchRpcRequest
+import io.ethers.providers.types.RpcCall
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.nondeterministic.eventually
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.string.shouldContain
 import io.ktor.client.plugins.websocket.WebSockets
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeout
@@ -38,8 +41,12 @@ import io.ktor.client.HttpClient as KtorHttpClient
 // Waits that span a reconnect have to allow for a full WebSocket handshake against the mock server, not just a
 // local round trip - CI runners are far slower than a dev machine. `eventually` returns as soon as the condition
 // holds, so a generous budget costs nothing when things are fast, it only bounds how long a genuine failure takes
-// to surface.
-private val RECONNECT_WINDOW = 5.seconds
+// to surface. A reconnect can include WsClient.RECONNECT_BACKOFF and a slow handshake on each side, so this is a
+// must-not-hang guard rather than a timing expectation.
+private val RECONNECT_WINDOW = 30.seconds
+
+// Waits for a frame to cross the loopback socket. A loaded CI runner has taken over a second for that.
+private val DELIVERY_WINDOW = 5.seconds
 
 /** Stands in for any domain type that reaches the transport with a serializer of its own. */
 @Serializable(with = SerializableValueSerializer::class)
@@ -73,6 +80,7 @@ class WsClientTest : FunSpec({
 
         afterEach {
             wsClient.close()
+            mockServer.stop()
         }
 
         test("complex Map / BigInteger / ByteArray params are emitted as proper JSON") {
@@ -125,9 +133,35 @@ class WsClientTest : FunSpec({
                 """{"jsonrpc":"2.0","method":"eth_subscription","params":{"subscription":"0xsub123","result":"0xdeadbeef"}}""",
             )
 
-            eventually(1.seconds) { stream.isEmpty shouldBe false }
+            eventually(DELIVERY_WINDOW) { stream.isEmpty shouldBe false }
             val payload = stream.receive()!!
             payload shouldBe byteArrayOf(0xde.toByte(), 0xad.toByte(), 0xbe.toByte(), 0xef.toByte())
+        }
+
+        // the call must fail, not wait forever for a response that was already received
+        test("a subscribe response that is not a subscription id fails the call") {
+            mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":{"not":"an id"}}""")
+
+            val result = withTimeout(30.seconds) {
+                wsClient.subscribe(arrayOf("newHeads"), JsonObject.serializer())
+            }
+
+            result.isFailure() shouldBe true
+            result.unwrapError().code shouldBe RpcError.CODE_INVALID_RESPONSE
+        }
+
+        test("a malformed batch entry fails the calls it leaves unanswered") {
+            mockServer.enqueueJson("""[{"jsonrpc":"2.0","id":1,"result":"0x1"},"not a response"]""")
+
+            val batch = BatchRpcRequest(2)
+            batch.addRpcCall(RpcCall(wsClient, "eth_blockNumber", emptyArray<Any>(), stringSerializer))
+            batch.addRpcCall(RpcCall(wsClient, "eth_chainId", emptyArray<Any>(), stringSerializer))
+
+            withTimeout(30.seconds) {
+                batch.send() shouldBe false
+                batch.responses[0].await().unwrap() shouldBe "0x1"
+                batch.responses[1].await().unwrapError().code shouldBe RpcError.CODE_INVALID_RESPONSE
+            }
         }
     }
 
@@ -142,6 +176,7 @@ class WsClientTest : FunSpec({
 
         afterEach {
             wsClient.close()
+            mockServer.stop()
         }
 
         test("subscription with multiple notifications") {
@@ -217,7 +252,7 @@ class WsClientTest : FunSpec({
             // arrived just because the first has is a race - one that shows up on loaded CI machines.
 
             // First notification
-            eventually(1.seconds) {
+            eventually(DELIVERY_WINDOW) {
                 stream.isEmpty shouldBe false
             }
             val event1 = stream.receive()!!
@@ -226,7 +261,7 @@ class WsClientTest : FunSpec({
             event1["timestamp"]?.jsonPrimitive?.content shouldBe "0x1111"
 
             // Second notification
-            eventually(1.seconds) {
+            eventually(DELIVERY_WINDOW) {
                 stream.isEmpty shouldBe false
             }
             val event2 = stream.receive()!!
@@ -235,7 +270,7 @@ class WsClientTest : FunSpec({
             event2["timestamp"]?.jsonPrimitive?.content shouldBe "0x2222"
 
             // Third notification
-            eventually(1.seconds) {
+            eventually(DELIVERY_WINDOW) {
                 stream.isEmpty shouldBe false
             }
             val event3 = stream.receive()!!
@@ -310,10 +345,21 @@ class WsClientTest : FunSpec({
             // Queue the new subscription response for auto-resubscription
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"$newSubscriptionId"}""")
 
+            // Drop the original subscribe request so the next message the server takes is the resubscribe
+            mockServer.takeReceivedText() shouldNotBe null
+
             // Close the connection from server side to trigger reconnection
             mockServer.closeConnection()
 
-            // Verify stream is still open and receives messages after reconnection
+            // Wait for the client to resubscribe over the new connection before notifying it. A reconnect spans
+            // the close handshake, a fresh handshake and possibly a backoff, which a loaded runner can stretch
+            // past any short window.
+            val resubscribe = mockServer.takeReceivedText(RECONNECT_WINDOW.inWholeMilliseconds)
+            resubscribe shouldNotBe null
+            resubscribe!! shouldContain "eth_subscribe"
+
+            // Verify stream is still open and receives messages after reconnection. The server answers the
+            // resubscribe just after recording it, so retry the notification until it follows that response.
             val notification = """
             {
                 "jsonrpc": "2.0",
@@ -328,7 +374,7 @@ class WsClientTest : FunSpec({
             }
             """.trimIndent()
 
-            eventually(RECONNECT_WINDOW) {
+            eventually(DELIVERY_WINDOW) {
                 mockServer.sendJson(notification)
                 stream.isClosed shouldBe false
                 stream.isEmpty shouldBe false
@@ -370,7 +416,7 @@ class WsClientTest : FunSpec({
             mockServer.sendJson(notification1)
 
             val stream = subscriptionResult.unwrap()
-            eventually(1.seconds) {
+            eventually(DELIVERY_WINDOW) {
                 stream.isEmpty shouldBe false
             }
 
@@ -417,10 +463,15 @@ class WsClientTest : FunSpec({
             )
 
             val stringSerializer = String.serializer()
-            mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0x1234567"}""")
-            withTimeout(10.seconds) {
-                wsClient.request("eth_blockNumber", emptyArray<Any>(), stringSerializer)
-            }.isSuccess() shouldBe true
+            // Connect with a request that succeeds. Its read timeout counts from when it is queued, so on a loaded
+            // runner it can expire while the client is still connecting; try again until one succeeds. The reply
+            // carries the id of whichever request reaches the server.
+            withTimeout(30.seconds) {
+                while (true) {
+                    mockServer.enqueueJson("""{"jsonrpc":"2.0","id":$REQUEST_ID,"result":"0x1234567"}""")
+                    if (wsClient.request("eth_blockNumber", emptyArray<Any>(), stringSerializer).isSuccess()) break
+                }
+            }
 
             mockServer.closeConnection()
             // stop the server so the reconnect attempt is refused - previously this fell out of MockWebServer

@@ -113,6 +113,9 @@ class WsClient(
     private val subscriptionQueue = QueueChannel.mpscUnbounded<PendingSubscriptionRequest<*>>()
     private val unsubscribeQueue = QueueChannel.mpscUnbounded<Long>()
 
+    /** Where the scan found a notification's fields; only the processor loop uses it, one message at a time. */
+    private val notificationPosition = WsMessageScanner.NotificationPosition()
+
     private val reconnect = atomic(false)
     private val stopping = atomic(false)
 
@@ -503,6 +506,8 @@ class WsClient(
     }
 
     private fun handleMessage(text: String) {
+        if (handleResponseDirectly(text) || handleNotificationDirectly(text)) return
+
         val element = Kotlinx.DEFAULT.parseToJsonElement(text)
 
         if (element is JsonArray) {
@@ -539,42 +544,93 @@ class WsClient(
         }
     }
 
+    /**
+     * Decode a response to a single call straight into its result, without a JSON tree, and complete the call. Returns
+     * false, leaving the message to the tree route, if it is anything else or does not decode; the tree route then
+     * gives the outcome it always has.
+     */
+    private fun handleResponseDirectly(text: String): Boolean {
+        val id = WsMessageScanner.responseId(text)
+        if (id == WsMessageScanner.NONE) return false
+        val request = inFlightRequests[id] ?: return false
+        return completeDirectly(id, request, text)
+    }
+
+    private fun <T> completeDirectly(id: Long, request: PendingRequest<T>, text: String): Boolean {
+        // the same outcomes, in the same order, as handleMessage gives on a tree: an error wins over a result
+        val response = try {
+            val fields = Kotlinx.DEFAULT.decodeFromString(RpcResponseFieldsDeserializer(request.resultDeserializer), text)
+            // the scan stopped at the first id: a later method, or a different last id, is for the tree route to route
+            if (fields.hasMethod || (fields.id as? JsonPrimitive)?.longOrNull != id) return false
+            val error = fields.error
+            when {
+                error != null && error !is JsonNull -> failure(RpcError.fromJsonObject(error.jsonObject))
+                // the result is only absent while hasResult is false, so it holds a T, which may itself be nullable
+                @Suppress("UNCHECKED_CAST")
+                fields.hasResult
+                -> success(fields.result as T)
+                else -> failure(RpcError(RpcError.CODE_INVALID_RESPONSE, "Invalid response", JsonPrimitive(text)))
+            }
+        } catch (_: Exception) {
+            return false
+        }
+
+        inFlightRequests.remove(id)
+        LOG.trc { "Handled response for request $id: $response" }
+        request.response.complete(response)
+        return true
+    }
+
     private fun handleBatchResponse(text: String, array: JsonArray) {
         var batch: PendingBatchRequest? = null
         var requestIndexPerId: HashMap<Long, Int>? = null
 
-        for (element in array) {
-            val obj = element.jsonObject
-            val responseId = obj["id"]?.jsonPrimitive?.longOrNull ?: -1L
+        try {
+            for (element in array) {
+                val obj = element.jsonObject
+                val responseId = obj["id"]?.jsonPrimitive?.longOrNull ?: -1L
 
-            if (batch == null && responseId != -1L) {
-                val data = getBatchFromRequestId(responseId)
-                if (data != null) {
-                    batch = data.first
-                    requestIndexPerId = data.second
+                if (batch == null && responseId != -1L) {
+                    val data = getBatchFromRequestId(responseId)
+                    if (data != null) {
+                        batch = data.first
+                        requestIndexPerId = data.second
+                    }
                 }
+
+                val errorEl = obj["error"]
+                val resultEl = obj["result"]
+                val error = if (errorEl != null && errorEl !is JsonNull) RpcError.fromJsonObject(errorEl.jsonObject) else null
+
+                if (batch == null || requestIndexPerId == null || responseId == -1L) {
+                    throw Exception("Invalid response, no matching batch found for ID $responseId: $text")
+                }
+
+                val responseIndex = requestIndexPerId[responseId]!!
+
+                val response = when {
+                    resultEl == null && error == null -> HttpClient.ERROR_INVALID_RESPONSE
+                    resultEl != null -> decodeResult(batch.request.requests[responseIndex].resultDeserializer, resultEl)
+                    else -> failure(error!!)
+                }
+
+                batch.request.complete(responseIndex, response)
             }
-
-            val errorEl = obj["error"]
-            val resultEl = obj["result"]
-            val error = if (errorEl != null && errorEl !is JsonNull) RpcError.fromJsonObject(errorEl.jsonObject) else null
-
-            if (batch == null || requestIndexPerId == null || responseId == -1L) {
-                throw Exception("Invalid response, no matching batch found for ID $responseId: $text")
+        } catch (e: Exception) {
+            // the batch has already left the in-flight requests, so fail the calls this response did not answer
+            val unanswered = batch
+            if (unanswered != null) {
+                val invalid = failure(RpcError(RpcError.CODE_INVALID_RESPONSE, "Invalid batch response: ${e.message}", JsonPrimitive(text), e))
+                for (i in unanswered.request.responses.indices) unanswered.request.complete(i, invalid)
+                unanswered.response.complete(false)
             }
-
-            val responseIndex = requestIndexPerId[responseId]!!
-
-            val response = when {
-                resultEl == null && error == null -> HttpClient.ERROR_INVALID_RESPONSE
-                resultEl != null -> success(Kotlinx.DEFAULT.decodeFromJsonElement(batch.request.requests[responseIndex].resultDeserializer, resultEl))
-                else -> failure(error!!)
-            }
-
-            batch.request.complete(responseIndex, response)
+            throw e
         }
 
-        batch?.response?.complete(true)
+        // the batch has left the in-flight requests, so a call the response did not answer would never time out
+        if (batch != null) {
+            batch.response.complete(!batch.request.failUnanswered(HttpClient.missingResponse(text)))
+        }
     }
 
     private fun getBatchFromRequestId(requestId: Long): Pair<PendingBatchRequest, HashMap<Long, Int>>? {
@@ -620,12 +676,25 @@ class WsClient(
         // decide on the element, not the decoded value: a null result, e.g. for an unknown transaction, is a success
         val response = when {
             error != null -> failure(error)
-            resultElement != null -> success(Kotlinx.DEFAULT.decodeFromJsonElement(request.resultDeserializer, resultElement))
+            resultElement != null -> decodeResult(request.resultDeserializer, resultElement)
             else -> HttpClient.ERROR_INVALID_RESPONSE
         }
 
         LOG.trc { "Handled response for request $id: $response" }
         request.response.complete(response)
+    }
+
+    /**
+     * Decode a received result. A result that does not decode fails its call: the call has already left the in-flight
+     * requests, so throwing here would leave it waiting forever.
+     */
+    private fun <T> decodeResult(deserializer: DeserializationStrategy<T>, element: KJsonElement): Result<T, RpcError> {
+        return try {
+            success(Kotlinx.DEFAULT.decodeFromJsonElement(deserializer, element))
+        } catch (e: Exception) {
+            LOG.err(e) { "Error decoding result: $element" }
+            failure(RpcError(RpcError.CODE_CALL_FAILED, e.message ?: "result decoding failed", null, e))
+        }
     }
 
     private fun <T : Any> handleSubscriptionResponse(
@@ -636,11 +705,14 @@ class WsClient(
     ) {
         if (error != null) {
             request.response.complete(failure(error))
+        } else if (resultElement !is JsonPrimitive) {
+            val invalid = RpcError(RpcError.CODE_INVALID_RESPONSE, "Invalid subscription id: $resultElement")
+            request.response.complete(failure(invalid))
         } else {
             val closed = atomic(false)
             val subscription = Subscription(
                 requestId = id,
-                serverId = resultElement!!.jsonPrimitive,
+                serverId = resultElement,
                 descriptor = request.descriptor,
                 closed = closed,
                 resultDeserializer = request.resultDeserializer,
@@ -688,13 +760,54 @@ class WsClient(
         val resultEl = paramsObj["result"] ?: return
         val subscription = serverIdToSubscription[subscriptionId] ?: return
         if (method != subscription.descriptor.notificationMethod || subscription.closed.value) return
-        subscription.handleNotification(resultEl)
-        if (subscription.descriptor.isTerminal(resultEl)) {
+        deliverFromTree(subscription, subscriptionId, resultEl)
+    }
+
+    private fun <T : Any> deliverFromTree(subscription: Subscription<T>, subscriptionId: JsonPrimitive, resultEl: KJsonElement) {
+        subscription.deliver(subscriptionId, Kotlinx.DEFAULT.decodeFromJsonElement(subscription.resultDeserializer, resultEl))
+    }
+
+    /**
+     * Decode a notification for an open subscription straight into its event, without a JSON tree, and deliver it.
+     * Returns false, leaving the message to the tree route, if it is anything else or does not decode; the tree route
+     * then gives the outcome it always has.
+     */
+    private fun handleNotificationDirectly(text: String): Boolean {
+        val position = notificationPosition
+        if (!WsMessageScanner.notification(text, position)) return false
+        val subscriptionId = position.subscriptionId(text) ?: return false
+        val subscription = serverIdToSubscription[subscriptionId] ?: return false
+        if (!position.isMethod(text, subscription.descriptor.notificationMethod) || subscription.closed.value) return false
+        return deliverDirectly(subscription, subscriptionId, text)
+    }
+
+    private fun <T : Any> deliverDirectly(subscription: Subscription<T>, subscriptionId: JsonPrimitive, text: String): Boolean {
+        val fields = try {
+            Kotlinx.DEFAULT.decodeFromString(subscription.notificationDeserializer, text)
+        } catch (_: Exception) {
+            return false
+        }
+
+        // the scan stopped at the first method and subscription: the tree route reads the last ones, and an id or
+        // error that it would fail to read
+        if (!fields.hasResult || fields.hasIdOrError || fields.subscription != subscriptionId) return false
+        if (fields.method != subscription.descriptor.notificationMethod) return false
+
+        // the result is only absent while hasResult is false
+        @Suppress("UNCHECKED_CAST")
+        subscription.deliver(subscriptionId, fields.result as T)
+        return true
+    }
+
+    /** Deliver [event] to [subscription], ending the subscription if it was its last. */
+    private fun <T : Any> Subscription<T>.deliver(subscriptionId: JsonPrimitive, event: T) {
+        stream.offer(event)
+        if (descriptor.isTerminal(event)) {
             // The server has already removed this one-shot subscription. Remove it before closing the
             // stream so the close callback neither unsubscribes nor resurrects it on reconnect.
-            requestIdToSubscription.remove(subscription.requestId)
+            requestIdToSubscription.remove(requestId)
             serverIdToSubscription.remove(subscriptionId)
-            subscription.stream.close()
+            stream.close()
         }
     }
 
@@ -834,8 +947,7 @@ class WsClient(
     ) {
         var awaitingResubscribe = false
 
-        fun handleNotification(event: KJsonElement) {
-            stream.offer(Kotlinx.DEFAULT.decodeFromJsonElement(resultDeserializer, event))
-        }
+        /** Reads this subscription's notifications straight into its events. */
+        val notificationDeserializer = RpcNotificationDeserializer(resultDeserializer)
     }
 }
