@@ -7,12 +7,16 @@ import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.datatest.withData
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import kotlin.random.Random
 
 private fun hex(value: String): ByteArray = FastHex.decode(value.replace(" ", ""))
 
 private fun encode(write: BorshWriter.() -> Unit): ByteArray = BorshWriter().apply(write).toByteArray()
+
+private fun littleEndianU32(value: Int): ByteArray = ByteArray(4) { (value ushr (8 * it)).toByte() }
 
 /** Decode [data] as exactly one value read by [read], through the whole-payload path. */
 private fun <T> decode(data: String, read: BorshReader.() -> T): T = SolanaCodec.of(read) { }.decode(hex(data)).unwrap()
@@ -98,6 +102,67 @@ class BorshCodecTest : FunSpec({
         }
     }
 
+    context("wide integers on both sides of the Long fast path") {
+        /** Little-endian two's complement of [value] across [width] bytes, built independently of the codec. */
+        fun littleEndian(value: BigInteger, width: Int): ByteArray {
+            val bigEndian = value.toByteArray()
+            val fill: Byte = if (value.signum() < 0) -1 else 0
+            return ByteArray(width) { bigEndian.getOrElse(bigEndian.size - 1 - it) { fill } }
+        }
+
+        val one = bigIntegerOf(1)
+        val longMax = bigIntegerOf(Long.MAX_VALUE)
+        val longMin = bigIntegerOf(Long.MIN_VALUE)
+
+        data class Width(val name: String, val bytes: Int, val signed: Boolean, val read: BorshReader.() -> BigInteger, val write: BorshWriter.(BigInteger) -> Unit)
+        val widths = listOf(
+            Width("u64", 8, false, BorshReader::readU64, BorshWriter::writeU64),
+            Width("u128", 16, false, BorshReader::readU128, BorshWriter::writeU128),
+            Width("u256", 32, false, BorshReader::readU256, BorshWriter::writeU256),
+            Width("i128", 16, true, BorshReader::readI128, BorshWriter::writeI128),
+            Width("i256", 32, true, BorshReader::readI256, BorshWriter::writeI256),
+        )
+
+        withData(nameFn = { it.name }, widths) { width ->
+            val max = if (width.signed) one.shiftLeft(width.bytes * 8 - 1).subtract(one) else one.shiftLeft(width.bytes * 8).subtract(one)
+            val min = if (width.signed) one.shiftLeft(width.bytes * 8 - 1).negate() else bigIntegerOf(0)
+            val edges = listOf(bigIntegerOf(0), one, longMax, longMax.add(one), one.shiftLeft(64), one.shiftLeft(64).subtract(one), max) +
+                if (width.signed) listOf(bigIntegerOf(-1), longMin, longMin.subtract(one), one.shiftLeft(64).negate(), min) else emptyList()
+            val random = Random(width.bytes)
+            // random magnitudes of every byte length, so values land on both sides of the fast path
+            val randoms = (1..width.bytes).flatMap { length ->
+                List(8) {
+                    val magnitude = BigInteger(1, random.nextBytes(length))
+                    if (width.signed && random.nextBoolean()) magnitude.negate() else magnitude
+                }
+            }
+            for (value in (edges + randoms).filter { it >= min && it <= max }) {
+                val encoded = BorshWriter(1).apply { width.write(this, value) }.toByteArray()
+                encoded shouldBe littleEndian(value, width.bytes)
+                width.read(BorshReader(encoded)) shouldBe value
+            }
+            shouldThrow<IllegalArgumentException> { encode { width.write(this, max.add(one)) } }
+            shouldThrow<IllegalArgumentException> { encode { width.write(this, min.subtract(one)) } }
+        }
+
+        test("negative values fill the bytes above the low 8, even over bytes a grown buffer reused") {
+            // the writer's tail is zero, so a negative fast-path value must write its sign fill explicitly
+            encode { writeI128(bigIntegerOf(-2)) } shouldBe hex("fe" + "ff".repeat(15))
+            encode { writeI256(bigIntegerOf(Long.MIN_VALUE)) } shouldBe hex("00".repeat(7) + "80" + "ff".repeat(24))
+        }
+
+        test("narrow unsigned values reject every bit outside their width") {
+            for (value in listOf(-1, 256, Int.MIN_VALUE, Int.MAX_VALUE)) shouldThrow<IllegalArgumentException> { encode { writeU8(value) } }
+            for (value in listOf(-1, 65536, Int.MIN_VALUE)) shouldThrow<IllegalArgumentException> { encode { writeU16(value) } }
+            for (value in listOf(-1L, 1L shl 32, Long.MIN_VALUE)) shouldThrow<IllegalArgumentException> { encode { writeU32(value) } }
+            encode {
+                writeU8(255)
+                writeU16(65535)
+                writeU32(4294967295L)
+            } shouldBe hex("ff ffff ffffffff")
+        }
+    }
+
     context("booleans and options") {
         test("bool accepts only 0 and 1") {
             decode("01") { readBool() } shouldBe true
@@ -127,6 +192,35 @@ class BorshCodecTest : FunSpec({
             encode { writeString("héllo") } shouldBe hex("06000000 68 c3a9 6c6c6f")
             decode("06000000 68 c3a9 6c6c6f") { readString() } shouldBe "héllo"
             decode("00000000") { readString() } shouldBe ""
+        }
+
+        test("strings encode as the stdlib's UTF-8, across ASCII, 2-, 3- and 4-byte characters") {
+            val samples = listOf("", "a", "ascii only", "é", "aé", "éa", "✓", "🚀", "a🚀b", "\u007f\u0080\u07ff\u0800\uffff", "\ud7ff\ue000", "\udbff\udfff")
+            val random = Random(42)
+            val alphabet = listOf("a", "Z", "é", "Ž", "✓", "中", "🚀", "\ud800\udc00", "\udbff\udfff")
+            val randoms = List(200) { buildString { repeat(random.nextInt(0, 40)) { append(alphabet.random(random)) } } }
+            for (value in samples + randoms) {
+                val utf8 = value.encodeToByteArray()
+                // start past a small buffer, so a non-ASCII tail has to grow it
+                val encoded = BorshWriter(8).apply {
+                    writeU8(1)
+                    writeString(value)
+                }.toByteArray()
+                encoded shouldBe hex("01") + littleEndianU32(utf8.size) + utf8
+                BorshReader(encoded, 1).readString() shouldBe value
+            }
+        }
+
+        test("an unpaired surrogate is rejected and leaves the writer unchanged") {
+            for (value in listOf("\ud800", "a\ud800", "a\udc00b", "é\ud800", "é\ud800é", "🚀\udfff", "x".repeat(50) + "é\ud800")) {
+                val writer = BorshWriter(8)
+                writer.writeU8(7)
+                shouldThrow<CharacterCodingException> { writer.writeString(value) }
+                writer.size shouldBe 1
+                // the bytes the failed write touched read back as zero padding
+                writer.writePadding(80)
+                writer.toByteArray() shouldBe hex("07") + ByteArray(80)
+            }
         }
 
         test("invalid UTF-8 is malformed at the string bytes") {

@@ -1,12 +1,12 @@
 package io.ethers.solana.types.transaction
 
+import io.ethers.core.FastBase64
 import io.ethers.core.Result
 import io.ethers.core.unwrapOrReturn
 import io.ethers.solana.signers.SolanaSigner
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.types.SolanaSignature
-import kotlin.io.encoding.Base64
 import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmStatic
 import kotlin.native.HiddenFromObjC
@@ -42,7 +42,7 @@ class SolanaTransactionSigned private constructor(
     fun withNewBlockhash(blockhash: SolanaBlockhash): SolanaTransactionUnsigned = tx.withNewBlockhash(blockhash)
 
     fun serialize(): ByteArray = tx.encodeEnvelope(signatures)
-    fun toBase64(): String = Base64.encode(serialize())
+    fun toBase64(): String = FastBase64.encode(serialize())
     override fun serializeForSimulation(): ByteArray = serialize()
 
     override fun equals(other: Any?): Boolean {
@@ -163,7 +163,7 @@ class SolanaTransactionSigned private constructor(
          * Its populated slots are unverified.
          */
         fun serializePartial(): ByteArray = tx.encodeEnvelope(signatures)
-        fun toBase64Partial(): String = Base64.encode(serializePartial())
+        fun toBase64Partial(): String = FastBase64.encode(serializePartial())
 
         companion object {
             /** Import an envelope, retaining its empty slots for further signing. */

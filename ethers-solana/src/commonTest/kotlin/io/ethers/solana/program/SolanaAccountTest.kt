@@ -12,7 +12,9 @@ import io.ethers.providers.RpcError
 import io.ethers.providers.types.BatchRpcRequest
 import io.ethers.solana.codec.BorshReader
 import io.ethers.solana.codec.BorshWriter
+import io.ethers.solana.codec.SolanaAccountArrayField
 import io.ethers.solana.codec.SolanaAccountFactory
+import io.ethers.solana.codec.SolanaAccountField
 import io.ethers.solana.codec.SolanaCodec
 import io.ethers.solana.codec.SolanaDecodeError
 import io.ethers.solana.codec.SolanaDiscriminator
@@ -30,7 +32,7 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
-import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.DeserializationStrategy
 import kotlin.io.encoding.Base64
 
 private val PROGRAM = SolanaAddress(ByteArray(32) { 9 })
@@ -65,17 +67,17 @@ private class FakeClient : JsonRpcClient {
     var notifications: List<String>? = null
     private val config = RpcClientConfig().subscriptionDescriptor(SolanaSubscriptionDescriptor)
 
-    override suspend fun <T> request(method: String, params: Array<*>, resultDecoder: (JsonElement) -> T): Result<T, RpcError> {
+    override suspend fun <T> request(method: String, params: Array<*>, resultDeserializer: DeserializationStrategy<T>): Result<T, RpcError> {
         this.params[method] = params.toList()
-        return success(resultDecoder(Kotlinx.DEFAULT.parseToJsonElement(responses.getValue(method))))
+        return success(Kotlinx.DEFAULT.decodeFromString(resultDeserializer, responses.getValue(method)))
     }
 
-    override suspend fun <T : Any> subscribe(params: Array<*>, resultDecoder: (JsonElement) -> T): Result<ChannelReceiver<T>, RpcError> {
+    override suspend fun <T : Any> subscribe(params: Array<*>, resultDeserializer: DeserializationStrategy<T>): Result<ChannelReceiver<T>, RpcError> {
         val descriptor = config.subscriptionDescriptor.resolve(params)
         this.params[descriptor.subscribeMethod] = descriptor.params.toList()
         val channel = QueueChannel.spscUnbounded<T>()
         for (notification in notifications ?: listOf(responses.getValue(descriptor.subscribeMethod))) {
-            channel.offer(resultDecoder(Kotlinx.DEFAULT.parseToJsonElement(notification)))
+            channel.offer(Kotlinx.DEFAULT.decodeFromString(resultDeserializer, notification))
         }
         return success(channel)
     }
@@ -229,6 +231,45 @@ class SolanaAccountTest : FunSpec({
 
     test("field filters count their offset from the end of the discriminator") {
         Vault.ACCOUNT.fieldFilter(8) { writeAddress(FIRST) } shouldBe AccountFilter.Memcmp(16, FIRST.toBase58())
+    }
+
+    context("nested field descriptors") {
+        val amount = SolanaAccountField<Vault, Long>("amount", 0, 8, { it.readI64() }, { writeI64(it) })
+        // the authority as its 32 bytes, each an element
+        val authority = SolanaAccountArrayField<Vault, SolanaAddress, SolanaAccountField<Vault, Int>>(
+            "authority",
+            8,
+            32,
+            1,
+            { it.readAddress() },
+            { writeAddress(it) },
+        ) { name, offset -> SolanaAccountField(name, offset, 1, { it.readU8() }, { writeU8(it) }) }
+
+        test("a filter by descriptor compares the encoded value at its offset from the start of the account data") {
+            val filter = SolanaAccountFilter(provider, Vault.ACCOUNT, PROGRAM).field(authority, SECOND).field(authority[31], 7).field(amount, 5)
+            filter.accountFilters.drop(1) shouldBe listOf(
+                AccountFilter.Memcmp(16, SECOND.toBase58()),
+                AccountFilter.Memcmp(47, Base58.encode(byteArrayOf(7))),
+                AccountFilter.Memcmp(8, Base58.encode(byteArrayOf(5, 0, 0, 0, 0, 0, 0, 0))),
+            )
+        }
+
+        test("a filter by descriptor rejects a value that does not encode to the field's size") {
+            val short = SolanaAccountField<Vault, Long>("short", 0, 4, { it.readI64() }, { writeI64(it) })
+            shouldThrow<IllegalArgumentException> { SolanaAccountFilter(provider, Vault.ACCOUNT, PROGRAM).field(short, 5) }.message shouldContain "takes 4 bytes"
+        }
+
+        test("a slice reads fields within a selected field, but not outside every selected field") {
+            val selection = SolanaAccountSelection(Vault.ACCOUNT, PROGRAM, SolanaAccountProjectionScope<Vault>().fields(authority))
+            client.responses["getAccountInfo"] = contextual(account(Vault.ACCOUNT.encode(Vault(5, SECOND)).copyOfRange(16, 48)))
+            val slice = selection.fetch(provider, FIRST).send().unwrap()
+            slice[authority] shouldBe SECOND
+            slice[authority[0]] shouldBe 2
+            slice[authority[31]] shouldBe 2
+            shouldThrow<IllegalArgumentException> { slice[amount] }
+            // a field that starts within the selection but ends after it is not within it
+            shouldThrow<IllegalArgumentException> { slice[SolanaAccountField<Vault, Long>("tail", 28, 16, { it.readI64() }, { writeI64(it) })] }
+        }
     }
 
     test("simulation accounts decode in the order they were requested, as of the simulation's slot") {

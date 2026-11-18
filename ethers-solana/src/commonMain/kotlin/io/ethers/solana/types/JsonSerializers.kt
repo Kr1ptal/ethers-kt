@@ -2,6 +2,7 @@
 
 package io.ethers.solana.types
 
+import io.ethers.core.FastBase64
 import io.ethers.solana.utils.U32_MAX
 import io.ethers.solana.utils.requireU64
 import io.github.artificialpb.bignum.BigInteger
@@ -25,7 +26,6 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
-import kotlin.io.encoding.Base64
 
 /**
  * Adds forward-compatible fields to a generated object serializer without hand-decoding its properties.
@@ -134,7 +134,7 @@ object Base64TupleBytesSerializer : KSerializer<SolanaBytes> {
     override fun deserialize(decoder: Decoder): SolanaBytes {
         val data = (decoder as JsonDecoder).decodeJsonElement().jsonArray
         require(data.size == 2 && data.all { it is JsonPrimitive && it.isString } && data[1].jsonPrimitive.content == "base64") { "Expected [data, base64]" }
-        return SolanaBytes.fromBytes(Base64.decode(data[0].jsonPrimitive.content))
+        return SolanaBytes.fromBytes(FastBase64.decode(data[0].jsonPrimitive.content))
     }
     override fun serialize(encoder: Encoder, value: SolanaBytes) = (encoder as JsonEncoder).encodeJsonElement(JsonArray(listOf(JsonPrimitive(value.toBase64()), JsonPrimitive("base64"))))
 }

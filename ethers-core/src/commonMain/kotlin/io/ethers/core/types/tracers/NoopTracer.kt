@@ -1,9 +1,7 @@
 package io.ethers.core.types.tracers
 
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonElement
-import kotlin.reflect.KClass
 
 /**
  * Perform no action.
@@ -16,14 +14,10 @@ data object NoopTracer : Tracer<NoopTracer.Result> {
     override val name: String
         get() = "noopTracer"
 
-    override val resultType: KClass<Result>
-        get() = Result::class
+    override val resultSerializer: KSerializer<Result>
+        get() = Result.serializer()
 
     override val config: Map<String, Any?> = EMPTY_CONFIG
-
-    override fun decodeResult(json: Json, element: JsonElement): Result {
-        return json.decodeFromJsonElement(Result.serializer(), element)
-    }
 
     /**
      * Empty result marker for the noop tracer.

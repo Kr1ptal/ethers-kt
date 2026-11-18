@@ -14,11 +14,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.descriptors.PrimitiveKind
 import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
-import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -27,7 +27,6 @@ import kotlinx.serialization.json.long
 import kotlin.collections.mapOf
 import kotlin.time.Duration.Companion.seconds
 import io.ktor.client.HttpClient as KtorHttpClient
-import kotlinx.serialization.json.JsonElement as KJsonElement
 
 /**
  * WsClient tests demonstrating the funSpec factory pattern for JsonRpcClient testing.
@@ -65,7 +64,7 @@ class WsClientTest : FunSpec({
     context("WebSocket request payload") {
         lateinit var mockServer: MockWSServer
         lateinit var wsClient: WsClient
-        val stringDecoder: (KJsonElement) -> String = { element -> element.jsonPrimitive.content }
+        val stringSerializer = String.serializer()
 
         beforeEach {
             mockServer = mockServerWebsocket()
@@ -86,7 +85,7 @@ class WsClientTest : FunSpec({
                 "data" to byteArrayOf(0xde.toByte(), 0xad.toByte(), 0xbe.toByte(), 0xef.toByte()),
                 "gas" to 21000L,
             )
-            wsClient.request("eth_call", arrayOf(callMap, "latest"), stringDecoder)
+            wsClient.request("eth_call", arrayOf(callMap, "latest"), stringSerializer)
 
             val sentText = mockServer.takeReceivedText()!!
             val body = Kotlinx.DEFAULT.parseToJsonElement(sentText).jsonObject
@@ -153,9 +152,9 @@ class WsClientTest : FunSpec({
 
             // Subscribe to new block headers
             val params = arrayOf("newHeads")
-            val resultDecoder: (KJsonElement) -> JsonObject = { it.jsonObject }
+            val resultSerializer = JsonObject.serializer()
 
-            val subscriptionResult = wsClient.subscribe(params, resultDecoder)
+            val subscriptionResult = wsClient.subscribe(params, resultSerializer)
             subscriptionResult.isSuccess() shouldBe true
 
             val stream = subscriptionResult.unwrap()
@@ -264,9 +263,9 @@ class WsClientTest : FunSpec({
 
             // Subscribe to new block headers
             val params = arrayOf("newHeads")
-            val resultDecoder: (KJsonElement) -> JsonObject = { it.jsonObject }
+            val resultSerializer = JsonObject.serializer()
 
-            val subscriptionResult = wsClient.subscribe(params, resultDecoder)
+            val subscriptionResult = wsClient.subscribe(params, resultSerializer)
             subscriptionResult.isSuccess() shouldBe true
 
             val stream = subscriptionResult.unwrap()
@@ -299,9 +298,9 @@ class WsClientTest : FunSpec({
 
             // Subscribe to new block headers
             val params = arrayOf("newHeads")
-            val resultDecoder: (KJsonElement) -> JsonObject = { it.jsonObject }
+            val resultSerializer = JsonObject.serializer()
 
-            val subscriptionResult = wsClient.subscribe(params, resultDecoder)
+            val subscriptionResult = wsClient.subscribe(params, resultSerializer)
             subscriptionResult.isSuccess() shouldBe true
 
             val stream = subscriptionResult.unwrap()
@@ -347,9 +346,9 @@ class WsClientTest : FunSpec({
 
             // First create a subscription
             val params = arrayOf("newHeads")
-            val resultDecoder: (KJsonElement) -> JsonObject = { it.jsonObject }
+            val resultSerializer = JsonObject.serializer()
 
-            val subscriptionResult = wsClient.subscribe(params, resultDecoder)
+            val subscriptionResult = wsClient.subscribe(params, resultSerializer)
             subscriptionResult.isSuccess() shouldBe true
 
             // Send multiple notifications
@@ -417,10 +416,10 @@ class WsClientTest : FunSpec({
                 readTimeoutMs = 1000L,
             )
 
-            val stringDecoder: (KJsonElement) -> String = { element -> element.jsonPrimitive.content }
+            val stringSerializer = String.serializer()
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0x1234567"}""")
             withTimeout(10.seconds) {
-                wsClient.request("eth_blockNumber", emptyArray<Any>(), stringDecoder)
+                wsClient.request("eth_blockNumber", emptyArray<Any>(), stringSerializer)
             }.isSuccess() shouldBe true
 
             mockServer.closeConnection()
@@ -433,7 +432,7 @@ class WsClientTest : FunSpec({
             // failed attempt parks for WsClient.RECONNECT_BACKOFF. The budget here has to exceed that backoff
             // rather than equal it, otherwise the test races the wait it depends on.
             val result = withTimeout(WsClient.RECONNECT_BACKOFF + 3.seconds) {
-                wsClient.request("eth_blockNumber", emptyArray<Any>(), stringDecoder)
+                wsClient.request("eth_blockNumber", emptyArray<Any>(), stringSerializer)
             }
 
             result.isFailure() shouldBe true

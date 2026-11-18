@@ -7,10 +7,11 @@ import io.ethers.providers.types.RpcCall
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.funSpec
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.types.shouldBeInstanceOf
+import kotlinx.serialization.builtins.nullable
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.JsonElement as KJsonElement
 
 enum class RpcClientVariant {
     HTTP,
@@ -31,7 +32,7 @@ enum class RpcClientVariant {
  * ```
  */
 object JsonRpcTestFactory {
-    private val stringDecoder: (KJsonElement) -> String = { element -> element.jsonPrimitive.content }
+    private val stringSerializer = String.serializer()
 
     /**
      * Creates common JSON-RPC tests that can be used with any [JsonRpcClient] implementation.
@@ -61,16 +62,36 @@ object JsonRpcTestFactory {
             test("successful request with result") {
                 server.enqueueJson(SUCCESSFUL_RESPONSE)
 
-                val result = client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder)
+                val result = client.request("eth_blockNumber", emptyArray<Any>(), stringSerializer)
 
                 result.isSuccess() shouldBe true
                 result.unwrap() shouldBe "0x1234567"
             }
 
+            // a null result is a successful null, e.g. eth_getTransactionByHash for an unknown hash
+            test("null result decodes as null with a nullable serializer") {
+                server.enqueueJson(NULL_RESULT_RESPONSE)
+
+                val result = client.request("eth_getTransactionByHash", arrayOf("0x1234"), String.serializer().nullable)
+
+                result.isSuccess() shouldBe true
+                result.unwrap() shouldBe null
+            }
+
+            test("null result decodes as null with a mapped strategy") {
+                server.enqueueJson(NULL_RESULT_RESPONSE)
+
+                val deserializer = JsonElement.serializer().map { if (it is JsonNull) null else it.jsonPrimitive.content }
+                val result = client.request("eth_getTransactionByHash", arrayOf("0x1234"), deserializer)
+
+                result.isSuccess() shouldBe true
+                result.unwrap() shouldBe null
+            }
+
             test("RPC error response") {
                 server.enqueueJson(RPC_ERROR_RESPONSE)
 
-                val result = client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder)
+                val result = client.request("eth_blockNumber", emptyArray<Any>(), stringSerializer)
 
                 result.isFailure() shouldBe true
                 val error = result.unwrapError()
@@ -81,7 +102,7 @@ object JsonRpcTestFactory {
             test("invalid JSON response") {
                 server.enqueueJson("invalid json")
 
-                val result = client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder)
+                val result = client.request("eth_blockNumber", emptyArray<Any>(), stringSerializer)
 
                 result.isFailure() shouldBe true
                 val error = result.unwrapError()
@@ -91,7 +112,7 @@ object JsonRpcTestFactory {
             test("missing response fields") {
                 server.enqueueJson(RESPONSE_MISSING_FIELDS)
 
-                val result = client.request("eth_blockNumber", emptyArray<Any>(), stringDecoder)
+                val result = client.request("eth_blockNumber", emptyArray<Any>(), stringSerializer)
 
                 result.isFailure() shouldBe true
                 val error = result.unwrapError()
@@ -101,7 +122,7 @@ object JsonRpcTestFactory {
             test("request with parameters") {
                 server.enqueueJson(SUCCESSFUL_RESPONSE)
 
-                val result = client.request("eth_getBalance", arrayOf("0x1234", "latest"), stringDecoder)
+                val result = client.request("eth_getBalance", arrayOf("0x1234", "latest"), stringSerializer)
 
                 result.isSuccess() shouldBe true
                 result.unwrap() shouldBe "0x1234567"
@@ -119,8 +140,8 @@ object JsonRpcTestFactory {
                 server.enqueueJson(MIXED_BATCH_RESPONSE)
 
                 val batch = BatchRpcRequest(2)
-                val call1 = RpcCall(client, "eth_blockNumber", emptyArray<Any>(), stringDecoder)
-                val call2 = RpcCall(client, "invalid_method", emptyArray<Any>(), stringDecoder)
+                val call1 = RpcCall(client, "eth_blockNumber", emptyArray<Any>(), stringSerializer)
+                val call2 = RpcCall(client, "invalid_method", emptyArray<Any>(), stringSerializer)
                 batch.addRpcCall(call1)
                 batch.addRpcCall(call2)
 
@@ -140,9 +161,9 @@ object JsonRpcTestFactory {
                 server.enqueueJson(OUT_OF_ORDER_BATCH_RESPONSE)
 
                 val batch = BatchRpcRequest(3)
-                val call1 = RpcCall(client, "method1", emptyArray<Any>(), stringDecoder)
-                val call2 = RpcCall(client, "method2", emptyArray<Any>(), stringDecoder)
-                val call3 = RpcCall(client, "method3", emptyArray<Any>(), stringDecoder)
+                val call1 = RpcCall(client, "method1", emptyArray<Any>(), stringSerializer)
+                val call2 = RpcCall(client, "method2", emptyArray<Any>(), stringSerializer)
+                val call3 = RpcCall(client, "method3", emptyArray<Any>(), stringSerializer)
                 batch.addRpcCall(call1)
                 batch.addRpcCall(call2)
                 batch.addRpcCall(call3)
@@ -160,7 +181,7 @@ object JsonRpcTestFactory {
                 server.enqueueJson("invalid json")
 
                 val batch = BatchRpcRequest(1)
-                val call1 = RpcCall(client, "eth_blockNumber", emptyArray<Any>(), stringDecoder)
+                val call1 = RpcCall(client, "eth_blockNumber", emptyArray<Any>(), stringSerializer)
                 batch.addRpcCall(call1)
 
                 val batchResult = batch.send()
@@ -173,7 +194,7 @@ object JsonRpcTestFactory {
                 server.enqueueJson(SINGLE_ITEM_BATCH_RESPONSE)
 
                 val batch = BatchRpcRequest(1)
-                val call1 = RpcCall(client, "eth_blockNumber", emptyArray<Any>(), stringDecoder)
+                val call1 = RpcCall(client, "eth_blockNumber", emptyArray<Any>(), stringSerializer)
                 val pendingResponse = batch.addRpcCall(call1)
 
                 shouldThrow<IllegalStateException> {
@@ -197,7 +218,7 @@ object JsonRpcTestFactory {
                 server.enqueueJson(BATCH_INVALID_ID_RESPONSE)
 
                 val batch = BatchRpcRequest(1)
-                val call1 = RpcCall(client, "eth_blockNumber", emptyArray<Any>(), stringDecoder)
+                val call1 = RpcCall(client, "eth_blockNumber", emptyArray<Any>(), stringSerializer)
                 batch.addRpcCall(call1)
 
                 val batchResult = batch.send()
@@ -209,6 +230,8 @@ object JsonRpcTestFactory {
     }
 
     // Test response constants
+    private val NULL_RESULT_RESPONSE = """{"jsonrpc":"2.0","id":1,"result":null}"""
+
     private val SUCCESSFUL_RESPONSE = """
     {
         "jsonrpc": "2.0",

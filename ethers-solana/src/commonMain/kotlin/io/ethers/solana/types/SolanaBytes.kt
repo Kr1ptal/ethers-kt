@@ -1,11 +1,11 @@
 package io.ethers.solana.types
 
+import io.ethers.core.FastBase64
 import io.ethers.core.FastHex
 import io.ethers.core.Result
 import io.ethers.core.failure
 import io.ethers.core.success
 import io.ethers.crypto.Base58
-import kotlin.io.encoding.Base64
 import kotlin.jvm.JvmField
 import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmStatic
@@ -66,7 +66,7 @@ class SolanaBytes private constructor(private val value: ByteArray) {
     }
 
     fun toBase58(): String = Base58.encode(value)
-    fun toBase64(): String = Base64.encode(value)
+    fun toBase64(): String = FastBase64.encode(value)
 
     /** Lowercase hexadecimal without a prefix. */
     fun toHex(): String = FastHex.encodeWithoutPrefix(value)
@@ -100,9 +100,9 @@ class SolanaBytes private constructor(private val value: ByteArray) {
         /** Decode padded Base64 [value], failing if it is not valid Base64. */
         @JvmStatic
         fun fromBase64(value: String): Result<SolanaBytes, SolanaDecodingError> {
-            // the standard library offers no non-throwing decoder
+            // the decoder has no non-throwing variant
             val decoded = try {
-                Base64.decode(value)
+                FastBase64.decode(value)
             } catch (e: IllegalArgumentException) {
                 return failure(SolanaDecodingError("Data is not valid Base64: ${e.message}"))
             }

@@ -15,14 +15,11 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.descriptors.buildClassSerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonDecoder
-import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
-import kotlin.reflect.KClass
 
 /**
  * The prestate tracer has two modes: "prestate" and "diff". The prestate mode returns the accounts necessary to execute
@@ -42,16 +39,12 @@ data class PrestateTracer(val diffMode: Boolean) : Tracer<PrestateTracer.Result>
     override val name: String
         get() = "prestateTracer"
 
-    override val resultType: KClass<Result>
-        get() = Result::class
+    override val resultSerializer: KSerializer<Result>
+        get() = ResultSerializer
 
     override val config: Map<String, Any?> = when {
         diffMode -> CONFIG_DIFF
         else -> CONFIG_PRESTATE
-    }
-
-    override fun decodeResult(json: Json, element: JsonElement): Result {
-        return json.decodeFromJsonElement(ResultSerializer, element)
     }
 
     @Serializable(with = ResultSerializer::class)

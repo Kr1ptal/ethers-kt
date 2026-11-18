@@ -416,6 +416,47 @@ Import `io.ethers.core.Result`. When migrating batch/query consumers, handle eac
 before accessing `.data`. Subscriptions do not provide an initial snapshot or guarantee every intermediate
 change; the application still coordinates snapshots, reconnect recovery, and multi-account state.
 
+## IDL constants
+
+Each `constants[]` entry of an IDL becomes a member of the generated program object. Primitives become
+`const val` where Kotlin allows it. Values of every other type are `@JvmField val`s: `u64` and wider integers,
+pubkeys, bytes, arrays, vecs, options, and defined structs and enums (aliases resolve to their target):
+
+| Rust type | IDL value (`Debug` output) | Generated Kotlin |
+| --- | --- | --- |
+| `[u16; 3]` | `[1, 2, 3]` | `listOf<Int>(1, 2, 3)` |
+| `[u8; 4]` | `[1, 2, 3, 4]` | `SolanaBytes.fromHex("01020304").unwrap()` |
+| `Option<u64>` | `Some(5)` / `None` | `BigInteger("5")` / `null` |
+| `Option<Option<bool>>` | `Some(None)` | `SolanaOption.Some<Boolean?>(null)` |
+| `Point` | `Point { x: 1, y: -2 }` | `Point(x = 1, y = -2)` |
+| `Kind` | `Tuple(7, -300)` | `Kind.Tuple(7, -300)` |
+
+Anchor writes each value as the Rust `Debug` output of the constant (`format!("{:?}", value)`), so the generator
+reads only the literal forms `Debug` produces and checks them against the declared type. Legacy IDLs that record
+the source tokens (`Some (5)`, `1_000u32`) read the same way. A constant whose value does not match the declared
+type exactly is not generated: integers out of range, arrays of the wrong length, a missing, extra or reordered
+struct field, an unknown variant, or an invalid address. Nor is anything that is not a literal, such as an
+expression, a cast, a path or a reference to another constant. Legacy IDLs can record those as unevaluated source
+text, and the generator never evaluates them. Such a constant is reported as a warning and left out, or fails
+strict generation; see "Declarations that cannot be generated" in the `ethers-abigen-plugin` README.
+
+## Custom and typed instructions
+
+`Instruction(programId, keys, data)` invokes any program. It is an open class, so a typed instruction
+can extend it, compute the wire fields from its own accounts and arguments, and be passed to every
+API that takes an `Instruction`:
+
+```kotlin
+class Withdraw(val authority: SolanaAddress, val vault: SolanaAddress, val amount: Long) :
+    Instruction(PROGRAM_ID, listOf(AccountMeta.signer(authority), AccountMeta.writable(vault)), encode(amount))
+
+SolanaTransactionRequest { instruction(Withdraw(authority, vault, 100)) }
+```
+
+`programId`, `keys` and `data` are final, so a subclass cannot change the bytes it compiles to.
+Equality is by wire content: a subclass equals a plain `Instruction` with the same three fields, and
+`copy(...)` returns a plain `Instruction`. Only `toString` can be overridden.
+
 ## Idempotent associated token accounts
 
 Use `AssociatedTokenProgram.createAccountIdempotent(payer, owner, mint)` to derive the SPL Token

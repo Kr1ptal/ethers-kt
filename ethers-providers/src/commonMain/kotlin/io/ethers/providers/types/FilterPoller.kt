@@ -19,8 +19,8 @@ import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.builtins.serializer
-import kotlinx.serialization.json.JsonElement
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -37,15 +37,15 @@ class FilterPoller<T : Any> private constructor(
     constructor(
         id: String,
         provider: Middleware,
-        decoder: (JsonElement) -> List<T>,
-    ) : this(id, provider, decoder, QueueChannel.spscUnbounded<T> { })
+        deserializer: DeserializationStrategy<List<T>>,
+    ) : this(id, provider, deserializer, QueueChannel.spscUnbounded<T> { })
 
     private constructor(
         id: String,
         provider: Middleware,
-        decoder: (JsonElement) -> List<T>,
+        deserializer: DeserializationStrategy<List<T>>,
         channel: Channel<T>,
-    ) : this(Poller(id, provider, decoder, channel), channel)
+    ) : this(Poller(id, provider, deserializer, channel), channel)
 
     /**
      * Set polling interval. Default is 7 seconds.
@@ -93,7 +93,7 @@ class FilterPoller<T : Any> private constructor(
     private class Poller<T : Any>(
         private val id: String,
         private val provider: Middleware,
-        private val decoder: (JsonElement) -> List<T>,
+        private val deserializer: DeserializationStrategy<List<T>>,
         private val channel: Channel<T>,
     ) {
         private val LOG = getLogger()
@@ -104,7 +104,7 @@ class FilterPoller<T : Any> private constructor(
             LOG.dbg { "Initializing poller for filter ID: $id" }
 
             CoroutineScope(asyncDispatcher).launch(CoroutineName("FilterPoller-$id")) {
-                val getChangesCall = RpcCall(provider.client, "eth_getFilterChanges", arrayOf(id), decoder)
+                val getChangesCall = RpcCall(provider.client, "eth_getFilterChanges", arrayOf(id), deserializer)
 
                 var filterExists = true
                 while (!channel.isClosed) {

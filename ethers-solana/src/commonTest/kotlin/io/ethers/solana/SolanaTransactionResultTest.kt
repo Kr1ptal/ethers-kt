@@ -6,6 +6,7 @@ import io.ethers.solana.instruction.SystemProgram
 import io.ethers.solana.signers.KeypairSigner
 import io.ethers.solana.types.AccountMeta
 import io.ethers.solana.types.Programs
+import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.types.transaction.AddressLookupTableAccount
 import io.ethers.solana.types.transaction.MessageHeader
@@ -147,6 +148,48 @@ class SolanaTransactionResultTest : FunSpec({
         SolanaTransactionCompiled.deserialize(byteArrayOf(1)).unwrapError().cause shouldBe null
         SolanaTransactionSigned.deserialize(ByteArray(3)).unwrapError().cause shouldBe null
         AddressLookupTableAccount.decode(alice.publicKey, ByteArray(3)).unwrapError().cause shouldBe null
+    }
+
+    test("signer counts outside each version's limit are reported as SIGNERS") {
+        fun address(i: Int) = SolanaAddress(ByteArray(32) { _ -> i.toByte() }.also { it[31] = 0x55 })
+        fun keys(signers: Int) = List(signers) { address(it) } + Programs.SYSTEM
+        val signers = SolanaTransactionError.Limit.SIGNERS
+
+        // legacy and v0 use the high bit of the first message byte as the version flag, so at most 127 signers
+        SolanaTxLegacy.create(MessageHeader(128, 0, 1), keys(128), blockhash, emptyList()).unwrapError() shouldBe
+            SolanaTransactionError.CountOutOfRange(signers, 128, 1..127)
+        SolanaTxV0.create(MessageHeader(128, 0, 1), keys(128), blockhash, emptyList()).unwrapError() shouldBe
+            SolanaTransactionError.CountOutOfRange(signers, 128, 1..127)
+        SolanaTxLegacy.create(MessageHeader(0, 0, 1), keys(1), blockhash, emptyList()).unwrapError() shouldBe
+            SolanaTransactionError.CountOutOfRange(signers, 0, 1..2)
+
+        // in practice the 1232-byte packet caps legacy and v0 at 12 signers: 64-byte signature plus 32-byte key each
+        SolanaTxLegacy.create(MessageHeader(12, 0, 1), keys(12), blockhash, emptyList()).isSuccess() shouldBe true
+        SolanaTxV0.create(MessageHeader(12, 0, 1), keys(12), blockhash, emptyList()).isSuccess() shouldBe true
+        SolanaTxLegacy.create(MessageHeader(13, 0, 1), keys(13), blockhash, emptyList()).unwrapError()
+            .shouldBeInstanceOf<SolanaTransactionError.EnvelopeTooLarge>()
+        SolanaTxV0.create(MessageHeader(13, 0, 1), keys(13), blockhash, emptyList()).unwrapError()
+            .shouldBeInstanceOf<SolanaTransactionError.EnvelopeTooLarge>()
+
+        // v1 caps signers at 12 explicitly, despite its larger envelope
+        SolanaTxV1.create(MessageHeader(12, 0, 1), keys(12), blockhash, emptyList(), config).isSuccess() shouldBe true
+        SolanaTxV1.create(MessageHeader(13, 0, 1), keys(13), blockhash, emptyList(), config).unwrapError() shouldBe
+            SolanaTransactionError.CountOutOfRange(signers, 13, 1..12)
+    }
+
+    test("decoding rejects signer counts outside each version's limit") {
+        val signers = SolanaTransactionError.Limit.SIGNERS
+        // a legacy/v0 envelope announcing 128 signatures, as a two-byte compact-u16
+        SolanaTransactionSigned.Builder.deserializePartial(byteArrayOf(0x80.toByte(), 0x01) + ByteArray(128 * 64)).unwrapError() shouldBe
+            SolanaTransactionError.CountOutOfRange(signers, 128, 1..127)
+        SolanaTransactionSigned.Builder.deserializePartial(byteArrayOf(0)).unwrapError() shouldBe
+            SolanaTransactionError.CountOutOfRange(signers, 0, 1..127)
+
+        // v1 prefix, header with 13 signers, empty config mask, blockhash, no instructions, 13 accounts
+        val v1 = byteArrayOf(129.toByte(), 13, 0, 1, 0, 0, 0, 0) + ByteArray(32) + byteArrayOf(0, 13) + ByteArray(13 * 32)
+        SolanaTransactionUnsigned.deserializeMessage(v1).unwrapError() shouldBe SolanaTransactionError.CountOutOfRange(signers, 13, 1..12)
+        SolanaTransactionSigned.Builder.deserializePartial(v1 + ByteArray(13 * 64)).unwrapError() shouldBe
+            SolanaTransactionError.CountOutOfRange(signers, 13, 1..12)
     }
 
     test("create validates the same fields as the constructor") {

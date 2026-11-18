@@ -1,13 +1,12 @@
 package io.ethers.providers
 
+import io.ethers.core.HexLongSerializer
 import io.ethers.core.Result
-import io.ethers.core.asHexLong
 import io.ethers.core.failure
 import io.ethers.core.success
 import io.ethers.core.unwrapOrReturn
 import io.ethers.providers.types.RpcCall
 import io.ethers.providers.types.RpcRequest
-import kotlinx.serialization.json.jsonPrimitive
 import kotlin.time.Duration
 import io.ktor.client.HttpClient as KtorHttpClient
 
@@ -89,7 +88,7 @@ class ProviderBuilder internal constructor(private val url: String) : PlatformPr
     }
 
     private fun getChainId(client: JsonRpcClient): RpcRequest<Long, RpcError> {
-        return RpcCall(client, "eth_chainId", EMPTY_ARRAY, { it.jsonPrimitive.asHexLong() })
+        return RpcCall(client, "eth_chainId", EMPTY_ARRAY, HexLongSerializer)
     }
 
     private fun clientOrNull(): JsonRpcClient? = when {

@@ -70,7 +70,7 @@ class StructTracerTest : FunSpec({
             }
         """.trimIndent()
 
-        val result = structTracer.decodeResult(Kotlinx.DEFAULT, Kotlinx.DEFAULT.parseToJsonElement(jsonString))
+        val result = Kotlinx.DEFAULT.decodeFromString(structTracer.resultSerializer, jsonString)
 
         val expectedResult = StructTracer.ExecutionResult(
             159625L,

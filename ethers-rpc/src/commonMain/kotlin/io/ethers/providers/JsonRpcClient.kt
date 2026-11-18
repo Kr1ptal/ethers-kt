@@ -2,12 +2,12 @@ package io.ethers.providers
 
 import io.channels.core.ChannelReceiver
 import io.ethers.core.FastHex
-import io.ethers.core.Kotlinx
 import io.ethers.core.Result
 import io.ethers.core.ThrowableError
 import io.ethers.core.toJsonElement
 import io.ethers.providers.types.BatchRpcRequest
 import io.ktor.client.plugins.websocket.WebSockets
+import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.descriptors.PrimitiveKind
 import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
@@ -31,31 +31,24 @@ interface JsonRpcClient : AutoCloseable {
     /**
      * Execute an RPC request without blocking the calling thread.
      *
-     * @param method RPC function name
-     * @param params RPC function parameters
-     * @param resultSerializer serializer used to convert the JSON result into object [T]
-     */
-    suspend fun <T> request(
-        method: String,
-        params: Array<*>,
-        resultSerializer: KSerializer<T>,
-    ) = request(method, params, decoderFor(resultSerializer))
-
-    /**
-     * Execute an RPC request without blocking the calling thread.
+     * Any [kotlinx.serialization.KSerializer] is a [DeserializationStrategy], so the usual `T.serializer()`,
+     * `ListSerializer(...)` and `.nullable` serializers can be passed directly.
      *
      * @param method RPC function name
      * @param params RPC function parameters
-     * @param resultDecoder function to convert JSON result into object return [T].
+     * @param resultDeserializer decodes the JSON result into object [T]
      */
     suspend fun <T> request(
         method: String,
         params: Array<*>,
-        resultDecoder: (KJsonElement) -> T,
+        resultDeserializer: DeserializationStrategy<T>,
     ): Result<T, RpcError>
 
     /**
      * Execute a [batch] of RPC requests without blocking the calling thread.
+     *
+     * An implementation sends each of [BatchRpcRequest.requests] and completes it with [BatchRpcRequest.complete].
+     * A client that wraps another can forward a batch, or a new one it builds, with [BatchRpcRequest.sendWith].
      */
     suspend fun requestBatch(batch: BatchRpcRequest): Boolean
 
@@ -63,33 +56,12 @@ interface JsonRpcClient : AutoCloseable {
      * Subscribe to a stream using the client's configured protocol, if the client supports it.
      *
      * @param params the stream name followed by its arguments
-     * @param resultSerializer serializer used to convert the JSON result into object [T]
+     * @param resultDeserializer decodes each JSON event into object [T]
      */
     suspend fun <T : Any> subscribe(
         params: Array<*>,
-        resultSerializer: KSerializer<T>,
-    ): Result<ChannelReceiver<T>, RpcError> {
-        return subscribe(params, decoderFor(resultSerializer))
-    }
-
-    /**
-     * Subscribe to a stream using the client's configured protocol, if the client supports it.
-     *
-     * @param params the stream name followed by its arguments
-     * @param resultDecoder function to convert JSON result into return object [T]
-     */
-    suspend fun <T : Any> subscribe(
-        params: Array<*>,
-        resultDecoder: (KJsonElement) -> T,
+        resultDeserializer: DeserializationStrategy<T>,
     ): Result<ChannelReceiver<T>, RpcError>
-}
-
-/**
- * Build a result decoder for the [KSerializer]-based [JsonRpcClient.request] and [JsonRpcClient.subscribe]
- * entry points.
- */
-internal fun <T> decoderFor(resultSerializer: KSerializer<T>): (KJsonElement) -> T {
-    return { element -> Kotlinx.DEFAULT.decodeFromJsonElement(resultSerializer, element) }
 }
 
 /**

@@ -7,6 +7,7 @@ import io.ethers.providers.types.RpcRequest
 import io.ethers.providers.types.RpcSubscribe
 import io.ethers.solana.codec.BorshWriter
 import io.ethers.solana.codec.SolanaAccountFactory
+import io.ethers.solana.codec.SolanaAccountField
 import io.ethers.solana.providers.AccountFilter
 import io.ethers.solana.providers.middleware.SolanaApi
 import io.ethers.solana.types.SolanaAddress
@@ -61,6 +62,20 @@ abstract class SolanaAccountFilterBase<T, F : SolanaAccountFilterBase<T, F>>(
     fun dataSize(bytes: Long): F {
         filters.add(AccountFilter.DataSize(bytes))
         return self
+    }
+
+    /**
+     * Select accounts whose [field] equals [value], comparing the bytes [value] encodes to at the field's offset. The
+     * field can be nested, such as a field of a struct or an element of an array, from the account's `Fields`.
+     *
+     * A value with padding in its zero-copy layout encodes it as zeros, so matches only accounts whose padding is zero.
+     *
+     * @throws IllegalArgumentException if [value] does not encode to the field's size, such as an array of another length.
+     */
+    fun <V> field(field: SolanaAccountField<T, V>, value: V): F {
+        val bytes = BorshWriter(field.size).apply { field.write(this, value) }.toByteArray()
+        require(bytes.size == field.size) { "$field takes ${field.size} bytes, but the value encodes to ${bytes.size}" }
+        return memcmp((factory.discriminator.size + field.offset).toLong(), bytes)
     }
 
     /** Select accounts whose payload holds the bytes [write] produces at [offset], counted from the end of the discriminator. */
