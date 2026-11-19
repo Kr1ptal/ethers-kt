@@ -9,15 +9,13 @@ import io.kotest.datatest.withData
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotStartWith
 import io.kotest.property.Arb
-import io.kotest.property.arbitrary.byte
-import io.kotest.property.arbitrary.byteArray
 import io.kotest.property.arbitrary.int
 import io.kotest.property.arbitrary.long
 import io.kotest.property.checkAll
 
 class FastHexTest : FunSpec({
     test("encode/decode as string without prefix") {
-        Arb.byteArray(Arb.int(0..512), Arb.byte()).checkAll { bytes ->
+        Arb.bytes(0..512).checkAll { bytes ->
             val hex = FastHex.encodeWithoutPrefix(bytes)
             val decoded = FastHex.decode(hex)
 
@@ -27,7 +25,7 @@ class FastHexTest : FunSpec({
     }
 
     test("encode/decode as string with 0x prefix") {
-        Arb.byteArray(Arb.int(0..512), Arb.byte()).checkAll { bytes ->
+        Arb.bytes(0..512).checkAll { bytes ->
             val hex = FastHex.encodeWithPrefix(bytes)
             val decoded = FastHex.decode(hex)
 
@@ -80,7 +78,7 @@ class FastHexTest : FunSpec({
 
     context("encode/decode as bytes") {
         test("without prefix") {
-            Arb.byteArray(Arb.int(0..512), Arb.byte()).checkAll { bytes ->
+            Arb.bytes(0..512).checkAll { bytes ->
                 val hex = FastHex.encodeAsBytes(bytes)
                 val decoded = FastHex.decode(hex)
                 val decodedUnsafe = FastHex.decodeUnsafe(hex)
@@ -92,7 +90,7 @@ class FastHexTest : FunSpec({
         }
 
         test("with 0x prefix") {
-            Arb.byteArray(Arb.int(0..512), Arb.byte()).checkAll { bytes ->
+            Arb.bytes(0..512).checkAll { bytes ->
                 val hex = "0x".encodeToByteArray() + FastHex.encodeAsBytes(bytes)
                 val decoded = FastHex.decode(hex)
                 val decodedUnsafe = FastHex.decodeUnsafe(hex)
@@ -104,7 +102,7 @@ class FastHexTest : FunSpec({
         }
 
         test("odd length hex (without leading 0)") {
-            Arb.byteArray(Arb.int(0..512), Arb.byte()).checkAll { bytes ->
+            Arb.bytes(0..512).checkAll { bytes ->
                 // Append 0x0f without leading zero
                 val hex = byteArrayOf('f'.code.toByte()) + FastHex.encodeAsBytes(bytes)
 
@@ -120,7 +118,7 @@ class FastHexTest : FunSpec({
 
     context("encode/decode as chars") {
         test("without prefix") {
-            Arb.byteArray(Arb.int(0..512), Arb.byte()).checkAll { bytes ->
+            Arb.bytes(0..512).checkAll { bytes ->
                 val hex = FastHex.encodeWithoutPrefix(bytes).toCharArray()
                 val decoded = FastHex.decode(hex)
                 val decodedUnsafe = FastHex.decodeUnsafe(hex)
@@ -132,7 +130,7 @@ class FastHexTest : FunSpec({
         }
 
         test("with 0x prefix") {
-            Arb.byteArray(Arb.int(0..512), Arb.byte()).checkAll { bytes ->
+            Arb.bytes(0..512).checkAll { bytes ->
                 val hex = FastHex.encodeWithPrefix(bytes).toCharArray()
                 val decoded = FastHex.decode(hex)
                 val decodedUnsafe = FastHex.decodeUnsafe(hex)
@@ -144,7 +142,7 @@ class FastHexTest : FunSpec({
         }
 
         test("odd length hex (without leading 0)") {
-            Arb.byteArray(Arb.int(0..512), Arb.byte()).checkAll { bytes ->
+            Arb.bytes(0..512).checkAll { bytes ->
                 // Append 0x0f without leading zero
                 val hex = charArrayOf('f') + FastHex.encodeWithoutPrefix(bytes).toCharArray()
                 val decoded = FastHex.decode(hex)
@@ -216,6 +214,48 @@ class FastHexTest : FunSpec({
             shouldThrow<IllegalArgumentException> {
                 FastHex.decode("g") // Invalid single character
             }
+        }
+
+        // Regression: these indexed the one-byte decode tables out of bounds instead of rejecting the input
+        test("decode rejects chars above one byte as IllegalArgumentException") {
+            shouldThrow<IllegalArgumentException> { FastHex.decode("\u01010") }
+            shouldThrow<IllegalArgumentException> { FastHex.decode("0\u0101") }
+            shouldThrow<IllegalArgumentException> { FastHex.decode("\u0130") } // odd length, maps to '0' if truncated to a byte
+            shouldThrow<IllegalArgumentException> { FastHex.decode("\u01010".toCharArray()) }
+        }
+
+        test("decode rejects bytes above 0x7f as IllegalArgumentException") {
+            shouldThrow<IllegalArgumentException> { FastHex.decode(byteArrayOf(0x80.toByte(), 0x30)) }
+            shouldThrow<IllegalArgumentException> { FastHex.decode(byteArrayOf(0xb0.toByte())) }
+        }
+
+        test("decodeUnsafe never throws for chars or bytes outside the tables") {
+            FastHex.decodeUnsafe("\u01010").size shouldBe 1
+            FastHex.decodeUnsafe(byteArrayOf(0x80.toByte(), 0x30)).size shouldBe 1
+        }
+    }
+
+    context("ranges outside the input throw IndexOutOfBoundsException") {
+        val hex = "abcd"
+        withData(
+            nameFn = { (offset, length) -> "offset $offset, length $length" },
+            -1 to 2,
+            0 to -1,
+            1 to 4,
+            5 to 0,
+            Int.MAX_VALUE to 2,
+        ) { (offset, length) ->
+            shouldThrow<IndexOutOfBoundsException> { FastHex.decode(hex, offset, length) }
+            shouldThrow<IndexOutOfBoundsException> { FastHex.decode(hex.encodeToByteArray(), offset, length) }
+            shouldThrow<IndexOutOfBoundsException> { FastHex.decode(hex.toCharArray(), offset, length) }
+            shouldThrow<IndexOutOfBoundsException> { FastHex.decodeUnsafe(hex, offset, length) }
+            shouldThrow<IndexOutOfBoundsException> { FastHex.encodeWithPrefix(hex.encodeToByteArray(), offset, length) }
+            shouldThrow<IndexOutOfBoundsException> { FastHex.encodeWithoutPrefix(hex.encodeToByteArray(), offset, length) }
+        }
+
+        test("the empty range at the end is valid") {
+            FastHex.decode(hex, 4, 0).size shouldBe 0
+            FastHex.encodeWithoutPrefix(hex.encodeToByteArray(), 4, 0) shouldBe ""
         }
     }
 

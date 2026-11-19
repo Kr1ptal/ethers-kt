@@ -19,7 +19,7 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.random.Random
 
 class LookupTableTest : FunSpec({
-    val alice = KeypairSigner.fromSeed(ByteArray(32) { 1 })
+    val alice = KeypairSigner.fromSeed(ByteArray(32) { 1 }).unwrap()
     val blockhash = SolanaBlockhash(ByteArray(32) { 3 })
     fun address(seed: Int) = SolanaAddress(ByteArray(32) { seed.toByte() })
 

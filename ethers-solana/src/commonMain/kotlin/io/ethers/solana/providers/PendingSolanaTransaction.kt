@@ -17,6 +17,7 @@ import io.github.artificialpb.bignum.BigInteger
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.jvm.JvmOverloads
+import kotlin.native.HiddenFromObjC
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -151,8 +152,12 @@ class PendingSolanaTransaction internal constructor(
             override val message: String get() = "Transaction $signature cannot use nonce $nonce from $nonceAccount anymore"
         }
 
-        /** The wait ended without a conclusive result; the transaction may still execute. */
-        data class TimedOut(val signature: SolanaSignature, val waited: Duration) : Error() {
+        /**
+         * The wait ended without a conclusive result; the transaction may still execute.
+         *
+         * Swift reads [waited] as `waitedSeconds`: a [Duration] crosses into Objective-C as its raw encoded `Int64`.
+         */
+        data class TimedOut(val signature: SolanaSignature, @property:HiddenFromObjC val waited: Duration) : Error() {
             override val message: String get() = "Transaction $signature was still unconfirmed after $waited"
         }
 

@@ -312,11 +312,7 @@ object SolanaJson {
 
     fun decodeBytes(element: JsonElement): SolanaBytes {
         val base64 = string(element, "a base64 string")
-        return try {
-            SolanaBytes.fromBase64(base64)
-        } catch (e: IllegalArgumentException) {
-            throw SolanaJsonException("", "Invalid base64: ${e.message}", e)
-        }
+        return SolanaBytes.fromBase64(base64).unwrapOrElse { throw SolanaJsonException("", "Invalid base64: ${it.message}") }
     }
 
     fun encodeFixedBytes(value: SolanaBytes, size: Int): JsonElement {

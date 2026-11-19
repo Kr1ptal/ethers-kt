@@ -6,6 +6,7 @@ import io.ethers.solana.instruction.SystemProgram
 import io.ethers.solana.signers.KeypairSigner
 import io.ethers.solana.types.AccountMeta
 import io.ethers.solana.types.Programs
+import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.types.transaction.AddressLookupTableAccount
 import io.ethers.solana.types.transaction.MessageHeader
@@ -26,8 +27,8 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 
 class SolanaTransactionResultTest : FunSpec({
-    val alice = KeypairSigner.fromSeed(ByteArray(32) { 1 })
-    val bob = KeypairSigner.fromSeed(ByteArray(32) { 2 })
+    val alice = KeypairSigner.fromSeed(ByteArray(32) { 1 }).unwrap()
+    val bob = KeypairSigner.fromSeed(ByteArray(32) { 2 }).unwrap()
     val blockhash = SolanaBlockhash(ByteArray(32) { 3 })
     val config = SolanaTransactionConfig()
     val transfer = SystemProgram.transfer(alice.publicKey, bob.publicKey, 42L)
@@ -92,7 +93,7 @@ class SolanaTransactionResultTest : FunSpec({
     }
 
     test("decoding reports truncation, unsupported versions and partial signatures") {
-        val signed = SolanaTxLegacy.compile(alice.publicKey, blockhash, transfer).unwrap().sign(alice)
+        val signed = SolanaTxLegacy.compile(alice.publicKey, blockhash, transfer).unwrap().sign(alice).unwrap()
         val wire = signed.serialize()
         SolanaTransactionSigned.deserialize(wire).unwrap().serialize() shouldBe wire
         SolanaTransactionCompiled.deserialize(wire).isSuccess() shouldBe true
@@ -149,6 +150,48 @@ class SolanaTransactionResultTest : FunSpec({
         AddressLookupTableAccount.decode(alice.publicKey, ByteArray(3)).unwrapError().cause shouldBe null
     }
 
+    test("signer counts outside each version's limit are reported as SIGNERS") {
+        fun address(i: Int) = SolanaAddress(ByteArray(32) { _ -> i.toByte() }.also { it[31] = 0x55 })
+        fun keys(signers: Int) = List(signers) { address(it) } + Programs.SYSTEM
+        val signers = SolanaTransactionError.Limit.SIGNERS
+
+        // legacy and v0 use the high bit of the first message byte as the version flag, so at most 127 signers
+        SolanaTxLegacy.create(MessageHeader(128, 0, 1), keys(128), blockhash, emptyList()).unwrapError() shouldBe
+            SolanaTransactionError.CountOutOfRange(signers, 128, 1..127)
+        SolanaTxV0.create(MessageHeader(128, 0, 1), keys(128), blockhash, emptyList()).unwrapError() shouldBe
+            SolanaTransactionError.CountOutOfRange(signers, 128, 1..127)
+        SolanaTxLegacy.create(MessageHeader(0, 0, 1), keys(1), blockhash, emptyList()).unwrapError() shouldBe
+            SolanaTransactionError.CountOutOfRange(signers, 0, 1..2)
+
+        // in practice the 1232-byte packet caps legacy and v0 at 12 signers: 64-byte signature plus 32-byte key each
+        SolanaTxLegacy.create(MessageHeader(12, 0, 1), keys(12), blockhash, emptyList()).isSuccess() shouldBe true
+        SolanaTxV0.create(MessageHeader(12, 0, 1), keys(12), blockhash, emptyList()).isSuccess() shouldBe true
+        SolanaTxLegacy.create(MessageHeader(13, 0, 1), keys(13), blockhash, emptyList()).unwrapError()
+            .shouldBeInstanceOf<SolanaTransactionError.EnvelopeTooLarge>()
+        SolanaTxV0.create(MessageHeader(13, 0, 1), keys(13), blockhash, emptyList()).unwrapError()
+            .shouldBeInstanceOf<SolanaTransactionError.EnvelopeTooLarge>()
+
+        // v1 caps signers at 12 explicitly, despite its larger envelope
+        SolanaTxV1.create(MessageHeader(12, 0, 1), keys(12), blockhash, emptyList(), config).isSuccess() shouldBe true
+        SolanaTxV1.create(MessageHeader(13, 0, 1), keys(13), blockhash, emptyList(), config).unwrapError() shouldBe
+            SolanaTransactionError.CountOutOfRange(signers, 13, 1..12)
+    }
+
+    test("decoding rejects signer counts outside each version's limit") {
+        val signers = SolanaTransactionError.Limit.SIGNERS
+        // a legacy/v0 envelope announcing 128 signatures, as a two-byte compact-u16
+        SolanaTransactionSigned.Builder.deserializePartial(byteArrayOf(0x80.toByte(), 0x01) + ByteArray(128 * 64)).unwrapError() shouldBe
+            SolanaTransactionError.CountOutOfRange(signers, 128, 1..127)
+        SolanaTransactionSigned.Builder.deserializePartial(byteArrayOf(0)).unwrapError() shouldBe
+            SolanaTransactionError.CountOutOfRange(signers, 0, 1..127)
+
+        // v1 prefix, header with 13 signers, empty config mask, blockhash, no instructions, 13 accounts
+        val v1 = byteArrayOf(129.toByte(), 13, 0, 1, 0, 0, 0, 0) + ByteArray(32) + byteArrayOf(0, 13) + ByteArray(13 * 32)
+        SolanaTransactionUnsigned.deserializeMessage(v1).unwrapError() shouldBe SolanaTransactionError.CountOutOfRange(signers, 13, 1..12)
+        SolanaTransactionSigned.Builder.deserializePartial(v1 + ByteArray(13 * 64)).unwrapError() shouldBe
+            SolanaTransactionError.CountOutOfRange(signers, 13, 1..12)
+    }
+
     test("create validates the same fields as the constructor") {
         val compiled = SolanaTxV0.compile(alice.publicKey, blockhash, transfer).unwrap()
         SolanaTxV0.create(compiled.header, compiled.accounts, blockhash, compiled.instructions).unwrap().serializeMessage() shouldBe
@@ -165,5 +208,16 @@ class SolanaTransactionResultTest : FunSpec({
         exception.error shouldBe error
         exception.shouldBeInstanceOf<IllegalArgumentException>()
         exception.message shouldBe error.toString()
+    }
+
+    test("signing takes a list as well as varargs, failing as a Result on a missing signature") {
+        val tx = SolanaTxLegacy.compile(alice.publicKey, blockhash, SystemProgram.transfer(bob.publicKey, alice.publicKey, 1L)).unwrap()
+        tx.sign(listOf(alice, bob)).unwrap() shouldBe tx.sign(alice, bob).unwrap()
+        tx.signingBuilder().sign(listOf(bob)).sign(listOf(alice)).build().unwrap() shouldBe tx.sign(alice, bob).unwrap()
+        tx.sign(listOf(alice)).unwrapError() shouldBe SolanaTransactionError.UnsignedSlots(listOf(1), emptyList())
+        tx.sign(emptyList()).unwrapError() shouldBe SolanaTransactionError.UnsignedSlots(listOf(0, 1), emptyList())
+        val stranger = KeypairSigner.fromSeed(ByteArray(32) { 9 }).unwrap()
+        shouldThrow<IllegalArgumentException> { tx.signingBuilder().sign(listOf(alice, stranger)) }
+        shouldThrow<IllegalArgumentException> { tx.sign(alice, bob, stranger) }
     }
 })

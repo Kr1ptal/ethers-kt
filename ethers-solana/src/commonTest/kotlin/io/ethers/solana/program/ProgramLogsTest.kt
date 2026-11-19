@@ -34,10 +34,10 @@ class ProgramLogsTest : FunSpec({
             ),
         )
         logs.data.map { it.summary() } shouldBe listOf(
-            listOf(A, SolanaBytes.fromHex("01"), 0, 2, 1),
-            listOf(B, SolanaBytes.fromHex("02"), 0, 4, 2),
-            listOf(A, SolanaBytes.fromHex("03"), 0, 6, 1),
-            listOf(C, SolanaBytes.fromHex("04"), 1, 10, 1),
+            listOf(A, SolanaBytes.fromHex("01").unwrap(), 0, 2, 1),
+            listOf(B, SolanaBytes.fromHex("02").unwrap(), 0, 4, 2),
+            listOf(A, SolanaBytes.fromHex("03").unwrap(), 0, 6, 1),
+            listOf(C, SolanaBytes.fromHex("04").unwrap(), 1, 10, 1),
         )
         logs.failure.shouldBeNull()
         logs.truncated shouldBe false
@@ -76,7 +76,7 @@ class ProgramLogsTest : FunSpec({
             ),
         )
         // data logged before any invocation has no program; multiple base64 fields are joined
-        logs.data.map { it.summary() } shouldBe listOf(listOf(A, SolanaBytes.fromHex("0102"), 0, 3, 1))
+        logs.data.map { it.summary() } shouldBe listOf(listOf(A, SolanaBytes.fromHex("0102").unwrap(), 0, 3, 1))
         logs.truncated shouldBe true
     }
 
@@ -88,7 +88,7 @@ class ProgramLogsTest : FunSpec({
             data(2),
             "Program $B failed: custom program error: 0xABCDEF01",
         )
-        ProgramLogs.parse(lines, onlyProgram = B).data.map { it.summary() } shouldBe listOf(listOf(B, SolanaBytes.fromHex("02"), 0, 3, 2))
+        ProgramLogs.parse(lines, onlyProgram = B).data.map { it.summary() } shouldBe listOf(listOf(B, SolanaBytes.fromHex("02").unwrap(), 0, 3, 2))
         val withoutData = ProgramLogs.parse(lines, collectData = false)
         withoutData.data shouldBe emptyList()
         withoutData.failure!!.code shouldBe 0xABCDEF01L
@@ -107,7 +107,7 @@ class ProgramLogsTest : FunSpec({
                 "Program $A success",
             ),
         )
-        logs.data.single().summary() shouldBe listOf(A, SolanaBytes.fromHex("05"), 0, 5, 1)
+        logs.data.single().summary() shouldBe listOf(A, SolanaBytes.fromHex("05").unwrap(), 0, 5, 1)
         logs.failure.shouldBeNull()
     }
 
@@ -130,6 +130,6 @@ class ProgramLogsTest : FunSpec({
                 data(7),
             ),
         )
-        logs.data.single().summary() shouldBe listOf(C, SolanaBytes.fromHex("07"), 0, 3, 2)
+        logs.data.single().summary() shouldBe listOf(C, SolanaBytes.fromHex("07").unwrap(), 0, 3, 2)
     }
 })

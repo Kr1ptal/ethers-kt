@@ -2,12 +2,15 @@ package io.ethers.core.types.tracers
 
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.descriptors.buildClassSerialDescriptor
+import kotlinx.serialization.encoding.CompositeDecoder
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
-import kotlinx.serialization.json.Json
+import kotlinx.serialization.encoding.decodeStructure
 import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.jsonObject
 import kotlin.reflect.KClass
 
 /**
@@ -33,30 +36,37 @@ data class MuxTracer(
     override val name: String
         get() = "muxTracer"
 
-    override val resultType: KClass<Result>
-        get() = Result::class
+    override val resultSerializer: KSerializer<Result> = ResultSerializer(tracers)
 
     override val config: Map<String, Any?> = HashMap<String, Any?>(tracers.size, 1.0f).also {
         tracers.forEach { tracer -> it[tracer.name] = tracer.config }
     }
 
-    override fun decodeResult(json: Json, element: JsonElement): Result {
-        val results = arrayOfNulls<Any>(tracers.size)
+    /**
+     * Decodes a [Result], an object keyed by tracer name, decoding each value with the [tracers] entry of that
+     * name. A name that is not among [tracers] fails the decoding.
+     */
+    class ResultSerializer(private val tracers: List<Tracer<out Any>>) : KSerializer<Result> {
+        override val descriptor: SerialDescriptor = MapSerializer(String.serializer(), JsonElement.serializer()).descriptor
 
-        for ((name, value) in element.jsonObject.entries) {
-            var found = false
-            for (i in tracers.indices) {
-                val tracer = tracers[i]
-                if (name == tracer.name) {
-                    results[i] = tracer.decodeResult(json, value)
-                    found = true
-                    break
+        override fun serialize(encoder: Encoder, value: Result) = throw UnsupportedOperationException()
+
+        override fun deserialize(decoder: Decoder): Result {
+            val results = arrayOfNulls<Any>(tracers.size)
+            decoder.decodeStructure(descriptor) {
+                while (true) {
+                    val keyIndex = decodeElementIndex(descriptor)
+                    if (keyIndex == CompositeDecoder.DECODE_DONE) break
+                    val name = decodeStringElement(descriptor, keyIndex)
+                    val tracer = tracers.indexOfFirst { it.name == name }
+                    if (tracer < 0) throw IllegalArgumentException("Unknown tracer in mux result: $name")
+                    // a map's value has its own index, which also moves the decoder past the key
+                    val valueIndex = decodeElementIndex(descriptor)
+                    results[tracer] = decodeSerializableElement(descriptor, valueIndex, tracers[tracer].resultSerializer)
                 }
             }
-            if (!found) throw IllegalArgumentException("Unknown tracer in mux result: $name")
+            return Result(tracers, results)
         }
-
-        return Result(tracers, results)
     }
 
     @Serializable(with = MuxTracerResultSerializer::class)
@@ -106,6 +116,10 @@ data class MuxTracer(
     }
 }
 
+/**
+ * Marks [MuxTracer.Result] as serializable, so a [TracerConfig] of a [MuxTracer] has a serializer. It cannot decode a
+ * result, which needs the tracers that produced it: use [MuxTracer.resultSerializer] for that.
+ */
 object MuxTracerResultSerializer : KSerializer<MuxTracer.Result> {
     override val descriptor = buildClassSerialDescriptor("MuxTracerResult")
     override fun serialize(encoder: Encoder, value: MuxTracer.Result) = throw UnsupportedOperationException()

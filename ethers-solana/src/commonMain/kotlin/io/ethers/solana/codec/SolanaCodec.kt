@@ -26,12 +26,22 @@ interface SolanaCodec<T> {
     /** Decode [data] as exactly one value. */
     fun decode(data: SolanaBytes): Result<T, SolanaDecodeError> = decode(data.asByteArray())
 
-    fun encode(value: T): ByteArray = BorshWriter().also { write(it, value) }.toByteArray()
+    /**
+     * The number of bytes every value encodes to, or [VARIABLE_SIZE] when it depends on the value. Encoders size
+     * their buffer from it, so a fixed-size value is written without growing or copying the buffer.
+     */
+    val encodedSize: Int get() = VARIABLE_SIZE
+
+    fun encode(value: T): ByteArray = BorshWriter(writerCapacity(0)).also { write(it, value) }.toByteArray()
 
     companion object {
+        /** The [encodedSize] of a codec whose values encode to different sizes. */
+        @JvmField
+        val VARIABLE_SIZE: Int = -1
+
         /** Zero bytes, for payloads without fields. */
         @JvmField
-        val UNIT: SolanaCodec<Unit> = of({ }, { })
+        val UNIT: SolanaCodec<Unit> = LambdaCodec({ }, { }, 0)
 
         /**
          * A codec for a value without a named type of its own, such as a `u64` instruction return or
@@ -42,9 +52,16 @@ interface SolanaCodec<T> {
     }
 }
 
+/** Initial capacity of a writer that holds [prefix] bytes followed by one value of this codec. */
+internal fun SolanaCodec<*>.writerCapacity(prefix: Int): Int {
+    val size = encodedSize
+    return if (size >= 0) prefix + size else BorshWriter.DEFAULT_CAPACITY
+}
+
 private class LambdaCodec<T>(
     private val reader: BorshReader.() -> T,
     private val writer: BorshWriter.(T) -> Unit,
+    override val encodedSize: Int = SolanaCodec.VARIABLE_SIZE,
 ) : SolanaCodec<T> {
     override fun read(reader: BorshReader): T = reader.reader()
     override fun write(writer: BorshWriter, value: T) = writer.writer(value)

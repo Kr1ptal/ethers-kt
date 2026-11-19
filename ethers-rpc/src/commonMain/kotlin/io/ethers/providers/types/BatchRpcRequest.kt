@@ -37,7 +37,11 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) : Platfor
     // Enable batchSent modification for batch execution via JsonRpcClient.requestBatch
     internal val batchSent = atomic(false)
 
-    internal val requests: List<RpcCall<*>>
+    /**
+     * The calls in this batch, in the order they were added. [JsonRpcClient.requestBatch] sends them and completes
+     * each one's response with [complete].
+     */
+    val requests: List<RpcCall<*>>
         field = ArrayList(defaultSize)
 
     internal val responses: List<CompletableDeferred<Result<*, RpcError>>>
@@ -79,6 +83,37 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) : Platfor
         markAsSent()
         return client.requestBatch(this)
     }
+
+    /**
+     * Send the batch through [client] rather than the client its calls were made with, without blocking the calling
+     * thread. A [JsonRpcClient] that wraps another uses this to forward a batch, or a new batch it builds, to the
+     * wrapped client.
+     */
+    suspend fun sendWith(client: JsonRpcClient): Boolean {
+        markAsSent()
+        return client.requestBatch(this)
+    }
+
+    /**
+     * Complete the response of the call at [index] in [requests] with [result], which must be a result of that
+     * call's type. Returns false if the response was already completed.
+     */
+    fun complete(index: Int, result: Result<*, RpcError>): Boolean = responses[index].complete(result)
+
+    /**
+     * Complete each call the batch response did not answer with [error]. Returns true if there was any, so a client
+     * can report the batch as failed.
+     */
+    internal fun failUnanswered(error: Result<*, RpcError>): Boolean {
+        var any = false
+        for (response in responses) {
+            if (response.complete(error)) any = true
+        }
+        return any
+    }
+
+    /** Whether some call has not been completed yet. */
+    internal fun hasUnanswered(): Boolean = responses.any { !it.isCompleted }
 
     internal fun sendDeferred(): Deferred<Boolean> = CoroutineScope(Dispatchers.Default)
         .async(start = CoroutineStart.UNDISPATCHED) { send() }

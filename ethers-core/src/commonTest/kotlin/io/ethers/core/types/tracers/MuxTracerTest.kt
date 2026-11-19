@@ -81,7 +81,7 @@ class MuxTracerTest : FunSpec({
                 }
             """.trimIndent()
 
-            val result = muxTracer.decodeResult(Kotlinx.DEFAULT, Kotlinx.DEFAULT.parseToJsonElement(jsonString))
+            val result = Kotlinx.DEFAULT.decodeFromString(muxTracer.resultSerializer, jsonString)
 
             val callTracerExpectedResult = CallTracer.CallFrame(
                 type = "CALL",
@@ -128,10 +128,33 @@ class MuxTracerTest : FunSpec({
             )
         }
 
+        test("decodes the same through a JSON tree, in any key order, with a nested mux tracer and a missing result") {
+            val inner = MuxTracer(listOf(fourByteTracer))
+            val outer = MuxTracer(listOf(noopTracer, inner, callTracer))
+            val jsonString = """{"muxTracer":{"4byteTracer":{"0x27dc297e-128":1,"0x38cc4831-0":"2"}},"noopTracer":{}}"""
+            val expected = MuxTracer.Result(
+                outer.tracers,
+                arrayOf(
+                    NoopTracer.Result,
+                    MuxTracer.Result(inner.tracers, arrayOf(FourByteTracer.Result(mapOf("0x27dc297e-128" to 1, "0x38cc4831-0" to 2)))),
+                    null,
+                ),
+            )
+
+            Kotlinx.DEFAULT.decodeFromString(outer.resultSerializer, jsonString) shouldBe expected
+            Kotlinx.DEFAULT.decodeFromJsonElement(outer.resultSerializer, Kotlinx.DEFAULT.parseToJsonElement(jsonString)) shouldBe expected
+        }
+
+        test("tracer not found through a JSON tree") {
+            shouldThrow<IllegalArgumentException> {
+                Kotlinx.DEFAULT.decodeFromJsonElement(muxTracer.resultSerializer, Kotlinx.DEFAULT.parseToJsonElement("""{"noopTracer":{},"unknown_tracer":{}}"""))
+            }
+        }
+
         test("tracer not found") {
             shouldThrow<IllegalArgumentException> {
                 val jsonString = """{"unknown_tracer": {}}"""
-                muxTracer.decodeResult(Kotlinx.DEFAULT, Kotlinx.DEFAULT.parseToJsonElement(jsonString))
+                Kotlinx.DEFAULT.decodeFromString(muxTracer.resultSerializer, jsonString)
             }
         }
     }

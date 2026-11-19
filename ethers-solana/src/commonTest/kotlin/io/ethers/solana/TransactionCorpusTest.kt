@@ -19,6 +19,8 @@ import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -32,34 +34,32 @@ import kotlinx.serialization.json.jsonPrimitive
 private const val V1_ACTIVATION_SLOT = 447_742_080L
 
 class TransactionCorpusTest : FunSpec({
-    val fixtures = transactionCorpus().map { Kotlinx.DEFAULT.parseToJsonElement(it).jsonObject }
-    val liveFixtures = fixtures.filter { it.getValue("cluster").jsonPrimitive.content != "localnet" }
+    val fixtures = transactionCorpus().map(Fixture::of)
+    val liveFixtures = fixtures.filter { it.cluster != "localnet" }
     val json = Json(Kotlinx.DEFAULT) { encodeDefaults = true }
 
     test("committed live corpus has 320 legacy, 320 v0 and 500 v1 samples across historical periods") {
         // Local-validator samples are deliberately excluded from public-chain counts.
         liveFixtures.size shouldBe 1140
         fixtures.size shouldBe 1340
-        fixtures.map { it.getValue("signature") }.distinct().size shouldBe 1340
-        liveFixtures.groupingBy { it.getValue("rpc").jsonObject.getValue("version").jsonPrimitive.content }.eachCount() shouldBe mapOf("legacy" to 320, "0" to 320, "1" to 500)
-        liveFixtures.all { it.getValue("cluster").jsonPrimitive.content in setOf("mainnet", "testnet", "devnet") } shouldBe true
-        liveFixtures.map { it.getValue("blockhash") }.distinct().size.let { it >= 16 } shouldBe true
+        fixtures.map { it.signature }.distinct().size shouldBe 1340
+        liveFixtures.groupingBy { it.version }.eachCount() shouldBe mapOf("legacy" to 320, "0" to 320, "1" to 500)
+        liveFixtures.all { it.cluster in setOf("mainnet", "testnet", "devnet") } shouldBe true
+        liveFixtures.map { it.blockhash }.distinct().size.let { it >= 16 } shouldBe true
         for (version in listOf("legacy", "0")) {
-            val slots = fixtures.filter { it.getValue("rpc").jsonObject.getValue("version").jsonPrimitive.content == version }
-                .map { it.getValue("slot").jsonPrimitive.content.toLong() }
+            val slots = fixtures.filter { it.version == version }.map { it.slot.toLong() }
             slots.count { it in 299_990_000L..300_000_000L } shouldBe 40
             slots.count { it in 399_990_000L..400_000_000L } shouldBe 40
             slots.count { it in 439_990_000L..440_000_000L } shouldBe 40
         }
         // v1 cannot predate its feature gate, so its samples have no historical windows to span
-        val v1Slots = liveFixtures.filter { it.getValue("rpc").jsonObject.getValue("version").jsonPrimitive.content == "1" }
-            .map { it.getValue("slot").jsonPrimitive.content.toLong() }
+        val v1Slots = liveFixtures.filter { it.version == "1" }.map { it.slot.toLong() }
         v1Slots.all { it > V1_ACTIVATION_SLOT } shouldBe true
         v1Slots.distinct().size.let { it >= 20 } shouldBe true
     }
 
     test("live corpus includes failures, multiple signers, CPI, return data, and v0 with and without lookups") {
-        val transactions = liveFixtures.map { json.decodeFromJsonElement<SolanaRPCTransaction>(it.getValue("rpc")) }
+        val transactions = liveFixtures.map { json.decodeFromJsonElement<SolanaRPCTransaction>(it.parseRpc()) }
         for (group in transactions.groupBy { it.type }.values) {
             group.any { it.meta?.err != null } shouldBe true
             group.any { it.transaction.signatures.size > 1 } shouldBe true
@@ -72,8 +72,8 @@ class TransactionCorpusTest : FunSpec({
     }
 
     test("live v1 fixtures carry an inline config and never a lookup table") {
-        val v1 = liveFixtures.filter { it.getValue("rpc").jsonObject.getValue("version").jsonPrimitive.content == "1" }
-        val transactions = v1.map { SolanaTransactionSigned.fromBase64(it.getValue("wire").jsonPrimitive.content).unwrap() }
+        val v1 = liveFixtures.filter { it.version == "1" }
+        val transactions = v1.map { SolanaTransactionSigned.fromBase64(it.wire).unwrap() }
         transactions.all { it.type == SolanaTxType.V1 } shouldBe true
         // v1 states its budget inline instead of as ComputeBudget instructions, and has no lookup tables
         transactions.all { it.addressLookupTables.isEmpty() } shouldBe true
@@ -87,10 +87,10 @@ class TransactionCorpusTest : FunSpec({
     }
 
     test("200 local v1 fixtures cover signer and instruction counts, large envelopes and optional config") {
-        val local = fixtures.filter { it.getValue("cluster").jsonPrimitive.content == "localnet" }
+        val local = fixtures.filter { it.cluster == "localnet" }
         local.size shouldBe 200
-        local.all { it.getValue("origin").jsonPrimitive.content == "generated-local-validator" } shouldBe true
-        val transactions = local.map { SolanaTransactionSigned.fromBase64(it.getValue("wire").jsonPrimitive.content).unwrap() }
+        local.all { it.origin == "generated-local-validator" } shouldBe true
+        val transactions = local.map { SolanaTransactionSigned.fromBase64(it.wire).unwrap() }
         transactions.all { it.type == SolanaTxType.V1 } shouldBe true
         transactions.map { it.signatures.size }.toSet() shouldBe (1..12).toSet()
         transactions.any { it.instructions.size == 64 } shouldBe true
@@ -103,18 +103,16 @@ class TransactionCorpusTest : FunSpec({
     }
 
     for (fixture in fixtures) {
-        val signature = fixture.getValue("signature").jsonPrimitive.content
-        val rawRpc = fixture.getValue("rpc").jsonObject
-        val version = rawRpc.getValue("version").jsonPrimitive.content
-        test("${fixture.getValue("cluster").jsonPrimitive.content} $version $signature: wire, RPC, signatures, reconstruction and metadata") {
+        test("${fixture.cluster} ${fixture.version} ${fixture.signature}: wire, RPC, signatures, reconstruction and metadata") {
+            val rawRpc = fixture.parseRpc()
             val rpc = json.decodeFromJsonElement<SolanaRPCTransaction>(rawRpc)
-            val signed = SolanaTransactionSigned.fromBase64(fixture.getValue("wire").jsonPrimitive.content).unwrap()
+            val signed = SolanaTransactionSigned.fromBase64(fixture.wire).unwrap()
             val tx = signed.tx
-            rpc.slot.toString() shouldBe fixture.getValue("slot").jsonPrimitive.content
-            signed.id.toString() shouldBe signature
+            rpc.slot.toString() shouldBe fixture.slot
+            signed.id.toString() shouldBe fixture.signature
             signed.type shouldBe rpc.type
             signed.signatures shouldBe rpc.transaction.signatures
-            signed.toBase64() shouldBe fixture.getValue("wire").jsonPrimitive.content
+            signed.toBase64() shouldBe fixture.wire
             SolanaTransactionCompiled.deserialize(signed.serialize()).unwrap().serializeForSimulation() shouldBe signed.serialize()
             val decodedMessage = SolanaTransactionUnsigned.deserializeMessage(signed.serializeMessage()).unwrap()
             decodedMessage.serializeMessage() shouldBe signed.serializeMessage()
@@ -197,6 +195,37 @@ class TransactionCorpusTest : FunSpec({
         }
     }
 })
+
+/**
+ * A corpus record's top-level fields, decoded without building a JSON tree. Its RPC object is parsed from [record]
+ * by each test that needs it, rather than kept: the trees of all 1340 records are millions of objects, which every
+ * garbage collection in the Kotlin/Native test binary would otherwise trace for the rest of the run.
+ */
+@Serializable
+private class Fixture(
+    val cluster: String,
+    val signature: String,
+    val slot: String,
+    val blockhash: String,
+    val wire: String,
+    val origin: String? = null,
+    private val rpc: Version,
+) {
+    @Transient
+    var record: String = ""
+        private set
+
+    val version: String get() = rpc.version
+
+    fun parseRpc(): JsonObject = Kotlinx.DEFAULT.parseToJsonElement(record).jsonObject.getValue("rpc").jsonObject
+
+    @Serializable
+    class Version(val version: String)
+
+    companion object {
+        fun of(record: String) = Kotlinx.DEFAULT.decodeFromString<Fixture>(record).also { it.record = record }
+    }
+}
 
 /** Defaults may add fields; every captured value, including unknown fields, must survive semantically. */
 private fun assertCorpusJsonPreserved(original: JsonElement, encoded: JsonElement) {

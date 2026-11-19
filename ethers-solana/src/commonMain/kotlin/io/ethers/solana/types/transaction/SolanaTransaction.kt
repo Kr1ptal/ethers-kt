@@ -7,6 +7,7 @@ import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.utils.requireU64
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
+import kotlin.native.ObjCName
 
 /**
  * What every Solana transaction carries, whether this library compiled it or a node returned it.
@@ -15,6 +16,7 @@ import io.github.artificialpb.bignum.bigIntegerOf
  * so a response holding a version this library cannot construct still satisfies it. Transactions this
  * library compiled itself are [SolanaTransactionCompiled], which can also be written back to the wire.
  */
+@ObjCName("SolanaTransaction", exact = true)
 interface SolanaTransaction {
     val type: SolanaTxType
     val header: MessageHeader

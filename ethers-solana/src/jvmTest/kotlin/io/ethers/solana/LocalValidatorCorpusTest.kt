@@ -77,8 +77,8 @@ class LocalValidatorCorpusTest : FunSpec({
         }
         val provider = SolanaProvider.builder(endpoint).defaultCommitment(Commitment.CONFIRMED).build().unwrap()
         try {
-            val signers = List(12) { KeypairSigner.generate() }
-            val recipients = List(47) { KeypairSigner.generate().publicKey }
+            val signers = List(12) { KeypairSigner.random() }
+            val recipients = List(47) { KeypairSigner.random().publicKey }
             for (signer in signers) provider.requestAirdrop(signer.publicKey, 10000000000L).send().unwrap()
             eventually(30.seconds) {
                 for (signer in signers) provider.getBalance(signer.publicKey).send().unwrap().value shouldBe bigIntegerOf(10000000000L)
@@ -95,7 +95,7 @@ class LocalValidatorCorpusTest : FunSpec({
                     heapSize = listOf(null, 32768L, 65536L, 262144L)[(index / 3) % 4],
                 )
                 val latest = provider.getLatestBlockhash().send().unwrap().value
-                val tx = SolanaTxV1.compile(active.first().publicKey, latest.blockhash, instructions, config).unwrap().sign(*active.toTypedArray())
+                val tx = SolanaTxV1.compile(active.first().publicKey, latest.blockhash, instructions, config).unwrap().sign(*active.toTypedArray()).unwrap()
                 provider.simulateTransaction(tx).send().unwrap().value.isSuccess shouldBe true
                 provider.sendTransaction(tx).send().unwrap() shouldBe tx.id
                 submitted += tx

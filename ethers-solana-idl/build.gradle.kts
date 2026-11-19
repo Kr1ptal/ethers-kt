@@ -1,5 +1,6 @@
 plugins {
     `project-conventions`
+    `jmh-conventions`
     `maven-publish-conventions`
     alias(libs.plugins.kotlin.serialization)
 }
@@ -80,6 +81,18 @@ kotlin {
         val jvmSharedTest by getting {
             dependencies {
                 implementation(libs.bundles.kotest)
+            }
+        }
+
+        // benchmarks the generated test bindings, so compiles them into its own JVM-only source set too
+        val jvmJmh by getting {
+            kotlin.srcDir(generateProgramBindings)
+
+            dependencies {
+                implementation(project(":ethers-solana"))
+                implementation(libs.bignumkt)
+                implementation(libs.jmh.core)
+                implementation(libs.jmh.generator)
             }
         }
     }

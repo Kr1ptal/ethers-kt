@@ -11,7 +11,6 @@ import io.kotest.datatest.withData
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
-import kotlinx.serialization.json.JsonElement
 import org.intellij.lang.annotations.Language
 
 class CallTracerTest : FunSpec({
@@ -98,7 +97,7 @@ class CallTracerTest : FunSpec({
             }
         """.trimIndent()
 
-        val result = callTracer.decodeResult(Kotlinx.DEFAULT, Kotlinx.DEFAULT.parseToJsonElement(jsonString))
+        val result = Kotlinx.DEFAULT.decodeFromString(callTracer.resultSerializer, jsonString)
 
         val expectedResult = CallTracer.CallFrame(
             type = "CALL",

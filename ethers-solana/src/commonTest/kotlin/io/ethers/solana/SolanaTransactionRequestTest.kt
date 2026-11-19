@@ -33,8 +33,8 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 
 class SolanaTransactionRequestTest : FunSpec({
-    val alice = KeypairSigner.fromSeed(ByteArray(32) { 1 })
-    val bob = KeypairSigner.fromSeed(ByteArray(32) { 2 })
+    val alice = KeypairSigner.fromSeed(ByteArray(32) { 1 }).unwrap()
+    val bob = KeypairSigner.fromSeed(ByteArray(32) { 2 }).unwrap()
     val blockhash = SolanaBlockhash(ByteArray(32) { 3 })
     val transfer = SystemProgram.transfer(alice.publicKey, bob.publicKey, 42L)
 
@@ -114,7 +114,7 @@ class SolanaTransactionRequestTest : FunSpec({
             tx.instructions.map { tx.accounts[it.programIdIndex] to it.data } shouldBe expected.map { it.programId to it.data }
             tx.instructions.count { it.data == advance.data && tx.accounts[it.programIdIndex] == Programs.SYSTEM } shouldBe 1
             tx.confirmationTracking() shouldBe ConfirmationTracking.DurableNonce(nonceAccount, blockhash)
-            decodeConfirmationTracking(tx.sign(alice).serialize()) shouldBe tx.confirmationTracking()
+            decodeConfirmationTracking(tx.sign(alice).unwrap().serialize()) shouldBe tx.confirmationTracking()
         }
         // V1 has inline compute settings, so the original instruction sequence stays intact.
         val v1 = req.compileV1().unwrap()
@@ -134,7 +134,7 @@ class SolanaTransactionRequestTest : FunSpec({
             tx.recentBlockhash shouldBe nonce
             tx.signers.toSet() shouldBe setOf(alice.publicKey, bob.publicKey)
             tx.confirmationTracking() shouldBe ConfirmationTracking.DurableNonce(nonceAccount, nonce)
-            decodeConfirmationTracking(tx.sign(alice, bob).serialize()) shouldBe tx.confirmationTracking()
+            decodeConfirmationTracking(tx.sign(alice, bob).unwrap().serialize()) shouldBe tx.confirmationTracking()
         }
     }
 
@@ -518,7 +518,7 @@ class SolanaTransactionRequestTest : FunSpec({
                 ),
             ),
             meta = null,
-            type = SolanaTxType.Unsupported(3),
+            type = SolanaTxType.fromVersion(3),
         )
         unsupported.computeUnitLimit shouldBe null
         unsupported.priorityFee shouldBe null
