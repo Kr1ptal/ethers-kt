@@ -7,11 +7,13 @@ import io.ethers.providers.types.RpcCall
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.funSpec
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.builtins.nullable
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.jsonPrimitive
+import kotlin.time.Duration.Companion.seconds
 
 enum class RpcClientVariant {
     HTTP,
@@ -56,6 +58,7 @@ object JsonRpcTestFactory {
 
         afterEach {
             client.close()
+            server.stop()
         }
 
         context("Common JSON-RPC client tests") {
@@ -86,6 +89,19 @@ object JsonRpcTestFactory {
 
                 result.isSuccess() shouldBe true
                 result.unwrap() shouldBe null
+            }
+
+            // the call must fail, not wait forever for a response that was already received. The guard is generous:
+            // on Kotlin/Native the first exception's stack trace alone can take seconds to symbolicate.
+            test("result that fails to decode fails the call") {
+                server.enqueueJson(UNDECODABLE_RESULT_RESPONSE)
+
+                val result = withTimeout(30.seconds) {
+                    client.request("eth_blockNumber", emptyArray<Any>(), stringSerializer)
+                }
+
+                result.isFailure() shouldBe true
+                result.unwrapError().code shouldBe RpcError.CODE_CALL_FAILED
             }
 
             test("RPC error response") {
@@ -214,6 +230,37 @@ object JsonRpcTestFactory {
                 }
             }
 
+            test("batch result that fails to decode fails its call") {
+                server.enqueueJson(UNDECODABLE_RESULT_BATCH_RESPONSE)
+
+                val batch = BatchRpcRequest(2)
+                batch.addRpcCall(RpcCall(client, "eth_blockNumber", emptyArray<Any>(), stringSerializer))
+                batch.addRpcCall(RpcCall(client, "eth_chainId", emptyArray<Any>(), stringSerializer))
+
+                withTimeout(30.seconds) {
+                    batch.send()
+                    batch.responses[0].await().unwrapError().code shouldBe RpcError.CODE_CALL_FAILED
+                    batch.responses[1].await()
+                }
+            }
+
+            test("batch response that leaves out a call fails that call") {
+                server.enqueueJson(PARTIAL_BATCH_RESPONSE)
+
+                val batch = BatchRpcRequest(3)
+                batch.addRpcCall(RpcCall(client, "eth_blockNumber", emptyArray<Any>(), stringSerializer))
+                batch.addRpcCall(RpcCall(client, "eth_chainId", emptyArray<Any>(), stringSerializer))
+                batch.addRpcCall(RpcCall(client, "eth_gasPrice", emptyArray<Any>(), stringSerializer))
+
+                withTimeout(30.seconds) {
+                    val sent = batch.send()
+                    batch.responses[0].await().unwrapError().code shouldBe RpcError.CODE_INVALID_RESPONSE
+                    batch.responses[1].await().unwrap() shouldBe "0x2"
+                    batch.responses[2].await().unwrapError().code shouldBe RpcError.CODE_INVALID_RESPONSE
+                    sent shouldBe false
+                }
+            }
+
             test("batch with invalid request ID in response") {
                 server.enqueueJson(BATCH_INVALID_ID_RESPONSE)
 
@@ -231,6 +278,15 @@ object JsonRpcTestFactory {
 
     // Test response constants
     private val NULL_RESULT_RESPONSE = """{"jsonrpc":"2.0","id":1,"result":null}"""
+
+    private val UNDECODABLE_RESULT_RESPONSE = """{"jsonrpc":"2.0","id":1,"result":{"not":"a string"}}"""
+
+    private val UNDECODABLE_RESULT_BATCH_RESPONSE = """
+        [{"jsonrpc":"2.0","id":1,"result":{"not":"a string"}},{"jsonrpc":"2.0","id":2,"result":"0x1"}]
+    """.trimIndent()
+
+    // a response to the second of three calls only
+    private val PARTIAL_BATCH_RESPONSE = """[{"jsonrpc":"2.0","id":2,"result":"0x2"}]"""
 
     private val SUCCESSFUL_RESPONSE = """
     {

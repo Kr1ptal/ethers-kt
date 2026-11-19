@@ -1,0 +1,111 @@
+{
+  "address": "JsonVa1ues111111111111111111111111111111111",
+  "metadata": {
+    "name": "json_values",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Exercises the JSON form of generated value types"
+  },
+  "instructions": [
+    {
+      "name": "record",
+      "discriminator": [1, 2, 3, 4, 5, 6, 7, 8],
+      "accounts": [],
+      "args": [
+        { "name": "amount", "type": "u64" },
+        { "name": "side", "type": { "defined": { "name": "Side" } } }
+      ]
+    }
+  ],
+  "accounts": [
+    { "name": "Ledger", "discriminator": [10, 11, 12, 13, 14, 15, 16, 17] }
+  ],
+  "events": [
+    { "name": "Recorded", "discriminator": [20, 21, 22, 23, 24, 25, 26, 27] },
+    { "name": "Cleared", "discriminator": [30, 31, 32, 33, 34, 35, 36, 37] }
+  ],
+  "types": [
+    {
+      "name": "Integers",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "u8_value", "type": "u8" },
+          { "name": "u16_value", "type": "u16" },
+          { "name": "u32_value", "type": "u32" },
+          { "name": "u64_value", "type": "u64" },
+          { "name": "u128_value", "type": "u128" },
+          { "name": "u256_value", "type": "u256" },
+          { "name": "i8_value", "type": "i8" },
+          { "name": "i16_value", "type": "i16" },
+          { "name": "i32_value", "type": "i32" },
+          { "name": "i64_value", "type": "i64" },
+          { "name": "i128_value", "type": "i128" },
+          { "name": "i256_value", "type": "i256" }
+        ]
+      }
+    },
+    {
+      "name": "Misc",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "flag", "type": "bool" },
+          { "name": "ratio", "type": "f32" },
+          { "name": "precise", "type": "f64" },
+          { "name": "name", "type": "string" },
+          { "name": "owner", "type": "pubkey" },
+          { "name": "blob", "type": "bytes" },
+          { "name": "raw", "type": { "vec": "u8" } },
+          { "name": "hash", "type": { "array": ["u8", 4] } },
+          { "name": "maybe", "type": { "option": "u64" } },
+          { "name": "nested", "type": { "option": { "option": "i128" } } },
+          { "name": "amounts", "type": { "defined": { "name": "Amounts" } } },
+          { "name": "pair", "type": { "defined": { "name": "Pair" } } },
+          { "name": "empty", "type": { "defined": { "name": "Empty" } } },
+          { "name": "sides", "type": { "array": [{ "defined": { "name": "Side" } }, 2] } }
+        ]
+      }
+    },
+    { "name": "Amounts", "type": { "kind": "type", "alias": { "vec": "u64" } } },
+    { "name": "Pair", "type": { "kind": "struct", "fields": ["u64", "pubkey"] } },
+    { "name": "Empty", "type": { "kind": "struct" } },
+    {
+      "name": "Side",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          { "name": "Bid" },
+          { "name": "Ask" },
+          { "name": "Limit", "fields": ["u64"] },
+          { "name": "Market", "fields": ["u64"] },
+          { "name": "Stop", "fields": [{ "name": "price", "type": "u64" }] },
+          { "name": "TakeProfit", "fields": [{ "name": "price", "type": "u64" }] },
+          { "name": "Nested", "fields": [{ "name": "inner", "type": { "option": { "defined": { "name": "Side" } } } }] }
+        ]
+      }
+    },
+    {
+      "name": "Ledger",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "authority", "type": "pubkey" },
+          { "name": "balance", "type": "i128" },
+          { "name": "side", "type": { "defined": { "name": "Side" } } }
+        ]
+      }
+    },
+    {
+      "name": "Recorded",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "amount", "type": "u64" },
+          { "name": "context", "type": "string" }
+        ]
+      }
+    },
+    { "name": "Cleared", "type": { "kind": "struct" } }
+  ]
+}

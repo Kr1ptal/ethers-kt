@@ -27,7 +27,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
-import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.DeserializationStrategy
 import kotlin.io.encoding.Base64
 
 private fun address(byte: Int) = SolanaAddress(ByteArray(32) { byte.toByte() })
@@ -60,7 +60,7 @@ private class AccountsClient : JsonRpcClient {
     var slot = 10
     var error: RpcError? = null
 
-    override suspend fun <T> request(method: String, params: Array<*>, resultDecoder: (JsonElement) -> T): Result<T, RpcError> {
+    override suspend fun <T> request(method: String, params: Array<*>, resultDeserializer: DeserializationStrategy<T>): Result<T, RpcError> {
         check(method == "getMultipleAccounts") { "Unexpected $method" }
         error?.let { return failure(it) }
         @Suppress("UNCHECKED_CAST")
@@ -69,10 +69,10 @@ private class AccountsClient : JsonRpcClient {
         minContextSlots.add((params[1] as Map<*, *>)["minContextSlot"]?.toString())
         val values = addresses.joinToString(",") { accounts[it] ?: "null" }
         val response = """{"context":{"slot":${slot++}},"value":[$values]}"""
-        return success(resultDecoder(Kotlinx.DEFAULT.parseToJsonElement(response)))
+        return success(Kotlinx.DEFAULT.decodeFromString(resultDeserializer, response))
     }
 
-    override suspend fun <T : Any> subscribe(params: Array<*>, resultDecoder: (JsonElement) -> T): Result<ChannelReceiver<T>, RpcError> = error("Unexpected subscription")
+    override suspend fun <T : Any> subscribe(params: Array<*>, resultDeserializer: DeserializationStrategy<T>): Result<ChannelReceiver<T>, RpcError> = error("Unexpected subscription")
     override suspend fun requestBatch(batch: BatchRpcRequest): Boolean = error("Unexpected batch")
     override fun close() = Unit
 }

@@ -30,9 +30,9 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 
 class TransactionDecompilerTest : FunSpec({
-    val alice = KeypairSigner.fromSeed(ByteArray(32) { 1 })
-    val bob = KeypairSigner.fromSeed(ByteArray(32) { 2 })
-    val carol = KeypairSigner.fromSeed(ByteArray(32) { 3 })
+    val alice = KeypairSigner.fromSeed(ByteArray(32) { 1 }).unwrap()
+    val bob = KeypairSigner.fromSeed(ByteArray(32) { 2 }).unwrap()
+    val carol = KeypairSigner.fromSeed(ByteArray(32) { 3 }).unwrap()
     val blockhash = SolanaBlockhash(ByteArray(32) { 9 })
 
     // enough movable accounts that a table pays for itself
@@ -173,7 +173,7 @@ class TransactionDecompilerTest : FunSpec({
             listOf(alice.publicKey, Programs.SYSTEM),
             blockhash,
             listOf(SolanaRPCInstruction(1, listOf(0), SolanaBytes.EMPTY)),
-            SolanaTxType.Unsupported(3),
+            SolanaTxType.fromVersion(3),
         )
 
         rpc.toRequest().unwrapError() shouldBe SolanaTransactionError.UnsupportedVersion(3)
@@ -202,7 +202,7 @@ class TransactionDecompilerTest : FunSpec({
         tx.resolveAccounts().unwrapError().shouldBeInvalidMessage(SolanaTransactionError.Reason.UNKNOWN_LOOKUP_TABLE)
         shouldThrow<SolanaTransactionException> { tx.resolveAccounts().unwrap() }
 
-        val unsupported = rpcTransaction(MessageHeader(1, 0, 1), listOf(alice.publicKey, Programs.SYSTEM), blockhash, listOf(SolanaRPCInstruction(1, listOf(0), SolanaBytes.EMPTY)), SolanaTxType.Unsupported(3))
+        val unsupported = rpcTransaction(MessageHeader(1, 0, 1), listOf(alice.publicKey, Programs.SYSTEM), blockhash, listOf(SolanaRPCInstruction(1, listOf(0), SolanaBytes.EMPTY)), SolanaTxType.fromVersion(3))
         unsupported.resolveAccounts().unwrapError() shouldBe SolanaTransactionError.UnsupportedVersion(3)
     }
 

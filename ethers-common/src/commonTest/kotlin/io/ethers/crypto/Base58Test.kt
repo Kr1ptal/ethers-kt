@@ -1,16 +1,13 @@
 package io.ethers.crypto
 
+import io.ethers.core.bytes
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.datatest.withData
 import io.kotest.matchers.shouldBe
 import io.kotest.property.Arb
-import io.kotest.property.arbitrary.Codepoint
-import io.kotest.property.arbitrary.byte
-import io.kotest.property.arbitrary.byteArray
-import io.kotest.property.arbitrary.element
+import io.kotest.property.arbitrary.arbitrary
 import io.kotest.property.arbitrary.int
-import io.kotest.property.arbitrary.string
 import io.kotest.property.checkAll
 import kotlin.random.Random
 
@@ -45,7 +42,7 @@ class Base58Test : FunSpec({
     }
 
     test("encode matches reference implementation") {
-        checkAll(Arb.byteArray(Arb.int(0..300), Arb.byte()), Arb.int(0..8)) { bytes, leadingZeros ->
+        checkAll(Arb.bytes(0..300), Arb.int(0..8)) { bytes, leadingZeros ->
             bytes.fill(0, 0, minOf(leadingZeros, bytes.size))
             val encoded = Base58.encode(bytes)
 
@@ -56,7 +53,10 @@ class Base58Test : FunSpec({
 
     test("decode matches reference implementation") {
         val alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
-        val digits = Arb.string(0..400, Arb.element(alphabet.map { Codepoint(it.code) }))
+        // drawn in one go: kotest's `Arb.string` draws each character through its own generator, which is slow on Kotlin/Native
+        val digits = arbitrary(edgecases = listOf("", "z".repeat(400))) { rs ->
+            CharArray(rs.random.nextInt(0, 401)) { alphabet[rs.random.nextInt(alphabet.length)] }.concatToString()
+        }
         checkAll(digits, Arb.int(0..8)) { digits, leadingOnes ->
             val input = "1".repeat(leadingOnes) + digits
             Base58.decode(input) shouldBe Reference.decode(input)
@@ -86,7 +86,8 @@ class Base58Test : FunSpec({
             val maxValue = "z".repeat(length)
             for (input in listOf(maxValue, "111$maxValue")) {
                 val decoded = Base58.decode(input)
-                if (length <= 600) decoded shouldBe Reference.decode(input)
+                // the round trip below is the check at every length; the quadratic reference is only a second opinion
+                if (length <= 100) decoded shouldBe Reference.decode(input)
                 Base58.encode(decoded) shouldBe input
             }
         }
@@ -115,6 +116,23 @@ class Base58Test : FunSpec({
 
     test("decode reports the offending character and position") {
         shouldThrow<IllegalArgumentException> { Base58.decode("11abc0def") }.message shouldBe "Illegal character 0 at 5"
+        // the first of several, even past a few decoded limbs
+        shouldThrow<IllegalArgumentException> { Base58.decode("abcdefghijk0mnI") }.message shouldBe "Illegal character 0 at 11"
+    }
+
+    test("decodeOrNull decodes what decode does") {
+        for (bytes in listOf(ByteArray(0), byteArrayOf(0), byteArrayOf(0, 0, 1), ByteArray(32) { it.toByte() })) {
+            Base58.decodeOrNull(Base58.encode(bytes)) shouldBe bytes
+        }
+    }
+
+    test("a character outside the alphabet is null from decodeOrNull, where decode throws") {
+        // a bad last character in a long input is found only after the leading limbs are decoded
+        val long = Base58.encode(ByteArray(64) { (it + 1).toByte() }).dropLast(1)
+        for (text in listOf("0", "O", "I", "l", "1 1", "é", "11111\u0000", "${long}0", "$long\u00e9", "${long.take(7)}l${long.drop(8)}")) {
+            Base58.decodeOrNull(text) shouldBe null
+            shouldThrow<IllegalArgumentException> { Base58.decode(text) }
+        }
     }
 })
 

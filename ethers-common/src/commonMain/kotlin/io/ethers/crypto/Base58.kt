@@ -129,7 +129,17 @@ object Base58 {
         return count
     }
 
+    @Throws(IllegalArgumentException::class)
     fun decode(input: String): ByteArray {
+        return decodeOrNull(input) ?: run {
+            // only reached on invalid input, so finding the offending character again costs a valid decode nothing
+            val index = input.indexOfFirst { digit(it) < 0 }
+            throw IllegalArgumentException("Illegal character ${input[index]} at $index")
+        }
+    }
+
+    /** As [decode], returning null instead of throwing when [input] holds a character outside the Base58 alphabet. */
+    fun decodeOrNull(input: String): ByteArray? {
         if (input.isEmpty()) {
             return ByteArray(0)
         }
@@ -150,7 +160,9 @@ object Base58 {
         while (i < input.length) {
             var limb = 0L
             repeat(groupSize) {
-                limb = limb * 58 + digit(input, i++)
+                val digit = digit(input[i++])
+                if (digit < 0) return null
+                limb = limb * 58 + digit
             }
             val multiplier = if (groupSize == LIMB_DIGITS) LIMB_BASE else POWERS[groupSize]
             wordCount = mulAdd(words, wordCount, multiplier, limb)
@@ -188,10 +200,6 @@ object Base58 {
         return count
     }
 
-    private fun digit(input: String, index: Int): Int {
-        val c = input[index]
-        val digit = if (c.code < 128) INDEXES[c.code].toInt() else -1
-        require(digit >= 0) { "Illegal character $c at $index" }
-        return digit
-    }
+    // the digit's value, or -1 for a character outside the alphabet
+    private fun digit(c: Char): Int = if (c.code < 128) INDEXES[c.code].toInt() else -1
 }

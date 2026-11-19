@@ -25,23 +25,10 @@ jobs:
 
       - uses: ./.github/actions/environment-setup
 
-      # Every task here is named per source set rather than using the `ktlintCheck` / `test` aggregates. Those
-      # aggregates reach the Apple targets, and Kotlin/Native cannot cross-compile those from Linux, so they fail
-      # on this runner. The native-test job below covers what is skipped here.
+      # Every source set, native ones included: lint tasks depend on no compilation (see ktlint-conventions), so they
+      # run on a host that cannot build the Apple targets.
       - name: Gradle ktlint
-        run: >-
-          ./gradlew
-          ktlintKotlinScriptCheck
-          ktlintCommonMainSourceSetCheck
-          ktlintCommonTestSourceSetCheck
-          ktlintJvmMainSourceSetCheck
-          ktlintJvmTestSourceSetCheck
-          ktlintJvmSharedMainSourceSetCheck
-          ktlintJvmSharedTestSourceSetCheck
-          ktlintAndroidMainSourceSetCheck
-          ktlintAndroidUnitTestSourceSetCheck
-          --no-watch-fs
-          --stacktrace
+        run: ./gradlew ktlintCheck --no-watch-fs --stacktrace
 
       - uses: actions/upload-artifact@v7
         if: failure()
@@ -88,31 +75,20 @@ jobs:
           key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml') }}
           restore-keys: konan-${{ runner.os }}-
 
-      # The full aggregate, which the ubuntu job cannot run. It covers src/nativeMain and src/nativeTest, whose
-      # source sets do not even exist on a host that cannot configure the Apple targets.
-      - name: Gradle ktlint (all source sets)
-        run: ./gradlew ktlintCheck --no-watch-fs --stacktrace
-
-      - uses: actions/upload-artifact@v7
-        if: failure()
-        with:
-          name: report-lint-native
-          path: |
-            build/reports/ktlint
-            */build/reports/ktlint
-
-      # Every Apple target, so nothing is published untested. Only two of the four can execute tests:
-      #   - iosArm64 is a device target and has no test task at all
-      #   - iosX64Test is SKIPPED on an arm64 runner, since an x64 simulator binary cannot execute there. It is
-      #     silently skipped rather than failed, so it is compile-checked instead - a green `iosX64Test` would
-      #     mean nothing.
+      # Tests run on macOS only. All native code is in nativeMain, shared by every Apple target, so the iOS simulator
+      # would run the same arm64 code on the same backend again. Pull requests only link the simulator test binary,
+      # which still resolves every iOS dependency, and master runs the simulator tests too. The iOS device targets
+      # compile their main code, which is what gets published; iosX64 could not run tests on an arm64 runner anyway.
+      # `:swift-interop-test:swiftTest` then links ethers-common and ethers-solana into a framework and compiles and
+      # runs Swift against it, which is the only check of the API Swift actually sees.
       - name: Gradle test (Apple targets)
         run: >-
           ./gradlew
           macosArm64Test
-          iosSimulatorArm64Test
-          compileTestKotlinIosArm64
-          compileTestKotlinIosX64
+          ${{ github.event_name == 'push' && 'iosSimulatorArm64Test' || 'linkDebugTestIosSimulatorArm64' }}
+          compileKotlinIosArm64
+          compileKotlinIosX64
+          :swift-interop-test:swiftTest
           --no-watch-fs
           --stacktrace
 
@@ -123,3 +99,11 @@ jobs:
           path: |
             */build/reports/tests
             */build/test-results
+
+      # The Objective-C header Swift compiles against, kept on every run so changes to the Swift API can be reviewed.
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: swift-header
+          path: swift-interop-test/build/swift/EthersKt.h
+          if-no-files-found: ignore

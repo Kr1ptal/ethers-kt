@@ -1,6 +1,7 @@
 package io.ethers.abigen.plugin
 
 import io.ethers.abigen.plugin.task.EthersAbigenTask
+import io.ethers.abigen.plugin.task.EthersSolanaIdlReportTask
 import io.ethers.abigen.plugin.task.EthersSolanaIdlTask
 import org.gradle.api.GradleException
 import org.gradle.api.Plugin
@@ -31,9 +32,21 @@ abstract class EthersAbigenPlugin : Plugin<Project> {
             it.sources.set(solanaExt.sources)
             it.programAddresses.set(solanaExt.programAddresses)
             it.seedByteOrders.set(solanaExt.seedByteOrders)
+            it.kotlinxSerialization.set(solanaExt.kotlinxSerialization)
             it.outputDir.set(solanaExt.outputDir)
+            it.strict.set(solanaExt.strict)
         }
+        val solanaReport = target.tasks.register("ethersSolanaIdlReport", EthersSolanaIdlReportTask::class.java) {
+            it.reportFile.set(solanaTask.flatMap { task -> task.reportFile })
+        }
+        solanaTask.configure { it.finalizedBy(solanaReport) }
         val generators = listOf(abigenTask, solanaTask)
+        // the generated sources only, without the generator's report
+        val generatedSources = listOf(abigenTask, solanaTask.flatMap { it.destinationDir })
+
+        // applied unconditionally: the Kotlin Gradle plugin collects compiler plugins before this plugin's afterEvaluate
+        // runs, and the subplugin reads `kotlinxSerialization` only when the compilations are configured
+        target.pluginManager.apply(KotlinxSerializationSubplugin::class.java)
 
         target.afterEvaluate {
             val kotlinCompileTasks = target.tasks.names.filter { it.contains("compile") && it.contains("Kotlin") }
@@ -54,7 +67,7 @@ abstract class EthersAbigenPlugin : Plugin<Project> {
                     val sourceSet = it.sourceSets.getByName("commonMain")
                     logger.info("Adding generated abi wrappers and program bindings as source to '${sourceSet.name}' SourceSet")
 
-                    generators.forEach { task -> sourceSet.kotlin.srcDir(task) }
+                    generatedSources.forEach { sources -> sourceSet.kotlin.srcDir(sources) }
                     return@afterEvaluate
                 }
 
@@ -65,7 +78,7 @@ abstract class EthersAbigenPlugin : Plugin<Project> {
                     val sourceSet = it.sourceSets.getByName("main")
                     logger.info("Adding generated abi wrappers and program bindings as source to '${sourceSet.name}' SourceSet")
 
-                    generators.forEach { task -> sourceSet.kotlin.srcDir(task) }
+                    generatedSources.forEach { sources -> sourceSet.kotlin.srcDir(sources) }
                     return@afterEvaluate
                 }
 
@@ -76,7 +89,7 @@ abstract class EthersAbigenPlugin : Plugin<Project> {
                     val sourceSet = it.sourceSets.getByName("main")
                     logger.info("Adding generated abi wrappers and program bindings as source to '${sourceSet.name}' SourceSet")
 
-                    generators.forEach { task -> sourceSet.kotlin.srcDir(task) }
+                    generatedSources.forEach { sources -> sourceSet.kotlin.srcDir(sources) }
                     return@afterEvaluate
                 }
 

@@ -20,6 +20,8 @@ val kotlinCompilerConfig: KotlinCommonCompilerOptions.(Boolean) -> Unit = { isTe
         //"-Xbackend-threads=0", // use all available processors
         "-Xjvm-default=all",
         "-Xexpect-actual-classes",
+        // stable Objective-C/Swift names and hiding of members Swift cannot call, for the Apple framework export
+        "-opt-in=kotlin.experimental.ExperimentalObjCName,kotlin.experimental.ExperimentalObjCRefinement",
     )
 
     val specificArgs = if (isTestTask) {
@@ -91,8 +93,8 @@ pluginManager.withPlugin("org.jetbrains.kotlin.multiplatform") {
         // green build proves nothing about portability. Compiling for a native target is what enforces it.
         //
         // NOTE: they can only be built on a macOS host - Kotlin/Native cannot cross-compile Apple targets. Any
-        // task that reaches them (`build`, `allTests`, an unscoped `ktlintCheck`) therefore fails on Linux, which
-        // is why CI splits JVM work onto ubuntu and everything else onto macOS.
+        // task that compiles them (`build`, `allTests`) therefore fails on Linux, which is why CI runs JVM tests and
+        // lint on ubuntu and native builds on macOS.
         if (supportsNative) {
             macosArm64()
             iosArm64()

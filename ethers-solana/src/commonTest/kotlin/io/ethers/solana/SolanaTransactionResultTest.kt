@@ -27,8 +27,8 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 
 class SolanaTransactionResultTest : FunSpec({
-    val alice = KeypairSigner.fromSeed(ByteArray(32) { 1 })
-    val bob = KeypairSigner.fromSeed(ByteArray(32) { 2 })
+    val alice = KeypairSigner.fromSeed(ByteArray(32) { 1 }).unwrap()
+    val bob = KeypairSigner.fromSeed(ByteArray(32) { 2 }).unwrap()
     val blockhash = SolanaBlockhash(ByteArray(32) { 3 })
     val config = SolanaTransactionConfig()
     val transfer = SystemProgram.transfer(alice.publicKey, bob.publicKey, 42L)
@@ -93,7 +93,7 @@ class SolanaTransactionResultTest : FunSpec({
     }
 
     test("decoding reports truncation, unsupported versions and partial signatures") {
-        val signed = SolanaTxLegacy.compile(alice.publicKey, blockhash, transfer).unwrap().sign(alice)
+        val signed = SolanaTxLegacy.compile(alice.publicKey, blockhash, transfer).unwrap().sign(alice).unwrap()
         val wire = signed.serialize()
         SolanaTransactionSigned.deserialize(wire).unwrap().serialize() shouldBe wire
         SolanaTransactionCompiled.deserialize(wire).isSuccess() shouldBe true
@@ -208,5 +208,16 @@ class SolanaTransactionResultTest : FunSpec({
         exception.error shouldBe error
         exception.shouldBeInstanceOf<IllegalArgumentException>()
         exception.message shouldBe error.toString()
+    }
+
+    test("signing takes a list as well as varargs, failing as a Result on a missing signature") {
+        val tx = SolanaTxLegacy.compile(alice.publicKey, blockhash, SystemProgram.transfer(bob.publicKey, alice.publicKey, 1L)).unwrap()
+        tx.sign(listOf(alice, bob)).unwrap() shouldBe tx.sign(alice, bob).unwrap()
+        tx.signingBuilder().sign(listOf(bob)).sign(listOf(alice)).build().unwrap() shouldBe tx.sign(alice, bob).unwrap()
+        tx.sign(listOf(alice)).unwrapError() shouldBe SolanaTransactionError.UnsignedSlots(listOf(1), emptyList())
+        tx.sign(emptyList()).unwrapError() shouldBe SolanaTransactionError.UnsignedSlots(listOf(0, 1), emptyList())
+        val stranger = KeypairSigner.fromSeed(ByteArray(32) { 9 }).unwrap()
+        shouldThrow<IllegalArgumentException> { tx.signingBuilder().sign(listOf(alice, stranger)) }
+        shouldThrow<IllegalArgumentException> { tx.sign(alice, bob, stranger) }
     }
 })

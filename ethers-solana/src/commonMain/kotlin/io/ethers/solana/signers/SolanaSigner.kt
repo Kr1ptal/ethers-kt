@@ -8,8 +8,10 @@ import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaSignature
 import io.ethers.solana.types.transaction.SolanaTransactionSigned
 import io.ethers.solana.types.transaction.SolanaTransactionUnsigned
+import kotlin.native.ObjCName
 
 /** Signs the exact message bytes with Ed25519, without an Ethereum prefix or prehash. */
+@ObjCName("SolanaSigner", exact = true)
 interface SolanaSigner {
     val publicKey: SolanaAddress
 
@@ -19,7 +21,8 @@ interface SolanaSigner {
      */
     fun signMessage(message: ByteArray): SolanaSignature
 
-    fun signTransaction(transaction: SolanaTransactionUnsigned): SolanaTransactionSigned = transaction.sign(this)
+    @Throws(IllegalArgumentException::class)
+    fun signTransaction(transaction: SolanaTransactionUnsigned): SolanaTransactionSigned = transaction.sign(this).unwrap()
 
     /**
      * Safe alternative to [signMessage], reporting a signer that could not produce a signature as a

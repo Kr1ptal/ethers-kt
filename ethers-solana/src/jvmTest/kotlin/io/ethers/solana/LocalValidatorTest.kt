@@ -24,13 +24,13 @@ class LocalValidatorTest : FunSpec({
         require(URI(http!!).host in setOf("localhost", "127.0.0.1", "::1"))
         val provider = SolanaProvider.builder(http).defaultCommitment(Commitment.CONFIRMED).build().unwrap()
         try {
-            val sender = KeypairSigner.generate()
-            val recipient = KeypairSigner.generate().publicKey
+            val sender = KeypairSigner.random()
+            val recipient = KeypairSigner.random().publicKey
             provider.requestAirdrop(sender.publicKey, 1000000000L).send().unwrap()
             eventually(30.seconds) { provider.getBalance(sender.publicKey).send().unwrap().value shouldBe bigIntegerOf(1000000000L) }
             val latest = provider.getLatestBlockhash().send().unwrap().value
             val config = SolanaTransactionConfig(bigIntegerOf(5000), 200000, 65536)
-            val tx = SolanaTxV1.compile(sender.publicKey, latest.blockhash, List(64) { SystemProgram.transfer(sender.publicKey, recipient, 20000L) }, config).unwrap().sign(sender)
+            val tx = SolanaTxV1.compile(sender.publicKey, latest.blockhash, List(64) { SystemProgram.transfer(sender.publicKey, recipient, 20000L) }, config).unwrap().sign(sender).unwrap()
             (tx.serialize().size > 1232) shouldBe true
             provider.getFeeForMessage(tx).send().unwrap().value shouldBe bigIntegerOf(10000)
             provider.simulateTransaction(tx).send().unwrap().value.isSuccess shouldBe true
@@ -51,13 +51,13 @@ class LocalValidatorTest : FunSpec({
         require(URI(ws!!).host in setOf("localhost", "127.0.0.1", "::1"))
         val provider = SolanaProvider.builder(http).webSocketUrl(ws).defaultCommitment(Commitment.CONFIRMED).build().unwrap()
         try {
-            val sender = KeypairSigner.generate()
-            val recipient = KeypairSigner.generate().publicKey
+            val sender = KeypairSigner.random()
+            val recipient = KeypairSigner.random().publicKey
             provider.requestAirdrop(sender.publicKey, 1000000000L).send().unwrap()
             eventually(30.seconds) { provider.getBalance(sender.publicKey).send().unwrap().value shouldBe bigIntegerOf(1000000000L) }
             val latest = provider.getLatestBlockhash().send().unwrap().value
             val message = SolanaTxV0.compile(sender.publicKey, latest.blockhash, SystemProgram.transfer(sender.publicKey, recipient, 1000000L)).unwrap()
-            val transaction = message.sign(sender)
+            val transaction = message.sign(sender).unwrap()
             provider.simulateTransaction(transaction).send().unwrap().value.isSuccess shouldBe true
             val signature = provider.sendTransaction(transaction).send().unwrap().signature
             val stream = provider.subscribeSignature(signature).send().unwrap()

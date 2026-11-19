@@ -315,8 +315,8 @@ class SolanaProviderTest : FunSpec({
         response = "\"$signature\""
         provider.requestAirdrop(address, BigInteger("18446744073709551615")).send().unwrap() shouldBe signature
         assertRequest("requestAirdrop", """["$address",18446744073709551615,{"commitment":"confirmed"}]""")
-        val signer = KeypairSigner.fromSeed(ByteArray(32))
-        val transaction = SolanaTxV0.compile(signer.publicKey, blockhash, SystemProgram.transfer(signer.publicKey, address, 1L)).unwrap().sign(signer)
+        val signer = KeypairSigner.fromSeed(ByteArray(32)).unwrap()
+        val transaction = SolanaTxV0.compile(signer.publicKey, blockhash, SystemProgram.transfer(signer.publicKey, address, 1L)).unwrap().sign(signer).unwrap()
         provider.sendTransaction(transaction).send().unwrap().signature shouldBe signature
         assertRequest("sendTransaction", """["${transaction.toBase64()}",{"encoding":"base64","preflightCommitment":"confirmed"}]""")
         provider.sendTransaction(transaction, preflightCommitment = Commitment.FINALIZED).send().unwrap().signature shouldBe signature
@@ -372,8 +372,8 @@ class SolanaProviderTest : FunSpec({
     }
 
     test("simulation accepts every signing state but raw submission rejects incomplete envelopes") {
-        val alice = KeypairSigner.fromSeed(ByteArray(32) { 1 })
-        val bob = KeypairSigner.fromSeed(ByteArray(32) { 2 })
+        val alice = KeypairSigner.fromSeed(ByteArray(32) { 1 }).unwrap()
+        val bob = KeypairSigner.fromSeed(ByteArray(32) { 2 }).unwrap()
         val tx = SolanaTxV0.compile(alice.publicKey, blockhash, Instruction(Programs.SYSTEM, listOf(AccountMeta.signer(alice.publicKey), AccountMeta.signer(bob.publicKey)), byteArrayOf())).unwrap()
         val builder = tx.signingBuilder().sign(bob)
         val partial = builder.serializePartial()
@@ -398,11 +398,11 @@ class SolanaProviderTest : FunSpec({
     }
 
     test("submission accepts maximum-size valid transactions") {
-        val signer = KeypairSigner.fromSeed(ByteArray(32) { 1 })
+        val signer = KeypairSigner.fromSeed(ByteArray(32) { 1 }).unwrap()
         fun instruction(size: Int) = Instruction(Programs.SYSTEM, emptyList(), ByteArray(size))
         for (size in listOf(1232, 1233, 4096)) {
             // 42 fixed + 64 account bytes + 4 instruction header + 64 signature.
-            val signed = SolanaTxV1.compile(signer.publicKey, blockhash, instruction(size - 174), SolanaTransactionConfig()).unwrap().sign(signer)
+            val signed = SolanaTxV1.compile(signer.publicKey, blockhash, instruction(size - 174), SolanaTransactionConfig()).unwrap().sign(signer).unwrap()
             signed.serialize().size shouldBe size
             response = "\"${signed.id}\""
             provider.sendTransaction(signed).send().unwrap().signature shouldBe signed.id
@@ -418,7 +418,7 @@ class SolanaProviderTest : FunSpec({
                     continue
                 }
                 val tx = if (version == "legacy") SolanaTxLegacy.compile(signer.publicKey, blockhash, instruction(dataSize)).unwrap() else SolanaTxV0.compile(signer.publicKey, blockhash, instruction(dataSize)).unwrap()
-                val signed = tx.sign(signer)
+                val signed = tx.sign(signer).unwrap()
                 signed.serialize().size shouldBe size
                 response = "\"${signed.id}\""
                 provider.sendTransaction(signed).send().unwrap().signature shouldBe signed.id
@@ -440,9 +440,9 @@ class SolanaProviderTest : FunSpec({
     }
 
     test("v1 uses tail-signature envelopes for send/simulation and message-only bytes for fees") {
-        val signer = KeypairSigner.fromSeed(ByteArray(32) { 1 })
+        val signer = KeypairSigner.fromSeed(ByteArray(32) { 1 }).unwrap()
         val tx = SolanaTxV1.compile(signer.publicKey, blockhash, SystemProgram.transfer(signer.publicKey, address, 1), SolanaTransactionConfig(computeUnitLimit = 20000, loadedAccountsDataSizeLimit = 65536)).unwrap()
-        val signed = tx.sign(signer)
+        val signed = tx.sign(signer).unwrap()
         response = "\"${signed.id}\""
         provider.sendTransaction(signed).send().unwrap().signature shouldBe signed.id
         assertRequest("sendTransaction", """["${signed.toBase64()}",{"encoding":"base64","preflightCommitment":"confirmed"}]""")
@@ -465,7 +465,7 @@ class SolanaProviderTest : FunSpec({
         response = """{"slot":9007199254740993,"blockTime":null,"version":2,"transaction":{"signatures":["$signature"],"message":{"header":{"numRequiredSignatures":1,"numReadonlySignedAccounts":0,"numReadonlyUnsignedAccounts":0},"accountKeys":["$address"],"recentBlockhash":"$blockhash","instructions":[]},"futureMessage":true},"meta":{"err":null,"fee":0,"preBalances":[],"postBalances":[],"future":7},"extra":42}"""
         val tx = provider.getTransaction(signature).send().unwrap()!!
         tx.slot shouldBe BigInteger("9007199254740993")
-        tx.type shouldBe SolanaTxType.Unsupported(2)
+        tx.type shouldBe SolanaTxType.fromVersion(2)
         tx.otherFields["extra"] shouldBe Kotlinx.DEFAULT.parseToJsonElement("42")
         tx.transaction.otherFields["futureMessage"] shouldBe Kotlinx.DEFAULT.parseToJsonElement("true")
         tx.meta!!.otherFields["future"] shouldBe Kotlinx.DEFAULT.parseToJsonElement("7")
@@ -488,7 +488,7 @@ class SolanaProviderTest : FunSpec({
     test("transaction history returns typed fields even for unsupported versions") {
         response = """{"slot":1,"blockTime":null,"version":2,"transaction":{"signatures":["$signature"],"message":{"header":{"numRequiredSignatures":1,"numReadonlySignedAccounts":0,"numReadonlyUnsignedAccounts":0},"accountKeys":["$address"],"recentBlockhash":"$blockhash","instructions":[]}},"meta":{"err":null,"fee":5000,"preBalances":[],"postBalances":[],"logMessages":["hello"]}}"""
         val tx = provider.getTransaction(signature).send().unwrap()!!
-        tx.type shouldBe SolanaTxType.Unsupported(2)
+        tx.type shouldBe SolanaTxType.fromVersion(2)
         tx.transaction.signatures shouldBe listOf(signature)
         tx.transaction.message.accountKeys.single() shouldBe address
         tx.transaction.message.recentBlockhash shouldBe blockhash
@@ -538,7 +538,7 @@ class SolanaProviderTest : FunSpec({
         val tableKey = SolanaAddress(ByteArray(32) { 77 })
         val table = AddressLookupTableAccount(tableKey, movable)
         val program = SolanaAddress(ByteArray(32) { 42 })
-        val payer = KeypairSigner.fromSeed(ByteArray(32) { 1 })
+        val payer = KeypairSigner.fromSeed(ByteArray(32) { 1 }).unwrap()
         val instruction = Instruction(program, movable.mapIndexed { i, a -> AccountMeta(a, writable = i % 2 == 0) }, byteArrayOf(1))
         val request = SolanaTransactionRequest()
             .feePayer(payer.publicKey)
@@ -565,5 +565,37 @@ class SolanaProviderTest : FunSpec({
         response = contextual("[null]")
         provider.decompileTransaction(v0).send().unwrapError().message shouldBe
             "Lookup table $tableKey does not exist, so this transaction cannot be resolved"
+
+        // a node answering with fewer accounts than asked for is reported the same way, not thrown
+        response = contextual("[]")
+        provider.decompileTransaction(v0).send().unwrapError().message shouldBe
+            "Lookup table $tableKey does not exist, so this transaction cannot be resolved"
+    }
+
+    // Regression: each of these used to throw out of the request instead of failing it, aborting a Swift caller.
+    context("bad input fails the request instead of throwing") {
+        test("an account that is not a lookup table") {
+            response = contextual(account)
+            val error = provider.getAddressLookupTable(address).send().unwrapError()
+            error.message shouldBe "A lookup table account holds 56 header bytes and whole addresses, got 3"
+        }
+
+        test("a missing lookup table account is still a null value") {
+            response = contextual("null")
+            provider.getAddressLookupTable(address).send().unwrap().value shouldBe null
+        }
+
+        test("more than 256 signatures, without sending anything") {
+            val error = provider.getSignatureStatuses(List(257) { signature }).send().unwrapError()
+            error.message shouldBe "At most 256 signatures can be queried at once, got 257"
+            requests.size shouldBe 0
+        }
+
+        test("a compute unit margin below -100%, without sending anything") {
+            val request = SolanaTransactionRequest().feePayer(address).blockhash(blockhash).instruction(SystemProgram.transfer(address, address, 1L))
+            val error = provider.fillTransaction(request, emptyList(), Commitment.CONFIRMED, -101).send().unwrapError()
+            error.message shouldBe "Compute unit margin cannot be below -100%, got -101%"
+            requests.size shouldBe 0
+        }
     }
 })

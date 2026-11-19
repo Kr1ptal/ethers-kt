@@ -5,11 +5,22 @@ import io.ethers.solana.signers.SolanaSigner
 import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.types.SolanaSignature
 import kotlin.jvm.JvmStatic
+import kotlin.native.HiddenFromObjC
+import kotlin.native.ObjCName
 
 /** A compiled legacy, v0 or v1 payload with no signatures. */
+@ObjCName("SolanaTransactionUnsigned", exact = true)
 sealed interface SolanaTransactionUnsigned : SolanaTransactionCompiled {
-    /** Sign with every required signer, failing if any signature is missing or invalid. */
-    fun sign(vararg signers: SolanaSigner): SolanaTransactionSigned = signingBuilder().sign(*signers).build().unwrap()
+    /**
+     * Sign with every required signer, failing with [SolanaTransactionError.UnsignedSlots] if any signature is
+     * missing or invalid. A signer that is not required is a caller's bug and throws [IllegalArgumentException],
+     * as [SolanaTransactionSigned.Builder.sign] does.
+     */
+    @HiddenFromObjC
+    fun sign(vararg signers: SolanaSigner): Result<SolanaTransactionSigned, SolanaTransactionError> = sign(signers.asList())
+
+    /** As the vararg [sign]. Swift sees only this overload, as `sign(signers:)` taking an array. */
+    fun sign(signers: List<SolanaSigner>): Result<SolanaTransactionSigned, SolanaTransactionError> = signingBuilder().sign(signers).build()
 
     /** Rebuild the payload against a fresh blockhash. */
     fun withNewBlockhash(blockhash: SolanaBlockhash): SolanaTransactionUnsigned
@@ -30,6 +41,8 @@ sealed interface SolanaTransactionUnsigned : SolanaTransactionCompiled {
      * v0 place the signature vector before the message, v1 after it. Prefer
      * [SolanaTransactionSigned.serialize], [SolanaTransactionSigned.Builder.serializePartial] or
      * [serializeForSimulation], which supply the signatures they already hold.
+     *
+     * @throws IllegalArgumentException if [signatures] does not hold exactly one slot per required signature
      */
     fun encodeEnvelope(signatures: List<SolanaSignature?>): ByteArray
 

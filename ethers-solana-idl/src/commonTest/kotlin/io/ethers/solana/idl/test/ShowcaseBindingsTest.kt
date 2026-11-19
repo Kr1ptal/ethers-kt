@@ -63,7 +63,7 @@ private val REFERRER = address(6)
 private val EXTRA = address(7)
 private val SYSTEM_PROGRAM = SolanaAddress("11111111111111111111111111111111")
 
-private val COUNTER = Showcase.Counter(bigIntegerOf(7), 254, listOf(true, false), -1, SolanaBytes.fromHex("aabb"))
+private val COUNTER = Showcase.Counter(bigIntegerOf(7), 254, listOf(true, false), -1, SolanaBytes.fromHex("aabb").unwrap())
 private val SIGNATURE = SolanaSignature(ByteArray(64) { 9 })
 
 /** Logs of one top-level invocation of the showcase program that emits each of [events]. */
@@ -94,7 +94,7 @@ class ShowcaseBindingsTest : FunSpec({
                 label = "main",
                 limit = null,
                 tags = listOf("a", "b"),
-                seed = SolanaBytes.fromHex("01020304"),
+                seed = SolanaBytes.fromHex("01020304").unwrap(),
                 weights = listOf(1, 2, 4294967295L),
                 nested = SolanaOption.Some(null),
                 mode = Showcase.Mode.Fixed(bigIntegerOf(9), 10),
@@ -370,8 +370,8 @@ class ShowcaseBindingsTest : FunSpec({
                 version = 1,
                 origin = Showcase.ShowcasePoint(2, 3),
                 slots = listOf(
-                    Showcase.Slot(SolanaBytes.fromHex("0a0b0c0d"), bigIntegerOf(4), Showcase.ShowcasePoint(5, 6), Showcase.Path(7)),
-                    Showcase.Slot(SolanaBytes.fromHex("1a1b1c1d"), bigIntegerOf(8), Showcase.ShowcasePoint(9, 10), Showcase.Path(11)),
+                    Showcase.Slot(SolanaBytes.fromHex("0a0b0c0d").unwrap(), bigIntegerOf(4), Showcase.ShowcasePoint(5, 6), Showcase.Path(7)),
+                    Showcase.Slot(SolanaBytes.fromHex("1a1b1c1d").unwrap(), bigIntegerOf(8), Showcase.ShowcasePoint(9, 10), Showcase.Path(11)),
                 ),
                 grid = listOf(listOf(1, 2, 3), listOf(4, 5, 6)),
                 empty = Showcase.Marker,
@@ -405,7 +405,7 @@ class ShowcaseBindingsTest : FunSpec({
                     readAt(ledgerBytes, slots) shouldBe ledger.slots
                     readAt(ledgerBytes, slots[0].path.depth) shouldBe 7
                     readAt(ledgerBytes, slots[1]) shouldBe ledger.slots[1]
-                    readAt(ledgerBytes, slots[1].nameField) shouldBe SolanaBytes.fromHex("1a1b1c1d")
+                    readAt(ledgerBytes, slots[1].nameField) shouldBe SolanaBytes.fromHex("1a1b1c1d").unwrap()
                     readAt(ledgerBytes, slots[1].nameField[2]) shouldBe 0x1c
                     readAt(ledgerBytes, slots[1].sizeField) shouldBe bigIntegerOf(8)
                     readAt(ledgerBytes, slots[1].point.y) shouldBe 10
@@ -493,7 +493,7 @@ class ShowcaseBindingsTest : FunSpec({
                 Showcase.Ledger.filter(api)
                     .field(Showcase.Ledger.Fields.slots[1].point.y, 10)
                     .field(Showcase.Ledger.Fields.grid[1], listOf(4, 5, 6))
-                    .field(Showcase.Ledger.Fields.slots[0].nameField, SolanaBytes.fromHex("0a0b0c0d"))
+                    .field(Showcase.Ledger.Fields.slots[0].nameField, SolanaBytes.fromHex("0a0b0c0d").unwrap())
                     .accountFilters.drop(1) shouldBe listOf(
                     AccountFilter.Memcmp(54, Base58.encode(hex("0a000000"))),
                     AccountFilter.Memcmp(65, Base58.encode(hex("0400 0500 0600"))),
@@ -503,7 +503,7 @@ class ShowcaseBindingsTest : FunSpec({
                 Showcase.Gauge.filter(api).field(Showcase.Gauge.Fields.tail, 11).accountFilters shouldBe Showcase.Gauge.filter(api).tail(11).accountFilters
                 // values that do not fit the field fail instead of comparing other bytes
                 shouldThrow<IllegalArgumentException> { Showcase.Ledger.filter(api).field(Showcase.Ledger.Fields.grid[1], listOf(4, 5)) }
-                shouldThrow<IllegalArgumentException> { Showcase.Ledger.filter(api).field(Showcase.Ledger.Fields.slots[0].nameField, SolanaBytes.fromHex("0a")) }
+                shouldThrow<IllegalArgumentException> { Showcase.Ledger.filter(api).field(Showcase.Ledger.Fields.slots[0].nameField, SolanaBytes.fromHex("0a").unwrap()) }
                 api.close()
             }
         }
@@ -544,7 +544,7 @@ class ShowcaseBindingsTest : FunSpec({
             val instruction = Showcase.initialize(Showcase.InitializeAccounts(CONFIG, PAYER), Showcase.InitializeArgs(30, "hi"))
             instruction.programId shouldBe Showcase.PROGRAM_ID
             instruction.keys shouldBe listOf(AccountMeta.writable(CONFIG), AccountMeta.signerAndWritable(PAYER), AccountMeta(SYSTEM_PROGRAM))
-            instruction.data shouldBe SolanaBytes.fromHex("afaf6d1f0d989bed 1e00 02000000 6869".replace(" ", ""))
+            instruction.data shouldBe SolanaBytes.fromHex("afaf6d1f0d989bed 1e00 02000000 6869".replace(" ", "")).unwrap()
         }
 
         test("an absent optional account is passed as the program id, and account groups are flattened in order") {
@@ -557,7 +557,7 @@ class ShowcaseBindingsTest : FunSpec({
                 AccountMeta(Showcase.PROGRAM_ID),
                 AccountMeta(EXTRA),
             )
-            instruction.data shouldBe SolanaBytes.fromHex("f8c69e91e17587c8 6400000000000000 01 5a00000000000000 00".replace(" ", ""))
+            instruction.data shouldBe SolanaBytes.fromHex("f8c69e91e17587c8 6400000000000000 01 5a00000000000000 00".replace(" ", "")).unwrap()
         }
 
         test("decoding recovers arguments, account roles and remaining accounts") {
@@ -638,7 +638,7 @@ class ShowcaseBindingsTest : FunSpec({
         val authority = address(4)
         val configAuthority = address(5)
         val maxU64 = BigInteger("18446744073709551615")
-        val salt = SolanaBytes.fromHex("01020304")
+        val salt = SolanaBytes.fromHex("01020304").unwrap()
 
         fun vault(programId: SolanaAddress = Showcase.PROGRAM_ID) = Showcase.OpenVaultAccounts.findVault(owner, maxU64, "vault-name", 0x1234, key, -5, 7, salt, programId)
 
@@ -751,8 +751,8 @@ class ShowcaseBindingsTest : FunSpec({
     }
 
     test("return data decodes through the instruction that produced it, when this program set it") {
-        Showcase.SWAP.decodeReturn(ReturnData(Showcase.PROGRAM_ID, SolanaBytes.fromHex("2a00000000000000")), Showcase.PROGRAM_ID).unwrap() shouldBe bigIntegerOf(42)
-        Showcase.SWAP.decodeReturn(ReturnData(EXTRA, SolanaBytes.fromHex("2a00000000000000")), Showcase.PROGRAM_ID).unwrapError()
+        Showcase.SWAP.decodeReturn(ReturnData(Showcase.PROGRAM_ID, SolanaBytes.fromHex("2a00000000000000").unwrap()), Showcase.PROGRAM_ID).unwrap() shouldBe bigIntegerOf(42)
+        Showcase.SWAP.decodeReturn(ReturnData(EXTRA, SolanaBytes.fromHex("2a00000000000000").unwrap()), Showcase.PROGRAM_ID).unwrapError()
             .shouldBeInstanceOf<SolanaDecodeError.Unrecognized>()
     }
 
@@ -765,7 +765,7 @@ class ShowcaseBindingsTest : FunSpec({
 
     test("constants") {
         Showcase.MAX_FEE shouldBe 10000
-        Showcase.SEED shouldBe SolanaBytes.fromHex("73656564")
+        Showcase.SEED shouldBe SolanaBytes.fromHex("73656564").unwrap()
         Showcase.BIG shouldBe BigInteger("340282366920938463463374607431768211455")
         Showcase.ENABLED shouldBe true
         Showcase.NAME shouldBe "showcase"
