@@ -17,6 +17,7 @@ import io.ktor.websocket.readText
 import kotlinx.atomicfu.atomic
 import kotlinx.atomicfu.update
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ClosedSendChannelException
 import kotlinx.coroutines.withTimeoutOrNull
 import io.ktor.server.websocket.WebSockets as ServerWebSockets
 
@@ -43,6 +44,9 @@ interface MockServer {
 }
 
 interface MockWSServer : MockServer {
+    /** How many WebSocket sessions the server has open. */
+    val openSessions: Int
+
     /** Push a frame to the connected client outside of the request/response flow, e.g. a subscription event. */
     suspend fun sendJson(json: String)
 
@@ -103,7 +107,16 @@ private class EmbeddedMockServer(private val websocket: Boolean) : MockWSServer 
     private val responses = Channel<Pair<Int, String>>(Channel.UNLIMITED)
     private val requests = Channel<RecordedRequest>(Channel.UNLIMITED)
     private val received = Channel<String>(Channel.UNLIMITED)
-    private val session = atomic<DefaultWebSocketServerSession?>(null)
+
+    /**
+     * Open WebSocket sessions, the one the client last sent a frame on last. A session that has sent nothing goes
+     * first: a client a test closes right after creating it can have its session open here after its replacement
+     * has already spoken, and must not take that one's place.
+     */
+    private val sessions = atomic(emptyList<DefaultWebSocketServerSession>())
+
+    override val openSessions: Int
+        get() = sessions.value.size
 
     private val server = embeddedServer(CIO, port = 0) {
         if (websocket) {
@@ -113,13 +126,21 @@ private class EmbeddedMockServer(private val websocket: Boolean) : MockWSServer 
         routing {
             if (websocket) {
                 webSocket("/") {
-                    session.value = this
-                    for (frame in incoming) {
-                        if (frame !is Frame.Text) continue
-                        received.trySend(frame.readText())
+                    sessions.update { listOf(this) + it }
+                    try {
+                        for (frame in incoming) {
+                            if (frame !is Frame.Text) continue
+                            val text = frame.readText()
+                            sessions.update { it - this + this }
+                            received.trySend(text)
 
-                        // reply only if a response was queued, mirroring MockWebServer's queue semantics
-                        responses.tryReceive().getOrNull()?.let { (_, body) -> send(Frame.Text(body)) }
+                            // reply only if a response was queued, mirroring MockWebServer's queue semantics
+                            responses.tryReceive().getOrNull()?.let { (_, body) ->
+                                send(Frame.Text(body))
+                            }
+                        }
+                    } finally {
+                        sessions.update { it - this }
                     }
                 }
             }
@@ -165,17 +186,21 @@ private class EmbeddedMockServer(private val websocket: Boolean) : MockWSServer 
 
     override suspend fun sendJson(json: String) {
         // never discard silently: a dropped frame used to surface only as a test timing out minutes later
-        val current = session.value ?: throw AssertionError("sendJson called with no connected session")
+        val current = sessions.value.lastOrNull() ?: throw AssertionError("sendJson called with no connected session")
         current.send(Frame.Text(json))
     }
 
     override suspend fun closeConnection(code: Short, reason: String) {
-        // close() suspends for the handshake, and the client can reconnect within that window and register
-        // itself here. Clearing unconditionally would drop the new session, leaving the server unable to
-        // send anything for the rest of the test.
-        val closing = session.value ?: return
-        closing.close(CloseReason(code, reason))
-        session.compareAndSet(closing, null)
+        // Every open session, not only the current one: any other belongs to a client the test has closed and the
+        // server has not yet seen go, and closing that one alone would leave the client under test connected.
+        // A client that reconnects during the close handshake opens a session that is not in this snapshot. One
+        // already closing rejects the close frame, which is fine: it is going anyway.
+        for (session in sessions.value) {
+            try {
+                session.close(CloseReason(code, reason))
+            } catch (_: ClosedSendChannelException) {
+            }
+        }
     }
 
     override suspend fun stop() {
