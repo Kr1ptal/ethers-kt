@@ -6,8 +6,11 @@ import io.ethers.core.isFailure
 import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.ktor.client.plugins.websocket.WebSockets
-import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
@@ -22,7 +25,6 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
-import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import io.ktor.client.HttpClient as KtorHttpClient
 
@@ -154,37 +156,40 @@ private class RecordingStrategy<T>(private val delegate: DeserializationStrategy
     }
 }
 
+/** The code of the error that ends a call whose response the client skipped; see the first test. */
+private const val SKIPPED_CODE = -1234
+
 class WsDirectDecodeTest : FunSpec({
     test("decoding a response straight into the result matches decoding it through a JSON tree") {
-        for ((caseIndex, case) in WS_CASES.withIndex()) {
-            val server = mockServerWebsocket()
-            val client = WsClient(server.url, KtorHttpClient { install(WebSockets) })
-            try {
+        val server = mockServerWebsocket()
+        val client = WsClient(server.url, KtorHttpClient { install(WebSockets) })
+        try {
+            // the client numbers its requests from 1
+            var id = 0L
+            for (case in WS_CASES) {
                 val decodeTree = { element: JsonElement -> Kotlinx.DEFAULT.decodeFromJsonElement(case.serializer, element) }
-                // the client numbers its requests from 1
-                var id = 0L
                 for (template in WS_BODIES) {
-                    val nextId = id + 1
-                    val body = template.replace("RESULT", case.result).replace("ID", nextId.toString())
-                    val expected = wsTreeOutcome(body, nextId, decodeTree)
+                    id++
+                    val body = template.replace("RESULT", case.result).replace("ID", id.toString())
+                    val expected = wsTreeOutcome(body, id, decodeTree)
 
-                    // A message the client skips leaves its call unanswered until the read timeout. Rather than race a
-                    // short read timeout against a slow runner, wait briefly where no answer is expected and long
-                    // where one is, so an answered call is never mistaken for a timeout. A message is skipped before
-                    // its result is decoded, so that is checked for the first result type only.
-                    if (expected == TIMEOUT && caseIndex > 0) continue
-                    val wait = if (expected == TIMEOUT) 300.milliseconds else 10.seconds
-
-                    id = nextId
-                    server.enqueueJson(body)
-                    val response = withTimeoutOrNull(wait) { client.request("m", emptyArray<Any>(), case.serializer) }
-                    val actual = if (response == null) TIMEOUT else response.wsOutcome()
-                    withClue("${case.name}: $body") { actual shouldBe expected }
+                    // A message the client skips leaves its call unanswered. Rather than wait out a timeout for each,
+                    // the body is followed by an error answering the same call, which ends it only if the body did not.
+                    val actual = coroutineScope {
+                        val response = async { client.request("m", emptyArray<Any>(), case.serializer) }
+                        server.takeReceivedText() shouldNotBe null
+                        server.sendJson(body)
+                        server.sendJson("""{"jsonrpc":"2.0","id":$id,"error":{"code":$SKIPPED_CODE,"message":"skipped"}}""")
+                        withTimeout(10.seconds) { response.await() }.wsOutcome()
+                    }
+                    withClue("${case.name}: $body") {
+                        (if (actual == Triple(SKIPPED_CODE, "skipped", null)) TIMEOUT else actual) shouldBe expected
+                    }
                 }
-            } finally {
-                client.close()
-                server.stop()
             }
+        } finally {
+            client.close()
+            server.stop()
         }
     }
 

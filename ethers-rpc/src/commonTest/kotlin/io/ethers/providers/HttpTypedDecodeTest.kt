@@ -97,6 +97,17 @@ private fun treeOutcome(body: String, decode: (KJsonElement) -> Any?): Any? = tr
     CALL_FAILED
 }
 
+/**
+ * The outcome of decoding [body] the way [HttpClient.request] does, a thrown exception included, without the HTTP
+ * round trip: hundreds of those take most of a minute on Kotlin/Native. The client test below checks that a body
+ * received over HTTP ends the same way, at either status.
+ */
+private fun <T> directOutcome(body: String, serializer: DeserializationStrategy<T>): Any? = try {
+    Kotlinx.DEFAULT.decodeFromString(RpcResponseDeserializer(serializer), body).outcome()
+} catch (_: Exception) {
+    CALL_FAILED
+}
+
 class HttpTypedDecodeTest : FunSpec({
     lateinit var server: MockServer
     lateinit var client: HttpClient
@@ -132,11 +143,22 @@ class HttpTypedDecodeTest : FunSpec({
                     actual shouldBe expected
                 }
 
-                for (status in listOf(200, 500)) {
-                    val expected = treeOutcome(body, decodeTree)
-                    check("serializer, HTTP $status", outcome(status, body, case.serializer), expected)
-                    // a mapped strategy decodes exactly as the one it maps
-                    check("mapped serializer, HTTP $status", outcome(status, body, case.serializer.map { it }), expected)
+                val expected = treeOutcome(body, decodeTree)
+                check("serializer", directOutcome(body, case.serializer), expected)
+                // a mapped strategy decodes exactly as the one it maps
+                check("mapped serializer", directOutcome(body, case.serializer.map { it }), expected)
+            }
+        }
+    }
+
+    test("the client ends every response body as decoding it directly does, at HTTP 200 and 500") {
+        // a non-2xx body still carries a JSON-RPC response, so it is decoded too, but a failure to decode it is a call failure
+        val case = CASES.first { it.name == "object" }
+        for (template in BODIES) {
+            val body = template.replace("RESULT", case.result)
+            for (status in listOf(200, 500)) {
+                withClue("HTTP $status: $body") {
+                    outcome(status, body, case.serializer) shouldBe directOutcome(body, case.serializer)
                 }
             }
         }

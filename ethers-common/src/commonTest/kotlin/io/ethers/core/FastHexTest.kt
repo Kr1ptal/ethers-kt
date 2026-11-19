@@ -9,15 +9,13 @@ import io.kotest.datatest.withData
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotStartWith
 import io.kotest.property.Arb
-import io.kotest.property.arbitrary.byte
-import io.kotest.property.arbitrary.byteArray
 import io.kotest.property.arbitrary.int
 import io.kotest.property.arbitrary.long
 import io.kotest.property.checkAll
 
 class FastHexTest : FunSpec({
     test("encode/decode as string without prefix") {
-        Arb.byteArray(Arb.int(0..512), Arb.byte()).checkAll { bytes ->
+        Arb.bytes(0..512).checkAll { bytes ->
             val hex = FastHex.encodeWithoutPrefix(bytes)
             val decoded = FastHex.decode(hex)
 
@@ -27,7 +25,7 @@ class FastHexTest : FunSpec({
     }
 
     test("encode/decode as string with 0x prefix") {
-        Arb.byteArray(Arb.int(0..512), Arb.byte()).checkAll { bytes ->
+        Arb.bytes(0..512).checkAll { bytes ->
             val hex = FastHex.encodeWithPrefix(bytes)
             val decoded = FastHex.decode(hex)
 
@@ -80,7 +78,7 @@ class FastHexTest : FunSpec({
 
     context("encode/decode as bytes") {
         test("without prefix") {
-            Arb.byteArray(Arb.int(0..512), Arb.byte()).checkAll { bytes ->
+            Arb.bytes(0..512).checkAll { bytes ->
                 val hex = FastHex.encodeAsBytes(bytes)
                 val decoded = FastHex.decode(hex)
                 val decodedUnsafe = FastHex.decodeUnsafe(hex)
@@ -92,7 +90,7 @@ class FastHexTest : FunSpec({
         }
 
         test("with 0x prefix") {
-            Arb.byteArray(Arb.int(0..512), Arb.byte()).checkAll { bytes ->
+            Arb.bytes(0..512).checkAll { bytes ->
                 val hex = "0x".encodeToByteArray() + FastHex.encodeAsBytes(bytes)
                 val decoded = FastHex.decode(hex)
                 val decodedUnsafe = FastHex.decodeUnsafe(hex)
@@ -104,7 +102,7 @@ class FastHexTest : FunSpec({
         }
 
         test("odd length hex (without leading 0)") {
-            Arb.byteArray(Arb.int(0..512), Arb.byte()).checkAll { bytes ->
+            Arb.bytes(0..512).checkAll { bytes ->
                 // Append 0x0f without leading zero
                 val hex = byteArrayOf('f'.code.toByte()) + FastHex.encodeAsBytes(bytes)
 
@@ -120,7 +118,7 @@ class FastHexTest : FunSpec({
 
     context("encode/decode as chars") {
         test("without prefix") {
-            Arb.byteArray(Arb.int(0..512), Arb.byte()).checkAll { bytes ->
+            Arb.bytes(0..512).checkAll { bytes ->
                 val hex = FastHex.encodeWithoutPrefix(bytes).toCharArray()
                 val decoded = FastHex.decode(hex)
                 val decodedUnsafe = FastHex.decodeUnsafe(hex)
@@ -132,7 +130,7 @@ class FastHexTest : FunSpec({
         }
 
         test("with 0x prefix") {
-            Arb.byteArray(Arb.int(0..512), Arb.byte()).checkAll { bytes ->
+            Arb.bytes(0..512).checkAll { bytes ->
                 val hex = FastHex.encodeWithPrefix(bytes).toCharArray()
                 val decoded = FastHex.decode(hex)
                 val decodedUnsafe = FastHex.decodeUnsafe(hex)
@@ -144,7 +142,7 @@ class FastHexTest : FunSpec({
         }
 
         test("odd length hex (without leading 0)") {
-            Arb.byteArray(Arb.int(0..512), Arb.byte()).checkAll { bytes ->
+            Arb.bytes(0..512).checkAll { bytes ->
                 // Append 0x0f without leading zero
                 val hex = charArrayOf('f') + FastHex.encodeWithoutPrefix(bytes).toCharArray()
                 val decoded = FastHex.decode(hex)

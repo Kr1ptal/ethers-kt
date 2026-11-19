@@ -56,11 +56,18 @@ class ProviderBuilderTest : FunSpec({
 
     context("chain id resolution") {
         test("suspending build reports the rpc failure rather than throwing") {
-            // nothing is listening, so eth_chainId cannot succeed
-            val result = Provider.builder("http://localhost:1").build()
+            // a server answering eth_chainId with an error, rather than nothing listening at all: a refused
+            // connection takes several seconds to fail on Apple platforms
+            val server = mockServerHttp()
+            try {
+                server.enqueueJson("""{"jsonrpc":"2.0","id":1,"error":{"code":-32000,"message":"boom"}}""")
+                val result = Provider.builder(server.url).build()
 
-            result.isFailure() shouldBe true
-            result.unwrapError().shouldBeInstanceOf<Provider.UnableToGetChainId>()
+                result.isFailure() shouldBe true
+                result.unwrapError().shouldBeInstanceOf<Provider.UnableToGetChainId>().error.message shouldBe "boom"
+            } finally {
+                server.stop()
+            }
         }
 
         test("unsupported protocol fails before any RPC call is attempted") {
