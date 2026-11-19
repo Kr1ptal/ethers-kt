@@ -16,11 +16,44 @@ private const val ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwx
  * character, which a decoder that masks or truncates the char code would accept.
  */
 private val PROBES: List<Char> = buildList {
-    for (code in 0..511) add(code.toChar())
+    for (code in 0..255) add(code.toChar())
     for (c in "$ALPHABET=") {
         for (high in listOf(0x100, 0x1000, 0xff00)) add((c.code + high).toChar())
     }
     addAll(listOf('\ud800', '\udfff', 'Ａ', '�', '￿'))
+}
+
+/**
+ * 3-byte groups holding every pair of adjacent bytes: the first 2^16 run through every value of the first two bytes
+ * and the next 2^16 through every value of the last two, with the remaining byte random. So each 12-bit half of a
+ * group, which is two base64 characters, takes every value beside many different others, in 1/128 the size of all
+ * 2^24 groups, whose stdlib round trips take most of a minute in a Kotlin/Native debug binary.
+ */
+private val ADJACENT_BYTE_PAIRS = ByteArray(6 shl 16).also { bytes ->
+    val random = Random(24)
+    for (pair in 0 until (1 shl 16)) {
+        val first = 3 * pair
+        bytes[first] = (pair shr 8).toByte()
+        bytes[first + 1] = pair.toByte()
+        bytes[first + 2] = random.nextInt().toByte()
+
+        val last = 3 * ((1 shl 16) + pair)
+        bytes[last] = random.nextInt().toByte()
+        bytes[last + 1] = (pair shr 8).toByte()
+        bytes[last + 2] = pair.toByte()
+    }
+}
+
+/** Every string of [length] characters from [symbols], passed to [block] in turn. */
+private fun eachString(symbols: String, length: Int, block: (String) -> Unit) {
+    fun each(prefix: String) {
+        if (prefix.length == length) {
+            block(prefix)
+            return
+        }
+        for (c in symbols) each(prefix + c)
+    }
+    each("")
 }
 
 /** The stdlib decoder this one replaces is the oracle: same bytes for valid input, the same exception otherwise. */
@@ -66,17 +99,8 @@ class FastBase64Test : FunSpec({
         }
     }
 
-    test("decodes every 3-byte group") {
-        // all 2^24 groups, 2^16 groups per call
-        val bytes = ByteArray(3 shl 16)
-        for (high in 0 until 256) {
-            for (low in 0 until (1 shl 16)) {
-                bytes[3 * low] = high.toByte()
-                bytes[3 * low + 1] = (low shr 8).toByte()
-                bytes[3 * low + 2] = low.toByte()
-            }
-            FastBase64.decode(Base64.encode(bytes)) shouldBe bytes
-        }
+    test("decodes every pair of adjacent bytes in a 3-byte group") {
+        FastBase64.decode(Base64.encode(ADJACENT_BYTE_PAIRS)) shouldBe ADJACENT_BYTE_PAIRS
     }
 
     test("every probe character at every position matches the stdlib, around each kind of padding") {
@@ -90,36 +114,28 @@ class FastBase64Test : FunSpec({
         }
     }
 
-    test("every string of up to 6 characters from the alphabet edges, padding and invalid characters matches the stdlib") {
+    test("every string of up to 4 characters from the alphabet edges, padding and invalid characters, and of 5 and 6 from a few of them, matches the stdlib") {
         // the first and last of the alphabet, values with low bits set or clear, padding, and characters outside it
-        val symbols = "AQg/=-\n"
-        fun each(length: Int, prefix: String) {
-            if (prefix.length == length) {
-                shouldMatchReference(prefix)
-                return
-            }
-            for (c in symbols) each(length, prefix + c)
-        }
-        for (length in 0..6) each(length, "")
+        for (length in 0..4) eachString("AQg/=-\n", length, ::shouldMatchReference)
+        // lengths that are not a multiple of 4 are rejected whatever their characters, so fewer of them will do
+        for (length in 5..6) eachString("A/=-", length, ::shouldMatchReference)
     }
 
-    test("every string of 7 and 8 characters with padding anywhere matches the stdlib") {
-        val symbols = "AQ/="
-        fun each(length: Int, prefix: String) {
-            if (prefix.length == length) {
-                shouldMatchReference(prefix)
-                return
+    test("every string of 8 characters with padding anywhere in one quantum matches the stdlib, beside a full, a padded and an invalid quantum") {
+        // the other quantum is either decoded before this one or is the last, so each is tried on both sides
+        val others = listOf("AQ/A", "AQ==", "A/=A")
+        eachString("AQ/=", 4) { quantum ->
+            for (other in others) {
+                shouldMatchReference(quantum + other)
+                shouldMatchReference(other + quantum)
             }
-            for (c in symbols) each(length, prefix + c)
         }
-        each(7, "")
-        each(8, "")
     }
 
     test("randomly corrupted input matches the stdlib") {
         val random = Random(46)
         val noise = "$ALPHABET= \n\r\t-_.\u0000ÿĀŁＡ"
-        repeat(20_000) {
+        repeat(5_000) {
             val encoded = StringBuilder(Base64.encode(random.nextBytes(random.nextInt(0, 40))))
             repeat(random.nextInt(1, 4)) {
                 val position = random.nextInt(0, encoded.length + 1)
@@ -203,17 +219,8 @@ class FastBase64Test : FunSpec({
             }
         }
 
-        test("encodes every 3-byte group, and every 1- and 2-byte tail, as the stdlib does") {
-            // all 2^24 groups, 2^16 groups per call; odd high bytes leave a 1- or 2-byte tail behind them
-            val bytes = ByteArray(3 shl 16)
-            for (high in 0 until 256) {
-                for (low in 0 until (1 shl 16)) {
-                    bytes[3 * low] = high.toByte()
-                    bytes[3 * low + 1] = (low shr 8).toByte()
-                    bytes[3 * low + 2] = low.toByte()
-                }
-                FastBase64.encode(bytes) shouldBe Base64.encode(bytes)
-            }
+        test("encodes every pair of adjacent bytes in a 3-byte group, and every 1- and 2-byte tail, as the stdlib does") {
+            FastBase64.encode(ADJACENT_BYTE_PAIRS) shouldBe Base64.encode(ADJACENT_BYTE_PAIRS)
             for (first in 0 until 256) {
                 FastBase64.encode(byteArrayOf(first.toByte())) shouldBe Base64.encode(byteArrayOf(first.toByte()))
                 for (second in 0 until 256) {

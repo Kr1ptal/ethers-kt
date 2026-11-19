@@ -35,7 +35,7 @@ class PendingTransactionTest : FunSpec({
             enqueueEmptyResponses(mockWebServer, retries - 1)
             mockWebServer.enqueueJson(TX_RECEIPT_RESPONSE)
 
-            val response = pendingTransaction.inclusion(retries, 50.milliseconds, 0).unwrap()
+            val response = pendingTransaction.inclusion(retries, 1.milliseconds, 0).unwrap()
             response shouldBe TX_RECEIPT
         }
 
@@ -50,7 +50,7 @@ class PendingTransactionTest : FunSpec({
                 mockWebServer.enqueueJson(MINED_BLOCK_RESPONSE_FACTORY(minedBlockNumber + i))
             }
 
-            val response = pendingTransaction.inclusion(retries, 50.milliseconds, confirmations).unwrap()
+            val response = pendingTransaction.inclusion(retries, 1.milliseconds, confirmations).unwrap()
             response shouldBe TX_RECEIPT
         }
 
@@ -59,7 +59,7 @@ class PendingTransactionTest : FunSpec({
             val retries = 5
             enqueueEmptyResponses(mockWebServer, retries)
 
-            val response = pendingTransaction.inclusion(retries, 50.milliseconds, 0)
+            val response = pendingTransaction.inclusion(retries, 1.milliseconds, 0)
             response.isFailure() shouldBe true
             response.unwrapError().shouldBeInstanceOf<PendingInclusion.Error>()
         }
@@ -69,7 +69,7 @@ class PendingTransactionTest : FunSpec({
             val errorMessage = "Failed to query transaction status"
             mockWebServer.enqueueJson(ERROR_RESPONSE_FACTORY(errorMessage))
 
-            val response = pendingTransaction.inclusion(1, 50.milliseconds, 0)
+            val response = pendingTransaction.inclusion(1, 1.milliseconds, 0)
             response.isFailure() shouldBe true
 
             val error = response.unwrapError()
@@ -85,7 +85,7 @@ class PendingTransactionTest : FunSpec({
             val errorMessage = "Failed to query mined block status"
             mockWebServer.enqueueJson(ERROR_RESPONSE_FACTORY(errorMessage))
 
-            val response = pendingTransaction.inclusion(1, 50.milliseconds, 10)
+            val response = pendingTransaction.inclusion(1, 1.milliseconds, 10)
             response.isFailure() shouldBe true
 
             val error = response.unwrapError()

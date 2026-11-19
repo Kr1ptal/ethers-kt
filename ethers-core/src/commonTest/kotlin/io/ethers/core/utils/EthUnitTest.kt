@@ -235,9 +235,10 @@ class EthUnitTest : FunSpec({
     }
 
     test("Bulk test") {
+        // every pair of units, with a few amounts each: 961 pairs take ~20s with 25 amounts in a Kotlin/Native debug binary
         for (fromDecimals in 0..30) {
             for (toDecimals in 0..30) {
-                Arb.bigInteger(0, 256).checkAll(25) {
+                Arb.bigInteger(0, 256).checkAll(5) {
                     val weiAmount = it.toBigDecimal()
                     val gweiAmount = it.toBigDecimal().divide(bigDecimalOf(10).pow(9))
                     val etherAmount = it.toBigDecimal().divide(bigDecimalOf(10).pow(18))

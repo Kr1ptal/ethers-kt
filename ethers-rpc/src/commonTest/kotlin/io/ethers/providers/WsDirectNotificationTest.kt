@@ -208,11 +208,15 @@ private suspend fun <T : Any> checkCase(case: NotificationCase<T>, subscriptionI
         val sentinel = Kotlinx.DEFAULT.decodeFromString(case.serializer, case.sentinel)
         val decodeTree = { element: JsonElement -> Kotlinx.DEFAULT.decodeFromJsonElement(case.serializer, element) as Any }
 
-        for (template in NOTIFICATIONS) {
-            val body = template.replace("RESULT", case.result).replace("SUB", subscriptionId).replace("\"\"", "\"")
+        // every message goes out before any is checked, rather than one round trip each: they arrive in order, so the
+        // sentinels still split the events between them
+        val bodies = NOTIFICATIONS.map { it.replace("RESULT", case.result).replace("SUB", subscriptionId).replace("\"\"", "\"") }
+        for (body in bodies) {
             server.sendJson(body)
             server.sendJson("""{"jsonrpc":"2.0","method":"eth_subscription","params":{"subscription":$subscriptionId,"result":${case.sentinel}}}""")
+        }
 
+        for (body in bodies) {
             val events = ArrayList<Any>()
             while (true) {
                 val event = stream.next()
