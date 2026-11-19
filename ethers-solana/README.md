@@ -416,6 +416,34 @@ Import `io.ethers.core.Result`. When migrating batch/query consumers, handle eac
 before accessing `.data`. Subscriptions do not provide an initial snapshot or guarantee every intermediate
 change; the application still coordinates snapshots, reconnect recovery, and multi-account state.
 
+## Resolving instruction accounts
+
+IDL-generated instruction builders derive the accounts their IDL says how to derive, as part of building the
+instruction. Every builder returns the instruction's typed class, such as `Program.Instruction.Withdraw`, which is also
+the class decoding returns. It extends `Instruction`, so a transaction takes it as it is, and it holds the resolved
+`accounts`, the `args` and the `remainingAccounts`.
+
+- **Without RPC.** `Program.ix(user = me, args = args)` takes each account as a parameter. It derives fixed addresses and
+  PDAs seeded by constants, arguments and other accounts' addresses when you pass null.
+- **With RPC.** Where some account can only come from on-chain data, through Anchor `relations` (`has_one`) or seeds
+  that read another account's data, `Program.resolveIx(api, ...)` also resolves it.
+- **Reuse.** You can pass `Program.ix(built.accounts, args)` to build further instructions without RPC. Fixed addresses
+  and PDAs never change. Accounts read from on-chain data are only valid while that data is unchanged.
+
+Underneath, `SolanaAccountResolver` fetches each round of accounts in one `getMultipleAccounts` request, and no round
+reads older state than the one before. Accounts you pass are used as given and never re-derived. Each failure is a
+typed `SolanaAccountResolutionError`:
+
+- a missing account;
+- an account that does not exist on chain;
+- an account with the wrong owner or account type;
+- undecodable data;
+- ambiguous relations;
+- invalid seeds;
+- a dependency cycle, with its path.
+
+See the `ethers-abigen-plugin` README for the rules.
+
 ## IDL constants
 
 Each `constants[]` entry of an IDL becomes a member of the generated program object. Primitives become

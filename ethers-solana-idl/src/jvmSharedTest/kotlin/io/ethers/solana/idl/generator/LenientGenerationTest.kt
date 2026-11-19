@@ -182,6 +182,29 @@ class LenientGenerationTest : FunSpec({
         SolanaProgramBuilder(CLEAN, "test.pkg", strict = true).diagnostics shouldBe emptyList()
     }
 
+    test("a relation is not resolved through an account type that is not generated") {
+        val bad = struct("Bad", "x" to IdlType.Primitive.U8, serialization = IdlSerialization.Custom("Compressed"))
+        // the only account type with a pubkey `authority` field, which is left out as it holds a Bad
+        val dropped = struct("Dropped", "authority" to IdlType.Primitive.PUBKEY, "bad" to defined("Bad"))
+        val relate = IdlInstruction(
+            "relate",
+            discriminator(15),
+            accounts = listOf(IdlAccountItem.Single("config"), IdlAccountItem.Single("authority", relations = listOf("config"))),
+        )
+        val program = CLEAN.copy(instructions = CLEAN.instructions + relate, accounts = CLEAN.accounts + IdlAccount("Dropped", discriminator(5)), types = CLEAN.types + bad + dropped)
+        val builder = SolanaProgramBuilder(program, "test.pkg")
+        builder.diagnostics.map { it.kind to it.name } shouldBe listOf(
+            SolanaIdlDiagnostic.Kind.TYPE to "Bad",
+            SolanaIdlDiagnostic.Kind.TYPE to "Dropped",
+            SolanaIdlDiagnostic.Kind.ACCOUNT to "Dropped",
+        )
+        val source = builder.build().toString()
+        source shouldNotContain "Dropped.ACCOUNT"
+        source shouldNotContain "fun resolveRelate("
+        // without an account type to read it from, the related account is required
+        source.replace(Regex("\\s+"), " ") shouldContain "fun relate( config: SolanaAddress, authority: SolanaAddress, remainingAccounts"
+    }
+
     test("a zero-copy layout failing leaves out the types laid out with it") {
         val zeroCopy = IdlSerialization.BytemuckUnsafe
         val status = IdlTypeDef("Status", IdlTypeBody.Enum(listOf(IdlEnumVariant("On"))))

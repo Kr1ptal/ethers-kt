@@ -43,6 +43,7 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.json.JsonArray
@@ -568,14 +569,18 @@ class ShowcaseBindingsTest : FunSpec({
 
             Showcase.decodeInstruction(Showcase.swap(swapAccounts, swapArgs)).unwrap()
                 .shouldBeInstanceOf<Showcase.Instruction.Swap>().accounts.referrer.shouldBeNull()
-            Showcase.decodeInstruction(Showcase.ping()).unwrap() shouldBe Showcase.Instruction.Ping(emptyList())
+            Showcase.decodeInstruction(Showcase.ping()).unwrap() shouldBe Showcase.ping()
         }
 
         test("elevated privileges are accepted; missing required privileges are not") {
             val elevated = Showcase.swap(swapAccounts, swapArgs).let { ix ->
                 ix.copy(keys = ix.keys.map { AccountMeta.signerAndWritable(it.publicKey) })
             }
-            Showcase.decodeInstruction(elevated).unwrap().shouldBeInstanceOf<Showcase.Instruction.Swap>()
+            val decoded = Showcase.decodeInstruction(elevated).unwrap().shouldBeInstanceOf<Showcase.Instruction.Swap>()
+            // the decoded instruction keeps the privileges it was given, so it is not the one its accounts rebuild
+            decoded.keys shouldBe elevated.keys
+            decoded shouldBe elevated
+            decoded shouldNotBe Showcase.swap(decoded.accounts, decoded.args)
 
             val unsigned = Showcase.swap(swapAccounts, swapArgs).let { ix ->
                 ix.copy(keys = ix.keys.map { AccountMeta(it.publicKey, signer = false, writable = it.writable) })
