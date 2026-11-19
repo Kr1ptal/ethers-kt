@@ -4,12 +4,14 @@ import io.ethers.core.Kotlinx
 import io.ethers.solana.types.Base64TupleBytesSerializer
 import io.ethers.solana.types.Programs
 import io.ethers.solana.types.SolanaBytes
+import io.ethers.solana.types.SolanaDecodingError
 import io.ethers.solana.types.rpc.Base58BytesSerializer
 import io.ethers.solana.types.rpc.ReturnData
 import io.ethers.solana.types.rpc.SolanaRPCInstruction
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 import io.kotest.matchers.types.shouldNotBeSameInstanceAs
 import kotlinx.serialization.json.JsonArray
@@ -41,7 +43,7 @@ class SolanaBytesTest : FunSpec({
 
     test("equality and hashing depend on contents not instance or source encoding") {
         val bytes = SolanaBytes.fromBytes(byteArrayOf(1, 2, 3))
-        val values = listOf(bytes, SolanaBytes.fromHex("010203"), SolanaBytes.fromBase58("Ldp"), SolanaBytes.fromBase64("AQID"))
+        val values = listOf(bytes, SolanaBytes.fromHex("010203").unwrap(), SolanaBytes.fromBase58("Ldp").unwrap(), SolanaBytes.fromBase64("AQID").unwrap())
         values.toSet().size shouldBe 1
         values.forEach {
             it shouldBe bytes
@@ -50,12 +52,12 @@ class SolanaBytesTest : FunSpec({
         bytes.equals(null) shouldBe false
         bytes.equals(byteArrayOf(1, 2, 3)) shouldBe false
         bytes.equals("010203") shouldBe false
-        bytes.equals(SolanaBytes.fromHex("010204")) shouldBe false
-        bytes.equals(SolanaBytes.fromHex("0102")) shouldBe false
+        bytes.equals(SolanaBytes.fromHex("010204").unwrap()) shouldBe false
+        bytes.equals(SolanaBytes.fromHex("0102").unwrap()) shouldBe false
     }
 
     test("size byte access and diagnostic output have no implicit text encoding") {
-        val bytes = SolanaBytes.fromHex("00ff80")
+        val bytes = SolanaBytes.fromHex("00ff80").unwrap()
         bytes.size shouldBe 3
         bytes.isEmpty shouldBe false
         bytes[0] shouldBe 0.toByte()
@@ -70,11 +72,11 @@ class SolanaBytesTest : FunSpec({
         val empty = SolanaBytes.EMPTY
         listOf(
             SolanaBytes.fromBytes(byteArrayOf()),
-            SolanaBytes.fromBase58(""),
-            SolanaBytes.fromBase64(""),
-            SolanaBytes.fromHex(""),
-            SolanaBytes.fromHex("0x"),
-            SolanaBytes.fromHex("0X"),
+            SolanaBytes.fromBase58("").unwrap(),
+            SolanaBytes.fromBase64("").unwrap(),
+            SolanaBytes.fromHex("").unwrap(),
+            SolanaBytes.fromHex("0x").unwrap(),
+            SolanaBytes.fromHex("0X").unwrap(),
             empty.slice(0, 0),
         ).forEach { it shouldBe empty }
         empty.size shouldBe 0
@@ -90,16 +92,16 @@ class SolanaBytesTest : FunSpec({
     }
 
     test("slices use exclusive end indices without padding or exposing mutable bytes") {
-        val bytes = SolanaBytes.fromHex("00010203")
-        bytes.slice(1, 3) shouldBe SolanaBytes.fromHex("0102")
+        val bytes = SolanaBytes.fromHex("00010203").unwrap()
+        bytes.slice(1, 3) shouldBe SolanaBytes.fromHex("0102").unwrap()
         bytes.slice(0, bytes.size) shouldBe bytes
         bytes.slice(2, 2) shouldBe SolanaBytes.EMPTY
         bytes.slice(bytes.size, bytes.size) shouldBe SolanaBytes.EMPTY
         val slice = bytes.slice(1, 3)
         val copied = slice.toByteArray()
         copied[0] = 9
-        slice shouldBe SolanaBytes.fromHex("0102")
-        bytes shouldBe SolanaBytes.fromHex("00010203")
+        slice shouldBe SolanaBytes.fromHex("0102").unwrap()
+        bytes shouldBe SolanaBytes.fromHex("00010203").unwrap()
         for ((start, end) in listOf(-1 to 0, 0 to -1, 0 to 5, 5 to 5, Int.MIN_VALUE to Int.MAX_VALUE)) {
             shouldThrow<IndexOutOfBoundsException> { bytes.slice(start, end) }
         }
@@ -107,12 +109,12 @@ class SolanaBytesTest : FunSpec({
     }
 
     test("copyInto validates all bounds before writing and never shares the destination") {
-        val bytes = SolanaBytes.fromHex("010203")
+        val bytes = SolanaBytes.fromHex("010203").unwrap()
         val target = ByteArray(5) { 9 }
         bytes.copyInto(target, 1)
         target shouldBe byteArrayOf(9, 1, 2, 3, 9)
         target[1] = 8
-        bytes shouldBe SolanaBytes.fromHex("010203")
+        bytes shouldBe SolanaBytes.fromHex("010203").unwrap()
         val exact = ByteArray(3)
         bytes.copyInto(exact)
         exact shouldBe byteArrayOf(1, 2, 3)
@@ -128,30 +130,30 @@ class SolanaBytesTest : FunSpec({
     test("all byte values and leading zeroes roundtrip through explicit encodings") {
         for (input in listOf(byteArrayOf(0), byteArrayOf(0, 0, 1), byteArrayOf(-1), ByteArray(256) { it.toByte() })) {
             val bytes = SolanaBytes.fromBytes(input)
-            SolanaBytes.fromBase58(bytes.toBase58()) shouldBe bytes
-            SolanaBytes.fromBase64(bytes.toBase64()) shouldBe bytes
-            SolanaBytes.fromHex(bytes.toHex()) shouldBe bytes
-            SolanaBytes.fromHex("0x" + bytes.toHex()) shouldBe bytes
-            SolanaBytes.fromHex("0X" + bytes.toHex().uppercase()) shouldBe bytes
+            SolanaBytes.fromBase58(bytes.toBase58()).unwrap() shouldBe bytes
+            SolanaBytes.fromBase64(bytes.toBase64()).unwrap() shouldBe bytes
+            SolanaBytes.fromHex(bytes.toHex()).unwrap() shouldBe bytes
+            SolanaBytes.fromHex("0x" + bytes.toHex()).unwrap() shouldBe bytes
+            SolanaBytes.fromHex("0X" + bytes.toHex().uppercase()).unwrap() shouldBe bytes
         }
         SolanaBytes.fromBytes(byteArrayOf(0, 0)).toBase58() shouldBe "11"
-        SolanaBytes.fromHex("AbCd").toHex() shouldBe "abcd"
+        SolanaBytes.fromHex("AbCd").unwrap().toHex() shouldBe "abcd"
     }
 
     test("invalid text is rejected without guessing the input encoding") {
         for (input in listOf("0", "O", "I", "l", " ", "é")) {
-            shouldThrow<IllegalArgumentException> { SolanaBytes.fromBase58(input) }
+            SolanaBytes.fromBase58(input).unwrapError().shouldBeInstanceOf<SolanaDecodingError>()
         }
         for (input in listOf("!", "A", "====", "AQ!D")) {
-            shouldThrow<IllegalArgumentException> { SolanaBytes.fromBase64(input) }
+            SolanaBytes.fromBase64(input).unwrapError().shouldBeInstanceOf<SolanaDecodingError>()
         }
         for (input in listOf("g0", "01xz", "é0", " 00", "0", "abc", "0x1", "0Xabc")) {
-            shouldThrow<IllegalArgumentException> { SolanaBytes.fromHex(input) }
+            SolanaBytes.fromHex(input).unwrapError().shouldBeInstanceOf<SolanaDecodingError>()
         }
     }
 
     test("field serializers choose base58 strings or base64 tuples for the same bytes") {
-        val bytes = SolanaBytes.fromHex("010203")
+        val bytes = SolanaBytes.fromHex("010203").unwrap()
         val json = Kotlinx.DEFAULT
         val base58 = JsonPrimitive("Ldp")
         val base64 = JsonArray(listOf(JsonPrimitive("AQID"), JsonPrimitive("base64")))

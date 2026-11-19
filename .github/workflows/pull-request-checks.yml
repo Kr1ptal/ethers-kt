@@ -79,6 +79,8 @@ jobs:
       # would run the same arm64 code on the same backend again. Pull requests only link the simulator test binary,
       # which still resolves every iOS dependency, and master runs the simulator tests too. The iOS device targets
       # compile their main code, which is what gets published; iosX64 could not run tests on an arm64 runner anyway.
+      # `:swift-interop-test:swiftTest` then links ethers-common and ethers-solana into a framework and compiles and
+      # runs Swift against it, which is the only check of the API Swift actually sees.
       - name: Gradle test (Apple targets)
         run: >-
           ./gradlew
@@ -86,6 +88,7 @@ jobs:
           ${{ github.event_name == 'push' && 'iosSimulatorArm64Test' || 'linkDebugTestIosSimulatorArm64' }}
           compileKotlinIosArm64
           compileKotlinIosX64
+          :swift-interop-test:swiftTest
           --no-watch-fs
           --stacktrace
 
@@ -96,3 +99,11 @@ jobs:
           path: |
             */build/reports/tests
             */build/test-results
+
+      # The Objective-C header Swift compiles against, kept on every run so changes to the Swift API can be reviewed.
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: swift-header
+          path: swift-interop-test/build/swift/EthersKt.h
+          if-no-files-found: ignore

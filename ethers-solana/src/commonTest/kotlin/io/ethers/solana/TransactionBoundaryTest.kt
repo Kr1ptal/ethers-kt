@@ -21,7 +21,7 @@ import io.kotest.matchers.shouldBe
 import kotlin.random.Random
 
 class TransactionBoundaryTest : FunSpec({
-    val signer = KeypairSigner.fromSeed(ByteArray(32) { 11 })
+    val signer = KeypairSigner.fromSeed(ByteArray(32) { 11 }).unwrap()
     val keys = listOf(signer.publicKey, Programs.SYSTEM)
     val hash = SolanaBlockhash(ByteArray(32) { 12 })
     val header = MessageHeader(1, 0, 1)
@@ -42,7 +42,7 @@ class TransactionBoundaryTest : FunSpec({
             )
             for (tx in messages) {
                 tx.envelopeSize() shouldBe tx.serializeForSimulation().size.toLong()
-                tx.envelopeSize() shouldBe tx.sign(signer).serialize().size.toLong()
+                tx.envelopeSize() shouldBe tx.sign(signer).unwrap().serialize().size.toLong()
             }
         }
     }
@@ -101,7 +101,7 @@ class TransactionBoundaryTest : FunSpec({
     test("construction and decoding reserve signature bytes at the legacy and v0 packet boundary") {
         for (versioned in listOf(false, true)) {
             for (signerCount in listOf(1, 2, 12)) {
-                val signers = List(signerCount) { KeypairSigner.fromSeed(ByteArray(32) { _ -> (it + 20).toByte() }) }
+                val signers = List(signerCount) { KeypairSigner.fromSeed(ByteArray(32) { _ -> (it + 20).toByte() }).unwrap() }
                 val accounts = signers.map { it.publicKey } + Programs.SYSTEM
                 val messageHeader = MessageHeader(signerCount, 0, 1)
                 fun construct(dataSize: Int): SolanaTransactionUnsigned {
@@ -115,7 +115,7 @@ class TransactionBoundaryTest : FunSpec({
                 val tx = construct(dataSize)
                 tx.serializeForSimulation().size shouldBe 1232
                 tx.signingBuilder().serializePartial().size shouldBe 1232
-                tx.sign(*signers.toTypedArray()).serialize().size shouldBe 1232
+                tx.sign(*signers.toTypedArray()).unwrap().serialize().size shouldBe 1232
                 shouldThrow<IllegalArgumentException> { construct(dataSize + 1) }
                 // An otherwise well-formed unsigned message whose eventual envelope needs 1233 bytes.
                 val encoder = SolanaMessageEncoder()
@@ -160,7 +160,7 @@ class TransactionBoundaryTest : FunSpec({
                 for (end in message.indices) {
                     shouldThrow<IllegalArgumentException> { SolanaTransactionUnsigned.deserializeMessage(message.copyOf(end)).unwrap() }
                 }
-                val wire = tx.sign(signer).serialize()
+                val wire = tx.sign(signer).unwrap().serialize()
                 SolanaTransactionSigned.deserialize(wire).unwrap().serialize() shouldBe wire
                 for (end in wire.indices) {
                     shouldThrow<IllegalArgumentException> { SolanaTransactionSigned.deserialize(wire.copyOf(end)).unwrap() }

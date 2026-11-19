@@ -16,7 +16,7 @@ import io.kotest.matchers.shouldBe
 import kotlin.random.Random
 
 class ConfirmationTrackingTest : FunSpec({
-    val signer = KeypairSigner.fromSeed(ByteArray(32) { 7 })
+    val signer = KeypairSigner.fromSeed(ByteArray(32) { 7 }).unwrap()
     val hash = SolanaBlockhash(ByteArray(32) { 2 })
 
     fun request(nonce: Boolean = false) = SolanaTransactionRequest {
@@ -31,7 +31,7 @@ class ConfirmationTrackingTest : FunSpec({
             val request = request(nonce)
             val versions = listOf(request.compileLegacy().unwrap(), request.compileV0().unwrap(), request.compileV1().unwrap())
             for (tx in versions) {
-                val wire = tx.sign(signer).serialize()
+                val wire = tx.sign(signer).unwrap().serialize()
                 val expected = if (nonce) ConfirmationTracking.DurableNonce(Programs.SYSVAR_RENT, hash) else ConfirmationTracking.Blockhash(hash)
                 tx.confirmationTracking() shouldBe expected
                 decodeConfirmationTracking(wire) shouldBe expected
@@ -49,7 +49,7 @@ class ConfirmationTrackingTest : FunSpec({
             computeUnitLimit(1000)
             loadedAccountsDataSizeLimit(1024)
             heapSize(32768)
-        }.compileV1().unwrap().sign(signer)
+        }.compileV1().unwrap().sign(signer).unwrap()
         decodeConfirmationTracking(tx.serialize()) shouldBe ConfirmationTracking.Blockhash(hash)
     }
 
@@ -64,7 +64,7 @@ class ConfirmationTrackingTest : FunSpec({
             instruction(SystemProgram.transfer(signer.publicKey, secondRecipient, 1L))
         }.compileV0(listOf(table)).unwrap()
         tx.addressLookupTables.size shouldBe 1
-        val wire = tx.sign(signer).serialize()
+        val wire = tx.sign(signer).unwrap().serialize()
         decodeConfirmationTracking(wire) shouldBe ConfirmationTracking.Blockhash(hash)
         decodeConfirmationTracking(wire.copyOf(wire.size - 1)) shouldBe ConfirmationTracking.StatusOnly
     }
@@ -81,17 +81,17 @@ class ConfirmationTrackingTest : FunSpec({
         }.compileV0(listOf(table)).unwrap()
         tx.addressLookupTables.size shouldBe 1
         tx.confirmationTracking() shouldBe ConfirmationTracking.StatusOnly
-        decodeConfirmationTracking(tx.sign(signer).serialize()) shouldBe ConfirmationTracking.StatusOnly
+        decodeConfirmationTracking(tx.sign(signer).unwrap().serialize()) shouldBe ConfirmationTracking.StatusOnly
     }
 
     test("raw confirmation decoding does not verify signatures") {
-        val wire = request().compileLegacy().unwrap().sign(signer).serialize()
+        val wire = request().compileLegacy().unwrap().sign(signer).unwrap().serialize()
         wire[1] = (wire[1].toInt() xor 1).toByte()
         decodeConfirmationTracking(wire) shouldBe ConfirmationTracking.Blockhash(hash)
     }
 
     test("unsupported and oversized envelopes use status-only tracking") {
-        val wire = request().compileLegacy().unwrap().sign(signer).serialize()
+        val wire = request().compileLegacy().unwrap().sign(signer).unwrap().serialize()
         wire[65] = 130.toByte()
         decodeConfirmationTracking(wire) shouldBe ConfirmationTracking.StatusOnly
         decodeConfirmationTracking(ByteArray(4097)) shouldBe ConfirmationTracking.StatusOnly

@@ -53,12 +53,12 @@ class CompositeConstantsTest : FunSpec({
     context("values Anchor writes with Debug generate as vals") {
         test("arrays and vecs") {
             generate(array(IdlType.Primitive.U16, 3), "[1, 2, 65535]") shouldContain "public val C: List<Int> = listOf<Int>(1, 2, 65535)"
-            generate(array(IdlType.Primitive.U8, 3), "[1, 2, 255]") shouldContain "public val C: SolanaBytes = SolanaBytes.fromHex(\"0102ff\")"
+            generate(array(IdlType.Primitive.U8, 3), "[1, 2, 255]") shouldContain "public val C: SolanaBytes = SolanaBytes.fromHex(\"0102ff\").unwrap()"
             generate(IdlType.Vec(IdlType.Primitive.U8), "[]") shouldContain "public val C: List<Int> = emptyList<Int>()"
             generate(IdlType.Vec(IdlType.Primitive.I64), "[-9223372036854775808]") shouldContain "listOf<Long>(Long.MIN_VALUE)"
             generate(IdlType.Vec(IdlType.Primitive.I32), "[-2147483648]") shouldContain "listOf<Int>(Int.MIN_VALUE)"
             generate(IdlType.Vec(IdlType.Primitive.U128), "[1]") shouldContain "listOf<BigInteger>(BigInteger(\"1\"))"
-            generate(IdlType.Vec(IdlType.Primitive.BYTES), "[[1], []]") shouldContain "listOf<SolanaBytes>(SolanaBytes.fromHex(\"01\"), SolanaBytes.fromHex(\"\"))"
+            generate(IdlType.Vec(IdlType.Primitive.BYTES), "[[1], []]") shouldContain "listOf<SolanaBytes>(SolanaBytes.fromHex(\"01\").unwrap(), SolanaBytes.fromHex(\"\").unwrap())"
             generate(IdlType.Vec(IdlType.Primitive.STRING), """["a\"b\\", "\u{e9}\t"]""") shouldContain "listOf<String>(\"a\\\"b\\\\\", \"é\\t\")"
             generate(IdlType.Vec(IdlType.Primitive.F64), "[1e-7, -0.0, inf, NaN]") shouldContain
                 "listOf<Double>(1.0E-7, -0.0, Double.POSITIVE_INFINITY, Double.NaN)"
@@ -105,9 +105,9 @@ class CompositeConstantsTest : FunSpec({
         test("every constant of Anchor's own external test IDL, its types aside") {
             val program = SolanaIdlReaderRegistry.tryReadIdl(CompositeConstantsTest::class.java.getResource("/idl/external.json")!!).unwrap()
             val source = SolanaProgramBuilder(program.copy(instructions = emptyList(), accounts = emptyList(), events = emptyList(), types = emptyList()), "test.pkg").build().toString()
-            source shouldContain "public val ARRAY: SolanaBytes = SolanaBytes.fromHex(\"01020304\")"
+            source shouldContain "public val ARRAY: SolanaBytes = SolanaBytes.fromHex(\"01020304\").unwrap()"
             source shouldContain "public val NESTED_OPTION_ARRAY: SolanaOption<SolanaBytes?> ="
-            source shouldContain "SolanaOption.Some<SolanaBytes?>(SolanaBytes.fromHex(\"01020304\"))"
+            source shouldContain "SolanaOption.Some<SolanaBytes?>(SolanaBytes.fromHex(\"01020304\").unwrap())"
             source shouldContain "public val PUBKEY: SolanaAddress = SolanaAddress(\"SomeAdress111111111111111111111111111111111\")"
             source shouldContain "public val OPTION_STRING: String? = \"abc\""
             source shouldContain "public val NESTED_OPTION_BOOL: SolanaOption<Boolean?> = SolanaOption.Some<Boolean?>(false)"

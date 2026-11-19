@@ -2084,7 +2084,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         val hex = StringBuilder()
         val size = listItems(reader) { hex.append("%02x".format(integerValue(reader, IdlType.Primitive.U8).toInt())) }
         if (length != null && size != length) reader.fail("expected $length elements for [u8; $length], got $size")
-        return CodeBlock.of("%T.fromHex(%S)", Runtime.SOLANA_BYTES, hex.toString())
+        return CodeBlock.of("%T.fromHex(%S).unwrap()", Runtime.SOLANA_BYTES, hex.toString())
     }
 
     /** A list of [element] values, `[a, b]`, with [length] elements when fixed. */
@@ -2184,7 +2184,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         val hex = bytes.joinToString("") { "%02x".format(it) }
         return PropertySpec.builder(name, Runtime.SOLANA_BYTES)
             .addAnnotation(Runtime.JVM_FIELD)
-            .initializer("%T.fromHex(%S)", Runtime.SOLANA_BYTES, hex)
+            .initializer("%T.fromHex(%S).unwrap()", Runtime.SOLANA_BYTES, hex)
     }
 
     companion object {
@@ -2192,7 +2192,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
          * Version of the generated output. Bump it whenever the output changes, so build tools invalidate
          * previously generated bindings.
          */
-        const val OUTPUT_VERSION = "6"
+        const val OUTPUT_VERSION = "7"
 
         /** The largest alignment Rust's `align(N)` accepts, 2^29. */
         private const val MAX_ALIGN = 1 shl 29

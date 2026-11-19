@@ -115,6 +115,23 @@ class Base58Test : FunSpec({
 
     test("decode reports the offending character and position") {
         shouldThrow<IllegalArgumentException> { Base58.decode("11abc0def") }.message shouldBe "Illegal character 0 at 5"
+        // the first of several, even past a few decoded limbs
+        shouldThrow<IllegalArgumentException> { Base58.decode("abcdefghijk0mnI") }.message shouldBe "Illegal character 0 at 11"
+    }
+
+    test("decodeOrNull decodes what decode does") {
+        for (bytes in listOf(ByteArray(0), byteArrayOf(0), byteArrayOf(0, 0, 1), ByteArray(32) { it.toByte() })) {
+            Base58.decodeOrNull(Base58.encode(bytes)) shouldBe bytes
+        }
+    }
+
+    test("a character outside the alphabet is null from decodeOrNull, where decode throws") {
+        // a bad last character in a long input is found only after the leading limbs are decoded
+        val long = Base58.encode(ByteArray(64) { (it + 1).toByte() }).dropLast(1)
+        for (text in listOf("0", "O", "I", "l", "1 1", "é", "11111\u0000", "${long}0", "$long\u00e9", "${long.take(7)}l${long.drop(8)}")) {
+            Base58.decodeOrNull(text) shouldBe null
+            shouldThrow<IllegalArgumentException> { Base58.decode(text) }
+        }
     }
 })
 

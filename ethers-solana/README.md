@@ -23,13 +23,13 @@ import io.ethers.solana.types.transaction.SolanaTxV0
 suspend fun transfer(seed: ByteArray, recipient: SolanaAddress) {
     val provider = SolanaProvider.builder(SolanaCluster.DEVNET).build().unwrap()
     try {
-        val signer = KeypairSigner.fromSeed(seed)
+        val signer = KeypairSigner.fromSeed(seed).unwrap()
         val latest = provider.getLatestBlockhash().send().unwrap().value
         val message = SolanaTxV0.compile(
             signer.publicKey, latest.blockhash,
             SystemProgram.transfer(signer.publicKey, recipient, 1_000L),
         ).unwrap()
-        val transaction = message.sign(signer)
+        val transaction = message.sign(signer).unwrap()
         val pending = provider.sendTransaction(transaction).send().unwrap()
         println(pending.signature)
         println(pending.confirmation().unwrap().confirmationStatus)
@@ -52,11 +52,11 @@ transaction inputs fail immediately with `IllegalArgumentException`.
 ```java
 var provider = SolanaProvider.builder(SolanaCluster.DEVNET).build().unwrap();
 try {
-    var signer = KeypairSigner.fromSeed(seed);
+    var signer = KeypairSigner.fromSeed(seed).unwrap();
     var latest = provider.getLatestBlockhash().sendAwait().unwrap().getValue();
     var instruction = SystemProgram.transfer(signer.getPublicKey(), recipient, 1_000L);
     var message = SolanaTxV0.compile(signer.getPublicKey(), latest.getBlockhash(), instruction).unwrap();
-    var transaction = message.sign(signer);
+    var transaction = message.sign(signer).unwrap();
     var pending = provider.sendTransaction(transaction).sendAwait().unwrap();
     System.out.println(pending.getSignature());
     System.out.println(pending.awaitConfirmation().unwrap().getConfirmationStatus());
@@ -110,7 +110,7 @@ val config = SolanaTransactionConfig(
     heapSize = 65_536,
 )
 val unsigned = SolanaTxV1.compile(feePayer, blockhash, instructions, config).unwrap()
-val signed = unsigned.sign(signer)
+val signed = unsigned.sign(signer).unwrap()
 val simulation = provider.simulateTransaction(signed).send().unwrap()
 ```
 
@@ -199,7 +199,7 @@ bytes.toBase58() // "Ldp"
 bytes.toBase64() // "AQID"
 bytes.toHex()    // "010203" (lowercase, no prefix)
 bytes.toString() // "SolanaBytes(size=3)" (diagnostic only)
-val decoded = SolanaBytes.fromBase58("Ldp")
+val decoded = SolanaBytes.fromBase58("Ldp").unwrap()
 val slice = bytes.slice(0, 2) // end index is exclusive
 ```
 
@@ -425,7 +425,7 @@ pubkeys, bytes, arrays, vecs, options, and defined structs and enums (aliases re
 | Rust type | IDL value (`Debug` output) | Generated Kotlin |
 | --- | --- | --- |
 | `[u16; 3]` | `[1, 2, 3]` | `listOf<Int>(1, 2, 3)` |
-| `[u8; 4]` | `[1, 2, 3, 4]` | `SolanaBytes.fromHex("01020304")` |
+| `[u8; 4]` | `[1, 2, 3, 4]` | `SolanaBytes.fromHex("01020304").unwrap()` |
 | `Option<u64>` | `Some(5)` / `None` | `BigInteger("5")` / `null` |
 | `Option<Option<bool>>` | `Some(None)` | `SolanaOption.Some<Boolean?>(null)` |
 | `Point` | `Point { x: 1, y: -2 }` | `Point(x = 1, y = -2)` |

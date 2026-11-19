@@ -37,7 +37,7 @@ private fun transaction(innerAccounts: String = "[1]") = Kotlinx.DEFAULT.decodeF
           "accountKeys": ["$PAYER", "$VAULT", "$PROGRAM", "$OTHER"],
           "recentBlockhash": "${SolanaBlockhash(ByteArray(32) { 5 })}",
           "instructions": [
-            {"programIdIndex": 2, "accounts": [0, 1], "data": "${SolanaBytes.fromHex("0102").toBase58()}"},
+            {"programIdIndex": 2, "accounts": [0, 1], "data": "${SolanaBytes.fromHex("0102").unwrap().toBase58()}"},
             {"programIdIndex": 3, "accounts": [1], "data": ""}
           ]
         }
@@ -45,7 +45,7 @@ private fun transaction(innerAccounts: String = "[1]") = Kotlinx.DEFAULT.decodeF
       "meta": {
         "err": null, "fee": 5000, "preBalances": [], "postBalances": [],
         "innerInstructions": [
-          {"index": 0, "instructions": [{"programIdIndex": 2, "accounts": $innerAccounts, "data": "${SolanaBytes.fromHex("03").toBase58()}", "stackHeight": 2}]}
+          {"index": 0, "instructions": [{"programIdIndex": 2, "accounts": $innerAccounts, "data": "${SolanaBytes.fromHex("03").unwrap().toBase58()}", "stackHeight": 2}]}
         ]
       },
       "version": "legacy"
@@ -59,9 +59,9 @@ class ExecutedInstructionsTest : FunSpec({
         executed shouldBe listOf(
             ExecutedInstruction(
                 InstructionPosition(0),
-                Instruction(PROGRAM, listOf(AccountMeta.signerAndWritable(PAYER), AccountMeta.writable(VAULT)), SolanaBytes.fromHex("0102")),
+                Instruction(PROGRAM, listOf(AccountMeta.signerAndWritable(PAYER), AccountMeta.writable(VAULT)), SolanaBytes.fromHex("0102").unwrap()),
             ),
-            ExecutedInstruction(InstructionPosition(0, 0, 2), Instruction(PROGRAM, listOf(AccountMeta.writable(VAULT)), SolanaBytes.fromHex("03"))),
+            ExecutedInstruction(InstructionPosition(0, 0, 2), Instruction(PROGRAM, listOf(AccountMeta.writable(VAULT)), SolanaBytes.fromHex("03").unwrap())),
             ExecutedInstruction(InstructionPosition(1), Instruction(OTHER, listOf(AccountMeta.writable(VAULT)), SolanaBytes.EMPTY)),
         )
     }
@@ -80,7 +80,7 @@ class ExecutedInstructionsTest : FunSpec({
         val decoded = transaction().executedInstructions().unwrap().decodeInstructions(PROGRAM, decoder)
         decoded.map { it.position } shouldBe listOf(InstructionPosition(0), InstructionPosition(0, 0, 2))
         decoded.map { it.value.unwrap() } shouldBe listOf(2, 1)
-        calls shouldBe listOf(SolanaBytes.fromHex("0102") to true, SolanaBytes.fromHex("03") to false)
+        calls shouldBe listOf(SolanaBytes.fromHex("0102").unwrap() to true, SolanaBytes.fromHex("03").unwrap() to false)
     }
 
     test("simulated instructions resolve against the simulated transaction") {

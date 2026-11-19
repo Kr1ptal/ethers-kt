@@ -13,6 +13,11 @@ import kotlin.jvm.JvmField
  * to preserve priority-fee precision: [MICRO_LAMPORT] has 0, [LAMPORT] has 6, and [SOL] has 15.
  * Decimal conversions truncate towards zero below one micro-lamport, following EthUnit's design.
  * Conversions support signed amounts and are not constrained to u64; RPC and instruction APIs validate amounts.
+ * Converting text throws [IllegalArgumentException] when it is not a number, or its exponent is out of range: text
+ * usually comes from a user, so Swift callers catch it. Every other failure is a caller's bug and declares nothing,
+ * which a Swift caller sees as a trap: a non-finite double throws [IllegalArgumentException], as Swift's
+ * `Int(Double.nan)` traps, and a custom unit whose [decimals] put the result outside the representable scale throws
+ * [ArithmeticException]. The built-in units never do.
  */
 data class SolUnit(val decimals: Int) {
     /**
@@ -33,6 +38,7 @@ data class SolUnit(val decimals: Int) {
     /**
      * Convert an [amount] of the current unit to [MICRO_LAMPORT], truncating values less than 1 micro-lamport.
      */
+    @Throws(IllegalArgumentException::class)
     fun toMicroLamports(amount: String): BigDecimal = this.convert(amount, MICRO_LAMPORT)
 
     /**
@@ -63,6 +69,7 @@ data class SolUnit(val decimals: Int) {
     /**
      * Convert an [amount] of the current unit to [LAMPORT], truncating values less than 1 micro-lamport.
      */
+    @Throws(IllegalArgumentException::class)
     fun toLamports(amount: String): BigDecimal = this.convert(amount, LAMPORT)
 
     /**
@@ -93,6 +100,7 @@ data class SolUnit(val decimals: Int) {
     /**
      * Convert an [amount] of the current unit to [SOL], truncating values less than 1 micro-lamport.
      */
+    @Throws(IllegalArgumentException::class)
     fun toSol(amount: String): BigDecimal = this.convert(amount, SOL)
 
     /**
@@ -123,6 +131,7 @@ data class SolUnit(val decimals: Int) {
     /**
      * Convert an [amount] of micro-lamport to the current unit, truncating values less than 1 micro-lamport.
      */
+    @Throws(IllegalArgumentException::class)
     fun fromMicroLamports(amount: String): BigDecimal = MICRO_LAMPORT.convert(amount, this)
 
     /**
@@ -153,6 +162,7 @@ data class SolUnit(val decimals: Int) {
     /**
      * Convert an [amount] of [LAMPORT] to the current unit, truncating values less than 1 micro-lamport.
      */
+    @Throws(IllegalArgumentException::class)
     fun fromLamports(amount: String): BigDecimal = LAMPORT.convert(amount, this)
 
     /**
@@ -183,6 +193,7 @@ data class SolUnit(val decimals: Int) {
     /**
      * Convert an [amount] of [SOL] to the current unit, truncating values less than 1 micro-lamport.
      */
+    @Throws(IllegalArgumentException::class)
     fun fromSol(amount: String): BigDecimal = SOL.convert(amount, this)
 
     /**
@@ -219,8 +230,14 @@ data class SolUnit(val decimals: Int) {
     /**
      * Convert an [amount] from the current unit to [toUnit], truncating values less than 1 micro-lamport.
      */
+    @Throws(IllegalArgumentException::class)
     fun convert(amount: String, toUnit: SolUnit): BigDecimal {
-        return convert(amount.toBigDecimal(), toUnit)
+        return try {
+            convert(amount.toBigDecimal(), toUnit)
+        } catch (e: ArithmeticException) {
+            // with the built-in units, only an exponent beyond the representable scale gets here
+            throw IllegalArgumentException("Cannot convert $amount: its exponent is out of range", e)
+        }
     }
 
     /**
