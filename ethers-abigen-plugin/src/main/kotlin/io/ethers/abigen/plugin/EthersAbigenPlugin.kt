@@ -32,6 +32,7 @@ abstract class EthersAbigenPlugin : Plugin<Project> {
             it.sources.set(solanaExt.sources)
             it.programAddresses.set(solanaExt.programAddresses)
             it.seedByteOrders.set(solanaExt.seedByteOrders)
+            it.kotlinxSerialization.set(solanaExt.kotlinxSerialization)
             it.outputDir.set(solanaExt.outputDir)
             it.strict.set(solanaExt.strict)
         }
@@ -42,6 +43,10 @@ abstract class EthersAbigenPlugin : Plugin<Project> {
         val generators = listOf(abigenTask, solanaTask)
         // the generated sources only, without the generator's report
         val generatedSources = listOf(abigenTask, solanaTask.flatMap { it.destinationDir })
+
+        // applied unconditionally: the Kotlin Gradle plugin collects compiler plugins before this plugin's afterEvaluate
+        // runs, and the subplugin reads `kotlinxSerialization` only when the compilations are configured
+        target.pluginManager.apply(KotlinxSerializationSubplugin::class.java)
 
         target.afterEvaluate {
             val kotlinCompileTasks = target.tasks.names.filter { it.contains("compile") && it.contains("Kotlin") }

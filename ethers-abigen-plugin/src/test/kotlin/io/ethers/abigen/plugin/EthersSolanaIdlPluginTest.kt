@@ -104,6 +104,8 @@ class EthersSolanaIdlPluginTest : FunSpec({
         task.sources.get() shouldBe ext.sources.get()
         task.outputDir.get() shouldBe ext.outputDir.get()
         task.programAddresses.get() shouldBe emptyMap()
+        ext.kotlinxSerialization.get() shouldBe false
+        task.kotlinxSerialization.get() shouldBe false
         ext.strict.get() shouldBe false
         task.strict.get() shouldBe false
     }
@@ -236,6 +238,25 @@ class EthersSolanaIdlPluginTest : FunSpec({
         perSeed shouldContain bigEndian
         // the other integer seeds keep the default
         perSeed shouldContain "BorshWriter(8).apply { writeU64(nonce) }.toByteArray(),"
+    }
+
+    test("a JSON form is generated only when kotlinxSerialization is enabled, which invalidates earlier output") {
+        val build = SolanaIdlBuild()
+        build.outcome(TASK) shouldBe TaskOutcome.SUCCESS
+        val plain = File(build.outputDir, "io/ethers/programs/Showcase.kt").readText()
+        plain.contains("JsonSerializer") shouldBe false
+        plain.contains("kotlinx.serialization") shouldBe false
+
+        build.writeExtension("kotlinxSerialization = true")
+        build.outcome(TASK) shouldBe TaskOutcome.SUCCESS
+        val json = File(build.outputDir, "io/ethers/programs/Showcase.kt").readText()
+        json shouldContain "import kotlinx.serialization.Serializable"
+        json shouldContain "@Serializable(with = Config.JsonSerializer::class)"
+        json shouldContain "public object JsonSerializer : SolanaJsonSerializer<Config>(\"io.ethers.programs.Showcase.Config\")"
+
+        build.writeExtension("kotlinxSerialization = false")
+        build.outcome(TASK) shouldBe TaskOutcome.FROM_CACHE
+        File(build.outputDir, "io/ethers/programs/Showcase.kt").readText() shouldBe plain
     }
 
     test("a byte order for a program no IDL declares, or for a seed that is not an integer seed, fails the build") {

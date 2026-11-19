@@ -10,7 +10,8 @@ import java.io.PrintStream
 import kotlin.system.exitProcess
 
 private const val USAGE = "Usage: <idl-directory> <output-directory> <package-name> [--strict] [--idl <idl-file>]... " +
-    "[--program-address <program>=<address>]... [--seed-byte-order <program>[:<account>:<seed>]=<LITTLE_ENDIAN|BIG_ENDIAN>]..."
+    "[--program-address <program>=<address>]... [--seed-byte-order <program>[:<account>:<seed>]=<LITTLE_ENDIAN|BIG_ENDIAN>]... " +
+    "[--kotlinx-serialization <program>]..."
 
 /**
  * Headless entry point for [SolanaProgramBuilder]: generates bindings for every IDL file in a directory, and for each
@@ -19,11 +20,13 @@ private const val USAGE = "Usage: <idl-directory> <output-directory> <package-na
  * ```
  * <idl-directory> <output-directory> <package-name> [--strict] [--idl <idl-file>]...
  *     [--program-address <program>=<address>]... [--seed-byte-order <program>[:<account>:<seed>]=<order>]...
+ *     [--kotlinx-serialization <program>]...
  * ```
  *
  * `--program-address` replaces the address a program's IDL declares, or gives one to an IDL that declares none.
  * `--seed-byte-order` sets the byte order of a program's integer PDA seeds, or of one seed of one of its PDA
- * accounts, see [SeedByteOrders].
+ * accounts, see [SeedByteOrders]. `--kotlinx-serialization` generates a JSON form for the value types of a program, see
+ * [SolanaProgramBuilder].
  *
  * Declarations that cannot be generated are left out, with a warning on standard error for each. With `--strict`,
  * every IDL is still processed, then the run fails listing the declarations of all of them that cannot be generated.
@@ -50,9 +53,14 @@ internal fun runCli(args: Array<String>, err: PrintStream): Int {
     val extraIdls = ArrayList<File>()
     val addresses = HashMap<String, String>()
     val byteOrders = HashMap<String, SeedByteOrders>()
+    val serializable = HashSet<String>()
     for (i in 3 until options.size step 2) {
         if (options[i] == "--idl") {
             extraIdls.add(File(options[i + 1]).also { require(it.isFile) { "Not a file: $it" } })
+            continue
+        }
+        if (options[i] == "--kotlinx-serialization") {
+            serializable.add(options[i + 1])
             continue
         }
         if (options[i] == "--program-address") {
@@ -81,14 +89,19 @@ internal fun runCli(args: Array<String>, err: PrintStream): Int {
         val read = SolanaIdlReaderRegistry.tryReadIdl(idlFile.toURI().toURL()).unwrap()
         val program = addresses[read.name]?.let { read.copy(address = it) } ?: read
         programs.add(program.name)
-        val builder = SolanaProgramBuilder(program, packageName, seedByteOrders = byteOrders[program.name] ?: SeedByteOrders())
+        val builder = SolanaProgramBuilder(
+            program,
+            packageName,
+            seedByteOrders = byteOrders[program.name] ?: SeedByteOrders(),
+            kotlinxSerialization = program.name in serializable,
+        )
         if (builder.diagnostics.isNotEmpty()) {
             val description = "${SolanaIdlUnsupportedException.describe(program.name, builder.diagnostics)} ($idlFile)"
             if (strict) unsupported.add(description) else err.println("warning: $description")
         }
         builder.writeTo(outputDir)
     }
-    for ((option, names) in listOf("--seed-byte-order" to byteOrders.keys, "--program-address" to addresses.keys)) {
+    for ((option, names) in listOf("--seed-byte-order" to byteOrders.keys, "--program-address" to addresses.keys, "--kotlinx-serialization" to serializable)) {
         val unknown = names - programs
         require(unknown.isEmpty()) { "$option names programs that no IDL declares: ${unknown.sorted()}" }
     }

@@ -73,6 +73,10 @@ ethersSolanaIdl {
     seedByteOrder("escrow", SeedByteOrder.BIG_ENDIAN)
     seedByteOrder("escrow", "vault", "nonce", SeedByteOrder.BIG_ENDIAN)
 
+    // generate a kotlinx.serialization JSON form for structs, enums, events and instruction arguments, and wire the
+    // kotlinx.serialization compiler plugin into the Kotlin compilations (default: false)
+    kotlinxSerialization = true
+
     // by default, it supports reading Anchor IDLs: spec 0.1.x, and legacy IDLs from before Anchor 0.30
     idlReader { input ->
         // read IdlProgram from input
@@ -84,6 +88,16 @@ Each program derived account of an instruction gets a `find` function on its acc
 and bump from the account's seeds, e.g. `Escrow.OpenVaultAccounts.findVault(owner, nonce)`. IDLs do not record the
 byte order a program encodes integer seeds in. Most programs use little-endian, the default, but some do not, and the
 derived address is then wrong unless `seedByteOrder` is set for them.
+
+With `kotlinxSerialization = true`, every struct, enum, event and instruction arguments class also gets a nested
+`JsonSerializer`, which its `@Serializable(with = ...)` annotation names. The JSON form is separate from the binary
+codecs, which stay as they are. That one line is the whole setup: the kotlinx.serialization runtime comes with
+`ethers-solana`, and the plugin adds the kotlinx.serialization compiler plugin to the project's Kotlin compilations, at
+the project's own Kotlin version, so `Json.encodeToString(pool)` and `Json.decodeFromString<Clmm.PoolState>(json)` find
+the serializers, including in lists, maps and your own `@Serializable` classes. A project that already applies
+`org.jetbrains.kotlin.plugin.serialization` keeps it, and the compiler plugin is not added twice. The option is off by
+default because it adds a serializer object per type, which grows the generated code and matters most on Android. See the
+[ethers-solana README](../ethers-solana/README.md#json-form-of-idl-values) for the representation.
 
 To read only some fields, each account has a `Fields` object of the fields at a fixed offset with a fixed size, and
 `select` reads those fields as one slice of the account data, which the node cuts before sending it:
