@@ -9,6 +9,7 @@ import io.ethers.solana.idl.IdlEnumVariant
 import io.ethers.solana.idl.IdlEvent
 import io.ethers.solana.idl.IdlField
 import io.ethers.solana.idl.IdlFields
+import io.ethers.solana.idl.IdlGenericArg
 import io.ethers.solana.idl.IdlGenericParam
 import io.ethers.solana.idl.IdlInstruction
 import io.ethers.solana.idl.IdlPda
@@ -85,13 +86,14 @@ private val MIXED = CLEAN.copy(
     types = CLEAN.types + listOf(
         // custom serialization: unsupported by design
         struct("Bad", "x" to IdlType.Primitive.U8, serialization = IdlSerialization.Custom("Compressed")),
-        // a generic definition nothing uses: not supported yet
+        // a generic definition, whose only instantiation holds Bad
         IdlTypeDef("Generic", IdlTypeBody.Struct(IdlFields.Named(listOf(IdlField("t", IdlType.Generic("T"))))), generics = listOf(IdlGenericParam.Type("T"))),
         // Bad nested within an option, a vec and an array
         struct("Holder", "good" to defined("Good"), "bad" to IdlType.Option(IdlType.Vec(IdlType.Array(defined("Bad"), IdlArrayLength.Fixed(2))))),
         IdlTypeDef("HolderAlias", IdlTypeBody.Alias(defined("Holder"))),
         struct("Wrapper", "h" to defined("HolderAlias")),
         struct("HolderEvent", "h" to defined("Holder")),
+        struct("UsesGeneric", "g" to IdlType.Defined("Generic", listOf(IdlGenericArg.Type(defined("Bad"))))),
     ),
     constants = CLEAN.constants + listOf(
         IdlConstant("HOLDER_C", defined("HolderAlias"), "Holder { good: Good { x: 1 }, bad: None }"),
@@ -117,11 +119,13 @@ private val MIXED_DIAGNOSTICS = listOf(
         "type 'Bad': Custom(name=Compressed) serialization is intentionally unsupported, as the program's own code defines that layout; " +
             "bind the type with a handwritten codec instead",
     ),
-    diagnostic(SolanaIdlDiagnostic.Kind.TYPE, "Generic", SolanaIdlDiagnostic.Support.NOT_SUPPORTED_YET, "type 'Generic': generic type definitions are not supported yet"),
+    // an instantiation is left out like any other type
+    dependent(SolanaIdlDiagnostic.Kind.TYPE, "Generic<Bad>", "Bad"),
     dependent(SolanaIdlDiagnostic.Kind.TYPE, "Holder", "Bad"),
     dependent(SolanaIdlDiagnostic.Kind.TYPE, "HolderAlias", "Holder"),
     dependent(SolanaIdlDiagnostic.Kind.TYPE, "Wrapper", "HolderAlias"),
     dependent(SolanaIdlDiagnostic.Kind.TYPE, "HolderEvent", "Holder"),
+    dependent(SolanaIdlDiagnostic.Kind.TYPE, "UsesGeneric", "Generic<Bad>"),
     dependent(SolanaIdlDiagnostic.Kind.CONSTANT, "HOLDER_C", "HolderAlias"),
     diagnostic(
         SolanaIdlDiagnostic.Kind.CONSTANT,
@@ -163,7 +167,7 @@ class LenientGenerationTest : FunSpec({
         builder.diagnostics shouldContainExactly MIXED_DIAGNOSTICS
 
         val source = builder.build().toString()
-        for (name in listOf("class Bad", "class Holder", "class Wrapper", "HOLDER_C", "EXPR", "BadArg", "badReturn", "fun seeded(", "class HolderEvent")) {
+        for (name in listOf("class Bad", "GenericBad", "UsesGeneric", "class Holder", "class Wrapper", "HOLDER_C", "EXPR", "BadArg", "badReturn", "fun seeded(", "class HolderEvent")) {
             withoutReport(source) shouldNotContain name
         }
         // what is left generates exactly as in a program without what was left out

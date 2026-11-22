@@ -16,6 +16,7 @@ import com.squareup.kotlinpoet.LIST
 import com.squareup.kotlinpoet.LONG
 import com.squareup.kotlinpoet.LambdaTypeName
 import com.squareup.kotlinpoet.ParameterSpec
+import com.squareup.kotlinpoet.ParameterizedTypeName
 import com.squareup.kotlinpoet.ParameterizedTypeName.Companion.parameterizedBy
 import com.squareup.kotlinpoet.PropertySpec
 import com.squareup.kotlinpoet.SET
@@ -37,6 +38,7 @@ import io.ethers.solana.idl.IdlErrorCode
 import io.ethers.solana.idl.IdlEvent
 import io.ethers.solana.idl.IdlFields
 import io.ethers.solana.idl.IdlGenericArg
+import io.ethers.solana.idl.IdlGenericParam
 import io.ethers.solana.idl.IdlInstruction
 import io.ethers.solana.idl.IdlPaths
 import io.ethers.solana.idl.IdlPda
@@ -61,12 +63,20 @@ import java.math.BigInteger
  * decoded form within an instruction hierarchy, plus program-level dispatch over accounts, events,
  * errors and instructions.
  *
- * Aliases are resolved to their target at each use. Zero-copy types follow their C, packed C or
- * transparent layout on Solana's on-chain target, with the padding an unpacked C layout has. Generic
- * type definitions are not supported yet. Layouts the IDL cannot describe are unsupported by design:
- * zero-copy types with Rust's default layout, which leaves the field order unspecified, zero-copy
- * enums and enum fields of zero-copy types, whose discriminant width the IDL does not record, and
- * custom serialization.
+ * Aliases are resolved to their target at each use. Generic type definitions are monomorphized: each
+ * instantiation the program uses is generated as a class of its own, named after the definition and its
+ * arguments, such as `PairU64Array4U8` for `Pair<u64, [u8; 4]>`, and one the program never uses is not
+ * generated; see [GenericInstances]. Instantiations are checked like any other type, so one that cannot be
+ * generated is left out by itself, named in Rust syntax, such as `Cell<string>`. A generic struct with a generated
+ * instantiation also gets an interface named after it, with its type parameters, covariant, and without its const
+ * parameters, such as `interface Pair<out A, out B> { val first: A; val second: B }`, which each instantiation
+ * implements. It declares the fields whose Kotlin type its type parameters can express.
+ *
+ * Zero-copy types follow their C, packed C or transparent layout on Solana's on-chain target, with the padding
+ * an unpacked C layout has. Layouts the IDL cannot describe are unsupported by design: zero-copy types with
+ * Rust's default layout, which leaves the field order unspecified, zero-copy enums and enum fields of zero-copy
+ * types, whose discriminant width the IDL does not record, custom serialization, and accounts and events laid
+ * out as a generic type definition, whose instantiation the IDL does not record.
  *
  * A declaration that cannot be generated, and every declaration that depends on it, such as a type
  * containing it, a constant, account or event of such a type, or an instruction taking one, is left
@@ -77,7 +87,8 @@ import java.math.BigInteger
  * Constants of any supported type are generated: primitives as `const val` where Kotlin allows, everything else as a
  * `@JvmField val` constructing the value. A value must be a literal of its declared type in the form Rust's `Debug`
  * writes it, as Anchor records it; a constant with an expression, a cast or a reference to another constant is not
- * generated.
+ * generated. A constant of a generic instantiation is written like any struct or enum, under the generic definition's
+ * own name, as `Debug` writes `Pair { first: 1, second: 2 }` for a `Pair<u64, u8>`.
  *
  * Each program derived account gets a `find` function deriving its address from its seeds. Integer seeds are
  * encoded in the byte order [seedByteOrders] gives, since IDLs do not record it.
@@ -112,6 +123,19 @@ class SolanaProgramBuilder @JvmOverloads constructor(
     private val kotlinxSerialization: Boolean = false,
     private val strict: Boolean = false,
 ) {
+    init {
+        IdlValidator.validate(program)
+    }
+
+    /** The Kotlin name of each type definition of [program], generic or not, so instantiations do not affect it. */
+    private val baseTypeNames = kotlinTypeNames(program.types)
+    private val generics = GenericInstances(program, baseTypeNames)
+
+    /**
+     * [program] with its generic type definitions replaced by their instantiations, which the support checks run on, so
+     * an instantiation that cannot be generated is left out like any other type.
+     */
+    private val expanded = generics.program
     private val programAddress = requireNotNull(program.address) {
         "program '${program.name}': the IDL declares no address, so one must be given, such as with the Gradle plugin's programAddress"
     }
@@ -121,8 +145,8 @@ class SolanaProgramBuilder @JvmOverloads constructor(
     private val errorClass = programClass.nestedClass("Error")
     private val instructionHierarchy = programClass.nestedClass("Instruction")
 
-    private val typeDefs = program.types.associateBy { it.name }
-    private val kotlinTypeNames = kotlinTypeNames()
+    private val typeDefs = expanded.types.associateBy { it.name }
+    private val kotlinTypeNames = baseTypeNames.filterKeys { it in typeDefs } + generics.kotlinNames
 
     /** How each instruction's builders resolve its accounts, by instruction name. */
     private val plans = HashMap<String, ResolutionPlan>()
@@ -139,11 +163,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
     /** The generated constants, by name, built while checking which can be generated. */
     private val constantSpecs = HashMap<String, PropertySpec>()
 
-    init {
-        IdlValidator.validate(program)
-    }
-
-    /** [program] without the declarations that cannot be generated, which is what the bindings are generated for. */
+    /** [expanded] without the declarations that cannot be generated, which is what the bindings are generated for. */
     private val idl: IdlProgram = supportedProgram()
 
     private val accountTypes = idl.accounts.mapTo(HashSet()) { it.name }
@@ -154,6 +174,35 @@ class SolanaProgramBuilder @JvmOverloads constructor(
      * the order found. Empty when everything is generated.
      */
     val diagnostics: List<SolanaIdlDiagnostic> = skipped.values.toList()
+
+    /** The type definitions of [program] as declared, generic ones included, by name. */
+    private val declaredTypes: Map<String, IdlTypeDef> = program.types.associateBy { it.name }
+
+    /**
+     * The interface of each generic struct definition with a generated instantiation, by the definition's name.
+     *
+     * A field is declared when its Kotlin type is the same function of the type arguments for every instantiation:
+     * type parameter `T` is `T`, `Vec<T>` is `List<T>`, and a field of another generic struct is that struct's
+     * interface, such as `Pair<T, Int>`. A field whose Kotlin type the type parameters cannot express is left out:
+     * `Option<T>`, which is `SolanaOption<X>` rather than `X?` when `T` is itself an option, `[T; N]`, which is
+     * `SolanaBytes` rather than a list when `T` is `u8`, and a generic enum, which has no interface. Generic enums get
+     * no interface, as each instantiation's variants are classes of their own.
+     *
+     * A definition whose type parameter is named like a class its interface refers to, which the parameter would hide,
+     * gets no interface either, so fields of it are left out of other interfaces.
+     */
+    private val genericInterfaces: Map<String, GenericInterface> by lazy {
+        val instances = LinkedHashMap<String, MutableList<String>>()
+        for (def in idl.types) generics.definitions[def.name]?.let { instances.getOrPut(it) { ArrayList() }.add(def.name) }
+        val candidates = program.types.filter { it.name in instances && it.body is IdlTypeBody.Struct }.mapTo(LinkedHashSet()) { it.name }
+        var built: Map<String, GenericInterface>
+        do {
+            built = candidates.associateWith { buildGenericInterface(declaredTypes.getValue(it), instances.getValue(it), candidates) }
+            val hidden = built.filterValues { iface -> iface.typeParameters.any { it in referencedSimpleNames(iface) } }.keys
+            candidates.removeAll(hidden)
+        } while (hidden.isNotEmpty())
+        built
+    }
 
     /** A private constant for each distinct constant seed, in order of first use. */
     private val seedConstantNames: Map<List<Int>, String> by lazy {
@@ -227,10 +276,15 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         idl.constants.forEach { programType.addProperty(constantSpecs.getValue(it.name)) }
         pdaConstants.forEach { programType.addProperty(it) }
 
+        val interfacesAdded = HashSet<String>()
         for (def in idl.types) {
             if (def.body is IdlTypeBody.Alias) continue
             // an event's type is generated as the event unless something else uses it as a plain value
             if (def.name in eventTypes && def.name !in eventTypesUsedAsValues) continue
+            // a generic definition's interface comes before its first instantiation
+            generics.definitions[def.name]?.let { generic ->
+                if (generic in genericInterfaces && interfacesAdded.add(generic)) programType.addType(genericInterface(genericInterfaces.getValue(generic)))
+            }
             programType.addType(typeDefinition(def))
         }
 
@@ -337,7 +391,9 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         ix.returns?.let { referencedTypes(it, types) }
         forEachPda(listOf(ix)) { _, _, pda, scopes ->
             for (seed in pda.seeds + listOfNotNull(pda.program)) {
-                if (seed !is IdlSeed.Account || seed.account == null || seed.account !in typeDefs) continue
+                if (seed !is IdlSeed.Account || seed.account == null) continue
+                // the type of an account laid out as a generic definition is not expanded, but skipped
+                if (seed.account !in typeDefs && !isSkippedType(seed.account)) continue
                 if (IdlPaths.account(scopes, seed.path)?.fields?.isNotEmpty() == true) types.add(seed.account)
             }
         }
@@ -348,7 +404,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
     private fun skipDependentTypes() {
         do {
             var changed = false
-            for (def in program.types) {
+            for (def in expanded.types) {
                 if (isSkippedType(def.name)) continue
                 val cause = referencedTypes(def).firstOrNull(::isSkippedType) ?: continue
                 skipDependent(SolanaIdlDiagnostic.Kind.TYPE, def.name, cause)
@@ -358,41 +414,42 @@ class SolanaProgramBuilder @JvmOverloads constructor(
     }
 
     /**
-     * [program] without the declarations that cannot be generated, recording each in [skipped]: unsupported type
+     * [expanded] without the declarations that cannot be generated, recording each in [skipped]: unsupported type
      * definitions and every type that refers to one, then the constants, accounts, events and instructions that
      * cannot be generated themselves or refer to a skipped type.
      */
     private fun supportedProgram(): IdlProgram {
-        for (def in program.types) attempt { checkTypeDefinition(def) }
+        generics.diagnostics.forEach(::skip)
+        for (def in expanded.types) attempt { checkTypeDefinition(def) }
         skipDependentTypes()
         // the zero-copy types that passed and whose fields did too can be laid out; a layout failing names the type
-        for (def in program.types) {
+        for (def in expanded.types) {
             if (isZeroCopy(def.name) && !isSkippedType(def.name) && !attempt { zeroCopyLayout(def.name) }) skipDependentTypes()
         }
-        for (def in program.types) {
+        for (def in expanded.types) {
             if (!isZeroCopy(def.name) && !isSkippedType(def.name)) attempt { checkNoPadding(def) }
         }
         skipDependentTypes()
 
-        val constants = program.constants.filter { constant ->
+        val constants = expanded.constants.filter { constant ->
             val cause = referencedTypes(constant.type).firstOrNull(::isSkippedType)
             if (cause != null) skipDependent(SolanaIdlDiagnostic.Kind.CONSTANT, constant.name, cause)
             cause == null && attempt { constantSpecs[constant.name] = checkedConstant(constant) }
         }
-        val accounts = program.accounts.filter { account ->
+        val accounts = expanded.accounts.filter { account ->
             isSkippedType(account.name).also { if (it) skipDependent(SolanaIdlDiagnostic.Kind.ACCOUNT, account.name, account.name) }.not()
         }
-        val events = program.events.filter { event ->
+        val events = expanded.events.filter { event ->
             if (isSkippedType(event.name)) skipDependent(SolanaIdlDiagnostic.Kind.EVENT, event.name, event.name)
             !isSkippedType(event.name) && attempt { checkEvent(event.name) }
         }
-        val instructions = program.instructions.filter { ix ->
+        val instructions = expanded.instructions.filter { ix ->
             val cause = referencedTypes(ix).firstOrNull(::isSkippedType)
             if (cause != null) skipDependent(SolanaIdlDiagnostic.Kind.INSTRUCTION, ix.name, cause)
             cause == null && attempt { checkNoPadding(ix) }
         }
-        return program.copy(
-            types = program.types.filterNot { isSkippedType(it.name) },
+        return expanded.copy(
+            types = expanded.types.filterNot { isSkippedType(it.name) },
             constants = constants,
             accounts = accounts,
             events = events,
@@ -402,9 +459,6 @@ class SolanaProgramBuilder @JvmOverloads constructor(
 
     /** Check that type definition [def] can be generated on its own, apart from its zero-copy layout. */
     private fun checkTypeDefinition(def: IdlTypeDef) {
-        if (def.generics.isNotEmpty()) {
-            unsupportedType(def.name, SolanaIdlDiagnostic.Support.NOT_SUPPORTED_YET, "type '${def.name}': generic type definitions are not supported yet")
-        }
         when (val serialization = def.serialization) {
             IdlSerialization.Borsh -> Unit
             IdlSerialization.Bytemuck, IdlSerialization.BytemuckUnsafe -> checkZeroCopy(def)
@@ -578,7 +632,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
                     )
                 }
             }
-            is IdlType.Generic -> unsupportedType(name, SolanaIdlDiagnostic.Support.NOT_SUPPORTED_YET, "$where: generic fields are not supported yet")
+            is IdlType.Generic -> throw IllegalStateException("generic reached generation: $resolved")
         }
     }
 
@@ -590,6 +644,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             require(previous == null) { "generated type '$name' is produced by both $previous and $source" }
         }
         kotlinTypeNames.forEach { (idl, kotlin) -> if (typeDefs.getValue(idl).body !is IdlTypeBody.Alias) type(kotlin, "type '$idl'") }
+        genericInterfaces.forEach { (generic, it) -> type(it.name.simpleName, "the interface of generic type '$generic'") }
         type("Account", "the account hierarchy")
         type("Event", "the event hierarchy")
         type("Error", "the error hierarchy")
@@ -600,7 +655,8 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             type("${name}Accounts", "instruction '${ix.name}'")
         }
 
-        val generatedInstructions = idl.instructions.mapTo(HashSet()) { it.name }
+        // as generated, with generic instantiations in place, which plans are made for
+        val generatedInstructions = idl.instructions.associateBy { it.name }
         val members = HashMap<String, String>()
         fun member(name: String, source: String) {
             val previous = members.put(name, source)
@@ -615,14 +671,15 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             member(ix.name.toUpperSnakeCase(), "instruction '${ix.name}'")
             member(ix.name.toCamelCase(), "instruction '${ix.name}'")
             // only a generated instruction can be planned, as its accounts and seeds refer only to generated types
-            if (ix.accounts.isNotEmpty() && ix.name in generatedInstructions && plan(ix).resolves) member(resolvingName(ix), "instruction '${ix.name}'")
+            val generated = generatedInstructions[ix.name]
+            if (ix.accounts.isNotEmpty() && generated != null && plan(generated).resolves) member(resolvingName(ix), "instruction '${ix.name}'")
         }
     }
 
     /** The last path segment of each type, or the whole path where the last segment is ambiguous. */
-    private fun kotlinTypeNames(): Map<String, String> {
-        val short = program.types.groupBy { it.name.substringAfterLast("::").toPascalCase() }
-        return program.types.associate { def ->
+    private fun kotlinTypeNames(types: List<IdlTypeDef>): Map<String, String> {
+        val short = types.groupBy { it.name.substringAfterLast("::").toPascalCase() }
+        return types.associate { def ->
             val name = def.name.substringAfterLast("::").toPascalCase()
             def.name to if (short.getValue(name).size == 1) name else def.name.toPascalCase()
         }
@@ -865,7 +922,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         is IdlType.Vec -> LIST.parameterizedBy(typeName(resolved.element))
         is IdlType.Array -> if (isByteArray(resolved)) Runtime.SOLANA_BYTES else LIST.parameterizedBy(typeName(resolved.element))
         is IdlType.Defined -> classOf(resolved.name)
-        is IdlType.Generic -> throw IllegalStateException("unsupported generic reached generation")
+        is IdlType.Generic -> throw IllegalStateException("generic reached generation")
     }
 
     /** An expression reading [type], with a `BorshReader` receiver. */
@@ -883,7 +940,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             CodeBlock.of("readArray(%L) { %L }", arrayLength(resolved), read(resolved.element))
         }
         is IdlType.Defined -> CodeBlock.of("%T.read(this)", classOf(resolved.name))
-        is IdlType.Generic -> throw IllegalStateException("unsupported generic reached generation")
+        is IdlType.Generic -> throw IllegalStateException("generic reached generation")
     }
 
     /** A statement writing [value] of [type], with a `BorshWriter` receiver. */
@@ -901,7 +958,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             CodeBlock.of("writeArray(%L, %L) { %L }", value, arrayLength(resolved), write(resolved.element, CodeBlock.of("it")))
         }
         is IdlType.Defined -> CodeBlock.of("%T.write(this, %L)", classOf(resolved.name), value)
-        is IdlType.Generic -> throw IllegalStateException("unsupported generic reached generation")
+        is IdlType.Generic -> throw IllegalStateException("generic reached generation")
     }
 
     /** A codec value for [type]: the class companion for a defined type, otherwise built inline. */
@@ -1209,6 +1266,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         }
         def.docs.forEach { builder.addKdoc("%L\n", it) }
         if (def.name in pathStructs) builder.addType(structPath(def))
+        implementGenericInterface(def.name, builder)
         idl.accounts.firstOrNull { it.name == def.name }?.let { account ->
             builder.addSuperinterface(accountMarker)
             addToCodecScope(builder, accountFactory(name, account.name, account.discriminator))
@@ -1223,6 +1281,169 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             }
         }
         return builder.build()
+    }
+
+    // --- generic interfaces ---
+
+    /**
+     * The interface of a generic struct definition [def], which each of its [instances] implements. Its type parameters
+     * are the definition's type parameters; Kotlin has no const generics, so const parameters are not part of it. It
+     * declares the [fields] whose Kotlin type the type parameters express, and [omitted] names the others.
+     */
+    private class GenericInterface(
+        val def: IdlTypeDef,
+        val name: ClassName,
+        val typeParameters: List<String>,
+        val fields: List<InterfaceField>,
+        val omitted: List<String>,
+        val instances: List<String>,
+    )
+
+    private class InterfaceField(val name: String, val type: TypeName, val docs: List<String>)
+
+    private fun buildGenericInterface(def: IdlTypeDef, instances: List<String>, interfaces: Set<String>): GenericInterface {
+        val fields = ArrayList<InterfaceField>()
+        val omitted = ArrayList<String>()
+        for (field in fields((def.body as IdlTypeBody.Struct).fields)) {
+            val type = interfaceType(field.type, interfaces)
+            if (type == null) omitted.add(field.name) else fields.add(InterfaceField(field.name, type, field.docs))
+        }
+        val typeParameters = def.generics.filterIsInstance<IdlGenericParam.Type>().map { it.name }
+        return GenericInterface(def, programClass.nestedClass(baseTypeNames.getValue(def.name)), typeParameters, fields, omitted, instances)
+    }
+
+    /** The simple names of the classes [iface] refers to, its own included, which a type parameter would hide. */
+    private fun referencedSimpleNames(iface: GenericInterface): Set<String> {
+        val names = HashSet<String>(iface.name.simpleNames)
+        fun visit(type: TypeName) {
+            when (type) {
+                is ClassName -> names.addAll(type.simpleNames)
+                is ParameterizedTypeName -> {
+                    visit(type.rawType)
+                    type.typeArguments.forEach(::visit)
+                }
+                is WildcardTypeName -> (type.outTypes + type.inTypes).forEach(::visit)
+                else -> Unit
+            }
+        }
+        iface.fields.forEach { visit(it.type) }
+        return names
+    }
+
+    /**
+     * The Kotlin type of [type], a field type of a generic definition, in terms of its type parameters, or null when they
+     * cannot express it; see [genericInterfaces]. Generic definitions in [interfaces] have an interface.
+     */
+    private fun interfaceType(type: IdlType, interfaces: Set<String>): TypeName? = when (val resolved = resolveDeclared(type)) {
+        is IdlType.Primitive -> PRIMITIVE_TYPES.getValue(resolved)
+        is IdlType.Generic -> TypeVariableName(resolved.name)
+        is IdlType.Option -> if (resolveDeclared(resolved.inner) is IdlType.Generic) {
+            null
+        } else {
+            interfaceType(resolved.inner, interfaces)?.let { if (it.isNullable) Runtime.SOLANA_OPTION.parameterizedBy(it) else it.copy(nullable = true) }
+        }
+        is IdlType.Vec -> interfaceType(resolved.element, interfaces)?.let { LIST.parameterizedBy(it) }
+        is IdlType.Array -> when (val element = resolveDeclared(resolved.element)) {
+            IdlType.Primitive.U8 -> Runtime.SOLANA_BYTES
+            is IdlType.Generic -> null
+            else -> interfaceType(element, interfaces)?.let { LIST.parameterizedBy(it) }
+        }
+        is IdlType.Defined -> {
+            val def = declaredTypes.getValue(resolved.name)
+            when {
+                def.generics.isEmpty() -> classOf(resolved.name)
+                // arguments without parameters name one instantiation, generated as the instantiation containing it is
+                resolved.generics.none(::refersToParameter) -> classOf(generics.instantiation(resolved))
+                resolved.name !in interfaces -> null
+                else -> {
+                    val name = programClass.nestedClass(baseTypeNames.getValue(def.name))
+                    val arguments = def.generics.indices.filter { def.generics[it] is IdlGenericParam.Type }
+                        .map { interfaceType((resolved.generics[it] as IdlGenericArg.Type).type, interfaces) ?: return null }
+                    if (arguments.isEmpty()) name else name.parameterizedBy(arguments)
+                }
+            }
+        }
+    }
+
+    /** Whether [arg] refers to a type or const parameter of the definition it is used in. */
+    private fun refersToParameter(arg: IdlGenericArg): Boolean = when (arg) {
+        is IdlGenericArg.Const -> false
+        is IdlGenericArg.ConstParam -> true
+        is IdlGenericArg.Type -> refersToParameter(arg.type)
+    }
+
+    private fun refersToParameter(type: IdlType): Boolean = when (type) {
+        is IdlType.Primitive -> false
+        is IdlType.Generic -> true
+        is IdlType.Option -> refersToParameter(type.inner)
+        is IdlType.Vec -> refersToParameter(type.element)
+        is IdlType.Array -> type.length is IdlArrayLength.Generic || refersToParameter(type.element)
+        is IdlType.Defined -> type.generics.any(::refersToParameter)
+    }
+
+    /**
+     * [type] with the aliases of [program] resolved at this level, generic ones with their arguments substituted. A
+     * const argument only sets array lengths, which do not change a Kotlin type, so is not substituted.
+     */
+    private fun resolveDeclared(type: IdlType): IdlType {
+        var current = type
+        while (current is IdlType.Defined) {
+            val def = declaredTypes.getValue(current.name)
+            val body = def.body as? IdlTypeBody.Alias ?: break
+            val arguments = def.generics.indices.mapNotNull { i -> (current.generics[i] as? IdlGenericArg.Type)?.let { def.generics[i].name to it.type } }.toMap()
+            current = substitute(body.type, arguments)
+        }
+        return current
+    }
+
+    private fun substitute(type: IdlType, arguments: Map<String, IdlType>): IdlType = if (arguments.isEmpty()) {
+        type
+    } else {
+        when (type) {
+            is IdlType.Primitive -> type
+            is IdlType.Generic -> arguments[type.name] ?: type
+            is IdlType.Option -> IdlType.Option(substitute(type.inner, arguments))
+            is IdlType.Vec -> IdlType.Vec(substitute(type.element, arguments))
+            is IdlType.Array -> IdlType.Array(substitute(type.element, arguments), type.length)
+            is IdlType.Defined -> IdlType.Defined(type.name, type.generics.map { if (it is IdlGenericArg.Type) IdlGenericArg.Type(substitute(it.type, arguments)) else it })
+        }
+    }
+
+    /** The interface of generic definition [iface], documented, without a codec or JSON form. */
+    private fun genericInterface(iface: GenericInterface): TypeSpec {
+        val def = iface.def
+        val builder = TypeSpec.interfaceBuilder(iface.name)
+            .addTypeVariables(iface.typeParameters.map { TypeVariableName(it, KModifier.OUT) })
+        def.docs.forEach { builder.addKdoc("%L\n", it) }
+        if (def.docs.isNotEmpty()) builder.addKdoc("\n")
+        val signature = def.generics.joinToString(", ", "${def.name}<", ">") { if (it is IdlGenericParam.Const) "const ${it.name}: ${it.type}" else it.name }
+        builder.addKdoc(
+            "Implemented by every instantiation of the Rust generic `%L`: %L.\n",
+            signature,
+            iface.instances.joinToString(", ") { "[${kotlinTypeNames.getValue(it)}]" },
+        )
+        if (def.generics.any { it is IdlGenericParam.Const }) {
+            builder.addKdoc("\nConst parameters are not part of the type, so instantiations that differ only in them implement the same type.\n")
+        }
+        if (iface.omitted.isNotEmpty()) {
+            builder.addKdoc(
+                "\nLeaves out %L, whose Kotlin type differs between instantiations in a way type parameters cannot express.\n",
+                iface.omitted.joinToString(", ") { "`$it`" },
+            )
+        }
+        for (field in iface.fields) {
+            builder.addProperty(PropertySpec.builder(field.name, field.type).apply { field.docs.forEach { addKdoc("%L\n", it) } }.build())
+        }
+        return builder.build()
+    }
+
+    /** Make instantiation [name], built by [builder], implement its generic definition's interface, if it has one. */
+    private fun implementGenericInterface(name: String, builder: TypeSpec.Builder) {
+        val iface = generics.definitions[name]?.let { genericInterfaces[it] } ?: return
+        val arguments = generics.typeArguments.getValue(name)
+        builder.addSuperinterface(if (iface.typeParameters.isEmpty()) iface.name else iface.name.parameterizedBy(iface.typeParameters.map { typeName(arguments.getValue(it)) }))
+        val overridden = iface.fields.mapTo(HashSet()) { it.name }
+        builder.propertySpecs.replaceAll { if (it.name in overridden) it.toBuilder().addModifiers(KModifier.OVERRIDE).build() else it }
     }
 
     /**
@@ -2466,11 +2687,12 @@ class SolanaProgramBuilder @JvmOverloads constructor(
 
     /**
      * Reject byte orders for seeds that are not integer PDA seeds, which would otherwise have no effect. Seeds of
-     * instructions that are not generated count, so the configuration is valid whatever is left out.
+     * instructions that are not generated count, so the configuration is valid whatever is left out. Instantiations are
+     * in place, so a seed reaching into a generic argument has its substituted type.
      */
     private fun checkSeedByteOrders() {
         val integerSeeds = HashSet<SeedByteOrders.Seed>()
-        forEachPda(program.instructions) { ix, item, pda, scopes ->
+        forEachPda(expanded.instructions) { ix, item, pda, scopes ->
             for (seed in pda.seeds) {
                 val type = seedType(ix, seed, scopes)?.let(::resolve)
                 if (type is IdlType.Primitive && type in INTEGER_TYPES && PRIMITIVE_SIZES.getValue(type) > 1) {
@@ -2728,7 +2950,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             listValue(reader, resolved.element, arrayLength(resolved))
         }
         is IdlType.Defined -> definedValue(reader, typeDefs.getValue(resolved.name))
-        is IdlType.Generic -> throw IllegalStateException("unsupported generic reached generation")
+        is IdlType.Generic -> throw IllegalStateException("generic reached generation")
     }
 
     private fun primitiveValue(reader: RustValueReader, type: IdlType.Primitive): CodeBlock = when (type) {
@@ -2835,7 +3057,8 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         val type = classOf(def.name)
         return when (val body = def.body) {
             is IdlTypeBody.Struct -> {
-                val rustName = def.name.substringAfterLast("::")
+                // Debug writes the struct's own name, without the arguments of an instantiation
+                val rustName = (generics.definitions[def.name] ?: def.name).substringAfterLast("::")
                 val word = reader.word("'$rustName'")
                 if (word != rustName) reader.fail("'$word' is not a value of struct '${def.name}', which Debug writes as '$rustName'")
                 fieldValues(reader, type, body.fields, "struct '${def.name}'")
@@ -2909,7 +3132,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
          * Version of the generated output. Bump it whenever the output changes, so build tools invalidate
          * previously generated bindings.
          */
-        const val OUTPUT_VERSION = "9"
+        const val OUTPUT_VERSION = "10"
 
         /** The largest alignment Rust's `align(N)` accepts, 2^29. */
         private const val MAX_ALIGN = 1 shl 29

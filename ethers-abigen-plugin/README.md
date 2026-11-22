@@ -207,8 +207,10 @@ and needs a handwritten codec.
 
 #### Declarations that cannot be generated
 
-Some declarations cannot be generated: a zero-copy layout the IDL cannot describe, `custom` serialization, a generic
-type definition, a non-struct event, or a constant whose value is an expression rather than a literal. By default such
+Some declarations cannot be generated: a zero-copy layout the IDL cannot describe, `custom` serialization, an account
+or event laid out as a generic type definition, a non-struct event, or a constant whose value is an expression rather
+than a literal. An instantiation of a generic type definition is checked like any type, so one whose layout cannot be
+generated, such as `Cell<String>` of a zero-copy `Cell<T>`, is left out by itself. By default such
 a declaration is left out of the bindings, together with everything that depends on it:
 
 - types containing it, directly or within options, vecs or arrays, and aliases to it;
@@ -349,6 +351,38 @@ Generation fails, naming the instruction, account or member, when:
 - an account parameter collides with a builder's own parameter: `args`, `remainingAccounts` and `programId`, plus `api`
   and `commitment` for `resolve<Instruction>`;
 - a `resolve<Instruction>` builder collides with another member, such as another instruction's builder.
+
+Generic type definitions, with type and const parameters such as `struct RingBuffer<T, const N: usize>`, are
+monomorphized: each distinct instantiation the program uses becomes a class of its own with a concrete codec, since a
+const argument decides the layout, such as the length of `[T; N]`, and with it the offsets of the fields that follow.
+An instantiation is named after its definition and arguments, a const argument after its parameter: `RingBuffer<u64, 3>`
+becomes `RingBufferU64N3`, `Pair<u64, Option<Vec<String>>>` becomes `PairU64OptionVecString`, and `[u8; 4]` within an
+argument becomes `Array4U8`. Arguments are compared as Rust compares types, so `Pair<Amount, u8>` with `type Amount = u64`
+is `PairU64U8`, and generic aliases are inlined where they are used. A generic definition the program never uses is
+not generated. Generation fails, in any mode, when an instantiation's name is already declared and when instantiation
+would never end (as in `struct List<T> { next: Option<Box<List<Vec<T>>>> }`). An instantiation whose const argument
+does not fit its parameter's type, or of a const parameter that is not an integer, is invalid, and an account or event
+that is itself a generic definition is intentionally unsupported, as the IDL does not say which instantiation it holds;
+these are left out with what depends on them, as described above.
+Each generic struct with a generated instantiation also gets an interface named after the definition, which every
+instantiation implements, so code can work with all of them at once:
+
+```kotlin
+interface Pair<out A, out B> { val first: A; val second: B }
+data class PairU64U8(override val first: BigInteger, override val second: Int) : Pair<BigInteger, Int>
+```
+
+Its type parameters are the definition's type parameters, covariant, so a `PairU64U8` is also a `Pair<*, *>`. Kotlin
+has no const generics, so const parameters are not part of it: `RingBufferU64N3` and `RingBufferU64N8` are both a
+`RingBuffer<BigInteger>`. It declares each field whose Kotlin type the type parameters express: `T`, `Vec<T>` as
+`List<T>`, `Option<Vec<T>>` as `List<T>?`, and a field of another generic struct as that struct's interface, such as
+`Pair<T, Int>`. Fields whose Kotlin type differs between instantiations in another way are left out, and listed in the
+interface's documentation: `Option<T>`, which is `SolanaOption<X>` when `T` is itself an option, `[T; N]`, which is
+`SolanaBytes` when `T` is `u8`, and generic enums, which get no interface. The interface has no codec or JSON form;
+each instantiation keeps its own.
+A constant of a generic instantiation is generated as that instantiation's class, its value written as `Debug` writes
+it, under the definition's own name: `Pair { first: 1, second: [1, 2] }` for a `Pair<u64, [u8; 2]>`. Field descriptors
+reach into fixed-size instantiations like into any fixed-size struct, at the offsets the const arguments fix.
 
 ### Local testing of the plugin
 

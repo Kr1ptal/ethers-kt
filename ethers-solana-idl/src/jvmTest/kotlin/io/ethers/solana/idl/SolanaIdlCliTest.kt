@@ -9,15 +9,24 @@ import java.io.File
 import java.io.PrintStream
 import java.nio.file.Files
 
-/** A directory with a supported IDL and one with an unsupported generic type, and an output directory. */
+/** An Anchor IDL with a type of custom serialization, which cannot be generated. */
+private const val UNSUPPORTED_IDL = """{
+  "address": "11111111111111111111111111111111",
+  "metadata": { "name": "unsupported", "version": "0.1.0", "spec": "0.1.0" },
+  "instructions": [],
+  "types": [
+    { "name": "Compressed", "serialization": { "custom": "Lz4" }, "type": { "kind": "struct", "fields": [{ "name": "x", "type": "u8" }] } }
+  ]
+}"""
+
+/** A directory with a supported IDL and one with a type of custom serialization, and an output directory. */
 private class CliRun {
     val idlDir: File = Files.createTempDirectory("idl").toFile()
     val outputDir: File = Files.createTempDirectory("out").toFile()
 
     init {
-        for (name in listOf("relations", "generics")) {
-            File(SolanaIdlCliTest::class.java.getResource("/idl/$name.json")!!.toURI()).copyTo(File(idlDir, "$name.json"))
-        }
+        File(SolanaIdlCliTest::class.java.getResource("/idl/relations.json")!!.toURI()).copyTo(File(idlDir, "relations.json"))
+        File(idlDir, "unsupported.json").writeText(UNSUPPORTED_IDL)
     }
 
     fun run(vararg options: String): Pair<Int, String> {
@@ -34,23 +43,24 @@ class SolanaIdlCliTest : FunSpec({
         val run = CliRun()
         val (status, err) = run.run()
         status shouldBe 0
-        err shouldContain "warning: program 'generics': "
-        err shouldContain "generic type definitions are not supported yet [not supported yet]"
-        err shouldContain "generics.json)"
+        err shouldContain "warning: program 'unsupported': "
+        err shouldContain "serialization is intentionally unsupported"
+        err shouldContain "unsupported.json)"
         err shouldNotContain "program 'relations'"
-        run.generated() shouldBe listOf("Generics.kt", "RelationsDerivation.kt")
+        run.generated() shouldBe listOf("RelationsDerivation.kt", "Unsupported.kt")
     }
 
     test("strict mode processes every IDL, then fails listing what cannot be generated") {
         val run = CliRun()
-        File(SolanaIdlCliTest::class.java.getResource("/idl/generics.json")!!.toURI()).copyTo(File(run.idlDir, "nested/generics_copy.json"))
+        File(run.idlDir, "nested").mkdirs()
+        File(run.idlDir, "nested/unsupported_copy.json").writeText(UNSUPPORTED_IDL)
         val (status, err) = run.run("--strict")
         status shouldBe 1
         err shouldNotContain "warning:"
         err shouldContain "error: strict generation failed, as some declarations cannot be generated:"
         // both IDLs with unsupported declarations are listed
-        err shouldContain "generics.json)"
-        err shouldContain "generics_copy.json)"
+        err shouldContain "unsupported.json)"
+        err shouldContain "unsupported_copy.json)"
         run.generated().contains("RelationsDerivation.kt") shouldBe true
     }
 })
