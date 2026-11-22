@@ -14,6 +14,7 @@ import io.ethers.solana.codec.BorshReader
 import io.ethers.solana.codec.SolanaAccountField
 import io.ethers.solana.codec.SolanaDecodeError
 import io.ethers.solana.codec.SolanaEventContext
+import io.ethers.solana.codec.SolanaOption
 import io.ethers.solana.program.decodeReturn
 import io.ethers.solana.providers.AccountFilter
 import io.ethers.solana.providers.SolanaProvider
@@ -25,6 +26,7 @@ import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.json.Json
@@ -117,6 +119,81 @@ class GenericVaultBindingsTest : FunSpec({
             // the const parameter of Window is passed on to RingBuffer
             val window = GenericVault.WindowU16N2(GenericVault.RingBufferU16N2(1, listOf(2, 3)), null)
             GenericVault.WindowU16N2.encode(window) shouldBe hex("01 0200 0300 00")
+        }
+    }
+
+    context("generic interfaces") {
+        fun describe(pair: GenericVault.Pair<*, *>) = "${pair.first}/${pair.second}"
+
+        test("every instantiation of a generic struct implements its interface, typed by its type arguments") {
+            // the type parameters are covariant, so instantiations with different arguments share a supertype
+            val pairs: List<GenericVault.Pair<Any, Any>> = listOf(GenericVault.DEFAULT_AMOUNT, GenericVault.PairU8U8(1, 2), GenericVault.PairU64U8(bigIntegerOf(5), 6))
+            pairs.map(::describe) shouldBe listOf("1000/-2", "1/2", "5/6")
+            val amount: GenericVault.Pair<BigInteger, Int> = GenericVault.DEFAULT_AMOUNT
+            amount.first shouldBe bigIntegerOf(1000)
+            amount.second shouldBe -2
+
+            // a field of another generic struct is typed as that struct's interface
+            val holder: GenericVault.Holder<Long> = GenericVault.HolderU32(null, listOf(5), listOf(GenericVault.PairU32U8(6, 7)))
+            holder.many shouldBe listOf(5L)
+            holder.pairs.map(::describe) shouldBe listOf("6/7")
+            val window: GenericVault.Window<Int> = VAULT.window
+            window.buffer.head shouldBe 0
+        }
+
+        test("const parameters are not part of the interface, so instantiations differing only in them share it") {
+            val labels: List<GenericVault.Label> = listOf(GenericVault.MAIN_LABEL, VAULT.label)
+            labels.map { it.field0.size } shouldBe listOf(4, 8)
+            val rings: List<GenericVault.RingBuffer<Any>> = listOf(VAULT.history, GenericVault.START_RING)
+            rings.map { it.head } shouldBe listOf(1, 1)
+            // a zero-copy instantiation, whose interface has no type parameters
+            val ticks: GenericVault.Ticks = ORACLE.ticks
+            ticks.values shouldBe ORACLE.ticks.values
+            ticks.count shouldBe 4
+        }
+
+        test("fields the type parameters cannot express are left out of the interface, and the rest keep their instantiation's types") {
+            val small = GenericVault.ShapesU8(
+                value = 1,
+                values = listOf(2, 3),
+                maybeMany = null,
+                maybe = 4,
+                pair = GenericVault.PairU8U8(5, 6),
+                bounded = GenericVault.RingBufferU8N2(0, SolanaBytes.fromHex("0708").unwrap()),
+                fixed = GenericVault.PairU8U8(9, 10),
+                slot = GenericVault.SlotU8.Filled(11),
+                fixedSlot = GenericVault.SlotU32.Empty,
+                arr = SolanaBytes.fromHex("0c0d").unwrap(),
+                nestedOption = SolanaOption.Some(null),
+                amount = bigIntegerOf(14),
+            )
+            val large = GenericVault.ShapesU64(
+                value = bigIntegerOf(1),
+                values = emptyList(),
+                maybeMany = listOf(bigIntegerOf(2)),
+                maybe = null,
+                pair = GenericVault.PairU64U8(bigIntegerOf(3), 4),
+                bounded = GenericVault.RingBufferU64N2(1, listOf(bigIntegerOf(5), bigIntegerOf(6))),
+                fixed = GenericVault.PairU8U8(7, 8),
+                slot = GenericVault.SlotU64.Empty,
+                fixedSlot = GenericVault.SlotU32.Filled(9),
+                arr = listOf(bigIntegerOf(10), bigIntegerOf(11)),
+                nestedOption = SolanaOption.None,
+                amount = bigIntegerOf(12),
+            )
+            val shapes: List<GenericVault.Shapes<Any>> = listOf(small, large)
+            shapes.map { it.value } shouldBe listOf(1, bigIntegerOf(1))
+            shapes.map { it.maybeMany } shouldBe listOf(null, listOf(bigIntegerOf(2)))
+            shapes.map { describe(it.pair) } shouldBe listOf("5/6", "3/4")
+            shapes.map { it.bounded.head } shouldBe listOf(0, 1)
+            shapes.map { it.fixedSlot } shouldBe listOf(GenericVault.SlotU32.Empty, GenericVault.SlotU32.Filled(9))
+            shapes.map { it.amount } shouldBe listOf(bigIntegerOf(14), bigIntegerOf(12))
+
+            // the instantiation keeps its own codec, equality and JSON form
+            val catalog = GenericVault.Catalog(small, large)
+            GenericVault.Catalog.decode(GenericVault.Catalog.encode(catalog)).unwrap() shouldBe catalog
+            Json.decodeFromString<GenericVault.Catalog>(Json.encodeToString(catalog)) shouldBe catalog
+            (GenericVault.PairU8U8(1, 2) as GenericVault.Pair<*, *>) shouldNotBe GenericVault.PairU32U8(1, 2)
         }
     }
 

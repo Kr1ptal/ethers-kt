@@ -83,6 +83,12 @@ internal class GenericInstances(private val source: IdlProgram, private val base
     /** [source] with each generic definition replaced by its instantiations. */
     val program: IdlProgram = if (source.types.none { it.generics.isNotEmpty() }) source else expand()
 
+    /**
+     * The name in the schema of the instantiation [type] names, a generic definition with arguments that refer to no
+     * parameter. Expansion has created it wherever the program uses it.
+     */
+    fun instantiation(type: IdlType.Defined): String = (type(type, emptyMap(), "type '${type.name}'") as IdlType.Defined).name
+
     private fun expand(): IdlProgram {
         fun unstorable(kind: String, name: String) {
             val def = types.getValue(name)

@@ -304,6 +304,46 @@
       }
     },
     {
+      "name": "Catalog",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "small",
+            "type": {
+              "defined": {
+                "name": "Shapes",
+                "generics": [
+                  {
+                    "kind": "type",
+                    "type": "u8"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "name": "large",
+            "type": {
+              "defined": {
+                "name": "Shapes",
+                "generics": [
+                  {
+                    "kind": "type",
+                    "type": {
+                      "defined": {
+                        "name": "Amount"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
       "name": "Deposited",
       "type": {
         "kind": "struct",
@@ -525,6 +565,166 @@
                   "generic": "N"
                 }
               ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Shapes",
+      "docs": [
+        "Fields whose Kotlin type its interface expresses through T, and some it cannot."
+      ],
+      "generics": [
+        {
+          "kind": "type",
+          "name": "T"
+        }
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "value",
+            "type": {
+              "generic": "T"
+            }
+          },
+          {
+            "name": "values",
+            "type": {
+              "vec": {
+                "generic": "T"
+              }
+            }
+          },
+          {
+            "name": "maybe_many",
+            "type": {
+              "option": {
+                "vec": {
+                  "generic": "T"
+                }
+              }
+            }
+          },
+          {
+            "name": "maybe",
+            "type": {
+              "option": {
+                "generic": "T"
+              }
+            }
+          },
+          {
+            "name": "pair",
+            "type": {
+              "defined": {
+                "name": "Pair",
+                "generics": [
+                  {
+                    "kind": "type",
+                    "type": {
+                      "generic": "T"
+                    }
+                  },
+                  {
+                    "kind": "type",
+                    "type": "u8"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "name": "bounded",
+            "type": {
+              "defined": {
+                "name": "Bounded",
+                "generics": [
+                  {
+                    "kind": "type",
+                    "type": {
+                      "generic": "T"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "name": "fixed",
+            "type": {
+              "defined": {
+                "name": "Pair",
+                "generics": [
+                  {
+                    "kind": "type",
+                    "type": "u8"
+                  },
+                  {
+                    "kind": "type",
+                    "type": "u8"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "name": "slot",
+            "type": {
+              "defined": {
+                "name": "Slot",
+                "generics": [
+                  {
+                    "kind": "type",
+                    "type": {
+                      "generic": "T"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "name": "fixed_slot",
+            "type": {
+              "defined": {
+                "name": "Slot",
+                "generics": [
+                  {
+                    "kind": "type",
+                    "type": "u32"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "name": "arr",
+            "type": {
+              "array": [
+                {
+                  "generic": "T"
+                },
+                2
+              ]
+            }
+          },
+          {
+            "name": "nested_option",
+            "type": {
+              "option": {
+                "option": "u8"
+              }
+            }
+          },
+          {
+            "name": "amount",
+            "type": {
+              "defined": {
+                "name": "Amount"
+              }
             }
           }
         ]

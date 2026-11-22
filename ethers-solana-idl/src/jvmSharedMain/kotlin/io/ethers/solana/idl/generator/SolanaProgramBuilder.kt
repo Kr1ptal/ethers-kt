@@ -16,6 +16,7 @@ import com.squareup.kotlinpoet.LIST
 import com.squareup.kotlinpoet.LONG
 import com.squareup.kotlinpoet.LambdaTypeName
 import com.squareup.kotlinpoet.ParameterSpec
+import com.squareup.kotlinpoet.ParameterizedTypeName
 import com.squareup.kotlinpoet.ParameterizedTypeName.Companion.parameterizedBy
 import com.squareup.kotlinpoet.PropertySpec
 import com.squareup.kotlinpoet.SET
@@ -37,6 +38,7 @@ import io.ethers.solana.idl.IdlErrorCode
 import io.ethers.solana.idl.IdlEvent
 import io.ethers.solana.idl.IdlFields
 import io.ethers.solana.idl.IdlGenericArg
+import io.ethers.solana.idl.IdlGenericParam
 import io.ethers.solana.idl.IdlInstruction
 import io.ethers.solana.idl.IdlPaths
 import io.ethers.solana.idl.IdlPda
@@ -65,7 +67,10 @@ import java.math.BigInteger
  * instantiation the program uses is generated as a class of its own, named after the definition and its
  * arguments, such as `PairU64Array4U8` for `Pair<u64, [u8; 4]>`, and one the program never uses is not
  * generated; see [GenericInstances]. Instantiations are checked like any other type, so one that cannot be
- * generated is left out by itself, named in Rust syntax, such as `Cell<string>`.
+ * generated is left out by itself, named in Rust syntax, such as `Cell<string>`. A generic struct with a generated
+ * instantiation also gets an interface named after it, with its type parameters, covariant, and without its const
+ * parameters, such as `interface Pair<out A, out B> { val first: A; val second: B }`, which each instantiation
+ * implements. It declares the fields whose Kotlin type its type parameters can express.
  *
  * Zero-copy types follow their C, packed C or transparent layout on Solana's on-chain target, with the padding
  * an unpacked C layout has. Layouts the IDL cannot describe are unsupported by design: zero-copy types with
@@ -170,6 +175,35 @@ class SolanaProgramBuilder @JvmOverloads constructor(
      */
     val diagnostics: List<SolanaIdlDiagnostic> = skipped.values.toList()
 
+    /** The type definitions of [program] as declared, generic ones included, by name. */
+    private val declaredTypes: Map<String, IdlTypeDef> = program.types.associateBy { it.name }
+
+    /**
+     * The interface of each generic struct definition with a generated instantiation, by the definition's name.
+     *
+     * A field is declared when its Kotlin type is the same function of the type arguments for every instantiation:
+     * type parameter `T` is `T`, `Vec<T>` is `List<T>`, and a field of another generic struct is that struct's
+     * interface, such as `Pair<T, Int>`. A field whose Kotlin type the type parameters cannot express is left out:
+     * `Option<T>`, which is `SolanaOption<X>` rather than `X?` when `T` is itself an option, `[T; N]`, which is
+     * `SolanaBytes` rather than a list when `T` is `u8`, and a generic enum, which has no interface. Generic enums get
+     * no interface, as each instantiation's variants are classes of their own.
+     *
+     * A definition whose type parameter is named like a class its interface refers to, which the parameter would hide,
+     * gets no interface either, so fields of it are left out of other interfaces.
+     */
+    private val genericInterfaces: Map<String, GenericInterface> by lazy {
+        val instances = LinkedHashMap<String, MutableList<String>>()
+        for (def in idl.types) generics.definitions[def.name]?.let { instances.getOrPut(it) { ArrayList() }.add(def.name) }
+        val candidates = program.types.filter { it.name in instances && it.body is IdlTypeBody.Struct }.mapTo(LinkedHashSet()) { it.name }
+        var built: Map<String, GenericInterface>
+        do {
+            built = candidates.associateWith { buildGenericInterface(declaredTypes.getValue(it), instances.getValue(it), candidates) }
+            val hidden = built.filterValues { iface -> iface.typeParameters.any { it in referencedSimpleNames(iface) } }.keys
+            candidates.removeAll(hidden)
+        } while (hidden.isNotEmpty())
+        built
+    }
+
     /** A private constant for each distinct constant seed, in order of first use. */
     private val seedConstantNames: Map<List<Int>, String> by lazy {
         val names = LinkedHashMap<List<Int>, String>()
@@ -242,10 +276,15 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         idl.constants.forEach { programType.addProperty(constantSpecs.getValue(it.name)) }
         pdaConstants.forEach { programType.addProperty(it) }
 
+        val interfacesAdded = HashSet<String>()
         for (def in idl.types) {
             if (def.body is IdlTypeBody.Alias) continue
             // an event's type is generated as the event unless something else uses it as a plain value
             if (def.name in eventTypes && def.name !in eventTypesUsedAsValues) continue
+            // a generic definition's interface comes before its first instantiation
+            generics.definitions[def.name]?.let { generic ->
+                if (generic in genericInterfaces && interfacesAdded.add(generic)) programType.addType(genericInterface(genericInterfaces.getValue(generic)))
+            }
             programType.addType(typeDefinition(def))
         }
 
@@ -605,6 +644,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             require(previous == null) { "generated type '$name' is produced by both $previous and $source" }
         }
         kotlinTypeNames.forEach { (idl, kotlin) -> if (typeDefs.getValue(idl).body !is IdlTypeBody.Alias) type(kotlin, "type '$idl'") }
+        genericInterfaces.forEach { (generic, it) -> type(it.name.simpleName, "the interface of generic type '$generic'") }
         type("Account", "the account hierarchy")
         type("Event", "the event hierarchy")
         type("Error", "the error hierarchy")
@@ -1226,6 +1266,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         }
         def.docs.forEach { builder.addKdoc("%L\n", it) }
         if (def.name in pathStructs) builder.addType(structPath(def))
+        implementGenericInterface(def.name, builder)
         idl.accounts.firstOrNull { it.name == def.name }?.let { account ->
             builder.addSuperinterface(accountMarker)
             addToCodecScope(builder, accountFactory(name, account.name, account.discriminator))
@@ -1240,6 +1281,169 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             }
         }
         return builder.build()
+    }
+
+    // --- generic interfaces ---
+
+    /**
+     * The interface of a generic struct definition [def], which each of its [instances] implements. Its type parameters
+     * are the definition's type parameters; Kotlin has no const generics, so const parameters are not part of it. It
+     * declares the [fields] whose Kotlin type the type parameters express, and [omitted] names the others.
+     */
+    private class GenericInterface(
+        val def: IdlTypeDef,
+        val name: ClassName,
+        val typeParameters: List<String>,
+        val fields: List<InterfaceField>,
+        val omitted: List<String>,
+        val instances: List<String>,
+    )
+
+    private class InterfaceField(val name: String, val type: TypeName, val docs: List<String>)
+
+    private fun buildGenericInterface(def: IdlTypeDef, instances: List<String>, interfaces: Set<String>): GenericInterface {
+        val fields = ArrayList<InterfaceField>()
+        val omitted = ArrayList<String>()
+        for (field in fields((def.body as IdlTypeBody.Struct).fields)) {
+            val type = interfaceType(field.type, interfaces)
+            if (type == null) omitted.add(field.name) else fields.add(InterfaceField(field.name, type, field.docs))
+        }
+        val typeParameters = def.generics.filterIsInstance<IdlGenericParam.Type>().map { it.name }
+        return GenericInterface(def, programClass.nestedClass(baseTypeNames.getValue(def.name)), typeParameters, fields, omitted, instances)
+    }
+
+    /** The simple names of the classes [iface] refers to, its own included, which a type parameter would hide. */
+    private fun referencedSimpleNames(iface: GenericInterface): Set<String> {
+        val names = HashSet<String>(iface.name.simpleNames)
+        fun visit(type: TypeName) {
+            when (type) {
+                is ClassName -> names.addAll(type.simpleNames)
+                is ParameterizedTypeName -> {
+                    visit(type.rawType)
+                    type.typeArguments.forEach(::visit)
+                }
+                is WildcardTypeName -> (type.outTypes + type.inTypes).forEach(::visit)
+                else -> Unit
+            }
+        }
+        iface.fields.forEach { visit(it.type) }
+        return names
+    }
+
+    /**
+     * The Kotlin type of [type], a field type of a generic definition, in terms of its type parameters, or null when they
+     * cannot express it; see [genericInterfaces]. Generic definitions in [interfaces] have an interface.
+     */
+    private fun interfaceType(type: IdlType, interfaces: Set<String>): TypeName? = when (val resolved = resolveDeclared(type)) {
+        is IdlType.Primitive -> PRIMITIVE_TYPES.getValue(resolved)
+        is IdlType.Generic -> TypeVariableName(resolved.name)
+        is IdlType.Option -> if (resolveDeclared(resolved.inner) is IdlType.Generic) {
+            null
+        } else {
+            interfaceType(resolved.inner, interfaces)?.let { if (it.isNullable) Runtime.SOLANA_OPTION.parameterizedBy(it) else it.copy(nullable = true) }
+        }
+        is IdlType.Vec -> interfaceType(resolved.element, interfaces)?.let { LIST.parameterizedBy(it) }
+        is IdlType.Array -> when (val element = resolveDeclared(resolved.element)) {
+            IdlType.Primitive.U8 -> Runtime.SOLANA_BYTES
+            is IdlType.Generic -> null
+            else -> interfaceType(element, interfaces)?.let { LIST.parameterizedBy(it) }
+        }
+        is IdlType.Defined -> {
+            val def = declaredTypes.getValue(resolved.name)
+            when {
+                def.generics.isEmpty() -> classOf(resolved.name)
+                // arguments without parameters name one instantiation, generated as the instantiation containing it is
+                resolved.generics.none(::refersToParameter) -> classOf(generics.instantiation(resolved))
+                resolved.name !in interfaces -> null
+                else -> {
+                    val name = programClass.nestedClass(baseTypeNames.getValue(def.name))
+                    val arguments = def.generics.indices.filter { def.generics[it] is IdlGenericParam.Type }
+                        .map { interfaceType((resolved.generics[it] as IdlGenericArg.Type).type, interfaces) ?: return null }
+                    if (arguments.isEmpty()) name else name.parameterizedBy(arguments)
+                }
+            }
+        }
+    }
+
+    /** Whether [arg] refers to a type or const parameter of the definition it is used in. */
+    private fun refersToParameter(arg: IdlGenericArg): Boolean = when (arg) {
+        is IdlGenericArg.Const -> false
+        is IdlGenericArg.ConstParam -> true
+        is IdlGenericArg.Type -> refersToParameter(arg.type)
+    }
+
+    private fun refersToParameter(type: IdlType): Boolean = when (type) {
+        is IdlType.Primitive -> false
+        is IdlType.Generic -> true
+        is IdlType.Option -> refersToParameter(type.inner)
+        is IdlType.Vec -> refersToParameter(type.element)
+        is IdlType.Array -> type.length is IdlArrayLength.Generic || refersToParameter(type.element)
+        is IdlType.Defined -> type.generics.any(::refersToParameter)
+    }
+
+    /**
+     * [type] with the aliases of [program] resolved at this level, generic ones with their arguments substituted. A
+     * const argument only sets array lengths, which do not change a Kotlin type, so is not substituted.
+     */
+    private fun resolveDeclared(type: IdlType): IdlType {
+        var current = type
+        while (current is IdlType.Defined) {
+            val def = declaredTypes.getValue(current.name)
+            val body = def.body as? IdlTypeBody.Alias ?: break
+            val arguments = def.generics.indices.mapNotNull { i -> (current.generics[i] as? IdlGenericArg.Type)?.let { def.generics[i].name to it.type } }.toMap()
+            current = substitute(body.type, arguments)
+        }
+        return current
+    }
+
+    private fun substitute(type: IdlType, arguments: Map<String, IdlType>): IdlType = if (arguments.isEmpty()) {
+        type
+    } else {
+        when (type) {
+            is IdlType.Primitive -> type
+            is IdlType.Generic -> arguments[type.name] ?: type
+            is IdlType.Option -> IdlType.Option(substitute(type.inner, arguments))
+            is IdlType.Vec -> IdlType.Vec(substitute(type.element, arguments))
+            is IdlType.Array -> IdlType.Array(substitute(type.element, arguments), type.length)
+            is IdlType.Defined -> IdlType.Defined(type.name, type.generics.map { if (it is IdlGenericArg.Type) IdlGenericArg.Type(substitute(it.type, arguments)) else it })
+        }
+    }
+
+    /** The interface of generic definition [iface], documented, without a codec or JSON form. */
+    private fun genericInterface(iface: GenericInterface): TypeSpec {
+        val def = iface.def
+        val builder = TypeSpec.interfaceBuilder(iface.name)
+            .addTypeVariables(iface.typeParameters.map { TypeVariableName(it, KModifier.OUT) })
+        def.docs.forEach { builder.addKdoc("%L\n", it) }
+        if (def.docs.isNotEmpty()) builder.addKdoc("\n")
+        val signature = def.generics.joinToString(", ", "${def.name}<", ">") { if (it is IdlGenericParam.Const) "const ${it.name}: ${it.type}" else it.name }
+        builder.addKdoc(
+            "Implemented by every instantiation of the Rust generic `%L`: %L.\n",
+            signature,
+            iface.instances.joinToString(", ") { "[${kotlinTypeNames.getValue(it)}]" },
+        )
+        if (def.generics.any { it is IdlGenericParam.Const }) {
+            builder.addKdoc("\nConst parameters are not part of the type, so instantiations that differ only in them implement the same type.\n")
+        }
+        if (iface.omitted.isNotEmpty()) {
+            builder.addKdoc(
+                "\nLeaves out %L, whose Kotlin type differs between instantiations in a way type parameters cannot express.\n",
+                iface.omitted.joinToString(", ") { "`$it`" },
+            )
+        }
+        for (field in iface.fields) {
+            builder.addProperty(PropertySpec.builder(field.name, field.type).apply { field.docs.forEach { addKdoc("%L\n", it) } }.build())
+        }
+        return builder.build()
+    }
+
+    /** Make instantiation [name], built by [builder], implement its generic definition's interface, if it has one. */
+    private fun implementGenericInterface(name: String, builder: TypeSpec.Builder) {
+        val iface = generics.definitions[name]?.let { genericInterfaces[it] } ?: return
+        val arguments = generics.typeArguments.getValue(name)
+        builder.addSuperinterface(if (iface.typeParameters.isEmpty()) iface.name else iface.name.parameterizedBy(iface.typeParameters.map { typeName(arguments.getValue(it)) }))
+        val overridden = iface.fields.mapTo(HashSet()) { it.name }
+        builder.propertySpecs.replaceAll { if (it.name in overridden) it.toBuilder().addModifiers(KModifier.OVERRIDE).build() else it }
     }
 
     /**
