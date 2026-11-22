@@ -25,8 +25,17 @@ import io.ethers.solana.idl.IdlTypeDef
  *
  * Instantiations are listed in place of their generic definition, in the order the program first uses them: its type
  * definitions in order, then instruction arguments and return types, then constants. A generic definition the program
- * never instantiates is left out, as it has no layout. Generic definitions an account or event is laid out as are
- * rejected, since the IDL does not say which instantiation the program stores.
+ * never instantiates is left out, as it has no layout.
+ *
+ * What cannot be expanded is reported in [diagnostics], for the builder to leave out with everything depending on it:
+ * - a generic definition an account or event is laid out as, since the IDL does not say which instantiation the program
+ *   stores, is intentionally unsupported;
+ * - an instantiation with a const argument outside its parameter's integer type, or of a parameter whose type is not an
+ *   integer, is invalid, as is an array whose length from a const argument exceeds what any Solana account or
+ *   instruction can hold.
+ *
+ * An IDL Rust could not have compiled from fails expansion instead: a generic alias referring to itself, a definition
+ * whose instantiation never ends, and an instantiation named like a declared type definition.
  *
  * @param baseNames the Kotlin name of each type definition of [source].
  */
@@ -56,36 +65,64 @@ internal class GenericInstances(private val source: IdlProgram, private val base
     /** The generic definition each instantiation instantiates, by the instantiation's name in the schema. */
     val definitions = HashMap<String, String>()
 
+    /** The argument of each type parameter of each instantiation, by the instantiation's name in the schema. */
+    val typeArguments = HashMap<String, Map<String, IdlType>>()
+
+    private val problems = LinkedHashMap<Pair<SolanaIdlDiagnostic.Kind, String>, SolanaIdlDiagnostic>()
+
+    /** Declarations that cannot be expanded, which the expanded [program] keeps for the builder to leave out. */
+    val diagnostics: List<SolanaIdlDiagnostic> get() = problems.values.toList()
+
+    /** An instantiation, type or instruction that cannot be expanded, as [support] says. */
+    private class Unexpandable(val support: SolanaIdlDiagnostic.Support, message: String) : RuntimeException(message)
+
+    private fun problem(kind: SolanaIdlDiagnostic.Kind, name: String, e: Unexpandable) {
+        problems.putIfAbsent(kind to name, SolanaIdlDiagnostic(kind, name, e.support, e.message!!))
+    }
+
     /** [source] with each generic definition replaced by its instantiations. */
     val program: IdlProgram = if (source.types.none { it.generics.isNotEmpty() }) source else expand()
 
     private fun expand(): IdlProgram {
-        for (account in source.accounts) {
-            require(types.getValue(account.name).generics.isEmpty()) {
-                "account '${account.name}': its type definition is generic, and the IDL does not say which instantiation the account holds"
-            }
+        fun unstorable(kind: String, name: String) {
+            val def = types.getValue(name)
+            if (def.generics.isEmpty()) return
+            problem(
+                SolanaIdlDiagnostic.Kind.TYPE,
+                name,
+                Unexpandable(
+                    SolanaIdlDiagnostic.Support.INTENTIONALLY_UNSUPPORTED,
+                    "type '$name': $kind '$name' is laid out as this generic type definition, but the IDL does not say which " +
+                        "instantiation it holds; bind it with a handwritten codec instead",
+                ),
+            )
         }
-        for (event in source.events) {
-            require(types.getValue(event.name).generics.isEmpty()) {
-                "event '${event.name}': its type definition is generic, and the IDL does not say which instantiation the event holds"
-            }
-        }
+        source.accounts.forEach { unstorable("account", it.name) }
+        source.events.forEach { unstorable("event", it.name) }
         checkFiniteExpansion()
 
         val concrete = HashMap<String, IdlTypeDef>()
         for (def in source.types) {
             if (def.generics.isNotEmpty()) continue
-            concrete[def.name] = def.copy(body = body(def.body, emptyMap(), "type '${def.name}'"))
+            concrete[def.name] = expandOr(SolanaIdlDiagnostic.Kind.TYPE, def.name, { def.copy(body = IdlTypeBody.Struct(IdlFields.None)) }) {
+                def.copy(body = body(def.body, emptyMap(), "type '${def.name}'"))
+            }
             drain()
         }
-        val instructions = source.instructions.map { ix ->
+        val instructions = source.instructions.mapNotNull { ix ->
             val where = "instruction '${ix.name}'"
-            ix.copy(
-                args = ix.args.map { it.copy(type = type(it.type, emptyMap(), "$where argument '${it.name}'")) },
-                returns = ix.returns?.let { type(it, emptyMap(), "$where return type") },
-            ).also { drain() }
+            expandOr(SolanaIdlDiagnostic.Kind.INSTRUCTION, ix.name, { null }) {
+                ix.copy(
+                    args = ix.args.map { it.copy(type = type(it.type, emptyMap(), "$where argument '${it.name}'")) },
+                    returns = ix.returns?.let { type(it, emptyMap(), "$where return type") },
+                )
+            }.also { drain() }
         }
-        val constants = source.constants.map { it.copy(type = type(it.type, emptyMap(), "constant '${it.name}'")).also { drain() } }
+        val constants = source.constants.mapNotNull { constant ->
+            expandOr(SolanaIdlDiagnostic.Kind.CONSTANT, constant.name, { null }) {
+                constant.copy(type = type(constant.type, emptyMap(), "constant '${constant.name}'"))
+            }.also { drain() }
+        }
 
         val expanded = source.types.flatMap { def ->
             if (def.generics.isEmpty()) listOf(concrete.getValue(def.name)) else instancesOf[def.name].orEmpty().map(instances::getValue)
@@ -93,12 +130,29 @@ internal class GenericInstances(private val source: IdlProgram, private val base
         return source.copy(types = expanded, instructions = instructions, constants = constants)
     }
 
+    /**
+     * [expand], or [fallback] when it cannot be expanded, recording why for [kind] [name]. A type that cannot be
+     * expanded stays in the program without fields, so that the builder leaves out what depends on it; an instruction
+     * or constant is left out here.
+     */
+    private inline fun <T> expandOr(kind: SolanaIdlDiagnostic.Kind, name: String, fallback: () -> T, expand: () -> T): T = try {
+        expand()
+    } catch (e: Unexpandable) {
+        problem(kind, name, e)
+        fallback()
+    }
+
     private fun drain() {
         while (pending.isNotEmpty()) {
             val next = pending.removeFirst()
             val where = "type '${next.name}'"
             val docs = next.def.docs + "Instantiation `${next.name}` of the generic `${next.def.name}`."
-            instances[next.name] = IdlTypeDef(next.name, body(next.def.body, next.env, where), next.def.serialization, next.def.repr, emptyList(), docs)
+            val body = if ((SolanaIdlDiagnostic.Kind.TYPE to next.name) in problems) {
+                IdlTypeBody.Struct(IdlFields.None)
+            } else {
+                expandOr(SolanaIdlDiagnostic.Kind.TYPE, next.name, { IdlTypeBody.Struct(IdlFields.None) }) { body(next.def.body, next.env, where) }
+            }
+            instances[next.name] = IdlTypeDef(next.name, body, next.def.serialization, next.def.repr, emptyList(), docs)
         }
     }
 
@@ -124,7 +178,12 @@ internal class GenericInstances(private val source: IdlProgram, private val base
                 is IdlArrayLength.Fixed -> length
                 is IdlArrayLength.Generic -> {
                     val value = (env.getValue(length.name) as Bound.Const).value
-                    require(value <= Int.MAX_VALUE.toULong()) { "$where: array length $value, from const generic parameter '${length.name}', is too large" }
+                    if (value > MAX_ARRAY_LENGTH) {
+                        throw Unexpandable(
+                            SolanaIdlDiagnostic.Support.INVALID,
+                            "$where: array length $value, from const generic parameter '${length.name}', is larger than any Solana account or instruction can hold",
+                        )
+                    }
                     IdlArrayLength.Fixed(value.toInt())
                 }
             }
@@ -136,7 +195,7 @@ internal class GenericInstances(private val source: IdlProgram, private val base
             if (def.generics.isEmpty()) {
                 type
             } else {
-                val args = def.generics.mapIndexed { i, param -> bound(type.generics[i], param, def.name, env, where) }
+                val args = def.generics.indices.map { i -> bound(type.generics[i], env, where) }
                 val bindings = def.generics.mapIndexed { i, param -> param.name to args[i] }.toMap()
                 val body = def.body
                 if (body is IdlTypeBody.Alias) {
@@ -154,17 +213,22 @@ internal class GenericInstances(private val source: IdlProgram, private val base
         }
     }
 
-    /** The concrete argument [arg] gives [param] of [owner]; the validator has checked that its kind matches. */
-    private fun bound(arg: IdlGenericArg, param: IdlGenericParam, owner: String, env: Map<String, Bound>, where: String): Bound = when (arg) {
+    /**
+     * The concrete argument [arg] gives a parameter; the validator has checked that its kind matches. Whether a const
+     * argument fits its parameter's type is checked by [instance], which names the instantiation.
+     */
+    private fun bound(arg: IdlGenericArg, env: Map<String, Bound>, where: String): Bound = when (arg) {
         is IdlGenericArg.Type -> Bound.Type(canonical(type(arg.type, env, where), where))
         is IdlGenericArg.ConstParam -> env.getValue(arg.name)
-        is IdlGenericArg.Const -> {
-            val value = arg.value.toULong()
-            val max = CONST_MAX[(param as IdlGenericParam.Const).type]
-                ?: throw IllegalArgumentException("$where: const generic parameter '${param.name}' of '$owner' has type '${param.type}', which is not supported")
-            require(value <= max) { "$where: const generic argument ${arg.value} is outside the range of '${param.name}: ${param.type}' of '$owner'" }
-            Bound.Const(value)
-        }
+        is IdlGenericArg.Const -> Bound.Const(arg.value.toULong())
+    }
+
+    /** Why const argument [value] cannot be given to [param] of [owner], or null when it can. */
+    private fun constProblem(value: ULong, param: IdlGenericParam.Const, owner: String): String? {
+        val max = CONST_MAX[param.type]
+            ?: return "const generic parameter '${param.name}' of '$owner' has type '${param.type}', which no integer argument is a value of; " +
+                "only integer const parameters are supported"
+        return if (value > max) "const generic argument $value is outside the range of '${param.name}: ${param.type}' of '$owner'" else null
     }
 
     /** [type] with every non-generic alias at every level resolved, as Rust identifies types. */
@@ -195,6 +259,13 @@ internal class GenericInstances(private val source: IdlProgram, private val base
         if (name in kotlinNames) return name
         require(name !in types) { "$where: instantiation '$name' has the name of a declared type definition" }
         definitions[name] = def.name
+        typeArguments[name] = def.generics.indices.mapNotNull { i -> (args[i] as? Bound.Type)?.let { def.generics[i].name to it.type } }.toMap()
+        def.generics.forEachIndexed { i, param ->
+            val arg = args[i]
+            if (param is IdlGenericParam.Const && arg is Bound.Const) {
+                constProblem(arg.value, param, def.name)?.let { problem(SolanaIdlDiagnostic.Kind.TYPE, name, Unexpandable(SolanaIdlDiagnostic.Support.INVALID, "type '$name': $it")) }
+            }
+        }
         kotlinNames[name] = baseNames.getValue(def.name) + def.generics.indices.joinToString("") { i ->
             when (val arg = args[i]) {
                 is Bound.Type -> fragment(arg.type)
@@ -359,5 +430,8 @@ internal class GenericInstances(private val source: IdlProgram, private val base
             "i64" to Long.MAX_VALUE.toULong(),
             "isize" to Long.MAX_VALUE.toULong(),
         )
+
+        /** The longest array the bindings can hold, in a Kotlin list or bytes. */
+        val MAX_ARRAY_LENGTH: ULong = Int.MAX_VALUE.toULong()
     }
 }

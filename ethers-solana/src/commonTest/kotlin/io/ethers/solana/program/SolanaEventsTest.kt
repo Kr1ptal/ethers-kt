@@ -44,7 +44,7 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
-import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlin.io.encoding.Base64
@@ -54,7 +54,7 @@ private val PROGRAM = SolanaAddress(ByteArray(32) { 3 })
 private val OTHER = SolanaAddress(ByteArray(32) { 4 })
 private val AUTHORITY = SolanaAddress.findProgramAddress(listOf("__event_authority".encodeToByteArray()), PROGRAM).address
 private val SIGNATURE = SolanaSignature(ByteArray(64) { 7 })
-private val EVENT_TAG = SolanaBytes.fromHex("e445a52e51cb9a1d")
+private val EVENT_TAG = SolanaBytes.fromHex("e445a52e51cb9a1d").unwrap()
 
 private data class Pinged(val n: Int, override val context: SolanaEventContext) : SolanaEvent {
     companion object : SolanaEventFactory<Pinged> {
@@ -256,7 +256,7 @@ class SolanaEventsTest : FunSpec({
 
     test("return data decodes only when the expected program set it") {
         val get = SolanaInstructionDescriptor.Returning("get", SolanaDiscriminator.of(1), SolanaCodec.UNIT, SolanaCodec.of({ readU64() }, { writeU64(it) }))
-        val returned = ReturnData(PROGRAM, SolanaBytes.fromHex("2a00000000000000"))
+        val returned = ReturnData(PROGRAM, SolanaBytes.fromHex("2a00000000000000").unwrap())
         get.decodeReturn(returned, PROGRAM).unwrap().toString() shouldBe "42"
         get.decodeReturn(returned, OTHER).unwrapError().shouldBeInstanceOf<SolanaDecodeError.Unrecognized>()
     }
@@ -281,12 +281,12 @@ private class LogsClient(private val notification: String) : JsonRpcClient {
     private val config = RpcClientConfig().subscriptionDescriptor(SolanaSubscriptionDescriptor)
     var params: List<Any?> = emptyList()
 
-    override suspend fun <T : Any> subscribe(params: Array<*>, resultDecoder: (JsonElement) -> T): Result<ChannelReceiver<T>, RpcError> {
+    override suspend fun <T : Any> subscribe(params: Array<*>, resultDeserializer: DeserializationStrategy<T>): Result<ChannelReceiver<T>, RpcError> {
         this.params = config.subscriptionDescriptor.resolve(params).params.toList()
-        return success(QueueChannel.spscUnbounded<T>().apply { offer(resultDecoder(Kotlinx.DEFAULT.parseToJsonElement(notification))) })
+        return success(QueueChannel.spscUnbounded<T>().apply { offer(Kotlinx.DEFAULT.decodeFromString(resultDeserializer, notification)) })
     }
 
-    override suspend fun <T> request(method: String, params: Array<*>, resultDecoder: (JsonElement) -> T): Result<T, RpcError> = error("Unexpected request")
+    override suspend fun <T> request(method: String, params: Array<*>, resultDeserializer: DeserializationStrategy<T>): Result<T, RpcError> = error("Unexpected request")
     override suspend fun requestBatch(batch: BatchRpcRequest): Boolean = error("Unexpected batch")
     override fun close() = Unit
 }

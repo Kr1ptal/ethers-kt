@@ -10,9 +10,7 @@ import io.ethers.core.isSuccess
 import io.ethers.core.success
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
-import io.ethers.providers.decoderFor
-import kotlinx.serialization.KSerializer
-import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.DeserializationStrategy
 import kotlin.jvm.JvmSynthetic
 
 /**
@@ -172,21 +170,15 @@ internal class RpcSubscribeConstant<T : Any, E : ThrowableError>(
 }
 
 /**
- * Normal stream subscription via RPC.
+ * Normal stream subscription via RPC, whose events are decoded with [resultDeserializer].
  */
 class RpcSubscribeCall<T : Any>(
     private val client: JsonRpcClient,
     private val params: Array<*>,
-    private val resultDecoder: (JsonElement) -> T,
+    private val resultDeserializer: DeserializationStrategy<T>,
 ) : RpcSubscribe<T, RpcError> {
-    constructor(
-        client: JsonRpcClient,
-        params: Array<*>,
-        resultSerializer: KSerializer<T>,
-    ) : this(client, params, decoderFor(resultSerializer))
-
     override suspend fun send(): Result<ChannelReceiver<T>, RpcError> {
-        return client.subscribe(params, resultDecoder)
+        return client.subscribe(params, resultDeserializer)
     }
 
     override fun toString(): String {

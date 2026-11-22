@@ -168,6 +168,33 @@
         {
           "name": "vault",
           "writable": true
+        },
+        {
+          "name": "receipt",
+          "docs": [
+            "Keyed by the vault's first balance, read from its data, a field of a generic instantiation."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  99,
+                  101,
+                  105,
+                  112,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.balances.first",
+                "account": "Vault"
+              }
+            ]
+          }
         }
       ],
       "args": [
@@ -402,7 +429,7 @@
     },
     {
       "name": "Oracle",
-      "serialization": "bytemuck",
+      "serialization": "bytemuckunsafe",
       "repr": {
         "kind": "c"
       },
@@ -545,7 +572,7 @@
     },
     {
       "name": "Ticks",
-      "serialization": "bytemuck",
+      "serialization": "bytemuckunsafe",
       "repr": {
         "kind": "c"
       },

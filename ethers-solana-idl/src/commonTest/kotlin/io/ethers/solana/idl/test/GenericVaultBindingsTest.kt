@@ -1,8 +1,15 @@
 package io.ethers.solana.idl.test
 
+import io.channels.core.ChannelReceiver
 import io.ethers.core.FastHex
+import io.ethers.core.Kotlinx
+import io.ethers.core.Result
+import io.ethers.core.success
 import io.ethers.crypto.Base58
 import io.ethers.providers.HttpClient
+import io.ethers.providers.JsonRpcClient
+import io.ethers.providers.RpcError
+import io.ethers.providers.types.BatchRpcRequest
 import io.ethers.solana.codec.BorshReader
 import io.ethers.solana.codec.SolanaAccountField
 import io.ethers.solana.codec.SolanaDecodeError
@@ -19,6 +26,9 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import kotlinx.serialization.DeserializationStrategy
+import kotlinx.serialization.json.Json
+import kotlin.io.encoding.Base64
 
 private fun hex(value: String): ByteArray = FastHex.decode(value.replace(" ", ""))
 
@@ -26,9 +36,27 @@ private fun address(byte: Int) = SolanaAddress(ByteArray(32) { byte.toByte() })
 
 private fun repeated(byte: String) = byte.repeat(32)
 
+/** Answers `getMultipleAccounts` with [data] for [address], owned by the program, and null for any other account. */
+private class VaultClient(private val address: SolanaAddress, data: ByteArray) : JsonRpcClient {
+    private val account = """{"data":["${Base64.encode(data)}","base64"],"executable":false,"lamports":1,"owner":"${GenericVault.PROGRAM_ID}","rentEpoch":0,"space":${data.size}}"""
+    var requests = 0
+
+    override suspend fun <T> request(method: String, params: Array<*>, resultDeserializer: DeserializationStrategy<T>): Result<T, RpcError> {
+        check(method == "getMultipleAccounts") { "Unexpected $method" }
+        requests++
+        @Suppress("UNCHECKED_CAST")
+        val values = (params[0] as List<String>).joinToString(",") { if (SolanaAddress(it) == address) account else "null" }
+        return success(Kotlinx.DEFAULT.decodeFromString(resultDeserializer, """{"context":{"slot":1},"value":[$values]}"""))
+    }
+
+    override suspend fun <T : Any> subscribe(params: Array<*>, resultDeserializer: DeserializationStrategy<T>): Result<ChannelReceiver<T>, RpcError> = error("Unexpected subscription")
+    override suspend fun requestBatch(batch: BatchRpcRequest): Boolean = error("Unexpected batch")
+    override fun close() = Unit
+}
+
 private val VAULT = GenericVault.Vault(
     bump = 254,
-    label = GenericVault.LabelN8(SolanaBytes.fromHex("6d61696e00000000")),
+    label = GenericVault.LabelN8(SolanaBytes.fromHex("6d61696e00000000").unwrap()),
     balances = GenericVault.PairU64I32(bigIntegerOf(1000), -2),
     history = GenericVault.RingBufferU64N3(1, listOf(bigIntegerOf(1), bigIntegerOf(2), bigIntegerOf(3))),
     slot = GenericVault.SlotPairU64U8.Locked(address(3), GenericVault.PairU64U8(bigIntegerOf(5), 6)),
@@ -55,14 +83,14 @@ class GenericVaultBindingsTest : FunSpec({
             GenericVault.PairU64I32.encode(GenericVault.PairU64I32(bigIntegerOf(1), -1)) shouldBe hex("0100000000000000 ffffffff")
             GenericVault.PairU8U8.encode(GenericVault.PairU8U8(1, 2)) shouldBe hex("01 02")
             // a const argument fixes the array length
-            GenericVault.LabelN4.encode(GenericVault.LabelN4(SolanaBytes.fromHex("61626364"))) shouldBe hex("61626364")
+            GenericVault.LabelN4.encode(GenericVault.LabelN4(SolanaBytes.fromHex("61626364").unwrap())) shouldBe hex("61626364")
             GenericVault.RingBufferU16N2.encode(GenericVault.RingBufferU16N2(1, listOf(2, 3))) shouldBe hex("01 0200 0300")
         }
 
         test("a fixed array of the wrong length is rejected when encoding") {
             shouldThrow<IllegalArgumentException> { GenericVault.RingBufferU16N2.encode(GenericVault.RingBufferU16N2(1, listOf(2))) }.message shouldBe
                 "Expected 2 elements, got 1"
-            shouldThrow<IllegalArgumentException> { GenericVault.LabelN4.encode(GenericVault.LabelN4(SolanaBytes.fromHex("6162"))) }.message shouldBe
+            shouldThrow<IllegalArgumentException> { GenericVault.LabelN4.encode(GenericVault.LabelN4(SolanaBytes.fromHex("6162").unwrap())) }.message shouldBe
                 "Expected 4 bytes, got 2"
         }
 
@@ -188,7 +216,7 @@ class GenericVaultBindingsTest : FunSpec({
             SolanaAddress("SysvarRent111111111111111111111111111111111"),
             GenericVault.PairU64U8(bigIntegerOf(5), 6),
         )
-        GenericVault.MAIN_LABEL shouldBe GenericVault.LabelN4(SolanaBytes.fromHex("6d61696e"))
+        GenericVault.MAIN_LABEL shouldBe GenericVault.LabelN4(SolanaBytes.fromHex("6d61696e").unwrap())
         // declared through the generic alias Bounded<u16>
         GenericVault.START_RING shouldBe GenericVault.RingBufferU16N2(1, listOf(2, 3))
         GenericVault.EMPTY_TICKS shouldBe GenericVault.TicksN4(listOf(bigIntegerOf(0), bigIntegerOf(0), bigIntegerOf(0), bigIntegerOf(1)), 1)
@@ -211,14 +239,14 @@ class GenericVaultBindingsTest : FunSpec({
         test("instruction arguments of generic types encode and decode") {
             val instruction = GenericVault.deposit(accounts, args)
             instruction.keys shouldBe listOf(AccountMeta.writable(address(1)), AccountMeta.signerAndWritable(address(2)))
-            instruction.data shouldBe SolanaBytes.fromHex(data.replace(" ", ""))
+            instruction.data shouldBe SolanaBytes.fromHex(data.replace(" ", "")).unwrap()
             val decoded = GenericVault.decodeInstruction(instruction).unwrap().shouldBeInstanceOf<GenericVault.Instruction.Deposit>()
             decoded.args shouldBe args
             decoded.accounts shouldBe accounts
 
-            val labels = listOf(GenericVault.LabelN4(SolanaBytes.fromHex("61626364")), GenericVault.LabelN4(SolanaBytes.fromHex("65666768")))
-            GenericVault.relabel(GenericVault.RelabelAccounts(address(1)), GenericVault.RelabelArgs(labels)).data shouldBe
-                SolanaBytes.fromHex("809dce92f54708e9 61626364 65666768".replace(" ", ""))
+            val labels = listOf(GenericVault.LabelN4(SolanaBytes.fromHex("61626364").unwrap()), GenericVault.LabelN4(SolanaBytes.fromHex("65666768").unwrap()))
+            GenericVault.relabel(GenericVault.RelabelAccounts(address(1), address(2)), GenericVault.RelabelArgs(labels)).data shouldBe
+                SolanaBytes.fromHex("809dce92f54708e9 61626364 65666768".replace(" ", "")).unwrap()
         }
 
         test("a generic return type decodes as its instantiation") {
@@ -230,7 +258,36 @@ class GenericVaultBindingsTest : FunSpec({
             val first = BigInteger("18446744073709551615")
             GenericVault.DepositAccounts.findVault(first) shouldBe
                 SolanaAddress.findProgramAddress(listOf("vault".encodeToByteArray(), hex("ffffffffffffffff")), GenericVault.PROGRAM_ID)
+            // the deriving builder reads the seed from the argument's instantiation
+            GenericVault.deposit(depositor = address(2), args = args).accounts shouldBe
+                GenericVault.DepositAccounts(GenericVault.DepositAccounts.findVault(bigIntegerOf(1000)).address, address(2))
         }
+
+        test("a seed reaching into a generic field of account data is resolved from the fetched account") {
+            GenericVault.RelabelAccounts.findReceipt(bigIntegerOf(1000)) shouldBe
+                SolanaAddress.findProgramAddress(listOf("receipt".encodeToByteArray(), hex("e803000000000000")), GenericVault.PROGRAM_ID)
+
+            val vault = address(7)
+            val client = VaultClient(vault, GenericVault.Vault.ACCOUNT.encode(VAULT))
+            val labels = GenericVault.RelabelArgs(listOf(GenericVault.MAIN_LABEL, GenericVault.MAIN_LABEL))
+            val resolved = GenericVault.resolveRelabel(SolanaProvider(client), vault = vault, args = labels).send().unwrap()
+            // VAULT.balances.first, read from the vault's data
+            resolved.accounts shouldBe GenericVault.RelabelAccounts(vault, GenericVault.RelabelAccounts.findReceipt(VAULT.balances.first).address)
+            client.requests shouldBe 1
+        }
+    }
+
+    test("instantiations have a JSON form of their own, keyed by the definition's field names") {
+        val pair = GenericVault.PairU64I32(bigIntegerOf(1000), -2)
+        val json = Json.encodeToString(pair)
+        json shouldBe """{"first":"1000","second":-2}"""
+        Json.decodeFromString<GenericVault.PairU64I32>(json) shouldBe pair
+        // nested instantiations, and one with a const argument
+        val window = GenericVault.WindowU16N2(GenericVault.RingBufferU16N2(1, listOf(2, 3)), 9)
+        Json.decodeFromString<GenericVault.WindowU16N2>(Json.encodeToString(window)) shouldBe window
+        Json.decodeFromString<GenericVault.Vault>(Json.encodeToString(VAULT)) shouldBe VAULT
+        // the const argument fixes the array length JSON must have
+        shouldThrow<IllegalArgumentException> { Json.decodeFromString<GenericVault.RingBufferU16N2>("""{"head":1,"items":[2]}""") }
     }
 
     test("events with generic fields decode with their context") {
@@ -238,7 +295,7 @@ class GenericVaultBindingsTest : FunSpec({
         val event = GenericVault.Event.Deposited(
             address(1),
             GenericVault.PairU64U64(bigIntegerOf(1), bigIntegerOf(2)),
-            listOf(GenericVault.LabelN4(SolanaBytes.fromHex("61626364"))),
+            listOf(GenericVault.LabelN4(SolanaBytes.fromHex("61626364").unwrap())),
             context,
         )
         val data = hex("6f8d1a2da1236439 ${repeated("01")} 0100000000000000 0200000000000000 01000000 61626364")

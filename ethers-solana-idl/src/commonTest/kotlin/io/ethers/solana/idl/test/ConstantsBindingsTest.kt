@@ -38,8 +38,8 @@ class ConstantsBindingsTest : FunSpec({
         limits.scale shouldBe -1e-7
         limits.name shouldBe "fee \"bps\"\n"
         limits.owner shouldBe RENT
-        limits.seed shouldBe SolanaBytes.fromHex("01020304")
-        limits.raw shouldBe SolanaBytes.fromHex("ff00")
+        limits.seed shouldBe SolanaBytes.fromHex("01020304").unwrap()
+        limits.raw shouldBe SolanaBytes.fromHex("ff00").unwrap()
         limits.tags shouldBe listOf("a", "")
         limits.points shouldBe listOf(Constants.Point(1, -1), Constants.Point(Int.MIN_VALUE, Int.MAX_VALUE))
         limits.cap shouldBe 65535
@@ -72,7 +72,7 @@ class ConstantsBindingsTest : FunSpec({
 
     test("array and vec constants") {
         Constants.PRIMES shouldBe listOf(2, 3, 5, 7)
-        Constants.SEED shouldBe SolanaBytes.fromHex("01020304")
+        Constants.SEED shouldBe SolanaBytes.fromHex("01020304").unwrap()
         Constants.MATRIX shouldBe listOf(listOf<Byte>(-1, 2), listOf<Byte>(3, -128))
         Constants.NAMES shouldBe listOf("a\"b", "😀", "tab\t", "ünï", "\\\$x")
         Constants.EMPTY shouldBe emptyList()
@@ -82,7 +82,7 @@ class ConstantsBindingsTest : FunSpec({
         Constants.ADDRESSES shouldBe listOf(SolanaAddress("11111111111111111111111111111111"), RENT)
         Constants.AMOUNTS shouldBe listOf(BigInteger("1"), BigInteger("2"))
         Constants.KINDS shouldBe listOf(Constants.Kind.Plain, Constants.Kind.Tuple(1, 2))
-        Constants.BLOBS shouldBe listOf(SolanaBytes.fromHex(""), SolanaBytes.fromHex("0102"))
+        Constants.BLOBS shouldBe listOf(SolanaBytes.fromHex("").unwrap(), SolanaBytes.fromHex("0102").unwrap())
     }
 
     test("float constants keep their exact values, signed zero and the special values") {
@@ -100,7 +100,7 @@ class ConstantsBindingsTest : FunSpec({
         Constants.MAYBE shouldBe BigInteger("5")
         Constants.NOTHING.shouldBeNull()
         Constants.MAYBE_STRING shouldBe "abc"
-        Constants.MAYBE_ARRAY shouldBe SolanaBytes.fromHex("01020304")
+        Constants.MAYBE_ARRAY shouldBe SolanaBytes.fromHex("01020304").unwrap()
         Constants.MAYBE_POINT shouldBe Constants.Point(3, 4)
         Constants.SOME_NONE shouldBe SolanaOption.Some(null)
         Constants.SOME_SOME shouldBe SolanaOption.Some(false)

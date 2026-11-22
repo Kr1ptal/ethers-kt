@@ -858,7 +858,7 @@
     },
     {
       "name": "Reading",
-      "serialization": "bytemuck",
+      "serialization": "bytemuckunsafe",
       "repr": {
         "kind": "c"
       },
@@ -878,7 +878,7 @@
     },
     {
       "name": "Aligned",
-      "serialization": "bytemuck",
+      "serialization": "bytemuckunsafe",
       "repr": {
         "kind": "c",
         "align": 16

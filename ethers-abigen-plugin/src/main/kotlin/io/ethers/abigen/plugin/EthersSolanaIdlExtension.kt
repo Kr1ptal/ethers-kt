@@ -35,6 +35,16 @@ abstract class EthersSolanaIdlExtension(private val project: Project) {
         )
 
     /**
+     * Whether a declaration of an IDL that cannot be generated, such as a type with a layout the IDL cannot describe,
+     * fails the build. By default it is left out of the bindings, together with everything that depends on it, and
+     * logged as a warning; the generated program object's documentation lists it too. Strict mode fails the build
+     * listing every such declaration of every IDL, which suits CI, where gaps in the bindings should not go unnoticed.
+     *
+     * Default value is `false`.
+     * */
+    val strict: Property<Boolean> = factory.property(Boolean::class.javaObjectType).convention(false)
+
+    /**
      * Deployment addresses that replace the address an IDL declares, keyed by the program name the IDL declares. The
      * generated `PROGRAM_ID` is the override, e.g. for a program deployed to devnet or a local validator under another
      * address. Naming a program that no IDL declares fails the build.
@@ -79,6 +89,19 @@ abstract class EthersSolanaIdlExtension(private val project: Project) {
     }
 
     private fun byteOrders(program: String): SeedByteOrders = seedByteOrders.getting(program).orNull ?: SeedByteOrders()
+
+    /**
+     * Generate a JSON form for the value types of every program: structs, enums, events and instruction arguments get a
+     * nested kotlinx.serialization `JsonSerializer`, which their `@Serializable` annotation names. It is separate from
+     * the binary codecs, which do not change. The generated code compiles against the kotlinx.serialization runtime,
+     * which `ethers-solana` already depends on, and the kotlinx.serialization compiler plugin is added to the project's
+     * Kotlin compilations at the project's Kotlin version, so `Json.encodeToString(value)` finds the serializers. A
+     * project that applies `org.jetbrains.kotlin.plugin.serialization` itself keeps it, see
+     * [KotlinxSerializationSubplugin]. `io.ethers.solana.codec.SolanaJson` documents the JSON representation.
+     *
+     * Default value is `false`, which keeps the bindings without a JSON form.
+     * */
+    val kotlinxSerialization: Property<Boolean> = factory.property(Boolean::class.java).convention(false)
 
     /**
      * Add additional [SolanaIdlReader] to the registry, which will be used to read IDL files.

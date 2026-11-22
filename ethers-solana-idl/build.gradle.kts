@@ -1,5 +1,6 @@
 plugins {
     `project-conventions`
+    `jmh-conventions`
     `maven-publish-conventions`
     alias(libs.plugins.kotlin.serialization)
 }
@@ -49,7 +50,9 @@ val generateProgramBindings by tasks.registering(JavaExec::class) {
             // one seed the showcase program encodes big-endian, the others keep the little-endian default
             listOf("--seed-byte-order", "showcase:position:config.fee_bps=BIG_ENDIAN") +
             // Raydium encodes every integer seed big-endian
-            listOf("--seed-byte-order", "amm_v3=BIG_ENDIAN"),
+            listOf("--seed-byte-order", "amm_v3=BIG_ENDIAN") +
+            // a JSON form for these programs' value types; DLMM keeps the default, which has none
+            listOf("json_values", "showcase", "amm_v3", "constants", "generic_vault").flatMap { listOf("--kotlinx-serialization", it) },
     )
 }
 
@@ -78,6 +81,18 @@ kotlin {
         val jvmSharedTest by getting {
             dependencies {
                 implementation(libs.bundles.kotest)
+            }
+        }
+
+        // benchmarks the generated test bindings, so compiles them into its own JVM-only source set too
+        val jvmJmh by getting {
+            kotlin.srcDir(generateProgramBindings)
+
+            dependencies {
+                implementation(project(":ethers-solana"))
+                implementation(libs.bignumkt)
+                implementation(libs.jmh.core)
+                implementation(libs.jmh.generator)
             }
         }
     }

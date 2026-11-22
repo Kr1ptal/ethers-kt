@@ -15,8 +15,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import kotlinx.coroutines.yield
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonElement as KJsonElement
+import kotlinx.serialization.DeserializationStrategy
 
 private val RESOLVER = Address("0x231b0Ee14048e9dCcD1d247744d114a4EB5E8E63")
 private val VITALIK = Address("0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
@@ -36,12 +35,12 @@ private class ConcurrencyTrackingClient(private val delegate: FakeJsonRpcClient)
     override suspend fun <T> request(
         method: String,
         params: Array<*>,
-        resultDecoder: (KJsonElement) -> T,
+        resultDeserializer: DeserializationStrategy<T>,
     ): Result<T, RpcError> {
         inFlight++
         maxInFlight = maxOf(maxInFlight, inFlight)
         yield()
-        val result = delegate.request(method, params, resultDecoder)
+        val result = delegate.request(method, params, resultDeserializer)
         inFlight--
         return result
     }
@@ -50,8 +49,8 @@ private class ConcurrencyTrackingClient(private val delegate: FakeJsonRpcClient)
 
     override suspend fun <T : Any> subscribe(
         params: Array<*>,
-        resultDecoder: (KJsonElement) -> T,
-    ): Result<ChannelReceiver<T>, RpcError> = delegate.subscribe(params, resultDecoder)
+        resultDeserializer: DeserializationStrategy<T>,
+    ): Result<ChannelReceiver<T>, RpcError> = delegate.subscribe(params, resultDeserializer)
 
     override fun close() = delegate.close()
 }

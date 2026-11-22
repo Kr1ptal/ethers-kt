@@ -32,7 +32,7 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
-import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.DeserializationStrategy
 import kotlin.io.encoding.Base64
 
 private val PROGRAM = SolanaAddress(ByteArray(32) { 9 })
@@ -67,17 +67,17 @@ private class FakeClient : JsonRpcClient {
     var notifications: List<String>? = null
     private val config = RpcClientConfig().subscriptionDescriptor(SolanaSubscriptionDescriptor)
 
-    override suspend fun <T> request(method: String, params: Array<*>, resultDecoder: (JsonElement) -> T): Result<T, RpcError> {
+    override suspend fun <T> request(method: String, params: Array<*>, resultDeserializer: DeserializationStrategy<T>): Result<T, RpcError> {
         this.params[method] = params.toList()
-        return success(resultDecoder(Kotlinx.DEFAULT.parseToJsonElement(responses.getValue(method))))
+        return success(Kotlinx.DEFAULT.decodeFromString(resultDeserializer, responses.getValue(method)))
     }
 
-    override suspend fun <T : Any> subscribe(params: Array<*>, resultDecoder: (JsonElement) -> T): Result<ChannelReceiver<T>, RpcError> {
+    override suspend fun <T : Any> subscribe(params: Array<*>, resultDeserializer: DeserializationStrategy<T>): Result<ChannelReceiver<T>, RpcError> {
         val descriptor = config.subscriptionDescriptor.resolve(params)
         this.params[descriptor.subscribeMethod] = descriptor.params.toList()
         val channel = QueueChannel.spscUnbounded<T>()
         for (notification in notifications ?: listOf(responses.getValue(descriptor.subscribeMethod))) {
-            channel.offer(resultDecoder(Kotlinx.DEFAULT.parseToJsonElement(notification)))
+            channel.offer(Kotlinx.DEFAULT.decodeFromString(resultDeserializer, notification))
         }
         return success(channel)
     }

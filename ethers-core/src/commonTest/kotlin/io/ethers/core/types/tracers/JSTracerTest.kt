@@ -34,7 +34,7 @@ class JSTracerTest : FunSpec({
         val jsonString = """{"result_1": "value_1", "result_2": "value_2", "result_3": "value_3"}"""
 
         // JSTracer returns Result wrapper containing the raw JSON string
-        val result = jsTracer.decodeResult(Kotlinx.DEFAULT, Kotlinx.DEFAULT.parseToJsonElement(jsonString))
+        val result = Kotlinx.DEFAULT.decodeFromString(jsTracer.resultSerializer, jsonString)
 
         result shouldBe JSTracer.Result("""{"result_1":"value_1","result_2":"value_2","result_3":"value_3"}""")
     }

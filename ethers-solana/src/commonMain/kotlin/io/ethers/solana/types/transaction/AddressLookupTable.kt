@@ -17,7 +17,9 @@ import kotlin.jvm.JvmStatic
  * [deactivationSlot] and [authority] are populated by [decode]; a table whose deactivation slot has
  * passed can no longer be used by a transaction.
  */
-data class AddressLookupTableAccount @JvmOverloads constructor(
+data class AddressLookupTableAccount
+@JvmOverloads
+constructor(
     val key: SolanaAddress,
     val addresses: List<SolanaAddress>,
     val deactivationSlot: BigInteger? = null,
@@ -54,7 +56,9 @@ data class AddressLookupTableAccount @JvmOverloads constructor(
             decoder.readBytes(9) // last extended slot and its start index
             val authority = if (decoder.readByte() == 0) null.also { decoder.readBytes(32) } else SolanaAddress(decoder.readBytes(32))
             decoder.readBytes(2) // padding
-            val addresses = List((data.size - META_SIZE) / 32) { SolanaAddress(decoder.readBytes(32)) }
+            val count = (data.size - META_SIZE) / 32
+            if (count > 256) return Result.failure(SolanaTransactionError.CountOutOfRange(SolanaTransactionError.Limit.LOOKUP_TABLE, count, 0..256))
+            val addresses = List(count) { SolanaAddress(decoder.readBytes(32)) }
             return Result.success(
                 AddressLookupTableAccount(key, addresses, deactivationSlot.takeIf { it != U64_MAX }, authority),
             )

@@ -31,7 +31,7 @@ class FourByteTracerTest : FunSpec({
             }
         """.trimIndent()
 
-        val result = fourByteTracer.decodeResult(Kotlinx.DEFAULT, Kotlinx.DEFAULT.parseToJsonElement(jsonString))
+        val result = Kotlinx.DEFAULT.decodeFromString(fourByteTracer.resultSerializer, jsonString)
 
         result.entries shouldBe mapOf(
             "0x022c0d9f-160" to 1,

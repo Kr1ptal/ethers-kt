@@ -9,12 +9,10 @@ import io.ethers.core.isSuccess
 import io.ethers.core.success
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
-import io.ethers.providers.decoderFor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
-import kotlinx.serialization.KSerializer
-import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.DeserializationStrategy
 import kotlin.jvm.JvmSynthetic
 
 /**
@@ -156,22 +154,15 @@ abstract class RpcRequest<T, E : ThrowableError> : PlatformRpcRequest<T, E>() {
 }
 
 /**
- * Normal RPC request.
+ * Normal RPC request, whose result is decoded with [resultDeserializer].
  */
 class RpcCall<T>(
     val client: JsonRpcClient,
     val method: String,
     val params: Array<*>,
-    val resultDecoder: (JsonElement) -> T,
+    val resultDeserializer: DeserializationStrategy<T>,
 ) : RpcRequest<T, RpcError>() {
-    constructor(
-        client: JsonRpcClient,
-        method: String,
-        params: Array<*>,
-        resultSerializer: KSerializer<T>,
-    ) : this(client, method, params, decoderFor(resultSerializer))
-
-    override suspend fun send(): Result<T, RpcError> = client.request(method, params, resultDecoder)
+    override suspend fun send(): Result<T, RpcError> = client.request(method, params, resultDeserializer)
 
     override fun batch(batch: BatchRpcRequest): BatchRpcResponse<Result<T, RpcError>> = batch.addRpcCall(this)
 

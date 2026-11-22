@@ -170,12 +170,12 @@ class PendingTransactionTest : FunSpec({
     }
 
     test("submitting raw bytes still detects expiry, by recovering their blockhash") {
-        val signer = KeypairSigner.fromSeed(ByteArray(32) { 7 })
+        val signer = KeypairSigner.fromSeed(ByteArray(32) { 7 }).unwrap()
         val signed = SolanaTransactionRequest {
             feePayer(signer.publicKey)
             blockhash(blockhash)
             instruction(SystemProgram.transfer(signer.publicKey, Programs.SYSTEM, 1L))
-        }.compileLegacy().unwrap().sign(signer)
+        }.compileLegacy().unwrap().sign(signer).unwrap()
 
         val calls = mutableListOf<String>()
         val provider = providerFor(
@@ -281,12 +281,12 @@ class PendingTransactionTest : FunSpec({
     }
 
     test("typed and raw nonce submissions track the nonce account") {
-        val signer = KeypairSigner.fromSeed(ByteArray(32) { 7 })
+        val signer = KeypairSigner.fromSeed(ByteArray(32) { 7 }).unwrap()
         val signed = SolanaTransactionRequest {
             feePayer(signer.publicKey)
             blockhash(blockhash)
             instruction(SystemProgram.advanceNonceAccount(Programs.SYSVAR_RENT, signer.publicKey))
-        }.compileLegacy().unwrap().sign(signer)
+        }.compileLegacy().unwrap().sign(signer).unwrap()
         val calls = mutableListOf<String>()
         val provider = providerFor(
             mapOf(
@@ -387,12 +387,12 @@ class PendingTransactionTest : FunSpec({
     }
 
     test("typed send overloads never enter the raw decoding path") {
-        val signer = KeypairSigner.fromSeed(ByteArray(32) { 7 })
+        val signer = KeypairSigner.fromSeed(ByteArray(32) { 7 }).unwrap()
         val tx = SolanaTransactionRequest {
             feePayer(signer.publicKey)
             blockhash(blockhash)
             instruction(SystemProgram.transfer(signer.publicKey, Programs.SYSTEM, 1L))
-        }.compileLegacy().unwrap().sign(signer)
+        }.compileLegacy().unwrap().sign(signer).unwrap()
         val calls = mutableListOf<String>()
         val provider = providerFor(mapOf("sendTransaction" to mutableListOf("\"${tx.id}\"")), calls)
         val api = object : SolanaApi {
@@ -472,12 +472,12 @@ class PendingTransactionTest : FunSpec({
         )
         val provider = SolanaProvider(HttpClient("https://example.invalid", ktor), defaultCommitment = Commitment.CONFIRMED)
         try {
-            val signer = KeypairSigner.fromSeed(ByteArray(32) { 7 })
+            val signer = KeypairSigner.fromSeed(ByteArray(32) { 7 }).unwrap()
             val signed = SolanaTransactionRequest {
                 feePayer(signer.publicKey)
                 blockhash(blockhash)
                 instruction(SystemProgram.transfer(signer.publicKey, Programs.SYSTEM, 1L))
-            }.compileLegacy().unwrap().sign(signer)
+            }.compileLegacy().unwrap().sign(signer).unwrap()
 
             // the failure belongs to the send, not to confirmation: there is no transaction to track
             provider.sendTransaction(signed).send().unwrapError().code shouldBe -32002

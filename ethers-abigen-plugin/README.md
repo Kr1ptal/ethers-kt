@@ -73,6 +73,10 @@ ethersSolanaIdl {
     seedByteOrder("escrow", SeedByteOrder.BIG_ENDIAN)
     seedByteOrder("escrow", "vault", "nonce", SeedByteOrder.BIG_ENDIAN)
 
+    // generate a kotlinx.serialization JSON form for structs, enums, events and instruction arguments, and wire the
+    // kotlinx.serialization compiler plugin into the Kotlin compilations (default: false)
+    kotlinxSerialization = true
+
     // by default, it supports reading Anchor IDLs: spec 0.1.x, and legacy IDLs from before Anchor 0.30
     idlReader { input ->
         // read IdlProgram from input
@@ -84,6 +88,16 @@ Each program derived account of an instruction gets a `find` function on its acc
 and bump from the account's seeds, e.g. `Escrow.OpenVaultAccounts.findVault(owner, nonce)`. IDLs do not record the
 byte order a program encodes integer seeds in. Most programs use little-endian, the default, but some do not, and the
 derived address is then wrong unless `seedByteOrder` is set for them.
+
+With `kotlinxSerialization = true`, every struct, enum, event and instruction arguments class also gets a nested
+`JsonSerializer`, which its `@Serializable(with = ...)` annotation names. The JSON form is separate from the binary
+codecs, which stay as they are. That one line is the whole setup: the kotlinx.serialization runtime comes with
+`ethers-solana`, and the plugin adds the kotlinx.serialization compiler plugin to the project's Kotlin compilations, at
+the project's own Kotlin version, so `Json.encodeToString(pool)` and `Json.decodeFromString<Clmm.PoolState>(json)` find
+the serializers, including in lists, maps and your own `@Serializable` classes. A project that already applies
+`org.jetbrains.kotlin.plugin.serialization` keeps it, and the compiler plugin is not added twice. The option is off by
+default because it adds a serializer object per type, which grows the generated code and matters most on Android. See the
+[ethers-solana README](../ethers-solana/README.md#json-form-of-idl-values) for the representation.
 
 To read only some fields, each account has a `Fields` object of the fields at a fixed offset with a fixed size, and
 `select` reads those fields as one slice of the account data, which the node cuts before sending it:
@@ -156,11 +170,187 @@ do not record zero-copy layouts, so their types are read as Borsh, which matches
 Struct fields that a legacy IDL names alike, such as Rust's `_padding` and `padding`, are numbered from the first, and
 the last keeps the name.
 
-Zero-copy accounts (`#[account(zero_copy)]`) are decoded in the layout the program sees on-chain: packed and unpacked
-`#[repr(C)]` layouts, including the padding an unpacked layout places between and after fields, and
-`#[repr(transparent)]`. Zero-copy types with the default Rust layout, with both `packed` and `align`, or with 256-bit
-integers in an unpacked layout fail generation, as does using a zero-copy type with padding where Borsh encodes it, such
-as an instruction argument.
+Zero-copy accounts (`#[account(zero_copy)]`, IDL `serialization` `bytemuck` or `bytemuckunsafe`) are decoded in the
+layout the program sees on-chain, on Solana's SBF target. Only layouts the IDL fully describes are generated; the rest
+are left out, or fail strict generation, with a diagnostic that says why (see below):
+
+| IDL `repr`                                       | Generated | Layout                                                                                             |
+|--------------------------------------------------|-----------|----------------------------------------------------------------------------------------------------|
+| `{"kind": "c"}`, optionally with `align`         | yes       | Fields in order, each padded to its alignment; the size padded to the struct's alignment.          |
+| `{"kind": "c", "packed": true}`                  | yes       | Fields back to back, no padding, aligned to 1.                                                     |
+| `{"kind": "transparent"}`                        | yes       | Its one field of non-zero size or alignment above 1.                                               |
+| absent or `{"kind": "rust", ...}`                | no        | Rust does not specify the field order of its default layout, even when packed.                     |
+| `packed` and `align` together, invalid `align`   | no        | Rust rejects these layouts.                                                                        |
+
+Primitive alignments follow the SBF data layout (`e-m:e-p:64:64-i64:64-n32:64-S128`): integers are aligned to their
+size up to 8 bytes, and `u128`/`i128` to 8 bytes, unlike the 16 bytes of x86-64 since Rust 1.77. Public keys are
+aligned to 1. 256-bit integers have no Rust primitive, so their alignment is unknown. They are generated only where no
+padding can depend on it: in packed layouts, as the field of a transparent one, and in `bytemuck` C layouts. A
+`bytemuck` IDL type stands for `derive(Pod)`, which only compiles without padding, so a `bytemuck` layout that would
+need padding is rejected as not matching the program.
+
+The Rust layout includes `#[zero_copy(unsafe)]` without a `#[repr]` of its own, which Anchor declares
+`#[repr(packed)]`. Also rejected, by design, are:
+
+- zero-copy enums and enum fields of zero-copy types. Anchor records `#[repr(u8)]`, `#[repr(u16)]` and others all as
+  `{"kind": "rust"}`, and `#[repr(C, u8)]` as `{"kind": "c"}`, so the IDL never states the width of the discriminant. A
+  plain `#[repr(C)]` discriminant takes at least 4 bytes on-chain.
+- `custom` serialization, whose layout is defined by the program's own code.
+- a zero-copy type with padding where Borsh encodes it, such as an instruction argument.
+
+For a layout the IDL cannot describe, bind the type with a handwritten `SolanaCodec` instead.
+
+Anchor records both `#[repr(packed)]` and `#[repr(packed(N))]` as `"packed": true`. The generator reads that as
+`packed`, that is `packed(1)`, the form programs such as Raydium's CLMM use. A type declared
+`#[repr(C, packed(N))]` with N above 1 and a field aligned above 1 is laid out differently from what the IDL implies,
+and needs a handwritten codec.
+
+#### Declarations that cannot be generated
+
+Some declarations cannot be generated: a zero-copy layout the IDL cannot describe, `custom` serialization, an account
+or event laid out as a generic type definition, a non-struct event, or a constant whose value is an expression rather
+than a literal. An instantiation of a generic type definition is checked like any type, so one whose layout cannot be
+generated, such as `Cell<String>` of a zero-copy `Cell<T>`, is left out by itself. By default such
+a declaration is left out of the bindings, together with everything that depends on it:
+
+- types containing it, directly or within options, vecs or arrays, and aliases to it;
+- constants, accounts and events of those types;
+- instructions with an argument or return value of those types, or a PDA seed read from the data of such an account.
+
+What is generated still compiles and keeps the exact wire format: nothing is generated partially. Accounts, events and
+instructions that are left out are also missing from `ACCOUNTS`, `EVENTS`, `INSTRUCTIONS` and the `decode*` functions,
+which report their data as unrecognized.
+
+Each declaration left out is logged as a warning, naming the IDL file and the program, with the reason and whether it
+is intentionally unsupported (the IDL does not describe its wire format; bind it with a handwritten codec instead),
+not supported yet, or invalid (a layout Rust rejects or that contradicts its serialization, or a value outside its
+type). The `ethersSolanaIdlReport` task logs these warnings after every run of `ethersSolanaIdl`, including when its
+output is up to date or comes from the build cache. The generated program object's documentation lists them too.
+
+Lenient generation keeps the build going, but the bindings can have gaps that are only visible in these warnings.
+Strict mode fails the build instead, listing every declaration that cannot be generated, in every IDL; it suits CI:
+
+```kotlin
+ethersSolanaIdl {
+    strict = true // default: false
+}
+```
+
+An invalid IDL, such as one referring to a type it does not declare, declarations whose Kotlin names collide, and
+invalid configuration, such as a malformed address override or a seed byte order for a seed that does not exist, fail
+the build in either mode.
+
+`SolanaProgramBuilder` behaves the same: its `diagnostics` list what it leaves out, and `strict = true` makes it throw a
+`SolanaIdlUnsupportedException` listing them. The `SolanaIdlCli` entry point prints them as warnings, or with
+`--strict` processes every IDL and then exits with status 1, listing them for all of them.
+
+#### Building instructions and resolving their accounts
+
+Each instruction with accounts has up to three builders. All of them return the instruction's typed class, such as
+`Escrow.Instruction.Withdraw`. This is the same class decoding returns:
+
+```kotlin
+// 1. every account, as the accounts class: no derivation, no RPC
+val a = Escrow.withdraw(Escrow.WithdrawAccounts(user, pool, vault, authority, systemProgram), args)
+
+// 2. every account as a parameter: null derives the account offline, without RPC
+val b = Escrow.withdraw(user = me, authority = authority, args = args)
+
+// 3. only where an account needs on-chain data: also resolves those accounts, over RPC
+val c = Escrow.resolveWithdraw(api, user = me, args = args).sendAwait().unwrap()
+```
+
+The typed instruction extends `io.ethers.solana.instruction.Instruction`, so every transaction API takes it as it is.
+On top of the inherited `programId`, `keys` and `data`, it holds:
+
+- `accounts`: the accounts class, with every derived and resolved account in it;
+- `args`;
+- `remainingAccounts`.
+
+```kotlin
+val tx = SolanaTxV0.compile(me, blockhash, listOf(c, SystemProgram.transfer(me, to, 1_000L))).unwrap()
+```
+
+Its wire fields are encoded once when it is built, exactly as before, and are immutable. Equality is by wire content,
+like any `Instruction`, so a typed instruction equals a plain one with the same program id, keys and data.
+
+Decoding keeps the program id, keys and data it was given, so `Escrow.decodeInstruction(c).unwrap() == c`. A decoded
+instruction can carry more privileges than its IDL requires, such as an extra writable flag. Rebuilding it from its
+`accounts` gives the IDL's privileges, so the rebuilt instruction is not equal to the decoded one.
+
+The second builder takes each account as a nullable parameter when the IDL lets it derive that account without
+on-chain data, and derives the account when you pass null. It needs no `api` and nothing it does is asynchronous.
+Accounts in a group are flattened into parameters named after their path, such as `escrowVault` for `escrow.vault`. It
+derives:
+
+- a fixed `address`;
+- a PDA whose seeds, and `program` when that is set, are constants, instruction arguments, or other accounts' addresses.
+
+The PDA is derived through the same `find` function, so seed encodings and byte orders are the same. Every other
+account is a non-null parameter, so the compiler reports a missing account. This includes accounts in a PDA cycle and
+PDAs that read an optional account. An account you pass is used as given. Passing a cached PDA saves its derivation,
+which can take up to 255 hashes. Passing every account builds the same instruction, byte for byte, as the first
+builder.
+
+`resolve<Instruction>`, such as `resolveWithdraw`, is only generated when some account can only be derived from
+on-chain data. Such an account either has `relations` (Anchor's `has_one`), or a PDA seed that reads a field of another
+account's data. Its name says it makes RPC calls, like `fetch` and `watch`. It also takes those accounts as nullable
+parameters, and resolves every null one before building. The resolved `accounts` are the accounts class the first
+builder takes, so you can resolve them once and reuse them:
+
+```kotlin
+val built = Escrow.resolveWithdraw(api, user = me, args = args).sendAwait().unwrap()
+send(built)
+// later, no RPC
+send(Escrow.withdraw(built.accounts, nextArgs))
+```
+
+Fixed addresses and PDAs never change, but accounts read from other accounts' data are only valid while that data
+is unchanged on-chain. If an account has changed it, for example a new authority, resolve again.
+
+`resolve<Instruction>` resolves each null account from the first of these that applies:
+
+1. its fixed address;
+2. its PDA seeds, including seeds that read a field of another account's data. A field seed is resolved only when its
+   `account` names an account type this program declares;
+3. its `relations`. Each related account's data is decoded as whichever of this program's account types its
+   discriminator identifies. Only types with a pubkey field named after this account count. When there are several
+   related accounts, they must all name the same address.
+
+Optional accounts are never derived by any builder, and are absent when null. A way of deriving an account that depends
+on an absent optional account is skipped. Each builder parameter documents how the account is derived, or why it is
+not.
+
+Accounts whose data a derivation reads are fetched with `getMultipleAccounts`. Each round fetches every account it
+needs in one request, and no round reads older state than the round before it. Only accounts the program owns are
+read. Resolution returns the first failure in instruction order as a typed `SolanaAccountResolutionError` and does
+not throw:
+
+| Error | Cause |
+| --- | --- |
+| `MissingAccount` | an account was left out, and every way to derive it depends on an optional account that was not given |
+| `AccountNotFound` | an account whose data a derivation reads does not exist on chain |
+| `OwnerMismatch` | that account is owned by another program |
+| `AccountTypeMismatch` | its discriminator is not one of the account types the derivation reads |
+| `Undecodable` | it has the right discriminator, but its data does not decode |
+| `AmbiguousRelation` | related accounts name different addresses for the account |
+| `InvalidSeeds` | the seeds cannot derive an address, such as a seed longer than 32 bytes |
+| `DependencyCycle` | accounts can only be derived from each other; give one of them to break the cycle |
+| `Rpc` | a fetch failed |
+
+Nothing is inferred from names alone, and nothing is guessed. No builder derives an account from:
+
+- a seed whose encoding the IDL does not determine. This is the same case where `find` takes the seed's bytes;
+- a seed read from an account type this program does not declare;
+- a `program` that is not a pubkey;
+- a relation that no account type can follow.
+
+Generation fails, naming the instruction, account or member, when:
+
+- account parameters collide with each other;
+- an account parameter collides with a builder's own parameter: `args`, `remainingAccounts` and `programId`, plus `api`
+  and `commitment` for `resolve<Instruction>`;
+- a `resolve<Instruction>` builder collides with another member, such as another instruction's builder.
 
 Generic type definitions, with type and const parameters such as `struct RingBuffer<T, const N: usize>`, are
 monomorphized: each distinct instantiation the program uses becomes a class of its own with a concrete codec, since a
@@ -169,9 +359,11 @@ An instantiation is named after its definition and arguments, a const argument a
 becomes `RingBufferU64N3`, `Pair<u64, Option<Vec<String>>>` becomes `PairU64OptionVecString`, and `[u8; 4]` within an
 argument becomes `Array4U8`. Arguments are compared as Rust compares types, so `Pair<Amount, u8>` with `type Amount = u64`
 is `PairU64U8`, and generic aliases are inlined where they are used. A generic definition the program never uses is
-not generated. Generation fails when an instantiation's name is already declared, when instantiation would never end
-(as in `struct List<T> { next: Option<Box<List<Vec<T>>>> }`), when a const argument does not fit its parameter's type,
-and when an account or event is itself a generic definition, as the IDL does not say which instantiation it holds.
+not generated. Generation fails, in any mode, when an instantiation's name is already declared and when instantiation
+would never end (as in `struct List<T> { next: Option<Box<List<Vec<T>>>> }`). An instantiation whose const argument
+does not fit its parameter's type, or of a const parameter that is not an integer, is invalid, and an account or event
+that is itself a generic definition is intentionally unsupported, as the IDL does not say which instantiation it holds;
+these are left out with what depends on them, as described above.
 A constant of a generic instantiation is generated as that instantiation's class, its value written as `Debug` writes
 it, under the definition's own name: `Pair { first: 1, second: [1, 2] }` for a `Pair<u64, [u8; 2]>`. Field descriptors
 reach into fixed-size instantiations like into any fixed-size struct, at the offsets the const arguments fix.

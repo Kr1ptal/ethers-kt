@@ -39,7 +39,7 @@ private val POOL_DATA = Base64.decode(
 class AmmV3BindingsTest : FunSpec({
     test("a packed zero-copy account decodes and re-encodes byte for byte") {
         val pool = AmmV3.PoolState.ACCOUNT.decode(POOL_DATA).unwrap()
-        pool.bump shouldBe SolanaBytes.fromHex("ff")
+        pool.bump shouldBe SolanaBytes.fromHex("ff").unwrap()
         pool.ammConfig shouldBe SolanaAddress("9iFER3bpjf1PTTCQCfTRu17EJgvsxo9pVyA9QWwEuX4x")
         pool.tokenMint0 shouldBe SolanaAddress("8CfriN5SgC8rFKMUrjdSa8J9xqLCLWUiKW1Uri9iZJPM")
         pool.tokenMint1 shouldBe SolanaAddress("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
@@ -49,6 +49,7 @@ class AmmV3BindingsTest : FunSpec({
         pool.sqrtPriceX64 shouldBe BigInteger("491162215651693862")
         pool.tickCurrent shouldBe -72521
         AmmV3.PoolState.ACCOUNT.encode(pool) shouldBe POOL_DATA
+        AmmV3.PoolState.encodedSize shouldBe POOL_DATA.size - 8
     }
 
     test("nested descriptors read the mainnet pool's packed reward infos as the codec decodes them") {

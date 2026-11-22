@@ -23,13 +23,13 @@ import io.ethers.solana.types.transaction.SolanaTxV0
 suspend fun transfer(seed: ByteArray, recipient: SolanaAddress) {
     val provider = SolanaProvider.builder(SolanaCluster.DEVNET).build().unwrap()
     try {
-        val signer = KeypairSigner.fromSeed(seed)
+        val signer = KeypairSigner.fromSeed(seed).unwrap()
         val latest = provider.getLatestBlockhash().send().unwrap().value
         val message = SolanaTxV0.compile(
             signer.publicKey, latest.blockhash,
             SystemProgram.transfer(signer.publicKey, recipient, 1_000L),
         ).unwrap()
-        val transaction = message.sign(signer)
+        val transaction = message.sign(signer).unwrap()
         val pending = provider.sendTransaction(transaction).send().unwrap()
         println(pending.signature)
         println(pending.confirmation().unwrap().confirmationStatus)
@@ -52,11 +52,11 @@ transaction inputs fail immediately with `IllegalArgumentException`.
 ```java
 var provider = SolanaProvider.builder(SolanaCluster.DEVNET).build().unwrap();
 try {
-    var signer = KeypairSigner.fromSeed(seed);
+    var signer = KeypairSigner.fromSeed(seed).unwrap();
     var latest = provider.getLatestBlockhash().sendAwait().unwrap().getValue();
     var instruction = SystemProgram.transfer(signer.getPublicKey(), recipient, 1_000L);
     var message = SolanaTxV0.compile(signer.getPublicKey(), latest.getBlockhash(), instruction).unwrap();
-    var transaction = message.sign(signer);
+    var transaction = message.sign(signer).unwrap();
     var pending = provider.sendTransaction(transaction).sendAwait().unwrap();
     System.out.println(pending.getSignature());
     System.out.println(pending.awaitConfirmation().unwrap().getConfirmationStatus());
@@ -110,7 +110,7 @@ val config = SolanaTransactionConfig(
     heapSize = 65_536,
 )
 val unsigned = SolanaTxV1.compile(feePayer, blockhash, instructions, config).unwrap()
-val signed = unsigned.sign(signer)
+val signed = unsigned.sign(signer).unwrap()
 val simulation = provider.simulateTransaction(signed).send().unwrap()
 ```
 
@@ -199,7 +199,7 @@ bytes.toBase58() // "Ldp"
 bytes.toBase64() // "AQID"
 bytes.toHex()    // "010203" (lowercase, no prefix)
 bytes.toString() // "SolanaBytes(size=3)" (diagnostic only)
-val decoded = SolanaBytes.fromBase58("Ldp")
+val decoded = SolanaBytes.fromBase58("Ldp").unwrap()
 val slice = bytes.slice(0, 2) // end index is exclusive
 ```
 
@@ -416,6 +416,34 @@ Import `io.ethers.core.Result`. When migrating batch/query consumers, handle eac
 before accessing `.data`. Subscriptions do not provide an initial snapshot or guarantee every intermediate
 change; the application still coordinates snapshots, reconnect recovery, and multi-account state.
 
+## Resolving instruction accounts
+
+IDL-generated instruction builders derive the accounts their IDL says how to derive, as part of building the
+instruction. Every builder returns the instruction's typed class, such as `Program.Instruction.Withdraw`, which is also
+the class decoding returns. It extends `Instruction`, so a transaction takes it as it is, and it holds the resolved
+`accounts`, the `args` and the `remainingAccounts`.
+
+- **Without RPC.** `Program.ix(user = me, args = args)` takes each account as a parameter. It derives fixed addresses and
+  PDAs seeded by constants, arguments and other accounts' addresses when you pass null.
+- **With RPC.** Where some account can only come from on-chain data, through Anchor `relations` (`has_one`) or seeds
+  that read another account's data, `Program.resolveIx(api, ...)` also resolves it.
+- **Reuse.** You can pass `Program.ix(built.accounts, args)` to build further instructions without RPC. Fixed addresses
+  and PDAs never change. Accounts read from on-chain data are only valid while that data is unchanged.
+
+Underneath, `SolanaAccountResolver` fetches each round of accounts in one `getMultipleAccounts` request, and no round
+reads older state than the one before. Accounts you pass are used as given and never re-derived. Each failure is a
+typed `SolanaAccountResolutionError`:
+
+- a missing account;
+- an account that does not exist on chain;
+- an account with the wrong owner or account type;
+- undecodable data;
+- ambiguous relations;
+- invalid seeds;
+- a dependency cycle, with its path.
+
+See the `ethers-abigen-plugin` README for the rules.
+
 ## IDL constants
 
 Each `constants[]` entry of an IDL becomes a member of the generated program object. Primitives become
@@ -425,7 +453,7 @@ pubkeys, bytes, arrays, vecs, options, and defined structs and enums (aliases re
 | Rust type | IDL value (`Debug` output) | Generated Kotlin |
 | --- | --- | --- |
 | `[u16; 3]` | `[1, 2, 3]` | `listOf<Int>(1, 2, 3)` |
-| `[u8; 4]` | `[1, 2, 3, 4]` | `SolanaBytes.fromHex("01020304")` |
+| `[u8; 4]` | `[1, 2, 3, 4]` | `SolanaBytes.fromHex("01020304").unwrap()` |
 | `Option<u64>` | `Some(5)` / `None` | `BigInteger("5")` / `null` |
 | `Option<Option<bool>>` | `Some(None)` | `SolanaOption.Some<Boolean?>(null)` |
 | `Point` | `Point { x: 1, y: -2 }` | `Point(x = 1, y = -2)` |
@@ -433,11 +461,84 @@ pubkeys, bytes, arrays, vecs, options, and defined structs and enums (aliases re
 
 Anchor writes each value as the Rust `Debug` output of the constant (`format!("{:?}", value)`), so the generator
 reads only the literal forms `Debug` produces and checks them against the declared type. Legacy IDLs that record
-the source tokens (`Some (5)`, `1_000u32`) read the same way. Generation fails for any value that does not match
-the declared type exactly: integers out of range, arrays of the wrong length, a missing, extra or reordered
-struct field, an unknown variant, or an invalid address. It also fails for anything that is not a literal, such as
-an expression, a cast, a path or a reference to another constant. Legacy IDLs can record those as unevaluated
-source text, and the generator never evaluates them.
+the source tokens (`Some (5)`, `1_000u32`) read the same way. A constant whose value does not match the declared
+type exactly is not generated: integers out of range, arrays of the wrong length, a missing, extra or reordered
+struct field, an unknown variant, or an invalid address. Nor is anything that is not a literal, such as an
+expression, a cast, a path or a reference to another constant. Legacy IDLs can record those as unevaluated source
+text, and the generator never evaluates them. Such a constant is reported as a warning and left out, or fails
+strict generation; see "Declarations that cannot be generated" in the `ethers-abigen-plugin` README.
+
+## Custom and typed instructions
+
+`Instruction(programId, keys, data)` invokes any program. It is an open class, so a typed instruction
+can extend it, compute the wire fields from its own accounts and arguments, and be passed to every
+API that takes an `Instruction`:
+
+```kotlin
+class Withdraw(val authority: SolanaAddress, val vault: SolanaAddress, val amount: Long) :
+    Instruction(PROGRAM_ID, listOf(AccountMeta.signer(authority), AccountMeta.writable(vault)), encode(amount))
+
+SolanaTransactionRequest { instruction(Withdraw(authority, vault, 100)) }
+```
+
+`programId`, `keys` and `data` are final, so a subclass cannot change the bytes it compiles to.
+Equality is by wire content: a subclass equals a plain `Instruction` with the same three fields, and
+`copy(...)` returns a plain `Instruction`. Only `toString` can be overridden.
+
+## JSON form of IDL values
+
+One line in the Gradle build turns it on, with nothing else to set up:
+
+```kotlin
+ethersSolanaIdl {
+    kotlinxSerialization = true
+}
+```
+
+Every struct, enum, event and instruction arguments class then gets a nested `JsonSerializer`, a
+`SolanaJsonSerializer`, which its `@Serializable` annotation names, and the plugin adds the kotlinx.serialization
+compiler plugin to the project's Kotlin compilations so `Json` finds it (see the
+[plugin README](../ethers-abigen-plugin/README.md#solana-program-bindings)). This JSON form is entirely separate from the Borsh and zero-copy
+codecs, which do not change. It never routes a value through a JSON double, so it round-trips losslessly:
+
+| IDL type | JSON |
+|----------|------|
+| `bool` | `true` / `false` |
+| `u8`, `u16`, `u32`, `i8`, `i16`, `i32` | JSON integer, e.g. `255` |
+| `u64`, `i64`, `u128`, `i128`, `u256`, `i256` | canonical decimal string, e.g. `"-170141183460469231731687303715884105728"` |
+| `f32`, `f64` | shortest JSON number that reads back exactly, or `"NaN"`, `"Infinity"`, `"-Infinity"` |
+| `string` | JSON string |
+| `pubkey` | base58 string |
+| `bytes`, `[u8; N]` | standard padded base64 string; a fixed array must decode to exactly N bytes |
+| `Vec<T>`, `[T; N]` (including `Vec<u8>`) | JSON array; a fixed array must have exactly N elements |
+| `Option<T>` | `null` for none, otherwise the value; an absent field is none too |
+| `Option<Option<T>>` | `null`, or the outer some as a one-element array: `[null]`, `[1]` |
+| struct with named fields | object keyed by the IDL field names as declared, e.g. `fee_bps`, in declaration order |
+| tuple struct | array of its fields |
+| struct without fields | `{}` |
+| enum variant without fields | its IDL name as a string: `"Bid"` |
+| enum variant with fields | `{"Name": {...}}` for named fields, `{"Name": [...]}` for tuple fields |
+| type alias | the form of its target |
+
+Enum tags are the IDL variant names, so variants of the same shape stay distinct. Decoding is strict: wrong types,
+out-of-range values, non-canonical decimals (`"01"`, `"+1"`, `"-0"`), missing non-option fields and wrong-length
+arrays fail with a `SolanaJsonException` whose `path`, such as `sides[1].Limit[0]`, locates the value. Unknown object
+keys fail unless the `Json` instance sets `ignoreUnknownKeys`. Encoding a value its IDL type cannot hold, such as a
+negative `u64`, throws `IllegalArgumentException`, as the binary codec does. Zero-copy padding is not represented.
+
+An event's JSON holds its payload fields only, as its binary encoding does. Its `JsonSerializer` decodes with a
+standalone context for the program's address, and `withContext(context)` returns a serializer that attaches another.
+
+```kotlin
+val json = Json.encodeToString(pool)
+val decoded = Json.decodeFromString<Clmm.PoolState>(json)
+val pools = Json.decodeFromString<List<Clmm.PoolState>>(array)
+```
+
+The serializers support JSON only; another format fails with a `SerializationException`. Bindings generated without the
+Gradle plugin, such as with the CLI's `--kotlinx-serialization <program>`, need the
+`org.jetbrains.kotlin.plugin.serialization` plugin for this lookup, or name the serializer explicitly:
+`Json.encodeToString(Clmm.PoolState.JsonSerializer, pool)`.
 
 ## Idempotent associated token accounts
 

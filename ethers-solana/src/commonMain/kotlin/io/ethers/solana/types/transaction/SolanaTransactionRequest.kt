@@ -10,11 +10,13 @@ import io.ethers.solana.types.Programs
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaBlockhash
 import io.ethers.solana.utils.U32_MAX
+import io.ethers.solana.utils.U64_MAX
 import io.ethers.solana.utils.requireU64
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
 import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmSynthetic
+import kotlin.native.ObjCName
 
 /**
  * An incomplete transaction, to be compiled into a [SolanaTransactionUnsigned] of a chosen version.
@@ -39,6 +41,7 @@ import kotlin.jvm.JvmSynthetic
  * val v1 = request.compileV1()
  * ```
  */
+@ObjCName("SolanaTransactionRequest", exact = true)
 class SolanaTransactionRequest() {
     constructor(other: SolanaTransactionRequest) : this() {
         this.feePayer = other.feePayer
@@ -214,6 +217,14 @@ class SolanaTransactionRequest() {
             // total lamports, rounding up, as the runtime charges it
             else -> bigIntegerOf(limit).multiply(price).add(bigIntegerOf(999999)).divide(bigIntegerOf(1000000))
         }
+        if (priorityFee != null && priorityFee > U64_MAX) {
+            return Result.failure(
+                SolanaTransactionError.InvalidMessage(
+                    SolanaTransactionError.Reason.CONFIG,
+                    "Compute unit limit $limit at price $price makes a priority fee of $priorityFee lamports, which does not fit an unsigned 64-bit integer",
+                ),
+            )
+        }
 
         val config = SolanaTransactionConfig(
             priorityFee = priorityFee,
@@ -270,7 +281,16 @@ class SolanaTransactionRequest() {
             )
         if (units == 0L) return Result.success(bigIntegerOf(0))
         val scaled = total.multiply(bigIntegerOf(1000000)).add(bigIntegerOf(units - 1))
-        return Result.success(scaled.divide(bigIntegerOf(units)))
+        val price = scaled.divide(bigIntegerOf(units))
+        if (price > U64_MAX) {
+            return Result.failure(
+                SolanaTransactionError.InvalidMessage(
+                    SolanaTransactionError.Reason.CONFIG,
+                    "A priority fee of $total lamports over $units compute units is $price micro-lamports per unit, which does not fit an unsigned 64-bit integer",
+                ),
+            )
+        }
+        return Result.success(price)
     }
 
     override fun equals(other: Any?): Boolean {
