@@ -82,6 +82,16 @@ import java.math.BigInteger
  * Each program derived account gets a `find` function deriving its address from its seeds. Integer seeds are
  * encoded in the byte order [seedByteOrders] gives, since IDLs do not record it.
  *
+ * Every builder returns the instruction's typed class in the instruction hierarchy, the class decoding returns. It extends
+ * the runtime instruction, so a transaction takes it as it is, and holds its resolved accounts and arguments. Each
+ * instruction with accounts has up to three builders:
+ * - `ix(accounts, ...)`, which takes its accounts class;
+ * - `ix(account = ..., ...)`, which takes each account as a parameter and derives, when they are null, the accounts the
+ *   IDL lets it derive without on-chain data: fixed addresses, and PDAs seeded by constants, arguments and other
+ *   accounts' addresses;
+ * - `resolveIx(api, ...)`, only where some account can only be derived from on-chain data (relations and seeds reading
+ *   account data). It resolves those accounts with the runtime's `SolanaAccountResolver` before building.
+ *
  * With [kotlinxSerialization], each struct, enum, event and instruction argument type also gets a JSON form, separate
  * from its binary codec: a nested `JsonSerializer` object, which the type's `@Serializable` annotation names. The
  * generated code needs only the kotlinx.serialization runtime; the compiler plugin lets `Json.encodeToString(value)`
@@ -113,6 +123,9 @@ class SolanaProgramBuilder @JvmOverloads constructor(
 
     private val typeDefs = program.types.associateBy { it.name }
     private val kotlinTypeNames = kotlinTypeNames()
+
+    /** How each instruction's builders resolve its accounts, by instruction name. */
+    private val plans = HashMap<String, ResolutionPlan>()
 
     /** Computed zero-copy layouts, by type name. */
     private val zeroCopyLayouts = HashMap<String, ZeroCopyLayout>()
@@ -151,12 +164,25 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         names
     }
 
-    /** A private constant for each distinct constant program id a PDA derives under, in order of first use. */
-    private val programConstantNames: Map<List<Int>, String> by lazy {
+    /**
+     * A private constant for each distinct address the bindings use, fixed account addresses and the constant program
+     * ids PDAs derive under alike, in order of first use. Each is decoded once, when the program object loads.
+     */
+    private val addressConstantNames: Map<List<Int>, String> by lazy {
         val names = LinkedHashMap<List<Int>, String>()
-        forEachPda { _, _, pda, _ ->
-            (pda.program as? IdlSeed.Const)?.let { names.getOrPut(it.bytes) { "PDA_PROGRAM_${names.size}" } }
+        fun add(bytes: List<Int>) = names.getOrPut(bytes) { "ADDRESS_${names.size}" }
+        fun visit(items: List<IdlAccountItem>) {
+            for (item in items) {
+                when (item) {
+                    is IdlAccountItem.Group -> visit(item.accounts)
+                    is IdlAccountItem.Single -> {
+                        item.address?.let { add(addressBytes(it)) }
+                        (item.pda?.program as? IdlSeed.Const)?.let { add(it.bytes) }
+                    }
+                }
+            }
         }
+        idl.instructions.forEach { visit(it.accounts) }
         names
     }
 
@@ -169,11 +195,11 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             }
             PropertySpec.builder(name, BYTE_ARRAY, KModifier.PRIVATE).initializer(initializer).build()
         }
-        val programs = programConstantNames.map { (bytes, name) ->
+        val addresses = addressConstantNames.map { (bytes, name) ->
             val address = Base58.encode(ByteArray(bytes.size) { bytes[it].toByte() })
             PropertySpec.builder(name, Runtime.SOLANA_ADDRESS, KModifier.PRIVATE).initializer("%T(%S)", Runtime.SOLANA_ADDRESS, address).build()
         }
-        seeds + programs
+        seeds + addresses
     }
 
     init {
@@ -574,6 +600,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             type("${name}Accounts", "instruction '${ix.name}'")
         }
 
+        val generatedInstructions = idl.instructions.mapTo(HashSet()) { it.name }
         val members = HashMap<String, String>()
         fun member(name: String, source: String) {
             val previous = members.put(name, source)
@@ -582,10 +609,13 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         listOf("PROGRAM_ID", "ACCOUNTS", "EVENTS", "ERRORS", "INSTRUCTIONS").forEach { member(it, "the program") }
         listOf("decodeAccount", "decodeEvent", "decodeError", "decodeInstruction").forEach { member(it, "the program") }
         program.constants.forEach { member(it.name, "constant '${it.name}'") }
-        (seedConstantNames.values + programConstantNames.values).forEach { member(it, "the PDA seeds") }
+        seedConstantNames.values.forEach { member(it, "the PDA seeds") }
+        addressConstantNames.values.forEach { member(it, "the account addresses") }
         for (ix in program.instructions) {
             member(ix.name.toUpperSnakeCase(), "instruction '${ix.name}'")
             member(ix.name.toCamelCase(), "instruction '${ix.name}'")
+            // only a generated instruction can be planned, as its accounts and seeds refer only to generated types
+            if (ix.accounts.isNotEmpty() && ix.name in generatedInstructions && plan(ix).resolves) member(resolvingName(ix), "instruction '${ix.name}'")
         }
     }
 
@@ -1772,10 +1802,19 @@ class SolanaProgramBuilder @JvmOverloads constructor(
     // --- instructions ---
 
     private fun addInstructions(programType: TypeSpec.Builder) {
-        val hierarchy = TypeSpec.interfaceBuilder(instructionHierarchy)
+        val hierarchy = TypeSpec.classBuilder(instructionHierarchy)
             .addModifiers(KModifier.SEALED)
-            .addKdoc("An instruction of the %L program, decoded from its data and accounts.\n", program.name)
-            .addProperty("remainingAccounts", LIST.parameterizedBy(Runtime.ACCOUNT_META))
+            .addKdoc(
+                "An instruction of the %L program, as built or decoded: an [%T] that also holds its typed accounts and arguments, so " +
+                    "it can be passed to a transaction as it is. Equality is by the encoded instruction, as for any [%T].\n",
+                program.name,
+                Runtime.INSTRUCTION,
+                Runtime.INSTRUCTION,
+            )
+            .primaryConstructor(wireConstructor().build())
+            .superclass(Runtime.INSTRUCTION)
+            .addSuperclassConstructorParameter("programId, keys, data")
+            .addProperty(PropertySpec.builder("remainingAccounts", LIST.parameterizedBy(Runtime.ACCOUNT_META), KModifier.ABSTRACT).build())
         idl.instructions.forEach { hierarchy.addType(addInstruction(programType, it)) }
         programType.addType(hierarchy.build())
 
@@ -1840,7 +1879,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         val builder = FunSpec.builder(ix.name.toCamelCase())
             .addAnnotation(Runtime.JVM_STATIC)
             .addAnnotation(Runtime.JVM_OVERLOADS)
-            .returns(Runtime.INSTRUCTION)
+            .returns(decodedClass)
         ix.docs.forEach { builder.addKdoc("%L\n", it) }
         if (hasAccounts) builder.addParameter("accounts", accountsClass)
         if (argsFields.isNotEmpty()) builder.addParameter("args", argsClass)
@@ -1848,21 +1887,30 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             ParameterSpec.builder("remainingAccounts", LIST.parameterizedBy(Runtime.ACCOUNT_META)).defaultValue("emptyList()").build(),
         )
         builder.addParameter(ParameterSpec.builder("programId", Runtime.SOLANA_ADDRESS).defaultValue("PROGRAM_ID").build())
-        builder.addStatement(
-            "return %T(programId, %L, %N.encodeData(%L))",
-            Runtime.INSTRUCTION,
-            if (hasAccounts) CodeBlock.of("accounts.toAccountMetas(programId) + remainingAccounts") else CodeBlock.of("remainingAccounts"),
-            descriptorName,
-            if (argsFields.isNotEmpty()) "args" else "Unit",
-        )
+        // the same programId, keys and data the plain instruction was built from; the data is taken without copying
+        val built = buildList {
+            if (hasAccounts) add(CodeBlock.of("accounts"))
+            if (argsFields.isNotEmpty()) add(CodeBlock.of("args"))
+            add(CodeBlock.of("remainingAccounts"))
+            add(CodeBlock.of("programId"))
+            add(if (hasAccounts) CodeBlock.of("accounts.toAccountMetas(programId) + remainingAccounts") else CodeBlock.of("remainingAccounts"))
+            add(CodeBlock.of("%T.fromBytes(%N.encodeData(%L))", Runtime.SOLANA_BYTES, descriptorName, if (argsFields.isNotEmpty()) "args" else "Unit"))
+        }
+        builder.addStatement("return %T(%L)", decodedClass, built.joinToCode(", "))
         programType.addFunction(builder.build())
+        if (hasAccounts) {
+            val plan = plan(ix)
+            programType.addFunction(derivingBuilder(plan))
+            if (plan.resolves) programType.addFunction(resolvingBuilder(plan))
+        }
 
         // decoded form
         val properties = buildList {
-            if (hasAccounts) add(PropertySpec.builder("accounts", accountsClass).build())
+            if (hasAccounts) add(PropertySpec.builder("accounts", accountsClass).addKdoc("The accounts, resolved.\n").build())
             if (argsFields.isNotEmpty()) add(PropertySpec.builder("args", argsClass).build())
             add(PropertySpec.builder("remainingAccounts", LIST.parameterizedBy(Runtime.ACCOUNT_META), KModifier.OVERRIDE).build())
         }
+        // a decoded instruction keeps the wire fields it was decoded from, privileges beyond the IDL's included
         val construct = CodeBlock.of(
             "%T(%L)",
             decodedClass,
@@ -1870,6 +1918,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
                 if (hasAccounts) add(CodeBlock.of("%T.read(reader)", accountsClass))
                 if (argsFields.isNotEmpty()) add(CodeBlock.of("args"))
                 add(CodeBlock.of("reader.remaining()"))
+                add(CodeBlock.of("instruction.programId, instruction.keys, instruction.data"))
             }.joinToCode(", "),
         )
         val decode = FunSpec.builder("decode")
@@ -1887,11 +1936,42 @@ class SolanaProgramBuilder @JvmOverloads constructor(
                 construct,
             )
             .build()
-        return valueClass(decodedClass, emptyList(), properties)
-            .addKdoc("The %L instruction, decoded.\n", ix.name)
-            .addSuperinterface(instructionHierarchy)
+        // the constructor is internal: the accounts and arguments must stay those the wire fields encode. Not a data class,
+        // so equality is the base instruction's, by wire content
+        val constructor = wireConstructor(properties).addModifiers(KModifier.INTERNAL)
+        val typed = TypeSpec.classBuilder(decodedClass)
+        for (property in properties) {
+            typed.addProperty(property.toBuilder().initializer(property.name).build())
+        }
+        val described = (properties.map { it.name } + "programId").joinToString(", ") { "$it=\$$it" }
+        return typed.primaryConstructor(constructor.build())
+            .addKdoc(
+                "The %L instruction, as its builders build it and [decode] decodes it: an instruction a transaction takes as it is, " +
+                    "%L. A decoded instruction keeps the program id, accounts and data it was decoded from.\n",
+                ix.name,
+                if (hasAccounts) "whose [accounts] the builder taking them reuses without resolving them again" else "with no accounts",
+            )
+            .superclass(instructionHierarchy)
+            .addSuperclassConstructorParameter("programId, keys, data")
+            .addFunction(
+                FunSpec.builder("toString")
+                    .addModifiers(KModifier.OVERRIDE)
+                    .returns(STRING)
+                    .addStatement("return %P", CodeBlock.of("%L(%L)", decodedClass.simpleName, described))
+                    .build(),
+            )
             .addType(TypeSpec.companionObjectBuilder().addFunction(decode).build())
             .build()
+    }
+
+    /** A constructor taking [properties], then the wire fields an instruction passes to the runtime instruction it extends. */
+    private fun wireConstructor(properties: List<PropertySpec> = emptyList()): FunSpec.Builder {
+        val constructor = FunSpec.constructorBuilder()
+        properties.forEach { constructor.addParameter(it.name, it.type) }
+        return constructor
+            .addParameter("programId", Runtime.SOLANA_ADDRESS)
+            .addParameter("keys", LIST.parameterizedBy(Runtime.ACCOUNT_META))
+            .addParameter("data", Runtime.SOLANA_BYTES)
     }
 
     /**
@@ -1919,14 +1999,14 @@ class SolanaProgramBuilder @JvmOverloads constructor(
                 }
                 is IdlAccountItem.Single -> {
                     type = Runtime.SOLANA_ADDRESS.copy(nullable = item.optional)
-                    val finder = item.pda?.let { pdaFinder(ix, item, it, listOf(items, ix.accounts).distinct()) }
+                    val finder = item.pda?.let { pdaFinder(ix, item, it, listOf(items, ix.accounts).distinct()).spec }
                     finder?.let(finders::add)
                     parameter = ParameterSpec.builder(property, type).apply {
                         item.docs.forEach { addKdoc("%L\n", it) }
                         finder?.let { addKdoc("A program derived address, see [%N].\n", it) }
                         when {
                             item.optional -> defaultValue("null")
-                            item.address != null -> defaultValue("%T(%S)", Runtime.SOLANA_ADDRESS, item.address)
+                            item.address != null -> defaultValue(addressConstant(item.address))
                         }
                     }.build()
                     if (item.optional) {
@@ -1984,6 +2064,382 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             )
     }
 
+    // --- account resolution ---
+
+    /** A single account of an instruction at [role], whose seeds and relations name accounts in [scopes], with its accounts class [owner]. */
+    private class FlatAccount(val role: List<String>, val item: IdlAccountItem.Single, val scopes: List<List<IdlAccountItem>>, val owner: ClassName) {
+        /** The name of the builder parameter that takes this account. */
+        val parameter: String = role.joinToString("_").toCamelCase()
+
+        val path: String get() = role.joinToString(".")
+    }
+
+    /** How an account is derived without on-chain data: [expression] computes it from the builder's parameters. */
+    private class OfflineDerivation(val expression: CodeBlock, val dependencies: List<Int>, val note: String)
+
+    /**
+     * How the builders of [ix] resolve its [accounts]. The deriving builder derives the accounts in [offline], in that
+     * order; the resolving builder, generated when [resolves], hands [derivations] to the runtime resolver.
+     */
+    private class ResolutionPlan(
+        val ix: IdlInstruction,
+        val accountsClass: ClassName,
+        val argsClass: ClassName?,
+        val accounts: List<FlatAccount>,
+        val derivations: List<List<CodeBlock>>,
+        val resolvingNotes: List<List<String>>,
+        val offline: Map<Int, OfflineDerivation>,
+        val derivingNotes: List<List<String>>,
+        val resolves: Boolean,
+    ) {
+        val indices: Map<List<String>, Int> = accounts.withIndex().associate { it.value.role to it.index }
+    }
+
+    private fun resolutionPlan(ix: IdlInstruction, accountsClass: ClassName, argsClass: ClassName?): ResolutionPlan {
+        val accounts = ArrayList<FlatAccount>()
+        fun visit(items: List<IdlAccountItem>, prefix: List<String>, owner: ClassName) {
+            for (item in items) {
+                when (item) {
+                    is IdlAccountItem.Group -> visit(item.accounts, prefix + item.name, owner.nestedClass(item.name.toPascalCase()))
+                    is IdlAccountItem.Single -> accounts.add(FlatAccount(prefix + item.name, item, listOf(items, ix.accounts).distinct(), owner))
+                }
+            }
+        }
+        visit(ix.accounts, emptyList(), accountsClass)
+        val indices = accounts.withIndex().associate { it.value.role to it.index }
+
+        val derivations = ArrayList<List<CodeBlock>>()
+        val resolvingNotes = ArrayList<List<String>>()
+        val readsData = BooleanArray(accounts.size)
+        val candidates = HashMap<Int, OfflineDerivation>()
+        accounts.forEachIndexed { index, account ->
+            val item = account.item
+            if (item.optional) {
+                derivations.add(emptyList())
+                resolvingNotes.add(listOf("Optional: absent when null, and never derived."))
+                return@forEachIndexed
+            }
+            val ways = ArrayList<CodeBlock>()
+            val used = ArrayList<String>()
+            val unused = ArrayList<String>()
+            item.address?.let {
+                ways.add(CodeBlock.of("%T(%L)", Runtime.DERIVATION_FIXED, addressConstant(it)))
+                used.add("its fixed address `$it`")
+                candidates[index] = OfflineDerivation(addressConstant(it), emptyList(), "its fixed address `$it`")
+            }
+            item.pda?.let { pda ->
+                val finder = pdaFinder(ix, item, pda, account.scopes)
+                val unresolvable = finder.inputs.values.filterIsInstance<SeedInput.Unresolvable>()
+                if (unresolvable.isNotEmpty()) {
+                    unused.add("from its PDA seeds, as ${unresolvable.joinToString("; ") { it.reason }}")
+                    return@let
+                }
+                val finderLink = "[${account.owner.simpleNames.drop(1).joinToString(".")}.${finder.spec.name}]"
+                val dependencies = LinkedHashMap<Pair<Int, String?>, CodeBlock>()
+                val offlineDependencies = ArrayList<Int>()
+                var offline = true
+                val arguments = ArrayList<CodeBlock>()
+                val offlineArguments = ArrayList<CodeBlock>()
+                for ((name, input) in finder.inputs) {
+                    when (input) {
+                        is SeedInput.Arg -> {
+                            val value = CodeBlock.of("%N = args.%L", name, propertyPath(IdlFields.Named(ix.args), input.path.split('.')))
+                            arguments.add(value)
+                            offlineArguments.add(value)
+                        }
+                        is SeedInput.AccountAddress -> {
+                            val dependency = indices.getValue(roleOf(account, input.path).first)
+                            dependencies.getOrPut(dependency to null) { CodeBlock.of("%T.address(%L)", Runtime.ACCOUNT_DEPENDENCY, dependency) }
+                            arguments.add(CodeBlock.of("%N = inputs.address(%L)", name, dependency))
+                            offlineArguments.add(CodeBlock.of("%N = %N", name, accounts[dependency].parameter))
+                            offlineDependencies.add(dependency)
+                            // an absent optional account cannot be derived from
+                            if (accounts[dependency].item.optional) offline = false
+                        }
+                        is SeedInput.AccountData -> {
+                            val (role, fields) = roleOf(account, input.path)
+                            val dependency = indices.getValue(role)
+                            val type = classOf(input.type)
+                            dependencies.getOrPut(dependency to input.type) { CodeBlock.of("%T.data(%L, %T.ACCOUNT)", Runtime.ACCOUNT_DEPENDENCY, dependency, type) }
+                            val body = (typeDefs.getValue(input.type).body as IdlTypeBody.Struct).fields
+                            arguments.add(CodeBlock.of("%N = inputs.data(%L, %T.ACCOUNT).%L", name, dependency, type, propertyPath(body, fields)))
+                            readsData[index] = true
+                            offline = false
+                        }
+                        is SeedInput.Unresolvable -> throw IllegalStateException("unresolvable seeds are not derived")
+                    }
+                }
+                if (finder.takesProgramId) {
+                    arguments.add(CodeBlock.of("programId = programId"))
+                    offlineArguments.add(CodeBlock.of("programId = programId"))
+                }
+                ways.add(
+                    CodeBlock.of(
+                        "%T(listOf(%L)) { %L ->\n⇥%T.%N(%L).address\n⇤}",
+                        Runtime.DERIVATION_PDA,
+                        dependencies.values.joinToCode(", "),
+                        if (dependencies.isEmpty()) "_" else "inputs",
+                        account.owner,
+                        finder.spec.name,
+                        arguments.joinToCode(", "),
+                    ),
+                )
+                used.add("its PDA seeds, see $finderLink")
+                // a fixed address comes first
+                if (offline && index !in candidates) {
+                    val expression = CodeBlock.of("%T.%N(%L).address", account.owner, finder.spec.name, offlineArguments.joinToCode(", "))
+                    candidates[index] = OfflineDerivation(expression, offlineDependencies.distinct(), "its PDA seeds, see $finderLink")
+                }
+            }
+            val sources = ArrayList<CodeBlock>()
+            val related = ArrayList<String>()
+            for (relation in item.relations) {
+                val path = roleOfOrNull(account, relation)
+                if (path == null || path.second.isNotEmpty()) {
+                    unused.add("from its relation to `$relation`, which names no single account it can see")
+                    continue
+                }
+                val relationCandidates = relationCandidates(item.name)
+                if (relationCandidates.isEmpty()) {
+                    unused.add("from its relation to `$relation`, as no account type of this program has a pubkey field `${item.name}`")
+                    continue
+                }
+                sources.add(CodeBlock.of("%T(%L, listOf(%L))", Runtime.RELATION_SOURCE, indices.getValue(path.first), relationCandidates.joinToCode(", ")))
+                related.add("`${path.first.joinToString(".")}`")
+            }
+            if (sources.isNotEmpty()) {
+                ways.add(CodeBlock.of("%T(listOf(%L))", Runtime.DERIVATION_RELATIONS, sources.joinToCode(", ")))
+                used.add("the `${item.name}` field of related account${if (related.size == 1) "" else "s"} ${related.joinToString(", ")}, which must agree")
+                readsData[index] = true
+            }
+            derivations.add(ways)
+            resolvingNotes.add(
+                buildList {
+                    when (used.size) {
+                        0 -> Unit
+                        1 -> add("Resolved when null from ${used[0]}.")
+                        else -> add("Resolved when null from the first of: ${used.joinToString("; ")}.")
+                    }
+                    unused.forEach { add("Not resolved $it.") }
+                },
+            )
+        }
+
+        // accounts whose offline derivations lead back to themselves are required, so the deriving builder never fails
+        fun reachesItself(start: Int): Boolean {
+            val seen = HashSet<Int>()
+            val pending = ArrayDeque(candidates.getValue(start).dependencies)
+            while (pending.isNotEmpty()) {
+                val next = pending.removeFirst()
+                if (next == start) return true
+                if (seen.add(next)) candidates[next]?.let { pending.addAll(it.dependencies) }
+            }
+            return false
+        }
+        val cyclic = candidates.keys.filter(::reachesItself).toSet()
+        // dependencies first, so each derived account's local exists before it is read
+        val offline = LinkedHashMap<Int, OfflineDerivation>()
+        fun order(index: Int) {
+            if (index in offline || index in cyclic) return
+            val derivation = candidates[index] ?: return
+            derivation.dependencies.forEach(::order)
+            offline[index] = derivation
+        }
+        candidates.keys.sorted().forEach(::order)
+
+        val resolves = accounts.indices.any { readsData[it] && it !in offline }
+        val derivingNotes = accounts.indices.map { index ->
+            val item = accounts[index].item
+            when {
+                item.optional -> listOf("Optional: absent when null.")
+                index in offline -> listOf("Derived when null from ${offline.getValue(index).note}.")
+                index in cyclic -> listOf("Required: its PDA seeds depend on accounts that depend on it.")
+                resolves && derivations[index].isNotEmpty() -> listOf("Required: [${resolvingName(ix)}] resolves it from on-chain data when it is null.")
+                else -> emptyList()
+            }
+        }
+
+        // the builders take each account as a parameter beside their own
+        val reserved = listOfNotNull(if (argsClass != null) "args" else null, "remainingAccounts", "programId") +
+            if (resolves) listOf("api", "commitment") else emptyList()
+        val parameters = HashMap<String, FlatAccount>()
+        for (account in accounts) {
+            val other = parameters.put(account.parameter, account)
+            require(other == null) {
+                "instruction '${ix.name}': accounts '${other!!.path}' and '${account.path}' both take the builder parameter '${account.parameter}'"
+            }
+            require(account.parameter !in reserved) {
+                "instruction '${ix.name}' account '${account.path}': builder parameter '${account.parameter}' is also a parameter of the builder itself"
+            }
+        }
+        return ResolutionPlan(ix, accountsClass, argsClass, accounts, derivations, resolvingNotes, offline, derivingNotes, resolves)
+    }
+
+    /** The full role of the account [path] names from [account], with the rest of the path, as [IdlPaths.account] looks it up. */
+    private fun roleOf(account: FlatAccount, path: String): Pair<List<String>, List<String>> = requireNotNull(roleOfOrNull(account, path)) {
+        "account path '$path' does not resolve from '${account.path}'"
+    }
+
+    private fun roleOfOrNull(account: FlatAccount, path: String): Pair<List<String>, List<String>>? {
+        val own = IdlPaths.account(listOf(account.scopes[0]), path)
+        if (own != null) return account.role.dropLast(1) + own.role to own.fields
+        if (account.scopes.size == 1) return null
+        return IdlPaths.account(listOf(account.scopes[1]), path)?.let { it.role to it.fields }
+    }
+
+    /** The account types of this program with a pubkey field named [name], each reading that field. */
+    private fun relationCandidates(name: String): List<CodeBlock> = idl.accounts.mapNotNull { account ->
+        val fields = (typeDefs.getValue(account.name).body as? IdlTypeBody.Struct)?.fields as? IdlFields.Named ?: return@mapNotNull null
+        val matching = fields.fields.filter { it.name == name }
+        if (matching.size != 1 || resolve(matching[0].type) != IdlType.Primitive.PUBKEY) return@mapNotNull null
+        CodeBlock.of("%T(%T.ACCOUNT) { it.%L }", Runtime.RELATION_CANDIDATE, classOf(account.name), propertyPath(fields, listOf(name)))
+    }
+
+    /** The Kotlin property path to the field [path] reaches within [fields], through named struct fields. */
+    private fun propertyPath(fields: IdlFields, path: List<String>): CodeBlock {
+        var current = fields
+        val names = ArrayList<CodeBlock>()
+        for (segment in path) {
+            val named = current as IdlFields.Named
+            val index = named.fields.indexOfFirst { it.name == segment }
+            names.add(CodeBlock.of("%N", fields(named)[index].name))
+            val next = resolve(named.fields[index].type) as? IdlType.Defined
+            current = next?.let { (typeDefs.getValue(it.name).body as? IdlTypeBody.Struct)?.fields } ?: IdlFields.None
+        }
+        return names.joinToCode(".")
+    }
+
+    /** `Accounts(a = ..., group = Group(...))` for the accounts of [plan], each value given by [value]. */
+    private fun constructAccounts(plan: ResolutionPlan, value: (Int, FlatAccount) -> CodeBlock): CodeBlock {
+        fun construct(type: ClassName, items: List<IdlAccountItem>, prefix: List<String>): CodeBlock = CodeBlock.of(
+            "%T(\n⇥%L,\n⇤)",
+            type,
+            items.map { item ->
+                when (item) {
+                    is IdlAccountItem.Group -> CodeBlock.of(
+                        "%N = %L",
+                        item.name.toCamelCase(),
+                        construct(type.nestedClass(item.name.toPascalCase()), item.accounts, prefix + item.name),
+                    )
+                    is IdlAccountItem.Single -> {
+                        val index = plan.indices.getValue(prefix + item.name)
+                        CodeBlock.of("%N = %L", item.name.toCamelCase(), value(index, plan.accounts[index]))
+                    }
+                }
+            }.joinToCode(",\n"),
+        )
+        return construct(plan.accountsClass, plan.ix.accounts, emptyList())
+    }
+
+    /** The parameters every builder ends with: the arguments, if any, remaining accounts and program id. */
+    private fun FunSpec.Builder.addTrailingParameters(plan: ResolutionPlan): FunSpec.Builder {
+        plan.argsClass?.let { addParameter("args", it) }
+        addParameter(ParameterSpec.builder("remainingAccounts", LIST.parameterizedBy(Runtime.ACCOUNT_META)).defaultValue("emptyList()").build())
+        return addParameter(ParameterSpec.builder("programId", Runtime.SOLANA_ADDRESS).defaultValue("PROGRAM_ID").build())
+    }
+
+    /** The call of the builder that takes the accounts class, with [accounts] and the trailing parameters. */
+    private fun buildCall(plan: ResolutionPlan, accounts: CodeBlock) = CodeBlock.of(
+        "%N(%L, %LremainingAccounts, programId)",
+        plan.ix.name.toCamelCase(),
+        accounts,
+        if (plan.argsClass != null) "args, " else "",
+    )
+
+    /**
+     * The builder that takes each account as a parameter, deriving the accounts it can without on-chain data when they are
+     * null: fixed addresses, and PDAs whose seeds are constants, arguments and other accounts' addresses.
+     */
+    private fun derivingBuilder(plan: ResolutionPlan): FunSpec {
+        val builder = FunSpec.builder(plan.ix.name.toCamelCase())
+            .addAnnotation(Runtime.JVM_STATIC)
+            .addAnnotation(AnnotationSpec.builder(Suppress::class).addMember("%S", "NAME_SHADOWING").build())
+            .returns(instructionHierarchy.nestedClass(plan.ix.name.toPascalCase()))
+        plan.ix.docs.forEach { builder.addKdoc("%L\n", it) }
+        builder.addKdoc(
+            "%L",
+            (if (plan.ix.docs.isEmpty()) "" else "\n") +
+                "Takes each account as a parameter, deriving those documented as derived when they are null, without on-chain data. " +
+                "An account given is used as given. The instruction is the one the builder taking [${plan.accountsClass.simpleName}] " +
+                "builds from the same accounts.\n",
+        )
+        plan.accounts.forEachIndexed { index, account ->
+            val nullable = account.item.optional || index in plan.offline
+            builder.addParameter(
+                ParameterSpec.builder(account.parameter, Runtime.SOLANA_ADDRESS.copy(nullable = nullable)).apply {
+                    if (nullable) defaultValue("null")
+                    account.item.docs.forEach { addKdoc("%L\n", it) }
+                    plan.derivingNotes[index].forEach { addKdoc("%L\n", it) }
+                }.build(),
+            )
+        }
+        builder.addTrailingParameters(plan)
+        for ((index, derivation) in plan.offline) {
+            val parameter = plan.accounts[index].parameter
+            builder.addStatement("val %N = %N ?: %L", parameter, parameter, derivation.expression)
+        }
+        val accounts = constructAccounts(plan) { _, account -> CodeBlock.of("%N", account.parameter) }
+        return builder.addCode("return %L\n", buildCall(plan, accounts)).build()
+    }
+
+    /** The name of the builder that resolves [ix]'s accounts over RPC, like the `find`, `fetch` and `watch` verbs. */
+    private fun resolvingName(ix: IdlInstruction) = "resolve${ix.name.toPascalCase()}"
+
+    /** The plan of each instruction with accounts, made once for the collision checks and generation. */
+    private fun plan(ix: IdlInstruction): ResolutionPlan = plans.getOrPut(ix.name) {
+        val baseName = ix.name.toPascalCase()
+        resolutionPlan(ix, programClass.nestedClass("${baseName}Accounts"), if (ix.args.isEmpty()) null else programClass.nestedClass("${baseName}Args"))
+    }
+
+    /**
+     * The builder that also resolves the accounts derived from on-chain data, fetching them from an api, and returns the
+     * typed instruction, whose accounts are the resolved ones.
+     */
+    private fun resolvingBuilder(plan: ResolutionPlan): FunSpec {
+        val typed = instructionHierarchy.nestedClass(plan.ix.name.toPascalCase())
+        val builder = FunSpec.builder(resolvingName(plan.ix))
+            .addAnnotation(Runtime.JVM_STATIC)
+            .returns(Runtime.RPC_REQUEST.parameterizedBy(typed, Runtime.RESOLUTION_ERROR))
+        plan.ix.docs.forEach { builder.addKdoc("%L\n", it) }
+        builder.addKdoc(
+            "%L",
+            (if (plan.ix.docs.isEmpty()) "" else "\n") +
+                "Resolves each account documented as resolved when it is null, fetching the accounts whose data that reads from " +
+                "[api] at [commitment], and builds the instruction. An account given is used as given, and never checked against a " +
+                "derivation. The result's `accounts` can be passed to the builder that takes them to build further instructions " +
+                "without fetching again, as long as the on-chain data they were read from has not changed; fixed addresses and PDAs " +
+                "never change.\n",
+        )
+        builder.addParameter("api", Runtime.SOLANA_API)
+        val entries = plan.accounts.mapIndexed { index, account ->
+            val nullable = account.item.optional || plan.derivations[index].isNotEmpty()
+            builder.addParameter(
+                ParameterSpec.builder(account.parameter, Runtime.SOLANA_ADDRESS.copy(nullable = nullable)).apply {
+                    if (nullable) defaultValue("null")
+                    account.item.docs.forEach { addKdoc("%L\n", it) }
+                    plan.resolvingNotes[index].forEach { addKdoc("%L\n", it) }
+                }.build(),
+            )
+            CodeBlock.of(
+                "%T(%S, %N, %L, listOf(%L))",
+                Runtime.RESOLVER_ACCOUNT,
+                account.path,
+                account.parameter,
+                account.item.optional,
+                plan.derivations[index].joinToCode(",\n"),
+            )
+        }
+        builder.addTrailingParameters(plan)
+        builder.addParameter(ParameterSpec.builder("commitment", Runtime.COMMITMENT).defaultValue("api.defaultCommitment").build())
+        val accounts = constructAccounts(plan) { index, account ->
+            if (account.item.optional) CodeBlock.of("resolved[%L]", index) else CodeBlock.of("resolved.required(%L)", index)
+        }
+        return builder
+            .addCode("return %T(\n⇥programId,\nlistOf(\n⇥%L,\n⇤),\n⇤).resolve(api, commitment).map { resolved ->\n⇥", Runtime.ACCOUNT_RESOLVER, entries.joinToCode(",\n"))
+            .addCode("%L\n⇤}\n", buildCall(plan, accounts))
+            .build()
+    }
+
     // --- program derived addresses ---
 
     /** Call [action] with every PDA account of [instructions], and the account lists its seeds resolve in. */
@@ -2001,6 +2457,12 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         }
         instructions.forEach { visit(it, it.accounts, action) }
     }
+
+    /** The constant holding fixed account [address], see [addressConstantNames]. */
+    private fun addressConstant(address: String) = CodeBlock.of("%N", addressConstantNames.getValue(addressBytes(address)))
+
+    /** The bytes of [address], which [IdlAccountItem.Single] checked is a base58 public key. */
+    private fun addressBytes(address: String): List<Int> = Base58.decode(address).map { it.toInt() and 0xff }
 
     /**
      * Reject byte orders for seeds that are not integer PDA seeds, which would otherwise have no effect. Seeds of
@@ -2041,17 +2503,19 @@ class SolanaProgramBuilder @JvmOverloads constructor(
      * `find<Account>`: derives [item]'s address from [pda]'s seeds, taking a parameter for each seed that is not a
      * constant. A seed whose encoding the IDL does not determine takes its bytes.
      */
-    private fun pdaFinder(ix: IdlInstruction, item: IdlAccountItem.Single, pda: IdlPda, scopes: List<List<IdlAccountItem>>): FunSpec {
+    private fun pdaFinder(ix: IdlInstruction, item: IdlAccountItem.Single, pda: IdlPda, scopes: List<List<IdlAccountItem>>): PdaFinder {
         val where = "instruction '${ix.name}' account '${item.name}'"
         // parameter name to the seed it is for, so each seed path takes one parameter
         val parameters = LinkedHashMap<String, Pair<String, ParameterSpec>>()
-        fun parameter(name: String, type: TypeName, source: String, doc: String? = null): String {
+        val inputs = LinkedHashMap<String, SeedInput>()
+        fun parameter(name: String, type: TypeName, source: String, input: SeedInput, doc: String? = null): String {
             parameters[name]?.let { (existing, spec) ->
                 require(existing == source && spec.type == type) { "$where: PDA seeds $existing and $source both take a parameter named '$name'" }
                 return name
             }
             require(name != "programId") { "$where: PDA seed $source takes a parameter named 'programId', which the program it derives under takes" }
             parameters[name] = source to ParameterSpec.builder(name, type).apply { doc?.let { addKdoc("%L\n", it) } }.build()
+            inputs[name] = input
             return name
         }
 
@@ -2060,31 +2524,58 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             val source = "${if (seed is IdlSeed.Arg) "argument" else "account"} '$path'"
             val name = path.replace('.', '_').toCamelCase()
             val type = seedType(ix, seed, scopes)?.let(::resolve)
+            val input = when (seed) {
+                is IdlSeed.Arg -> SeedInput.Arg(path)
+                is IdlSeed.Account -> seed.account?.takeIf { it in accountTypes }?.let { SeedInput.AccountData(path, it) }
+                    ?: SeedInput.Unresolvable("seed `$path` reads the data of an account whose type this program does not declare")
+                is IdlSeed.Const -> throw IllegalStateException("constant seeds are not encoded")
+            }
             return when {
-                type == IdlType.Primitive.STRING -> CodeBlock.of("%N.encodeToByteArray()", parameter(name, STRING, source))
-                type == IdlType.Primitive.PUBKEY -> CodeBlock.of("%N.asByteArray()", parameter(name, Runtime.SOLANA_ADDRESS, source))
+                type == IdlType.Primitive.STRING -> CodeBlock.of("%N.encodeToByteArray()", parameter(name, STRING, source, input))
+                type == IdlType.Primitive.PUBKEY -> CodeBlock.of("%N.asByteArray()", parameter(name, Runtime.SOLANA_ADDRESS, source, input))
                 type == IdlType.Primitive.BYTES || (type is IdlType.Array && isByteArray(type)) ->
-                    CodeBlock.of("%N.asByteArray()", parameter(name, Runtime.SOLANA_BYTES, source))
+                    CodeBlock.of("%N.asByteArray()", parameter(name, Runtime.SOLANA_BYTES, source, input))
                 type is IdlType.Primitive && type in INTEGER_TYPES -> {
                     val size = PRIMITIVE_SIZES.getValue(type)
-                    val bytes = CodeBlock.of("%T(%L).apply { write%L(%N) }.toByteArray()", Runtime.BORSH_WRITER, size, type.name, parameter(name, typeName(type), source))
+                    val bytes = CodeBlock.of("%T(%L).apply { write%L(%N) }.toByteArray()", Runtime.BORSH_WRITER, size, type.name, parameter(name, typeName(type), source, input))
                     val order = seedByteOrders.of(item.name, path)
                     if (size > 1) byteOrders[path] = order
                     if (size > 1 && order == SeedByteOrder.BIG_ENDIAN) CodeBlock.of("%L.also { it.reverse() }", bytes) else bytes
                 }
                 else -> CodeBlock.of(
                     "%N",
-                    parameter("${name}Seed", BYTE_ARRAY, source, "The bytes of the `$path` seed, whose encoding the IDL does not determine."),
+                    parameter(
+                        "${name}Seed",
+                        BYTE_ARRAY,
+                        source,
+                        SeedInput.Unresolvable("the IDL does not determine the encoding of seed `$path`"),
+                        "The bytes of the `$path` seed, whose encoding the IDL does not determine.",
+                    ),
                 )
             }
         }
         fun address(seed: IdlSeed): CodeBlock = when (seed) {
-            is IdlSeed.Const -> CodeBlock.of("%N", programConstantNames.getValue(seed.bytes))
-            is IdlSeed.Arg -> CodeBlock.of("%N", parameter(seed.path.replace('.', '_').toCamelCase(), Runtime.SOLANA_ADDRESS, "argument '${seed.path}'"))
+            is IdlSeed.Const -> CodeBlock.of("%N", addressConstantNames.getValue(seed.bytes))
+            is IdlSeed.Arg -> {
+                val input = if (seedType(ix, seed, scopes)?.let(::resolve) == IdlType.Primitive.PUBKEY) {
+                    SeedInput.Arg(seed.path)
+                } else {
+                    SeedInput.Unresolvable("the program it derives under is argument `${seed.path}`, which is not a pubkey")
+                }
+                CodeBlock.of("%N", parameter(seed.path.replace('.', '_').toCamelCase(), Runtime.SOLANA_ADDRESS, "argument '${seed.path}'", input))
+            }
             is IdlSeed.Account -> {
                 val path = IdlPaths.account(scopes, seed.path)!!
                 val name = (if (path.fields.isEmpty()) path.role else path.role + path.fields).joinToString("_").toCamelCase()
-                CodeBlock.of("%N", parameter(name, Runtime.SOLANA_ADDRESS, "account '${seed.path}'"))
+                val input = when {
+                    path.fields.isEmpty() -> SeedInput.AccountAddress(seed.path)
+                    seed.account == null || seed.account !in accountTypes ->
+                        SeedInput.Unresolvable("the program it derives under is read from the data of an account whose type this program does not declare")
+                    seedType(ix, seed, scopes)?.let(::resolve) != IdlType.Primitive.PUBKEY ->
+                        SeedInput.Unresolvable("the program it derives under is account field `${seed.path}`, which is not a pubkey")
+                    else -> SeedInput.AccountData(seed.path, seed.account)
+                }
+                CodeBlock.of("%N", parameter(name, Runtime.SOLANA_ADDRESS, "account '${seed.path}'", input))
             }
         }
 
@@ -2095,7 +2586,8 @@ class SolanaProgramBuilder @JvmOverloads constructor(
                 is IdlSeed.Account -> {
                     val path = IdlPaths.account(scopes, seed.path)!!
                     if (path.fields.isEmpty()) {
-                        CodeBlock.of("%N.asByteArray()", parameter(path.role.joinToString("_").toCamelCase(), Runtime.SOLANA_ADDRESS, "account '${seed.path}'"))
+                        val name = path.role.joinToString("_").toCamelCase()
+                        CodeBlock.of("%N.asByteArray()", parameter(name, Runtime.SOLANA_ADDRESS, "account '${seed.path}'", SeedInput.AccountAddress(seed.path)))
                     } else {
                         encoded(seed, seed.path)
                     }
@@ -2117,10 +2609,29 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             finder.addAnnotation(Runtime.JVM_OVERLOADS)
             finder.addParameter(ParameterSpec.builder("programId", Runtime.SOLANA_ADDRESS).defaultValue("PROGRAM_ID").build())
         }
-        return finder
+        val spec = finder
             .returns(Runtime.PROGRAM_DERIVED_ADDRESS)
             .addStatement("return %T.findProgramAddress(listOf(%L), %L)", Runtime.SOLANA_ADDRESS, seeds.joinToCode(", "), programId ?: CodeBlock.of("programId"))
             .build()
+        return PdaFinder(spec, inputs, takesProgramId = programId == null)
+    }
+
+    /** A `find` function, with what each of its parameters takes when the account is resolved. */
+    private class PdaFinder(val spec: FunSpec, val inputs: Map<String, SeedInput>, val takesProgramId: Boolean)
+
+    /** What a PDA finder parameter takes when the account is resolved. */
+    private sealed interface SeedInput {
+        /** The instruction argument, or a field within one, at [path]. */
+        data class Arg(val path: String) : SeedInput
+
+        /** The address of the instruction account at [path]. */
+        data class AccountAddress(val path: String) : SeedInput
+
+        /** A field of an instruction account's data, at [path], which must be a [type] account of this program. */
+        data class AccountData(val path: String, val type: String) : SeedInput
+
+        /** Nothing the IDL evidences, for [reason]. */
+        data class Unresolvable(val reason: String) : SeedInput
     }
 
     private fun describe(seed: IdlSeed): String = when (seed) {
@@ -2398,7 +2909,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
          * Version of the generated output. Bump it whenever the output changes, so build tools invalidate
          * previously generated bindings.
          */
-        const val OUTPUT_VERSION = "8"
+        const val OUTPUT_VERSION = "9"
 
         /** The largest alignment Rust's `align(N)` accepts, 2^29. */
         private const val MAX_ALIGN = 1 shl 29
