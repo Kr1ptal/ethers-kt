@@ -18,6 +18,73 @@ Sections:
 ### Security = Security patches.
 -->
 
+## [2.2.0] - 2026-11-22
+
+This release adds Solana support alongside the EVM modules, and moves RPC result decoding off JSON trees. It carries
+a few breaking changes, listed under **Changed**. Most affect only custom `JsonRpcClient` implementations, custom
+tracers, or code reading `otherFields`.
+
+### Added
+
+- **`ethers-solana`**: a new module for Solana, available on every target. It covers Ed25519 signing, PDA
+  derivation, legacy, v0 and v1 transactions with automatic version and lookup-table selection, the node's full
+  JSON-RPC surface, WebSocket subscriptions, request batching, and submitting a transaction then waiting for
+  confirmation. It also builds instructions for System, SPL Token, Token-2022, associated token accounts (including
+  idempotent creation), memo, address lookup tables, durable nonces and signature verification. Building and decoding
+  return `Result<_, SolanaTransactionError>` instead of throwing. See [ethers-solana](ethers-solana/README.md).
+- **Solana IDL bindings** (`ethers-solana-idl`, and the `ethersSolanaIdl` extension and task in the Gradle plugin).
+  They generate typed instructions, accounts, events, errors, constants and codecs from Anchor IDLs, including:
+  - typed account selections and nested fixed-layout field paths (#554, #555)
+  - composite IDL constants (#556)
+  - zero-copy layouts, generated only where the IDL fully describes them (#557)
+  - generic type definitions, by monomorphization (#558)
+  - instruction builders that resolve accounts from fixed addresses, PDA seeds and Anchor relations, using
+    `SolanaAccountResolver` when on-chain data is needed (#560)
+  - an opt-in kotlinx.serialization JSON form for generated value types (#561)
+- **`ethers-common`** and **`ethers-rpc`**: chain-agnostic modules split out of `ethers-core`, `ethers-crypto` and
+  `ethers-providers`, so a Solana-only application does not depend on the EVM modules or secp256k1. Package names
+  are unchanged, and `ethers-core` and `ethers-providers` `api`-depend on the new modules, so no import breaks.
+- Swift interop (#548). The public API declares what it throws, so an exception cannot abort a Swift caller.
+  `Result` callbacks are exported as Swift closures, the byte-heavy Solana entry points have `NSData` overloads, and
+  the main types have stable `@ObjCName`s.
+- `BatchRpcRequest.requests` is public, with `complete(index, result)` and `sendWith(client)`, so a client that
+  wraps another can answer or forward batch calls (#571).
+- `DeserializationStrategy.map`, for RPC results built from a decoded value (#574).
+
+### Changed
+
+- **RPC results decode straight into their type** (#570, #571, #574, #578, #581). HTTP responses, WebSocket responses
+  and WebSocket notifications no longer build a JSON tree first. Breaking:
+  - `JsonRpcClient` implementations override `request` and `subscribe` taking a `DeserializationStrategy<T>`.
+  - `RpcCall`, `RpcSubscribeCall` and `JsonRpcClient` no longer accept a `(JsonElement) -> T`. Pass a
+    `KSerializer`, or map one with `DeserializationStrategy.map`. `RpcCall.resultDecoder` is removed.
+  - Custom tracers implement `resultSerializer` instead of `resultType` and `decodeResult`.
+  - `FilterPoller` takes a `DeserializationStrategy<List<T>>`.
+  - `SubscriptionDescriptor.Resolved.isTerminal` receives the decoded event, `(Any) -> Boolean`, instead of its
+    `JsonElement` (#580).
+- **`EthApi.getChainId()` is removed**, and `chainId` moves to `Middleware`. The property and the RPC method compiled
+  to two `getChainId()` methods that Java source could not tell apart. To query the node directly, use
+  `RpcCall(client, "eth_chainId", EMPTY_ARRAY, HexLongSerializer)`.
+- **`otherFields` hold kotlinx `JsonElement`s.** `io.ethers.core.json.JsonElement` is removed, and unknown fields on
+  `RPCTransaction`, `TransactionReceipt`, `Block`, `CallTracer` and `RpcError.data` are now
+  `kotlinx.serialization.json.JsonElement`. You can read them directly instead of parsing their text again.
+- `log4j-core` moved from `logger`'s shared source set to `jvmMain`, so it is no longer on Android consumers'
+  runtime classpath.
+- Bump kotlinx-serialization-json to 1.13.0, channels-kt to 2.0.0 and bignum-kt to 1.0.6. channels-kt 2.0.0 fixes
+  dexing below API 26, so an APK bundling the library now dexes at the declared `minSdk 24`.
+- Maven Central descriptions now match each artifact and name all supported targets.
+
+### Fixed
+
+- `WsClient` returned `CODE_INVALID_RESPONSE` for a JSON `null` result, such as `eth_getTransactionByHash` for an
+  unknown hash. It now returns `null` as success, as `HttpClient` does (#572).
+- `WsClient` left a call waiting forever when it could not use the response. This happened when the result did not
+  decode, a subscribe response was not a subscription id, or a batch entry could not be read. These calls now fail
+  with `CODE_CALL_FAILED` or `CODE_INVALID_RESPONSE` (#576).
+- A batch response that left out some of its calls left them waiting forever, over both HTTP and WebSocket. They now
+  fail with `CODE_INVALID_RESPONSE`, and the batch reports `false` (#582).
+- abigen-plugin: `FoundrySourceProvider.contractGlobFilters` is a `ListProperty`, fixing Gradle compatibility (#536).
+
 ## [2.0.1] - 2026-08-19
 
 ### Fixed
