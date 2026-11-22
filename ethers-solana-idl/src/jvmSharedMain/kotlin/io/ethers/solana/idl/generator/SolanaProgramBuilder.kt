@@ -164,12 +164,25 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         names
     }
 
-    /** A private constant for each distinct constant program id a PDA derives under, in order of first use. */
-    private val programConstantNames: Map<List<Int>, String> by lazy {
+    /**
+     * A private constant for each distinct address the bindings use, fixed account addresses and the constant program
+     * ids PDAs derive under alike, in order of first use. Each is decoded once, when the program object loads.
+     */
+    private val addressConstantNames: Map<List<Int>, String> by lazy {
         val names = LinkedHashMap<List<Int>, String>()
-        forEachPda { _, _, pda, _ ->
-            (pda.program as? IdlSeed.Const)?.let { names.getOrPut(it.bytes) { "PDA_PROGRAM_${names.size}" } }
+        fun add(bytes: List<Int>) = names.getOrPut(bytes) { "ADDRESS_${names.size}" }
+        fun visit(items: List<IdlAccountItem>) {
+            for (item in items) {
+                when (item) {
+                    is IdlAccountItem.Group -> visit(item.accounts)
+                    is IdlAccountItem.Single -> {
+                        item.address?.let { add(addressBytes(it)) }
+                        (item.pda?.program as? IdlSeed.Const)?.let { add(it.bytes) }
+                    }
+                }
+            }
         }
+        idl.instructions.forEach { visit(it.accounts) }
         names
     }
 
@@ -182,11 +195,11 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             }
             PropertySpec.builder(name, BYTE_ARRAY, KModifier.PRIVATE).initializer(initializer).build()
         }
-        val programs = programConstantNames.map { (bytes, name) ->
+        val addresses = addressConstantNames.map { (bytes, name) ->
             val address = Base58.encode(ByteArray(bytes.size) { bytes[it].toByte() })
             PropertySpec.builder(name, Runtime.SOLANA_ADDRESS, KModifier.PRIVATE).initializer("%T(%S)", Runtime.SOLANA_ADDRESS, address).build()
         }
-        seeds + programs
+        seeds + addresses
     }
 
     init {
@@ -596,7 +609,8 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         listOf("PROGRAM_ID", "ACCOUNTS", "EVENTS", "ERRORS", "INSTRUCTIONS").forEach { member(it, "the program") }
         listOf("decodeAccount", "decodeEvent", "decodeError", "decodeInstruction").forEach { member(it, "the program") }
         program.constants.forEach { member(it.name, "constant '${it.name}'") }
-        (seedConstantNames.values + programConstantNames.values).forEach { member(it, "the PDA seeds") }
+        seedConstantNames.values.forEach { member(it, "the PDA seeds") }
+        addressConstantNames.values.forEach { member(it, "the account addresses") }
         for (ix in program.instructions) {
             member(ix.name.toUpperSnakeCase(), "instruction '${ix.name}'")
             member(ix.name.toCamelCase(), "instruction '${ix.name}'")
@@ -1992,7 +2006,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
                         finder?.let { addKdoc("A program derived address, see [%N].\n", it) }
                         when {
                             item.optional -> defaultValue("null")
-                            item.address != null -> defaultValue("%T(%S)", Runtime.SOLANA_ADDRESS, item.address)
+                            item.address != null -> defaultValue(addressConstant(item.address))
                         }
                     }.build()
                     if (item.optional) {
@@ -2109,9 +2123,9 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             val used = ArrayList<String>()
             val unused = ArrayList<String>()
             item.address?.let {
-                ways.add(CodeBlock.of("%T(%T(%S))", Runtime.DERIVATION_FIXED, Runtime.SOLANA_ADDRESS, it))
+                ways.add(CodeBlock.of("%T(%L)", Runtime.DERIVATION_FIXED, addressConstant(it)))
                 used.add("its fixed address `$it`")
-                candidates[index] = OfflineDerivation(CodeBlock.of("%T(%S)", Runtime.SOLANA_ADDRESS, it), emptyList(), "its fixed address `$it`")
+                candidates[index] = OfflineDerivation(addressConstant(it), emptyList(), "its fixed address `$it`")
             }
             item.pda?.let { pda ->
                 val finder = pdaFinder(ix, item, pda, account.scopes)
@@ -2444,6 +2458,12 @@ class SolanaProgramBuilder @JvmOverloads constructor(
         instructions.forEach { visit(it, it.accounts, action) }
     }
 
+    /** The constant holding fixed account [address], see [addressConstantNames]. */
+    private fun addressConstant(address: String) = CodeBlock.of("%N", addressConstantNames.getValue(addressBytes(address)))
+
+    /** The bytes of [address], which [IdlAccountItem.Single] checked is a base58 public key. */
+    private fun addressBytes(address: String): List<Int> = Base58.decode(address).map { it.toInt() and 0xff }
+
     /**
      * Reject byte orders for seeds that are not integer PDA seeds, which would otherwise have no effect. Seeds of
      * instructions that are not generated count, so the configuration is valid whatever is left out.
@@ -2535,7 +2555,7 @@ class SolanaProgramBuilder @JvmOverloads constructor(
             }
         }
         fun address(seed: IdlSeed): CodeBlock = when (seed) {
-            is IdlSeed.Const -> CodeBlock.of("%N", programConstantNames.getValue(seed.bytes))
+            is IdlSeed.Const -> CodeBlock.of("%N", addressConstantNames.getValue(seed.bytes))
             is IdlSeed.Arg -> {
                 val input = if (seedType(ix, seed, scopes)?.let(::resolve) == IdlType.Primitive.PUBKEY) {
                     SeedInput.Arg(seed.path)

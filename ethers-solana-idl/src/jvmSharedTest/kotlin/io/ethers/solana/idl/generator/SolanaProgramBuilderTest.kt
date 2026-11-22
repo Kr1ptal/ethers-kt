@@ -1,5 +1,6 @@
 package io.ethers.solana.idl.generator
 
+import io.ethers.crypto.Base58
 import io.ethers.solana.idl.IdlAccount
 import io.ethers.solana.idl.IdlAccountItem
 import io.ethers.solana.idl.IdlArrayLength
@@ -572,7 +573,7 @@ class SolanaProgramBuilderTest : FunSpec({
                 "system: SolanaAddress? = null, args: IxArgs, remainingAccounts: List<AccountMeta> = emptyList(), programId: SolanaAddress = PROGRAM_ID, )"
             source shouldContain "val pool = pool ?: IxAccounts.findPool(index = args.index, programId = programId).address " +
                 "val vault = vault ?: IxAccounts.findVault(pool = pool, owner = owner, programId = programId).address " +
-                "val system = system ?: SolanaAddress(\"11111111111111111111111111111111\") " +
+                "val system = system ?: ADDRESS_0 " +
                 "return ix(IxAccounts( vault = vault, owner = owner, pool = pool, system = system, ), args, remainingAccounts, programId)"
             source shouldContain "@param vault Derived when null from its PDA seeds, see [IxAccounts.findVault]."
             source shouldContain "@param system Derived when null from its fixed address `11111111111111111111111111111111`."
@@ -639,12 +640,47 @@ class SolanaProgramBuilderTest : FunSpec({
             val fixed = IdlAccountItem.Single("program", address = "11111111111111111111111111111111", pda = IdlPda(listOf(IdlSeed.Const(listOf(1)))))
             val accounts = listOf(fixed, IdlAccountItem.Single("extra", optional = true), IdlAccountItem.Single("config"), IdlAccountItem.Single("authority", relations = listOf("config")))
             val source = resolving(accounts)
-            source shouldContain "listOf(SolanaAccountDerivation.Fixed(SolanaAddress(\"11111111111111111111111111111111\")), SolanaAccountDerivation.Pda(listOf()) { _ ->"
+            source shouldContain "listOf(SolanaAccountDerivation.Fixed(ADDRESS_0), SolanaAccountDerivation.Pda(listOf()) { _ ->"
             source shouldContain "Resolved when null from the first of: its fixed address `11111111111111111111111111111111`; its PDA seeds, see [IxAccounts.findProgram]."
-            source shouldContain "val program = program ?: SolanaAddress(\"11111111111111111111111111111111\")"
+            source shouldContain "val program = program ?: ADDRESS_0"
             source shouldContain "SolanaAccountResolver.Account(\"extra\", extra, true, listOf())"
             source shouldContain "extra = resolved[1],"
             source shouldContain "Optional: absent when null, and never derived."
+        }
+
+        test("fixed addresses and constant PDA program ids share one constant per address, which every builder uses") {
+            val token = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            // not the program's own address, which PROGRAM_ID holds
+            val rent = "SysvarRent111111111111111111111111111111111"
+            val tokenProgram = IdlSeed.Const(Base58.decode(token).map { it.toInt() and 0xff })
+            val accounts = listOf(
+                IdlAccountItem.Single("token_x_program", address = token),
+                IdlAccountItem.Group("nested", listOf(IdlAccountItem.Single("token_y_program", address = token))),
+                IdlAccountItem.Single("rent", address = rent),
+                IdlAccountItem.Single("ata", pda = IdlPda(listOf(IdlSeed.Const(listOf(1))), program = tokenProgram)),
+                IdlAccountItem.Single("config"),
+                IdlAccountItem.Single("authority", relations = listOf("config")),
+            )
+            val source = resolving(accounts)
+            source shouldContain "private val ADDRESS_0: SolanaAddress = SolanaAddress(\"$token\")"
+            source shouldContain "private val ADDRESS_1: SolanaAddress = SolanaAddress(\"$rent\")"
+            (source.contains("ADDRESS_2")) shouldBe false
+            // each address is decoded once, by its constant
+            Regex("SolanaAddress\\(\"$token\"\\)").findAll(source).count() shouldBe 1
+            Regex("SolanaAddress\\(\"$rent\"\\)").findAll(source).count() shouldBe 1
+            // the accounts class defaults, the deriving builder, the resolving builder and the PDA finder all use it
+            source shouldContain "public val tokenXProgram: SolanaAddress = ADDRESS_0,"
+            source shouldContain "public val tokenYProgram: SolanaAddress = ADDRESS_0,"
+            source shouldContain "val tokenXProgram = tokenXProgram ?: ADDRESS_0"
+            source shouldContain "val nestedTokenYProgram = nestedTokenYProgram ?: ADDRESS_0"
+            source shouldContain "SolanaAccountDerivation.Fixed(ADDRESS_0)"
+            source shouldContain "SolanaAddress.findProgramAddress(listOf(PDA_SEED_0), ADDRESS_0)"
+        }
+
+        test("an IDL constant named like an address constant is rejected") {
+            val ix = IdlInstruction("ix", IdlDiscriminator(listOf(1)), accounts = listOf(IdlAccountItem.Single("system", address = "11111111111111111111111111111111")))
+            shouldThrow<IllegalArgumentException> { generate(program(instructions = listOf(ix), constants = listOf(IdlConstant("ADDRESS_0", IdlType.Primitive.U8, "1")))) }
+                .message shouldBe "generated member 'ADDRESS_0' is produced by both constant 'ADDRESS_0' and the account addresses"
         }
 
         test("account parameters that collide with each other or with the builder's own parameters are rejected") {
