@@ -403,7 +403,7 @@ buildscript {
     }
 
     dependencies {
-        classpath(files("/absolute/path/ethers-abigen-plugin/build/libs/ethers-abigen-plugin-2.0.1-SNAPSHOT.jar"))
+        classpath(files("/absolute/path/ethers-abigen-plugin/build/libs/ethers-abigen-plugin-2.2.1-SNAPSHOT.jar"))
     }
 }
 
