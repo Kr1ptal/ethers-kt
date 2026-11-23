@@ -12,7 +12,9 @@ import io.ethers.core.Kotlinx
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
+import io.ethers.providers.Provider
 import io.ethers.providers.RpcError
+import io.ethers.providers.types.PendingInclusion
 import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
@@ -75,7 +77,7 @@ class BundlerClientTest : FunSpec({
 
     test("sendUserOperation sends the operation in the EntryPoint's layout") {
         val rpc = FakeJsonRpcClient().respond("eth_sendUserOperation", "\"$userOpHash\"")
-        BundlerClient(rpc).sendUserOperation(userOp, EntryPoint.V0_6).send().unwrap() shouldBe userOpHash
+        BundlerClient(rpc).sendUserOperation(userOp, EntryPoint.V0_6).send().unwrap().userOpHash shouldBe userOpHash
 
         val params = rpc.requests("eth_sendUserOperation").single().params
         params[0] shouldBe UserOperationJson.encode(userOp, EntryPointVersion.V0_6)
@@ -139,35 +141,49 @@ class BundlerClientTest : FunSpec({
         bundler.chainId().send().unwrap() shouldBe 8453L
     }
 
-    context("waitForUserOperationReceipt") {
+    context("pending user operation") {
         test("polls until the receipt is available") {
             var calls = 0
             val rpc = FakeJsonRpcClient().on("eth_getUserOperationReceipt") { if (++calls < 3) "null" else receiptJson }
-            val receipt = BundlerClient(rpc).waitForUserOperationReceipt(userOpHash, 5_000.milliseconds, 1.milliseconds, false)
-                .send().unwrap()
+            val receipt = PendingUserOperation(userOpHash, BundlerClient(rpc)).inclusion(5, 1.milliseconds, 1).unwrap()
             receipt.userOpHash shouldBe userOpHash
             calls shouldBe 3
         }
 
-        test("times out") {
+        test("gives up after its retries") {
             val rpc = FakeJsonRpcClient().respond("eth_getUserOperationReceipt", "null")
-            val error = BundlerClient(rpc).waitForUserOperationReceipt(userOpHash, 30.milliseconds, 5.milliseconds, false)
-                .send().unwrapError()
-            error.shouldBeInstanceOf<UserOperationError.ReceiptTimeout>().userOpHash shouldBe userOpHash
+            val error = PendingUserOperation(userOpHash, BundlerClient(rpc)).inclusion(3, 1.milliseconds, 1).unwrapError()
+            error shouldBe PendingInclusion.Error.NoInclusion(userOpHash, 3)
+            rpc.requests shouldHaveSize 3
         }
 
-        test("fails on an RPC error, unless retrying on errors") {
+        test("retries RPC errors, and reports the last one if no receipt arrives") {
             var calls = 0
             val rpc = FakeJsonRpcClient().on("eth_getUserOperationReceipt") {
                 if (++calls == 1) throw FakeJsonRpcClient.RpcFailure(RpcError(-32000, "temporarily unavailable"))
                 receiptJson
             }
-            BundlerClient(rpc).waitForUserOperationReceipt(userOpHash, 5_000.milliseconds, 1.milliseconds, false)
-                .send().unwrapError().shouldBeInstanceOf<UserOperationError.Rpc>()
+            PendingUserOperation(userOpHash, BundlerClient(rpc)).inclusion(3, 1.milliseconds, 1).unwrap().userOpHash shouldBe userOpHash
 
-            calls = 0
-            BundlerClient(rpc).waitForUserOperationReceipt(userOpHash, 5_000.milliseconds, 1.milliseconds, true)
-                .send().unwrap().userOpHash shouldBe userOpHash
+            val failing = FakeJsonRpcClient().fail("eth_getUserOperationReceipt", RpcError(-32000, "down"))
+            PendingUserOperation(userOpHash, BundlerClient(failing)).inclusion(2, 1.milliseconds, 1).unwrapError()
+                .shouldBeInstanceOf<PendingInclusion.Error.RpcError>().error.message shouldBe "down"
+        }
+
+        test("waits for confirmations on the provider's chain") {
+            val rpc = FakeJsonRpcClient().respond("eth_getUserOperationReceipt", receiptJson)
+            var block = 0x10
+            val node = FakeJsonRpcClient().on("eth_blockNumber") { "\"0x${(block++).toString(16)}\"" }
+            PendingUserOperation(userOpHash, BundlerClient(rpc), Provider(node, 1)).inclusion(1, 1.milliseconds, 3).unwrap()
+            // included in block 0x10, so the third confirmation is block 0x12
+            node.requests shouldHaveSize 3
+        }
+
+        test("confirmations need a provider") {
+            val rpc = FakeJsonRpcClient().respond("eth_getUserOperationReceipt", receiptJson)
+            PendingUserOperation(userOpHash, BundlerClient(rpc)).inclusion(1, 1.milliseconds, 2).unwrapError()
+                .shouldBeInstanceOf<PendingInclusion.Error.RpcError>()
+            PendingUserOperation(userOpHash, BundlerClient(rpc)).inclusion(1, 1.milliseconds, 1).unwrap().userOpHash shouldBe userOpHash
         }
     }
 

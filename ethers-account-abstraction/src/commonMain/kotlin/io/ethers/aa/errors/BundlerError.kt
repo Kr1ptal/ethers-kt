@@ -1,10 +1,8 @@
 package io.ethers.aa.errors
 
 import io.ethers.core.ThrowableError
-import io.ethers.core.types.Hash
 import io.ethers.providers.RpcError
 import kotlin.jvm.JvmStatic
-import kotlin.time.Duration
 
 /**
  * EntryPoint failure codes, the `AAxx` prefix of `FailedOp` revert reasons. Bundlers include them in the message
@@ -124,14 +122,6 @@ sealed class UserOperationError : ThrowableError {
      * The operation could not be prepared, e.g. a required field was missing and could not be filled in.
      */
     data class InvalidOperation(override val message: String, override val cause: Throwable? = null) : UserOperationError()
-
-    /**
-     * No receipt of [userOpHash] became available within [timeout].
-     */
-    data class ReceiptTimeout(val userOpHash: Hash, val timeout: Duration) : UserOperationError() {
-        override val message: String
-            get() = "No receipt for user operation $userOpHash within $timeout"
-    }
 }
 
 /**

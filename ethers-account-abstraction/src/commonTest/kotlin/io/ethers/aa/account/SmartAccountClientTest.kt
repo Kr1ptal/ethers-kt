@@ -87,7 +87,8 @@ class SmartAccountClientTest : FunSpec({
 
     test("sends a sponsored operation that deploys the account") {
         val setup = setup(deployed = false)
-        setup.client.sendUserOperation(listOf(call)).send().unwrap() shouldBe userOpHash
+        val pending = setup.client.sendUserOperation(listOf(call)).send().unwrap()
+        pending.userOpHash shouldBe userOpHash
 
         val sent = setup.sent()
         sent.sender shouldBe accountAddress

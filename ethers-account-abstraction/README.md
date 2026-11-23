@@ -28,12 +28,13 @@ val json = UserOperationJson.encode(userOp, EntryPointVersion.V0_7)
 
 ## Bundlers and paymasters
 
-`BundlerClient` implements the ERC-7769 bundler API, and `PaymasterClient` the ERC-7677 paymaster API:
+`BundlerClient` implements the ERC-7769 bundler API, and `PaymasterClient` the ERC-7677 paymaster API. Sending an
+operation returns a `PendingUserOperation`, a `PendingInclusion` like a sent transaction's `PendingTransaction`:
 
 ```kotlin
 val bundler = BundlerClient(HttpClient("<BUNDLER_URL>"))
-val userOpHash = bundler.sendUserOperation(signedUserOp, EntryPoint.V0_7).sendAwait().unwrap()
-val receipt = bundler.waitForUserOperationReceipt(userOpHash).sendAwait().unwrap()
+val pending = bundler.sendUserOperation(signedUserOp, EntryPoint.V0_7).sendAwait().unwrap()
+val receipt = pending.awaitInclusion(retries = 30, interval = 2.seconds).unwrap()
 ```
 
 Rejections carry the EntryPoint's `AAxx` code and the ERC-7769 error code, when present:
@@ -62,7 +63,8 @@ val client = SmartAccountClient(
     paymaster = PaymasterClient(HttpClient("<PAYMASTER_URL>")),  // optional
 )
 
-val userOpHash = client.sendUserOperation(listOf(Call(to = recipient, value = amount))).sendAwait().unwrap()
+val pending = client.sendUserOperation(listOf(Call(to = recipient, value = amount))).sendAwait().unwrap()
+val receipt = pending.awaitInclusion().unwrap()
 ```
 
 A `UserOperationRequest` overrides any field, sets paymaster context, or signs through another validator, e.g. a

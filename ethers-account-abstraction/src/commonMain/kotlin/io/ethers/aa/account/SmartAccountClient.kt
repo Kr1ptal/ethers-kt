@@ -3,6 +3,7 @@ package io.ethers.aa.account
 import io.ethers.aa.EntryPoint
 import io.ethers.aa.UserOperation
 import io.ethers.aa.bundler.BundlerApi
+import io.ethers.aa.bundler.PendingUserOperation
 import io.ethers.aa.bundler.UserOperationReceipt
 import io.ethers.aa.errors.UserOperationError
 import io.ethers.aa.errors.toUserOperationError
@@ -84,48 +85,34 @@ class SmartAccountClient @JvmOverloads constructor(
     }
 
     /**
-     * Prepare, sign and send [calls], returning the hash of the user operation.
+     * Prepare, sign and send [calls], returning the pending operation.
      */
-    fun sendUserOperation(calls: List<Call>): RpcRequest<Hash, UserOperationError> {
+    fun sendUserOperation(calls: List<Call>): RpcRequest<PendingUserOperation, UserOperationError> {
         return sendUserOperation(UserOperationRequest(calls))
     }
 
     /**
-     * Prepare, sign and send [request], returning the hash of the user operation.
+     * Prepare, sign and send [request], returning the pending operation.
      */
-    fun sendUserOperation(request: UserOperationRequest): RpcRequest<Hash, UserOperationError> {
+    fun sendUserOperation(request: UserOperationRequest): RpcRequest<PendingUserOperation, UserOperationError> {
         return SuppliedRpcRequest {
             catching {
                 val prepared = prepare(request).unwrapOrReturn { return@catching failure(it) }
                 val signed = sign(prepared, request.signer ?: account).unwrapOrReturn { return@catching failure(it) }
-                bundler.sendUserOperation(signed, entryPoint).send().mapError { it.toUserOperationError() }
+                bundler.sendUserOperation(signed, entryPoint).send()
+                    .map { PendingUserOperation(it.userOpHash, bundler, provider) }
+                    .mapError { it.toUserOperationError() }
             }
         }
     }
 
     /**
-     * Send an already signed [userOperation], returning its hash.
+     * Send an already signed [userOperation], returning the pending operation.
      */
-    fun sendSignedUserOperation(userOperation: UserOperation): RpcRequest<Hash, UserOperationError> {
-        return bundler.sendUserOperation(userOperation, entryPoint).mapError { it.toUserOperationError() }
-    }
-
-    /**
-     * Wait for the receipt of the user operation [userOpHash], see [BundlerApi.waitForUserOperationReceipt].
-     */
-    fun waitForUserOperationReceipt(userOpHash: Hash): RpcRequest<UserOperationReceipt, UserOperationError> {
-        return bundler.waitForUserOperationReceipt(userOpHash)
-    }
-
-    /**
-     * Wait for the receipt of the user operation [userOpHash], see [BundlerApi.waitForUserOperationReceipt].
-     */
-    fun waitForUserOperationReceipt(
-        userOpHash: Hash,
-        timeout: Duration,
-        pollingInterval: Duration,
-    ): RpcRequest<UserOperationReceipt, UserOperationError> {
-        return bundler.waitForUserOperationReceipt(userOpHash, timeout, pollingInterval, false)
+    fun sendSignedUserOperation(userOperation: UserOperation): RpcRequest<PendingUserOperation, UserOperationError> {
+        return bundler.sendUserOperation(userOperation, entryPoint)
+            .map { PendingUserOperation(it.userOpHash, bundler, provider) }
+            .mapError { it.toUserOperationError() }
     }
 
     /**
