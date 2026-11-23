@@ -7,6 +7,7 @@ import io.ethers.aa.UserOperation
 import io.ethers.aa.errors.BundlerErrorCode
 import io.ethers.aa.errors.EntryPointErrorCode
 import io.ethers.aa.errors.UserOperationError
+import io.ethers.aa.errors.toUserOperationError
 import io.ethers.core.Kotlinx
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
@@ -192,10 +193,10 @@ class BundlerClientTest : FunSpec({
             RpcError(-32500, "FailedOp(0,\"AA21 didn't pay prefund\")"),
         )
         val error = BundlerClient(rpc).sendUserOperation(userOp, EntryPoint.V0_7)
-            .mapError { UserOperationError.Rpc(it) }
+            .mapError { it.toUserOperationError() }
             .send()
             .unwrapError()
-            .shouldBeInstanceOf<UserOperationError.Rpc>()
+            .shouldBeInstanceOf<UserOperationError>()
 
         error.entryPointError shouldBe EntryPointErrorCode.INSUFFICIENT_PREFUND
         error.bundlerError shouldBe BundlerErrorCode.SIMULATE_VALIDATION

@@ -95,36 +95,20 @@ enum class BundlerErrorCode(val code: Int, val description: String) {
 }
 
 /**
- * Error of an account abstraction operation: a bundler or paymaster RPC call, preparing, signing or waiting for a
- * user operation.
+ * A bundler or paymaster rejected an RPC call. [entryPointError] and [bundlerError] are parsed from [error] when it
+ * carries an `AAxx` code or an ERC-7769 error code.
  */
-sealed class UserOperationError : ThrowableError {
-    /**
-     * A bundler, paymaster or node rejected an RPC call. [entryPointError] and [bundlerError] are parsed from
-     * [error] when it carries an `AAxx` code or an ERC-7769 error code.
-     */
-    data class Rpc(val error: RpcError) : UserOperationError() {
-        val entryPointError: EntryPointErrorCode? = EntryPointErrorCode.parse(error.message)
-        val bundlerError: BundlerErrorCode? = BundlerErrorCode.fromCode(error.code)
+data class UserOperationError(val error: RpcError) : ThrowableError {
+    val entryPointError: EntryPointErrorCode? = EntryPointErrorCode.parse(error.message)
+    val bundlerError: BundlerErrorCode? = BundlerErrorCode.fromCode(error.code)
 
-        override val message: String
-            get() = error.message
+    override val message: String
+        get() = error.message
 
-        override fun toException(): RuntimeException = error.toException()
-    }
-
-    /**
-     * The account could not sign the operation.
-     */
-    data class Signing(override val message: String, override val cause: Throwable? = null) : UserOperationError()
-
-    /**
-     * The operation could not be prepared, e.g. a required field was missing and could not be filled in.
-     */
-    data class InvalidOperation(override val message: String, override val cause: Throwable? = null) : UserOperationError()
+    override fun toException(): RuntimeException = error.toException()
 }
 
 /**
- * Wrap this error into [UserOperationError.Rpc], parsing its EntryPoint and bundler error codes.
+ * Wrap this error into [UserOperationError], parsing its EntryPoint and bundler error codes.
  */
-fun RpcError.toUserOperationError(): UserOperationError.Rpc = UserOperationError.Rpc(this)
+fun RpcError.toUserOperationError(): UserOperationError = UserOperationError(this)

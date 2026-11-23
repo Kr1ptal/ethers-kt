@@ -2,9 +2,8 @@
 
 [ERC-4337](https://eips.ethereum.org/EIPS/eip-4337) account abstraction for EntryPoint v0.6, v0.7, v0.8 and v0.9.
 
-The module is vendor-neutral: it contains no smart account implementations. Accounts implement the `SmartAccount`
-interface, and everything else — building, hashing, estimating, sponsoring, signing, sending and decoding user
-operations — works with any of them.
+The module is vendor-neutral: it works with user operations of any smart account, and contains no account
+implementations. Building an operation's call data, deployment and signature is up to the account's own code.
 
 The snippets below use the blocking `sendAwait` terminal, which exists only on JVM and Android. From common code, or
 from any coroutine, call the suspending `send()` instead.
@@ -49,36 +48,22 @@ if (result.unwrapErrorOrNull()?.entryPointError == EntryPointErrorCode.INVALID_N
 }
 ```
 
-## Sending operations from a smart account
+## Sending an operation
 
-`SmartAccountClient` prepares, signs and sends operations of a `SmartAccount`. It fills in whatever the request leaves
-unset: call data, nonce, fees, deployment of an undeployed account (or EIP-7702 delegation), a stub signature, stub
-paymaster data, bundler gas estimates and final paymaster data.
-
-```kotlin
-val client = SmartAccountClient(
-    account = myAccount,                 // your SmartAccount implementation
-    bundler = BundlerClient(HttpClient("<BUNDLER_URL>")),
-    provider = provider,                 // a node of the same chain
-    paymaster = PaymasterClient(HttpClient("<PAYMASTER_URL>")),  // optional
-)
-
-val pending = client.sendUserOperation(listOf(Call(to = recipient, value = amount))).sendAwait().unwrap()
-val receipt = pending.awaitInclusion().unwrap()
-```
-
-A `UserOperationRequest` overrides any field, sets paymaster context, or signs through another validator, e.g. a
-session key, which selects its validator through its nonce key:
+Fill in the account-specific fields (call data, deployment, signature) with the account's own code, and the rest
+with the bundler and an optional paymaster:
 
 ```kotlin
-val request = UserOperationRequest(calls)
-    .signer(sessionKeySigner)
-    .paymasterContext(mapOf("policyId" to "<POLICY>"))
+val stub = userOp.copy(signature = stubSignature)
+val sponsored = paymaster.getPaymasterStubData(stub, EntryPoint.V0_7, chainId).sendAwait().unwrap()
+val gas = bundler.estimateUserOperationGas(stub.copy(paymaster = sponsored.paymaster, paymasterData = sponsored.paymasterData), EntryPoint.V0_7)
+    .sendAwait().unwrap()
 
-client.sendUserOperation(request).sendAwait().unwrap()
+val estimated = stub.copy(callGasLimit = gas.callGasLimit, verificationGasLimit = gas.verificationGasLimit, /* ... */)
+val signed = estimated.withSignature(sign(estimated.hash(EntryPoint.V0_7, chainId)))
+
+val receipt = bundler.sendUserOperation(signed, EntryPoint.V0_7).sendAwait().unwrap().awaitInclusion().unwrap()
 ```
-
-Fees default to `NodeFeeEstimator`. Implement `FeeEstimator` to use a bundler's own gas price method instead.
 
 ## Decoding executed bundles
 

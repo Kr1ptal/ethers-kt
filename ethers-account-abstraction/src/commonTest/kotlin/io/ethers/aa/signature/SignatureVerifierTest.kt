@@ -1,7 +1,6 @@
 package io.ethers.aa.signature
 
 import io.ethers.aa.FakeJsonRpcClient
-import io.ethers.aa.account.FactoryArgs
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
@@ -21,7 +20,8 @@ import kotlinx.serialization.json.jsonPrimitive
 class SignatureVerifierTest : FunSpec({
     val owner = PrivateKeySigner("0x" + "07".repeat(32))
     val account = Address("0x1111111111111111111111111111111111111111")
-    val factoryArgs = FactoryArgs(Address("0x2222222222222222222222222222222222222222"), Bytes("0xabcdef"))
+    val factory = Address("0x2222222222222222222222222222222222222222")
+    val factoryData = Bytes("0xabcdef")
     val hash = Hash(Hashing.keccak256("hello".encodeToByteArray()))
     val eoaSignature = Bytes(owner.signHash(hash.asByteArray()).toByteArray())
     val accountSignature = Bytes("0x" + "aa".repeat(70))
@@ -85,7 +85,7 @@ class SignatureVerifierTest : FunSpec({
 
     test("signature of an undeployed account is wrapped with its factory") {
         val node = FakeJsonRpcClient().respond("eth_call", "\"0x01\"")
-        verifier(node).verifyHash(account, hash, accountSignature, factoryArgs).send().unwrap() shouldBe true
+        verifier(node).verifyHash(account, hash, accountSignature, factory, factoryData).send().unwrap() shouldBe true
         callData(node) shouldEndWith "6492".repeat(16)
     }
 
@@ -97,15 +97,15 @@ class SignatureVerifierTest : FunSpec({
 
     context("ERC-6492 wrapping") {
         test("round trip") {
-            val wrapped = Erc6492Signature.wrap(accountSignature, factoryArgs)
+            val wrapped = Erc6492Signature.wrap(accountSignature, factory, factoryData)
             Erc6492Signature.isWrapped(wrapped) shouldBe true
             wrapped.toString() shouldEndWith "6492".repeat(16)
-            Erc6492Signature.parse(wrapped) shouldBe Erc6492Signature(factoryArgs.factory, factoryArgs.factoryData, accountSignature)
+            Erc6492Signature.parse(wrapped) shouldBe Erc6492Signature(factory, factoryData, accountSignature)
         }
 
         test("wrapping is idempotent") {
-            val wrapped = Erc6492Signature.wrap(accountSignature, factoryArgs)
-            Erc6492Signature.wrap(wrapped, factoryArgs) shouldBe wrapped
+            val wrapped = Erc6492Signature.wrap(accountSignature, factory, factoryData)
+            Erc6492Signature.wrap(wrapped, factory, factoryData) shouldBe wrapped
         }
 
         test("plain or malformed signatures do not parse") {

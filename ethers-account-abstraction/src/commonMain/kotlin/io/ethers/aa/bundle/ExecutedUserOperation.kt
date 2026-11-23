@@ -2,7 +2,6 @@ package io.ethers.aa.bundle
 
 import io.ethers.aa.EntryPoint
 import io.ethers.aa.UserOperation
-import io.ethers.aa.account.Call
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash

@@ -1,6 +1,5 @@
 package io.ethers.aa.signature
 
-import io.ethers.aa.account.FactoryArgs
 import io.ethers.abi.AbiCodec
 import io.ethers.abi.AbiType
 import io.ethers.abi.eip712.EIP712TypedData
@@ -69,12 +68,13 @@ data class Erc6492Signature(val factory: Address, val factoryData: Bytes, val si
         }
 
         /**
-         * Wrap [signature] of an account deployed by [factoryArgs], unless it is already wrapped.
+         * Wrap [signature] of an account deployed by calling [factory] with [factoryData], unless it is already
+         * wrapped.
          */
         @JvmStatic
-        fun wrap(signature: Bytes, factoryArgs: FactoryArgs): Bytes {
+        fun wrap(signature: Bytes, factory: Address, factoryData: Bytes): Bytes {
             if (isWrapped(signature)) return signature
-            return Erc6492Signature(factoryArgs.factory, factoryArgs.factoryData, signature).serialize()
+            return Erc6492Signature(factory, factoryData, signature).serialize()
         }
     }
 }
@@ -92,21 +92,23 @@ class SignatureVerifier(private val provider: Middleware) {
     /**
      * Verify [signature] of [hash] by [signer] at block [blockId].
      *
-     * @param factoryArgs deployment of [signer] if it is a smart account that may not be deployed yet. The signature
-     * is wrapped with it unless it already is an ERC-6492 signature.
+     * @param factory the factory that deploys [signer], if it is a smart account that may not be deployed yet.
+     * @param factoryData the call data that deploys [signer] through [factory]. Together they wrap the signature as
+     * ERC-6492, unless it already is.
      */
     @JvmOverloads
     fun verifyHash(
         signer: Address,
         hash: Hash,
         signature: Bytes,
-        factoryArgs: FactoryArgs? = null,
+        factory: Address? = null,
+        factoryData: Bytes? = null,
         blockId: BlockId = BlockId.LATEST,
     ): RpcRequest<Boolean, RpcError> {
         // no signature is valid for the zero address
         if (signer == Address.ZERO) return SuppliedRpcRequest { success(false) }
 
-        val wrapped = if (factoryArgs != null) Erc6492Signature.wrap(signature, factoryArgs) else signature
+        val wrapped = if (factory != null) Erc6492Signature.wrap(signature, factory, factoryData ?: Bytes.EMPTY) else signature
         val args = AbiCodec.encode(listOf(AbiType.Address, AbiType.FixedBytes(32), AbiType.Bytes), listOf(signer, Bytes(hash.asByteArray()), wrapped))
         val call = CallRequest().data(Bytes(ERC6492_VALIDATOR_BYTECODE.asByteArray() + args))
         val onChain = provider.call(call, blockId)
@@ -129,10 +131,11 @@ class SignatureVerifier(private val provider: Middleware) {
         signer: Address,
         message: ByteArray,
         signature: Bytes,
-        factoryArgs: FactoryArgs? = null,
+        factory: Address? = null,
+        factoryData: Bytes? = null,
         blockId: BlockId = BlockId.LATEST,
     ): RpcRequest<Boolean, RpcError> {
-        return verifyHash(signer, Hash(Hashing.hashMessage(message)), signature, factoryArgs, blockId)
+        return verifyHash(signer, Hash(Hashing.hashMessage(message)), signature, factory, factoryData, blockId)
     }
 
     /**
@@ -143,10 +146,11 @@ class SignatureVerifier(private val provider: Middleware) {
         signer: Address,
         typedData: EIP712TypedData,
         signature: Bytes,
-        factoryArgs: FactoryArgs? = null,
+        factory: Address? = null,
+        factoryData: Bytes? = null,
         blockId: BlockId = BlockId.LATEST,
     ): RpcRequest<Boolean, RpcError> {
-        return verifyHash(signer, Hash(typedData.signatureHash()), signature, factoryArgs, blockId)
+        return verifyHash(signer, Hash(typedData.signatureHash()), signature, factory, factoryData, blockId)
     }
 
     private fun recoversTo(signer: Address, hash: Hash, signature: Bytes): Boolean {

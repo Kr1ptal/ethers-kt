@@ -119,5 +119,3 @@ class BundlerClient(val client: JsonRpcClient) : BundlerApi {
         val EMPTY_PARAMS = emptyArray<Any>()
     }
 }
-
-internal fun <T> Result<T, RpcError>.toUserOperationResult(): Result<T, UserOperationError> = mapError { it.toUserOperationError() }
