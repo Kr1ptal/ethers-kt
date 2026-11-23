@@ -18,6 +18,14 @@ Sections:
 ### Security = Security patches.
 -->
 
+## [Unreleased]
+
+### Changed
+
+- `EnsNameCache` is now an interface, so `EnsResolver` accepts a custom cache implementation. The TTL cache moves
+  to `TtlEnsNameCache`; `EnsNameCache(ttl, timeSource)` still creates one in Kotlin, while Java callers must
+  construct `TtlEnsNameCache` directly (binary-incompatible)
+
 ## [2.2.0] - 2026-11-22
 
 This release adds Solana support alongside the EVM modules, and moves RPC result decoding off JSON trees. It carries
