@@ -1,14 +1,13 @@
 package io.ethers.aa
 
-import io.ethers.aa.internal.ZERO
-import io.ethers.aa.internal.bytesToUint
-import io.ethers.aa.internal.concatBytes
-import io.ethers.aa.internal.uintToBytes
+import io.ethers.abi.AbiCodec
+import io.ethers.abi.AbiType
 import io.ethers.core.types.Address
 import io.ethers.core.types.Authorization
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import kotlin.jvm.JvmField
 import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmStatic
@@ -85,7 +84,7 @@ data class UserOperation @JvmOverloads constructor(
     val initCode: Bytes
         get() = when (factory) {
             null -> Bytes.EMPTY
-            else -> Bytes(concatBytes(factory.asByteArray(), factoryData?.asByteArray() ?: EMPTY_ARRAY))
+            else -> AbiCodec.encodePacked(listOf(AbiType.Address, AbiType.Bytes), listOf(factory, factoryData ?: Bytes.EMPTY))
         }
 
     /**
@@ -102,7 +101,8 @@ data class UserOperation @JvmOverloads constructor(
     /**
      * Return the packed on-chain form of this operation for EntryPoint [version] (v0.7 or later).
      *
-     * @throws IllegalArgumentException if [version] is v0.6, or a gas value overflows its packed 128 bits.
+     * @throws IllegalArgumentException if [version] is v0.6.
+     * @throws io.ethers.abi.AbiCodecException if a gas value overflows its packed 128 bits.
      */
     fun toPacked(version: EntryPointVersion): PackedUserOperation {
         require(version.usesPackedUserOperation) { "EntryPoint $version does not use packed user operations" }
@@ -111,9 +111,9 @@ data class UserOperation @JvmOverloads constructor(
             nonce = nonce,
             initCode = initCode,
             callData = callData,
-            accountGasLimits = packUints(verificationGasLimit, callGasLimit, "verificationGasLimit", "callGasLimit"),
+            accountGasLimits = packUints(verificationGasLimit, callGasLimit),
             preVerificationGas = preVerificationGas,
-            gasFees = packUints(maxPriorityFeePerGas, maxFeePerGas, "maxPriorityFeePerGas", "maxFeePerGas"),
+            gasFees = packUints(maxPriorityFeePerGas, maxFeePerGas),
             paymasterAndData = paymasterAndData(version),
             signature = signature,
         )
@@ -127,8 +127,9 @@ data class UserOperation @JvmOverloads constructor(
      * delegates to, which defaults to the address of [eip7702Auth]. Pass [eip7702Delegate] if the sender is already
      * delegated and the operation carries no authorization.
      *
-     * @throws IllegalArgumentException if the operation cannot be represented on the EntryPoint version, e.g. a
-     * gas value overflows its packed 128 bits, or the delegate of an EIP-7702 operation is unknown.
+     * @throws IllegalArgumentException if the operation cannot be represented on the EntryPoint version, e.g. v0.6
+     * with paymaster gas limits, or the delegate of an EIP-7702 operation is unknown.
+     * @throws io.ethers.abi.AbiCodecException if a gas value overflows its packed 128 bits.
      */
     @JvmOverloads
     fun hash(entryPoint: EntryPoint, chainId: Long, eip7702Delegate: Address? = eip7702Auth?.address): Hash {
@@ -142,7 +143,7 @@ data class UserOperation @JvmOverloads constructor(
 
     internal fun paymasterAndDataBytes(version: EntryPointVersion, forHash: Boolean): ByteArray {
         val paymaster = this.paymaster ?: return EMPTY_ARRAY
-        val data = paymasterData?.asByteArray() ?: EMPTY_ARRAY
+        val data = paymasterData ?: Bytes.EMPTY
 
         if (!version.usesPackedUserOperation) {
             require(paymasterVerificationGasLimit == null && paymasterPostOpGasLimit == null) {
@@ -151,36 +152,41 @@ data class UserOperation @JvmOverloads constructor(
             require(paymasterSignature == null || paymasterSignature.isEmpty) {
                 "EntryPoint $version does not support paymaster signatures"
             }
-            return concatBytes(paymaster.asByteArray(), data)
+            return AbiCodec.encodePacked(listOf(AbiType.Address, AbiType.Bytes), listOf(paymaster, data)).asByteArray()
         }
 
-        val pmSignature = paymasterSignature?.asByteArray() ?: EMPTY_ARRAY
-        require(pmSignature.isEmpty() || version.supportsPaymasterSignature) {
+        val pmSignature = paymasterSignature ?: Bytes.EMPTY
+        require(pmSignature.isEmpty || version.supportsPaymasterSignature) {
             "EntryPoint $version does not support paymaster signatures"
         }
-        require(pmSignature.size <= 0xFFFF) { "paymasterSignature is longer than 65535 bytes" }
 
-        val gasLimits = concatBytes(
-            uintToBytes(paymasterVerificationGasLimit ?: ZERO, 16, "paymasterVerificationGasLimit"),
-            uintToBytes(paymasterPostOpGasLimit ?: ZERO, 16, "paymasterPostOpGasLimit"),
+        // UserOperationLib: paymaster || uint128 verificationGasLimit || uint128 postOpGasLimit || paymasterData,
+        // followed for v0.9 by paymasterSignature || uint16 signatureLength || PAYMASTER_SIG_MAGIC
+        val types = arrayListOf<AbiType<*>>(AbiType.Address, AbiType.UInt(128), AbiType.UInt(128), AbiType.Bytes)
+        val values = arrayListOf<Any>(
+            paymaster,
+            paymasterVerificationGasLimit ?: ZERO,
+            paymasterPostOpGasLimit ?: ZERO,
+            data,
         )
 
-        return when {
-            pmSignature.isEmpty() -> concatBytes(paymaster.asByteArray(), gasLimits, data)
+        when {
+            pmSignature.isEmpty -> Unit
 
             // the signature is excluded from the hash, but its magic is kept, so a signed and unsigned
             // paymasterAndData never hash the same
-            forHash -> concatBytes(paymaster.asByteArray(), gasLimits, data, PAYMASTER_SIG_MAGIC)
+            forHash -> {
+                types.add(AbiType.FixedBytes(8))
+                values.add(PAYMASTER_SIG_MAGIC)
+            }
 
-            else -> concatBytes(
-                paymaster.asByteArray(),
-                gasLimits,
-                data,
-                pmSignature,
-                byteArrayOf((pmSignature.size ushr 8).toByte(), pmSignature.size.toByte()),
-                PAYMASTER_SIG_MAGIC,
-            )
+            else -> {
+                types.addAll(listOf(AbiType.Bytes, AbiType.UInt(16), AbiType.FixedBytes(8)))
+                values.addAll(listOf(pmSignature, bigIntegerOf(pmSignature.size.toLong()), PAYMASTER_SIG_MAGIC))
+            }
         }
+
+        return AbiCodec.encodePacked(types, values).asByteArray()
     }
 
     companion object {
@@ -192,9 +198,10 @@ data class UserOperation @JvmOverloads constructor(
         val EIP7702_FACTORY_MARKER = Address("0x7702000000000000000000000000000000000000")
 
         internal val EMPTY_ARRAY = ByteArray(0)
+        private val ZERO = bigIntegerOf(0)
 
         // keccak256("PaymasterSignature")[:8]
-        internal val PAYMASTER_SIG_MAGIC = byteArrayOf(0x22, 0xe3.toByte(), 0x25, 0xa2.toByte(), 0x97.toByte(), 0x43, 0x96.toByte(), 0x56)
+        internal val PAYMASTER_SIG_MAGIC = Bytes("0x22e325a297439656")
         internal const val PAYMASTER_DATA_OFFSET = 52
         private const val PAYMASTER_SUFFIX_LEN = 10
 
@@ -267,8 +274,8 @@ data class UserOperation @JvmOverloads constructor(
                 }
 
                 paymaster = Address(pmAndData.copyOfRange(0, 20))
-                paymasterVerificationGasLimit = bytesToUint(pmAndData, 20, 36)
-                paymasterPostOpGasLimit = bytesToUint(pmAndData, 36, 52)
+                paymasterVerificationGasLimit = uint(pmAndData, 20, 36)
+                paymasterPostOpGasLimit = uint(pmAndData, 36, 52)
 
                 var dataEnd = pmAndData.size
                 if (version.supportsPaymasterSignature) {
@@ -286,11 +293,11 @@ data class UserOperation @JvmOverloads constructor(
                 sender = packed.sender,
                 nonce = packed.nonce,
                 callData = packed.callData,
-                callGasLimit = bytesToUint(accountGasLimits, 16, 32),
-                verificationGasLimit = bytesToUint(accountGasLimits, 0, 16),
+                callGasLimit = uint(accountGasLimits, 16, 32),
+                verificationGasLimit = uint(accountGasLimits, 0, 16),
                 preVerificationGas = packed.preVerificationGas,
-                maxFeePerGas = bytesToUint(gasFees, 16, 32),
-                maxPriorityFeePerGas = bytesToUint(gasFees, 0, 16),
+                maxFeePerGas = uint(gasFees, 16, 32),
+                maxPriorityFeePerGas = uint(gasFees, 0, 16),
                 signature = packed.signature,
                 factory = factory,
                 factoryData = factoryData,
@@ -309,9 +316,10 @@ data class UserOperation @JvmOverloads constructor(
             val size = pmAndData.size
             if (size < PAYMASTER_DATA_OFFSET + PAYMASTER_SUFFIX_LEN) return 0
 
-            val magicStart = size - PAYMASTER_SIG_MAGIC.size
-            for (i in PAYMASTER_SIG_MAGIC.indices) {
-                if (pmAndData[magicStart + i] != PAYMASTER_SIG_MAGIC[i]) return 0
+            val magic = PAYMASTER_SIG_MAGIC.asByteArray()
+            val magicStart = size - magic.size
+            for (i in magic.indices) {
+                if (pmAndData[magicStart + i] != magic[i]) return 0
             }
 
             val length = ((pmAndData[size - 10].toInt() and 0xFF) shl 8) or (pmAndData[size - 9].toInt() and 0xFF)
@@ -338,9 +346,17 @@ data class UserOperation @JvmOverloads constructor(
             return true
         }
 
-        private fun packUints(high: BigInteger, low: BigInteger, highName: String, lowName: String): Bytes {
-            return Bytes(concatBytes(uintToBytes(high, 16, highName), uintToBytes(low, 16, lowName)))
+        /**
+         * Pack two 128-bit values into a 32-byte word, as `accountGasLimits` and `gasFees` are.
+         */
+        internal fun packUints(high: BigInteger, low: BigInteger): Bytes {
+            return AbiCodec.encodePacked(listOf(AbiType.UInt(128), AbiType.UInt(128)), listOf(high, low))
         }
+
+        /**
+         * Read the big-endian unsigned integer in [data] from [from] (inclusive) to [to] (exclusive).
+         */
+        internal fun uint(data: ByteArray, from: Int, to: Int): BigInteger = BigInteger(1, data.copyOfRange(from, to))
     }
 }
 

@@ -7,7 +7,6 @@ import io.ethers.aa.UserOperationJson
 import io.ethers.aa.internal.asAddressValue
 import io.ethers.aa.internal.asHexBytes
 import io.ethers.aa.internal.asQuantity
-import io.ethers.aa.internal.bytesToUint
 import io.ethers.aa.internal.fieldOrNull
 import io.ethers.aa.internal.quantity
 import io.ethers.core.toJsonElement
@@ -169,7 +168,7 @@ class PaymasterClient(val client: JsonRpcClient) : PaymasterApi {
             if (!version.usesPackedUserOperation || obj.fieldOrNull("paymaster") != null) return null
             val bytes = obj.fieldOrNull("paymasterAndData")?.asHexBytes()?.asByteArray() ?: return null
             if (bytes.size < 52) return null
-            return bytesToUint(bytes, 20, 36) to bytesToUint(bytes, 36, 52)
+            return UserOperation.uint(bytes, 20, 36) to UserOperation.uint(bytes, 36, 52)
         }
 
         /**

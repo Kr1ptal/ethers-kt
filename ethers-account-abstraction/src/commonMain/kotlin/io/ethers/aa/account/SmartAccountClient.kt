@@ -6,9 +6,8 @@ import io.ethers.aa.bundler.BundlerApi
 import io.ethers.aa.bundler.UserOperationReceipt
 import io.ethers.aa.errors.UserOperationError
 import io.ethers.aa.errors.toUserOperationError
-import io.ethers.aa.internal.WordWriter
-import io.ethers.aa.internal.ZERO
 import io.ethers.aa.paymaster.PaymasterApi
+import io.ethers.abi.AbiFunction
 import io.ethers.core.Result
 import io.ethers.core.failure
 import io.ethers.core.success
@@ -23,6 +22,7 @@ import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.RpcRequest
 import io.ethers.providers.types.SuppliedRpcRequest
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlin.coroutines.cancellation.CancellationException
@@ -132,8 +132,7 @@ class SmartAccountClient @JvmOverloads constructor(
      * Read the next nonce of [key] for the account from the EntryPoint.
      */
     fun getNonce(key: BigInteger): RpcRequest<BigInteger, UserOperationError> {
-        val data = WordWriter(2).address(account.address).uint(key).toByteArray()
-        val call = CallRequest().to(entryPoint.address).data(Bytes(GET_NONCE_SELECTOR + data))
+        val call = CallRequest().to(entryPoint.address).data(GET_NONCE.encodeCall(listOf(account.address, key)))
         return provider.call(call, BlockId.LATEST).map { BigInteger(1, it.asByteArray()) }.mapError { it.toUserOperationError() }
     }
 
@@ -319,7 +318,7 @@ class SmartAccountClient @JvmOverloads constructor(
     }
 
     private companion object {
-        // getNonce(address,uint192)
-        val GET_NONCE_SELECTOR = byteArrayOf(0x35, 0x56, 0x7e, 0x1a)
+        val GET_NONCE = AbiFunction.parseSignature("getNonce(address,uint192)")
+        val ZERO = bigIntegerOf(0)
     }
 }

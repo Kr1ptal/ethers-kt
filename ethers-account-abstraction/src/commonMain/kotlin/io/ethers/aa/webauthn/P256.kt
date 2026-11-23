@@ -1,10 +1,10 @@
 package io.ethers.aa.webauthn
 
-import io.ethers.aa.internal.bytesToUint
-import io.ethers.aa.internal.concatBytes
-import io.ethers.aa.internal.uintToBytes
+import io.ethers.abi.AbiCodec
+import io.ethers.abi.AbiType
 import io.ethers.core.types.Bytes
 import io.github.artificialpb.bignum.BigInteger
+import io.github.artificialpb.bignum.bigIntegerOf
 import kotlin.jvm.JvmField
 import kotlin.jvm.JvmStatic
 
@@ -19,14 +19,19 @@ data class P256PublicKey(val x: BigInteger, val y: BigInteger) {
     /**
      * The 64-byte `x || y` encoding, used by passkey-enabled smart accounts to identify the owner.
      */
-    fun toBytes(): Bytes = Bytes(concatBytes(uintToBytes(x, 32), uintToBytes(y, 32)))
+    fun toBytes(): Bytes = AbiCodec.encodePacked(listOf(AbiType.UInt(256), AbiType.UInt(256)), listOf(x, y))
 
     /**
      * The 65-byte uncompressed SEC1 encoding, `0x04 || x || y`.
      */
-    fun toUncompressed(): ByteArray = concatBytes(byteArrayOf(0x04), uintToBytes(x, 32), uintToBytes(y, 32))
+    fun toUncompressed(): ByteArray {
+        return AbiCodec.encodePacked(listOf(AbiType.UInt(8), AbiType.UInt(256), AbiType.UInt(256)), listOf(UNCOMPRESSED_PREFIX, x, y))
+            .asByteArray()
+    }
 
     companion object {
+        private val UNCOMPRESSED_PREFIX = bigIntegerOf(0x04)
+
         // DER prefix of a SubjectPublicKeyInfo of an uncompressed P-256 key: SEQUENCE { SEQUENCE { id-ecPublicKey,
         // prime256v1 }, BIT STRING { 0x00 } }, followed by the 65-byte uncompressed point
         private val SPKI_PREFIX = byteArrayOf(
@@ -44,7 +49,8 @@ data class P256PublicKey(val x: BigInteger, val y: BigInteger) {
                 bytes.size == 65 && bytes[0].toInt() == 0x04 -> 1
                 else -> throw IllegalArgumentException("Expected a 64-byte or uncompressed 65-byte P-256 key, got ${bytes.size} bytes")
             }
-            return P256PublicKey(bytesToUint(bytes, offset, offset + 32), bytesToUint(bytes, offset + 32, offset + 64))
+            val (x, y) = AbiCodec.decode(listOf(AbiType.UInt(256), AbiType.UInt(256)), bytes.copyOfRange(offset, offset + 64))
+            return P256PublicKey(x, y)
         }
 
         /**
@@ -81,7 +87,7 @@ data class P256Signature(val r: BigInteger, val s: BigInteger) {
     /**
      * The 64-byte `r || s` encoding.
      */
-    fun toBytes(): Bytes = Bytes(concatBytes(uintToBytes(r, 32), uintToBytes(s, 32)))
+    fun toBytes(): Bytes = AbiCodec.encodePacked(listOf(AbiType.UInt(256), AbiType.UInt(256)), listOf(r, s))
 
     companion object {
         /**
@@ -90,7 +96,8 @@ data class P256Signature(val r: BigInteger, val s: BigInteger) {
         @JvmStatic
         fun fromBytes(bytes: ByteArray): P256Signature {
             require(bytes.size == 64) { "Expected a 64-byte P-256 signature, got ${bytes.size} bytes" }
-            return P256Signature(bytesToUint(bytes, 0, 32), bytesToUint(bytes, 32, 64))
+            val (r, s) = AbiCodec.decode(listOf(AbiType.UInt(256), AbiType.UInt(256)), bytes)
+            return P256Signature(r, s)
         }
 
         /**

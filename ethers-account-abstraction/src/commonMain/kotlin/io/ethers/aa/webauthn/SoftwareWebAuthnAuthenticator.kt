@@ -4,9 +4,11 @@ import dev.whyoleg.cryptography.CryptographyProvider
 import dev.whyoleg.cryptography.algorithms.EC
 import dev.whyoleg.cryptography.algorithms.ECDSA
 import dev.whyoleg.cryptography.algorithms.SHA256
-import io.ethers.aa.internal.concatBytes
+import io.ethers.abi.AbiCodec
+import io.ethers.abi.AbiType
 import io.ethers.core.types.Bytes
 import io.ethers.crypto.Hashing
+import io.github.artificialpb.bignum.bigIntegerOf
 
 /**
  * A [WebAuthnAuthenticator] holding a single P-256 passkey in memory. It produces assertions in the same format as
@@ -33,18 +35,21 @@ class SoftwareWebAuthnAuthenticator(
         require(allowedCredentialIds.isEmpty() || credentialId in allowedCredentialIds) { "Credential not allowed" }
 
         signCount++
-        val authenticatorData = concatBytes(
-            Hashing.sha256(rpId.encodeToByteArray()),
-            // flags: user present, user verified
-            byteArrayOf(0x05),
-            byteArrayOf((signCount ushr 24).toByte(), (signCount ushr 16).toByte(), (signCount ushr 8).toByte(), signCount.toByte()),
-        )
+        // rpIdHash || flags (user present, user verified) || uint32 signCount
+        val authenticatorData = AbiCodec.encodePacked(
+            listOf(AbiType.FixedBytes(32), AbiType.UInt(8), AbiType.UInt(32)),
+            listOf(Bytes(Hashing.sha256(rpId.encodeToByteArray())), FLAGS, bigIntegerOf(signCount.toLong())),
+        ).asByteArray()
         val clientDataJSON = """{"type":"webauthn.get","challenge":"${WebAuthn.base64Url(challenge)}","origin":"$origin","crossOrigin":false}"""
             .encodeToByteArray()
 
-        val message = concatBytes(authenticatorData, Hashing.sha256(clientDataJSON))
+        val message = authenticatorData + Hashing.sha256(clientDataJSON)
         val signature = keyPair.privateKey.signatureGenerator(SHA256, ECDSA.SignatureFormat.DER).generateSignatureBlocking(message)
 
         return WebAuthnResponse(credentialId, Bytes(authenticatorData), clientDataJSON, signature)
+    }
+
+    private companion object {
+        val FLAGS = bigIntegerOf(0x05)
     }
 }

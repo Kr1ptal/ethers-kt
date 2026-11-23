@@ -1,5 +1,7 @@
 package io.ethers.aa.internal
 
+import io.ethers.abi.AbiCodec
+import io.ethers.abi.AbiType
 import io.ethers.core.FastHex
 import io.ethers.core.types.Address
 import io.ethers.core.types.Authorization
@@ -72,8 +74,9 @@ internal fun Authorization.toRpcJson(): JsonObject = buildJsonObject {
     put("address", hex(address))
     put("nonce", quantity(nonce))
     put("yParity", quantity(yParity))
-    put("r", JsonPrimitive(FastHex.encodeWithPrefix(uintToBytes(r, 32, "r"))))
-    put("s", JsonPrimitive(FastHex.encodeWithPrefix(uintToBytes(s, 32, "s"))))
+    // r and s are fixed-size words, not quantities
+    put("r", hex(AbiCodec.encodePacked(listOf(AbiType.UInt(256)), listOf(r))))
+    put("s", hex(AbiCodec.encodePacked(listOf(AbiType.UInt(256)), listOf(s))))
 }
 
 internal fun JsonElement.asAuthorization(): Authorization {
@@ -88,4 +91,6 @@ internal fun JsonElement.asAuthorization(): Authorization {
     )
 }
 
-internal val BIG_ZERO_JSON = quantity(bigIntegerOf(0))
+internal val ZERO: BigInteger = bigIntegerOf(0)
+
+internal val BIG_ZERO_JSON = quantity(ZERO)

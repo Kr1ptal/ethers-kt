@@ -4,7 +4,8 @@ import dev.whyoleg.cryptography.CryptographyProvider
 import dev.whyoleg.cryptography.algorithms.EC
 import dev.whyoleg.cryptography.algorithms.ECDSA
 import dev.whyoleg.cryptography.algorithms.SHA256
-import io.ethers.aa.internal.concatBytes
+import io.ethers.abi.AbiCodec
+import io.ethers.abi.AbiType
 import io.ethers.core.types.Bytes
 import io.ethers.crypto.Hashing
 import kotlinx.serialization.json.Json
@@ -81,7 +82,8 @@ data class WebAuthnAssertion(
      * with SHA-256 before signing.
      */
     fun signedMessage(): ByteArray {
-        return concatBytes(authenticatorData.asByteArray(), Hashing.sha256(clientDataJSON.encodeToByteArray()))
+        val clientDataHash = Bytes(Hashing.sha256(clientDataJSON.encodeToByteArray()))
+        return AbiCodec.encodePacked(listOf(AbiType.Bytes, AbiType.FixedBytes(32)), listOf(authenticatorData, clientDataHash)).asByteArray()
     }
 
     /**

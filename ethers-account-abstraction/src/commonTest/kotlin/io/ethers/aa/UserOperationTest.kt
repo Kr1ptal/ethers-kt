@@ -1,5 +1,6 @@
 package io.ethers.aa
 
+import io.ethers.abi.AbiCodecException
 import io.ethers.core.Kotlinx
 import io.ethers.core.types.Address
 import io.ethers.core.types.Authorization
@@ -115,8 +116,9 @@ class UserOperationTest : FunSpec({
 
     test("gas values that overflow 128 bits cannot be packed") {
         val tooLarge = bigIntegerOf(1).shiftLeft(128)
-        shouldThrow<IllegalArgumentException> { op().copy(callGasLimit = tooLarge).toPacked(EntryPointVersion.V0_7) }
-        shouldThrow<IllegalArgumentException> { op().copy(maxFeePerGas = tooLarge).hash(EntryPoint.V0_7, 1) }
+        shouldThrow<AbiCodecException> { op().copy(callGasLimit = tooLarge).toPacked(EntryPointVersion.V0_7) }
+        shouldThrow<AbiCodecException> { op().copy(maxFeePerGas = tooLarge).hash(EntryPoint.V0_7, 1) }
+        shouldThrow<AbiCodecException> { op(paymasterPostOpGasLimit = tooLarge).paymasterAndData(EntryPointVersion.V0_7) }
         // v0.6 does not pack gas values, so they may use all 256 bits
         op(null, null).copy(callGasLimit = tooLarge).hash(EntryPoint.V0_6, 1) shouldNotBe null
     }
