@@ -52,19 +52,19 @@ class BundleReaderTest : FunSpec({
     test("reads the bundles of a transaction, with traces") {
         val rpc = node()
         val bundles = BundleReader(Provider(rpc, 1), useTrace = true).getBundles(txHash).send().unwrap()
-        bundles shouldBe BundleDecoder().decode(fixture.receipt, fixture.transaction, fixture.trace).unwrap()
+        bundles shouldBe BundleDecoder.decode(fixture.receipt, fixture.transaction, fixture.trace).unwrap()
         rpc.requests("debug_traceTransaction") shouldHaveSize 1
     }
 
     test("reads without traces by default") {
         val rpc = node()
         val bundles = BundleReader(Provider(rpc, 1)).getBundles(txHash).send().unwrap()
-        bundles shouldBe BundleDecoder().decode(fixture.receipt, fixture.transaction).unwrap()
+        bundles shouldBe BundleDecoder.decode(fixture.receipt, fixture.transaction).unwrap()
         rpc.requests("debug_traceTransaction").shouldBeEmpty()
     }
 
     test("finds an executed operation by its hash") {
-        val expected = BundleDecoder().decode(fixture.receipt, fixture.transaction).unwrap().single().userOperations.last()
+        val expected = BundleDecoder.decode(fixture.receipt, fixture.transaction).unwrap().single().userOperations.last()
         val reader = BundleReader(Provider(node(), 1))
 
         val found = reader.getExecutedUserOperation(expected.userOpHash, BlockId.Number(0), BlockId.LATEST).send().unwrap()
@@ -74,7 +74,7 @@ class BundleReaderTest : FunSpec({
     }
 
     test("finds the operations of a sender") {
-        val expected = BundleDecoder().decode(fixture.receipt, fixture.transaction).unwrap().single().userOperations.first()
+        val expected = BundleDecoder.decode(fixture.receipt, fixture.transaction).unwrap().single().userOperations.first()
         val ops = BundleReader(Provider(node(), 1))
             .getUserOperationsBySender(expected.sender, BlockId.Number(0), BlockId.LATEST)
             .send().unwrap()
@@ -105,7 +105,7 @@ class BundleReaderTest : FunSpec({
 
     test("filters for operation events of the configured EntryPoints") {
         val rpc = node()
-        BundleReader(Provider(rpc, 1), BundleDecoder(listOf(EntryPoint.V0_7)))
+        BundleReader(Provider(rpc, 1), entryPoints = listOf(EntryPoint.V0_7))
             .getExecutedUserOperation(Hash.ZERO, BlockId.Number(0), BlockId.LATEST).send().unwrap()
         val filter = rpc.requests("eth_getLogs").single().params[0].jsonObject
         val addresses = filter["address"].shouldNotBeNull().toString().lowercase()

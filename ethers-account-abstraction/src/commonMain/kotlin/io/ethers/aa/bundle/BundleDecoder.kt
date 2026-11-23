@@ -16,6 +16,7 @@ import io.ethers.core.types.TransactionReceipt
 import io.ethers.core.types.tracers.CallTracer.CallFrame
 import io.ethers.core.types.tracers.CallTracer.CallLog
 import kotlin.jvm.JvmOverloads
+import kotlin.jvm.JvmStatic
 
 /**
  * Splits bundle transactions into the user operations they executed, see [Bundle] and [ExecutedUserOperation].
@@ -35,19 +36,14 @@ import kotlin.jvm.JvmOverloads
  * validation-phase log is attributed to its operation, the paymaster's `postOp` logs are split out, and the
  * EntryPoint's call frames are attached to the operations they belong to.
  *
- * Only logs and frames of the [entryPoints] given are considered EntryPoint markers, so a contract emitting
+ * Only logs and frames of the EntryPoints given are considered EntryPoint markers, so a contract emitting
  * look-alike events cannot disturb the split. A reverted transaction executed no bundles.
  *
  * Without a trace, a bundle nested inside an operation of another bundle (an operation calling `handleOps` of a
  * different EntryPoint) is not detected, and the operations around it may be attributed to the wrong bundle.
  *
- * @param entryPoints the EntryPoints whose bundles to decode.
- * @param callDataDecoder decodes an operation's call data into calls, or null to skip decoding calls.
  */
-class BundleDecoder @JvmOverloads constructor(
-    val entryPoints: List<EntryPoint> = EntryPoint.CANONICAL,
-    private val callDataDecoder: CallDataDecoder? = StandardCallDataDecoder,
-) {
+object BundleDecoder {
     /**
      * Failure to decode a transaction into bundles.
      */
@@ -58,13 +54,18 @@ class BundleDecoder @JvmOverloads constructor(
      *
      * @param transaction the transaction, used to decode the bundle calldata when it calls an EntryPoint directly.
      * @param trace a `callTracer` trace of the transaction with logs, see [BundleDecoder].
+     * @param entryPoints the EntryPoints whose bundles to decode.
+     * @param callDataDecoder decodes an operation's call data into calls, or null to skip decoding calls.
      * @return the bundles in execution order, empty if the transaction executed none.
      */
+    @JvmStatic
     @JvmOverloads
     fun decode(
         receipt: TransactionReceipt,
         transaction: RPCTransaction? = null,
         trace: CallFrame? = null,
+        entryPoints: List<EntryPoint> = EntryPoint.CANONICAL,
+        callDataDecoder: CallDataDecoder? = StandardCallDataDecoder,
     ): Result<List<Bundle>, Error> {
         if (transaction != null && transaction.hash != receipt.transactionHash) {
             return failure(Error("Transaction ${transaction.hash} does not match receipt ${receipt.transactionHash}"))
@@ -74,7 +75,7 @@ class BundleDecoder @JvmOverloads constructor(
         if (!receipt.isSuccessful) return success(emptyList())
 
         return try {
-            success(decodeUnchecked(receipt, transaction, trace))
+            success(BundleDecoding(entryPoints, callDataDecoder).decode(receipt, transaction, trace))
         } catch (e: BundleDecodingException) {
             failure(Error(e.message ?: "Failed to decode bundle", e.cause))
         } catch (e: Exception) {
@@ -82,8 +83,18 @@ class BundleDecoder @JvmOverloads constructor(
             failure(Error("Malformed bundle: ${e.message}", e))
         }
     }
+}
 
-    private fun decodeUnchecked(receipt: TransactionReceipt, transaction: RPCTransaction?, trace: CallFrame?): List<Bundle> {
+private class BundleDecodingException(message: String) : RuntimeException(message)
+
+/**
+ * The decoding of one transaction, with the settings of a [BundleDecoder.decode] call.
+ */
+private class BundleDecoding(
+    private val entryPoints: List<EntryPoint>,
+    private val callDataDecoder: CallDataDecoder?,
+) {
+    fun decode(receipt: TransactionReceipt, transaction: RPCTransaction?, trace: CallFrame?): List<Bundle> {
         val logs = receipt.logs
         val traceIndex = trace?.let { TraceIndex.build(it, logs, entryPoints) }
 
@@ -331,8 +342,6 @@ class BundleDecoder @JvmOverloads constructor(
         }
         return null
     }
-
-    internal class BundleDecodingException(message: String) : RuntimeException(message)
 }
 
 /**

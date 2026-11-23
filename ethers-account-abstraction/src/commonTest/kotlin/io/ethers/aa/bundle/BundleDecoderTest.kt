@@ -101,7 +101,7 @@ class BundleDecoderTest : FunSpec({
         Bytes(ByteArray(32)), Bytes.EMPTY, Bytes.EMPTY,
     )
 
-    val decoder = BundleDecoder()
+    val decoder = BundleDecoder
 
     beforeTest { logIndex = 0 }
 
@@ -175,7 +175,7 @@ class BundleDecoderTest : FunSpec({
 
     test("only configured EntryPoints are decoded") {
         val logs = listOf(beforeExecution(ep7), userOperationEvent(ep7, hash(1), alice, 0))
-        BundleDecoder(listOf(EntryPoint.V0_8)).decode(receipt(logs)).unwrap().shouldBeEmpty()
+        decoder.decode(receipt(logs), entryPoints = listOf(EntryPoint.V0_8)).unwrap().shouldBeEmpty()
     }
 
     test("aggregator markers attribute operations to their aggregator") {
@@ -242,8 +242,8 @@ class BundleDecoderTest : FunSpec({
         val beneficiary = Address("0xbe4e000000000000000000000000000000000000")
         val input = EntryPointV07.FUNCTION_HANDLE_OPS.encodeCall(listOf(listOf(packed(alice, 0)), beneficiary))
         val logs = listOf(beforeExecution(ep7), userOperationEvent(ep7, hash(1), alice, 0))
-        val throwing = BundleDecoder(callDataDecoder = { _, _ -> throw IllegalStateException("boom") })
-        throwing.decode(receipt(logs), transaction(input)).unwrap().single().userOperations.single().calls.shouldBeNull()
+        val throwing = CallDataDecoder { _, _ -> throw IllegalStateException("boom") }
+        decoder.decode(receipt(logs), transaction(input), callDataDecoder = throwing).unwrap().single().userOperations.single().calls.shouldBeNull()
     }
 
     test("transaction of another receipt is rejected") {

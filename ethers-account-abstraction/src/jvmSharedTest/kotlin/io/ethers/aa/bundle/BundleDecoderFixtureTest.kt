@@ -21,7 +21,7 @@ import io.kotest.matchers.shouldNotBe
  * Decodes real bundles recorded from Ethereum mainnet, of every EntryPoint version.
  */
 class BundleDecoderFixtureTest : FunSpec({
-    val decoder = BundleDecoder()
+    val decoder = BundleDecoder
     val bundleFixtures = BundleFixture.ALL.filter { it.name != "v07_no_bundle" }
 
     fun userOperationEvents(fixture: BundleFixture): List<Log> {
