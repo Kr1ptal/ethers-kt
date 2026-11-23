@@ -5,6 +5,7 @@ import io.ethers.providers.Provider
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.ExperimentalTime
 import kotlin.time.TestTimeSource
@@ -20,7 +21,7 @@ private val NICK = Address("0xb8c2C29ee19D8307cb7255e1Cd9CbDE883A267d5")
 class EnsNameCacheTest : FunSpec({
     test("returns a cached entry until its ttl elapses") {
         val time = TestTimeSource()
-        val cache = EnsNameCache(ttl = 5.minutes, timeSource = time)
+        val cache = TtlEnsNameCache(ttl = 5.minutes, timeSource = time)
         cache.put("vitalik.eth", VITALIK)
 
         cache.get("vitalik.eth") shouldBe VITALIK
@@ -34,7 +35,7 @@ class EnsNameCacheTest : FunSpec({
 
     test("an expired entry is replaced rather than resurrected when it is re-put") {
         val time = TestTimeSource()
-        val cache = EnsNameCache(ttl = 5.minutes, timeSource = time)
+        val cache = TtlEnsNameCache(ttl = 5.minutes, timeSource = time)
         cache.put("vitalik.eth", VITALIK)
 
         time += 6.minutes
@@ -53,7 +54,7 @@ class EnsNameCacheTest : FunSpec({
 
     test("entries are independent, so evicting one leaves the others intact") {
         val time = TestTimeSource()
-        val cache = EnsNameCache(ttl = 5.minutes, timeSource = time)
+        val cache = TtlEnsNameCache(ttl = 5.minutes, timeSource = time)
         cache.put("vitalik.eth", VITALIK)
 
         time += 3.minutes
@@ -66,7 +67,7 @@ class EnsNameCacheTest : FunSpec({
     }
 
     test("clear drops every entry") {
-        val cache = EnsNameCache()
+        val cache = TtlEnsNameCache()
         cache.put("vitalik.eth", VITALIK)
 
         cache.clear()
@@ -85,4 +86,42 @@ class EnsNameCacheTest : FunSpec({
 
         client.requests.size shouldBe afterFirst
     }
+
+    test("EnsNameCache() creates the default ttl cache") {
+        EnsNameCache().shouldBeInstanceOf<TtlEnsNameCache>()
+    }
+
+    test("EnsResolver reads from and writes to a custom cache implementation") {
+        val cache = RecordingCache()
+        val client = FakeJsonRpcClient().enqueueAddressResolution(RESOLVER, VITALIK)
+        val ens = EnsResolver(Provider(client, 1L), cache = cache)
+
+        ens.resolveAddress("vitalik.eth").send().unwrap() shouldBe VITALIK
+        cache.puts shouldBe listOf("vitalik.eth" to VITALIK)
+
+        // a pre-populated entry is served without touching the network
+        cache.entries["nick.eth"] = NICK
+        val requestsBefore = client.requests.size
+        ens.resolveAddress("nick.eth").send().unwrap() shouldBe NICK
+        client.requests.size shouldBe requestsBefore
+        cache.gets shouldBe listOf("vitalik.eth", "nick.eth")
+    }
 })
+
+private class RecordingCache : EnsNameCache {
+    val entries = HashMap<String, Address>()
+    val gets = ArrayList<String>()
+    val puts = ArrayList<Pair<String, Address>>()
+
+    override fun get(name: String): Address? {
+        gets.add(name)
+        return entries[name]
+    }
+
+    override fun put(name: String, address: Address) {
+        puts.add(name to address)
+        entries[name] = address
+    }
+
+    override fun clear() = entries.clear()
+}
