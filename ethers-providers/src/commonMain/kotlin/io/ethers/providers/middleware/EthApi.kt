@@ -337,17 +337,56 @@ interface EthApi {
     /**
      * Get gas fee history for block range between [lastBlockName] and ([lastBlockName] - [blockCount] + 1).
      */
-    fun getFeeHistory(blockCount: Long, lastBlockName: BlockId.Name) = getFeeHistory(blockCount, lastBlockName, emptyList())
+    fun getFeeHistory(blockCount: Long, lastBlockName: BlockId.Name) = getFeeHistory(blockCount, lastBlockName, EMPTY_PERCENTILES)
 
     /**
      * Get gas fee history for block range between [lastBlockNumber] and ([lastBlockNumber] - [blockCount] + 1).
      */
-    fun getFeeHistory(blockCount: Long, lastBlockNumber: Long) = getFeeHistory(blockCount, lastBlockNumber, emptyList())
+    fun getFeeHistory(blockCount: Long, lastBlockNumber: Long) = getFeeHistory(blockCount, lastBlockNumber, EMPTY_PERCENTILES)
 
     /**
      * Get gas fee history for block range between [lastBlockNumber] and ([lastBlockNumber] - [blockCount] + 1).
      */
-    fun getFeeHistory(blockCount: Long, lastBlockNumber: BlockId.Number) = getFeeHistory(blockCount, lastBlockNumber, emptyList())
+    fun getFeeHistory(blockCount: Long, lastBlockNumber: BlockId.Number) = getFeeHistory(blockCount, lastBlockNumber, EMPTY_PERCENTILES)
+
+    /**
+     * Get gas fee history for block range between [lastBlockName] and ([lastBlockName] - [blockCount] + 1).
+     *
+     * @param [rewardPercentiles] a monotonically increasing list of percentile values (ranging from 0 to 100),
+     * to sample from each block's effective priority fees per gas in ascending order, weighted by gas used.
+     * Fractional percentiles (e.g. `12.5`) are supported.
+     */
+    fun getFeeHistory(
+        blockCount: Long,
+        lastBlockName: BlockId.Name,
+        rewardPercentiles: DoubleArray,
+    ): RpcRequest<FeeHistory, RpcError>
+
+    /**
+     * Get gas fee history for block range between [lastBlockNumber] and ([lastBlockNumber] - [blockCount] + 1).
+     *
+     * @param [rewardPercentiles] a monotonically increasing list of percentile values (ranging from 0 to 100),
+     * to sample from each block's effective priority fees per gas in ascending order, weighted by gas used.
+     * Fractional percentiles (e.g. `12.5`) are supported.
+     */
+    fun getFeeHistory(
+        blockCount: Long,
+        lastBlockNumber: Long,
+        rewardPercentiles: DoubleArray,
+    ): RpcRequest<FeeHistory, RpcError> = getFeeHistory(blockCount, BlockId.Number(lastBlockNumber), rewardPercentiles)
+
+    /**
+     * Get gas fee history for block range between [lastBlockNumber] and ([lastBlockNumber] - [blockCount] + 1).
+     *
+     * @param [rewardPercentiles] a monotonically increasing list of percentile values (ranging from 0 to 100),
+     * to sample from each block's effective priority fees per gas in ascending order, weighted by gas used.
+     * Fractional percentiles (e.g. `12.5`) are supported.
+     */
+    fun getFeeHistory(
+        blockCount: Long,
+        lastBlockNumber: BlockId.Number,
+        rewardPercentiles: DoubleArray,
+    ): RpcRequest<FeeHistory, RpcError>
 
     /**
      * Get gas fee history for block range between [lastBlockName] and ([lastBlockName] - [blockCount] + 1).
@@ -359,31 +398,31 @@ interface EthApi {
         blockCount: Long,
         lastBlockName: BlockId.Name,
         rewardPercentiles: List<BigInteger>,
-    ): RpcRequest<FeeHistory, RpcError>
+    ): RpcRequest<FeeHistory, RpcError> = getFeeHistory(blockCount, lastBlockName, rewardPercentiles.toPercentiles())
 
     /**
      * Get gas fee history for block range between [lastBlockNumber] and ([lastBlockNumber] - [blockCount] + 1).
      *
-     * @param [rewardPercentiles] a monotonically increasing list of percentile values to sample from each block's
-     * effective priority fees per gas in ascending order, weighted by gas used.
+     * @param [rewardPercentiles] a monotonically increasing list of percentile values (ranging from 0 to 100),
+     * to sample from each block's effective priority fees per gas in ascending order, weighted by gas used.
      */
     fun getFeeHistory(
         blockCount: Long,
         lastBlockNumber: Long,
         rewardPercentiles: List<BigInteger>,
-    ): RpcRequest<FeeHistory, RpcError> = getFeeHistory(blockCount, BlockId.Number(lastBlockNumber), rewardPercentiles)
+    ): RpcRequest<FeeHistory, RpcError> = getFeeHistory(blockCount, lastBlockNumber, rewardPercentiles.toPercentiles())
 
     /**
      * Get gas fee history for block range between [lastBlockNumber] and ([lastBlockNumber] - [blockCount] + 1).
      *
-     * @param [rewardPercentiles] a monotonically increasing list of percentile values to sample from each block's
-     * effective priority fees per gas in ascending order, weighted by gas used.
+     * @param [rewardPercentiles] a monotonically increasing list of percentile values (ranging from 0 to 100),
+     * to sample from each block's effective priority fees per gas in ascending order, weighted by gas used.
      */
     fun getFeeHistory(
         blockCount: Long,
         lastBlockNumber: BlockId.Number,
         rewardPercentiles: List<BigInteger>,
-    ): RpcRequest<FeeHistory, RpcError>
+    ): RpcRequest<FeeHistory, RpcError> = getFeeHistory(blockCount, lastBlockNumber, rewardPercentiles.toPercentiles())
 
     /**
      * Check if node is syncing with the network.
@@ -575,3 +614,7 @@ interface EthApi {
      * */
     fun subscribeNewPendingTransactionHashes(): RpcSubscribe<Hash, RpcError>
 }
+
+private val EMPTY_PERCENTILES = DoubleArray(0)
+
+private fun List<BigInteger>.toPercentiles(): DoubleArray = DoubleArray(size) { this[it].toDouble() }
