@@ -3,21 +3,25 @@ package io.ethers.aa.bundler
 import io.ethers.aa.EntryPoint
 import io.ethers.aa.UserOperation
 import io.ethers.aa.UserOperationJson
-import io.ethers.aa.internal.asAddressValue
-import io.ethers.aa.internal.asHashValue
 import io.ethers.aa.internal.asQuantity
-import io.ethers.aa.internal.asQuantityLong
-import io.ethers.aa.internal.field
-import io.ethers.aa.internal.fieldOrNull
-import io.ethers.core.Kotlinx
+import io.ethers.core.asAddress
+import io.ethers.core.asHash
+import io.ethers.core.asHexLong
 import io.ethers.core.types.Address
 import io.ethers.core.types.Hash
 import io.ethers.core.types.Log
 import io.ethers.core.types.TransactionReceipt
 import io.github.artificialpb.bignum.BigInteger
-import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.descriptors.buildClassSerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
@@ -27,26 +31,14 @@ import kotlinx.serialization.json.jsonPrimitive
  * The paymaster limits are only returned for EntryPoint v0.7 and later, and only when the operation has a
  * paymaster.
  */
+@Serializable(with = UserOperationGasEstimateSerializer::class)
 data class UserOperationGasEstimate(
     val preVerificationGas: BigInteger,
     val verificationGasLimit: BigInteger,
     val callGasLimit: BigInteger,
     val paymasterVerificationGasLimit: BigInteger? = null,
     val paymasterPostOpGasLimit: BigInteger? = null,
-) {
-    internal companion object {
-        fun fromJson(json: JsonElement): UserOperationGasEstimate {
-            val obj = json.jsonObject
-            return UserOperationGasEstimate(
-                preVerificationGas = obj.field("preVerificationGas").asQuantity(),
-                verificationGasLimit = obj.field("verificationGasLimit").asQuantity(),
-                callGasLimit = obj.field("callGasLimit").asQuantity(),
-                paymasterVerificationGasLimit = obj.fieldOrNull("paymasterVerificationGasLimit")?.asQuantity(),
-                paymasterPostOpGasLimit = obj.fieldOrNull("paymasterPostOpGasLimit")?.asQuantity(),
-            )
-        }
-    }
-}
+)
 
 /**
  * A user operation as returned by `eth_getUserOperationByHash`.
@@ -54,27 +46,14 @@ data class UserOperationGasEstimate(
  * [blockHash], [blockNumber] and [transactionHash] are null while the operation is still pending in the bundler's
  * mempool.
  */
+@Serializable(with = UserOperationByHashSerializer::class)
 data class UserOperationByHash(
     val userOperation: UserOperation,
     val entryPoint: Address,
     val blockNumber: Long?,
     val blockHash: Hash?,
     val transactionHash: Hash?,
-) {
-    internal companion object {
-        fun fromJson(json: JsonElement): UserOperationByHash {
-            val obj = json.jsonObject
-            val entryPoint = obj.field("entryPoint").asAddressValue()
-            return UserOperationByHash(
-                userOperation = UserOperationJson.decode(obj.field("userOperation"), EntryPoint.canonical(entryPoint)?.version),
-                entryPoint = entryPoint,
-                blockNumber = obj.fieldOrNull("blockNumber")?.asQuantityLong(),
-                blockHash = obj.fieldOrNull("blockHash")?.asHashValue(),
-                transactionHash = obj.fieldOrNull("transactionHash")?.asHashValue(),
-            )
-        }
-    }
-}
+)
 
 /**
  * Receipt of an included user operation, as returned by `eth_getUserOperationReceipt`.
@@ -86,6 +65,7 @@ data class UserOperationByHash(
  * @property logs the logs emitted by this operation only, as opposed to [receipt] which covers the whole bundle.
  * @property receipt receipt of the bundle transaction that included the operation.
  */
+@Serializable(with = UserOperationReceiptSerializer::class)
 data class UserOperationReceipt(
     val userOpHash: Hash,
     val entryPoint: Address,
@@ -98,32 +78,139 @@ data class UserOperationReceipt(
     val reason: String?,
     val logs: List<Log>,
     val receipt: TransactionReceipt,
-) {
-    internal companion object {
-        private val LOGS = ListSerializer(Log.serializer())
+)
 
-        fun fromJson(json: JsonElement): UserOperationReceipt {
-            val obj = json.jsonObject
-            val paymaster = obj.fieldOrNull("paymaster")?.asAddressValue()
-            val success = obj.field("success").jsonPrimitive.let {
-                if (it.isString) it.content.equals("true", ignoreCase = true) || it.content == "0x1" else it.content == "true"
+// Bundlers are not consistent about quantities: most return hex strings, some JSON numbers or decimal strings. The
+// quantities are therefore read with the lenient `asQuantity`.
+
+object UserOperationGasEstimateSerializer : KSerializer<UserOperationGasEstimate> {
+    override val descriptor = buildClassSerialDescriptor("UserOperationGasEstimate")
+
+    override fun serialize(encoder: Encoder, value: UserOperationGasEstimate) = throw UnsupportedOperationException()
+
+    override fun deserialize(decoder: Decoder): UserOperationGasEstimate {
+        val obj = (decoder as JsonDecoder).decodeJsonElement().jsonObject
+
+        var preVerificationGas: BigInteger? = null
+        var verificationGasLimit: BigInteger? = null
+        var callGasLimit: BigInteger? = null
+        var paymasterVerificationGasLimit: BigInteger? = null
+        var paymasterPostOpGasLimit: BigInteger? = null
+
+        for ((key, element) in obj.entries) {
+            if (element is JsonNull) continue
+            when (key) {
+                "preVerificationGas" -> preVerificationGas = element.asQuantity()
+                "verificationGasLimit" -> verificationGasLimit = element.asQuantity()
+                "callGasLimit" -> callGasLimit = element.asQuantity()
+                "paymasterVerificationGasLimit" -> paymasterVerificationGasLimit = element.asQuantity()
+                "paymasterPostOpGasLimit" -> paymasterPostOpGasLimit = element.asQuantity()
             }
-
-            return UserOperationReceipt(
-                userOpHash = obj.field("userOpHash").asHashValue(),
-                entryPoint = obj.field("entryPoint").asAddressValue(),
-                sender = obj.field("sender").asAddressValue(),
-                nonce = obj.field("nonce").asQuantity(),
-                paymaster = if (paymaster == Address.ZERO) null else paymaster,
-                actualGasCost = obj.field("actualGasCost").asQuantity(),
-                actualGasUsed = obj.field("actualGasUsed").asQuantity(),
-                success = success,
-                reason = obj.fieldOrNull("reason")?.jsonPrimitive?.content?.takeIf { it.isNotEmpty() },
-                logs = obj.fieldOrNull("logs")?.let { Kotlinx.DEFAULT.decodeFromJsonElement(LOGS, it) } ?: emptyList(),
-                receipt = Kotlinx.DEFAULT.decodeFromJsonElement(TransactionReceipt.serializer(), obj.field("receipt")),
-            )
         }
+
+        return UserOperationGasEstimate(
+            preVerificationGas = required(preVerificationGas, "preVerificationGas"),
+            verificationGasLimit = required(verificationGasLimit, "verificationGasLimit"),
+            callGasLimit = required(callGasLimit, "callGasLimit"),
+            paymasterVerificationGasLimit = paymasterVerificationGasLimit,
+            paymasterPostOpGasLimit = paymasterPostOpGasLimit,
+        )
     }
 }
 
-internal fun <T : Any> JsonElement.ifNotNull(parser: (JsonElement) -> T): T? = if (this is JsonNull) null else parser(this)
+object UserOperationByHashSerializer : KSerializer<UserOperationByHash> {
+    override val descriptor = buildClassSerialDescriptor("UserOperationByHash")
+
+    override fun serialize(encoder: Encoder, value: UserOperationByHash) = throw UnsupportedOperationException()
+
+    override fun deserialize(decoder: Decoder): UserOperationByHash {
+        val obj = (decoder as JsonDecoder).decodeJsonElement().jsonObject
+
+        var userOperation: JsonElement? = null
+        var entryPoint: Address? = null
+        var blockNumber: Long? = null
+        var blockHash: Hash? = null
+        var transactionHash: Hash? = null
+
+        for ((key, element) in obj.entries) {
+            if (element is JsonNull) continue
+            when (key) {
+                "userOperation" -> userOperation = element
+                "entryPoint" -> entryPoint = element.jsonPrimitive.asAddress()
+                "blockNumber" -> blockNumber = element.jsonPrimitive.asHexLong()
+                "blockHash" -> blockHash = element.jsonPrimitive.asHash()
+                "transactionHash" -> transactionHash = element.jsonPrimitive.asHash()
+            }
+        }
+
+        val entryPointAddress = required(entryPoint, "entryPoint")
+        // the operation's layout depends on its EntryPoint, which may come after it in the object
+        val layout = EntryPoint.canonical(entryPointAddress)?.version
+        return UserOperationByHash(
+            userOperation = UserOperationJson.decode(required(userOperation, "userOperation"), layout),
+            entryPoint = entryPointAddress,
+            blockNumber = blockNumber,
+            blockHash = blockHash,
+            transactionHash = transactionHash,
+        )
+    }
+}
+
+object UserOperationReceiptSerializer : KSerializer<UserOperationReceipt> {
+    override val descriptor = buildClassSerialDescriptor("UserOperationReceipt")
+
+    override fun serialize(encoder: Encoder, value: UserOperationReceipt) = throw UnsupportedOperationException()
+
+    override fun deserialize(decoder: Decoder): UserOperationReceipt {
+        val jsonDecoder = decoder as JsonDecoder
+        val obj = jsonDecoder.decodeJsonElement().jsonObject
+
+        var userOpHash: Hash? = null
+        var entryPoint: Address? = null
+        var sender: Address? = null
+        var nonce: BigInteger? = null
+        var paymaster: Address? = null
+        var actualGasCost: BigInteger? = null
+        var actualGasUsed: BigInteger? = null
+        var success: Boolean? = null
+        var reason: String? = null
+        var logs = emptyList<Log>()
+        var receipt: TransactionReceipt? = null
+
+        for ((key, element) in obj.entries) {
+            if (element is JsonNull) continue
+            when (key) {
+                "userOpHash" -> userOpHash = element.jsonPrimitive.asHash()
+                "entryPoint" -> entryPoint = element.jsonPrimitive.asAddress()
+                "sender" -> sender = element.jsonPrimitive.asAddress()
+                "nonce" -> nonce = element.asQuantity()
+                // bundlers report a self-paying account with the zero address
+                "paymaster" -> paymaster = element.jsonPrimitive.asAddress().takeIf { it != Address.ZERO }
+                "actualGasCost" -> actualGasCost = element.asQuantity()
+                "actualGasUsed" -> actualGasUsed = element.asQuantity()
+                "success" -> success = element.jsonPrimitive.content.let { it == "true" || it == "0x1" }
+                "reason" -> reason = element.jsonPrimitive.content.takeIf { it.isNotEmpty() }
+                "logs" -> logs = element.jsonArray.map { jsonDecoder.json.decodeFromJsonElement(Log.serializer(), it) }
+                "receipt" -> receipt = jsonDecoder.json.decodeFromJsonElement(TransactionReceipt.serializer(), element)
+            }
+        }
+
+        return UserOperationReceipt(
+            userOpHash = required(userOpHash, "userOpHash"),
+            entryPoint = required(entryPoint, "entryPoint"),
+            sender = required(sender, "sender"),
+            nonce = required(nonce, "nonce"),
+            paymaster = paymaster,
+            actualGasCost = required(actualGasCost, "actualGasCost"),
+            actualGasUsed = required(actualGasUsed, "actualGasUsed"),
+            success = required(success, "success"),
+            reason = reason,
+            logs = logs,
+            receipt = required(receipt, "receipt"),
+        )
+    }
+}
+
+internal fun <T : Any> required(value: T?, field: String): T {
+    return value ?: throw SerializationException("Missing field '$field'")
+}

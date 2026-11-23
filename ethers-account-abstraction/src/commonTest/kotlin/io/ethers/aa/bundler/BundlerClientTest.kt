@@ -8,17 +8,21 @@ import io.ethers.aa.UserOperationJson
 import io.ethers.aa.errors.BundlerErrorCode
 import io.ethers.aa.errors.EntryPointErrorCode
 import io.ethers.aa.errors.UserOperationError
+import io.ethers.core.Kotlinx
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
 import io.ethers.providers.RpcError
 import io.github.artificialpb.bignum.bigIntegerOf
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.JsonPrimitive
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -180,6 +184,24 @@ class BundlerClientTest : FunSpec({
 
         error.entryPointError shouldBe EntryPointErrorCode.INSUFFICIENT_PREFUND
         error.bundlerError shouldBe BundlerErrorCode.SIMULATE_VALIDATION
+    }
+
+    test("result types decode with their own serializers") {
+        Kotlinx.DEFAULT.decodeFromString(
+            UserOperationGasEstimate.serializer(),
+            """{"preVerificationGas":"0x1","verificationGasLimit":"0x2","callGasLimit":"0x3","paymasterPostOpGasLimit":null}""",
+        ) shouldBe UserOperationGasEstimate(bigIntegerOf(1), bigIntegerOf(2), bigIntegerOf(3))
+
+        Kotlinx.DEFAULT.decodeFromString(UserOperationReceipt.serializer(), receiptJson).userOpHash shouldBe userOpHash
+    }
+
+    test("missing required result fields fail to decode") {
+        shouldThrow<SerializationException> {
+            Kotlinx.DEFAULT.decodeFromString(UserOperationGasEstimate.serializer(), """{"preVerificationGas":"0x1","callGasLimit":"0x3"}""")
+        }.message shouldBe "Missing field 'verificationGasLimit'"
+
+        val rpc = FakeJsonRpcClient().respond("eth_estimateUserOperationGas", """{"preVerificationGas":"0x1"}""")
+        BundlerClient(rpc).estimateUserOperationGas(userOp, EntryPoint.V0_7).send().unwrapError().message shouldContain "verificationGasLimit"
     }
 
     test("error code parsing") {

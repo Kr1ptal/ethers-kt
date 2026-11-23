@@ -15,13 +15,12 @@ import io.ethers.core.types.Hash
 import io.ethers.core.types.StateOverride
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
-import io.ethers.providers.map
 import io.ethers.providers.types.RpcCall
 import io.ethers.providers.types.RpcRequest
 import io.ethers.providers.types.SuppliedRpcRequest
 import kotlinx.coroutines.delay
 import kotlinx.serialization.builtins.ListSerializer
-import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.builtins.nullable
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -126,15 +125,15 @@ class BundlerClient(val client: JsonRpcClient) : BundlerApi {
             null -> arrayOf(op, entryPoint.address)
             else -> arrayOf(op, entryPoint.address, stateOverride)
         }
-        return RpcCall(client, "eth_estimateUserOperationGas", params, GAS_ESTIMATE)
+        return RpcCall(client, "eth_estimateUserOperationGas", params, UserOperationGasEstimate.serializer())
     }
 
     override fun getUserOperationByHash(userOpHash: Hash): RpcRequest<UserOperationByHash?, RpcError> {
-        return RpcCall(client, "eth_getUserOperationByHash", arrayOf(userOpHash), BY_HASH)
+        return RpcCall(client, "eth_getUserOperationByHash", arrayOf(userOpHash), UserOperationByHash.serializer().nullable)
     }
 
     override fun getUserOperationReceipt(userOpHash: Hash): RpcRequest<UserOperationReceipt?, RpcError> {
-        return RpcCall(client, "eth_getUserOperationReceipt", arrayOf(userOpHash), RECEIPT)
+        return RpcCall(client, "eth_getUserOperationReceipt", arrayOf(userOpHash), UserOperationReceipt.serializer().nullable)
     }
 
     override fun supportedEntryPoints(): RpcRequest<List<Address>, RpcError> {
@@ -147,9 +146,6 @@ class BundlerClient(val client: JsonRpcClient) : BundlerApi {
 
     private companion object {
         val EMPTY_PARAMS = emptyArray<Any>()
-        val GAS_ESTIMATE = JsonElement.serializer().map(UserOperationGasEstimate::fromJson)
-        val BY_HASH = JsonElement.serializer().map { it.ifNotNull(UserOperationByHash::fromJson) }
-        val RECEIPT = JsonElement.serializer().map { it.ifNotNull(UserOperationReceipt::fromJson) }
     }
 }
 
