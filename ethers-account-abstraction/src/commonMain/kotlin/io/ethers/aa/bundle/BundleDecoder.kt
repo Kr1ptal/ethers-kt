@@ -30,7 +30,7 @@ import kotlin.jvm.JvmStatic
  * EntryPoint events carrying the operation's hash.
  *
  * **With the transaction**, if it calls the EntryPoint directly, the bundle calldata is decoded too, adding the
- * submitted [UserOperation] and its decoded calls.
+ * submitted [UserOperation].
  *
  * **With a `callTracer` trace** (`withLog` enabled), bundles sent through other contracts are decoded as well, every
  * validation-phase log is attributed to its operation, the paymaster's `postOp` logs are split out, and the
@@ -55,7 +55,6 @@ object BundleDecoder {
      * @param transaction the transaction, used to decode the bundle calldata when it calls an EntryPoint directly.
      * @param trace a `callTracer` trace of the transaction with logs, see [BundleDecoder].
      * @param entryPoints the EntryPoints whose bundles to decode.
-     * @param callDataDecoder decodes an operation's call data into calls, or null to skip decoding calls.
      * @return the bundles in execution order, empty if the transaction executed none.
      */
     @JvmStatic
@@ -65,7 +64,6 @@ object BundleDecoder {
         transaction: RPCTransaction? = null,
         trace: CallFrame? = null,
         entryPoints: List<EntryPoint> = EntryPoint.CANONICAL,
-        callDataDecoder: CallDataDecoder? = StandardCallDataDecoder,
     ): Result<List<Bundle>, Error> {
         if (transaction != null && transaction.hash != receipt.transactionHash) {
             return failure(Error("Transaction ${transaction.hash} does not match receipt ${receipt.transactionHash}"))
@@ -75,7 +73,7 @@ object BundleDecoder {
         if (!receipt.isSuccessful) return success(emptyList())
 
         return try {
-            success(BundleDecoding(entryPoints, callDataDecoder).decode(receipt, transaction, trace))
+            success(BundleDecoding(entryPoints).decode(receipt, transaction, trace))
         } catch (e: BundleDecodingException) {
             failure(Error(e.message ?: "Failed to decode bundle", e.cause))
         } catch (e: Exception) {
@@ -90,10 +88,7 @@ private class BundleDecodingException(message: String) : RuntimeException(messag
 /**
  * The decoding of one transaction, with the settings of a [BundleDecoder.decode] call.
  */
-private class BundleDecoding(
-    private val entryPoints: List<EntryPoint>,
-    private val callDataDecoder: CallDataDecoder?,
-) {
+private class BundleDecoding(private val entryPoints: List<EntryPoint>) {
     fun decode(receipt: TransactionReceipt, transaction: RPCTransaction?, trace: CallFrame?): List<Bundle> {
         val logs = receipt.logs
         val traceIndex = trace?.let { TraceIndex.build(it, logs, entryPoints) }
@@ -294,7 +289,6 @@ private class BundleDecoding(
                 revertReason = findEvent(allLogs, epAddress, hash) { EntryPointV09.UserOperationRevertReason.decodeOrNull(it) }?.revertReason,
                 postOpRevertReason = findEvent(allLogs, epAddress, hash) { EntryPointV09.PostOpRevertReason.decodeOrNull(it) }?.revertReason,
                 prefundTooLow = findEvent(allLogs, epAddress, hash) { EntryPointV09.UserOperationPrefundTooLow.decodeOrNull(it) } != null,
-                calls = userOperation?.let { decodeCalls(it) },
                 validationLogs = validationLogs,
                 executionLogs = executionLogs,
                 postOpLogs = postOpLogs,
@@ -315,15 +309,6 @@ private class BundleDecoding(
             unattributedLogs = unattributedLogs,
             unattributedCalls = if (traceIndex != null && call != null) traceIndex.unattributedFrames(call, frames) else emptyList(),
         )
-    }
-
-    private fun decodeCalls(userOperation: UserOperation): List<Call>? {
-        val decoder = callDataDecoder ?: return null
-        return try {
-            decoder.decodeCalls(userOperation.sender, userOperation.callData)
-        } catch (e: Exception) {
-            null
-        }
     }
 
     private fun validationEventHash(log: Log): Hash? {

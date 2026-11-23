@@ -40,7 +40,7 @@ data class Bundle(
  *
  * The outcome ([success], [actualGasCost], [actualGasUsed]) comes from its `UserOperationEvent`, so it is always
  * available. The rest depends on what the bundle was decoded from:
- * - [userOperation] and [calls] need the bundle's calldata: the transaction must call the EntryPoint directly, or a
+ * - [userOperation] needs the bundle's calldata: the transaction must call the EntryPoint directly, or a
  *   trace must be given.
  * - [validationLogs] are complete only with a trace. Without one, they hold only the EntryPoint events that carry
  *   the operation's hash (`AccountDeployed`, `IgnoredInitCode`, `EIP7702AccountInitialized`).
@@ -58,8 +58,6 @@ data class Bundle(
  * @property postOpRevertReason the revert data of the paymaster's failed `postOp`, from `PostOpRevertReason`.
  * @property prefundTooLow whether the operation's prefund did not cover its actual gas cost, so it failed
  * (`UserOperationPrefundTooLow`, EntryPoint v0.7 and later).
- * @property calls the calls the operation asked its account to make, decoded from its callData with the decoder
- * given to [BundleDecoder].
  * @property validationLogs logs of the operation's validation phase: account deployment, account and paymaster
  * validation.
  * @property executionLogs logs of the operation's execution phase, ending with its `UserOperationEvent`.
@@ -88,7 +86,6 @@ data class ExecutedUserOperation(
     val revertReason: Bytes?,
     val postOpRevertReason: Bytes?,
     val prefundTooLow: Boolean,
-    val calls: List<Call>?,
     val validationLogs: List<Log>,
     val executionLogs: List<Log>,
     val postOpLogs: List<Log>,
@@ -106,14 +103,4 @@ data class ExecutedUserOperation(
      */
     val deployedAccount: Boolean
         get() = factory != null
-}
-
-/**
- * Decodes the `callData` of a user operation into the calls the account makes.
- */
-fun interface CallDataDecoder {
-    /**
-     * Return the calls [sender] makes for [callData], or null if the call data is not understood.
-     */
-    fun decodeCalls(sender: Address, callData: Bytes): List<Call>?
 }

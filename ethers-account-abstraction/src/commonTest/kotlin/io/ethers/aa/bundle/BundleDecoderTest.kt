@@ -211,8 +211,6 @@ class BundleDecoderTest : FunSpec({
             ),
             EntryPointVersion.V0_7,
         )
-        // "0x01" is not a call data any standard decoder understands
-        bundle.userOperations[0].calls.shouldBeNull()
     }
 
     test("calldata that does not match the executed operations is an error") {
@@ -236,14 +234,6 @@ class BundleDecoderTest : FunSpec({
         val logs = listOf(beforeExecution(ep7), userOperationEvent(ep7, hash(1), alice, 0))
         val truncated = EntryPointV07.FUNCTION_HANDLE_OPS.selector.toString() + "00".repeat(40)
         decoder.decode(receipt(logs), transaction(Bytes(truncated))).unwrapError().message shouldContain "Malformed bundle"
-    }
-
-    test("a throwing call data decoder leaves the calls undecoded") {
-        val beneficiary = Address("0xbe4e000000000000000000000000000000000000")
-        val input = EntryPointV07.FUNCTION_HANDLE_OPS.encodeCall(listOf(listOf(packed(alice, 0)), beneficiary))
-        val logs = listOf(beforeExecution(ep7), userOperationEvent(ep7, hash(1), alice, 0))
-        val throwing = CallDataDecoder { _, _ -> throw IllegalStateException("boom") }
-        decoder.decode(receipt(logs), transaction(input), callDataDecoder = throwing).unwrap().single().userOperations.single().calls.shouldBeNull()
     }
 
     test("transaction of another receipt is rejected") {

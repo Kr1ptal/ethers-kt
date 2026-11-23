@@ -32,13 +32,11 @@ import kotlin.jvm.JvmOverloads
  * Traces attribute every log and call frame to its operation, see [BundleDecoder], but need a node with the debug
  * API enabled.
  * @param entryPoints the EntryPoints whose bundles to look for and decode.
- * @param callDataDecoder decodes an operation's call data into calls, or null to skip decoding calls.
  */
 class BundleReader @JvmOverloads constructor(
     private val provider: Middleware,
     private val useTrace: Boolean = false,
     private val entryPoints: List<EntryPoint> = EntryPoint.CANONICAL,
-    private val callDataDecoder: CallDataDecoder? = StandardCallDataDecoder,
 ) {
     /**
      * Failure to read bundles from a node.
@@ -159,7 +157,7 @@ class BundleReader @JvmOverloads constructor(
         val transaction = transactionFut.await().unwrapOrReturn { return@coroutineScope failure(Error.Rpc(it)) }
         val trace = traceFut?.await()?.unwrapOrReturn { return@coroutineScope failure(Error.Rpc(it)) }
 
-        BundleDecoder.decode(receipt, transaction, trace, entryPoints, callDataDecoder).mapError { Error.Decoding(it) }
+        BundleDecoder.decode(receipt, transaction, trace, entryPoints).mapError { Error.Decoding(it) }
     }
 
     private fun <F : EventFilterBase<*, F>> F.inRange(from: BlockId.Number, to: BlockId): F? = when (to) {

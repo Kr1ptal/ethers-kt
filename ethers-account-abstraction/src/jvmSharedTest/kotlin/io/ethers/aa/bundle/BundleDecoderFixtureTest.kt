@@ -173,9 +173,4 @@ class BundleDecoderFixtureTest : FunSpec({
         withTrace shouldHaveSize withoutTrace.size
         withTrace.flatMap { it.userOperations }.forEach { it.userOperation.shouldNotBeNull() }
     }
-
-    test("decoded calls of operations whose account uses a standard execute function") {
-        val ops = bundleFixtures.flatMap { decoder.decode(it.receipt, it.transaction, it.trace).unwrap() }.flatMap { it.userOperations }
-        ops.count { it.calls != null } shouldNotBe 0
-    }
 })

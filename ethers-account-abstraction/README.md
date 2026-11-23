@@ -68,7 +68,7 @@ val receipt = bundler.sendUserOperation(signed, EntryPoint.V0_7).sendAwait().unw
 ## Decoding executed bundles
 
 `BundleDecoder` splits a bundle transaction into the user operations it executed, collecting each one's outcome,
-logs and calls into an `ExecutedUserOperation`. `BundleReader` fetches the data from a node:
+logs and call frames into an `ExecutedUserOperation`. `BundleReader` fetches the data from a node:
 
 ```kotlin
 val reader = BundleReader(provider, useTrace = true)
@@ -83,11 +83,9 @@ What is available depends on the input:
 | Input | Gives |
 |---|---|
 | Receipt | Outcome, execution logs, and validation events carrying the operation's hash |
-| + transaction calling the EntryPoint directly | The submitted `UserOperation`, beneficiary and decoded calls |
+| + transaction calling the EntryPoint directly | The submitted `UserOperation` and the beneficiary |
 | + `callTracer` trace with logs | All of the above for bundles sent through other contracts too, every validation log, `postOp` logs split out, and the EntryPoint's call frames per operation |
 
-Calls are decoded by `StandardCallDataDecoder`, which understands the common `execute`/`executeBatch` functions and
-ERC-7579 `execute`. Pass your own `CallDataDecoder` for other accounts.
 
 ## Signature verification
 
