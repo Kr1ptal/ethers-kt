@@ -32,7 +32,9 @@ val balance = ens.getBalance("vitalik.eth", BlockId.LATEST).sendAwait().unwrap()
 val code = ens.getCode("vitalik.eth", BlockId.LATEST).sendAwait().unwrap()
 ```
 
-Resolutions are cached for 5 minutes by default; pass a different `EnsNameCache` to change the ttl.
+Resolutions are cached for 5 minutes by default. Pass `EnsNameCache(ttl = ...)` to change the ttl, or your own
+`EnsNameCache` implementation (e.g. a size-bounded or shared cache) to replace it entirely. Implementations must be
+thread-safe.
 
 ## `EnsMiddleware` — ENS names in call requests
 

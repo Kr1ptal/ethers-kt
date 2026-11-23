@@ -5,7 +5,7 @@ atomicfu = "0.33.0"
 log4j2 = "2.26.1"
 jackson = "2.22.2"
 eclipse-collections = "13.0.0"
-ksp = "2.3.11"
+ksp = "2.3.14"
 kotest = "6.2.7"
 jmh = "1.37"
 klogging = "8.0.4"
@@ -100,7 +100,7 @@ kotest-engine = { module = "io.kotest:kotest-framework-engine", version.ref = "k
 kotest-assertions-json = { module = "io.kotest:kotest-assertions-json", version.ref = "kotest" }
 kotest-runner-junit5 = { module = "io.kotest:kotest-runner-junit5", version.ref = "kotest" }
 
-mockk = { module = "io.mockk:mockk-jvm", version = "1.14.11" }
+mockk = { module = "io.mockk:mockk-jvm", version = "1.14.12" }
 kotlin-compileTesting = { module = "dev.zacsweers.kctfork:core", version = "0.14.0" }
 
 ##################### JMH #####################

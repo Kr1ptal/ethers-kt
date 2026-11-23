@@ -13,7 +13,7 @@ configurations.all {
     // would break JReleaser's PGP signing at deploy time.
     resolutionStrategy {
         force("org.bouncycastle:bcpg-jdk18on:1.86")
-        force("org.bouncycastle:bcprov-jdk18on:1.86")
+        force("org.bouncycastle:bcprov-jdk18on:1.87")
         force("org.bouncycastle:bcutil-jdk18on:1.86")
         force("org.bouncycastle:bcpkix-jdk18on:1.86")
     }
