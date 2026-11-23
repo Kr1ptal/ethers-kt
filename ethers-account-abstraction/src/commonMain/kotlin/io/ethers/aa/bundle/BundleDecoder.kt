@@ -19,11 +19,6 @@ import io.ethers.core.types.tracers.CallTracer.CallLog
 import kotlin.jvm.JvmOverloads
 
 /**
- * Failure to decode a transaction into bundles.
- */
-data class BundleDecodingError(override val message: String, override val cause: Throwable? = null) : ThrowableError
-
-/**
  * Splits bundle transactions into the user operations they executed, see [Bundle] and [ExecutedUserOperation].
  *
  * Decoding only reads data the caller provides, it makes no RPC calls. [BundleReader] fetches that data from a node.
@@ -55,6 +50,11 @@ class BundleDecoder @JvmOverloads constructor(
     private val callDataDecoder: CallDataDecoder? = StandardCallDataDecoder,
 ) {
     /**
+     * Failure to decode a transaction into bundles.
+     */
+    data class Error(override val message: String, override val cause: Throwable? = null) : ThrowableError
+
+    /**
      * Decode the bundles of the transaction with [receipt].
      *
      * @param transaction the transaction, used to decode the bundle calldata when it calls an EntryPoint directly.
@@ -66,9 +66,9 @@ class BundleDecoder @JvmOverloads constructor(
         receipt: TransactionReceipt,
         transaction: RPCTransaction? = null,
         trace: CallFrame? = null,
-    ): Result<List<Bundle>, BundleDecodingError> {
+    ): Result<List<Bundle>, Error> {
         if (transaction != null && transaction.hash != receipt.transactionHash) {
-            return failure(BundleDecodingError("Transaction ${transaction.hash} does not match receipt ${receipt.transactionHash}"))
+            return failure(Error("Transaction ${transaction.hash} does not match receipt ${receipt.transactionHash}"))
         }
 
         // a reverted transaction rolled back every bundle it executed
@@ -77,10 +77,10 @@ class BundleDecoder @JvmOverloads constructor(
         return try {
             success(decodeUnchecked(receipt, transaction, trace))
         } catch (e: BundleDecodingException) {
-            failure(BundleDecodingError(e.message ?: "Failed to decode bundle", e.cause))
+            failure(Error(e.message ?: "Failed to decode bundle", e.cause))
         } catch (e: Exception) {
             // malformed calldata surfaces as ABI decoding, cast or argument errors
-            failure(BundleDecodingError("Malformed bundle: ${e.message}", e))
+            failure(Error("Malformed bundle: ${e.message}", e))
         }
     }
 

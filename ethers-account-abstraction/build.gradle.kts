@@ -16,6 +16,7 @@ kotlin {
 
                 implementation(libs.kotlinx.coroutines.core)
                 implementation(libs.whyoleg.cryptography.core)
+                implementation(libs.whyoleg.cryptography.asn1)
             }
         }
 

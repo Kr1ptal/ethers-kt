@@ -2,7 +2,6 @@ package io.ethers.aa.bundler
 
 import io.ethers.aa.EntryPoint
 import io.ethers.aa.UserOperation
-import io.ethers.aa.UserOperationJson
 import io.ethers.aa.errors.UserOperationError
 import io.ethers.aa.errors.toUserOperationError
 import io.ethers.core.HexLongSerializer
@@ -83,7 +82,7 @@ interface BundlerApi {
  */
 class BundlerClient(val client: JsonRpcClient) : BundlerApi {
     override fun sendUserOperation(userOperation: UserOperation, entryPoint: EntryPoint): RpcRequest<PendingUserOperation, RpcError> {
-        val params = arrayOf(UserOperationJson.encode(userOperation, entryPoint.version), entryPoint.address)
+        val params = arrayOf(userOperation.toJson(entryPoint.version), entryPoint.address)
         return RpcCall(client, "eth_sendUserOperation", params, Hash.serializer().map { PendingUserOperation(it, this) })
     }
 
@@ -92,7 +91,7 @@ class BundlerClient(val client: JsonRpcClient) : BundlerApi {
         entryPoint: EntryPoint,
         stateOverride: StateOverride?,
     ): RpcRequest<UserOperationGasEstimate, RpcError> {
-        val op = UserOperationJson.encode(userOperation, entryPoint.version)
+        val op = userOperation.toJson(entryPoint.version)
         val params = when (stateOverride) {
             null -> arrayOf(op, entryPoint.address)
             else -> arrayOf(op, entryPoint.address, stateOverride)

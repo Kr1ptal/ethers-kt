@@ -1,5 +1,11 @@
 package io.ethers.aa.webauthn
 
+import dev.whyoleg.cryptography.serialization.asn1.Der
+import dev.whyoleg.cryptography.serialization.asn1.ObjectIdentifier
+import dev.whyoleg.cryptography.serialization.asn1.modules.DssSignatureValue
+import dev.whyoleg.cryptography.serialization.asn1.modules.EcAlgorithmIdentifier
+import dev.whyoleg.cryptography.serialization.asn1.modules.SubjectPublicKeyInfo
+import dev.whyoleg.cryptography.serialization.asn1.modules.secp256r1
 import io.ethers.abi.AbiCodec
 import io.ethers.abi.AbiType
 import io.ethers.core.types.Bytes
@@ -32,13 +38,6 @@ data class P256PublicKey(val x: BigInteger, val y: BigInteger) {
     companion object {
         private val UNCOMPRESSED_PREFIX = bigIntegerOf(0x04)
 
-        // DER prefix of a SubjectPublicKeyInfo of an uncompressed P-256 key: SEQUENCE { SEQUENCE { id-ecPublicKey,
-        // prime256v1 }, BIT STRING { 0x00 } }, followed by the 65-byte uncompressed point
-        private val SPKI_PREFIX = byteArrayOf(
-            0x30, 0x59, 0x30, 0x13, 0x06, 0x07, 0x2a, 0x86.toByte(), 0x48, 0xce.toByte(), 0x3d, 0x02, 0x01,
-            0x06, 0x08, 0x2a, 0x86.toByte(), 0x48, 0xce.toByte(), 0x3d, 0x03, 0x01, 0x07, 0x03, 0x42, 0x00,
-        )
-
         /**
          * Parse the 64-byte `x || y` or 65-byte uncompressed `0x04 || x || y` encoding.
          */
@@ -59,11 +58,14 @@ data class P256PublicKey(val x: BigInteger, val y: BigInteger) {
          */
         @JvmStatic
         fun fromSpki(der: ByteArray): P256PublicKey {
-            require(der.size == SPKI_PREFIX.size + 65) { "Not a P-256 SubjectPublicKeyInfo: ${der.size} bytes" }
-            for (i in SPKI_PREFIX.indices) {
-                require(der[i] == SPKI_PREFIX[i]) { "Not a P-256 SubjectPublicKeyInfo" }
+            val spki = try {
+                Der.decodeFromByteArray(SubjectPublicKeyInfo.serializer(), der)
+            } catch (e: Exception) {
+                throw IllegalArgumentException("Not a SubjectPublicKeyInfo", e)
             }
-            return fromBytes(der.copyOfRange(SPKI_PREFIX.size, der.size))
+            val curve = (spki.algorithm as? EcAlgorithmIdentifier)?.parameters?.namedCurve
+            require(curve == ObjectIdentifier.secp256r1) { "Not a P-256 key: ${spki.algorithm}" }
+            return fromBytes(spki.subjectPublicKey.byteArray)
         }
     }
 }
@@ -105,42 +107,19 @@ data class P256Signature(val r: BigInteger, val s: BigInteger) {
          */
         @JvmStatic
         fun fromDer(der: ByteArray): P256Signature {
-            val reader = DerReader(der)
-            reader.expectTag(0x30)
-            val seqLength = reader.readLength()
-            require(seqLength == der.size - reader.position) { "Invalid DER sequence length" }
-            val r = reader.readInteger()
-            val s = reader.readInteger()
-            require(reader.position == der.size) { "Trailing bytes after DER signature" }
-            require(r.signum() > 0 && r < P256.N && s.signum() > 0 && s < P256.N) { "Signature values out of range" }
+            val value = try {
+                Der.decodeFromByteArray(DssSignatureValue.serializer(), der)
+            } catch (e: Exception) {
+                throw IllegalArgumentException("Not a DER-encoded ECDSA signature", e)
+            }
+            // the decoder ignores trailing bytes, which a strict DER signature must not have
+            require(Der.encodeToByteArray(DssSignatureValue.serializer(), value).size == der.size) { "Trailing bytes after DER signature" }
+            require(value.r.sign > 0 && value.s.sign > 0) { "Signature values out of range" }
+
+            val r = BigInteger(1, value.r.magnitudeToByteArray())
+            val s = BigInteger(1, value.s.magnitudeToByteArray())
+            require(r < P256.N && s < P256.N) { "Signature values out of range" }
             return P256Signature(r, s)
-        }
-    }
-
-    private class DerReader(private val data: ByteArray) {
-        var position = 0
-
-        fun expectTag(tag: Int) {
-            require(position < data.size && data[position].toInt() and 0xFF == tag) { "Expected DER tag $tag" }
-            position++
-        }
-
-        fun readLength(): Int {
-            require(position < data.size) { "Truncated DER" }
-            val first = data[position++].toInt() and 0xFF
-            if (first < 0x80) return first
-            require(first == 0x81) { "Unsupported DER length" }
-            require(position < data.size) { "Truncated DER" }
-            return data[position++].toInt() and 0xFF
-        }
-
-        fun readInteger(): BigInteger {
-            expectTag(0x02)
-            val length = readLength()
-            require(length in 1..33 && position + length <= data.size) { "Invalid DER integer" }
-            val value = BigInteger(1, data.copyOfRange(position, position + length))
-            position += length
-            return value
         }
     }
 }

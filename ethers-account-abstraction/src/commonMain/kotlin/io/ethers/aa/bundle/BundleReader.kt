@@ -2,15 +2,16 @@ package io.ethers.aa.bundle
 
 import io.ethers.aa.EntryPoint
 import io.ethers.aa.contracts.EntryPointV09
+import io.ethers.abi.EventFilterBase
 import io.ethers.core.Result
 import io.ethers.core.ThrowableError
 import io.ethers.core.failure
 import io.ethers.core.success
 import io.ethers.core.types.Address
 import io.ethers.core.types.BlockId
+import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
 import io.ethers.core.types.Log
-import io.ethers.core.types.LogFilter
 import io.ethers.core.types.tracers.CallTracer
 import io.ethers.core.types.tracers.TracerConfig
 import io.ethers.core.unwrapOrReturn
@@ -22,31 +23,6 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlin.jvm.JvmOverloads
-
-/**
- * Failure to read bundles from a node.
- */
-sealed class BundleReadError : ThrowableError {
-    /** The node rejected an RPC call. */
-    data class Rpc(val error: RpcError) : BundleReadError() {
-        override val message: String
-            get() = error.message
-
-        override fun toException(): RuntimeException = error.toException()
-    }
-
-    /** The bundle data could not be decoded. */
-    data class Decoding(val error: BundleDecodingError) : BundleReadError() {
-        override val message: String
-            get() = error.message
-    }
-
-    /** The transaction [transactionHash] is not known to the node, or not included yet. */
-    data class TransactionNotFound(val transactionHash: Hash) : BundleReadError() {
-        override val message: String
-            get() = "Transaction $transactionHash not found"
-    }
-}
 
 /**
  * Reads executed bundles and user operations from a node, decoding them with [decoder].
@@ -66,9 +42,34 @@ class BundleReader @JvmOverloads constructor(
         get() = decoder.entryPoints
 
     /**
+     * Failure to read bundles from a node.
+     */
+    sealed class Error : ThrowableError {
+        /** The node rejected an RPC call. */
+        data class Rpc(val error: RpcError) : Error() {
+            override val message: String
+                get() = error.message
+
+            override fun toException(): RuntimeException = error.toException()
+        }
+
+        /** The bundle data could not be decoded. */
+        data class Decoding(val error: BundleDecoder.Error) : Error() {
+            override val message: String
+                get() = error.message
+        }
+
+        /** The transaction [transactionHash] is not known to the node, or not included yet. */
+        data class TransactionNotFound(val transactionHash: Hash) : Error() {
+            override val message: String
+                get() = "Transaction $transactionHash not found"
+        }
+    }
+
+    /**
      * Read the bundles executed by transaction [transactionHash].
      */
-    fun getBundles(transactionHash: Hash): RpcRequest<List<Bundle>, BundleReadError> {
+    fun getBundles(transactionHash: Hash): RpcRequest<List<Bundle>, Error> {
         return SuppliedRpcRequest { readBundles(transactionHash) }
     }
 
@@ -80,16 +81,16 @@ class BundleReader @JvmOverloads constructor(
         userOpHash: Hash,
         fromBlock: BlockId.Number,
         toBlock: BlockId,
-    ): RpcRequest<ExecutedUserOperation?, BundleReadError> {
+    ): RpcRequest<ExecutedUserOperation?, Error> {
         return SuppliedRpcRequest {
-            val filter = blockRange(LogFilter(), fromBlock, toBlock)
-                ?.address(entryPoints.map { it.address })
-                ?.topic0(EntryPointV09.UserOperationEvent.abi.topicId)
-                ?.topic1(userOpHash)
+            val filter = EntryPointV09.UserOperationEvent.filter(provider)
+                .address(entryPoints.map { it.address })
+                .userOpHash(Bytes(userOpHash.asByteArray()))
+                .inRange(fromBlock, toBlock)
                 ?: return@SuppliedRpcRequest failure(INVALID_TO_BLOCK)
 
-            val logs = getLogs(filter).unwrapOrReturn { return@SuppliedRpcRequest failure(it) }
-            val log = logs.firstOrNull { !it.removed } ?: return@SuppliedRpcRequest success(null)
+            val events = filter.query().send().unwrapOrReturn { return@SuppliedRpcRequest failure(Error.Rpc(it)) }
+            val log = events.firstOrNull { !it.removed }?.log ?: return@SuppliedRpcRequest success(null)
 
             val bundles = readBundles(log.transactionHash).unwrapOrReturn { return@SuppliedRpcRequest failure(it) }
             success(bundles.firstNotNullOfOrNull { bundle -> bundle.userOperations.firstOrNull { it.userOpHash == userOpHash } })
@@ -103,16 +104,16 @@ class BundleReader @JvmOverloads constructor(
         sender: Address,
         fromBlock: BlockId.Number,
         toBlock: BlockId,
-    ): RpcRequest<List<ExecutedUserOperation>, BundleReadError> {
+    ): RpcRequest<List<ExecutedUserOperation>, Error> {
         return SuppliedRpcRequest {
-            val filter = blockRange(LogFilter(), fromBlock, toBlock)
-                ?.address(entryPoints.map { it.address })
-                ?.topic0(EntryPointV09.UserOperationEvent.abi.topicId)
-                ?.topic2(Hash(sender))
+            val filter = EntryPointV09.UserOperationEvent.filter(provider)
+                .address(entryPoints.map { it.address })
+                .sender(sender)
+                .inRange(fromBlock, toBlock)
                 ?: return@SuppliedRpcRequest failure(INVALID_TO_BLOCK)
 
-            val logs = getLogs(filter).unwrapOrReturn { return@SuppliedRpcRequest failure(it) }
-            val bundles = readBundlesOf(logs).unwrapOrReturn { return@SuppliedRpcRequest failure(it) }
+            val events = filter.query().send().unwrapOrReturn { return@SuppliedRpcRequest failure(Error.Rpc(it)) }
+            val bundles = readBundlesOf(events.map { it.log }).unwrapOrReturn { return@SuppliedRpcRequest failure(it) }
             success(bundles.flatMap { bundle -> bundle.userOperations.filter { it.sender == sender } })
         }
     }
@@ -120,19 +121,18 @@ class BundleReader @JvmOverloads constructor(
     /**
      * Read all bundles executed in block [blockId], in execution order.
      */
-    fun getBundlesInBlock(blockId: BlockId): RpcRequest<List<Bundle>, BundleReadError> {
+    fun getBundlesInBlock(blockId: BlockId): RpcRequest<List<Bundle>, Error> {
         return SuppliedRpcRequest {
-            val filter = LogFilter()
-                .atBlock(blockId)
+            val events = EntryPointV09.BeforeExecution.filter(provider)
                 .address(entryPoints.map { it.address })
-                .topic0(EntryPointV09.BeforeExecution.abi.topicId)
-
-            val logs = getLogs(filter).unwrapOrReturn { return@SuppliedRpcRequest failure(it) }
-            readBundlesOf(logs)
+                .atBlock(blockId)
+                .query().send()
+                .unwrapOrReturn { return@SuppliedRpcRequest failure(Error.Rpc(it)) }
+            readBundlesOf(events.map { it.log })
         }
     }
 
-    private suspend fun readBundlesOf(logs: List<Log>): Result<List<Bundle>, BundleReadError> = coroutineScope {
+    private suspend fun readBundlesOf(logs: List<Log>): Result<List<Bundle>, Error> = coroutineScope {
         val transactions = logs.filter { !it.removed }
             .sortedWith(compareBy({ it.blockNumber }, { it.transactionIndex }))
             .map { it.transactionHash }
@@ -146,7 +146,7 @@ class BundleReader @JvmOverloads constructor(
         success(ret)
     }
 
-    private suspend fun readBundles(transactionHash: Hash): Result<List<Bundle>, BundleReadError> = coroutineScope {
+    private suspend fun readBundles(transactionHash: Hash): Result<List<Bundle>, Error> = coroutineScope {
         val receiptFut = async { provider.getTransactionReceipt(transactionHash).send() }
         val transactionFut = async { provider.getTransactionByHash(transactionHash).send() }
         val traceFut = if (useTrace) {
@@ -155,25 +155,27 @@ class BundleReader @JvmOverloads constructor(
             null
         }
 
-        val receipt = receiptFut.await().unwrapOrReturn { return@coroutineScope failure(BundleReadError.Rpc(it)) }
-            ?: return@coroutineScope failure(BundleReadError.TransactionNotFound(transactionHash))
-        val transaction = transactionFut.await().unwrapOrReturn { return@coroutineScope failure(BundleReadError.Rpc(it)) }
-        val trace = traceFut?.await()?.unwrapOrReturn { return@coroutineScope failure(BundleReadError.Rpc(it)) }
+        val receipt = receiptFut.await().unwrapOrReturn { return@coroutineScope failure(Error.Rpc(it)) }
+            ?: return@coroutineScope failure(Error.TransactionNotFound(transactionHash))
+        val transaction = transactionFut.await().unwrapOrReturn { return@coroutineScope failure(Error.Rpc(it)) }
+        val trace = traceFut?.await()?.unwrapOrReturn { return@coroutineScope failure(Error.Rpc(it)) }
 
-        decoder.decode(receipt, transaction, trace).mapError { BundleReadError.Decoding(it) }
+        decoder.decode(receipt, transaction, trace).mapError { Error.Decoding(it) }
     }
 
-    private suspend fun getLogs(filter: LogFilter): Result<List<Log>, BundleReadError> {
-        return provider.getLogs(filter).send().mapError { BundleReadError.Rpc(it) }
-    }
-
-    private fun blockRange(filter: LogFilter, from: BlockId.Number, to: BlockId): LogFilter? = when (to) {
-        is BlockId.Number -> filter.blockRange(from, to)
-        is BlockId.Name -> filter.blockRange(from, to)
+    private fun <F : EventFilterBase<*, F>> F.inRange(from: BlockId.Number, to: BlockId): F? = when (to) {
+        is BlockId.Number -> blockRange(from, to)
+        is BlockId.Name -> blockRange(from, to)
         is BlockId.Hash -> null
     }
 
+    private fun <F : EventFilterBase<*, F>> F.atBlock(blockId: BlockId): F = when (blockId) {
+        is BlockId.Number -> atBlock(blockId)
+        is BlockId.Name -> atBlock(blockId)
+        is BlockId.Hash -> atBlock(blockId)
+    }
+
     private companion object {
-        val INVALID_TO_BLOCK = BundleReadError.Rpc(RpcError(RpcError.CODE_INVALID_PARAMS, "toBlock must be a block number or name"))
+        val INVALID_TO_BLOCK = Error.Rpc(RpcError(RpcError.CODE_INVALID_PARAMS, "toBlock must be a block number or name"))
     }
 }

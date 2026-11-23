@@ -4,7 +4,6 @@ import io.ethers.aa.EntryPoint
 import io.ethers.aa.EntryPointVersion
 import io.ethers.aa.FakeJsonRpcClient
 import io.ethers.aa.UserOperation
-import io.ethers.aa.UserOperationJson
 import io.ethers.aa.errors.BundlerErrorCode
 import io.ethers.aa.errors.EntryPointErrorCode
 import io.ethers.aa.errors.UserOperationError
@@ -80,7 +79,7 @@ class BundlerClientTest : FunSpec({
         BundlerClient(rpc).sendUserOperation(userOp, EntryPoint.V0_6).send().unwrap().userOpHash shouldBe userOpHash
 
         val params = rpc.requests("eth_sendUserOperation").single().params
-        params[0] shouldBe UserOperationJson.encode(userOp, EntryPointVersion.V0_6)
+        params[0] shouldBe userOp.toJson(EntryPointVersion.V0_6)
         params[1] shouldBe JsonPrimitive(EntryPoint.V0_6.address.toString())
     }
 
@@ -121,7 +120,7 @@ class BundlerClientTest : FunSpec({
     }
 
     test("getUserOperationByHash parses pending and included operations") {
-        val opJson = UserOperationJson.encode(userOp, EntryPointVersion.V0_7)
+        val opJson = userOp.toJson(EntryPointVersion.V0_7)
         val rpc = FakeJsonRpcClient().respond(
             "eth_getUserOperationByHash",
             """{"userOperation":$opJson,"entryPoint":"${EntryPoint.V0_7.address}","blockNumber":null,"blockHash":null,"transactionHash":null}""",

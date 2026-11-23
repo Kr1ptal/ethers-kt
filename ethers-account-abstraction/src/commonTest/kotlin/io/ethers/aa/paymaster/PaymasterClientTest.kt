@@ -4,7 +4,6 @@ import io.ethers.aa.EntryPoint
 import io.ethers.aa.EntryPointVersion
 import io.ethers.aa.FakeJsonRpcClient
 import io.ethers.aa.UserOperation
-import io.ethers.aa.UserOperationJson
 import io.ethers.core.isFailure
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
@@ -46,7 +45,7 @@ class PaymasterClientTest : FunSpec({
         )
 
         val params = rpc.requests.single().params
-        params[0] shouldBe UserOperationJson.encode(userOp, EntryPointVersion.V0_7)
+        params[0] shouldBe userOp.toJson(EntryPointVersion.V0_7)
         params[1] shouldBe JsonPrimitive(EntryPoint.V0_7.address.toString())
         params[2] shouldBe JsonPrimitive("0x2105")
         params[3] shouldBe JsonObject(mapOf("policyId" to JsonPrimitive("p1")))

@@ -90,17 +90,17 @@ class BundleReaderTest : FunSpec({
 
     test("block hash as the end of a range is a failure, not an exception") {
         BundleReader(Provider(node(), 1)).getExecutedUserOperation(Hash.ZERO, BlockId.Number(0), BlockId.Hash(Hash.ZERO))
-            .send().unwrapError().shouldBeInstanceOf<BundleReadError.Rpc>()
+            .send().unwrapError().shouldBeInstanceOf<BundleReader.Error.Rpc>()
     }
 
     test("unknown transaction and RPC errors are reported") {
         BundleReader(Provider(node(), 1)).getBundles(Hash.ZERO).send().unwrapError()
-            .shouldBeInstanceOf<BundleReadError.TransactionNotFound>().transactionHash shouldBe Hash.ZERO
+            .shouldBeInstanceOf<BundleReader.Error.TransactionNotFound>().transactionHash shouldBe Hash.ZERO
 
         val failing = FakeJsonRpcClient().fail("eth_getTransactionReceipt", RpcError(-32000, "boom"))
             .respond("eth_getTransactionByHash", "null")
         BundleReader(Provider(failing, 1)).getBundles(txHash).send().unwrapError()
-            .shouldBeInstanceOf<BundleReadError.Rpc>().error.message shouldBe "boom"
+            .shouldBeInstanceOf<BundleReader.Error.Rpc>().error.message shouldBe "boom"
     }
 
     test("filters for operation events of the configured EntryPoints") {

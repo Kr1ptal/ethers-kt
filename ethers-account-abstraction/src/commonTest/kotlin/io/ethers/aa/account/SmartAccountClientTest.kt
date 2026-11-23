@@ -3,7 +3,6 @@ package io.ethers.aa.account
 import io.ethers.aa.EntryPoint
 import io.ethers.aa.FakeJsonRpcClient
 import io.ethers.aa.UserOperation
-import io.ethers.aa.UserOperationJson
 import io.ethers.aa.bundle.StandardCallDataDecoder
 import io.ethers.aa.bundler.BundlerClient
 import io.ethers.aa.errors.EntryPointErrorCode
@@ -47,7 +46,7 @@ class SmartAccountClientTest : FunSpec({
         val account: TestSmartAccount,
         val client: SmartAccountClient,
     ) {
-        fun sent(): UserOperation = UserOperationJson.decode(bundlerRpc.requests("eth_sendUserOperation").single().params[0])
+        fun sent(): UserOperation = UserOperation.fromJson(bundlerRpc.requests("eth_sendUserOperation").single().params[0])
     }
 
     fun setup(
@@ -113,13 +112,13 @@ class SmartAccountClientTest : FunSpec({
             setup.account.owner.address
 
         // the bundler estimated gas with the stub signature and stub paymaster data
-        val estimated = UserOperationJson.decode(setup.bundlerRpc.requests("eth_estimateUserOperationGas").single().params[0])
+        val estimated = UserOperation.fromJson(setup.bundlerRpc.requests("eth_estimateUserOperationGas").single().params[0])
         estimated.signature shouldBe TestSmartAccount.STUB_SIGNATURE
         estimated.paymasterData shouldBe Bytes("0xaa")
 
         // the final paymaster data was requested for the estimated operation
         val finalRequest = setup.paymasterRpc.requests("pm_getPaymasterData").single()
-        UserOperationJson.decode(finalRequest.params[0]).callGasLimit shouldBe bigIntegerOf(0x30)
+        UserOperation.fromJson(finalRequest.params[0]).callGasLimit shouldBe bigIntegerOf(0x30)
         finalRequest.params[1] shouldBe JsonPrimitive(EntryPoint.V0_7.address.toString())
         finalRequest.params[2] shouldBe JsonPrimitive("0x1")
         setup.account.adjusted shouldBe 1
@@ -189,7 +188,7 @@ class SmartAccountClientTest : FunSpec({
 
         val sent = setup.bundlerRpc.requests("eth_sendUserOperation").single().params[0].jsonObject
         sent.containsKey("paymasterAndData") shouldBe true
-        val decoded = UserOperationJson.decode(sent)
+        val decoded = UserOperation.fromJson(sent)
         decoded.paymaster shouldBe paymasterAddress
         decoded.paymasterVerificationGasLimit.shouldBeNull()
     }

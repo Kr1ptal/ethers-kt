@@ -17,7 +17,7 @@ deployment, with the canonical ones predefined:
 ```kotlin
 val hash = userOp.hash(EntryPoint.V0_7, chainId)        // what the account signs
 val packed = userOp.toPacked(EntryPointVersion.V0_7)     // the on-chain PackedUserOperation
-val json = UserOperationJson.encode(userOp, EntryPointVersion.V0_7)
+val json = userOp.toJson(EntryPointVersion.V0_7)            // or UserOperationSerializer.of(version)
 ```
 
 - v0.6 operations use `initCode` and `paymasterAndData` on-chain, built from `factory`/`factoryData` and

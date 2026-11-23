@@ -2,8 +2,8 @@ package io.ethers.aa.bundler
 
 import io.ethers.aa.EntryPoint
 import io.ethers.aa.UserOperation
-import io.ethers.aa.UserOperationJson
 import io.ethers.aa.internal.asQuantity
+import io.ethers.aa.internal.required
 import io.ethers.core.asAddress
 import io.ethers.core.asHash
 import io.ethers.core.asHexLong
@@ -147,7 +147,7 @@ object UserOperationByHashSerializer : KSerializer<UserOperationByHash> {
         // the operation's layout depends on its EntryPoint, which may come after it in the object
         val layout = EntryPoint.canonical(entryPointAddress)?.version
         return UserOperationByHash(
-            userOperation = UserOperationJson.decode(required(userOperation, "userOperation"), layout),
+            userOperation = UserOperation.fromJson(required(userOperation, "userOperation"), layout),
             entryPoint = entryPointAddress,
             blockNumber = blockNumber,
             blockHash = blockHash,
@@ -209,8 +209,4 @@ object UserOperationReceiptSerializer : KSerializer<UserOperationReceipt> {
             receipt = required(receipt, "receipt"),
         )
     }
-}
-
-internal fun <T : Any> required(value: T?, field: String): T {
-    return value ?: throw SerializationException("Missing field '$field'")
 }

@@ -48,7 +48,7 @@ class UserOperationTest : FunSpec({
 
     context("hash of mainnet operations matches the EntryPoint's") {
         withData(UserOperationVectors.ALL.associateBy { it.description }) { vector ->
-            val userOp = UserOperationJson.decode(Kotlinx.DEFAULT.parseToJsonElement(vector.json))
+            val userOp = UserOperation.fromJson(Kotlinx.DEFAULT.parseToJsonElement(vector.json))
             userOp.hash(vector.entryPoint, vector.chainId, vector.eip7702Delegate) shouldBe vector.hash
         }
     }
@@ -56,7 +56,7 @@ class UserOperationTest : FunSpec({
     context("JSON-RPC round trip of mainnet operations") {
         withData(UserOperationVectors.ALL.associateBy { it.description }) { vector ->
             val json = Kotlinx.DEFAULT.parseToJsonElement(vector.json).jsonObject
-            UserOperationJson.encode(UserOperationJson.decode(json), vector.entryPoint.version) shouldBe json
+            UserOperation.fromJson(json).toJson(vector.entryPoint.version) shouldBe json
         }
     }
 
@@ -144,7 +144,7 @@ class UserOperationTest : FunSpec({
 
         test("is not supported before v0.9") {
             shouldThrow<IllegalArgumentException> { signed.toPacked(EntryPointVersion.V0_8) }
-            shouldThrow<IllegalArgumentException> { UserOperationJson.encode(signed, EntryPointVersion.V0_8) }
+            shouldThrow<IllegalArgumentException> { signed.toJson(EntryPointVersion.V0_8) }
         }
 
         test("is only parsed by v0.9") {
@@ -193,65 +193,66 @@ class UserOperationTest : FunSpec({
 
         test("authorization is sent as eip7702Auth") {
             val authorization = Authorization(1, delegate, 5, 1, bigIntegerOf(2), bigIntegerOf(3))
-            val json = UserOperationJson.encode(eip7702.copy(eip7702Auth = authorization), EntryPointVersion.V0_8)
+            val json = eip7702.copy(eip7702Auth = authorization).toJson(EntryPointVersion.V0_8)
             val auth = json["eip7702Auth"].shouldBeInstanceOf<JsonObject>()
             auth["address"] shouldBe JsonPrimitive(delegate.toString())
             auth["nonce"] shouldBe JsonPrimitive("0x5")
             auth["yParity"] shouldBe JsonPrimitive("0x1")
-            auth["r"] shouldBe JsonPrimitive("0x" + "0".repeat(63) + "2")
-            UserOperationJson.decode(json).eip7702Auth shouldBe authorization
+            // encoded like the authorization list of a transaction
+            auth shouldBe Kotlinx.DEFAULT.encodeToJsonElement(Authorization.serializer(), authorization)
+            UserOperation.fromJson(json).eip7702Auth shouldBe authorization
 
             shouldThrow<IllegalArgumentException> {
-                UserOperationJson.encode(eip7702.copy(eip7702Auth = authorization), EntryPointVersion.V0_7)
+                eip7702.copy(eip7702Auth = authorization).toJson(EntryPointVersion.V0_7)
             }
         }
     }
 
     context("JSON-RPC layout") {
         test("v0.6 uses initCode and paymasterAndData") {
-            val json = UserOperationJson.encode(op(null, null), EntryPointVersion.V0_6)
+            val json = op(null, null).toJson(EntryPointVersion.V0_6)
             json.keys shouldBe setOf(
                 "sender", "nonce", "initCode", "callData", "callGasLimit", "verificationGasLimit", "preVerificationGas",
                 "maxFeePerGas", "maxPriorityFeePerGas", "paymasterAndData", "signature",
             )
             json["nonce"] shouldBe JsonPrimitive("0x70000000000000003")
-            UserOperationJson.decode(json) shouldBe op(null, null)
+            UserOperation.fromJson(json) shouldBe op(null, null)
         }
 
         test("v0.7 uses factory and paymaster fields") {
-            val json = UserOperationJson.encode(op(), EntryPointVersion.V0_7)
+            val json = op().toJson(EntryPointVersion.V0_7)
             json.keys shouldBe setOf(
                 "sender", "nonce", "factory", "factoryData", "callData", "callGasLimit", "verificationGasLimit",
                 "preVerificationGas", "maxFeePerGas", "maxPriorityFeePerGas", "paymaster", "paymasterVerificationGasLimit",
                 "paymasterPostOpGasLimit", "paymasterData", "signature",
             )
-            UserOperationJson.decode(json) shouldBe op()
+            UserOperation.fromJson(json) shouldBe op()
         }
 
         test("v0.7 leaves out factory and paymaster fields when unset") {
-            val json = UserOperationJson.encode(op().copy(factory = null, factoryData = null, paymaster = null, paymasterData = null), EntryPointVersion.V0_7)
+            val json = op().copy(factory = null, factoryData = null, paymaster = null, paymasterData = null).toJson(EntryPointVersion.V0_7)
             json.keys.any { it.startsWith("factory") || it.startsWith("paymaster") } shouldBe false
         }
 
         test("quantities may be JSON numbers or decimal strings") {
             val json = JsonObject(
-                UserOperationJson.encode(op(), EntryPointVersion.V0_7) + mapOf(
+                op().toJson(EntryPointVersion.V0_7) + mapOf(
                     "callGasLimit" to JsonPrimitive(100000),
                     "preVerificationGas" to JsonPrimitive("50000"),
                 ),
             )
-            UserOperationJson.decode(json) shouldBe op()
+            UserOperation.fromJson(json) shouldBe op()
         }
 
         test("an EntryPoint version overrides layout detection") {
-            val json = JsonObject(UserOperationJson.encode(op(), EntryPointVersion.V0_7) + mapOf("initCode" to JsonPrimitive("0x")))
-            UserOperationJson.decode(json, EntryPointVersion.V0_7) shouldBe op()
-            shouldThrow<IllegalArgumentException> { UserOperationJson.decode(JsonPrimitive("0x")) }
+            val json = JsonObject(op().toJson(EntryPointVersion.V0_7) + mapOf("initCode" to JsonPrimitive("0x")))
+            UserOperation.fromJson(json, EntryPointVersion.V0_7) shouldBe op()
+            shouldThrow<IllegalArgumentException> { UserOperation.fromJson(JsonPrimitive("0x")) }
         }
 
         test("missing required field is rejected") {
-            val json = JsonObject(UserOperationJson.encode(op(), EntryPointVersion.V0_7) - "callData")
-            shouldThrow<IllegalArgumentException> { UserOperationJson.decode(json) }
+            val json = JsonObject(op().toJson(EntryPointVersion.V0_7) - "callData")
+            shouldThrow<IllegalArgumentException> { UserOperation.fromJson(json) }
         }
     }
 

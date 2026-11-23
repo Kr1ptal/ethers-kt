@@ -3,9 +3,8 @@ package io.ethers.aa.paymaster
 import io.ethers.aa.EntryPoint
 import io.ethers.aa.EntryPointVersion
 import io.ethers.aa.UserOperation
-import io.ethers.aa.UserOperationJson
 import io.ethers.aa.internal.asQuantity
-import io.ethers.aa.internal.quantity
+import io.ethers.core.FastHex
 import io.ethers.core.asAddress
 import io.ethers.core.asBytes
 import io.ethers.core.asHexByteArray
@@ -131,9 +130,9 @@ class PaymasterClient(val client: JsonRpcClient) : PaymasterApi {
 
     private fun params(op: UserOperation, entryPoint: EntryPoint, chainId: Long, context: Map<String, Any?>?): Array<Any> {
         return arrayOf(
-            UserOperationJson.encode(op, entryPoint.version),
+            op.toJson(entryPoint.version),
             entryPoint.address,
-            quantity(chainId),
+            FastHex.encodeWithPrefix(chainId),
             context?.toJsonElement() ?: JsonObject(emptyMap()),
         )
     }

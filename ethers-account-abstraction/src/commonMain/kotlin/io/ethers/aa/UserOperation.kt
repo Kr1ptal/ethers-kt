@@ -2,12 +2,16 @@ package io.ethers.aa
 
 import io.ethers.abi.AbiCodec
 import io.ethers.abi.AbiType
+import io.ethers.core.Kotlinx
 import io.ethers.core.types.Address
 import io.ethers.core.types.Authorization
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonObject
 import kotlin.jvm.JvmField
 import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmStatic
@@ -137,6 +141,13 @@ data class UserOperation @JvmOverloads constructor(
     }
 
     /**
+     * Encode this operation into its ERC-7769 JSON-RPC form for EntryPoint [version], see [UserOperationSerializer].
+     */
+    fun toJson(version: EntryPointVersion): JsonObject {
+        return Kotlinx.DEFAULT.encodeToJsonElement(UserOperationSerializer.of(version), this).jsonObject
+    }
+
+    /**
      * Return a copy of this operation with [signature] replaced.
      */
     fun withSignature(signature: Bytes): UserOperation = copy(signature = signature)
@@ -204,6 +215,18 @@ data class UserOperation @JvmOverloads constructor(
         internal val PAYMASTER_SIG_MAGIC = Bytes("0x22e325a297439656")
         internal const val PAYMASTER_DATA_OFFSET = 52
         private const val PAYMASTER_SUFFIX_LEN = 10
+
+        /**
+         * Decode an operation from its ERC-7769 JSON-RPC form for EntryPoint [version], or detect the layout from the
+         * fields present if [version] is null, see [UserOperationSerializer].
+         *
+         * @throws kotlinx.serialization.SerializationException if a required field is missing or malformed.
+         */
+        @JvmStatic
+        @JvmOverloads
+        fun fromJson(json: JsonElement, version: EntryPointVersion? = null): UserOperation {
+            return Kotlinx.DEFAULT.decodeFromJsonElement(UserOperationSerializer.of(version), json)
+        }
 
         /**
          * Build an operation from its on-chain EntryPoint v0.6 fields, splitting [initCode] into factory and factory
