@@ -52,7 +52,6 @@ import io.github.artificialpb.bignum.bigIntegerOf
 import io.github.artificialpb.bignum.div
 import io.github.artificialpb.bignum.plus
 import io.github.artificialpb.bignum.times
-import io.github.artificialpb.bignum.toBigInteger
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.DeserializationStrategy
@@ -67,6 +66,7 @@ import kotlinx.serialization.encoding.CompositeDecoder
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.encoding.decodeStructure
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.encodeToJsonElement
@@ -76,7 +76,7 @@ import kotlin.jvm.JvmStatic
 class Provider(override val client: JsonRpcClient, override val chainId: Long) : Middleware {
     // it's ever only set to false if eth_fillTransaction is not supported, so it's fine if it's a bit racy
     private var supportsFillTransaction = true
-    private val fillTransactionFeeHistory = getFeeHistory(10, BlockId.LATEST, listOf("20".toBigInteger()))
+    private val fillTransactionFeeHistory = getFeeHistory(10, BlockId.LATEST, doubleArrayOf(20.0))
 
     override val inner: Middleware?
         get() = null
@@ -207,18 +207,18 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
     override fun getFeeHistory(
         blockCount: Long,
         lastBlockName: BlockId.Name,
-        rewardPercentiles: List<BigInteger>,
+        rewardPercentiles: DoubleArray,
     ): RpcRequest<FeeHistory, RpcError> {
-        val params = arrayOf(FastHex.encodeWithPrefix(blockCount), lastBlockName.id, rewardPercentiles)
+        val params = arrayOf(FastHex.encodeWithPrefix(blockCount), lastBlockName.id, rewardPercentiles.toPercentilesJson())
         return RpcCall(client, "eth_feeHistory", params, FeeHistory.serializer())
     }
 
     override fun getFeeHistory(
         blockCount: Long,
         lastBlockNumber: BlockId.Number,
-        rewardPercentiles: List<BigInteger>,
+        rewardPercentiles: DoubleArray,
     ): RpcRequest<FeeHistory, RpcError> {
-        val params = arrayOf(FastHex.encodeWithPrefix(blockCount), lastBlockNumber.id, rewardPercentiles)
+        val params = arrayOf(FastHex.encodeWithPrefix(blockCount), lastBlockNumber.id, rewardPercentiles.toPercentilesJson())
         return RpcCall(client, "eth_feeHistory", params, FeeHistory.serializer())
     }
 
@@ -709,3 +709,7 @@ private object CallManyResultSerializer : KSerializer<Result<Bytes, CallFailedEr
         return result ?: throw IllegalStateException("No result or error found in response")
     }
 }
+
+// JSON-RPC spec defines reward percentiles as JSON numbers. Clients like geth and reth reject any other
+// representation (e.g. strings) with "invalid params".
+private fun DoubleArray.toPercentilesJson(): JsonArray = JsonArray(map(::JsonPrimitive))

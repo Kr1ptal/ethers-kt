@@ -2,6 +2,7 @@ package io.ethers.core
 
 import io.github.artificialpb.bignum.BigDecimal
 import io.github.artificialpb.bignum.BigInteger
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.InternalSerializationApi
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.JsonArray
@@ -9,10 +10,11 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.JsonUnquotedLiteral
 import kotlinx.serialization.serializerOrNull
 
 @Suppress("UNCHECKED_CAST")
-@OptIn(InternalSerializationApi::class)
+@OptIn(InternalSerializationApi::class, ExperimentalSerializationApi::class)
 fun Any?.toJsonElement(): JsonElement = when (this) {
     null -> JsonNull
     is JsonElement -> this
@@ -24,8 +26,10 @@ fun Any?.toJsonElement(): JsonElement = when (this) {
     is Long -> JsonPrimitive(this)
     is Float -> JsonPrimitive(this)
     is Double -> JsonPrimitive(this)
-    is BigInteger -> JsonPrimitive(this.toString())
-    is BigDecimal -> JsonPrimitive(this.toString())
+    // arbitrary-precision numbers are written as unquoted JSON number literals, so they keep full precision while
+    // still being typed as numbers (JSON-RPC clients reject a quoted string where the spec defines a number)
+    is BigInteger -> JsonUnquotedLiteral(this.toString())
+    is BigDecimal -> JsonUnquotedLiteral(this.toPlainString())
     is ByteArray -> JsonPrimitive(FastHex.encodeWithPrefix(this))
     is Array<*> -> JsonArray(this.map { it.toJsonElement() })
     is Iterable<*> -> JsonArray(this.map { it.toJsonElement() })
