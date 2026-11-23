@@ -47,7 +47,7 @@ public class EntryPointV08(
 
     public fun balanceOf(account: Address): ReadFunctionCall<BigInteger> = Companion.balanceOf(this.provider, this.address, account)
 
-    public fun delegateAndRevert(target: Address, `data`: Bytes): FunctionCall<Unit> = Companion.delegateAndRevert(this.provider, this.address, target,`data`)
+    public fun delegateAndRevert(target: Address, `data`: Bytes): FunctionCall<Unit> = Companion.delegateAndRevert(this.provider, this.address, target, `data`)
 
     public fun depositTo(account: Address): PayableFunctionCall<Unit> = Companion.depositTo(this.provider, this.address, account)
 
@@ -57,7 +57,7 @@ public class EntryPointV08(
 
     public fun getDomainSeparatorV4(): ReadFunctionCall<Bytes> = Companion.getDomainSeparatorV4(this.provider, this.address)
 
-    public fun getNonce(sender: Address, key: BigInteger): ReadFunctionCall<BigInteger> = Companion.getNonce(this.provider, this.address, sender,key)
+    public fun getNonce(sender: Address, key: BigInteger): ReadFunctionCall<BigInteger> = Companion.getNonce(this.provider, this.address, sender, key)
 
     public fun getPackedUserOpTypeHash(): ReadFunctionCall<Bytes> = Companion.getPackedUserOpTypeHash(this.provider, this.address)
 
@@ -65,9 +65,9 @@ public class EntryPointV08(
 
     public fun getUserOpHash(userOp: EntryPointV08.PackedUserOperation): ReadFunctionCall<Bytes> = Companion.getUserOpHash(this.provider, this.address, userOp)
 
-    public fun handleAggregatedOps(opsPerAggregator: List<EntryPointV08.UserOpsPerAggregator>, beneficiary: Address): FunctionCall<Unit> = Companion.handleAggregatedOps(this.provider, this.address, opsPerAggregator,beneficiary)
+    public fun handleAggregatedOps(opsPerAggregator: List<EntryPointV08.UserOpsPerAggregator>, beneficiary: Address): FunctionCall<Unit> = Companion.handleAggregatedOps(this.provider, this.address, opsPerAggregator, beneficiary)
 
-    public fun handleOps(ops: List<EntryPointV08.PackedUserOperation>, beneficiary: Address): FunctionCall<Unit> = Companion.handleOps(this.provider, this.address, ops,beneficiary)
+    public fun handleOps(ops: List<EntryPointV08.PackedUserOperation>, beneficiary: Address): FunctionCall<Unit> = Companion.handleOps(this.provider, this.address, ops, beneficiary)
 
     public fun incrementNonce(key: BigInteger): FunctionCall<Unit> = Companion.incrementNonce(this.provider, this.address, key)
 
@@ -75,9 +75,9 @@ public class EntryPointV08(
         callData: Bytes,
         opInfo: EntryPointV08.UserOpInfo,
         context: Bytes,
-    ): FunctionCall<BigInteger> = Companion.innerHandleOp(this.provider, this.address, callData,opInfo,context)
+    ): FunctionCall<BigInteger> = Companion.innerHandleOp(this.provider, this.address, callData, opInfo, context)
 
-    public fun nonceSequenceNumber(arg0: Address, arg1: BigInteger): ReadFunctionCall<BigInteger> = Companion.nonceSequenceNumber(this.provider, this.address, arg0,arg1)
+    public fun nonceSequenceNumber(arg0: Address, arg1: BigInteger): ReadFunctionCall<BigInteger> = Companion.nonceSequenceNumber(this.provider, this.address, arg0, arg1)
 
     public fun senderCreator(): ReadFunctionCall<Address> = Companion.senderCreator(this.provider, this.address)
 
@@ -87,7 +87,7 @@ public class EntryPointV08(
 
     public fun withdrawStake(withdrawAddress: Address): FunctionCall<Unit> = Companion.withdrawStake(this.provider, this.address, withdrawAddress)
 
-    public fun withdrawTo(withdrawAddress: Address, withdrawAmount: BigInteger): FunctionCall<Unit> = Companion.withdrawTo(this.provider, this.address, withdrawAddress,withdrawAmount)
+    public fun withdrawTo(withdrawAddress: Address, withdrawAmount: BigInteger): FunctionCall<Unit> = Companion.withdrawTo(this.provider, this.address, withdrawAddress, withdrawAmount)
 
     public sealed class Error : CustomContractError()
 
@@ -95,7 +95,7 @@ public class EntryPointV08(
 
     /**
      * Contract error
-     *     
+     *
      * Selector: `0x99410554`
      *
      * Signature:
@@ -110,7 +110,7 @@ public class EntryPointV08(
         public companion object : CustomErrorFactory<DelegateAndRevert> {
             @JvmStatic
             override val abi: AbiFunction =
-                    AbiFunction("DelegateAndRevert", listOf(AbiType.Bool, AbiType.Bytes), emptyList())
+                AbiFunction("DelegateAndRevert", listOf(AbiType.Bool, AbiType.Bytes), emptyList())
 
             @JvmStatic
             override fun decodeOrNull(`data`: Bytes): DelegateAndRevert? = super.decodeOrNull(data)
@@ -119,13 +119,13 @@ public class EntryPointV08(
             override fun tryDecode(`data`: Bytes): Result<DelegateAndRevert, ContractErrorDecodingError> = super.tryDecode(data)
 
             @JvmStatic
-            override fun decode(`data`: List<Any>): DelegateAndRevert = DelegateAndRevert(data[0] as kotlin.Boolean,data[1] as io.ethers.core.types.Bytes)
+            override fun decode(`data`: List<Any>): DelegateAndRevert = DelegateAndRevert(data[0] as kotlin.Boolean, data[1] as io.ethers.core.types.Bytes)
         }
     }
 
     /**
      * Contract error
-     *     
+     *
      * Selector: `0x220266b6`
      *
      * Signature:
@@ -140,7 +140,7 @@ public class EntryPointV08(
         public companion object : CustomErrorFactory<FailedOp> {
             @JvmStatic
             override val abi: AbiFunction =
-                    AbiFunction("FailedOp", listOf(AbiType.UInt(256), AbiType.String), emptyList())
+                AbiFunction("FailedOp", listOf(AbiType.UInt(256), AbiType.String), emptyList())
 
             @JvmStatic
             override fun decodeOrNull(`data`: Bytes): FailedOp? = super.decodeOrNull(data)
@@ -149,13 +149,13 @@ public class EntryPointV08(
             override fun tryDecode(`data`: Bytes): Result<FailedOp, ContractErrorDecodingError> = super.tryDecode(data)
 
             @JvmStatic
-            override fun decode(`data`: List<Any>): FailedOp = FailedOp(data[0] as io.github.artificialpb.bignum.BigInteger,data[1] as kotlin.String)
+            override fun decode(`data`: List<Any>): FailedOp = FailedOp(data[0] as io.github.artificialpb.bignum.BigInteger, data[1] as kotlin.String)
         }
     }
 
     /**
      * Contract error
-     *     
+     *
      * Selector: `0x65c8fd4d`
      *
      * Signature:
@@ -171,7 +171,7 @@ public class EntryPointV08(
         public companion object : CustomErrorFactory<FailedOpWithRevert> {
             @JvmStatic
             override val abi: AbiFunction =
-                    AbiFunction("FailedOpWithRevert", listOf(AbiType.UInt(256), AbiType.String, AbiType.Bytes), emptyList())
+                AbiFunction("FailedOpWithRevert", listOf(AbiType.UInt(256), AbiType.String, AbiType.Bytes), emptyList())
 
             @JvmStatic
             override fun decodeOrNull(`data`: Bytes): FailedOpWithRevert? = super.decodeOrNull(data)
@@ -180,13 +180,13 @@ public class EntryPointV08(
             override fun tryDecode(`data`: Bytes): Result<FailedOpWithRevert, ContractErrorDecodingError> = super.tryDecode(data)
 
             @JvmStatic
-            override fun decode(`data`: List<Any>): FailedOpWithRevert = FailedOpWithRevert(data[0] as io.github.artificialpb.bignum.BigInteger,data[1] as kotlin.String,data[2] as io.ethers.core.types.Bytes)
+            override fun decode(`data`: List<Any>): FailedOpWithRevert = FailedOpWithRevert(data[0] as io.github.artificialpb.bignum.BigInteger, data[1] as kotlin.String, data[2] as io.ethers.core.types.Bytes)
         }
     }
 
     /**
      * Contract error
-     *     
+     *
      * Selector: `0xb3512b0c`
      *
      * Signature:
@@ -225,7 +225,7 @@ public class EntryPointV08(
 
     /**
      * Contract error
-     *     
+     *
      * Selector: `0xad7954bc`
      *
      * Signature:
@@ -239,7 +239,7 @@ public class EntryPointV08(
         public companion object : CustomErrorFactory<PostOpReverted> {
             @JvmStatic
             override val abi: AbiFunction =
-                    AbiFunction("PostOpReverted", listOf(AbiType.Bytes), emptyList())
+                AbiFunction("PostOpReverted", listOf(AbiType.Bytes), emptyList())
 
             @JvmStatic
             override fun decodeOrNull(`data`: Bytes): PostOpReverted? = super.decodeOrNull(data)
@@ -254,7 +254,7 @@ public class EntryPointV08(
 
     /**
      * Contract error
-     *     
+     *
      * Selector: `0x3ee5aeb5`
      *
      * Signature:
@@ -276,7 +276,7 @@ public class EntryPointV08(
         public companion object : CustomErrorFactory<ReentrancyGuardReentrantCall> {
             @JvmStatic
             override val abi: AbiFunction =
-                    AbiFunction("ReentrancyGuardReentrantCall", listOf(), emptyList())
+                AbiFunction("ReentrancyGuardReentrantCall", listOf(), emptyList())
 
             @JvmField
             public val INSTANCE: ReentrancyGuardReentrantCall = ReentrancyGuardReentrantCall()
@@ -294,7 +294,7 @@ public class EntryPointV08(
 
     /**
      * Contract error
-     *     
+     *
      * Selector: `0x6ca7b806`
      *
      * Signature:
@@ -308,7 +308,7 @@ public class EntryPointV08(
         public companion object : CustomErrorFactory<SenderAddressResult> {
             @JvmStatic
             override val abi: AbiFunction =
-                    AbiFunction("SenderAddressResult", listOf(AbiType.Address), emptyList())
+                AbiFunction("SenderAddressResult", listOf(AbiType.Address), emptyList())
 
             @JvmStatic
             override fun decodeOrNull(`data`: Bytes): SenderAddressResult? = super.decodeOrNull(data)
@@ -323,7 +323,7 @@ public class EntryPointV08(
 
     /**
      * Contract error
-     *     
+     *
      * Selector: `0x86a9f750`
      *
      * Signature:
@@ -337,7 +337,7 @@ public class EntryPointV08(
         public companion object : CustomErrorFactory<SignatureValidationFailed> {
             @JvmStatic
             override val abi: AbiFunction =
-                    AbiFunction("SignatureValidationFailed", listOf(AbiType.Address), emptyList())
+                AbiFunction("SignatureValidationFailed", listOf(AbiType.Address), emptyList())
 
             @JvmStatic
             override fun decodeOrNull(`data`: Bytes): SignatureValidationFailed? = super.decodeOrNull(data)
@@ -352,7 +352,7 @@ public class EntryPointV08(
 
     /**
      * Contract error
-     *     
+     *
      * Selector: `0x305a27a9`
      *
      * Signature:
@@ -366,7 +366,7 @@ public class EntryPointV08(
         public companion object : CustomErrorFactory<StringTooLong> {
             @JvmStatic
             override val abi: AbiFunction =
-                    AbiFunction("StringTooLong", listOf(AbiType.String), emptyList())
+                AbiFunction("StringTooLong", listOf(AbiType.String), emptyList())
 
             @JvmStatic
             override fun decodeOrNull(`data`: Bytes): StringTooLong? = super.decodeOrNull(data)
@@ -420,7 +420,7 @@ public class EntryPointV08(
         public companion object : EventFactory<AccountDeployed> {
             @JvmStatic
             override val abi: AbiEvent =
-                    AbiEvent("AccountDeployed", listOf(AbiEvent.Token(AbiType.FixedBytes(32), true), AbiEvent.Token(AbiType.Address, true), AbiEvent.Token(AbiType.Address, false), AbiEvent.Token(AbiType.Address, false)), false)
+                AbiEvent("AccountDeployed", listOf(AbiEvent.Token(AbiType.FixedBytes(32), true), AbiEvent.Token(AbiType.Address, true), AbiEvent.Token(AbiType.Address, false), AbiEvent.Token(AbiType.Address, false)), false)
 
             @JvmStatic
             override fun filter(provider: Middleware): AccountDeployed.Filter = AccountDeployed.Filter(provider, this)
@@ -435,7 +435,7 @@ public class EntryPointV08(
             override fun tryDecode(log: Log): Result<AccountDeployed, EventDecodingError> = super.tryDecode(log)
 
             @JvmStatic
-            override fun decode(log: Log, `data`: List<Any>): AccountDeployed = AccountDeployed(data[0] as io.ethers.core.types.Bytes,data[1] as io.ethers.core.types.Address,data[2] as io.ethers.core.types.Address,data[3] as io.ethers.core.types.Address,log)
+            override fun decode(log: Log, `data`: List<Any>): AccountDeployed = AccountDeployed(data[0] as io.ethers.core.types.Bytes, data[1] as io.ethers.core.types.Address, data[2] as io.ethers.core.types.Address, data[3] as io.ethers.core.types.Address, log)
         }
     }
 
@@ -510,7 +510,7 @@ public class EntryPointV08(
         public companion object : EventFactory<Deposited> {
             @JvmStatic
             override val abi: AbiEvent =
-                    AbiEvent("Deposited", listOf(AbiEvent.Token(AbiType.Address, true), AbiEvent.Token(AbiType.UInt(256), false)), false)
+                AbiEvent("Deposited", listOf(AbiEvent.Token(AbiType.Address, true), AbiEvent.Token(AbiType.UInt(256), false)), false)
 
             @JvmStatic
             override fun filter(provider: Middleware): Deposited.Filter = Deposited.Filter(provider, this)
@@ -525,7 +525,7 @@ public class EntryPointV08(
             override fun tryDecode(log: Log): Result<Deposited, EventDecodingError> = super.tryDecode(log)
 
             @JvmStatic
-            override fun decode(log: Log, `data`: List<Any>): Deposited = Deposited(data[0] as io.ethers.core.types.Address,data[1] as io.github.artificialpb.bignum.BigInteger,log)
+            override fun decode(log: Log, `data`: List<Any>): Deposited = Deposited(data[0] as io.ethers.core.types.Address, data[1] as io.github.artificialpb.bignum.BigInteger, log)
         }
     }
 
@@ -606,7 +606,7 @@ public class EntryPointV08(
         public companion object : EventFactory<PostOpRevertReason> {
             @JvmStatic
             override val abi: AbiEvent =
-                    AbiEvent("PostOpRevertReason", listOf(AbiEvent.Token(AbiType.FixedBytes(32), true), AbiEvent.Token(AbiType.Address, true), AbiEvent.Token(AbiType.UInt(256), false), AbiEvent.Token(AbiType.Bytes, false)), false)
+                AbiEvent("PostOpRevertReason", listOf(AbiEvent.Token(AbiType.FixedBytes(32), true), AbiEvent.Token(AbiType.Address, true), AbiEvent.Token(AbiType.UInt(256), false), AbiEvent.Token(AbiType.Bytes, false)), false)
 
             @JvmStatic
             override fun filter(provider: Middleware): PostOpRevertReason.Filter = PostOpRevertReason.Filter(provider, this)
@@ -621,7 +621,7 @@ public class EntryPointV08(
             override fun tryDecode(log: Log): Result<PostOpRevertReason, EventDecodingError> = super.tryDecode(log)
 
             @JvmStatic
-            override fun decode(log: Log, `data`: List<Any>): PostOpRevertReason = PostOpRevertReason(data[0] as io.ethers.core.types.Bytes,data[1] as io.ethers.core.types.Address,data[2] as io.github.artificialpb.bignum.BigInteger,data[3] as io.ethers.core.types.Bytes,log)
+            override fun decode(log: Log, `data`: List<Any>): PostOpRevertReason = PostOpRevertReason(data[0] as io.ethers.core.types.Bytes, data[1] as io.ethers.core.types.Address, data[2] as io.github.artificialpb.bignum.BigInteger, data[3] as io.ethers.core.types.Bytes, log)
         }
     }
 
@@ -659,7 +659,7 @@ public class EntryPointV08(
         public companion object : EventFactory<SignatureAggregatorChanged> {
             @JvmStatic
             override val abi: AbiEvent =
-                    AbiEvent("SignatureAggregatorChanged", listOf(AbiEvent.Token(AbiType.Address, true)), false)
+                AbiEvent("SignatureAggregatorChanged", listOf(AbiEvent.Token(AbiType.Address, true)), false)
 
             @JvmStatic
             override fun filter(provider: Middleware): SignatureAggregatorChanged.Filter = SignatureAggregatorChanged.Filter(provider, this)
@@ -674,7 +674,7 @@ public class EntryPointV08(
             override fun tryDecode(log: Log): Result<SignatureAggregatorChanged, EventDecodingError> = super.tryDecode(log)
 
             @JvmStatic
-            override fun decode(log: Log, `data`: List<Any>): SignatureAggregatorChanged = SignatureAggregatorChanged(data[0] as io.ethers.core.types.Address,log)
+            override fun decode(log: Log, `data`: List<Any>): SignatureAggregatorChanged = SignatureAggregatorChanged(data[0] as io.ethers.core.types.Address, log)
         }
     }
 
@@ -714,7 +714,7 @@ public class EntryPointV08(
         public companion object : EventFactory<StakeLocked> {
             @JvmStatic
             override val abi: AbiEvent =
-                    AbiEvent("StakeLocked", listOf(AbiEvent.Token(AbiType.Address, true), AbiEvent.Token(AbiType.UInt(256), false), AbiEvent.Token(AbiType.UInt(256), false)), false)
+                AbiEvent("StakeLocked", listOf(AbiEvent.Token(AbiType.Address, true), AbiEvent.Token(AbiType.UInt(256), false), AbiEvent.Token(AbiType.UInt(256), false)), false)
 
             @JvmStatic
             override fun filter(provider: Middleware): StakeLocked.Filter = StakeLocked.Filter(provider, this)
@@ -729,7 +729,7 @@ public class EntryPointV08(
             override fun tryDecode(log: Log): Result<StakeLocked, EventDecodingError> = super.tryDecode(log)
 
             @JvmStatic
-            override fun decode(log: Log, `data`: List<Any>): StakeLocked = StakeLocked(data[0] as io.ethers.core.types.Address,data[1] as io.github.artificialpb.bignum.BigInteger,data[2] as io.github.artificialpb.bignum.BigInteger,log)
+            override fun decode(log: Log, `data`: List<Any>): StakeLocked = StakeLocked(data[0] as io.ethers.core.types.Address, data[1] as io.github.artificialpb.bignum.BigInteger, data[2] as io.github.artificialpb.bignum.BigInteger, log)
         }
     }
 
@@ -768,7 +768,7 @@ public class EntryPointV08(
         public companion object : EventFactory<StakeUnlocked> {
             @JvmStatic
             override val abi: AbiEvent =
-                    AbiEvent("StakeUnlocked", listOf(AbiEvent.Token(AbiType.Address, true), AbiEvent.Token(AbiType.UInt(256), false)), false)
+                AbiEvent("StakeUnlocked", listOf(AbiEvent.Token(AbiType.Address, true), AbiEvent.Token(AbiType.UInt(256), false)), false)
 
             @JvmStatic
             override fun filter(provider: Middleware): StakeUnlocked.Filter = StakeUnlocked.Filter(provider, this)
@@ -783,7 +783,7 @@ public class EntryPointV08(
             override fun tryDecode(log: Log): Result<StakeUnlocked, EventDecodingError> = super.tryDecode(log)
 
             @JvmStatic
-            override fun decode(log: Log, `data`: List<Any>): StakeUnlocked = StakeUnlocked(data[0] as io.ethers.core.types.Address,data[1] as io.github.artificialpb.bignum.BigInteger,log)
+            override fun decode(log: Log, `data`: List<Any>): StakeUnlocked = StakeUnlocked(data[0] as io.ethers.core.types.Address, data[1] as io.github.artificialpb.bignum.BigInteger, log)
         }
     }
 
@@ -823,7 +823,7 @@ public class EntryPointV08(
         public companion object : EventFactory<StakeWithdrawn> {
             @JvmStatic
             override val abi: AbiEvent =
-                    AbiEvent("StakeWithdrawn", listOf(AbiEvent.Token(AbiType.Address, true), AbiEvent.Token(AbiType.Address, false), AbiEvent.Token(AbiType.UInt(256), false)), false)
+                AbiEvent("StakeWithdrawn", listOf(AbiEvent.Token(AbiType.Address, true), AbiEvent.Token(AbiType.Address, false), AbiEvent.Token(AbiType.UInt(256), false)), false)
 
             @JvmStatic
             override fun filter(provider: Middleware): StakeWithdrawn.Filter = StakeWithdrawn.Filter(provider, this)
@@ -838,7 +838,7 @@ public class EntryPointV08(
             override fun tryDecode(log: Log): Result<StakeWithdrawn, EventDecodingError> = super.tryDecode(log)
 
             @JvmStatic
-            override fun decode(log: Log, `data`: List<Any>): StakeWithdrawn = StakeWithdrawn(data[0] as io.ethers.core.types.Address,data[1] as io.ethers.core.types.Address,data[2] as io.github.artificialpb.bignum.BigInteger,log)
+            override fun decode(log: Log, `data`: List<Any>): StakeWithdrawn = StakeWithdrawn(data[0] as io.ethers.core.types.Address, data[1] as io.ethers.core.types.Address, data[2] as io.github.artificialpb.bignum.BigInteger, log)
         }
     }
 
@@ -890,7 +890,7 @@ public class EntryPointV08(
         public companion object : EventFactory<UserOperationEvent> {
             @JvmStatic
             override val abi: AbiEvent =
-                    AbiEvent("UserOperationEvent", listOf(AbiEvent.Token(AbiType.FixedBytes(32), true), AbiEvent.Token(AbiType.Address, true), AbiEvent.Token(AbiType.Address, true), AbiEvent.Token(AbiType.UInt(256), false), AbiEvent.Token(AbiType.Bool, false), AbiEvent.Token(AbiType.UInt(256), false), AbiEvent.Token(AbiType.UInt(256), false)), false)
+                AbiEvent("UserOperationEvent", listOf(AbiEvent.Token(AbiType.FixedBytes(32), true), AbiEvent.Token(AbiType.Address, true), AbiEvent.Token(AbiType.Address, true), AbiEvent.Token(AbiType.UInt(256), false), AbiEvent.Token(AbiType.Bool, false), AbiEvent.Token(AbiType.UInt(256), false), AbiEvent.Token(AbiType.UInt(256), false)), false)
 
             @JvmStatic
             override fun filter(provider: Middleware): UserOperationEvent.Filter = UserOperationEvent.Filter(provider, this)
@@ -905,7 +905,7 @@ public class EntryPointV08(
             override fun tryDecode(log: Log): Result<UserOperationEvent, EventDecodingError> = super.tryDecode(log)
 
             @JvmStatic
-            override fun decode(log: Log, `data`: List<Any>): UserOperationEvent = UserOperationEvent(data[0] as io.ethers.core.types.Bytes,data[1] as io.ethers.core.types.Address,data[2] as io.ethers.core.types.Address,data[3] as io.github.artificialpb.bignum.BigInteger,data[4] as kotlin.Boolean,data[5] as io.github.artificialpb.bignum.BigInteger,data[6] as io.github.artificialpb.bignum.BigInteger,log)
+            override fun decode(log: Log, `data`: List<Any>): UserOperationEvent = UserOperationEvent(data[0] as io.ethers.core.types.Bytes, data[1] as io.ethers.core.types.Address, data[2] as io.ethers.core.types.Address, data[3] as io.github.artificialpb.bignum.BigInteger, data[4] as kotlin.Boolean, data[5] as io.github.artificialpb.bignum.BigInteger, data[6] as io.github.artificialpb.bignum.BigInteger, log)
         }
     }
 
@@ -949,7 +949,7 @@ public class EntryPointV08(
         public companion object : EventFactory<UserOperationPrefundTooLow> {
             @JvmStatic
             override val abi: AbiEvent =
-                    AbiEvent("UserOperationPrefundTooLow", listOf(AbiEvent.Token(AbiType.FixedBytes(32), true), AbiEvent.Token(AbiType.Address, true), AbiEvent.Token(AbiType.UInt(256), false)), false)
+                AbiEvent("UserOperationPrefundTooLow", listOf(AbiEvent.Token(AbiType.FixedBytes(32), true), AbiEvent.Token(AbiType.Address, true), AbiEvent.Token(AbiType.UInt(256), false)), false)
 
             @JvmStatic
             override fun filter(provider: Middleware): UserOperationPrefundTooLow.Filter = UserOperationPrefundTooLow.Filter(provider, this)
@@ -964,7 +964,7 @@ public class EntryPointV08(
             override fun tryDecode(log: Log): Result<UserOperationPrefundTooLow, EventDecodingError> = super.tryDecode(log)
 
             @JvmStatic
-            override fun decode(log: Log, `data`: List<Any>): UserOperationPrefundTooLow = UserOperationPrefundTooLow(data[0] as io.ethers.core.types.Bytes,data[1] as io.ethers.core.types.Address,data[2] as io.github.artificialpb.bignum.BigInteger,log)
+            override fun decode(log: Log, `data`: List<Any>): UserOperationPrefundTooLow = UserOperationPrefundTooLow(data[0] as io.ethers.core.types.Bytes, data[1] as io.ethers.core.types.Address, data[2] as io.github.artificialpb.bignum.BigInteger, log)
         }
     }
 
@@ -1009,7 +1009,7 @@ public class EntryPointV08(
         public companion object : EventFactory<UserOperationRevertReason> {
             @JvmStatic
             override val abi: AbiEvent =
-                    AbiEvent("UserOperationRevertReason", listOf(AbiEvent.Token(AbiType.FixedBytes(32), true), AbiEvent.Token(AbiType.Address, true), AbiEvent.Token(AbiType.UInt(256), false), AbiEvent.Token(AbiType.Bytes, false)), false)
+                AbiEvent("UserOperationRevertReason", listOf(AbiEvent.Token(AbiType.FixedBytes(32), true), AbiEvent.Token(AbiType.Address, true), AbiEvent.Token(AbiType.UInt(256), false), AbiEvent.Token(AbiType.Bytes, false)), false)
 
             @JvmStatic
             override fun filter(provider: Middleware): UserOperationRevertReason.Filter = UserOperationRevertReason.Filter(provider, this)
@@ -1024,7 +1024,7 @@ public class EntryPointV08(
             override fun tryDecode(log: Log): Result<UserOperationRevertReason, EventDecodingError> = super.tryDecode(log)
 
             @JvmStatic
-            override fun decode(log: Log, `data`: List<Any>): UserOperationRevertReason = UserOperationRevertReason(data[0] as io.ethers.core.types.Bytes,data[1] as io.ethers.core.types.Address,data[2] as io.github.artificialpb.bignum.BigInteger,data[3] as io.ethers.core.types.Bytes,log)
+            override fun decode(log: Log, `data`: List<Any>): UserOperationRevertReason = UserOperationRevertReason(data[0] as io.ethers.core.types.Bytes, data[1] as io.ethers.core.types.Address, data[2] as io.github.artificialpb.bignum.BigInteger, data[3] as io.ethers.core.types.Bytes, log)
         }
     }
 
@@ -1064,7 +1064,7 @@ public class EntryPointV08(
         public companion object : EventFactory<Withdrawn> {
             @JvmStatic
             override val abi: AbiEvent =
-                    AbiEvent("Withdrawn", listOf(AbiEvent.Token(AbiType.Address, true), AbiEvent.Token(AbiType.Address, false), AbiEvent.Token(AbiType.UInt(256), false)), false)
+                AbiEvent("Withdrawn", listOf(AbiEvent.Token(AbiType.Address, true), AbiEvent.Token(AbiType.Address, false), AbiEvent.Token(AbiType.UInt(256), false)), false)
 
             @JvmStatic
             override fun filter(provider: Middleware): Withdrawn.Filter = Withdrawn.Filter(provider, this)
@@ -1079,7 +1079,7 @@ public class EntryPointV08(
             override fun tryDecode(log: Log): Result<Withdrawn, EventDecodingError> = super.tryDecode(log)
 
             @JvmStatic
-            override fun decode(log: Log, `data`: List<Any>): Withdrawn = Withdrawn(data[0] as io.ethers.core.types.Address,data[1] as io.ethers.core.types.Address,data[2] as io.github.artificialpb.bignum.BigInteger,log)
+            override fun decode(log: Log, `data`: List<Any>): Withdrawn = Withdrawn(data[0] as io.ethers.core.types.Address, data[1] as io.ethers.core.types.Address, data[2] as io.github.artificialpb.bignum.BigInteger, log)
         }
     }
 
@@ -1118,9 +1118,13 @@ public class EntryPointV08(
         public companion object : StructFactory<EntryPointV08.UserOpsPerAggregator> {
             @JvmStatic
             override val abi: AbiType.Struct<EntryPointV08.UserOpsPerAggregator> =
-                    AbiType.Struct(EntryPointV08.UserOpsPerAggregator::class, ::fromTuple, AbiType.Struct.Field("userOps", AbiType.Array(PackedUserOperation.abi)),
+                AbiType.Struct(
+                    EntryPointV08.UserOpsPerAggregator::class,
+                    ::fromTuple,
+                    AbiType.Struct.Field("userOps", AbiType.Array(PackedUserOperation.abi)),
                     AbiType.Struct.Field("aggregator", AbiType.Address),
-                    AbiType.Struct.Field("signature", AbiType.Bytes))
+                    AbiType.Struct.Field("signature", AbiType.Bytes),
+                )
 
             @JvmStatic
             override fun fromTuple(`data`: List<Any>): EntryPointV08.UserOpsPerAggregator = EntryPointV08.UserOpsPerAggregator(data[0] as kotlin.collections.List<EntryPointV08.PackedUserOperation>, data[1] as io.ethers.core.types.Address, data[2] as io.ethers.core.types.Bytes)
@@ -1149,7 +1153,7 @@ public class EntryPointV08(
         public val preOpGas: BigInteger,
     ) : ContractStruct {
         override val tuple: List<Any> =
-                listOf(mUserOp, userOpHash, prefund, contextOffset, preOpGas)
+            listOf(mUserOp, userOpHash, prefund, contextOffset, preOpGas)
 
         override val abiType: AbiType.Struct<EntryPointV08.UserOpInfo>
             get() = abi
@@ -1157,11 +1161,15 @@ public class EntryPointV08(
         public companion object : StructFactory<EntryPointV08.UserOpInfo> {
             @JvmStatic
             override val abi: AbiType.Struct<EntryPointV08.UserOpInfo> =
-                    AbiType.Struct(EntryPointV08.UserOpInfo::class, ::fromTuple, AbiType.Struct.Field("mUserOp", MemoryUserOp.abi),
+                AbiType.Struct(
+                    EntryPointV08.UserOpInfo::class,
+                    ::fromTuple,
+                    AbiType.Struct.Field("mUserOp", MemoryUserOp.abi),
                     AbiType.Struct.Field("userOpHash", AbiType.FixedBytes(32)),
                     AbiType.Struct.Field("prefund", AbiType.UInt(256)),
                     AbiType.Struct.Field("contextOffset", AbiType.UInt(256)),
-                    AbiType.Struct.Field("preOpGas", AbiType.UInt(256)))
+                    AbiType.Struct.Field("preOpGas", AbiType.UInt(256)),
+                )
 
             @JvmStatic
             override fun fromTuple(`data`: List<Any>): EntryPointV08.UserOpInfo = EntryPointV08.UserOpInfo(data[0] as EntryPointV08.MemoryUserOp, data[1] as io.ethers.core.types.Bytes, data[2] as io.github.artificialpb.bignum.BigInteger, data[3] as io.github.artificialpb.bignum.BigInteger, data[4] as io.github.artificialpb.bignum.BigInteger)
@@ -1190,7 +1198,7 @@ public class EntryPointV08(
         public val withdrawTime: BigInteger,
     ) : ContractStruct {
         override val tuple: List<Any> =
-                listOf(deposit, staked, stake, unstakeDelaySec, withdrawTime)
+            listOf(deposit, staked, stake, unstakeDelaySec, withdrawTime)
 
         override val abiType: AbiType.Struct<EntryPointV08.DepositInfo>
             get() = abi
@@ -1198,11 +1206,15 @@ public class EntryPointV08(
         public companion object : StructFactory<EntryPointV08.DepositInfo> {
             @JvmStatic
             override val abi: AbiType.Struct<EntryPointV08.DepositInfo> =
-                    AbiType.Struct(EntryPointV08.DepositInfo::class, ::fromTuple, AbiType.Struct.Field("deposit", AbiType.UInt(256)),
+                AbiType.Struct(
+                    EntryPointV08.DepositInfo::class,
+                    ::fromTuple,
+                    AbiType.Struct.Field("deposit", AbiType.UInt(256)),
                     AbiType.Struct.Field("staked", AbiType.Bool),
                     AbiType.Struct.Field("stake", AbiType.UInt(112)),
                     AbiType.Struct.Field("unstakeDelaySec", AbiType.UInt(32)),
-                    AbiType.Struct.Field("withdrawTime", AbiType.UInt(48)))
+                    AbiType.Struct.Field("withdrawTime", AbiType.UInt(48)),
+                )
 
             @JvmStatic
             override fun fromTuple(`data`: List<Any>): EntryPointV08.DepositInfo = EntryPointV08.DepositInfo(data[0] as io.github.artificialpb.bignum.BigInteger, data[1] as kotlin.Boolean, data[2] as io.github.artificialpb.bignum.BigInteger, data[3] as io.github.artificialpb.bignum.BigInteger, data[4] as io.github.artificialpb.bignum.BigInteger)
@@ -1239,7 +1251,7 @@ public class EntryPointV08(
         public val signature: Bytes,
     ) : ContractStruct {
         override val tuple: List<Any> =
-                listOf(sender, nonce, initCode, callData, accountGasLimits, preVerificationGas, gasFees, paymasterAndData, signature)
+            listOf(sender, nonce, initCode, callData, accountGasLimits, preVerificationGas, gasFees, paymasterAndData, signature)
 
         override val abiType: AbiType.Struct<EntryPointV08.PackedUserOperation>
             get() = abi
@@ -1247,7 +1259,8 @@ public class EntryPointV08(
         public companion object : StructFactory<EntryPointV08.PackedUserOperation> {
             @JvmStatic
             override val abi: AbiType.Struct<EntryPointV08.PackedUserOperation> =
-                    AbiType.Struct(EntryPointV08.PackedUserOperation::class, ::fromTuple, AbiType.Struct.Field("sender", AbiType.Address),
+                AbiType.Struct(
+                    EntryPointV08.PackedUserOperation::class, ::fromTuple, AbiType.Struct.Field("sender", AbiType.Address),
                     AbiType.Struct.Field("nonce", AbiType.UInt(256)),
                     AbiType.Struct.Field("initCode", AbiType.Bytes),
                     AbiType.Struct.Field("callData", AbiType.Bytes),
@@ -1255,7 +1268,8 @@ public class EntryPointV08(
                     AbiType.Struct.Field("preVerificationGas", AbiType.UInt(256)),
                     AbiType.Struct.Field("gasFees", AbiType.FixedBytes(32)),
                     AbiType.Struct.Field("paymasterAndData", AbiType.Bytes),
-                    AbiType.Struct.Field("signature", AbiType.Bytes))
+                    AbiType.Struct.Field("signature", AbiType.Bytes),
+                )
 
             @JvmStatic
             override fun fromTuple(`data`: List<Any>): EntryPointV08.PackedUserOperation = EntryPointV08.PackedUserOperation(data[0] as io.ethers.core.types.Address, data[1] as io.github.artificialpb.bignum.BigInteger, data[2] as io.ethers.core.types.Bytes, data[3] as io.ethers.core.types.Bytes, data[4] as io.ethers.core.types.Bytes, data[5] as io.github.artificialpb.bignum.BigInteger, data[6] as io.ethers.core.types.Bytes, data[7] as io.ethers.core.types.Bytes, data[8] as io.ethers.core.types.Bytes)
@@ -1294,7 +1308,7 @@ public class EntryPointV08(
         public val maxPriorityFeePerGas: BigInteger,
     ) : ContractStruct {
         override val tuple: List<Any> =
-                listOf(sender, nonce, verificationGasLimit, callGasLimit, paymasterVerificationGasLimit, paymasterPostOpGasLimit, preVerificationGas, paymaster, maxFeePerGas, maxPriorityFeePerGas)
+            listOf(sender, nonce, verificationGasLimit, callGasLimit, paymasterVerificationGasLimit, paymasterPostOpGasLimit, preVerificationGas, paymaster, maxFeePerGas, maxPriorityFeePerGas)
 
         override val abiType: AbiType.Struct<EntryPointV08.MemoryUserOp>
             get() = abi
@@ -1302,7 +1316,8 @@ public class EntryPointV08(
         public companion object : StructFactory<EntryPointV08.MemoryUserOp> {
             @JvmStatic
             override val abi: AbiType.Struct<EntryPointV08.MemoryUserOp> =
-                    AbiType.Struct(EntryPointV08.MemoryUserOp::class, ::fromTuple, AbiType.Struct.Field("sender", AbiType.Address),
+                AbiType.Struct(
+                    EntryPointV08.MemoryUserOp::class, ::fromTuple, AbiType.Struct.Field("sender", AbiType.Address),
                     AbiType.Struct.Field("nonce", AbiType.UInt(256)),
                     AbiType.Struct.Field("verificationGasLimit", AbiType.UInt(256)),
                     AbiType.Struct.Field("callGasLimit", AbiType.UInt(256)),
@@ -1311,7 +1326,8 @@ public class EntryPointV08(
                     AbiType.Struct.Field("preVerificationGas", AbiType.UInt(256)),
                     AbiType.Struct.Field("paymaster", AbiType.Address),
                     AbiType.Struct.Field("maxFeePerGas", AbiType.UInt(256)),
-                    AbiType.Struct.Field("maxPriorityFeePerGas", AbiType.UInt(256)))
+                    AbiType.Struct.Field("maxPriorityFeePerGas", AbiType.UInt(256)),
+                )
 
             @JvmStatic
             override fun fromTuple(`data`: List<Any>): EntryPointV08.MemoryUserOp = EntryPointV08.MemoryUserOp(data[0] as io.ethers.core.types.Address, data[1] as io.github.artificialpb.bignum.BigInteger, data[2] as io.github.artificialpb.bignum.BigInteger, data[3] as io.github.artificialpb.bignum.BigInteger, data[4] as io.github.artificialpb.bignum.BigInteger, data[5] as io.github.artificialpb.bignum.BigInteger, data[6] as io.github.artificialpb.bignum.BigInteger, data[7] as io.ethers.core.types.Address, data[8] as io.github.artificialpb.bignum.BigInteger, data[9] as io.github.artificialpb.bignum.BigInteger)
@@ -1321,95 +1337,95 @@ public class EntryPointV08(
     public companion object {
         @JvmField
         public val ERRORS: List<CustomErrorFactory<out EntryPointV08.Error>> =
-                listOf(DelegateAndRevert,FailedOp,FailedOpWithRevert,InvalidShortString,PostOpReverted,ReentrancyGuardReentrantCall,SenderAddressResult,SignatureValidationFailed,StringTooLong)
+            listOf(DelegateAndRevert, FailedOp, FailedOpWithRevert, InvalidShortString, PostOpReverted, ReentrancyGuardReentrantCall, SenderAddressResult, SignatureValidationFailed, StringTooLong)
 
         @JvmField
         public val EVENTS: List<EventFactory<out EntryPointV08.Event>> =
-                listOf(AccountDeployed,BeforeExecution,Deposited,EIP712DomainChanged,PostOpRevertReason,SignatureAggregatorChanged,StakeLocked,StakeUnlocked,StakeWithdrawn,UserOperationEvent,UserOperationPrefundTooLow,UserOperationRevertReason,Withdrawn)
+            listOf(AccountDeployed, BeforeExecution, Deposited, EIP712DomainChanged, PostOpRevertReason, SignatureAggregatorChanged, StakeLocked, StakeUnlocked, StakeWithdrawn, UserOperationEvent, UserOperationPrefundTooLow, UserOperationRevertReason, Withdrawn)
 
         @JvmField
         public val FUNCTION_GET_DEPOSIT_INFO: AbiFunction =
-                AbiFunction("getDepositInfo", listOf(AbiType.Address), listOf(DepositInfo.abi))
+            AbiFunction("getDepositInfo", listOf(AbiType.Address), listOf(DepositInfo.abi))
 
         @JvmField
         public val FUNCTION_INCREMENT_NONCE: AbiFunction =
-                AbiFunction("incrementNonce", listOf(AbiType.UInt(192)), listOf())
+            AbiFunction("incrementNonce", listOf(AbiType.UInt(192)), listOf())
 
         @JvmField
         public val FUNCTION_GET_DOMAIN_SEPARATOR_V4: AbiFunction =
-                AbiFunction("getDomainSeparatorV4", listOf(), listOf(AbiType.FixedBytes(32)))
+            AbiFunction("getDomainSeparatorV4", listOf(), listOf(AbiType.FixedBytes(32)))
 
         @JvmField
         public val FUNCTION_GET_USER_OP_HASH: AbiFunction =
-                AbiFunction("getUserOpHash", listOf(PackedUserOperation.abi), listOf(AbiType.FixedBytes(32)))
+            AbiFunction("getUserOpHash", listOf(PackedUserOperation.abi), listOf(AbiType.FixedBytes(32)))
 
         @JvmField
         public val FUNCTION_NONCE_SEQUENCE_NUMBER: AbiFunction =
-                AbiFunction("nonceSequenceNumber", listOf(AbiType.Address, AbiType.UInt(192)), listOf(AbiType.UInt(256)))
+            AbiFunction("nonceSequenceNumber", listOf(AbiType.Address, AbiType.UInt(192)), listOf(AbiType.UInt(256)))
 
         @JvmField
         public val FUNCTION_BALANCE_OF: AbiFunction =
-                AbiFunction("balanceOf", listOf(AbiType.Address), listOf(AbiType.UInt(256)))
+            AbiFunction("balanceOf", listOf(AbiType.Address), listOf(AbiType.UInt(256)))
 
         @JvmField
         public val FUNCTION_INNER_HANDLE_OP: AbiFunction =
-                AbiFunction("innerHandleOp", listOf(AbiType.Bytes, UserOpInfo.abi, AbiType.Bytes), listOf(AbiType.UInt(256)))
+            AbiFunction("innerHandleOp", listOf(AbiType.Bytes, UserOpInfo.abi, AbiType.Bytes), listOf(AbiType.UInt(256)))
 
         @JvmField
         public val FUNCTION_DEPOSIT_TO: AbiFunction =
-                AbiFunction("depositTo", listOf(AbiType.Address), listOf())
+            AbiFunction("depositTo", listOf(AbiType.Address), listOf())
 
         @JvmField
         public val FUNCTION_GET_NONCE: AbiFunction =
-                AbiFunction("getNonce", listOf(AbiType.Address, AbiType.UInt(192)), listOf(AbiType.UInt(256)))
+            AbiFunction("getNonce", listOf(AbiType.Address, AbiType.UInt(192)), listOf(AbiType.UInt(256)))
 
         @JvmField
         public val FUNCTION_ADD_STAKE: AbiFunction =
-                AbiFunction("addStake", listOf(AbiType.UInt(32)), listOf())
+            AbiFunction("addStake", listOf(AbiType.UInt(32)), listOf())
 
         @JvmField
         public val FUNCTION_HANDLE_AGGREGATED_OPS: AbiFunction =
-                AbiFunction("handleAggregatedOps", listOf(AbiType.Array(UserOpsPerAggregator.abi), AbiType.Address), listOf())
+            AbiFunction("handleAggregatedOps", listOf(AbiType.Array(UserOpsPerAggregator.abi), AbiType.Address), listOf())
 
         @JvmField
         public val FUNCTION_WITHDRAW_STAKE: AbiFunction =
-                AbiFunction("withdrawStake", listOf(AbiType.Address), listOf())
+            AbiFunction("withdrawStake", listOf(AbiType.Address), listOf())
 
         @JvmField
         public val FUNCTION_UNLOCK_STAKE: AbiFunction =
-                AbiFunction("unlockStake", listOf(), listOf())
+            AbiFunction("unlockStake", listOf(), listOf())
 
         @JvmField
         public val FUNCTION_EIP_712_DOMAIN: AbiFunction =
-                AbiFunction("eip712Domain", listOf(), listOf(AbiType.FixedBytes(1), AbiType.String, AbiType.String, AbiType.UInt(256), AbiType.Address, AbiType.FixedBytes(32), AbiType.Array(AbiType.UInt(256))))
+            AbiFunction("eip712Domain", listOf(), listOf(AbiType.FixedBytes(1), AbiType.String, AbiType.String, AbiType.UInt(256), AbiType.Address, AbiType.FixedBytes(32), AbiType.Array(AbiType.UInt(256))))
 
         @JvmField
         public val FUNCTION_HANDLE_OPS: AbiFunction =
-                AbiFunction("handleOps", listOf(AbiType.Array(PackedUserOperation.abi), AbiType.Address), listOf())
+            AbiFunction("handleOps", listOf(AbiType.Array(PackedUserOperation.abi), AbiType.Address), listOf())
 
         @JvmField
         public val FUNCTION_SENDER_CREATOR: AbiFunction =
-                AbiFunction("senderCreator", listOf(), listOf(AbiType.Address))
+            AbiFunction("senderCreator", listOf(), listOf(AbiType.Address))
 
         @JvmField
         public val FUNCTION_GET_PACKED_USER_OP_TYPE_HASH: AbiFunction =
-                AbiFunction("getPackedUserOpTypeHash", listOf(), listOf(AbiType.FixedBytes(32)))
+            AbiFunction("getPackedUserOpTypeHash", listOf(), listOf(AbiType.FixedBytes(32)))
 
         @JvmField
         public val FUNCTION_GET_SENDER_ADDRESS: AbiFunction =
-                AbiFunction("getSenderAddress", listOf(AbiType.Bytes), listOf())
+            AbiFunction("getSenderAddress", listOf(AbiType.Bytes), listOf())
 
         @JvmField
         public val FUNCTION_WITHDRAW_TO: AbiFunction =
-                AbiFunction("withdrawTo", listOf(AbiType.Address, AbiType.UInt(256)), listOf())
+            AbiFunction("withdrawTo", listOf(AbiType.Address, AbiType.UInt(256)), listOf())
 
         @JvmField
         public val FUNCTION_DELEGATE_AND_REVERT: AbiFunction =
-                AbiFunction("delegateAndRevert", listOf(AbiType.Address, AbiType.Bytes), listOf())
+            AbiFunction("delegateAndRevert", listOf(AbiType.Address, AbiType.Bytes), listOf())
 
         @JvmField
         public val FUNCTION_SUPPORTS_INTERFACE: AbiFunction =
-                AbiFunction("supportsInterface", listOf(AbiType.FixedBytes(4)), listOf(AbiType.Bool))
+            AbiFunction("supportsInterface", listOf(AbiType.FixedBytes(4)), listOf(AbiType.Bool))
 
         init {
             io.ethers.abi.error.CustomErrorFactoryResolver.addFactories(ERRORS)
@@ -1483,7 +1499,7 @@ public class EntryPointV08(
             address: Address,
             target: Address,
             `data`: Bytes,
-        ): FunctionCall<Unit> = FunctionCall(provider, address, FUNCTION_DELEGATE_AND_REVERT.encodeCall(listOf<Any>(target,`data`))) {
+        ): FunctionCall<Unit> = FunctionCall(provider, address, FUNCTION_DELEGATE_AND_REVERT.encodeCall(listOf<Any>(target, `data`))) {
         }
 
         /**
@@ -1517,7 +1533,7 @@ public class EntryPointV08(
         @JvmStatic
         public fun eip712Domain(provider: Middleware, address: Address): ReadFunctionCall<EntryPointV08.Eip712DomainResult> = ReadFunctionCall(provider, address, FUNCTION_EIP_712_DOMAIN.encodeCall(emptyList())) {
             val data = FUNCTION_EIP_712_DOMAIN.decodeResponse(it)
-            EntryPointV08.Eip712DomainResult(data[0] as io.ethers.core.types.Bytes,data[1] as kotlin.String,data[2] as kotlin.String,data[3] as io.github.artificialpb.bignum.BigInteger,data[4] as io.ethers.core.types.Address,data[5] as io.ethers.core.types.Bytes,data[6] as kotlin.collections.List<io.github.artificialpb.bignum.BigInteger>)
+            EntryPointV08.Eip712DomainResult(data[0] as io.ethers.core.types.Bytes, data[1] as kotlin.String, data[2] as kotlin.String, data[3] as io.github.artificialpb.bignum.BigInteger, data[4] as io.ethers.core.types.Address, data[5] as io.ethers.core.types.Bytes, data[6] as kotlin.collections.List<io.github.artificialpb.bignum.BigInteger>)
         }
 
         /**
@@ -1572,7 +1588,7 @@ public class EntryPointV08(
             address: Address,
             sender: Address,
             key: BigInteger,
-        ): ReadFunctionCall<BigInteger> = ReadFunctionCall(provider, address, FUNCTION_GET_NONCE.encodeCall(listOf<Any>(sender,key))) {
+        ): ReadFunctionCall<BigInteger> = ReadFunctionCall(provider, address, FUNCTION_GET_NONCE.encodeCall(listOf<Any>(sender, key))) {
             val data = FUNCTION_GET_NONCE.decodeResponse(it)
             data[0] as io.github.artificialpb.bignum.BigInteger
         }
@@ -1647,7 +1663,7 @@ public class EntryPointV08(
             address: Address,
             opsPerAggregator: List<EntryPointV08.UserOpsPerAggregator>,
             beneficiary: Address,
-        ): FunctionCall<Unit> = FunctionCall(provider, address, FUNCTION_HANDLE_AGGREGATED_OPS.encodeCall(listOf<Any>(opsPerAggregator,beneficiary))) {
+        ): FunctionCall<Unit> = FunctionCall(provider, address, FUNCTION_HANDLE_AGGREGATED_OPS.encodeCall(listOf<Any>(opsPerAggregator, beneficiary))) {
         }
 
         /**
@@ -1666,7 +1682,7 @@ public class EntryPointV08(
             address: Address,
             ops: List<EntryPointV08.PackedUserOperation>,
             beneficiary: Address,
-        ): FunctionCall<Unit> = FunctionCall(provider, address, FUNCTION_HANDLE_OPS.encodeCall(listOf<Any>(ops,beneficiary))) {
+        ): FunctionCall<Unit> = FunctionCall(provider, address, FUNCTION_HANDLE_OPS.encodeCall(listOf<Any>(ops, beneficiary))) {
         }
 
         /**
@@ -1704,7 +1720,7 @@ public class EntryPointV08(
             callData: Bytes,
             opInfo: EntryPointV08.UserOpInfo,
             context: Bytes,
-        ): FunctionCall<BigInteger> = FunctionCall(provider, address, FUNCTION_INNER_HANDLE_OP.encodeCall(listOf<Any>(callData,opInfo,context))) {
+        ): FunctionCall<BigInteger> = FunctionCall(provider, address, FUNCTION_INNER_HANDLE_OP.encodeCall(listOf<Any>(callData, opInfo, context))) {
             val data = FUNCTION_INNER_HANDLE_OP.decodeResponse(it)
             data[0] as io.github.artificialpb.bignum.BigInteger
         }
@@ -1725,7 +1741,7 @@ public class EntryPointV08(
             address: Address,
             arg2: Address,
             arg3: BigInteger,
-        ): ReadFunctionCall<BigInteger> = ReadFunctionCall(provider, address, FUNCTION_NONCE_SEQUENCE_NUMBER.encodeCall(listOf<Any>(arg2,arg3))) {
+        ): ReadFunctionCall<BigInteger> = ReadFunctionCall(provider, address, FUNCTION_NONCE_SEQUENCE_NUMBER.encodeCall(listOf<Any>(arg2, arg3))) {
             val data = FUNCTION_NONCE_SEQUENCE_NUMBER.decodeResponse(it)
             data[0] as io.github.artificialpb.bignum.BigInteger
         }
@@ -1814,7 +1830,7 @@ public class EntryPointV08(
             address: Address,
             withdrawAddress: Address,
             withdrawAmount: BigInteger,
-        ): FunctionCall<Unit> = FunctionCall(provider, address, FUNCTION_WITHDRAW_TO.encodeCall(listOf<Any>(withdrawAddress,withdrawAmount))) {
+        ): FunctionCall<Unit> = FunctionCall(provider, address, FUNCTION_WITHDRAW_TO.encodeCall(listOf<Any>(withdrawAddress, withdrawAmount))) {
         }
 
         @JvmStatic
@@ -1879,7 +1895,7 @@ public value class EntryPointV08Scope(
         address: Address,
         target: Address,
         `data`: Bytes,
-    ): FunctionCall<Unit> = EntryPointV08.delegateAndRevert(provider, address, target,`data`)
+    ): FunctionCall<Unit> = EntryPointV08.delegateAndRevert(provider, address, target, `data`)
 
     public fun depositTo(address: Address, account: Address): PayableFunctionCall<Unit> = EntryPointV08.depositTo(provider, address, account)
 
@@ -1893,7 +1909,7 @@ public value class EntryPointV08Scope(
         address: Address,
         sender: Address,
         key: BigInteger,
-    ): ReadFunctionCall<BigInteger> = EntryPointV08.getNonce(provider, address, sender,key)
+    ): ReadFunctionCall<BigInteger> = EntryPointV08.getNonce(provider, address, sender, key)
 
     public fun getPackedUserOpTypeHash(address: Address): ReadFunctionCall<Bytes> = EntryPointV08.getPackedUserOpTypeHash(provider, address)
 
@@ -1905,13 +1921,13 @@ public value class EntryPointV08Scope(
         address: Address,
         opsPerAggregator: List<EntryPointV08.UserOpsPerAggregator>,
         beneficiary: Address,
-    ): FunctionCall<Unit> = EntryPointV08.handleAggregatedOps(provider, address, opsPerAggregator,beneficiary)
+    ): FunctionCall<Unit> = EntryPointV08.handleAggregatedOps(provider, address, opsPerAggregator, beneficiary)
 
     public fun handleOps(
         address: Address,
         ops: List<EntryPointV08.PackedUserOperation>,
         beneficiary: Address,
-    ): FunctionCall<Unit> = EntryPointV08.handleOps(provider, address, ops,beneficiary)
+    ): FunctionCall<Unit> = EntryPointV08.handleOps(provider, address, ops, beneficiary)
 
     public fun incrementNonce(address: Address, key: BigInteger): FunctionCall<Unit> = EntryPointV08.incrementNonce(provider, address, key)
 
@@ -1920,13 +1936,13 @@ public value class EntryPointV08Scope(
         callData: Bytes,
         opInfo: EntryPointV08.UserOpInfo,
         context: Bytes,
-    ): FunctionCall<BigInteger> = EntryPointV08.innerHandleOp(provider, address, callData,opInfo,context)
+    ): FunctionCall<BigInteger> = EntryPointV08.innerHandleOp(provider, address, callData, opInfo, context)
 
     public fun nonceSequenceNumber(
         address: Address,
         arg1: Address,
         arg2: BigInteger,
-    ): ReadFunctionCall<BigInteger> = EntryPointV08.nonceSequenceNumber(provider, address, arg1,arg2)
+    ): ReadFunctionCall<BigInteger> = EntryPointV08.nonceSequenceNumber(provider, address, arg1, arg2)
 
     public fun senderCreator(address: Address): ReadFunctionCall<Address> = EntryPointV08.senderCreator(provider, address)
 
@@ -1940,7 +1956,7 @@ public value class EntryPointV08Scope(
         address: Address,
         withdrawAddress: Address,
         withdrawAmount: BigInteger,
-    ): FunctionCall<Unit> = EntryPointV08.withdrawTo(provider, address, withdrawAddress,withdrawAmount)
+    ): FunctionCall<Unit> = EntryPointV08.withdrawTo(provider, address, withdrawAddress, withdrawAmount)
 }
 
 public val Middleware.entryPointV08: EntryPointV08Scope

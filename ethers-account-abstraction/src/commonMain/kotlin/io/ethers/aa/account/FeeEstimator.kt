@@ -12,6 +12,7 @@ import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlin.jvm.JvmOverloads
 
 /**
  * Fee caps of a user operation.
@@ -32,7 +33,7 @@ fun interface FeeEstimator {
  * [baseFeeMultiplier] times the latest base fee, plus the priority fee. The multiplier keeps the operation valid
  * while base fees rise before it is included.
  */
-class NodeFeeEstimator(
+class NodeFeeEstimator @JvmOverloads constructor(
     private val provider: Middleware,
     private val baseFeeMultiplier: Int = 2,
 ) : FeeEstimator {

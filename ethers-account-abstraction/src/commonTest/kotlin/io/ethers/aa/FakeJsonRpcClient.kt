@@ -1,5 +1,6 @@
 package io.ethers.aa
 
+import io.channels.core.ChannelReceiver
 import io.ethers.core.Kotlinx
 import io.ethers.core.Result
 import io.ethers.core.failure
@@ -8,7 +9,6 @@ import io.ethers.core.toJsonElement
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import io.ethers.providers.types.BatchRpcRequest
-import io.channels.core.ChannelReceiver
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.json.JsonElement
 

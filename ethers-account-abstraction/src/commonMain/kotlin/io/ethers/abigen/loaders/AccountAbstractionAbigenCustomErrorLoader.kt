@@ -4,7 +4,7 @@ import kotlin.Any
 import kotlin.collections.List
 
 /**
- * Custom error loader class which forces the loading of all contracts added via [addContract] function. 
+ * Custom error loader class which forces the loading of all contracts added via [addContract] function.
  *
  * Makes it possible to auto-register all custom errors via [io.ethers.abi.error.CustomErrorRegistry] on
  * first access to any auto-generated contract.
@@ -13,7 +13,7 @@ import kotlin.collections.List
  */
 public object AccountAbstractionAbigenCustomErrorLoader {
     private val contracts: List<Any> =
-            listOf(io.ethers.aa.contracts.EntryPointV06.Companion, io.ethers.aa.contracts.EntryPointV07.Companion, io.ethers.aa.contracts.EntryPointV08.Companion, io.ethers.aa.contracts.EntryPointV09.Companion)
+        listOf(io.ethers.aa.contracts.EntryPointV06.Companion, io.ethers.aa.contracts.EntryPointV07.Companion, io.ethers.aa.contracts.EntryPointV08.Companion, io.ethers.aa.contracts.EntryPointV09.Companion)
 
     public fun load() {
         // Dummy function to force the class to be loaded

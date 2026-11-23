@@ -12,13 +12,13 @@ import io.ethers.aa.paymaster.PaymasterApi
 import io.ethers.core.Result
 import io.ethers.core.failure
 import io.ethers.core.success
-import io.ethers.core.unwrapOrReturn
 import io.ethers.core.types.Address
 import io.ethers.core.types.Authorization
 import io.ethers.core.types.BlockId
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.CallRequest
 import io.ethers.core.types.Hash
+import io.ethers.core.unwrapOrReturn
 import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.RpcRequest
 import io.ethers.providers.types.SuppliedRpcRequest
@@ -26,6 +26,7 @@ import io.github.artificialpb.bignum.BigInteger
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.jvm.JvmOverloads
 import kotlin.time.Duration
 
 /**
@@ -44,7 +45,7 @@ import kotlin.time.Duration
  * @param paymaster an optional ERC-7677 paymaster service that sponsors operations.
  * @param feeEstimator how to price operations, defaults to reading fees from [provider].
  */
-class SmartAccountClient(
+class SmartAccountClient @JvmOverloads constructor(
     val account: SmartAccount,
     val bundler: BundlerApi,
     val provider: Middleware,
@@ -74,6 +75,7 @@ class SmartAccountClient(
     /**
      * Sign a prepared [userOperation] with [signer], the account's default validator unless set otherwise.
      */
+    @JvmOverloads
     fun signUserOperation(
         userOperation: UserOperation,
         signer: UserOperationSigner = account,

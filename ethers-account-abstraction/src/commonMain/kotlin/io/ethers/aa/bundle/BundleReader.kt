@@ -21,6 +21,7 @@ import io.ethers.providers.types.SuppliedRpcRequest
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlin.jvm.JvmOverloads
 
 /**
  * Failure to read bundles from a node.
@@ -56,7 +57,7 @@ sealed class BundleReadError : ThrowableError {
  * Traces attribute every log and call frame to its operation, see [BundleDecoder], but need a node with the debug
  * API enabled.
  */
-class BundleReader(
+class BundleReader @JvmOverloads constructor(
     private val provider: Middleware,
     private val decoder: BundleDecoder = BundleDecoder(),
     private val useTrace: Boolean = false,

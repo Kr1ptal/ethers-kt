@@ -230,7 +230,7 @@ class BundleDecoder @JvmOverloads constructor(
             if (owner != null) opValidationLogs[owner].add(log) else unattributedLogs.add(log)
         }
 
-                unattributedLogs.sortBy { it.logIndex }
+        unattributedLogs.sortBy { it.logIndex }
 
         val operations = opEvents.indices.map { i ->
             val event = opEvents[i]
@@ -413,7 +413,10 @@ internal class TraceIndex private constructor(
         val node = call.node ?: return emptyList()
         if (attributed == null) return node.children.map { it.frame }
         val used = HashSet<TraceNode>()
-        attributed.forEach { used.addAll(it.validation); used.addAll(it.execution) }
+        attributed.forEach {
+            used.addAll(it.validation)
+            used.addAll(it.execution)
+        }
         return node.children.filter { it !in used }.map { it.frame }
     }
 

@@ -40,8 +40,7 @@ class BundleDecoderTest : FunSpec({
     fun hash(n: Int) = Hash("0x" + n.toString(16).padStart(64, '0'))
 
     var logIndex = 0
-    fun log(address: Address, topics: List<Hash>, data: Bytes = Bytes.EMPTY) =
-        Log(address, topics, data, Hash.ZERO, 100, -1, txHash, 3, logIndex++, false)
+    fun log(address: Address, topics: List<Hash>, data: Bytes = Bytes.EMPTY) = Log(address, topics, data, Hash.ZERO, 100, -1, txHash, 3, logIndex++, false)
 
     fun word(value: BigInteger) = AbiCodec.encode(AbiType.UInt(256), value)
 
@@ -67,8 +66,7 @@ class BundleDecoderTest : FunSpec({
         listOf(EntryPointV09.UserOperationRevertReason.abi.topicId, opHash, Hash(sender)),
         Bytes(AbiCodec.encode(listOf(AbiType.UInt(256), AbiType.Bytes), listOf(bigIntegerOf(0), reason))),
     )
-    fun aggregatorChanged(ep: Address, aggregator: Address) =
-        log(ep, listOf(EntryPointV09.SignatureAggregatorChanged.abi.topicId, Hash(aggregator)))
+    fun aggregatorChanged(ep: Address, aggregator: Address) = log(ep, listOf(EntryPointV09.SignatureAggregatorChanged.abi.topicId, Hash(aggregator)))
 
     fun receipt(logs: List<Log>, to: Address? = ep7) = TransactionReceipt(
         blockHash = Hash.ZERO,

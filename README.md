@@ -135,6 +135,11 @@ a more in-depth explanation, please refer to the individual module's *README.md*
 
 - **[abi][abi-module]**: Provides ABI primitives with encoding/decoding logic for all types supported by the EVM.
 
+- **[account-abstraction][account-abstraction-module]**: **ERC-4337** account abstraction for EntryPoint v0.6 to
+  v0.9: user operations and their hashes, bundler and paymaster (ERC-7677) clients, a `SmartAccount` interface with a
+  client that prepares, signs and sends operations, decoding of executed bundles into per-operation logs and calls,
+  ERC-1271/ERC-6492 signature verification, and passkey (WebAuthn P-256) building blocks.
+
 - **[abigen][abigen-module]**: Code for generating type-safe smart contract bindings from JSON-ABI files.
 
 - **[abigen-plugin][abigen-plugin-module]**: Gradle plugin for generating smart contract bindings during the build
@@ -205,6 +210,8 @@ This library has been made possible thanks to the inspiration provided by the fo
 [pr-checks-workflow]: https://github.com/Kr1ptal/ethers-kt/blob/master/.github/workflows/pull-request-checks.yml
 
 [abi-module]: https://github.com/Kr1ptal/ethers-kt/blob/master/ethers-abi/
+
+[account-abstraction-module]: https://github.com/Kr1ptal/ethers-kt/blob/master/ethers-account-abstraction/
 
 [abigen-module]: https://github.com/Kr1ptal/ethers-kt/blob/master/ethers-abigen/
 

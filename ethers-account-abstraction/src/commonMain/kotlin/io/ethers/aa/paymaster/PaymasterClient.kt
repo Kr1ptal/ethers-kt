@@ -5,9 +5,9 @@ import io.ethers.aa.EntryPointVersion
 import io.ethers.aa.UserOperation
 import io.ethers.aa.UserOperationJson
 import io.ethers.aa.internal.asAddressValue
-import io.ethers.aa.internal.bytesToUint
 import io.ethers.aa.internal.asHexBytes
 import io.ethers.aa.internal.asQuantity
+import io.ethers.aa.internal.bytesToUint
 import io.ethers.aa.internal.fieldOrNull
 import io.ethers.aa.internal.quantity
 import io.ethers.core.toJsonElement
