@@ -83,9 +83,10 @@ data class Erc6492Signature(val factory: Address, val factoryData: Bytes, val si
  * Verifies signatures of any kind of account: EOAs, deployed ERC-1271 smart accounts, and not yet deployed accounts
  * whose signatures are ERC-6492 wrapped.
  *
- * A 65-byte signature that recovers to the signer is accepted locally. Everything else is checked by simulating the
- * ERC-6492 universal validator with a deployless `eth_call`, which deploys a counterfactual account if needed and
- * calls its `isValidSignature`.
+ * A 65-byte signature that recovers to a signer without code is accepted locally. Everything else, including
+ * signatures of EIP-7702 delegated EOAs whose delegate decides what is valid, is checked by simulating the ERC-6492
+ * universal validator with a deployless `eth_call`, which deploys a counterfactual account if needed and calls its
+ * `isValidSignature`.
  */
 class SignatureVerifier(private val provider: Middleware) {
     /**
@@ -104,14 +105,20 @@ class SignatureVerifier(private val provider: Middleware) {
     ): RpcRequest<Boolean, RpcError> {
         // no signature is valid for the zero address
         if (signer == Address.ZERO) return SuppliedRpcRequest { success(false) }
-        if (recoversTo(signer, hash, signature)) return SuppliedRpcRequest { success(true) }
 
         val wrapped = if (factoryArgs != null) Erc6492Signature.wrap(signature, factoryArgs) else signature
         val args = AbiCodec.encode(listOf(AbiType.Address, AbiType.FixedBytes(32), AbiType.Bytes), listOf(signer, Bytes(hash.asByteArray()), wrapped))
         val call = CallRequest().data(Bytes(ERC6492_VALIDATOR_BYTECODE.asByteArray() + args))
-
-        return provider.call(call, blockId).orElse { error -> if (error.isRevert()) success(Bytes.EMPTY) else failure(error) }
+        val onChain = provider.call(call, blockId)
+            .orElse { error -> if (error.isRevert()) success(Bytes.EMPTY) else failure(error) }
             .map { result -> result.size > 0 && result.asByteArray().last().toInt() == 1 }
+
+        if (!recoversTo(signer, hash, signature)) return onChain
+
+        // an EOA is valid locally, unless it has code: an EIP-7702 delegate decides for itself
+        return provider.getCode(signer, blockId).andThen { code ->
+            if (code.isEmpty) success(true) else onChain.send()
+        }
     }
 
     /**

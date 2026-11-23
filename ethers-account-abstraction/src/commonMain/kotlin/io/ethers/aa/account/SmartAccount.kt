@@ -103,6 +103,8 @@ interface SmartAccount : UserOperationSigner {
     /**
      * Adjust a fully estimated [userOperation] before its final paymaster data is requested, e.g. to raise a gas
      * limit the bundler is known to underestimate for this account. Return it unchanged by default.
+     *
+     * Not called when the paymaster's stub data was already final, as it may be signed over the gas limits.
      */
     suspend fun adjustUserOperation(userOperation: UserOperation): UserOperation = userOperation
 

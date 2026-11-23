@@ -2,6 +2,7 @@ package io.ethers.aa.bundle
 
 import io.ethers.aa.EntryPoint
 import io.ethers.aa.UserOperation
+import io.ethers.aa.account.Call
 import io.ethers.aa.contracts.EntryPointV09
 import io.ethers.core.Result
 import io.ethers.core.ThrowableError
@@ -41,13 +42,16 @@ data class BundleDecodingError(override val message: String, override val cause:
  * EntryPoint's call frames are attached to the operations they belong to.
  *
  * Only logs and frames of the [entryPoints] given are considered EntryPoint markers, so a contract emitting
- * look-alike events cannot disturb the split.
+ * look-alike events cannot disturb the split. A reverted transaction executed no bundles.
+ *
+ * Without a trace, a bundle nested inside an operation of another bundle (an operation calling `handleOps` of a
+ * different EntryPoint) is not detected, and the operations around it may be attributed to the wrong bundle.
  *
  * @param entryPoints the EntryPoints whose bundles to decode.
  * @param callDataDecoder decodes an operation's call data into calls, or null to skip decoding calls.
  */
 class BundleDecoder @JvmOverloads constructor(
-    private val entryPoints: List<EntryPoint> = EntryPoint.CANONICAL,
+    val entryPoints: List<EntryPoint> = EntryPoint.CANONICAL,
     private val callDataDecoder: CallDataDecoder? = StandardCallDataDecoder,
 ) {
     /**
@@ -67,11 +71,15 @@ class BundleDecoder @JvmOverloads constructor(
             return failure(BundleDecodingError("Transaction ${transaction.hash} does not match receipt ${receipt.transactionHash}"))
         }
 
+        // a reverted transaction rolled back every bundle it executed
+        if (!receipt.isSuccessful) return success(emptyList())
+
         return try {
             success(decodeUnchecked(receipt, transaction, trace))
         } catch (e: BundleDecodingException) {
             failure(BundleDecodingError(e.message ?: "Failed to decode bundle", e.cause))
-        } catch (e: IllegalArgumentException) {
+        } catch (e: Exception) {
+            // malformed calldata surfaces as ABI decoding, cast or argument errors
             failure(BundleDecodingError("Malformed bundle: ${e.message}", e))
         }
     }
@@ -276,7 +284,7 @@ class BundleDecoder @JvmOverloads constructor(
                 revertReason = findEvent(allLogs, epAddress, hash) { EntryPointV09.UserOperationRevertReason.decodeOrNull(it) }?.revertReason,
                 postOpRevertReason = findEvent(allLogs, epAddress, hash) { EntryPointV09.PostOpRevertReason.decodeOrNull(it) }?.revertReason,
                 prefundTooLow = findEvent(allLogs, epAddress, hash) { EntryPointV09.UserOperationPrefundTooLow.decodeOrNull(it) } != null,
-                calls = userOperation?.let { callDataDecoder?.decodeCalls(it.sender, it.callData) },
+                calls = userOperation?.let { decodeCalls(it) },
                 validationLogs = validationLogs,
                 executionLogs = executionLogs,
                 postOpLogs = postOpLogs,
@@ -297,6 +305,15 @@ class BundleDecoder @JvmOverloads constructor(
             unattributedLogs = unattributedLogs,
             unattributedCalls = if (traceIndex != null && call != null) traceIndex.unattributedFrames(call, frames) else emptyList(),
         )
+    }
+
+    private fun decodeCalls(userOperation: UserOperation): List<Call>? {
+        val decoder = callDataDecoder ?: return null
+        return try {
+            decoder.decodeCalls(userOperation.sender, userOperation.callData)
+        } catch (e: Exception) {
+            null
+        }
     }
 
     private fun validationEventHash(log: Log): Hash? {

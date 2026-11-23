@@ -78,9 +78,18 @@ object UserOperationJson {
      *
      * @throws IllegalArgumentException if a required field is missing or malformed.
      */
-    fun decode(json: JsonElement): UserOperation {
-        val obj = json.jsonObject
-        val isV06 = obj.containsKey("initCode") || obj.containsKey("paymasterAndData")
+    fun decode(json: JsonElement): UserOperation = decode(json, null)
+
+    /**
+     * Decode a JSON-RPC user operation of EntryPoint [version], or detect the layout from its fields if [version] is
+     * null.
+     *
+     * @throws IllegalArgumentException if a required field is missing or malformed.
+     */
+    fun decode(json: JsonElement, version: EntryPointVersion?): UserOperation {
+        val obj = json as? JsonObject ?: throw IllegalArgumentException("User operation must be a JSON object")
+        val isV06 = version?.let { !it.usesPackedUserOperation }
+            ?: (obj.containsKey("initCode") || obj.containsKey("paymasterAndData"))
         return if (isV06) decodeV06(obj) else decodePacked(obj)
     }
 

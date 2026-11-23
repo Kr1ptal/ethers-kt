@@ -35,13 +35,21 @@ class SignatureVerifierTest : FunSpec({
     }
 
     test("EOA signature is verified locally") {
-        val node = FakeJsonRpcClient()
+        val node = FakeJsonRpcClient().respond("eth_getCode", "\"0x\"")
         verifier(node).verifyHash(owner.address, hash, eoaSignature).send().unwrap() shouldBe true
-        node.requests.shouldBeEmpty()
+        node.requests("eth_call").shouldBeEmpty()
     }
 
-    test("EIP-191 message and EIP-712 typed data signatures") {
+    test("signature of an EIP-7702 delegated EOA is left to its delegate") {
         val node = FakeJsonRpcClient()
+            .respond("eth_getCode", "\"0xef0100${"11".repeat(20)}\"")
+            .respond("eth_call", "\"0x00\"")
+        verifier(node).verifyHash(owner.address, hash, eoaSignature).send().unwrap() shouldBe false
+        node.requests("eth_call").size shouldBe 1
+    }
+
+    test("EIP-191 message signature") {
+        val node = FakeJsonRpcClient().respond("eth_getCode", "\"0x\"")
         val message = "hi".encodeToByteArray()
         val signature = Bytes(owner.signMessage(message).toByteArray())
         verifier(node).verifyMessage(owner.address, message, signature).send().unwrap() shouldBe true

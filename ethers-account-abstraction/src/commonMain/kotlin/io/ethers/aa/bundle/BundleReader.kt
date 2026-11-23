@@ -52,7 +52,7 @@ sealed class BundleReadError : ThrowableError {
  * Reads executed bundles and user operations from a node, decoding them with [decoder].
  *
  * @param provider the node to read from.
- * @param decoder how to decode bundles, including which EntryPoints to consider.
+ * @param decoder how to decode bundles, including which EntryPoints to look for.
  * @param useTrace whether to fetch a `callTracer` trace of each bundle transaction with `debug_traceTransaction`.
  * Traces attribute every log and call frame to its operation, see [BundleDecoder], but need a node with the debug
  * API enabled.
@@ -61,8 +61,10 @@ class BundleReader @JvmOverloads constructor(
     private val provider: Middleware,
     private val decoder: BundleDecoder = BundleDecoder(),
     private val useTrace: Boolean = false,
-    private val entryPoints: List<EntryPoint> = EntryPoint.CANONICAL,
 ) {
+    private val entryPoints: List<EntryPoint>
+        get() = decoder.entryPoints
+
     /**
      * Read the bundles executed by transaction [transactionHash].
      */
@@ -81,9 +83,10 @@ class BundleReader @JvmOverloads constructor(
     ): RpcRequest<ExecutedUserOperation?, BundleReadError> {
         return SuppliedRpcRequest {
             val filter = blockRange(LogFilter(), fromBlock, toBlock)
-                .address(entryPoints.map { it.address })
-                .topic0(EntryPointV09.UserOperationEvent.abi.topicId)
-                .topic1(userOpHash)
+                ?.address(entryPoints.map { it.address })
+                ?.topic0(EntryPointV09.UserOperationEvent.abi.topicId)
+                ?.topic1(userOpHash)
+                ?: return@SuppliedRpcRequest failure(INVALID_TO_BLOCK)
 
             val logs = getLogs(filter).unwrapOrReturn { return@SuppliedRpcRequest failure(it) }
             val log = logs.firstOrNull { !it.removed } ?: return@SuppliedRpcRequest success(null)
@@ -103,9 +106,10 @@ class BundleReader @JvmOverloads constructor(
     ): RpcRequest<List<ExecutedUserOperation>, BundleReadError> {
         return SuppliedRpcRequest {
             val filter = blockRange(LogFilter(), fromBlock, toBlock)
-                .address(entryPoints.map { it.address })
-                .topic0(EntryPointV09.UserOperationEvent.abi.topicId)
-                .topic2(Hash(sender))
+                ?.address(entryPoints.map { it.address })
+                ?.topic0(EntryPointV09.UserOperationEvent.abi.topicId)
+                ?.topic2(Hash(sender))
+                ?: return@SuppliedRpcRequest failure(INVALID_TO_BLOCK)
 
             val logs = getLogs(filter).unwrapOrReturn { return@SuppliedRpcRequest failure(it) }
             val bundles = readBundlesOf(logs).unwrapOrReturn { return@SuppliedRpcRequest failure(it) }
@@ -163,9 +167,13 @@ class BundleReader @JvmOverloads constructor(
         return provider.getLogs(filter).send().mapError { BundleReadError.Rpc(it) }
     }
 
-    private fun blockRange(filter: LogFilter, from: BlockId.Number, to: BlockId): LogFilter = when (to) {
+    private fun blockRange(filter: LogFilter, from: BlockId.Number, to: BlockId): LogFilter? = when (to) {
         is BlockId.Number -> filter.blockRange(from, to)
         is BlockId.Name -> filter.blockRange(from, to)
-        is BlockId.Hash -> throw IllegalArgumentException("toBlock must be a block number or name")
+        is BlockId.Hash -> null
+    }
+
+    private companion object {
+        val INVALID_TO_BLOCK = BundleReadError.Rpc(RpcError(RpcError.CODE_INVALID_PARAMS, "toBlock must be a block number or name"))
     }
 }

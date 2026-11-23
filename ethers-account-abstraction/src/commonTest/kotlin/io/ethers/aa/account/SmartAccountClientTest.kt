@@ -224,6 +224,28 @@ class SmartAccountClientTest : FunSpec({
             .shouldBeInstanceOf<UserOperationError.InvalidOperation>()
     }
 
+    test("sponsorship without a paymaster fails") {
+        setup(deployed = true, withPaymaster = false).client
+            .sendUserOperation(UserOperationRequest(listOf(call)).sponsored(true)).send().unwrapError()
+            .shouldBeInstanceOf<UserOperationError.InvalidOperation>()
+    }
+
+    test("missing paymaster gas limits fail early") {
+        val setup = setup(deployed = true)
+        val bundlerRpc = FakeJsonRpcClient()
+            .respond("eth_estimateUserOperationGas", """{"preVerificationGas":"0x1","verificationGasLimit":"0x1","callGasLimit":"0x1"}""")
+        val paymasterRpc = FakeJsonRpcClient().respond("pm_getPaymasterStubData", """{"paymaster":"$paymasterAddress","paymasterData":"0xaa"}""")
+        val client = SmartAccountClient(setup.account, BundlerClient(bundlerRpc), Provider(setup.node, 1), PaymasterClient(paymasterRpc), fixedFees)
+        client.sendUserOperation(listOf(call)).send().unwrapError().shouldBeInstanceOf<UserOperationError.InvalidOperation>()
+        bundlerRpc.requests("eth_sendUserOperation").shouldBeEmpty()
+    }
+
+    test("final stub paymaster data is not adjusted by the account") {
+        val setup = setup(deployed = true, stubIsFinal = true)
+        setup.client.sendUserOperation(listOf(call)).send().unwrap()
+        setup.account.adjusted shouldBe 0
+    }
+
     test("request without calls fails") {
         setup(deployed = true).client.sendUserOperation(UserOperationRequest()).send().unwrapError()
             .shouldBeInstanceOf<UserOperationError.InvalidOperation>()

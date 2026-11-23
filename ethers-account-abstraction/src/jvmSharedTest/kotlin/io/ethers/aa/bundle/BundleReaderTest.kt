@@ -88,6 +88,11 @@ class BundleReaderTest : FunSpec({
         bundles.single().entryPoint shouldBe EntryPoint.V0_7
     }
 
+    test("block hash as the end of a range is a failure, not an exception") {
+        BundleReader(Provider(node(), 1)).getExecutedUserOperation(Hash.ZERO, BlockId.Number(0), BlockId.Hash(Hash.ZERO))
+            .send().unwrapError().shouldBeInstanceOf<BundleReadError.Rpc>()
+    }
+
     test("unknown transaction and RPC errors are reported") {
         BundleReader(Provider(node(), 1)).getBundles(Hash.ZERO).send().unwrapError()
             .shouldBeInstanceOf<BundleReadError.TransactionNotFound>().transactionHash shouldBe Hash.ZERO
@@ -100,7 +105,7 @@ class BundleReaderTest : FunSpec({
 
     test("filters for operation events of the configured EntryPoints") {
         val rpc = node()
-        BundleReader(Provider(rpc, 1), entryPoints = listOf(EntryPoint.V0_7))
+        BundleReader(Provider(rpc, 1), BundleDecoder(listOf(EntryPoint.V0_7)))
             .getExecutedUserOperation(Hash.ZERO, BlockId.Number(0), BlockId.LATEST).send().unwrap()
         val filter = rpc.requests("eth_getLogs").single().params[0].jsonObject
         val addresses = filter["address"].shouldNotBeNull().toString().lowercase()

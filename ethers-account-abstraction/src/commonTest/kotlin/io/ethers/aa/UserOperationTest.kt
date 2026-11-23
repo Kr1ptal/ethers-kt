@@ -241,6 +241,12 @@ class UserOperationTest : FunSpec({
             UserOperationJson.decode(json) shouldBe op()
         }
 
+        test("an EntryPoint version overrides layout detection") {
+            val json = JsonObject(UserOperationJson.encode(op(), EntryPointVersion.V0_7) + mapOf("initCode" to JsonPrimitive("0x")))
+            UserOperationJson.decode(json, EntryPointVersion.V0_7) shouldBe op()
+            shouldThrow<IllegalArgumentException> { UserOperationJson.decode(JsonPrimitive("0x")) }
+        }
+
         test("missing required field is rejected") {
             val json = JsonObject(UserOperationJson.encode(op(), EntryPointVersion.V0_7) - "callData")
             shouldThrow<IllegalArgumentException> { UserOperationJson.decode(json) }

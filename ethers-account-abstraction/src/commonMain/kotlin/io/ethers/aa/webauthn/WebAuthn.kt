@@ -14,6 +14,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
+import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmStatic
 
 /**
@@ -85,11 +86,24 @@ data class WebAuthnAssertion(
 
     /**
      * Verify this assertion was made by [publicKey] for [challenge], and that the user was present and, if
-     * [requireUserVerification], verified. This is the off-chain counterpart of on-chain WebAuthn verifiers.
+     * [requireUserVerification], verified. This is what on-chain WebAuthn verifiers check.
+     *
+     * On-chain verifiers do not check the relying party, as the account's passkey only signs for its own. Pass
+     * [rpId] and [origin] to also check that the assertion was made for that relying party and web origin.
      */
-    fun verify(publicKey: P256PublicKey, challenge: ByteArray, requireUserVerification: Boolean = true): Boolean {
+    @JvmOverloads
+    fun verify(
+        publicKey: P256PublicKey,
+        challenge: ByteArray,
+        requireUserVerification: Boolean = true,
+        rpId: String? = null,
+        origin: String? = null,
+    ): Boolean {
         if (authenticatorData.size < 37 || !userPresent) return false
         if (requireUserVerification && !userVerified) return false
+        if (rpId != null && !Hashing.sha256(rpId.encodeToByteArray()).contentEquals(authenticatorData.asByteArray().copyOfRange(0, 32))) {
+            return false
+        }
 
         val clientData = try {
             Json.parseToJsonElement(clientDataJSON).jsonObject
@@ -98,6 +112,7 @@ data class WebAuthnAssertion(
         }
         if (clientData.string("type") != "webauthn.get") return false
         if (clientData.string("challenge") != WebAuthn.base64Url(challenge)) return false
+        if (origin != null && clientData.string("origin") != origin) return false
 
         return WebAuthn.verifySignature(publicKey, signedMessage(), signature)
     }

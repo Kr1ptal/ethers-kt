@@ -188,6 +188,9 @@ class SmartAccountClient @JvmOverloads constructor(
         op = op.copy(signature = signer.getStubSignature(op))
 
         val paymaster = this@SmartAccountClient.paymaster
+        if (request.sponsored == true && request.paymaster == null && paymaster == null) {
+            return@coroutineScope failure(UserOperationError.InvalidOperation("Sponsorship requested, but the client has no paymaster"))
+        }
         val sponsored = request.paymaster == null && paymaster != null && (request.sponsored ?: true)
         var paymasterIsFinal = false
         if (sponsored) {
@@ -225,7 +228,16 @@ class SmartAccountClient @JvmOverloads constructor(
             )
         }
 
-        op = account.adjustUserOperation(op)
+        if (entryPoint.version.usesPackedUserOperation && op.paymaster != null &&
+            (op.paymasterVerificationGasLimit == null || op.paymasterPostOpGasLimit == null)
+        ) {
+            return@coroutineScope failure(
+                UserOperationError.InvalidOperation("Neither the paymaster nor the bundler provided the paymaster gas limits"),
+            )
+        }
+
+        // final stub data may be signed over the gas limits, which the adjustment must not change then
+        if (!paymasterIsFinal) op = account.adjustUserOperation(op)
 
         if (sponsored && !paymasterIsFinal) {
             val data = paymaster!!.getPaymasterData(op, entryPoint, chainId, request.paymasterContext).send()
@@ -271,6 +283,15 @@ class SmartAccountClient @JvmOverloads constructor(
         }
 
         // not deployed, no factory: an EIP-7702 account that still has to be delegated
+        if (!entryPoint.version.supportsEip7702) {
+            return failure(
+                UserOperationError.InvalidOperation(
+                    "Account ${account.address} is not deployed and has no factory, and EntryPoint ${entryPoint.version} " +
+                        "does not support EIP-7702 delegation",
+                ),
+            )
+        }
+
         val authorization = request.eip7702Auth ?: run {
             val eoaNonce = provider.getTransactionCount(account.address, BlockId.PENDING).send()
                 .unwrapOrReturn { return failure(it.toUserOperationError()) }
@@ -283,10 +304,6 @@ class SmartAccountClient @JvmOverloads constructor(
                     "Account ${account.address} is not deployed and has neither a factory nor an EIP-7702 authorization",
                 ),
             )
-        }
-
-        if (!entryPoint.version.supportsEip7702) {
-            return failure(UserOperationError.InvalidOperation("EntryPoint ${entryPoint.version} does not support EIP-7702 accounts"))
         }
         return success(Deployment(UserOperation.EIP7702_FACTORY_MARKER, Bytes.EMPTY, authorization))
     }

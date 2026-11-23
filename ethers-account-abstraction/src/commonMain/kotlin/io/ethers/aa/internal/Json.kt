@@ -77,7 +77,7 @@ internal fun Authorization.toRpcJson(): JsonObject = buildJsonObject {
 }
 
 internal fun JsonElement.asAuthorization(): Authorization {
-    val obj = this as JsonObject
+    val obj = this as? JsonObject ?: throw IllegalArgumentException("Authorization must be a JSON object")
     return Authorization(
         chainId = obj.field("chainId").asQuantityLong(),
         address = obj.field("address").asAddressValue(),

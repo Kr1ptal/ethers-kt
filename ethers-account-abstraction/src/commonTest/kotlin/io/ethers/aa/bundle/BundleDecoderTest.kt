@@ -68,7 +68,7 @@ class BundleDecoderTest : FunSpec({
     )
     fun aggregatorChanged(ep: Address, aggregator: Address) = log(ep, listOf(EntryPointV09.SignatureAggregatorChanged.abi.topicId, Hash(aggregator)))
 
-    fun receipt(logs: List<Log>, to: Address? = ep7) = TransactionReceipt(
+    fun receipt(logs: List<Log>, to: Address? = ep7, status: Long = 1) = TransactionReceipt(
         blockHash = Hash.ZERO,
         blockNumber = 100,
         transactionHash = txHash,
@@ -82,7 +82,7 @@ class BundleDecoderTest : FunSpec({
         logsBloom = Bloom(ByteArray(256)),
         type = TxType.DynamicFee,
         effectiveGasPrice = bigIntegerOf(1),
-        status = 1,
+        status = status,
         root = null,
     )
 
@@ -224,6 +224,26 @@ class BundleDecoderTest : FunSpec({
 
         val otherSender = EntryPointV07.FUNCTION_HANDLE_OPS.encodeCall(listOf(listOf(packed(bob, 0)), beneficiary))
         decoder.decode(receipt(logs), transaction(otherSender)).unwrapError().message shouldContain "does not match"
+    }
+
+    test("reverted transaction executed no bundles") {
+        val beneficiary = Address("0xbe4e000000000000000000000000000000000000")
+        val input = EntryPointV07.FUNCTION_HANDLE_OPS.encodeCall(listOf(listOf(packed(alice, 0)), beneficiary))
+        decoder.decode(receipt(emptyList(), status = 0), transaction(input)).unwrap().shouldBeEmpty()
+    }
+
+    test("malformed bundle calldata is a decoding error, not an exception") {
+        val logs = listOf(beforeExecution(ep7), userOperationEvent(ep7, hash(1), alice, 0))
+        val truncated = EntryPointV07.FUNCTION_HANDLE_OPS.selector.toString() + "00".repeat(40)
+        decoder.decode(receipt(logs), transaction(Bytes(truncated))).unwrapError().message shouldContain "Malformed bundle"
+    }
+
+    test("a throwing call data decoder leaves the calls undecoded") {
+        val beneficiary = Address("0xbe4e000000000000000000000000000000000000")
+        val input = EntryPointV07.FUNCTION_HANDLE_OPS.encodeCall(listOf(listOf(packed(alice, 0)), beneficiary))
+        val logs = listOf(beforeExecution(ep7), userOperationEvent(ep7, hash(1), alice, 0))
+        val throwing = BundleDecoder(callDataDecoder = { _, _ -> throw IllegalStateException("boom") })
+        throwing.decode(receipt(logs), transaction(input)).unwrap().single().userOperations.single().calls.shouldBeNull()
     }
 
     test("transaction of another receipt is rejected") {

@@ -63,6 +63,12 @@ class WebAuthnTest : FunSpec({
             unverified.verify(publicKey, challenge, requireUserVerification = false) shouldBe false
         }
 
+        test("optionally check the relying party and origin") {
+            browserAssertion.verify(publicKey, challenge, rpId = "localhost", origin = "http://localhost:5173") shouldBe true
+            browserAssertion.verify(publicKey, challenge, rpId = "example.com") shouldBe false
+            browserAssertion.verify(publicKey, challenge, origin = "https://evil.example") shouldBe false
+        }
+
         test("do not verify a registration") {
             browserAssertion.copy(clientDataJSON = browserAssertion.clientDataJSON.replace("webauthn.get", "webauthn.create"))
                 .verify(publicKey, challenge) shouldBe false

@@ -1,5 +1,6 @@
 package io.ethers.aa.bundler
 
+import io.ethers.aa.EntryPoint
 import io.ethers.aa.UserOperation
 import io.ethers.aa.UserOperationJson
 import io.ethers.aa.internal.asAddressValue
@@ -63,9 +64,10 @@ data class UserOperationByHash(
     internal companion object {
         fun fromJson(json: JsonElement): UserOperationByHash {
             val obj = json.jsonObject
+            val entryPoint = obj.field("entryPoint").asAddressValue()
             return UserOperationByHash(
-                userOperation = UserOperationJson.decode(obj.field("userOperation")),
-                entryPoint = obj.field("entryPoint").asAddressValue(),
+                userOperation = UserOperationJson.decode(obj.field("userOperation"), EntryPoint.canonical(entryPoint)?.version),
+                entryPoint = entryPoint,
                 blockNumber = obj.fieldOrNull("blockNumber")?.asQuantityLong(),
                 blockHash = obj.fieldOrNull("blockHash")?.asHashValue(),
                 transactionHash = obj.fieldOrNull("transactionHash")?.asHashValue(),
