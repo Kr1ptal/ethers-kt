@@ -1,0 +1,165 @@
+name: Release
+
+# Opens the pull request that releases a version. Merging that pull request is the release: publish-release.yml then
+# tags the merge commit, publishes it to Maven Central and the Gradle Plugin Portal, and creates the GitHub release.
+#
+# master only takes changes through a reviewed pull request, so this workflow cannot commit a release there itself.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version, e.g. 2.3.0
+        type: string
+        required: true
+      next-snapshot:
+        description: Next snapshot version, e.g. 2.3.1-SNAPSHOT (defaults to the next patch)
+        type: string
+        required: false
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  open-pull-request:
+    name: Open release pull request for ${{ inputs.version }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the release branch
+      pull-requests: write # open the pull request
+      actions: write # start the pull request checks
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # git-cliff reads the commits since the last tag
+
+      - name: Resolve versions
+        id: versions
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_NEXT_SNAPSHOT: ${{ inputs.next-snapshot }}
+        run: |
+          version="${INPUT_VERSION#v}"
+          if [[ ! $version =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            echo "::error::Release version must look like 1.2.3, got '$INPUT_VERSION'"
+            exit 1
+          fi
+          next="${INPUT_NEXT_SNAPSHOT:-${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.$((BASH_REMATCH[3] + 1))-SNAPSHOT}"
+          if [[ ! $next =~ ^[0-9]+\.[0-9]+\.[0-9]+-SNAPSHOT$ ]]; then
+            echo "::error::Next snapshot version must look like 1.2.4-SNAPSHOT, got '$next'"
+            exit 1
+          fi
+          if [[ $GITHUB_REF != refs/heads/master ]]; then
+            echo "::error::Releases are cut from master, but this run is on $GITHUB_REF_NAME"
+            exit 1
+          fi
+          tag="v$version"
+          branch="release/$tag"
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
+            echo "::error::Tag $tag already exists"
+            exit 1
+          fi
+          if git ls-remote --exit-code --heads origin "refs/heads/$branch" >/dev/null; then
+            echo "::error::Branch $branch already exists. Merge its pull request, or close it and delete the branch to start over"
+            exit 1
+          fi
+          if ! grep -q '^VERSION_NAME=.*-SNAPSHOT$' gradle.properties; then
+            echo "::error::master is not on a -SNAPSHOT version"
+            exit 1
+          fi
+          {
+            echo "version=$version"
+            echo "next=$next"
+            echo "tag=$tag"
+            echo "branch=$branch"
+          } >> "$GITHUB_OUTPUT"
+          echo "Releasing $version ($tag) from $branch, next snapshot $next"
+
+      # Release notes from the conventional commits since the last tag, grouped as cliff.toml says. They are only
+      # used if CHANGELOG.md has no hand-written "## [Unreleased]" section.
+      - name: Generate release notes
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --unreleased --tag ${{ steps.versions.outputs.tag }} --strip all
+        env:
+          OUTPUT: ${{ runner.temp }}/generated-notes.md
+
+      - name: Commit the release to its branch
+        id: commit
+        env:
+          VERSION: ${{ steps.versions.outputs.version }}
+          NEXT: ${{ steps.versions.outputs.next }}
+          TAG: ${{ steps.versions.outputs.tag }}
+          BRANCH: ${{ steps.versions.outputs.branch }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          notes_source="$(scripts/release-version.sh release "$VERSION" "$NEXT" "$RUNNER_TEMP/generated-notes.md")"
+          git add gradle.properties README.md ethers-abigen-plugin/README.md CHANGELOG.md
+          git commit -m "release: $TAG"
+          git show --format='%h %s'
+
+          if [[ $notes_source != empty ]]; then
+            scripts/release-version.sh notes "$VERSION" > "$RUNNER_TEMP/release-notes.md"
+          fi
+          echo "notes-source=$notes_source" >> "$GITHUB_OUTPUT"
+
+          git push origin "HEAD:refs/heads/$BRANCH"
+
+      - name: Open the pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.versions.outputs.version }}
+          NEXT: ${{ steps.versions.outputs.next }}
+          TAG: ${{ steps.versions.outputs.tag }}
+          BRANCH: ${{ steps.versions.outputs.branch }}
+          NOTES_SOURCE: ${{ steps.commit.outputs.notes-source }}
+        run: |
+          body="$RUNNER_TEMP/pull-request.md"
+          {
+            echo "Merging this pull request releases **$VERSION**: the merge commit is tagged \`$TAG\`, published to Maven Central and the Gradle Plugin Portal, and a GitHub release is created from its changelog section. Closing it without merging cancels the release."
+            echo
+            echo "\`master\` moves straight to \`$NEXT\`. The release itself is built from the tag with \`-PVERSION_NAME=$VERSION\`."
+            echo
+            case "$NOTES_SOURCE" in
+              unreleased)
+                echo "## Release notes"
+                echo
+                echo "The \`## [Unreleased]\` section of \`CHANGELOG.md\`, as it was when this pull request was opened. Edit the notes in \`CHANGELOG.md\` on this branch."
+                echo
+                cat "$RUNNER_TEMP/release-notes.md"
+                ;;
+              generated)
+                echo "## Release notes"
+                echo
+                echo "Generated by git-cliff from the commits since the last release, as they were when this pull request was opened. Review them, and edit them in \`CHANGELOG.md\` on this branch."
+                echo
+                cat "$RUNNER_TEMP/release-notes.md"
+                ;;
+              *)
+                echo "## Release notes are missing"
+                echo
+                echo "\`CHANGELOG.md\` had no \`## [Unreleased]\` section and no commit since the last release made it into generated notes, so the \`## [$VERSION]\` section is empty. Write the notes there on this branch, then mark the pull request as ready for review. The \`java-test\` check fails until the section has content."
+                ;;
+            esac
+          } > "$body"
+
+          draft=()
+          if [[ $NOTES_SOURCE == empty ]]; then draft=(--draft); fi
+          gh pr create --base master --head "$BRANCH" --title "release: $TAG" --body-file "$body" "${draft[@]}"
+
+      # A pull request opened with the workflow's token does not start other workflows, so its checks, one of which
+      # is required to merge, are started here. Without release notes they would only fail: the push that adds the
+      # notes starts them instead.
+      - name: Start the pull request checks
+        if: steps.commit.outputs.notes-source != 'empty'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.versions.outputs.branch }}
+        run: gh workflow run pull-request-checks.yml --ref "$BRANCH"

@@ -28,6 +28,8 @@ to guide you through the process.
 * [Labeling](#-labeling)
     * [Issue labels](#issue-labels)
 
+[Releasing](#-releasing)
+
 ## 🤝 Code of Conduct
 
 The project and all participants are subject to the guidelines outlined in
@@ -203,6 +205,49 @@ Issue labels are organized into three primary categories: `type`, `status`, `dif
 | `difficulty: medium`  | [search][search-label-difficulty-medium] | Medium issues requiring additional skills.                                                                                                  |
 | `difficulty: hard`    | [search][search-label-difficulty-hard]   | Hard issues to resolve, which usually involve additional discussion with maintainers before being implemented.                              |
 | `chain: <chain_name>` | /                                        | Blockchain specific issues.                                                                                                                 |
+
+## 📦 Releasing
+
+The project version is `VERSION_NAME` in [gradle.properties](gradle.properties). `master` always carries a `-SNAPSHOT`
+version, and every push to `master` deploys that snapshot to Maven Central
+through [publish-library.yml](.github/workflows/publish-library.yml).
+
+Maintainers cut a release by merging a release pull request:
+
+1. Run the [Release workflow](.github/workflows/release.yml) on `master`, from the Actions tab or with
+   `gh workflow run release.yml -f version=2.3.0`. It opens a pull request from a `release/v2.3.0` branch that:
+    * sets the dependency examples in the READMEs to `2.3.0`,
+    * gives [CHANGELOG.md](CHANGELOG.md) a `## [2.3.0] - <date>` section,
+    * moves `VERSION_NAME` to the next snapshot. That is the next patch version, unless
+      `-f next-snapshot=3.0.0-SNAPSHOT` says otherwise.
+2. Review the release notes, then merge the pull request. Closing it instead cancels the release.
+
+Merging starts [publish-release.yml](.github/workflows/publish-release.yml), which tags the merge commit `v2.3.0`,
+publishes it to Maven Central and the Gradle Plugin Portal, and creates the GitHub release with the changelog section as
+its notes. The push to `master` deploys the new snapshot as usual. If a job fails, re-run the failed jobs of that run.
+
+### Release notes
+
+The workflow writes the changelog section of the release, and the pull request shows it:
+
+* By default [git-cliff](https://git-cliff.org) generates it from the commits since the last release, grouped by their
+  conventional commit type as [cliff.toml](cliff.toml) says. Dependency bumps are left out.
+* If `CHANGELOG.md` has a hand-written `## [Unreleased]` section on `master`, that section is used instead.
+
+Either way the notes are a starting point: edit them in `CHANGELOG.md` on the release branch before merging.
+
+If no commit qualifies, the section starts out empty and the pull request is opened as a draft. Write the notes on the
+release branch, then mark the pull request as ready. The `java-test` check, which is required to merge, fails for a
+release branch whose changelog section is empty.
+
+### What a release tag contains
+
+`master` cannot hold a release version, because a pull request is squashed into a single commit and that commit has to
+leave `master` on the next snapshot. The release is therefore built from the tag with `-PVERSION_NAME=2.3.0`, and
+`gradle.properties` at a release tag shows the next snapshot. Pass the same property to build a release from its tag
+locally.
+
+Pushing a `v*` tag by hand publishes nothing.
 
 [search-label-type-bug]: https://github.com/Kr1ptal/ethers-kt/issues?q=is%3Aissue+is%3Aopen+label%3A%22type%3A+bug%22
 

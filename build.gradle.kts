@@ -11,9 +11,12 @@ tasks.register("test") {
     dependsOn(subprojects.mapNotNull { it.tasks.findByName("test") })
 }
 
+// The version lives in gradle.properties so that the release workflow can read and rewrite it.
+val versionName = providers.gradleProperty("VERSION_NAME").get()
+
 allprojects {
     group = "io.kriptal.ethers"
-    version = "2.2.1-SNAPSHOT"
+    version = versionName
 }
 
 subprojects {

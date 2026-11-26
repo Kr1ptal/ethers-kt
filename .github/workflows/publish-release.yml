@@ -1,0 +1,106 @@
+name: Publish release
+
+# Releases the version of a merged release pull request, which release.yml opens from a `release/vX.Y.Z` branch: tags
+# the merge commit, publishes it to Maven Central and the Gradle Plugin Portal, and creates the GitHub release.
+#
+# The run is skipped for every other pull request. If a job fails, re-run the failed jobs of that run.
+on:
+  pull_request:
+    types: [ closed ]
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  tag:
+    name: Tag the release
+    # A branch of this repository, so that a fork cannot name its way into a release.
+    if: >-
+      github.event.pull_request.merged &&
+      startsWith(github.event.pull_request.head.ref, 'release/v') &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.versions.outputs.version }}
+      tag: ${{ steps.versions.outputs.tag }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          persist-credentials: false
+
+      - name: Resolve versions
+        id: versions
+        env:
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          if [[ ! $BRANCH =~ ^release/v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            echo "::error::Release branches are named release/v1.2.3, got '$BRANCH'"
+            exit 1
+          fi
+          version="${BASH_REMATCH[1]}"
+          if ! scripts/release-version.sh notes "$version" >/dev/null; then
+            echo "::error::CHANGELOG.md has no release notes for $version"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+
+      # Tags are not covered by the rulesets of master, so the workflow's own token can create one.
+      - name: Tag the merge commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.versions.outputs.tag }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          if existing="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq .object.sha 2>/dev/null)"; then
+            # A re-run of this job finds its own tag.
+            if [[ $existing != "$MERGE_SHA" ]]; then
+              echo "::error::Tag $TAG already exists at $existing, not at the merge commit $MERGE_SHA"
+              exit 1
+            fi
+            echo "Tag $TAG already points at $MERGE_SHA"
+          else
+            gh api "repos/$GITHUB_REPOSITORY/git/refs" -f "ref=refs/tags/$TAG" -f "sha=$MERGE_SHA" --silent
+            echo "Tagged $MERGE_SHA as $TAG"
+          fi
+
+  publish:
+    name: Publish to Maven Central and Gradle Plugin Portal
+    needs: tag
+    uses: ./.github/workflows/publish-library.yml
+    with:
+      ref: ${{ needs.tag.outputs.tag }}
+      version: ${{ needs.tag.outputs.version }}
+    secrets: inherit
+
+  github-release:
+    name: Create GitHub release
+    needs: [ tag, publish ]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.tag.outputs.tag }}
+          persist-credentials: false
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.tag.outputs.version }}
+          TAG: ${{ needs.tag.outputs.tag }}
+        run: |
+          scripts/release-version.sh notes "$VERSION" > "$RUNNER_TEMP/release-notes.md"
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$TAG" \
+            --notes-file "$RUNNER_TEMP/release-notes.md" \
+            --verify-tag

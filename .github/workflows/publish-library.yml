@@ -1,29 +1,64 @@
 name: Deploy SNAPSHOT and new releases to Maven Central and Gradle Plugin Portal
 
+# Every push to master deploys its snapshot. Releases are deployed by publish-release.yml, which calls this workflow
+# with the release tag and version. Tag pushes are deliberately not a trigger, so a release can never be deployed twice.
 on:
   push:
     branches:
       - master
-    tags:
-      - 'v*' # Also trigger on version tags like v1.2.3
-    
+
   workflow_dispatch: # Allow manual triggering
+    inputs:
+      version:
+        description: Version to publish, e.g. 2.3.0 when run on the tag v2.3.0 (defaults to the one in gradle.properties)
+        type: string
+        required: false
+
+  workflow_call:
+    inputs:
+      ref:
+        description: Git ref (tag or commit SHA) to build and publish
+        type: string
+        required: true
+      version:
+        description: Version to publish (defaults to the one in gradle.properties)
+        type: string
+        required: false
 
 # Prevent concurrent deployments, except for tagged releases
 concurrency:
-  group: ${{ startsWith(github.ref,'refs/tags/') && github.ref_name || 'snapshot' }}
-  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+  group: publish-${{ inputs.ref || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'snapshot' }}
+  cancel-in-progress: ${{ !(inputs.ref || startsWith(github.ref, 'refs/tags/')) }}
 
 jobs:
-  deploy-snapshot:
+  deploy:
     # macOS, not ubuntu: the project has Apple targets and Kotlin/Native cannot cross-compile those from Linux,
     # so `build` would fail outright and `publish` would emit no native artifacts.
     runs-on: macos-latest
-    
+
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ inputs.ref || github.ref }}
           persist-credentials: false
+
+      # master always carries a -SNAPSHOT version, also in the commit a release is tagged at, so a release is published
+      # by overriding the version. Gradle reads the variable as the VERSION_NAME property in every step below, and it
+      # takes precedence over gradle.properties.
+      - name: Resolve version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          version="${INPUT_VERSION:-$(sed -n 's/^VERSION_NAME=//p' gradle.properties)}"
+          if [[ ! $version =~ ^[0-9]+\.[0-9]+\.[0-9]+(-SNAPSHOT)?$ ]]; then
+            echo "::error::Version must look like 1.2.3 or 1.2.3-SNAPSHOT, got '$version'"
+            exit 1
+          fi
+          if [[ $version == *-SNAPSHOT ]]; then release=false; else release=true; fi
+          echo "ORG_GRADLE_PROJECT_VERSION_NAME=$version" >> "$GITHUB_ENV"
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+          echo "Publishing $version, release: $release"
 
       - uses: ./.github/actions/environment-setup
 
@@ -36,7 +71,7 @@ jobs:
         # which `publish` cannot handle. The preceding `build` step still runs that check with them enabled.
         run: ./gradlew publish -PethersPublishing --no-watch-fs --stacktrace
 
-      - name: Deploy SNAPSHOT to Maven Central
+      - name: Deploy to Maven Central
         env:
           MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
@@ -45,8 +80,9 @@ jobs:
           JRELEASER_GPG_PASSPHRASE: ${{ secrets.JRELEASER_GPG_PASSPHRASE }}
         run: ./gradlew jreleaserDeploy --no-watch-fs --stacktrace
 
+      # The Gradle Plugin Portal takes no snapshots.
       - name: Publish Gradle Plugins
-        if: startsWith(github.ref, 'refs/tags/')
+        if: steps.version.outputs.release == 'true'
         env:
           GRADLE_PUBLISH_KEY: ${{ secrets.GRADLE_PUBLISH_KEY }}
           GRADLE_PUBLISH_SECRET: ${{ secrets.GRADLE_PUBLISH_SECRET }}
