@@ -204,6 +204,8 @@ class HttpClient(
     }
 
     private fun BatchRpcRequest.toRequestBody(): Pair<String, HashMap<Long, Int>> {
+        // encoded before taking any request ID, so a batch that can't be encoded doesn't consume IDs
+        val params = encodeParams()
         val requestIndexPerId = HashMap<Long, Int>(requests.size, 1.0F)
 
         val sb = StringBuilder(requests.size * BYTE_BUFFER_DEFAULT_SIZE)
@@ -212,7 +214,7 @@ class HttpClient(
             if (i > 0) sb.append(',')
             val call = requests[i]
             val id = requestId.getAndIncrement()
-            sb.append(buildJsonRpcRequest(call.method, id, encodeParams(i)))
+            sb.append(buildJsonRpcRequest(call.method, id, params[i]))
             requestIndexPerId[id] = i
         }
         sb.append(']')

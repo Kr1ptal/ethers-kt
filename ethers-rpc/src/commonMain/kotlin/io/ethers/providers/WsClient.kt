@@ -833,7 +833,7 @@ class WsClient(
         }
 
         // encoded here, so a parameter that can't be encoded fails this batch instead of the processing loop
-        val params = List(batch.requests.size) { batch.encodeParams(it) }
+        val params = batch.encodeParams()
         val request = PendingBatchRequest(batch, params, CompletableDeferred())
 
         batchRequestQueue.enqueue(request)

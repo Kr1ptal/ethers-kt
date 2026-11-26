@@ -121,6 +121,26 @@ private fun httpSpecificTests() = funSpec {
             server.takeRequest(5_000L).bodyText shouldContain "eth_chainId"
         }
 
+        test("a batch whose params can't be encoded consumes no request IDs") {
+            class Unencodable(val value: Int)
+
+            // the unencodable call is not the first, so IDs taken per call before encoding it would show up
+            val batch = BatchRpcRequest(3)
+            batch.addRpcCall(RpcCall(client, "eth_gasPrice", RpcParams.EMPTY, stringSerializer))
+            batch.addRpcCall(RpcCall(client, "eth_chainId", RpcParams.EMPTY, stringSerializer))
+            batch.addRpcCall(RpcCall(client, "eth_getBalance", rpcParams(Unencodable(1)), stringSerializer))
+
+            withTimeout(5.seconds) {
+                shouldThrow<IllegalArgumentException> { batch.send() }
+            }
+
+            // a fresh client's first request ID is 1, which the next request still gets
+            server.enqueueJson(SUCCESSFUL_RESPONSE)
+            client.request("eth_blockNumber", RpcParams.EMPTY, stringSerializer).isSuccess() shouldBe true
+            val body = Kotlinx.DEFAULT.parseToJsonElement(server.takeRequest(5_000L).bodyText).jsonObject
+            body["id"]!!.jsonPrimitive.long shouldBe 1L
+        }
+
         test("empty response body") {
             server.enqueue(200, "")
 
