@@ -51,14 +51,23 @@ fun Any?.toJsonElement(): JsonElement = when (this) {
     is Map<*, *> -> JsonObject(this.entries.associate { (k, v) -> k.toString() to v.toJsonElement() })
     is JsonSerializable<*> -> Kotlinx.DEFAULT.encodeToJsonElement(jsonSerializer as SerializationStrategy<Any>, this)
     else -> {
-        val ser = this::class.serializerOrNull() as KSerializer<Any>?
-            ?: throw IllegalArgumentException(
-                // qualifiedName is null for local and anonymous classes, so fall back to simpleName to keep the
-                // type identifiable in the message
-                "Cannot serialize JSON value of type ${this::class.qualifiedName ?: this::class.simpleName}: " +
-                    "no kotlinx @Serializable serializer is registered, or the class is generic. " +
-                    "Implement JsonSerializable, convert it manually or pass a JsonElement.",
-            )
+        val ser = lookupSerializer(this) ?: throw IllegalArgumentException(
+            // qualifiedName is null for local and anonymous classes, so fall back to simpleName to keep the
+            // type identifiable in the message
+            "Cannot serialize JSON value of type ${this::class.qualifiedName ?: this::class.simpleName}: " +
+                "no kotlinx @Serializable serializer is registered, or the class is generic. " +
+                "Implement JsonSerializable, convert it manually or pass a JsonElement.",
+        )
         Kotlinx.DEFAULT.encodeToJsonElement(ser, this)
     }
+}
+
+@Suppress("UNCHECKED_CAST")
+@OptIn(InternalSerializationApi::class)
+private fun lookupSerializer(value: Any): KSerializer<Any>? = try {
+    value::class.serializerOrNull() as KSerializer<Any>?
+} catch (_: IndexOutOfBoundsException) {
+    // on Kotlin/Native a generic class's generated serializer factory reads type argument serializers that a class
+    // lookup can't supply, and throws instead of returning null like the JVM does
+    null
 }
