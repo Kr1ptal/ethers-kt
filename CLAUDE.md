@@ -159,7 +159,7 @@ The project uses Kotest 6 with the Kotest Gradle plugin for test discovery (no J
 - The project version is `VERSION_NAME` in `gradle.properties`. `master` always carries a `-SNAPSHOT` version, also in the commit a release is tagged at: a release is built from its tag with `-PVERSION_NAME=<version>`.
 - The `Release` workflow (`.github/workflows/release.yml`) opens a release pull request from a `release/vX.Y.Z` branch, and merging it publishes the release (`.github/workflows/publish-release.yml`). See the Releasing section of `CONTRIBUTING.md`.
 - The pull request is prepared by `scripts/release-version.sh`, so a new file that mentions the released version must be added to that script.
-- Release notes are the `## [X.Y.Z]` section of `CHANGELOG.md`. The workflow creates it from a `## [Unreleased]` section if there is one, and otherwise leaves it empty to be written on the release branch.
+- Release notes are the `## [X.Y.Z]` section of `CHANGELOG.md`. The workflow generates it with git-cliff (`cliff.toml`) from the conventional commits since the last release, or uses a hand-written `## [Unreleased]` section if there is one. They are edited on the release branch.
 
 ## Code Style Guidelines
 

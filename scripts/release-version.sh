@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 # Rewrites the version references that change during a release.
 #
-#   scripts/release-version.sh release <version> <next-version>-SNAPSHOT
+#   scripts/release-version.sh release <version> <next-version>-SNAPSHOT [<generated-notes>]
 #       Prepares the single commit that releases <version>. It sets the README dependency examples to <version> and
-#       gives CHANGELOG.md a section for it, dated today (UTC): the "## [Unreleased]" section if there is one, else a
-#       new, empty section. VERSION_NAME moves straight to the next snapshot, since the release itself is built with
-#       -PVERSION_NAME=<version>.
+#       gives CHANGELOG.md a section for it, dated today (UTC). VERSION_NAME moves straight to the next snapshot,
+#       since the release itself is built with -PVERSION_NAME=<version>.
+#
+#       The section is the "## [Unreleased]" section if there is one. Otherwise it is filled from <generated-notes>,
+#       a file written by `git cliff --unreleased --tag v<version> --strip all`, and left empty without one. Prints
+#       where the notes came from: "unreleased", "generated" or "empty".
 #   scripts/release-version.sh notes <version>|Unreleased
 #       Prints the body of that CHANGELOG.md section. Exits with 3 if the section is missing, 4 if there are several,
 #       and 5 if it is empty.
@@ -14,7 +17,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 usage() {
-    echo "usage: $0 release <version> <next-version>-SNAPSHOT | notes <version>|Unreleased" >&2
+    echo "usage: $0 release <version> <next-version>-SNAPSHOT [<generated-notes>] | notes <version>|Unreleased" >&2
     exit 64
 }
 
@@ -55,8 +58,8 @@ notes() {
 mode=${1:-}
 case "$mode" in
     release)
-        [[ $# -eq 3 ]] || usage
-        version=$2 next=$3
+        [[ $# -eq 3 || $# -eq 4 ]] || usage
+        version=$2 next=$3 generated=${4:-}
         [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "error: invalid release version '$version'" >&2; exit 1; }
         [[ $next =~ ^[0-9]+\.[0-9]+\.[0-9]+-SNAPSHOT$ ]] || { echo "error: invalid snapshot version '$next'" >&2; exit 1; }
         if grep -qF "## [$version]" CHANGELOG.md; then
@@ -68,10 +71,20 @@ case "$mode" in
 
         case "$(grep -c '^## \[Unreleased\]' CHANGELOG.md || true)" in
             0)
+                body=""
+                if [[ -n $generated ]]; then
+                    # git-cliff writes the section with its own heading, and only the heading if no commit qualifies.
+                    body=$(perl -0777 -pe 's/\A\s*## \[[^\n]*\n?//; s/\A(?:[ \t]*\n)+//; s/\s+\z//' "$generated")
+                fi
+                if [[ -n $body ]]; then source=generated; else source=empty; fi
                 # Above the latest release. The digit skips the heading template in the comment at the top.
-                perl -0777 -pi -e 's/^(?=## \[\d)/## [$ENV{VERSION}] - $ENV{DATE}\n\n/m' CHANGELOG.md
+                BODY=$body perl -0777 -pi -e '
+                    my $body = $ENV{BODY} eq "" ? "" : "$ENV{BODY}\n\n";
+                    s/^(?=## \[\d)/## [$ENV{VERSION}] - $ENV{DATE}\n\n$body/m;
+                ' CHANGELOG.md
                 ;;
             1)
+                source=unreleased
                 perl -pi -e 's/^## \[Unreleased\].*/## [$ENV{VERSION}] - $ENV{DATE}/' CHANGELOG.md
                 ;;
             *)
@@ -93,6 +106,7 @@ case "$mode" in
         replace gradle.properties 's/^VERSION_NAME=.*/VERSION_NAME=$ENV{NEXT}/' "VERSION_NAME=$next"
         replace ethers-abigen-plugin/README.md 's/(ethers-abigen-plugin-)\d+\.\d+\.\d+-SNAPSHOT(?=\.jar)/$1$ENV{NEXT}/g' \
             "ethers-abigen-plugin-$next.jar"
+        echo "$source"
         ;;
     notes)
         [[ $# -eq 2 ]] || usage

@@ -228,13 +228,17 @@ its notes. The push to `master` deploys the new snapshot as usual. If a job fail
 
 ### Release notes
 
-The notes can be written before or after the pull request is opened:
+The workflow writes the changelog section of the release, and the pull request shows it:
 
-* If `CHANGELOG.md` has a `## [Unreleased]` section on `master`, it becomes the section of the release. The pull request
-  shows the notes and its checks start right away.
-* Otherwise the section starts out empty and the pull request is opened as a draft. Write the notes on the release
-  branch, then mark the pull request as ready. The `java-test` check, which is required to merge, fails for a release
-  branch whose changelog section is empty.
+* By default [git-cliff](https://git-cliff.org) generates it from the commits since the last release, grouped by their
+  conventional commit type as [cliff.toml](cliff.toml) says. Dependency bumps are left out.
+* If `CHANGELOG.md` has a hand-written `## [Unreleased]` section on `master`, that section is used instead.
+
+Either way the notes are a starting point: edit them in `CHANGELOG.md` on the release branch before merging.
+
+If no commit qualifies, the section starts out empty and the pull request is opened as a draft. Write the notes on the
+release branch, then mark the pull request as ready. The `java-test` check, which is required to merge, fails for a
+release branch whose changelog section is empty.
 
 ### What a release tag contains
 
