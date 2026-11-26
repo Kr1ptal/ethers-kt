@@ -34,19 +34,25 @@ import io.ethers.core.types.TxpoolContentFromAddress
 import io.ethers.core.types.TxpoolInspectResult
 import io.ethers.core.types.TxpoolStatus
 import io.ethers.core.types.tracers.TracerConfig
+import io.ethers.core.types.tracers.TracerConfigSerializer
 import io.ethers.core.types.tracers.TxTraceResult
 import io.ethers.core.types.transaction.TransactionUnsigned
 import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.CallFailedError
 import io.ethers.providers.types.CallManyBundle
+import io.ethers.providers.types.CallManyBundleSerializer
 import io.ethers.providers.types.CallManyContext
+import io.ethers.providers.types.CallManyContextSerializer
 import io.ethers.providers.types.FilterPoller
 import io.ethers.providers.types.PendingTransaction
 import io.ethers.providers.types.RpcCall
+import io.ethers.providers.types.RpcParams
 import io.ethers.providers.types.RpcRequest
 import io.ethers.providers.types.RpcSubscribe
 import io.ethers.providers.types.RpcSubscribeCall
 import io.ethers.providers.types.SuppliedRpcRequest
+import io.ethers.providers.types.buildRpcParams
+import io.ethers.providers.types.rpcParams
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
 import io.github.artificialpb.bignum.div
@@ -88,15 +94,15 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
     //                                  EthApi implementation
     //-----------------------------------------------------------------------------------------------------------------
     override fun getBlockNumber(): RpcRequest<Long, RpcError> {
-        return RpcCall(client, "eth_blockNumber", EMPTY_ARRAY, HexLongSerializer)
+        return RpcCall(client, "eth_blockNumber", RpcParams.EMPTY, HexLongSerializer)
     }
 
     override fun getBalance(address: Address, blockId: BlockId): RpcRequest<BigInteger, RpcError> {
-        return RpcCall(client, "eth_getBalance", arrayOf(address, blockId.id), HexBigIntegerSerializer)
+        return RpcCall(client, "eth_getBalance", rpcParams(address, blockId.id), HexBigIntegerSerializer)
     }
 
     override fun getBlockHeader(blockId: BlockId): RpcRequest<BlockWithHashes?, RpcError> {
-        val params = arrayOf(blockId.id)
+        val params = rpcParams(blockId.id)
         val method = when (blockId) {
             is BlockId.Hash -> "eth_getHeaderByHash"
             is BlockId.Number, is BlockId.Name -> "eth_getHeaderByNumber"
@@ -117,7 +123,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         fullTransactions: Boolean,
         responseSerializer: KSerializer<B>,
     ): RpcRequest<B?, RpcError> {
-        val params = arrayOf<Any>(blockId.id, fullTransactions)
+        val params = rpcParams(blockId.id, fullTransactions)
         val method = when (blockId) {
             is BlockId.Hash -> "eth_getBlockByHash"
             is BlockId.Number, is BlockId.Name -> "eth_getBlockByNumber"
@@ -126,7 +132,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
     }
 
     override fun getUncleBlockHeader(blockId: BlockId, index: Long): RpcRequest<BlockWithHashes?, RpcError> {
-        val params = arrayOf(blockId.id, FastHex.encodeWithPrefix(index))
+        val params = rpcParams(blockId.id, FastHex.encodeWithPrefix(index))
         val method = when (blockId) {
             is BlockId.Hash -> "eth_getUncleByBlockHashAndIndex"
             is BlockId.Number, is BlockId.Name -> "eth_getUncleByBlockNumberAndIndex"
@@ -135,7 +141,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
     }
 
     override fun getUncleBlocksCount(blockId: BlockId): RpcRequest<Long, RpcError> {
-        val params = arrayOf(blockId.id)
+        val params = rpcParams(blockId.id)
         val method = when (blockId) {
             is BlockId.Hash -> "eth_getUncleCountByBlockHash"
             is BlockId.Number, is BlockId.Name -> "eth_getUncleCountByBlockNumber"
@@ -144,12 +150,12 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
     }
 
     override fun getCode(address: Address, blockId: BlockId): RpcRequest<Bytes, RpcError> {
-        val params = arrayOf(address, blockId.id)
+        val params = rpcParams(address, blockId.id)
         return RpcCall(client, "eth_getCode", params, Bytes.serializer())
     }
 
     override fun getStorage(address: Address, key: Hash, blockId: BlockId): RpcRequest<Hash, RpcError> {
-        val params = arrayOf(address, key, blockId.id)
+        val params = rpcParams(address, key, blockId.id)
         return RpcCall(client, "eth_getStorageAt", params, Hash.serializer())
     }
 
@@ -161,9 +167,9 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
     ): RpcRequest<Bytes, RpcError> {
         // create minimal params array - some RPC's don't support stateOverride or blockOverride
         val params = when {
-            blockOverride != null -> arrayOf(call.toCallRequest(), blockId.id, stateOverride, blockOverride)
-            stateOverride != null -> arrayOf(call.toCallRequest(), blockId.id, stateOverride)
-            else -> arrayOf(call.toCallRequest(), blockId.id)
+            blockOverride != null -> rpcParams(call.toCallRequest(), blockId.id, stateOverride, blockOverride)
+            stateOverride != null -> rpcParams(call.toCallRequest(), blockId.id, stateOverride)
+            else -> rpcParams(call.toCallRequest(), blockId.id)
         }
 
         return RpcCall(client, "eth_call", params, Bytes.serializer())
@@ -179,29 +185,34 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         val bundle = CallManyBundle(calls, blockOverride)
         val ctx = CallManyContext(blockId, transactionIndex)
 
-        return RpcCall(client, "eth_callMany", arrayOf(bundle, ctx, stateOverride), ListSerializer(CallManyResultSerializer))
+        val params = buildRpcParams {
+            add(bundle, CallManyBundleSerializer)
+            add(ctx, CallManyContextSerializer)
+            add(stateOverride)
+        }
+        return RpcCall(client, "eth_callMany", params, ListSerializer(CallManyResultSerializer))
     }
 
     override fun estimateGas(call: IntoCallRequest, blockId: BlockId): RpcRequest<Long, RpcError> {
-        val params = arrayOf(call.toCallRequest(), blockId.id)
+        val params = rpcParams(call.toCallRequest(), blockId.id)
         return RpcCall(client, "eth_estimateGas", params, HexLongSerializer)
     }
 
     override fun createAccessList(call: IntoCallRequest, blockId: BlockId): RpcRequest<CreateAccessList, RpcError> {
-        val params = arrayOf(call.toCallRequest(), blockId.id)
+        val params = rpcParams(call.toCallRequest(), blockId.id)
         return RpcCall(client, "eth_createAccessList", params, CreateAccessList.serializer())
     }
 
     override fun getGasPrice(): RpcRequest<BigInteger, RpcError> {
-        return RpcCall(client, "eth_gasPrice", EMPTY_ARRAY, HexBigIntegerSerializer)
+        return RpcCall(client, "eth_gasPrice", RpcParams.EMPTY, HexBigIntegerSerializer)
     }
 
     override fun getBlobBaseFee(): RpcRequest<BigInteger, RpcError> {
-        return RpcCall(client, "eth_blobBaseFee", EMPTY_ARRAY, HexBigIntegerSerializer)
+        return RpcCall(client, "eth_blobBaseFee", RpcParams.EMPTY, HexBigIntegerSerializer)
     }
 
     override fun getMaxPriorityFeePerGas(): RpcRequest<BigInteger, RpcError> {
-        return RpcCall(client, "eth_maxPriorityFeePerGas", EMPTY_ARRAY, HexBigIntegerSerializer)
+        return RpcCall(client, "eth_maxPriorityFeePerGas", RpcParams.EMPTY, HexBigIntegerSerializer)
     }
 
     override fun getFeeHistory(
@@ -209,7 +220,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         lastBlockName: BlockId.Name,
         rewardPercentiles: DoubleArray,
     ): RpcRequest<FeeHistory, RpcError> {
-        val params = arrayOf(FastHex.encodeWithPrefix(blockCount), lastBlockName.id, rewardPercentiles.toPercentilesJson())
+        val params = rpcParams(FastHex.encodeWithPrefix(blockCount), lastBlockName.id, rewardPercentiles.toPercentilesJson())
         return RpcCall(client, "eth_feeHistory", params, FeeHistory.serializer())
     }
 
@@ -218,16 +229,16 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         lastBlockNumber: BlockId.Number,
         rewardPercentiles: DoubleArray,
     ): RpcRequest<FeeHistory, RpcError> {
-        val params = arrayOf(FastHex.encodeWithPrefix(blockCount), lastBlockNumber.id, rewardPercentiles.toPercentilesJson())
+        val params = rpcParams(FastHex.encodeWithPrefix(blockCount), lastBlockNumber.id, rewardPercentiles.toPercentilesJson())
         return RpcCall(client, "eth_feeHistory", params, FeeHistory.serializer())
     }
 
     override fun isNodeSyncing(): RpcRequest<SyncStatus, RpcError> {
-        return RpcCall(client, "eth_syncing", EMPTY_ARRAY, SyncStatusSerializer)
+        return RpcCall(client, "eth_syncing", RpcParams.EMPTY, SyncStatusSerializer)
     }
 
     override fun getBlockTransactionCount(blockId: BlockId): RpcRequest<Long, RpcError> {
-        val params = arrayOf(blockId.id)
+        val params = rpcParams(blockId.id)
         val method = when (blockId) {
             is BlockId.Hash -> "eth_getBlockTransactionCountByHash"
             is BlockId.Number, is BlockId.Name -> "eth_getBlockTransactionCountByNumber"
@@ -236,7 +247,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
     }
 
     override fun getTransactionByBlockAndIndex(blockId: BlockId, index: Long): RpcRequest<RPCTransaction, RpcError> {
-        val params = arrayOf(blockId.id, FastHex.encodeWithPrefix(index))
+        val params = rpcParams(blockId.id, FastHex.encodeWithPrefix(index))
         val method = when (blockId) {
             is BlockId.Hash -> "eth_getTransactionByBlockHashAndIndex"
             is BlockId.Number, is BlockId.Name -> "eth_getTransactionByBlockNumberAndIndex"
@@ -245,7 +256,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
     }
 
     override fun getRawTransactionByBlockAndIndex(blockId: BlockId, index: Long): RpcRequest<Bytes, RpcError> {
-        val params = arrayOf(blockId.id, FastHex.encodeWithPrefix(index))
+        val params = rpcParams(blockId.id, FastHex.encodeWithPrefix(index))
         val method = when (blockId) {
             is BlockId.Hash -> "eth_getRawTransactionByBlockHashAndIndex"
             is BlockId.Number, is BlockId.Name -> "eth_getRawTransactionByBlockNumberAndIndex"
@@ -254,14 +265,14 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
     }
 
     override fun getTransactionCount(address: Address, blockId: BlockId): RpcRequest<Long, RpcError> {
-        return RpcCall(client, "eth_getTransactionCount", arrayOf(address, blockId.id), HexLongSerializer)
+        return RpcCall(client, "eth_getTransactionCount", rpcParams(address, blockId.id), HexLongSerializer)
     }
 
     override fun getTransactionByHash(hash: Hash): RpcRequest<RPCTransaction?, RpcError> {
         return RpcCall(
             client,
             "eth_getTransactionByHash",
-            arrayOf(hash),
+            rpcParams(hash),
             RPCTransaction.serializer().nullable,
         )
     }
@@ -270,7 +281,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         return RpcCall(
             client,
             "eth_getTransactionReceipt",
-            arrayOf(hash),
+            rpcParams(hash),
             TransactionReceipt.serializer().nullable,
         )
     }
@@ -279,7 +290,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         return RpcCall(
             client,
             "eth_getBlockReceipts",
-            arrayOf(blockId.id),
+            rpcParams(blockId.id),
             ListSerializer(TransactionReceipt.serializer()).nullable,
         )
     }
@@ -288,7 +299,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         return RpcCall(
             client,
             "eth_sendRawTransaction",
-            arrayOf(signedTransaction),
+            rpcParams(signedTransaction),
             Hash.serializer().map { PendingTransaction(it, this) },
         )
     }
@@ -302,7 +313,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         return RpcCall(
             client,
             "eth_fillTransaction",
-            arrayOf(callRequest),
+            rpcParams(callRequest),
             FilledTransactionDeserializer,
         ).orElse { err ->
             when {
@@ -440,7 +451,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         return RpcCall(
             client,
             "eth_getLogs",
-            arrayOf(filter),
+            rpcParams(filter),
             ListSerializer(Log.serializer()),
         )
     }
@@ -449,7 +460,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         return RpcCall(
             client,
             "eth_newFilter",
-            arrayOf(filter),
+            rpcParams(filter),
             String.serializer().map { id -> FilterPoller(id, this, ListSerializer(Log.serializer())) },
         )
     }
@@ -458,7 +469,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         return RpcCall(
             client,
             "eth_newBlockFilter",
-            EMPTY_ARRAY,
+            RpcParams.EMPTY,
             String.serializer().map { id -> FilterPoller(id, this, ListSerializer(Hash.serializer())) },
         )
     }
@@ -467,7 +478,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         return RpcCall(
             client,
             "eth_newPendingTransactionFilter",
-            EMPTY_ARRAY,
+            RpcParams.EMPTY,
             String.serializer().map { id -> FilterPoller(id, this, ListSerializer(Hash.serializer())) },
         )
     }
@@ -476,46 +487,46 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         return RpcCall(
             client,
             "eth_newPendingTransactionFilter",
-            arrayOf(true),
+            rpcParams(true),
             String.serializer().map { id -> FilterPoller(id, this, ListSerializer(RPCTransaction.serializer())) },
         )
     }
 
     override fun subscribeNewPendingTransactionHashes(): RpcSubscribe<Hash, RpcError> {
-        return RpcSubscribeCall(client, arrayOf("newPendingTransactions"), Hash.serializer())
+        return RpcSubscribeCall(client, rpcParams("newPendingTransactions"), Hash.serializer())
     }
 
     override fun subscribeNewPendingTransactions(): RpcSubscribe<RPCTransaction, RpcError> {
         return RpcSubscribeCall(
             client,
-            arrayOf<Any>("newPendingTransactions", true),
+            rpcParams("newPendingTransactions", true),
             RPCTransaction.serializer(),
         )
     }
 
     override fun subscribeNewHeads(): RpcSubscribe<BlockWithHashes, RpcError> {
-        return RpcSubscribeCall(client, arrayOf("newHeads"), BlockWithHashes.serializer())
+        return RpcSubscribeCall(client, rpcParams("newHeads"), BlockWithHashes.serializer())
     }
 
     override fun subscribeLogs(filter: LogFilter): RpcSubscribe<Log, RpcError> {
-        return RpcSubscribeCall(client, arrayOf("logs", filter), Log.serializer())
+        return RpcSubscribeCall(client, rpcParams("logs", filter), Log.serializer())
     }
 
     //-----------------------------------------------------------------------------------------------------------------
     //                                  DebugApi implementation
     //-----------------------------------------------------------------------------------------------------------------
     override fun getRawBlockHeader(blockId: BlockId): RpcRequest<Bytes, RpcError> {
-        val params = arrayOf(blockId.id)
+        val params = rpcParams(blockId.id)
         return RpcCall(client, "debug_getRawHeader", params, Bytes.serializer())
     }
 
     override fun getRawBlockWithTransactions(blockId: BlockId): RpcRequest<Bytes, RpcError> {
-        val params = arrayOf(blockId.id)
+        val params = rpcParams(blockId.id)
         return RpcCall(client, "debug_getRawBlock", params, Bytes.serializer())
     }
 
     override fun getRawReceipts(blockId: BlockId): RpcRequest<List<Bytes>, RpcError> {
-        val params = arrayOf(blockId.id)
+        val params = rpcParams(blockId.id)
         return RpcCall(client, "debug_getRawReceipts", params, ListSerializer(Bytes.serializer()))
     }
 
@@ -523,14 +534,14 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         return RpcCall(
             client,
             "debug_getRawTransaction",
-            arrayOf(hash),
+            rpcParams(hash),
             // empty bytes mean the node has no such transaction, as null does
             Bytes.serializer().nullable.map { bytes -> bytes?.takeIf { it.size > 0 } },
         )
     }
 
     override fun printBlock(number: Long): RpcRequest<String, RpcError> {
-        val params = arrayOf(number)
+        val params = rpcParams(number)
         return RpcCall(client, "debug_printBlock", params, String.serializer())
     }
 
@@ -539,7 +550,11 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         blockId: BlockId,
         config: TracerConfig<T>,
     ): RpcRequest<T, RpcError> {
-        val params = arrayOf(call.toCallRequest(), blockId.id, config)
+        val params = buildRpcParams {
+            add(call.toCallRequest())
+            add(blockId.id)
+            add(config, TracerConfigSerializer)
+        }
         return RpcCall(client, "debug_traceCall", params, config.tracer.resultSerializer)
     }
 
@@ -554,11 +569,19 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
 
         // one list of traces per bundle, and the call sends a single bundle
         val traces = ListSerializer(ListSerializer(config.tracer.resultSerializer))
-        return RpcCall(client, "debug_traceCallMany", arrayOf(arrayOf(bundle), ctx, config), traces.map { it.firstOrNull() ?: emptyList() })
+        val params = buildRpcParams {
+            add(listOf(bundle), ListSerializer(CallManyBundleSerializer))
+            add(ctx, CallManyContextSerializer)
+            add(config, TracerConfigSerializer)
+        }
+        return RpcCall(client, "debug_traceCallMany", params, traces.map { it.firstOrNull() ?: emptyList() })
     }
 
     override fun <T : Any> traceTransaction(txHash: Hash, config: TracerConfig<T>): RpcRequest<T, RpcError> {
-        val params = arrayOf(txHash, config)
+        val params = buildRpcParams {
+            add(txHash)
+            add(config, TracerConfigSerializer)
+        }
         return RpcCall(client, "debug_traceTransaction", params, config.tracer.resultSerializer)
     }
 
@@ -566,7 +589,10 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         blockId: BlockId,
         config: TracerConfig<T>,
     ): RpcRequest<List<TxTraceResult<T>>, RpcError> {
-        val params = arrayOf(blockId.id, config)
+        val params = buildRpcParams {
+            add(blockId.id)
+            add(config, TracerConfigSerializer)
+        }
         val method = when (blockId) {
             is BlockId.Hash -> "debug_traceBlockByHash"
             is BlockId.Number, is BlockId.Name -> "debug_traceBlockByNumber"
@@ -578,35 +604,35 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
     //                                  NetApi implementation
     //-----------------------------------------------------------------------------------------------------------------
     override fun isListening(): RpcRequest<Boolean, RpcError> {
-        return RpcCall(client, "net_listening", EMPTY_ARRAY, Boolean.serializer())
+        return RpcCall(client, "net_listening", RpcParams.EMPTY, Boolean.serializer())
     }
 
     override fun getPeerCount(): RpcRequest<Long, RpcError> {
-        return RpcCall(client, "net_peerCount", EMPTY_ARRAY, HexLongSerializer)
+        return RpcCall(client, "net_peerCount", RpcParams.EMPTY, HexLongSerializer)
     }
 
     override fun getVersion(): RpcRequest<String, RpcError> {
-        return RpcCall(client, "net_version", EMPTY_ARRAY, String.serializer())
+        return RpcCall(client, "net_version", RpcParams.EMPTY, String.serializer())
     }
 
     //-----------------------------------------------------------------------------------------------------------------
     //                                  TxpoolApi implementation
     //-----------------------------------------------------------------------------------------------------------------
     override fun txpoolContent(): RpcRequest<TxpoolContent, RpcError> {
-        return RpcCall(client, "txpool_content", EMPTY_ARRAY, TxpoolContent.serializer())
+        return RpcCall(client, "txpool_content", RpcParams.EMPTY, TxpoolContent.serializer())
     }
 
     override fun txpoolContentFrom(address: Address): RpcRequest<TxpoolContentFromAddress, RpcError> {
-        val params = arrayOf(address)
+        val params = rpcParams(address)
         return RpcCall(client, "txpool_contentFrom", params, TxpoolContentFromAddress.serializer())
     }
 
     override fun txpoolStatus(): RpcRequest<TxpoolStatus, RpcError> {
-        return RpcCall(client, "txpool_status", EMPTY_ARRAY, TxpoolStatus.serializer())
+        return RpcCall(client, "txpool_status", RpcParams.EMPTY, TxpoolStatus.serializer())
     }
 
     override fun txpoolInspect(): RpcRequest<TxpoolInspectResult, RpcError> {
-        return RpcCall(client, "txpool_inspect", EMPTY_ARRAY, TxpoolInspectResult.serializer())
+        return RpcCall(client, "txpool_inspect", RpcParams.EMPTY, TxpoolInspectResult.serializer())
     }
 
     //-----------------------------------------------------------------------------------------------------------------
@@ -614,7 +640,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
     //-----------------------------------------------------------------------------------------------------------------
 
     override fun getClientVersion(): RpcRequest<String, RpcError> {
-        return RpcCall(client, "web3_clientVersion", EMPTY_ARRAY, String.serializer())
+        return RpcCall(client, "web3_clientVersion", RpcParams.EMPTY, String.serializer())
     }
 
     //-----------------------------------------------------------------------------------------------------------------
@@ -642,7 +668,6 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
 
     companion object {
         private val BIGINT_TWO = bigIntegerOf(2L)
-        private val EMPTY_ARRAY = emptyArray<Any>()
 
         /**
          * Start building a [Provider] for [url].

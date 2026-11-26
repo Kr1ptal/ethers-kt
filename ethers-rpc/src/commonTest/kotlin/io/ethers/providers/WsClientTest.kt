@@ -5,9 +5,13 @@ import io.ethers.core.isFailure
 import io.ethers.core.isSuccess
 import io.ethers.providers.types.BatchRpcRequest
 import io.ethers.providers.types.RpcCall
+import io.ethers.providers.types.RpcParams
+import io.ethers.providers.types.buildRpcParams
+import io.ethers.providers.types.rpcParams
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.nondeterministic.eventually
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -17,6 +21,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationStrategy
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.descriptors.PrimitiveKind
 import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
@@ -93,7 +98,7 @@ class WsClientTest : FunSpec({
                 "data" to byteArrayOf(0xde.toByte(), 0xad.toByte(), 0xbe.toByte(), 0xef.toByte()),
                 "gas" to 21000L,
             )
-            wsClient.request("eth_call", arrayOf(callMap, "latest"), stringSerializer)
+            wsClient.request("eth_call", rpcParams(callMap, "latest"), stringSerializer)
 
             val sentText = mockServer.takeReceivedText()!!
             val body = Kotlinx.DEFAULT.parseToJsonElement(sentText).jsonObject
@@ -116,7 +121,7 @@ class WsClientTest : FunSpec({
         test("request(KSerializer<T>) with ByteArray decodes a 0x-prefixed hex string") {
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0xdeadbeef"}""")
 
-            val result = wsClient.request("eth_getCode", emptyArray<Any>(), HexByteArraySerializer)
+            val result = wsClient.request("eth_getCode", RpcParams.EMPTY, HexByteArraySerializer)
 
             result.isSuccess() shouldBe true
             result.unwrap() shouldBe byteArrayOf(0xde.toByte(), 0xad.toByte(), 0xbe.toByte(), 0xef.toByte())
@@ -125,7 +130,7 @@ class WsClientTest : FunSpec({
         test("subscribe(KSerializer<T>) with ByteArray decodes hex-string notification results") {
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0xsub123"}""")
 
-            val subscriptionResult = wsClient.subscribe(arrayOf("newPendingTransactions"), HexByteArraySerializer)
+            val subscriptionResult = wsClient.subscribe(rpcParams("newPendingTransactions"), HexByteArraySerializer)
             subscriptionResult.isSuccess() shouldBe true
             val stream = subscriptionResult.unwrap()
 
@@ -143,7 +148,7 @@ class WsClientTest : FunSpec({
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":{"not":"an id"}}""")
 
             val result = withTimeout(30.seconds) {
-                wsClient.subscribe(arrayOf("newHeads"), JsonObject.serializer())
+                wsClient.subscribe(rpcParams("newHeads"), JsonObject.serializer())
             }
 
             result.isFailure() shouldBe true
@@ -154,14 +159,69 @@ class WsClientTest : FunSpec({
             mockServer.enqueueJson("""[{"jsonrpc":"2.0","id":1,"result":"0x1"},"not a response"]""")
 
             val batch = BatchRpcRequest(2)
-            batch.addRpcCall(RpcCall(wsClient, "eth_blockNumber", emptyArray<Any>(), stringSerializer))
-            batch.addRpcCall(RpcCall(wsClient, "eth_chainId", emptyArray<Any>(), stringSerializer))
+            batch.addRpcCall(RpcCall(wsClient, "eth_blockNumber", RpcParams.EMPTY, stringSerializer))
+            batch.addRpcCall(RpcCall(wsClient, "eth_chainId", RpcParams.EMPTY, stringSerializer))
 
             withTimeout(30.seconds) {
                 batch.send() shouldBe false
                 batch.responses[0].await().unwrap() shouldBe "0x1"
                 batch.responses[1].await().unwrapError().code shouldBe RpcError.CODE_INVALID_RESPONSE
             }
+        }
+
+        // Connect with a request that succeeds, so a reconnect afterwards shows as a second session.
+        suspend fun connect() {
+            mockServer.enqueueJson("""{"jsonrpc":"2.0","id":$REQUEST_ID,"result":"0x1"}""")
+            withTimeout(30.seconds) {
+                wsClient.request("eth_blockNumber", RpcParams.EMPTY, stringSerializer).unwrap() shouldBe "0x1"
+            }
+            mockServer.takeReceivedText(DELIVERY_WINDOW.inWholeMilliseconds)!! shouldContain "eth_blockNumber"
+        }
+
+        // The next request after a failed send is the next message the server receives, and the connection the
+        // client opened at the start is still the only one.
+        suspend fun assertStillConnectedAndNothingSent() {
+            mockServer.enqueueJson("""{"jsonrpc":"2.0","id":$REQUEST_ID,"result":"0x2"}""")
+            withTimeout(30.seconds) {
+                wsClient.request("eth_chainId", RpcParams.EMPTY, stringSerializer).unwrap() shouldBe "0x2"
+            }
+            mockServer.takeReceivedText(DELIVERY_WINDOW.inWholeMilliseconds)!! shouldContain "eth_chainId"
+            mockServer.sessionsOpened shouldBe 1
+        }
+
+        test("a batch call whose params can't be encoded fails only that send, without reconnecting") {
+            class Unencodable(val value: Int)
+
+            connect()
+
+            val batch = BatchRpcRequest(2)
+            val valid = batch.addRpcCall(RpcCall(wsClient, "eth_gasPrice", RpcParams.EMPTY, stringSerializer))
+            val invalid = batch.addRpcCall(RpcCall(wsClient, "eth_getBalance", rpcParams(Unencodable(1)), stringSerializer))
+
+            // the encoding error reaches the sender, and every call of the unsent batch fails instead of waiting
+            withTimeout(DELIVERY_WINDOW) {
+                shouldThrow<IllegalArgumentException> { batch.send() }
+                valid.await().unwrapError().code shouldBe RpcError.CODE_CALL_FAILED
+                val error = invalid.await().unwrapError()
+                error.code shouldBe RpcError.CODE_CALL_FAILED
+                error.message shouldContain "eth_getBalance"
+            }
+
+            assertStillConnectedAndNothingSent()
+        }
+
+        test("a subscription whose params can't be encoded fails only that call, without reconnecting") {
+            class Unencodable(val value: Int)
+
+            connect()
+
+            withTimeout(DELIVERY_WINDOW) {
+                shouldThrow<IllegalArgumentException> {
+                    wsClient.subscribe(rpcParams("newHeads", Unencodable(1)), JsonObject.serializer())
+                }
+            }
+
+            assertStillConnectedAndNothingSent()
         }
     }
 
@@ -186,7 +246,7 @@ class WsClientTest : FunSpec({
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"$subscriptionId"}""")
 
             // Subscribe to new block headers
-            val params = arrayOf("newHeads")
+            val params = rpcParams("newHeads")
             val resultSerializer = JsonObject.serializer()
 
             val subscriptionResult = wsClient.subscribe(params, resultSerializer)
@@ -297,7 +357,7 @@ class WsClientTest : FunSpec({
             )
 
             // Subscribe to new block headers
-            val params = arrayOf("newHeads")
+            val params = rpcParams("newHeads")
             val resultSerializer = JsonObject.serializer()
 
             val subscriptionResult = wsClient.subscribe(params, resultSerializer)
@@ -332,7 +392,7 @@ class WsClientTest : FunSpec({
             wsClient = WsClient(mockServer.url, KtorHttpClient { install(WebSockets) })
 
             // Subscribe to new block headers
-            val params = arrayOf("newHeads")
+            val params = rpcParams("newHeads")
             val resultSerializer = JsonObject.serializer()
 
             val subscriptionResult = wsClient.subscribe(params, resultSerializer)
@@ -383,6 +443,37 @@ class WsClientTest : FunSpec({
             event["number"]?.jsonPrimitive?.content shouldBe "0x9999"
         }
 
+        test("resubscribing after a reconnect sends the params encoded at subscribe time") {
+            // encodes to something new each time, so the resubscribe only matches if it reuses the first encoding
+            val counting = object : SerializationStrategy<String> {
+                private var encodings = 0
+                override val descriptor = PrimitiveSerialDescriptor("Counting", PrimitiveKind.STRING)
+                override fun serialize(encoder: Encoder, value: String) {
+                    encoder.encodeString("$value-${++encodings}")
+                }
+            }
+            val params = buildRpcParams {
+                add("logs")
+                add("filter", counting)
+            }
+
+            mockServer.enqueueJson("""{"jsonrpc":"2.0","id":$REQUEST_ID,"result":"0xfirst"}""")
+            wsClient.subscribe(params, JsonObject.serializer()).isSuccess() shouldBe true
+            val subscribe = mockServer.takeReceivedText(DELIVERY_WINDOW.inWholeMilliseconds)!!
+
+            mockServer.enqueueJson("""{"jsonrpc":"2.0","id":$REQUEST_ID,"result":"0xsecond"}""")
+            mockServer.closeConnection()
+
+            val resubscribe = mockServer.takeReceivedText(RECONNECT_WINDOW.inWholeMilliseconds)
+            resubscribe shouldNotBe null
+
+            val sent = Kotlinx.DEFAULT.parseToJsonElement(subscribe).jsonObject
+            val resent = Kotlinx.DEFAULT.parseToJsonElement(resubscribe!!).jsonObject
+            resent["method"] shouldBe sent["method"]
+            resent["params"] shouldBe sent["params"]
+            sent["params"]!!.jsonArray[1].jsonPrimitive.content shouldContain "filter-"
+        }
+
         test("successful unsubscribe") {
             val subscriptionId = "0xdef456"
 
@@ -391,7 +482,7 @@ class WsClientTest : FunSpec({
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":2,"result":true}""")
 
             // First create a subscription
-            val params = arrayOf("newHeads")
+            val params = rpcParams("newHeads")
             val resultSerializer = JsonObject.serializer()
 
             val subscriptionResult = wsClient.subscribe(params, resultSerializer)
@@ -469,7 +560,7 @@ class WsClientTest : FunSpec({
             withTimeout(30.seconds) {
                 while (true) {
                     mockServer.enqueueJson("""{"jsonrpc":"2.0","id":$REQUEST_ID,"result":"0x1234567"}""")
-                    if (wsClient.request("eth_blockNumber", emptyArray<Any>(), stringSerializer).isSuccess()) break
+                    if (wsClient.request("eth_blockNumber", RpcParams.EMPTY, stringSerializer).isSuccess()) break
                 }
             }
 
@@ -483,7 +574,7 @@ class WsClientTest : FunSpec({
             // failed attempt parks for WsClient.RECONNECT_BACKOFF. The budget here has to exceed that backoff
             // rather than equal it, otherwise the test races the wait it depends on.
             val result = withTimeout(WsClient.RECONNECT_BACKOFF + 3.seconds) {
-                wsClient.request("eth_blockNumber", emptyArray<Any>(), stringSerializer)
+                wsClient.request("eth_blockNumber", RpcParams.EMPTY, stringSerializer)
             }
 
             result.isFailure() shouldBe true

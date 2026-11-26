@@ -11,6 +11,7 @@ import io.ethers.providers.HttpClient
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import io.ethers.providers.types.BatchRpcRequest
+import io.ethers.providers.types.RpcParams
 import io.ethers.solana.codec.BorshReader
 import io.ethers.solana.codec.SolanaAccountField
 import io.ethers.solana.codec.SolanaDecodeError
@@ -777,12 +778,12 @@ class ShowcaseBindingsTest : FunSpec({
 private class CannedClient(var response: String) : JsonRpcClient {
     var params: List<Any?> = emptyList()
 
-    override suspend fun <T> request(method: String, params: Array<*>, resultDeserializer: DeserializationStrategy<T>): Result<T, RpcError> {
+    override suspend fun <T> request(method: String, params: RpcParams, resultDeserializer: DeserializationStrategy<T>): Result<T, RpcError> {
         this.params = listOf(method) + params.toList()
         return success(Kotlinx.DEFAULT.decodeFromString(resultDeserializer, response))
     }
 
-    override suspend fun <T : Any> subscribe(params: Array<*>, resultDeserializer: DeserializationStrategy<T>): Result<ChannelReceiver<T>, RpcError> {
+    override suspend fun <T : Any> subscribe(params: RpcParams, resultDeserializer: DeserializationStrategy<T>): Result<ChannelReceiver<T>, RpcError> {
         this.params = params.toList()
         return success(QueueChannel.spscUnbounded<T>().apply { offer(Kotlinx.DEFAULT.decodeFromString(resultDeserializer, response)) })
     }

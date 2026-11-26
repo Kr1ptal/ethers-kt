@@ -3,6 +3,7 @@ package io.ethers.providers
 import io.ethers.core.Kotlinx
 import io.ethers.core.Result
 import io.ethers.core.isFailure
+import io.ethers.providers.types.RpcParams
 import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -176,7 +177,7 @@ class WsDirectDecodeTest : FunSpec({
                     // A message the client skips leaves its call unanswered. Rather than wait out a timeout for each,
                     // the body is followed by an error answering the same call, which ends it only if the body did not.
                     val actual = coroutineScope {
-                        val response = async { client.request("m", emptyArray<Any>(), case.serializer) }
+                        val response = async { client.request("m", RpcParams.EMPTY, case.serializer) }
                         server.takeReceivedText() shouldNotBe null
                         server.sendJson(body)
                         server.sendJson("""{"jsonrpc":"2.0","id":$id,"error":{"code":$SKIPPED_CODE,"message":"skipped"}}""")
@@ -199,13 +200,13 @@ class WsDirectDecodeTest : FunSpec({
         try {
             val single = RecordingStrategy(String.serializer())
             server.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0x1"}""")
-            client.request("m", emptyArray<Any>(), single).unwrap() shouldBe "0x1"
+            client.request("m", RpcParams.EMPTY, single).unwrap() shouldBe "0x1"
             single.decoders shouldBe listOf("StreamingJsonDecoder")
 
             // a result that does not decode straight from the message is decoded again through the tree
             val failing = RecordingStrategy(String.serializer())
             server.enqueueJson("""{"jsonrpc":"2.0","id":2,"result":{"bad":true}}""")
-            client.request("m", emptyArray<Any>(), failing).isFailure() shouldBe true
+            client.request("m", RpcParams.EMPTY, failing).isFailure() shouldBe true
             failing.decoders.size shouldBe 2
             failing.decoders.first() shouldBe "StreamingJsonDecoder"
             (failing.decoders.last() == "StreamingJsonDecoder") shouldBe false
@@ -220,7 +221,7 @@ class WsDirectDecodeTest : FunSpec({
         val client = WsClient(server.url, KtorHttpClient { install(WebSockets) })
         try {
             server.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":null,"error":{"code":-32000,"message":"boom"}}""")
-            val result = client.request("m", emptyArray<Any>(), String.serializer().nullable)
+            val result = client.request("m", RpcParams.EMPTY, String.serializer().nullable)
             result.unwrapError().message shouldBe "boom"
         } finally {
             client.close()

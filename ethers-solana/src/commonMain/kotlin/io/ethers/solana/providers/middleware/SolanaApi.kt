@@ -10,6 +10,7 @@ import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import io.ethers.providers.map
 import io.ethers.providers.types.RpcCall
+import io.ethers.providers.types.RpcParams
 import io.ethers.providers.types.RpcRequest
 import io.ethers.providers.types.RpcSubscribe
 import io.ethers.providers.types.SuppliedRpcRequest
@@ -860,10 +861,10 @@ private fun SolanaApi.accountConfig(
     if (withContext) put("withContext", true)
 }
 
-private fun <T> SolanaApi.rpc(method: String, vararg params: Any?, deserializer: DeserializationStrategy<T>): RpcRequest<T, RpcError> = RpcCall(client, method, params, deserializer)
+private fun <T> SolanaApi.rpc(method: String, vararg params: Any?, deserializer: DeserializationStrategy<T>): RpcRequest<T, RpcError> = RpcCall(client, method, RpcParams.ofDynamic(*params), deserializer)
 
 /** A call whose result [T] has a serializer, which lets the client decode the response without a JSON tree. */
-private inline fun <reified T> SolanaApi.typedRpc(method: String, vararg params: Any?): RpcRequest<T, RpcError> = RpcCall(client, method, params, serializer<T>())
+private inline fun <reified T> SolanaApi.typedRpc(method: String, vararg params: Any?): RpcRequest<T, RpcError> = RpcCall(client, method, RpcParams.ofDynamic(*params), serializer<T>())
 
 private fun commitmentConfig(commitment: Commitment) = buildJsonObject {
     put("commitment", commitment.toString())

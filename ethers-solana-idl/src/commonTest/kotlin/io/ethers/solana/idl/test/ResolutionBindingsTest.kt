@@ -8,6 +8,7 @@ import io.ethers.core.success
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import io.ethers.providers.types.BatchRpcRequest
+import io.ethers.providers.types.RpcParams
 import io.ethers.solana.codec.SolanaDecodeError
 import io.ethers.solana.instruction.Instruction
 import io.ethers.solana.instruction.SystemProgram
@@ -60,7 +61,7 @@ private class AccountsClient : JsonRpcClient {
     var slot = 10
     var error: RpcError? = null
 
-    override suspend fun <T> request(method: String, params: Array<*>, resultDeserializer: DeserializationStrategy<T>): Result<T, RpcError> {
+    override suspend fun <T> request(method: String, params: RpcParams, resultDeserializer: DeserializationStrategy<T>): Result<T, RpcError> {
         check(method == "getMultipleAccounts") { "Unexpected $method" }
         error?.let { return failure(it) }
         @Suppress("UNCHECKED_CAST")
@@ -72,7 +73,7 @@ private class AccountsClient : JsonRpcClient {
         return success(Kotlinx.DEFAULT.decodeFromString(resultDeserializer, response))
     }
 
-    override suspend fun <T : Any> subscribe(params: Array<*>, resultDeserializer: DeserializationStrategy<T>): Result<ChannelReceiver<T>, RpcError> = error("Unexpected subscription")
+    override suspend fun <T : Any> subscribe(params: RpcParams, resultDeserializer: DeserializationStrategy<T>): Result<ChannelReceiver<T>, RpcError> = error("Unexpected subscription")
     override suspend fun requestBatch(batch: BatchRpcRequest): Boolean = error("Unexpected batch")
     override fun close() = Unit
 }

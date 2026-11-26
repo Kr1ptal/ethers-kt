@@ -9,6 +9,7 @@ import io.ethers.logger.err
 import io.ethers.logger.getLogger
 import io.ethers.logger.trc
 import io.ethers.providers.types.BatchRpcRequest
+import io.ethers.providers.types.RpcParams
 import io.ktor.client.request.headers
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -125,7 +126,7 @@ class HttpClient(
     /** Decodes the response straight into [T], without first parsing it into a [KJsonElement] tree. */
     override suspend fun <T> request(
         method: String,
-        params: Array<*>,
+        params: RpcParams,
         resultDeserializer: DeserializationStrategy<T>,
     ): Result<T, RpcError> = execute(method, params) { text ->
         Kotlinx.DEFAULT.decodeFromString(RpcResponseDeserializer(resultDeserializer), text)
@@ -134,7 +135,7 @@ class HttpClient(
     /** Send a single request and turn its response body into a result with [decode]. */
     private suspend inline fun <T> execute(
         method: String,
-        params: Array<*>,
+        params: RpcParams,
         decode: (text: String) -> Result<T, RpcError>,
     ): Result<T, RpcError> {
         val json = buildJsonRpcRequest(method, requestId.getAndIncrement(), params)
@@ -158,7 +159,7 @@ class HttpClient(
                 val message = "HTTP ${response.status.value}: ${response.status.description}"
                 val data = JsonPrimitive(text)
                 val error = RpcError(RpcError.CODE_CALL_FAILED, message, data)
-                LOG.err { "Call failed for method=$method, params=${params.contentToString()}: $error" }
+                LOG.err { "Call failed for method=$method, params=$params: $error" }
                 return failure(error)
             }
 
@@ -166,7 +167,7 @@ class HttpClient(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            LOG.err(e) { "Error processing response for method=$method, params=${params.contentToString()}" }
+            LOG.err(e) { "Error processing response for method=$method, params=$params" }
             getResponseFromException(e)
         }
     }
@@ -192,7 +193,7 @@ class HttpClient(
     }
 
     override suspend fun <T : Any> subscribe(
-        params: Array<*>,
+        params: RpcParams,
         resultDeserializer: DeserializationStrategy<T>,
     ): Result<ChannelReceiver<T>, RpcError> {
         return ERROR_SUBSCRIPTION_UNSUPPORTED
@@ -211,7 +212,7 @@ class HttpClient(
             if (i > 0) sb.append(',')
             val call = requests[i]
             val id = requestId.getAndIncrement()
-            sb.append(buildJsonRpcRequest(call.method, id, call.params))
+            sb.append(buildJsonRpcRequest(call.method, id, encodeParams(i)))
             requestIndexPerId[id] = i
         }
         sb.append(']')

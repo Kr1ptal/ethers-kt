@@ -10,6 +10,7 @@ import io.ethers.providers.HttpClient
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import io.ethers.providers.types.BatchRpcRequest
+import io.ethers.providers.types.RpcParams
 import io.ethers.solana.codec.BorshReader
 import io.ethers.solana.codec.SolanaAccountField
 import io.ethers.solana.codec.SolanaDecodeError
@@ -43,7 +44,7 @@ private class VaultClient(private val address: SolanaAddress, data: ByteArray) :
     private val account = """{"data":["${Base64.encode(data)}","base64"],"executable":false,"lamports":1,"owner":"${GenericVault.PROGRAM_ID}","rentEpoch":0,"space":${data.size}}"""
     var requests = 0
 
-    override suspend fun <T> request(method: String, params: Array<*>, resultDeserializer: DeserializationStrategy<T>): Result<T, RpcError> {
+    override suspend fun <T> request(method: String, params: RpcParams, resultDeserializer: DeserializationStrategy<T>): Result<T, RpcError> {
         check(method == "getMultipleAccounts") { "Unexpected $method" }
         requests++
         @Suppress("UNCHECKED_CAST")
@@ -51,7 +52,7 @@ private class VaultClient(private val address: SolanaAddress, data: ByteArray) :
         return success(Kotlinx.DEFAULT.decodeFromString(resultDeserializer, """{"context":{"slot":1},"value":[$values]}"""))
     }
 
-    override suspend fun <T : Any> subscribe(params: Array<*>, resultDeserializer: DeserializationStrategy<T>): Result<ChannelReceiver<T>, RpcError> = error("Unexpected subscription")
+    override suspend fun <T : Any> subscribe(params: RpcParams, resultDeserializer: DeserializationStrategy<T>): Result<ChannelReceiver<T>, RpcError> = error("Unexpected subscription")
     override suspend fun requestBatch(batch: BatchRpcRequest): Boolean = error("Unexpected batch")
     override fun close() = Unit
 }

@@ -49,6 +49,9 @@ interface MockWSServer : MockServer {
     /** How many WebSocket sessions the server has open. */
     val openSessions: Int
 
+    /** How many WebSocket sessions the server has accepted since it started, so a test can tell a client reconnected. */
+    val sessionsOpened: Int
+
     /** Push a frame to the connected client outside of the request/response flow, e.g. a subscription event. */
     suspend fun sendJson(json: String)
 
@@ -136,6 +139,11 @@ private class EmbeddedMockServer(private val websocket: Boolean) : MockWSServer 
     override val openSessions: Int
         get() = sessions.value.size
 
+    private val acceptedSessions = atomic(0)
+
+    override val sessionsOpened: Int
+        get() = acceptedSessions.value
+
     private val server = embeddedServer(CIO, port = 0) {
         if (websocket) {
             install(ServerWebSockets)
@@ -144,6 +152,7 @@ private class EmbeddedMockServer(private val websocket: Boolean) : MockWSServer 
         routing {
             if (websocket) {
                 webSocket("/") {
+                    acceptedSessions.incrementAndGet()
                     sessions.update { listOf(this) + it }
                     try {
                         for (frame in incoming) {

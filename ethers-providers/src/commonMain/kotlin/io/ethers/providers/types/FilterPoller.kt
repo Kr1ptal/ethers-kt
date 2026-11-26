@@ -104,7 +104,7 @@ class FilterPoller<T : Any> private constructor(
             LOG.dbg { "Initializing poller for filter ID: $id" }
 
             CoroutineScope(asyncDispatcher).launch(CoroutineName("FilterPoller-$id")) {
-                val getChangesCall = RpcCall(provider.client, "eth_getFilterChanges", arrayOf(id), deserializer)
+                val getChangesCall = RpcCall(provider.client, "eth_getFilterChanges", rpcParams(id), deserializer)
 
                 var filterExists = true
                 while (!channel.isClosed) {
@@ -140,7 +140,7 @@ class FilterPoller<T : Any> private constructor(
                     val uninstallCall = RpcCall(
                         provider.client,
                         "eth_uninstallFilter",
-                        arrayOf(id),
+                        rpcParams(id),
                         Boolean.serializer(),
                     )
 

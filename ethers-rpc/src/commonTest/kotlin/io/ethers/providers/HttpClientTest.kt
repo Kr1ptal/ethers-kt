@@ -6,8 +6,11 @@ import io.ethers.core.isSuccess
 import io.ethers.providers.SerializableValue
 import io.ethers.providers.types.BatchRpcRequest
 import io.ethers.providers.types.RpcCall
+import io.ethers.providers.types.RpcParams
+import io.ethers.providers.types.rpcParams
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.core.spec.style.funSpec
 import io.kotest.matchers.shouldBe
@@ -60,7 +63,7 @@ private fun httpSpecificTests() = funSpec {
         test("HTTP error with JSON response") {
             server.enqueue(500, RPC_ERROR_RESPONSE)
 
-            val result = client.request("eth_blockNumber", emptyArray<Any>(), stringSerializer)
+            val result = client.request("eth_blockNumber", RpcParams.EMPTY, stringSerializer)
 
             result.isFailure() shouldBe true
             val error = result.unwrapError()
@@ -71,7 +74,7 @@ private fun httpSpecificTests() = funSpec {
         test("HTTP error with non-JSON response") {
             server.enqueue(500, "Internal Server Error")
 
-            val result = client.request("eth_blockNumber", emptyArray<Any>(), stringSerializer)
+            val result = client.request("eth_blockNumber", RpcParams.EMPTY, stringSerializer)
 
             result.isFailure() shouldBe true
             val error = result.unwrapError()
@@ -83,8 +86,8 @@ private fun httpSpecificTests() = funSpec {
             server.enqueue(500, """[{"jsonrpc":"2.0","id":2,"error":{"code":-32000,"message":"boom"}}]""")
 
             val batch = BatchRpcRequest(2)
-            batch.addRpcCall(RpcCall(client, "eth_blockNumber", emptyArray<Any>(), stringSerializer))
-            batch.addRpcCall(RpcCall(client, "eth_chainId", emptyArray<Any>(), stringSerializer))
+            batch.addRpcCall(RpcCall(client, "eth_blockNumber", RpcParams.EMPTY, stringSerializer))
+            batch.addRpcCall(RpcCall(client, "eth_chainId", RpcParams.EMPTY, stringSerializer))
 
             withTimeout(30.seconds) {
                 val sent = batch.send()
@@ -96,10 +99,32 @@ private fun httpSpecificTests() = funSpec {
             }
         }
 
+        test("a batch call whose params can't be encoded fails every call of the unsent batch") {
+            class Unencodable(val value: Int)
+
+            val batch = BatchRpcRequest(2)
+            val valid = batch.addRpcCall(RpcCall(client, "eth_gasPrice", RpcParams.EMPTY, stringSerializer))
+            val invalid = batch.addRpcCall(RpcCall(client, "eth_getBalance", rpcParams(Unencodable(1)), stringSerializer))
+
+            // the encoding error reaches the sender, like a single request's, and no awaited call is left waiting
+            withTimeout(5.seconds) {
+                shouldThrow<IllegalArgumentException> { batch.send() }
+                valid.await().unwrapError().code shouldBe RpcError.CODE_CALL_FAILED
+                val error = invalid.await().unwrapError()
+                error.code shouldBe RpcError.CODE_CALL_FAILED
+                error.message shouldContain "eth_getBalance"
+            }
+
+            // the batch never reached the server: the next request is the first it sees
+            server.enqueueJson(SUCCESSFUL_RESPONSE)
+            client.request("eth_chainId", RpcParams.EMPTY, stringSerializer).isSuccess() shouldBe true
+            server.takeRequest(5_000L).bodyText shouldContain "eth_chainId"
+        }
+
         test("empty response body") {
             server.enqueue(200, "")
 
-            val result = client.request("eth_blockNumber", emptyArray<Any>(), stringSerializer)
+            val result = client.request("eth_blockNumber", RpcParams.EMPTY, stringSerializer)
 
             result.isFailure() shouldBe true
             val error = result.unwrapError()
@@ -112,7 +137,7 @@ private fun httpSpecificTests() = funSpec {
             val headersMap = mapOf("Authorization" to "Bearer token123", "Custom-Header" to "value")
             val clientWithHeaders = HttpClient(server.url, KtorHttpClient(), headersMap)
 
-            clientWithHeaders.request("eth_blockNumber", emptyArray<Any>(), stringSerializer)
+            clientWithHeaders.request("eth_blockNumber", RpcParams.EMPTY, stringSerializer)
 
             val request = server.takeRequest()
             request.getHeader("Authorization") shouldBe "Bearer token123"
@@ -122,7 +147,7 @@ private fun httpSpecificTests() = funSpec {
         test("content-Type header is set correctly") {
             server.enqueueJson(SUCCESSFUL_RESPONSE)
 
-            client.request("eth_blockNumber", emptyArray<Any>(), stringSerializer)
+            client.request("eth_blockNumber", RpcParams.EMPTY, stringSerializer)
 
             val request = server.takeRequest()
             request.getHeader("Content-Type") shouldContain "application/json"
@@ -138,7 +163,7 @@ private fun httpSpecificTests() = funSpec {
                 "data" to byteArrayOf(0xde.toByte(), 0xad.toByte(), 0xbe.toByte(), 0xef.toByte()),
                 "gas" to 21000L,
             )
-            client.request("eth_call", arrayOf(callMap, "latest"), stringSerializer)
+            client.request("eth_call", rpcParams(callMap, "latest"), stringSerializer)
 
             val body = Kotlinx.DEFAULT.parseToJsonElement(
                 server.takeRequest().bodyText,
@@ -163,7 +188,7 @@ private fun httpSpecificTests() = funSpec {
             class CustomBag(val x: Int)
 
             val ex = try {
-                client.request("eth_call", arrayOf(CustomBag(1)), stringSerializer)
+                client.request("eth_call", rpcParams(CustomBag(1)), stringSerializer)
                 throw AssertionError("Expected IllegalArgumentException")
             } catch (e: IllegalArgumentException) {
                 e
@@ -174,7 +199,7 @@ private fun httpSpecificTests() = funSpec {
         test("request(KSerializer<T>) with ByteArray decodes a 0x-prefixed hex string") {
             server.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0xdeadbeef"}""")
 
-            val result = client.request("eth_getCode", emptyArray<Any>(), HexByteArraySerializer)
+            val result = client.request("eth_getCode", RpcParams.EMPTY, HexByteArraySerializer)
 
             result.isSuccess() shouldBe true
             result.unwrap() shouldBe byteArrayOf(0xde.toByte(), 0xad.toByte(), 0xbe.toByte(), 0xef.toByte())
@@ -182,12 +207,12 @@ private fun httpSpecificTests() = funSpec {
 
         test("request(KSerializer<T>) with ByteArray handles empty payloads (\"0x\" / \"\")") {
             server.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0x"}""")
-            val emptyHex = client.request("eth_getCode", emptyArray<Any>(), HexByteArraySerializer)
+            val emptyHex = client.request("eth_getCode", RpcParams.EMPTY, HexByteArraySerializer)
             emptyHex.isSuccess() shouldBe true
             emptyHex.unwrap() shouldBe ByteArray(0)
 
             server.enqueueJson("""{"jsonrpc":"2.0","id":2,"result":""}""")
-            val emptyString = client.request("eth_getCode", emptyArray<Any>(), HexByteArraySerializer)
+            val emptyString = client.request("eth_getCode", RpcParams.EMPTY, HexByteArraySerializer)
             emptyString.isSuccess() shouldBe true
             emptyString.unwrap() shouldBe ByteArray(0)
         }
@@ -195,7 +220,7 @@ private fun httpSpecificTests() = funSpec {
         test("request(KSerializer<T>) with @Serializable type still uses its KSerializer") {
             server.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0x1111111111111111111111111111111111111111"}""")
 
-            val result = client.request("eth_coinbase", emptyArray<Any>(), SerializableValue.serializer())
+            val result = client.request("eth_coinbase", RpcParams.EMPTY, SerializableValue.serializer())
 
             result.isSuccess() shouldBe true
             result.unwrap() shouldBe SerializableValue("0x1111111111111111111111111111111111111111")
@@ -205,8 +230,8 @@ private fun httpSpecificTests() = funSpec {
             server.enqueueJson(SUCCESSFUL_RESPONSE)
             server.enqueueJson(SUCCESSFUL_RESPONSE)
 
-            client.request("method1", emptyArray<Any>(), stringSerializer)
-            client.request("method2", emptyArray<Any>(), stringSerializer)
+            client.request("method1", RpcParams.EMPTY, stringSerializer)
+            client.request("method2", RpcParams.EMPTY, stringSerializer)
 
             val request1 = server.takeRequest()
             val request2 = server.takeRequest()
@@ -221,7 +246,7 @@ private fun httpSpecificTests() = funSpec {
     context("Subscription tests") {
         test("subscription is not supported") {
             val httpClient = HttpClient("http://localhost:8545", KtorHttpClient())
-            val result = httpClient.subscribe(arrayOf("newHeads"), stringSerializer)
+            val result = httpClient.subscribe(rpcParams("newHeads"), stringSerializer)
 
             result.isFailure() shouldBe true
             val error = result.unwrapError()

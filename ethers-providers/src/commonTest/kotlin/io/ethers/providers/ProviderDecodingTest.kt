@@ -34,6 +34,7 @@ import io.ethers.core.types.transaction.TxDynamicFee
 import io.ethers.providers.types.BatchRpcRequest
 import io.ethers.providers.types.CallFailedError
 import io.ethers.providers.types.PendingTransaction
+import io.ethers.providers.types.RpcParams
 import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.FunSpec
@@ -317,9 +318,9 @@ private class CapturingClient : JsonRpcClient {
     val captured = ArrayList<Pair<String, DeserializationStrategy<*>>>()
 
     /** The parameters and deserializer of each filter poll. */
-    val polls = Channel<Pair<Array<*>, DeserializationStrategy<*>>>(Channel.UNLIMITED)
+    val polls = Channel<Pair<RpcParams, DeserializationStrategy<*>>>(Channel.UNLIMITED)
 
-    override suspend fun <T> request(method: String, params: Array<*>, resultDeserializer: DeserializationStrategy<T>): Result<T, RpcError> {
+    override suspend fun <T> request(method: String, params: RpcParams, resultDeserializer: DeserializationStrategy<T>): Result<T, RpcError> {
         if (method == "eth_getFilterChanges") {
             polls.trySend(params to resultDeserializer)
         } else if (method != "eth_uninstallFilter") {
@@ -330,7 +331,7 @@ private class CapturingClient : JsonRpcClient {
 
     override suspend fun requestBatch(batch: BatchRpcRequest): Boolean = false
 
-    override suspend fun <T : Any> subscribe(params: Array<*>, resultDeserializer: DeserializationStrategy<T>): Result<ChannelReceiver<T>, RpcError> {
+    override suspend fun <T : Any> subscribe(params: RpcParams, resultDeserializer: DeserializationStrategy<T>): Result<ChannelReceiver<T>, RpcError> {
         captured += params[0].toString() to resultDeserializer
         return failure(RpcError(RpcError.CODE_INTERNAL_ERROR, "captured"))
     }

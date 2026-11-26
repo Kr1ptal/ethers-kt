@@ -6,6 +6,7 @@ import kotlinx.serialization.descriptors.buildClassSerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonObject
 
 /**
  * Evaluate JS functions on the relevant EVM hooks.
@@ -14,7 +15,7 @@ import kotlinx.serialization.json.JsonDecoder
  */
 data class JSTracer(
     val code: String,
-    override val config: Map<String, Any?>,
+    override val config: JsonObject,
 ) : Tracer<JSTracer.Result> {
     override val name: String
         get() = code

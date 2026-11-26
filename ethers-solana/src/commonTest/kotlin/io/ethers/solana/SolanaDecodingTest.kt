@@ -7,6 +7,7 @@ import io.ethers.core.failure
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import io.ethers.providers.types.BatchRpcRequest
+import io.ethers.providers.types.RpcParams
 import io.ethers.solana.providers.PendingSolanaTransaction
 import io.ethers.solana.providers.SolanaProvider
 import io.ethers.solana.types.SolanaAddress
@@ -203,14 +204,14 @@ private inline fun outcome(block: () -> Any?): Any = try {
 private class CapturingClient : JsonRpcClient {
     val captured = ArrayList<DeserializationStrategy<*>>()
 
-    override suspend fun <T> request(method: String, params: Array<*>, resultDeserializer: DeserializationStrategy<T>): Result<T, RpcError> {
+    override suspend fun <T> request(method: String, params: RpcParams, resultDeserializer: DeserializationStrategy<T>): Result<T, RpcError> {
         captured += resultDeserializer
         return failure(RpcError(RpcError.CODE_INTERNAL_ERROR, "captured"))
     }
 
     override suspend fun requestBatch(batch: BatchRpcRequest): Boolean = false
 
-    override suspend fun <T : Any> subscribe(params: Array<*>, resultDeserializer: DeserializationStrategy<T>): Result<ChannelReceiver<T>, RpcError> {
+    override suspend fun <T : Any> subscribe(params: RpcParams, resultDeserializer: DeserializationStrategy<T>): Result<ChannelReceiver<T>, RpcError> {
         captured += resultDeserializer
         return failure(RpcError(RpcError.CODE_INTERNAL_ERROR, "captured"))
     }

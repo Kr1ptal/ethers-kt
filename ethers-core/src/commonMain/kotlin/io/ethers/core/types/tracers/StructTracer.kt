@@ -4,6 +4,11 @@ import io.ethers.core.types.Bytes
 import io.ethers.core.types.Hash
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+
+private val NO_OVERRIDES = JsonObject(emptyMap())
 
 /**
  * Default tracer. Cannot be combined with other tracers (e.g. in [MuxTracer]).
@@ -23,12 +28,12 @@ data class StructTracer(
     val enableReturnData: Boolean = false,
     val debug: Boolean = false,
     val limit: Int = 0,
-    val overrides: Map<String, Any> = emptyMap(),
+    val overrides: JsonObject = NO_OVERRIDES,
 ) : AnyTracer<StructTracer.ExecutionResult> {
     override val resultSerializer: KSerializer<ExecutionResult>
         get() = ExecutionResult.serializer()
 
-    override val config: Map<String, Any?> = buildMap {
+    override val config: JsonObject = buildJsonObject {
         if (enableMemory) put("enableMemory", true)
         if (disableStack) put("disableStack", true)
         if (disableStorage) put("disableStorage", true)

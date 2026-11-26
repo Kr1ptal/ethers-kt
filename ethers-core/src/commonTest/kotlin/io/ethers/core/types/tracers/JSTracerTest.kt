@@ -4,16 +4,18 @@ import io.ethers.core.Kotlinx
 import io.kotest.assertions.json.shouldEqualJson
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import org.intellij.lang.annotations.Language
 
 class JSTracerTest : FunSpec({
     val jsTracer = JSTracer(
         "<script></script>",
-        hashMapOf(
-            "config_1" to "string-param",
-            "config_2" to 1L,
-            "config_3" to true,
-        ),
+        buildJsonObject {
+            put("config_1", "string-param")
+            put("config_2", 1L)
+            put("config_3", true)
+        },
     )
 
     test("encode tracer") {

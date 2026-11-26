@@ -11,6 +11,7 @@ import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.Provider
 import io.ethers.providers.RpcError
 import io.ethers.providers.types.BatchRpcRequest
+import io.ethers.providers.types.RpcParams
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -34,7 +35,7 @@ private class ConcurrencyTrackingClient(private val delegate: FakeJsonRpcClient)
 
     override suspend fun <T> request(
         method: String,
-        params: Array<*>,
+        params: RpcParams,
         resultDeserializer: DeserializationStrategy<T>,
     ): Result<T, RpcError> {
         inFlight++
@@ -48,7 +49,7 @@ private class ConcurrencyTrackingClient(private val delegate: FakeJsonRpcClient)
     override suspend fun requestBatch(batch: BatchRpcRequest) = delegate.requestBatch(batch)
 
     override suspend fun <T : Any> subscribe(
-        params: Array<*>,
+        params: RpcParams,
         resultDeserializer: DeserializationStrategy<T>,
     ): Result<ChannelReceiver<T>, RpcError> = delegate.subscribe(params, resultDeserializer)
 

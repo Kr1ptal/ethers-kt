@@ -10,7 +10,6 @@ import io.ethers.core.types.CallRequest
 import io.ethers.core.types.CallRequestSerializer
 import io.ethers.core.types.IntoCallRequest
 import kotlinx.serialization.KSerializer
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.descriptors.buildClassSerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
@@ -27,7 +26,6 @@ data class CallFailedError(val error: String) : ThrowableError
 /**
  * Internal type used for correctly serializing `eth_callMany`/`debug_traceCallMany` request arguments.
  * */
-@Serializable(with = CallManyBundleSerializer::class)
 internal data class CallManyBundle(
     val transactions: List<IntoCallRequest>,
     val blockOverride: BlockOverride? = null,
@@ -36,7 +34,6 @@ internal data class CallManyBundle(
 /**
  * Internal type used for correctly serializing `eth_callMany`/`debug_traceCallMany` request arguments.
  * */
-@Serializable(with = CallManyContextSerializer::class)
 internal data class CallManyContext(
     val blockNumber: BlockId,
     val transactionIndex: Int,

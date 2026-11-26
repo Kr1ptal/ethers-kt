@@ -42,7 +42,7 @@ class ResultJavaSignatureTest : FunSpec({
     }
 
     test("no annotated ethers-common declaration declares a checked exception") {
-        val checked = listOf(FastHex::class.java, Base58::class.java, Hashing::class.java, Class.forName("io.ethers.core.JsonValueConvertersKt"))
+        val checked = listOf(FastHex::class.java, Base58::class.java, Hashing::class.java)
             .flatMap { it.declaredMethods.toList() }
             .flatMap { method ->
                 method.exceptionTypes

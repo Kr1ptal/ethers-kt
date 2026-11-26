@@ -9,7 +9,9 @@ import io.ethers.core.types.Hash
 import io.ethers.providers.bindings.AnvilInstance
 import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.RpcCall
+import io.ethers.providers.types.RpcParams
 import io.ethers.providers.types.RpcRequest
+import io.ethers.providers.types.rpcParams
 import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.builtins.serializer
@@ -27,112 +29,112 @@ class AnvilProvider private constructor(
      * Set the auto-impersonate flag. When enabled, any transaction’s sender will be automatically impersonated.
      * */
     fun setAutoImpersonate(autoImpersonate: Boolean): RpcRequest<Boolean, RpcError> {
-        return RpcCall(client, "anvil_autoImpersonateAccount", arrayOf(autoImpersonate), ACKNOWLEDGED)
+        return RpcCall(client, "anvil_autoImpersonateAccount", rpcParams(autoImpersonate), ACKNOWLEDGED)
     }
 
     /**
      * Modify the balance of an account.
      * */
     fun setBalance(address: Address, balance: BigInteger): RpcRequest<Boolean, RpcError> {
-        return RpcCall(client, "anvil_setBalance", arrayOf(address, FastHex.encodeWithPrefix(balance)), ACKNOWLEDGED)
+        return RpcCall(client, "anvil_setBalance", rpcParams(address, FastHex.encodeWithPrefix(balance)), ACKNOWLEDGED)
     }
 
     /**
      * Modify the code of an account.
      * */
     fun setCode(address: Address, code: Bytes): RpcRequest<Boolean, RpcError> {
-        return RpcCall(client, "anvil_setCode", arrayOf(address, code), ACKNOWLEDGED)
+        return RpcCall(client, "anvil_setCode", rpcParams(address, code), ACKNOWLEDGED)
     }
 
     /**
      * Modify the nonce of an account.
      * */
     fun setNonce(address: Address, nonce: Long): RpcRequest<Boolean, RpcError> {
-        return RpcCall(client, "anvil_setNonce", arrayOf(address, FastHex.encodeWithPrefix(nonce)), ACKNOWLEDGED)
+        return RpcCall(client, "anvil_setNonce", rpcParams(address, FastHex.encodeWithPrefix(nonce)), ACKNOWLEDGED)
     }
 
     /**
      * Modify the storage of an account.
      * */
     fun setStorageAt(address: Address, key: Hash, value: Hash): RpcRequest<Boolean, RpcError> {
-        return RpcCall(client, "anvil_setStorageAt", arrayOf(address, key, value), ACKNOWLEDGED)
+        return RpcCall(client, "anvil_setStorageAt", rpcParams(address, key, value), ACKNOWLEDGED)
     }
 
     /**
      * Set the coinbase address to be used in new blocks.
      * */
     fun setCoinbase(coinbase: Address): RpcRequest<Boolean, RpcError> {
-        return RpcCall(client, "anvil_setCoinbase", arrayOf(coinbase), ACKNOWLEDGED)
+        return RpcCall(client, "anvil_setCoinbase", rpcParams(coinbase), ACKNOWLEDGED)
     }
 
     /**
      * Remove a transaction from the mempool by its [txHash].
      * */
     fun removeMempoolTx(txHash: Hash): RpcRequest<Boolean, RpcError> {
-        return RpcCall(client, "anvil_dropTransaction", arrayOf(txHash), ACKNOWLEDGED)
+        return RpcCall(client, "anvil_dropTransaction", rpcParams(txHash), ACKNOWLEDGED)
     }
 
     /**
      * Remove all transactions from the mempool sent by the given [sender].
      * */
     fun removeMempoolTxsBySender(sender: Address): RpcRequest<Boolean, RpcError> {
-        return RpcCall(client, "anvil_removePoolTransactions", arrayOf(sender), ACKNOWLEDGED)
+        return RpcCall(client, "anvil_removePoolTransactions", rpcParams(sender), ACKNOWLEDGED)
     }
 
     /**
      * Remove all transactions from the mempool.
      * */
     fun removeAllMempoolTxs(): RpcRequest<Boolean, RpcError> {
-        return RpcCall(client, "anvil_dropAllTransactions", emptyArray<Any>(), ACKNOWLEDGED)
+        return RpcCall(client, "anvil_dropAllTransactions", RpcParams.EMPTY, ACKNOWLEDGED)
     }
 
     /**
      * Set the minimum gas price for the node to accept.
      * */
     fun setMinGasPrice(minGasPrice: BigInteger): RpcRequest<Boolean, RpcError> {
-        return RpcCall(client, "anvil_setMinGasPrice", arrayOf(FastHex.encodeWithPrefix(minGasPrice)), ACKNOWLEDGED)
+        return RpcCall(client, "anvil_setMinGasPrice", rpcParams(FastHex.encodeWithPrefix(minGasPrice)), ACKNOWLEDGED)
     }
 
     /**
      * Set the base fee for the next block.
      * */
     fun setNextBlockBaseFee(baseFee: BigInteger): RpcRequest<Boolean, RpcError> {
-        return RpcCall(client, "anvil_setNextBlockBaseFeePerGas", arrayOf(FastHex.encodeWithPrefix(baseFee)), ACKNOWLEDGED)
+        return RpcCall(client, "anvil_setNextBlockBaseFeePerGas", rpcParams(FastHex.encodeWithPrefix(baseFee)), ACKNOWLEDGED)
     }
 
     /**
      * Mine the next block.
      * */
     fun mineNextBlock(): RpcRequest<Boolean, RpcError> {
-        return RpcCall(client, "evm_mine", emptyArray<Any>(), ACKNOWLEDGED)
+        return RpcCall(client, "evm_mine", RpcParams.EMPTY, ACKNOWLEDGED)
     }
 
     /**
      * Return whether automatic block mining is enabled. Can be enabled or disabled using [setAutoMine].
      * */
     fun isAutoMine(): RpcRequest<Boolean, RpcError> {
-        return RpcCall(client, "anvil_getAutomine", emptyArray<Any>(), Boolean.serializer())
+        return RpcCall(client, "anvil_getAutomine", RpcParams.EMPTY, Boolean.serializer())
     }
 
     /**
      * Enable or disable automatic block mining.
      * */
     fun setAutoMine(autoMine: Boolean): RpcRequest<Boolean, RpcError> {
-        return RpcCall(client, "evm_setAutomine", arrayOf(autoMine), ACKNOWLEDGED)
+        return RpcCall(client, "evm_setAutomine", rpcParams(autoMine), ACKNOWLEDGED)
     }
 
     /**
      * Set the block mining interval in [seconds].
      * */
     fun setMineInterval(seconds: Long): RpcRequest<Boolean, RpcError> {
-        return RpcCall(client, "evm_setIntervalMining", arrayOf(FastHex.encodeWithPrefix(seconds)), ACKNOWLEDGED)
+        return RpcCall(client, "evm_setIntervalMining", rpcParams(FastHex.encodeWithPrefix(seconds)), ACKNOWLEDGED)
     }
 
     /**
      * Set the exact timestamp of the next block.
      * */
     fun setNextBlockTimestamp(timestamp: Long): RpcRequest<Boolean, RpcError> {
-        return RpcCall(client, "anvil_setNextBlockTimestamp", arrayOf(FastHex.encodeWithPrefix(timestamp)), ACKNOWLEDGED)
+        return RpcCall(client, "anvil_setNextBlockTimestamp", rpcParams(FastHex.encodeWithPrefix(timestamp)), ACKNOWLEDGED)
     }
 
     /**
@@ -140,14 +142,14 @@ class AnvilProvider private constructor(
      * seconds`.
      */
     fun setBlockTimeInterval(seconds: Long): RpcRequest<Boolean, RpcError> {
-        return RpcCall(client, "anvil_setBlockTimestampInterval", arrayOf(seconds), ACKNOWLEDGED)
+        return RpcCall(client, "anvil_setBlockTimestampInterval", rpcParams(seconds), ACKNOWLEDGED)
     }
 
     /**
      * Jump forward in time by the given amount of time, in [seconds]. Returns the total time adjustment, in seconds.
      * */
     fun elapseBlockTime(seconds: Long): RpcRequest<Long, RpcError> {
-        return RpcCall(client, "evm_increaseTime", arrayOf(FastHex.encodeWithPrefix(seconds)), Long.serializer())
+        return RpcCall(client, "evm_increaseTime", rpcParams(FastHex.encodeWithPrefix(seconds)), Long.serializer())
     }
 
     /**
@@ -157,7 +159,7 @@ class AnvilProvider private constructor(
         return RpcCall(
             client,
             "evm_setBlockGasLimit",
-            arrayOf(FastHex.encodeWithPrefix(gasLimit)),
+            rpcParams(FastHex.encodeWithPrefix(gasLimit)),
             Boolean.serializer(),
         )
     }
@@ -167,7 +169,7 @@ class AnvilProvider private constructor(
      * this state later using [revertSnapshot].
      * */
     fun getSnapshot(): RpcRequest<BigInteger, RpcError> {
-        return RpcCall(client, "evm_snapshot", emptyArray<Any>(), HexBigIntegerSerializer)
+        return RpcCall(client, "evm_snapshot", RpcParams.EMPTY, HexBigIntegerSerializer)
     }
 
     /**
@@ -175,7 +177,7 @@ class AnvilProvider private constructor(
      * [getSnapshot].
      * */
     fun revertSnapshot(snapshotId: BigInteger): RpcRequest<Boolean, RpcError> {
-        return RpcCall(client, "evm_revert", arrayOf(snapshotId), Boolean.serializer())
+        return RpcCall(client, "evm_revert", rpcParams(snapshotId), Boolean.serializer())
     }
 
     /**
@@ -185,7 +187,7 @@ class AnvilProvider private constructor(
         return RpcCall(
             client,
             "anvil_reset",
-            arrayOf(
+            rpcParams(
                 mapOf(
                     "forking" to mapOf(
                         "jsonRpcUrl" to forkUrl,
@@ -203,7 +205,7 @@ class AnvilProvider private constructor(
         return RpcCall(
             client,
             "anvil_reset",
-            arrayOf(
+            rpcParams(
                 mapOf(
                     "forking" to mapOf(
                         "jsonRpcUrl" to forkUrl,
@@ -221,14 +223,14 @@ class AnvilProvider private constructor(
      * Initial state is defined [here](https://hardhat.org/hardhat-network/docs/reference#initial-state).
      * */
     fun resetStateAndDisableForking(): RpcRequest<Boolean, RpcError> {
-        return RpcCall(client, "anvil_reset", emptyArray<Any>(), ACKNOWLEDGED)
+        return RpcCall(client, "anvil_reset", RpcParams.EMPTY, ACKNOWLEDGED)
     }
 
     /**
      * Return the bytes of the complete blockchain state. Can be reimported using [applyBlockchainState].
      * */
     fun dumpBlockchainState(): RpcRequest<Bytes, RpcError> {
-        return RpcCall(client, "anvil_dumpState", emptyArray<Any>(), Bytes.serializer())
+        return RpcCall(client, "anvil_dumpState", RpcParams.EMPTY, Bytes.serializer())
     }
 
     /**
@@ -236,7 +238,7 @@ class AnvilProvider private constructor(
      * previously dumped state. Will overwrite any colliding accounts / storage slots.
      * */
     fun applyBlockchainState(state: Bytes): RpcRequest<Boolean, RpcError> {
-        return RpcCall(client, "anvil_loadState", arrayOf(state), ACKNOWLEDGED)
+        return RpcCall(client, "anvil_loadState", rpcParams(state), ACKNOWLEDGED)
     }
 
     override fun close() {

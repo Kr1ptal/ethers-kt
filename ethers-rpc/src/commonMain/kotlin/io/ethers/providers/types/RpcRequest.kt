@@ -159,7 +159,7 @@ abstract class RpcRequest<T, E : ThrowableError> : PlatformRpcRequest<T, E>() {
 class RpcCall<T>(
     val client: JsonRpcClient,
     val method: String,
-    val params: Array<*>,
+    val params: RpcParams,
     val resultDeserializer: DeserializationStrategy<T>,
 ) : RpcRequest<T, RpcError>() {
     override suspend fun send(): Result<T, RpcError> = client.request(method, params, resultDeserializer)
@@ -167,7 +167,7 @@ class RpcCall<T>(
     override fun batch(batch: BatchRpcRequest): BatchRpcResponse<Result<T, RpcError>> = batch.addRpcCall(this)
 
     override fun toString(): String {
-        return "RpcCall(method='$method', params=${params.contentToString()})"
+        return "RpcCall(method='$method', params=$params)"
     }
 }
 

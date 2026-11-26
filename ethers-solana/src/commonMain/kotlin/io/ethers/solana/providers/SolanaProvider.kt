@@ -9,6 +9,7 @@ import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcClientConfig
 import io.ethers.providers.RpcError
 import io.ethers.providers.WsClient
+import io.ethers.providers.types.RpcParams
 import io.ethers.providers.types.RpcSubscribe
 import io.ethers.providers.types.RpcSubscribeCall
 import io.ethers.solana.providers.middleware.SolanaApi
@@ -93,7 +94,7 @@ class SolanaProvider @JvmOverloads constructor(
     override fun subscribeSlot(): RpcSubscribe<SlotNotification, RpcError> = subscribe("slot", emptyArray<Any>(), SlotNotification.serializer())
     override fun subscribeRoot(): RpcSubscribe<BigInteger, RpcError> = subscribe("root", emptyArray<Any>(), U64Serializer)
 
-    private fun <T : Any> subscribe(method: String, params: Array<*>, deserializer: DeserializationStrategy<T>): RpcSubscribe<T, RpcError> = RpcSubscribeCall(subscriptionClient, arrayOf(method, *params), deserializer)
+    private fun <T : Any> subscribe(method: String, params: Array<*>, deserializer: DeserializationStrategy<T>): RpcSubscribe<T, RpcError> = RpcSubscribeCall(subscriptionClient, RpcParams.ofDynamic(method, *params), deserializer)
 
     override fun close() {
         client.close()

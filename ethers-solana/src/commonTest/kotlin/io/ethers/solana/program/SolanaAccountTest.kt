@@ -10,6 +10,7 @@ import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcClientConfig
 import io.ethers.providers.RpcError
 import io.ethers.providers.types.BatchRpcRequest
+import io.ethers.providers.types.RpcParams
 import io.ethers.solana.codec.BorshReader
 import io.ethers.solana.codec.BorshWriter
 import io.ethers.solana.codec.SolanaAccountArrayField
@@ -67,12 +68,12 @@ private class FakeClient : JsonRpcClient {
     var notifications: List<String>? = null
     private val config = RpcClientConfig().subscriptionDescriptor(SolanaSubscriptionDescriptor)
 
-    override suspend fun <T> request(method: String, params: Array<*>, resultDeserializer: DeserializationStrategy<T>): Result<T, RpcError> {
+    override suspend fun <T> request(method: String, params: RpcParams, resultDeserializer: DeserializationStrategy<T>): Result<T, RpcError> {
         this.params[method] = params.toList()
         return success(Kotlinx.DEFAULT.decodeFromString(resultDeserializer, responses.getValue(method)))
     }
 
-    override suspend fun <T : Any> subscribe(params: Array<*>, resultDeserializer: DeserializationStrategy<T>): Result<ChannelReceiver<T>, RpcError> {
+    override suspend fun <T : Any> subscribe(params: RpcParams, resultDeserializer: DeserializationStrategy<T>): Result<ChannelReceiver<T>, RpcError> {
         val descriptor = config.subscriptionDescriptor.resolve(params)
         this.params[descriptor.subscribeMethod] = descriptor.params.toList()
         val channel = QueueChannel.spscUnbounded<T>()

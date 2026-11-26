@@ -7,6 +7,7 @@ import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.descriptors.buildClassSerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonObject
 
 /**
  * Search for 4byte-identifiers, and collect them for post-processing.
@@ -25,7 +26,7 @@ import kotlinx.serialization.encoding.Encoder
  *	}
  */
 data object FourByteTracer : Tracer<FourByteTracer.Result> {
-    private val EMPTY_CONFIG = emptyMap<String, Any?>()
+    private val EMPTY_CONFIG = JsonObject(emptyMap())
 
     override val name: String
         get() = "4byteTracer"
@@ -33,7 +34,7 @@ data object FourByteTracer : Tracer<FourByteTracer.Result> {
     override val resultSerializer: KSerializer<Result>
         get() = ResultSerializer
 
-    override val config: Map<String, Any?> = EMPTY_CONFIG
+    override val config: JsonObject = EMPTY_CONFIG
 
     /**
      * Result of the 4byte tracer, mapping 4-byte identifiers (with data size suffix) to call counts.

@@ -3,6 +3,7 @@ package io.ethers.core
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
 import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.descriptors.PrimitiveKind
 import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.descriptors.SerialDescriptor
@@ -40,6 +41,14 @@ object HexIntSerializer : KSerializer<Int> {
         return decoder.decodeString().toHexLong().toInt()
     }
 }
+
+/**
+ * A [BigInteger] written as a 0x-prefixed hex quantity, e.g. `"0x14"`. Use it as a field type in a `@Serializable`
+ * class for Ethereum JSON-RPC quantities (wei amounts, gas prices, ...).
+ */
+typealias HexBigInteger =
+    @Serializable(with = HexBigIntegerSerializer::class)
+    BigInteger
 
 /**
  * Field-level [KSerializer] that encodes/decodes an unsigned [BigInteger] as a 0x-prefixed hex string.

@@ -1,12 +1,14 @@
 package io.ethers.providers
 
+import io.ethers.providers.types.RpcParams
+
 /** Protocol-specific subscription rules, configured once in [RpcClientConfig]. */
 fun interface SubscriptionDescriptor {
     /**
      * Resolve a stream name and its arguments into wire-level routing. Called once per subscription;
-     * the result is retained across reconnections. Implementations should snapshot [params].
+     * the result is retained across reconnections.
      */
-    fun resolve(params: Array<*>): Resolved
+    fun resolve(params: RpcParams): Resolved
 
     /**
      * Methods, wire parameters and completion rules for one subscription.
@@ -20,7 +22,7 @@ fun interface SubscriptionDescriptor {
         val subscribeMethod: String,
         val unsubscribeMethod: String,
         val notificationMethod: String,
-        val params: Array<*>,
+        val params: RpcParams,
         val isTerminal: (Any) -> Boolean = { false },
     )
 
