@@ -6,8 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 <!--
-Notes for the next release go under a "## [Unreleased]" heading placed right below this comment. The Release workflow
-turns that heading into the version and date, and fails if it is missing. See the Releasing section of CONTRIBUTING.md.
+The Release workflow adds the heading of a release. It turns a "## [Unreleased]" heading placed right below this
+comment into the version and date, or adds an empty section to fill in on the release pull request. See the Releasing
+section of CONTRIBUTING.md.
 
 Release version and date:
 ## [MAJOR.MINOR.PATCH](link_to_tag)- <yyyy-mm-dd>

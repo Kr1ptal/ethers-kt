@@ -1,19 +1,20 @@
 #!/usr/bin/env bash
 # Rewrites the version references that change during a release.
 #
-#   scripts/release-version.sh release <version>
-#       Sets VERSION_NAME and the README dependency examples, and turns the "## [Unreleased]" section of
-#       CHANGELOG.md into the section of that version, dated today (UTC).
-#   scripts/release-version.sh snapshot <version>-SNAPSHOT
-#       Sets VERSION_NAME and the snapshot jar name in the abigen plugin README.
+#   scripts/release-version.sh release <version> <next-version>-SNAPSHOT
+#       Prepares the single commit that releases <version>. It sets the README dependency examples to <version> and
+#       gives CHANGELOG.md a section for it, dated today (UTC): the "## [Unreleased]" section if there is one, else a
+#       new, empty section. VERSION_NAME moves straight to the next snapshot, since the release itself is built with
+#       -PVERSION_NAME=<version>.
 #   scripts/release-version.sh notes <version>|Unreleased
-#       Prints the body of that CHANGELOG.md section. Fails if the section is missing or empty.
+#       Prints the body of that CHANGELOG.md section. Exits with 3 if the section is missing, 4 if there are several,
+#       and 5 if it is empty.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
 usage() {
-    echo "usage: $0 release <version> | snapshot <version>-SNAPSHOT | notes <version>|Unreleased" >&2
+    echo "usage: $0 release <version> <next-version>-SNAPSHOT | notes <version>|Unreleased" >&2
     exit 64
 }
 
@@ -54,35 +55,44 @@ notes() {
 mode=${1:-}
 case "$mode" in
     release)
-        [[ $# -eq 2 ]] || usage
-        version=$2
+        [[ $# -eq 3 ]] || usage
+        version=$2 next=$3
         [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "error: invalid release version '$version'" >&2; exit 1; }
+        [[ $next =~ ^[0-9]+\.[0-9]+\.[0-9]+-SNAPSHOT$ ]] || { echo "error: invalid snapshot version '$next'" >&2; exit 1; }
         if grep -qF "## [$version]" CHANGELOG.md; then
             echo "error: CHANGELOG.md already has a '## [$version]' section" >&2
             exit 1
         fi
-        notes Unreleased >/dev/null
         date=$(date -u +%Y-%m-%d)
-        export VERSION=$version DATE=$date
+        export VERSION=$version NEXT=$next DATE=$date
 
-        replace gradle.properties 's/^VERSION_NAME=.*/VERSION_NAME=$ENV{VERSION}/' "VERSION_NAME=$version"
+        case "$(grep -c '^## \[Unreleased\]' CHANGELOG.md || true)" in
+            0)
+                # Above the latest release. The digit skips the heading template in the comment at the top.
+                perl -0777 -pi -e 's/^(?=## \[\d)/## [$ENV{VERSION}] - $ENV{DATE}\n\n/m' CHANGELOG.md
+                ;;
+            1)
+                perl -pi -e 's/^## \[Unreleased\].*/## [$ENV{VERSION}] - $ENV{DATE}/' CHANGELOG.md
+                ;;
+            *)
+                echo "error: CHANGELOG.md has more than one '## [Unreleased]' section" >&2
+                exit 1
+                ;;
+        esac
+        if ! grep -qxF "## [$version] - $date" CHANGELOG.md; then
+            echo "error: could not add a '## [$version] - $date' section to CHANGELOG.md" >&2
+            exit 1
+        fi
+
         replace README.md 's/(io\.kriptal\.ethers:ethers-bom:)\d+\.\d+\.\d+(?=")/$1$ENV{VERSION}/g' \
             "io.kriptal.ethers:ethers-bom:$version\""
         for readme in README.md ethers-abigen-plugin/README.md; do
             replace "$readme" 's/(id\("io\.kriptal\.ethers\.abigen-plugin"\) version ")\d+\.\d+\.\d+(?=")/$1$ENV{VERSION}/g' \
                 "id(\"io.kriptal.ethers.abigen-plugin\") version \"$version\""
         done
-        replace CHANGELOG.md 's/^## \[Unreleased\].*/## [$ENV{VERSION}] - $ENV{DATE}/' "## [$version] - $date"
-        ;;
-    snapshot)
-        [[ $# -eq 2 ]] || usage
-        version=$2
-        [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+-SNAPSHOT$ ]] || { echo "error: invalid snapshot version '$version'" >&2; exit 1; }
-        export VERSION=$version
-
-        replace gradle.properties 's/^VERSION_NAME=.*/VERSION_NAME=$ENV{VERSION}/' "VERSION_NAME=$version"
-        replace ethers-abigen-plugin/README.md 's/(ethers-abigen-plugin-)\d+\.\d+\.\d+-SNAPSHOT(?=\.jar)/$1$ENV{VERSION}/g' \
-            "ethers-abigen-plugin-$version.jar"
+        replace gradle.properties 's/^VERSION_NAME=.*/VERSION_NAME=$ENV{NEXT}/' "VERSION_NAME=$next"
+        replace ethers-abigen-plugin/README.md 's/(ethers-abigen-plugin-)\d+\.\d+\.\d+-SNAPSHOT(?=\.jar)/$1$ENV{NEXT}/g' \
+            "ethers-abigen-plugin-$next.jar"
         ;;
     notes)
         [[ $# -eq 2 ]] || usage

@@ -1,14 +1,9 @@
 name: Release
 
-# Cuts a release from master: builds and tests the project, commits the release version (gradle.properties, the README
-# dependency examples and the changelog section), tags it, and starts the next snapshot. Both commits and the tag are
-# pushed together, the release is published to Maven Central and the Gradle Plugin Portal, and a GitHub release is
-# created from its changelog section.
+# Opens the pull request that releases a version. Merging that pull request is the release: publish-release.yml then
+# tags the merge commit, publishes it to Maven Central and the Gradle Plugin Portal, and creates the GitHub release.
 #
-# The release notes are the `## [Unreleased]` section of CHANGELOG.md, which must be on master before this runs.
-#
-# With dry-run, it stops after creating the release commits and tag on the runner: nothing is pushed, published or
-# released. A dry run works from any branch, so changes to this workflow and its scripts can be tried before merging.
+# master only takes changes through a reviewed pull request, so this workflow cannot commit a release there itself.
 on:
   workflow_dispatch:
     inputs:
@@ -20,10 +15,6 @@ on:
         description: Next snapshot version, e.g. 2.3.1-SNAPSHOT (defaults to the next patch)
         type: string
         required: false
-      dry-run:
-        description: Build and verify everything, but don't push, publish, or create a GitHub release
-        type: boolean
-        default: false
 
 concurrency:
   group: release
@@ -33,28 +24,22 @@ permissions:
   contents: read
 
 jobs:
-  release:
-    name: Release ${{ inputs.version }}${{ inputs.dry-run && ' (dry run)' || '' }}
-    # macOS, not ubuntu: the project has Apple targets and Kotlin/Native cannot cross-compile those from Linux.
-    runs-on: macos-latest
+  open-pull-request:
+    name: Open release pull request for ${{ inputs.version }}
+    runs-on: ubuntu-latest
     permissions:
-      contents: write
-    outputs:
-      tag: ${{ steps.versions.outputs.tag }}
+      contents: write # push the release branch
+      pull-requests: write # open the pull request
+      actions: write # start the pull request checks
 
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          persist-credentials: false
 
       - name: Resolve versions
         id: versions
         env:
           INPUT_VERSION: ${{ inputs.version }}
           INPUT_NEXT_SNAPSHOT: ${{ inputs.next-snapshot }}
-          DRY_RUN: ${{ inputs.dry-run }}
-          HAS_RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN != '' }}
         run: |
           version="${INPUT_VERSION#v}"
           if [[ ! $version =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
@@ -66,136 +51,95 @@ jobs:
             echo "::error::Next snapshot version must look like 1.2.4-SNAPSHOT, got '$next'"
             exit 1
           fi
+          if [[ $GITHUB_REF != refs/heads/master ]]; then
+            echo "::error::Releases are cut from master, but this run is on $GITHUB_REF_NAME"
+            exit 1
+          fi
           tag="v$version"
-          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+          branch="release/$tag"
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
             echo "::error::Tag $tag already exists"
             exit 1
           fi
+          if git ls-remote --exit-code --heads origin "refs/heads/$branch" >/dev/null; then
+            echo "::error::Branch $branch already exists. Merge its pull request, or close it and delete the branch to start over"
+            exit 1
+          fi
           if ! grep -q '^VERSION_NAME=.*-SNAPSHOT$' gradle.properties; then
-            echo "::error::$GITHUB_REF_NAME is not on a -SNAPSHOT version"
+            echo "::error::master is not on a -SNAPSHOT version"
             exit 1
-          fi
-          if ! notes="$(scripts/release-version.sh notes Unreleased)"; then
-            echo "::error::Add the release notes to CHANGELOG.md under '## [Unreleased]' before releasing"
-            exit 1
-          fi
-          if [[ $DRY_RUN != true ]]; then
-            if [[ $GITHUB_REF != refs/heads/master ]]; then
-              echo "::error::Releases are cut from master, but this run is on $GITHUB_REF_NAME. Only a dry run works from another branch"
-              exit 1
-            fi
-            if [[ $HAS_RELEASE_TOKEN != true ]]; then
-              echo "::error::The RELEASE_TOKEN secret is not set, see the Releasing section of CONTRIBUTING.md"
-              exit 1
-            fi
           fi
           {
             echo "version=$version"
             echo "next=$next"
             echo "tag=$tag"
-            echo "staging-branch=release-staging/$tag"
+            echo "branch=$branch"
           } >> "$GITHUB_OUTPUT"
-          echo "Releasing $version ($tag), next snapshot $next"
-          printf '## Release notes for %s\n\n%s\n' "$tag" "$notes" >> "$GITHUB_STEP_SUMMARY"
+          echo "Releasing $version ($tag) from $branch, next snapshot $next"
 
-      - uses: ./.github/actions/environment-setup
-
-      - name: Build and test
-        run: ./gradlew build --no-watch-fs --stacktrace
-
-      - name: Commit release, tag, and start next snapshot
+      - name: Commit the release to its branch
+        id: commit
         env:
           VERSION: ${{ steps.versions.outputs.version }}
           NEXT: ${{ steps.versions.outputs.next }}
           TAG: ${{ steps.versions.outputs.tag }}
+          BRANCH: ${{ steps.versions.outputs.branch }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          scripts/release-version.sh release "$VERSION"
+          scripts/release-version.sh release "$VERSION" "$NEXT"
           git add gradle.properties README.md ethers-abigen-plugin/README.md CHANGELOG.md
           git commit -m "release: $TAG"
-          git tag "$TAG"
+          git show --format='%h %s'
 
-          scripts/release-version.sh snapshot "$NEXT"
-          git add gradle.properties ethers-abigen-plugin/README.md
-          git commit -m "release: move to v$NEXT"
+          # Without an "## [Unreleased]" section the changelog section of the release starts out empty.
+          if scripts/release-version.sh notes "$VERSION" > "$RUNNER_TEMP/release-notes.md" 2>/dev/null; then
+            echo "has-notes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has-notes=false" >> "$GITHUB_OUTPUT"
+          fi
 
-          git log --format='%h %s%d' -3
-          git show --format='%n%s' HEAD~1 HEAD
+          git push origin "HEAD:refs/heads/$BRANCH"
 
-      # master only accepts signed commits, and the two commits above are not signed. They are recreated through the
-      # GitHub API, which signs them, on a staging branch that no ruleset covers.
-      - name: Create signed commits on the staging branch
-        id: signed
-        if: ${{ !inputs.dry-run }}
+      - name: Open the pull request
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.versions.outputs.version }}
+          NEXT: ${{ steps.versions.outputs.next }}
           TAG: ${{ steps.versions.outputs.tag }}
-          STAGING_BRANCH: ${{ steps.versions.outputs.staging-branch }}
+          BRANCH: ${{ steps.versions.outputs.branch }}
+          HAS_NOTES: ${{ steps.commit.outputs.has-notes }}
         run: |
-          shas="$(scripts/push-signed-commits.sh "$STAGING_BRANCH" HEAD~2 HEAD)"
-          release_sha="$(sed -n 1p <<<"$shas")"
-          snapshot_sha="$(sed -n 2p <<<"$shas")"
-          git tag --force "$TAG" "$release_sha"
-          echo "snapshot-sha=$snapshot_sha" >> "$GITHUB_OUTPUT"
+          body="$RUNNER_TEMP/pull-request.md"
+          {
+            echo "Merging this pull request releases **$VERSION**: the merge commit is tagged \`$TAG\`, published to Maven Central and the Gradle Plugin Portal, and a GitHub release is created from its changelog section. Closing it without merging cancels the release."
+            echo
+            echo "\`master\` moves straight to \`$NEXT\`. The release itself is built from the tag with \`-PVERSION_NAME=$VERSION\`."
+            echo
+            if [[ $HAS_NOTES == true ]]; then
+              echo "## Release notes"
+              echo
+              echo "As they were when this pull request was opened. Edit them in \`CHANGELOG.md\` on this branch."
+              echo
+              cat "$RUNNER_TEMP/release-notes.md"
+            else
+              echo "## Release notes are missing"
+              echo
+              echo "\`CHANGELOG.md\` had no \`## [Unreleased]\` section, so the \`## [$VERSION]\` section is empty. Write the notes there on this branch, then mark the pull request as ready for review. The \`java-test\` check fails until the section has content."
+            fi
+          } > "$body"
 
-      # RELEASE_TOKEN belongs to an actor that master's rulesets let push without a pull request, which the workflow's
-      # own token cannot do. Unlike a push made with that token, this one starts the workflows triggered by a push to
-      # master, so the new snapshot is deployed by publish-library.yml without being called from here.
-      - name: Push release commits and tag
-        if: ${{ !inputs.dry-run }}
-        env:
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-          TAG: ${{ steps.versions.outputs.tag }}
-          SNAPSHOT_SHA: ${{ steps.signed.outputs.snapshot-sha }}
-        run: >-
-          git
-          -c credential.helper=
-          -c 'credential.helper=!gh auth git-credential'
-          push --atomic origin "$SNAPSHOT_SHA:refs/heads/master" "refs/tags/$TAG"
+          draft=()
+          if [[ $HAS_NOTES != true ]]; then draft=(--draft); fi
+          gh pr create --base master --head "$BRANCH" --title "release: $TAG" --body-file "$body" "${draft[@]}"
 
-      # Also runs after a failure, so a retry does not find the branch of the failed attempt.
-      - name: Delete the staging branch
-        if: ${{ always() && steps.signed.outcome != 'skipped' }}
+      # A pull request opened with the workflow's token does not start other workflows, so its checks, one of which
+      # is required to merge, are started here. Without release notes they would only fail: the push that adds the
+      # notes starts them instead.
+      - name: Start the pull request checks
+        if: steps.commit.outputs.has-notes == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          STAGING_BRANCH: ${{ steps.versions.outputs.staging-branch }}
-        run: gh api --method DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$STAGING_BRANCH" --silent
-
-  publish-release:
-    name: Publish release to Maven Central and Gradle Plugin Portal
-    needs: release
-    if: ${{ !inputs.dry-run }}
-    uses: ./.github/workflows/publish-library.yml
-    with:
-      ref: ${{ needs.release.outputs.tag }}
-      # Already built and tested by the release job; the ref only differs by version strings.
-      run-build: false
-    secrets: inherit
-
-  github-release:
-    name: Create GitHub release
-    needs: [release, publish-release]
-    if: ${{ !inputs.dry-run }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.release.outputs.tag }}
-          persist-credentials: false
-
-      - name: Create GitHub release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.release.outputs.tag }}
-        run: |
-          scripts/release-version.sh notes "${TAG#v}" > "$RUNNER_TEMP/release-notes.md"
-          gh release create "$TAG" \
-            --repo "$GITHUB_REPOSITORY" \
-            --title "$TAG" \
-            --notes-file "$RUNNER_TEMP/release-notes.md" \
-            --verify-tag
+          BRANCH: ${{ steps.versions.outputs.branch }}
+        run: gh workflow run pull-request-checks.yml --ref "$BRANCH"

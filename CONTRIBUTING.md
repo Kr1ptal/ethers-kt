@@ -212,39 +212,38 @@ The project version is `VERSION_NAME` in [gradle.properties](gradle.properties).
 version, and every push to `master` deploys that snapshot to Maven Central
 through [publish-library.yml](.github/workflows/publish-library.yml).
 
-Maintainers cut a release in two steps:
+Maintainers cut a release by merging a release pull request:
 
-1. Write the release notes in [CHANGELOG.md](CHANGELOG.md) under a `## [Unreleased]` heading, placed above the latest
-   release, and get them onto `master`.
-2. Run the [Release workflow](.github/workflows/release.yml) on `master`, from the Actions tab or with
-   `gh workflow run release.yml -f version=2.3.0`.
+1. Run the [Release workflow](.github/workflows/release.yml) on `master`, from the Actions tab or with
+   `gh workflow run release.yml -f version=2.3.0`. It opens a pull request from a `release/v2.3.0` branch that:
+    * sets the dependency examples in the READMEs to `2.3.0`,
+    * gives [CHANGELOG.md](CHANGELOG.md) a `## [2.3.0] - <date>` section,
+    * moves `VERSION_NAME` to the next snapshot. That is the next patch version, unless
+      `-f next-snapshot=3.0.0-SNAPSHOT` says otherwise.
+2. Review the release notes, then merge the pull request. Closing it instead cancels the release.
 
-The workflow then:
+Merging starts [publish-release.yml](.github/workflows/publish-release.yml), which tags the merge commit `v2.3.0`,
+publishes it to Maven Central and the Gradle Plugin Portal, and creates the GitHub release with the changelog section as
+its notes. The push to `master` deploys the new snapshot as usual. If a job fails, re-run the failed jobs of that run.
 
-1. Checks the inputs, and that the changelog has release notes, before anything is built.
-2. Builds and tests the project.
-3. Commits the release version: `gradle.properties`, the dependency examples in the READMEs, and the changelog heading,
-   which becomes `## [2.3.0] - <date>`. It tags that commit `v2.3.0` and commits the next `-SNAPSHOT` version on top.
-   The next snapshot is the next patch version unless `-f next-snapshot=3.0.0-SNAPSHOT` says otherwise.
-4. Pushes both commits and the tag to `master` in a single atomic push. The push to `master` deploys the new snapshot.
-5. Publishes the tag to Maven Central and the Gradle Plugin Portal.
-6. Creates the GitHub release, with the changelog section as its notes.
+### Release notes
 
-Add `-f dry-run=true` to stop after step 3: nothing is pushed, published or released. A dry run also works from a
-branch (`--ref my-branch`), which is how to try out changes to the workflow or to the scripts it uses.
+The notes can be written before or after the pull request is opened:
 
-If publishing fails after the push, re-run the failed jobs of that run. The tag already exists, so the version cannot
-be released a second time. Pushing a `v*` tag by hand publishes nothing.
+* If `CHANGELOG.md` has a `## [Unreleased]` section on `master`, it becomes the section of the release. The pull request
+  shows the notes and its checks start right away.
+* Otherwise the section starts out empty and the pull request is opened as a draft. Write the notes on the release
+  branch, then mark the pull request as ready. The `java-test` check, which is required to merge, fails for a release
+  branch whose changelog section is empty.
 
-### Release token
+### What a release tag contains
 
-`master` only takes signed commits that arrive through a reviewed pull request with passing checks. The workflow
-handles the signatures by creating its two commits through the GitHub API, which signs them. Pushing them straight to
-`master` still needs an actor that the rulesets let through, and the token GitHub gives a workflow is not one.
+`master` cannot hold a release version, because a pull request is squashed into a single commit and that commit has to
+leave `master` on the next snapshot. The release is therefore built from the tag with `-PVERSION_NAME=2.3.0`, and
+`gradle.properties` at a release tag shows the next snapshot. Pass the same property to build a release from its tag
+locally.
 
-The push therefore uses the `RELEASE_TOKEN` repository secret: a fine-grained personal access token of a repository
-admin, limited to this repository, with the `Contents: Read and write` permission. The workflow fails before building
-if the secret is missing.
+Pushing a `v*` tag by hand publishes nothing.
 
 [search-label-type-bug]: https://github.com/Kr1ptal/ethers-kt/issues?q=is%3Aissue+is%3Aopen+label%3A%22type%3A+bug%22
 

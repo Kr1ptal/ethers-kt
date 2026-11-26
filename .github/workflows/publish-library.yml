@@ -1,13 +1,18 @@
 name: Deploy SNAPSHOT and new releases to Maven Central and Gradle Plugin Portal
 
-# Every push to master deploys its snapshot. Releases are deployed by release.yml, which calls this workflow with the
-# release tag. Tag pushes are deliberately not a trigger, so a release can never be deployed twice.
+# Every push to master deploys its snapshot. Releases are deployed by publish-release.yml, which calls this workflow
+# with the release tag and version. Tag pushes are deliberately not a trigger, so a release can never be deployed twice.
 on:
   push:
     branches:
       - master
 
   workflow_dispatch: # Allow manual triggering
+    inputs:
+      version:
+        description: Version to publish, e.g. 2.3.0 when run on the tag v2.3.0 (defaults to the one in gradle.properties)
+        type: string
+        required: false
 
   workflow_call:
     inputs:
@@ -15,10 +20,10 @@ on:
         description: Git ref (tag or commit SHA) to build and publish
         type: string
         required: true
-      run-build:
-        description: Run the full build and tests before publishing; callers that already verified the ref can skip it
-        type: boolean
-        default: true
+      version:
+        description: Version to publish (defaults to the one in gradle.properties)
+        type: string
+        required: false
 
 # Prevent concurrent deployments, except for tagged releases
 concurrency:
@@ -37,11 +42,27 @@ jobs:
           ref: ${{ inputs.ref || github.ref }}
           persist-credentials: false
 
+      # master always carries a -SNAPSHOT version, also in the commit a release is tagged at, so a release is published
+      # by overriding the version. Gradle reads the variable as the VERSION_NAME property in every step below, and it
+      # takes precedence over gradle.properties.
+      - name: Resolve version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          version="${INPUT_VERSION:-$(sed -n 's/^VERSION_NAME=//p' gradle.properties)}"
+          if [[ ! $version =~ ^[0-9]+\.[0-9]+\.[0-9]+(-SNAPSHOT)?$ ]]; then
+            echo "::error::Version must look like 1.2.3 or 1.2.3-SNAPSHOT, got '$version'"
+            exit 1
+          fi
+          if [[ $version == *-SNAPSHOT ]]; then release=false; else release=true; fi
+          echo "ORG_GRADLE_PROJECT_VERSION_NAME=$version" >> "$GITHUB_ENV"
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+          echo "Publishing $version, release: $release"
+
       - uses: ./.github/actions/environment-setup
 
-      # inputs.run-build is unset outside workflow_call, so push and manual runs always build.
       - name: Build project
-        if: inputs.run-build != false
         run: ./gradlew clean build --no-watch-fs --stacktrace
 
       - name: Publish artifacts to staging
@@ -59,20 +80,7 @@ jobs:
           JRELEASER_GPG_PASSPHRASE: ${{ secrets.JRELEASER_GPG_PASSPHRASE }}
         run: ./gradlew jreleaserDeploy --no-watch-fs --stacktrace
 
-      # The Gradle Plugin Portal takes no snapshots. The checked-out version decides, as it does for JReleaser above:
-      # github.ref is the caller's ref when release.yml calls this workflow, so it cannot tell a release apart.
-      - name: Check for a release version
-        id: version
-        run: |
-          version="$(sed -n 's/^VERSION_NAME=//p' gradle.properties)"
-          if [[ -z $version ]]; then
-            echo "::error::gradle.properties has no VERSION_NAME"
-            exit 1
-          fi
-          if [[ $version == *-SNAPSHOT ]]; then release=false; else release=true; fi
-          echo "release=$release" >> "$GITHUB_OUTPUT"
-          echo "Version $version, release: $release"
-
+      # The Gradle Plugin Portal takes no snapshots.
       - name: Publish Gradle Plugins
         if: steps.version.outputs.release == 'true'
         env:
