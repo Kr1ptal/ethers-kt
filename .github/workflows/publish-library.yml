@@ -1,33 +1,47 @@
 name: Deploy SNAPSHOT and new releases to Maven Central and Gradle Plugin Portal
 
+# Every push to master deploys its snapshot. Releases are deployed by release.yml, which calls this workflow with the
+# release tag. Tag pushes are deliberately not a trigger, so a release can never be deployed twice.
 on:
   push:
     branches:
       - master
-    tags:
-      - 'v*' # Also trigger on version tags like v1.2.3
-    
+
   workflow_dispatch: # Allow manual triggering
+
+  workflow_call:
+    inputs:
+      ref:
+        description: Git ref (tag or commit SHA) to build and publish
+        type: string
+        required: true
+      run-build:
+        description: Run the full build and tests before publishing; callers that already verified the ref can skip it
+        type: boolean
+        default: true
 
 # Prevent concurrent deployments, except for tagged releases
 concurrency:
-  group: ${{ startsWith(github.ref,'refs/tags/') && github.ref_name || 'snapshot' }}
-  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+  group: publish-${{ inputs.ref || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'snapshot' }}
+  cancel-in-progress: ${{ !(inputs.ref || startsWith(github.ref, 'refs/tags/')) }}
 
 jobs:
-  deploy-snapshot:
+  deploy:
     # macOS, not ubuntu: the project has Apple targets and Kotlin/Native cannot cross-compile those from Linux,
     # so `build` would fail outright and `publish` would emit no native artifacts.
     runs-on: macos-latest
-    
+
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ inputs.ref || github.ref }}
           persist-credentials: false
 
       - uses: ./.github/actions/environment-setup
 
+      # inputs.run-build is unset outside workflow_call, so push and manual runs always build.
       - name: Build project
+        if: inputs.run-build != false
         run: ./gradlew clean build --no-watch-fs --stacktrace
 
       - name: Publish artifacts to staging
@@ -36,7 +50,7 @@ jobs:
         # which `publish` cannot handle. The preceding `build` step still runs that check with them enabled.
         run: ./gradlew publish -PethersPublishing --no-watch-fs --stacktrace
 
-      - name: Deploy SNAPSHOT to Maven Central
+      - name: Deploy to Maven Central
         env:
           MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
@@ -45,8 +59,22 @@ jobs:
           JRELEASER_GPG_PASSPHRASE: ${{ secrets.JRELEASER_GPG_PASSPHRASE }}
         run: ./gradlew jreleaserDeploy --no-watch-fs --stacktrace
 
+      # The Gradle Plugin Portal takes no snapshots. The checked-out version decides, as it does for JReleaser above:
+      # github.ref is the caller's ref when release.yml calls this workflow, so it cannot tell a release apart.
+      - name: Check for a release version
+        id: version
+        run: |
+          version="$(sed -n 's/^VERSION_NAME=//p' gradle.properties)"
+          if [[ -z $version ]]; then
+            echo "::error::gradle.properties has no VERSION_NAME"
+            exit 1
+          fi
+          if [[ $version == *-SNAPSHOT ]]; then release=false; else release=true; fi
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+          echo "Version $version, release: $release"
+
       - name: Publish Gradle Plugins
-        if: startsWith(github.ref, 'refs/tags/')
+        if: steps.version.outputs.release == 'true'
         env:
           GRADLE_PUBLISH_KEY: ${{ secrets.GRADLE_PUBLISH_KEY }}
           GRADLE_PUBLISH_SECRET: ${{ secrets.GRADLE_PUBLISH_SECRET }}

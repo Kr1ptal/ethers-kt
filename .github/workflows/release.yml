@@ -1,0 +1,201 @@
+name: Release
+
+# Cuts a release from master: builds and tests the project, commits the release version (gradle.properties, the README
+# dependency examples and the changelog section), tags it, and starts the next snapshot. Both commits and the tag are
+# pushed together, the release is published to Maven Central and the Gradle Plugin Portal, and a GitHub release is
+# created from its changelog section.
+#
+# The release notes are the `## [Unreleased]` section of CHANGELOG.md, which must be on master before this runs.
+#
+# With dry-run, it stops after creating the release commits and tag on the runner: nothing is pushed, published or
+# released. A dry run works from any branch, so changes to this workflow and its scripts can be tried before merging.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version, e.g. 2.3.0
+        type: string
+        required: true
+      next-snapshot:
+        description: Next snapshot version, e.g. 2.3.1-SNAPSHOT (defaults to the next patch)
+        type: string
+        required: false
+      dry-run:
+        description: Build and verify everything, but don't push, publish, or create a GitHub release
+        type: boolean
+        default: false
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Release ${{ inputs.version }}${{ inputs.dry-run && ' (dry run)' || '' }}
+    # macOS, not ubuntu: the project has Apple targets and Kotlin/Native cannot cross-compile those from Linux.
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.versions.outputs.tag }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve versions
+        id: versions
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_NEXT_SNAPSHOT: ${{ inputs.next-snapshot }}
+          DRY_RUN: ${{ inputs.dry-run }}
+          HAS_RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN != '' }}
+        run: |
+          version="${INPUT_VERSION#v}"
+          if [[ ! $version =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            echo "::error::Release version must look like 1.2.3, got '$INPUT_VERSION'"
+            exit 1
+          fi
+          next="${INPUT_NEXT_SNAPSHOT:-${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.$((BASH_REMATCH[3] + 1))-SNAPSHOT}"
+          if [[ ! $next =~ ^[0-9]+\.[0-9]+\.[0-9]+-SNAPSHOT$ ]]; then
+            echo "::error::Next snapshot version must look like 1.2.4-SNAPSHOT, got '$next'"
+            exit 1
+          fi
+          tag="v$version"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "::error::Tag $tag already exists"
+            exit 1
+          fi
+          if ! grep -q '^VERSION_NAME=.*-SNAPSHOT$' gradle.properties; then
+            echo "::error::$GITHUB_REF_NAME is not on a -SNAPSHOT version"
+            exit 1
+          fi
+          if ! notes="$(scripts/release-version.sh notes Unreleased)"; then
+            echo "::error::Add the release notes to CHANGELOG.md under '## [Unreleased]' before releasing"
+            exit 1
+          fi
+          if [[ $DRY_RUN != true ]]; then
+            if [[ $GITHUB_REF != refs/heads/master ]]; then
+              echo "::error::Releases are cut from master, but this run is on $GITHUB_REF_NAME. Only a dry run works from another branch"
+              exit 1
+            fi
+            if [[ $HAS_RELEASE_TOKEN != true ]]; then
+              echo "::error::The RELEASE_TOKEN secret is not set, see the Releasing section of CONTRIBUTING.md"
+              exit 1
+            fi
+          fi
+          {
+            echo "version=$version"
+            echo "next=$next"
+            echo "tag=$tag"
+            echo "staging-branch=release-staging/$tag"
+          } >> "$GITHUB_OUTPUT"
+          echo "Releasing $version ($tag), next snapshot $next"
+          printf '## Release notes for %s\n\n%s\n' "$tag" "$notes" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: ./.github/actions/environment-setup
+
+      - name: Build and test
+        run: ./gradlew build --no-watch-fs --stacktrace
+
+      - name: Commit release, tag, and start next snapshot
+        env:
+          VERSION: ${{ steps.versions.outputs.version }}
+          NEXT: ${{ steps.versions.outputs.next }}
+          TAG: ${{ steps.versions.outputs.tag }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          scripts/release-version.sh release "$VERSION"
+          git add gradle.properties README.md ethers-abigen-plugin/README.md CHANGELOG.md
+          git commit -m "release: $TAG"
+          git tag "$TAG"
+
+          scripts/release-version.sh snapshot "$NEXT"
+          git add gradle.properties ethers-abigen-plugin/README.md
+          git commit -m "release: move to v$NEXT"
+
+          git log --format='%h %s%d' -3
+          git show --format='%n%s' HEAD~1 HEAD
+
+      # master only accepts signed commits, and the two commits above are not signed. They are recreated through the
+      # GitHub API, which signs them, on a staging branch that no ruleset covers.
+      - name: Create signed commits on the staging branch
+        id: signed
+        if: ${{ !inputs.dry-run }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.versions.outputs.tag }}
+          STAGING_BRANCH: ${{ steps.versions.outputs.staging-branch }}
+        run: |
+          shas="$(scripts/push-signed-commits.sh "$STAGING_BRANCH" HEAD~2 HEAD)"
+          release_sha="$(sed -n 1p <<<"$shas")"
+          snapshot_sha="$(sed -n 2p <<<"$shas")"
+          git tag --force "$TAG" "$release_sha"
+          echo "snapshot-sha=$snapshot_sha" >> "$GITHUB_OUTPUT"
+
+      # RELEASE_TOKEN belongs to an actor that master's rulesets let push without a pull request, which the workflow's
+      # own token cannot do. Unlike a push made with that token, this one starts the workflows triggered by a push to
+      # master, so the new snapshot is deployed by publish-library.yml without being called from here.
+      - name: Push release commits and tag
+        if: ${{ !inputs.dry-run }}
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          TAG: ${{ steps.versions.outputs.tag }}
+          SNAPSHOT_SHA: ${{ steps.signed.outputs.snapshot-sha }}
+        run: >-
+          git
+          -c credential.helper=
+          -c 'credential.helper=!gh auth git-credential'
+          push --atomic origin "$SNAPSHOT_SHA:refs/heads/master" "refs/tags/$TAG"
+
+      # Also runs after a failure, so a retry does not find the branch of the failed attempt.
+      - name: Delete the staging branch
+        if: ${{ always() && steps.signed.outcome != 'skipped' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STAGING_BRANCH: ${{ steps.versions.outputs.staging-branch }}
+        run: gh api --method DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$STAGING_BRANCH" --silent
+
+  publish-release:
+    name: Publish release to Maven Central and Gradle Plugin Portal
+    needs: release
+    if: ${{ !inputs.dry-run }}
+    uses: ./.github/workflows/publish-library.yml
+    with:
+      ref: ${{ needs.release.outputs.tag }}
+      # Already built and tested by the release job; the ref only differs by version strings.
+      run-build: false
+    secrets: inherit
+
+  github-release:
+    name: Create GitHub release
+    needs: [release, publish-release]
+    if: ${{ !inputs.dry-run }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release.outputs.tag }}
+          persist-credentials: false
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release.outputs.tag }}
+        run: |
+          scripts/release-version.sh notes "${TAG#v}" > "$RUNNER_TEMP/release-notes.md"
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$TAG" \
+            --notes-file "$RUNNER_TEMP/release-notes.md" \
+            --verify-tag

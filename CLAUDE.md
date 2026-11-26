@@ -154,6 +154,12 @@ The project uses Kotest 6 with the Kotest Gradle plugin for test discovery (no J
 - Changes to abigen's generated output must stay multiplatform. The `AbigenCompiler`-based tests only compile the output for the JVM, so `java.math` types, `javaClass` and similar slip through; `:ethers-abigen:macosArm64Test`, which compiles the wrappers generated into `commonTest`, is what catches them
 - Bump the generator's `OUTPUT_VERSION` (`AbiContractBuilder` for abigen, `SolanaProgramBuilder` for Solana IDL bindings) whenever generated output changes, so Gradle invalidates cached plugin results
 
+## Releases
+
+- The project version is `VERSION_NAME` in `gradle.properties`. `master` always carries a `-SNAPSHOT` version.
+- Releases are cut by the `Release` workflow (`.github/workflows/release.yml`). It rewrites the version references through `scripts/release-version.sh`, so a new file that mentions the released version must be added to that script.
+- The workflow takes the release notes from a `## [Unreleased]` section of `CHANGELOG.md`, which is written right before a release. See the Releasing section of `CONTRIBUTING.md`.
+
 ## Code Style Guidelines
 
 1. **Use regular imports, not fully qualified names**: Always use import statements at the top of the file rather than fully qualified class names inline. The only exception is when there's a naming conflict with another class that's already imported in the same file.
