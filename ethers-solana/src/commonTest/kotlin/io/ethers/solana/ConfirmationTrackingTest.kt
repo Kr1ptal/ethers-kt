@@ -44,7 +44,7 @@ class ConfirmationTrackingTest : FunSpec({
     }
 
     test("v1 config survives raw confirmation decoding") {
-        val tx = request().apply {
+        val tx = request().copy {
             priorityFee(bigIntegerOf(5))
             computeUnitLimit(1000)
             loadedAccountsDataSizeLimit(1024)

@@ -11,7 +11,7 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 
 class CallSigningErrorTest : FunSpec({
     test("IncompleteCall names the call that could not be signed") {
-        val call = CallRequest().apply { gas = 21000L }
+        val call = CallRequest { gas = 21000L }
         val error = CallSigningError.IncompleteCall(call)
 
         error.call shouldBe call
@@ -36,7 +36,7 @@ class CallSigningErrorTest : FunSpec({
     }
 
     test("the two failure modes stay distinguishable through asTypeOrNull") {
-        val incomplete: ThrowableError = CallSigningError.IncompleteCall(CallRequest())
+        val incomplete: ThrowableError = CallSigningError.IncompleteCall(CallRequest {})
         val failed: ThrowableError = CallSigningError.SigningFailed(Signer.SigningError("nope"))
 
         incomplete.asTypeOrNull<CallSigningError.IncompleteCall>() shouldBe incomplete

@@ -58,9 +58,10 @@ class ThrowContractTest : FunSpec({
         }
 
         test("a priority fee whose per-unit price overflows u64") {
-            val request = SolanaTransactionRequest().feePayer(payer.publicKey).blockhash(blockhash).instruction(transfer)
+            val request = SolanaTransactionRequest.Builder().feePayer(payer.publicKey).blockhash(blockhash).instruction(transfer)
                 .computeUnitLimit(1L)
                 .priorityFee(BigInteger("20000000000000"))
+                .build()
             for (result in listOf(request.compileLegacy(), request.compileV0(), request.compile())) {
                 val error = result.unwrapError()
                 error.shouldBeInstanceOf<SolanaTransactionError.InvalidMessage>()
@@ -69,9 +70,10 @@ class ThrowContractTest : FunSpec({
         }
 
         test("a v1 priority fee derived from limit and price that overflows u64") {
-            val request = SolanaTransactionRequest().feePayer(payer.publicKey).blockhash(blockhash).instruction(transfer)
+            val request = SolanaTransactionRequest.Builder().feePayer(payer.publicKey).blockhash(blockhash).instruction(transfer)
                 .computeUnitLimit(4_000_000_000L)
                 .computeUnitPrice(BigInteger("10000000000000000"))
+                .build()
             val error = request.compileV1().unwrapError()
             error.shouldBeInstanceOf<SolanaTransactionError.InvalidMessage>()
             error.reason shouldBe SolanaTransactionError.Reason.CONFIG

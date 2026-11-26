@@ -76,7 +76,7 @@ class SolanaSimulationTest : FunSpec({
 
     test("compiled and byte simulations preserve the same complete config") {
         responses["simulateTransaction"] = simulation()
-        val tx = request().apply { blockhash(blockhash) }.compileV0().unwrap()
+        val tx = request().copy { blockhash(blockhash) }.compileV0().unwrap()
         val config = SolanaSimulationConfig(
             commitment = Commitment.FINALIZED,
             replaceRecentBlockhash = true,
@@ -108,7 +108,7 @@ class SolanaSimulationTest : FunSpec({
 
     test("simulation options reach the node and mutually exclusive ones are rejected") {
         responses["simulateTransaction"] = simulation()
-        val tx = request().apply { blockhash(blockhash) }.compileV0().unwrap()
+        val tx = request().copy { blockhash(blockhash) }.compileV0().unwrap()
         val options = SolanaSimulationConfig(
             innerInstructions = true,
             accounts = listOf(alice.publicKey, Programs.SYSTEM),
@@ -187,14 +187,14 @@ class SolanaSimulationTest : FunSpec({
         responses["getLatestBlockhash"] = contextual("""{"blockhash":"$blockhash","lastValidBlockHeight":99}""")
         responses["simulateTransaction"] = simulation(units = 1000)
 
-        val tx = provider.fillTransaction(request().apply { priorityFee(500) }, SolanaTxType.V1).send().unwrap() as SolanaTxV1
+        val tx = provider.fillTransaction(request().copy { priorityFee(500) }, SolanaTxType.V1).send().unwrap() as SolanaTxV1
         tx.config.priorityFee shouldBe bigIntegerOf(500)
         requests.none { it.getValue("method").jsonPrimitive.content == "getRecentPrioritizationFees" } shouldBe true
     }
 
     test("fillTransaction honours values the caller already set") {
         responses["simulateTransaction"] = simulation(units = 1000)
-        val prefilled = request().apply {
+        val prefilled = request().copy {
             blockhash(blockhash)
             computeUnitLimit(50_000)
             computeUnitPrice(7)

@@ -22,7 +22,7 @@ class EnsMiddlewareTest : FunSpec({
         val middleware = EnsMiddleware(Provider(client, 1L))
 
         val result = middleware
-            .call(EnsCallRequest("vitalik.eth", CallRequest().data(Bytes("0x1234"))), BlockId.LATEST, null, null)
+            .call(EnsCallRequest("vitalik.eth", CallRequest.Builder().data(Bytes("0x1234")).build()), BlockId.LATEST, null, null)
             .send()
 
         result.unwrap() shouldBe Bytes("0xdeadbeef")
@@ -50,7 +50,7 @@ class EnsMiddlewareTest : FunSpec({
         val client = FakeJsonRpcClient().enqueue("eth_call", "\"0xdeadbeef\"")
         val middleware = EnsMiddleware(Provider(client, 1L))
 
-        middleware.call(CallRequest().to(to), BlockId.LATEST).send().unwrap() shouldBe Bytes("0xdeadbeef")
+        middleware.call(CallRequest.Builder().to(to).build(), BlockId.LATEST).send().unwrap() shouldBe Bytes("0xdeadbeef")
 
         client.requests.size shouldBe 1
         (client.requests[0].params[0] as CallRequest).to shouldBe to

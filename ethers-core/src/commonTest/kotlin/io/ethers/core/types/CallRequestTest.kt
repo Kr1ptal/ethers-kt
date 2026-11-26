@@ -97,7 +97,7 @@ class CallRequestTest : FunSpec({
     }
 
     test("throws on negative BigInteger assignment") {
-        val request = CallRequest()
+        val request = CallRequest.Builder()
 
         shouldThrowUnit<IllegalArgumentException> { request.gasPrice = -bigIntegerOf(1) }
         shouldThrowUnit<IllegalArgumentException> { request.gasPrice(-bigIntegerOf(1)) }
@@ -307,26 +307,103 @@ class CallRequestTest : FunSpec({
         }
     }
 
-    context("copy constructor") {
-        test("produces equal but distinct instance") {
-            val original = CallRequest {
-                from(Address("0xDAFEA492D9c6733ae3d56b7Ed1ADB60692c98Bc5"))
-                to(Address("0xC4356aF40cc379b15925Fc8C21e52c00F474e8e9"))
-                gas(21_000L)
-                gasPrice(bigIntegerOf(10))
-                gasFeeCap(BigInteger("100"))
-                gasTipCap(bigIntegerOf(1))
-                value(BigInteger("1000"))
-                nonce(1)
-                data(Bytes("0x01"))
-                chainId(1)
-                blobFeeCap(BigInteger("50"))
-                blobVersionedHashes(listOf(Hash("0x2c00f9fd0fcdeb1ccaf7a31d05702b578ea1b8f8feccd2cd63423cdd41e4149c")))
+    context("builder and copies") {
+        val original = CallRequest {
+            from(Address("0xDAFEA492D9c6733ae3d56b7Ed1ADB60692c98Bc5"))
+            to(Address("0xC4356aF40cc379b15925Fc8C21e52c00F474e8e9"))
+            gas(21_000L)
+            gasPrice(bigIntegerOf(10))
+            gasFeeCap(BigInteger("100"))
+            gasTipCap(bigIntegerOf(1))
+            value(BigInteger("1000"))
+            nonce(1)
+            data(Bytes("0x01"))
+            accessList(listOf(AccessList.Item(Address("0xDAFEA492D9c6733ae3d56b7Ed1ADB60692c98Bc5"), emptyList())))
+            chainId(1)
+            blobFeeCap(BigInteger("50"))
+            blobVersionedHashes(listOf(Hash("0x2c00f9fd0fcdeb1ccaf7a31d05702b578ea1b8f8feccd2cd63423cdd41e4149c")))
+        }
+
+        test("toBuilder carries every field over") {
+            val rebuilt = original.toBuilder().build()
+            rebuilt shouldBe original
+            (rebuilt !== original) shouldBe true
+        }
+
+        test("DSL property setters and chained setters build equal requests") {
+            val chained = CallRequest.Builder()
+                .from(original.from)
+                .to(original.to)
+                .gas(original.gas)
+                .gasPrice(original.gasPrice)
+                .gasFeeCap(original.gasFeeCap)
+                .gasTipCap(original.gasTipCap)
+                .value(original.value)
+                .nonce(original.nonce)
+                .data(original.data)
+                .accessList(original.accessList)
+                .chainId(original.chainId)
+                .blobFeeCap(original.blobFeeCap)
+                .blobVersionedHashes(original.blobVersionedHashes)
+                .build()
+
+            val dsl = CallRequest {
+                from = original.from
+                to = original.to
+                gas = original.gas
+                gasPrice = original.gasPrice
+                gasFeeCap = original.gasFeeCap
+                gasTipCap = original.gasTipCap
+                value = original.value
+                nonce = original.nonce
+                data = original.data
+                accessList = original.accessList
+                chainId = original.chainId
+                blobFeeCap = original.blobFeeCap
+                blobVersionedHashes = original.blobVersionedHashes
             }
 
-            val copy = CallRequest(original)
-            copy shouldBe original
-            (copy !== original) shouldBe true
+            chained shouldBe original
+            dsl shouldBe original
+        }
+
+        test("copy changes only the given fields and leaves the original untouched") {
+            val copy = original.copy {
+                gas = 50_000L
+                data = Bytes("0x02")
+            }
+
+            copy.gas shouldBe 50_000L
+            copy.data shouldBe Bytes("0x02")
+            copy.copy {
+                gas = original.gas
+                data = original.data
+            } shouldBe original
+
+            original.gas shouldBe 21_000L
+            original.data shouldBe Bytes("0x01")
+        }
+
+        test("changing a builder after build does not change the built request") {
+            val builder = original.toBuilder()
+            val built = builder.build()
+
+            builder.gas(99_999L).nonce(42).to(null)
+
+            built shouldBe original
+            builder.build().gas shouldBe 99_999L
+        }
+
+        test("empty request has every field unset") {
+            val empty = CallRequest {}
+            empty.from.shouldBeNull()
+            empty.to.shouldBeNull()
+            empty.gas shouldBe -1L
+            empty.nonce shouldBe -1L
+            empty.chainId shouldBe -1L
+            empty.accessList shouldBe emptyList()
+            empty.blobVersionedHashes.shouldBeNull()
+            Kotlinx.DEFAULT.encodeToString(empty) shouldEqualJson "{}"
         }
     }
 

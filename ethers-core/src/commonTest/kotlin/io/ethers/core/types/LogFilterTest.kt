@@ -158,10 +158,8 @@ class LogFilterTest : FunSpec({
     }
 
     context("add address filter") {
-        val logFilter = LogFilter()
-
         test("no address filter") {
-            logFilter.addresses shouldBe null
+            LogFilter {}.addresses shouldBe null
         }
 
         test("add addresses filter") {
@@ -172,42 +170,91 @@ class LogFilterTest : FunSpec({
                 "0xfbBE64481ABC0CEFbA9c41C82944Dd91Cda5bA3F",
             ).map(::Address)
 
-            logFilter.address(addresses)
-            logFilter.addresses shouldBe addresses
+            LogFilter { address(addresses) }.addresses shouldBe addresses
+        }
+
+        test("changing the source collection afterwards does not change the filter") {
+            val addresses = mutableListOf(Address("0xDAFEA492D9c6733ae3d56b7Ed1ADB60692c98Bc5"))
+            val hashes = mutableListOf(Hash("0x2c00f9fd0fcdeb1ccaf7a31d05702b578ea1b8f8feccd2cd63423cdd41e4149c"))
+            val filter = LogFilter {
+                address(addresses)
+                topic1(hashes)
+            }
+
+            addresses.add(Address("0xC4356aF40cc379b15925Fc8C21e52c00F474e8e9"))
+            hashes.clear()
+
+            filter.addresses shouldBe listOf(Address("0xDAFEA492D9c6733ae3d56b7Ed1ADB60692c98Bc5"))
+            filter.topic1 shouldBe listOf(Hash("0x2c00f9fd0fcdeb1ccaf7a31d05702b578ea1b8f8feccd2cd63423cdd41e4149c"))
+        }
+
+        test("changing a vararg array afterwards does not change the filter") {
+            val hashes = arrayOf(Hash("0x2c00f9fd0fcdeb1ccaf7a31d05702b578ea1b8f8feccd2cd63423cdd41e4149c"))
+            val filter = LogFilter.Builder().topic0(*hashes).build()
+
+            hashes[0] = Hash.ZERO
+
+            filter.topic0 shouldBe listOf(Hash("0x2c00f9fd0fcdeb1ccaf7a31d05702b578ea1b8f8feccd2cd63423cdd41e4149c"))
         }
     }
 
     context("LogFilter copying") {
-        test("copy with all fields set") {
-            val original = LogFilter {
-                blockRange(18283547, 18284258)
-                address(
-                    listOf(
-                        Address("0xDAFEA492D9c6733ae3d56b7Ed1ADB60692c98Bc5"),
-                        Address("0xC4356aF40cc379b15925Fc8C21e52c00F474e8e9"),
-                    ),
-                )
+        val original = LogFilter {
+            blockRange(18283547, 18284258)
+            address(
+                listOf(
+                    Address("0xDAFEA492D9c6733ae3d56b7Ed1ADB60692c98Bc5"),
+                    Address("0xC4356aF40cc379b15925Fc8C21e52c00F474e8e9"),
+                ),
+            )
 
-                topic0(Hash("0x2c00f9fd0fcdeb1ccaf7a31d05702b578ea1b8f8feccd2cd63423cdd41e4149c"))
-                topic1(Hash("0x21a92b9ac209df2b952dcbe85dad7355ce3d9389692e7ebc6372a7cc1bc23f9b"))
-                topic2(
-                    Hash("0xdcbb85a830f7fdd245f448152507f1864a34de12b6b6511f419f8a47afb4b54d"),
-                    Hash("0xd634e03a494263d2fbc47bfb89d8748b10fd294e8f92f07ac067e32753372da3"),
-                )
-            }
-
-            LogFilter(original) shouldBe original
+            topic0(Hash("0x2c00f9fd0fcdeb1ccaf7a31d05702b578ea1b8f8feccd2cd63423cdd41e4149c"))
+            topic1(Hash("0x21a92b9ac209df2b952dcbe85dad7355ce3d9389692e7ebc6372a7cc1bc23f9b"))
+            topic2(
+                Hash("0xdcbb85a830f7fdd245f448152507f1864a34de12b6b6511f419f8a47afb4b54d"),
+                Hash("0xd634e03a494263d2fbc47bfb89d8748b10fd294e8f92f07ac067e32753372da3"),
+            )
         }
 
-        test("copy with null addresses and null topics") {
-            val original = LogFilter()
-            original.addresses shouldBe null
-            original.topics shouldBe null
-
-            val copy = LogFilter(original)
+        test("toBuilder with all fields set") {
+            val copy = original.toBuilder().build()
             copy shouldBe original
+            (copy !== original) shouldBe true
+        }
+
+        test("toBuilder with null addresses and null topics") {
+            val empty = LogFilter {}
+            empty.addresses shouldBe null
+            empty.topics shouldBe null
+
+            val copy = empty.toBuilder().build()
+            copy shouldBe empty
             copy.addresses shouldBe null
             copy.topics shouldBe null
+        }
+
+        test("copy changes only the given fields and leaves the original untouched") {
+            val copy = original.copy { topic3(Hash.ZERO) }
+
+            copy.topic3 shouldBe listOf(Hash.ZERO)
+            copy.blocks shouldBe original.blocks
+            copy.addresses shouldBe original.addresses
+            copy.topic0 shouldBe original.topic0
+            original.topic3 shouldBe null
+        }
+
+        test("changing a builder after build does not change the built filter") {
+            val builder = original.toBuilder()
+            val built = builder.build()
+
+            builder.blockRange(1L, 2L).address(Address.ZERO).topic0(Hash.ZERO)
+
+            built shouldBe original
+            builder.build().topic0 shouldBe listOf(Hash.ZERO)
+        }
+
+        test("topics lists all four positions once any is set") {
+            original.topics shouldBe listOf(original.topic0, original.topic1, original.topic2, null)
         }
     }
 
@@ -260,7 +307,7 @@ class LogFilterTest : FunSpec({
         val h2 = Hash("0xdcbb85a830f7fdd245f448152507f1864a34de12b6b6511f419f8a47afb4b54d")
         val hashes = listOf(h1, h2)
 
-        fun assertTopicSet(topics: Array<out Hash>?) {
+        fun assertTopicSet(topics: List<Hash>?) {
             topics!!.size shouldBe 2
             topics[0] shouldBe h1
             topics[1] shouldBe h2
@@ -274,7 +321,7 @@ class LogFilterTest : FunSpec({
 
     context("topic getters") {
         test("topic getters return null when topics is null") {
-            val filter = LogFilter()
+            val filter = LogFilter {}
             filter.topic0 shouldBe null
             filter.topic1 shouldBe null
             filter.topic2 shouldBe null
@@ -329,7 +376,7 @@ class LogFilterTest : FunSpec({
 
     context("equals") {
         test("identity") {
-            val filter = LogFilter()
+            val filter = LogFilter {}
             (filter == filter) shouldBe true
         }
 
@@ -338,7 +385,7 @@ class LogFilterTest : FunSpec({
         }
 
         test("not equal to null or different type") {
-            val filter = LogFilter()
+            val filter = LogFilter {}
             filter.equals(null) shouldBe false
             filter.equals("string") shouldBe false
         }
@@ -351,11 +398,11 @@ class LogFilterTest : FunSpec({
         withData(
             nameFn = { it.first },
             "different blocks" to (LogFilter { blockRange(1L, 100L) } to LogFilter { blockRange(1L, 200L) }),
-            "addresses vs null" to (LogFilter { address(addr1) } to LogFilter()),
-            "null vs addresses" to (LogFilter() to LogFilter { address(addr1) }),
+            "addresses vs null" to (LogFilter { address(addr1) } to LogFilter {}),
+            "null vs addresses" to (LogFilter {} to LogFilter { address(addr1) }),
             "different addresses" to (LogFilter { address(addr1) } to LogFilter { address(addr2) }),
-            "topics vs null" to (LogFilter { topic0(hash1) } to LogFilter()),
-            "null vs topics" to (LogFilter() to LogFilter { topic0(hash1) }),
+            "topics vs null" to (LogFilter { topic0(hash1) } to LogFilter {}),
+            "null vs topics" to (LogFilter {} to LogFilter { topic0(hash1) }),
             "different topics" to (LogFilter { topic0(hash1) } to LogFilter { topic0(hash2) }),
         ) { (_, filters) ->
             (filters.first == filters.second) shouldBe false
@@ -365,7 +412,7 @@ class LogFilterTest : FunSpec({
     context("hashCode") {
         test("equal filters have equal hashCodes") {
             val h = Hash("0x2c00f9fd0fcdeb1ccaf7a31d05702b578ea1b8f8feccd2cd63423cdd41e4149c")
-            val builder: LogFilter.() -> Unit = {
+            val builder: LogFilter.Builder.() -> Unit = {
                 blockRange(1L, 100L)
                 address(Address("0xDAFEA492D9c6733ae3d56b7Ed1ADB60692c98Bc5"))
                 topic0(h)
@@ -374,7 +421,7 @@ class LogFilterTest : FunSpec({
         }
 
         test("empty filter hashCode is consistent") {
-            LogFilter().hashCode() shouldBe LogFilter().hashCode()
+            LogFilter {}.hashCode() shouldBe LogFilter {}.hashCode()
         }
     }
 

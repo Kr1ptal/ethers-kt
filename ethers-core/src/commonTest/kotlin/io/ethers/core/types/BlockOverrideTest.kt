@@ -36,7 +36,7 @@ class BlockOverrideTest : FunSpec({
     }
 
     test("serialization - empty BlockOverride produces empty object") {
-        Kotlinx.DEFAULT.encodeToString(BlockOverride()) shouldEqualJson "{}"
+        Kotlinx.DEFAULT.encodeToString(BlockOverride {}) shouldEqualJson "{}"
     }
 
     test("serialization - only number set") {
@@ -67,21 +67,64 @@ class BlockOverrideTest : FunSpec({
         shouldThrow<IllegalArgumentException> { BlockOverride { baseFee = BigInteger("-1") } }
     }
 
-    context("copy constructor") {
-        test("produces equal but distinct instance") {
-            val original = BlockOverride {
-                number(100L)
-                difficulty(bigIntegerOf(10))
-                time(1000L)
-                gasLimit(30_000_000L)
-                coinbase(Address("0xDAFEA492D9c6733ae3d56b7Ed1ADB60692c98Bc5"))
-                random(Hash("0x2c00f9fd0fcdeb1ccaf7a31d05702b578ea1b8f8feccd2cd63423cdd41e4149c"))
-                baseFee(BigInteger("1000"))
+    context("builder and copies") {
+        val original = BlockOverride {
+            number(100L)
+            difficulty(bigIntegerOf(10))
+            time(1000L)
+            gasLimit(30_000_000L)
+            coinbase(Address("0xDAFEA492D9c6733ae3d56b7Ed1ADB60692c98Bc5"))
+            random(Hash("0x2c00f9fd0fcdeb1ccaf7a31d05702b578ea1b8f8feccd2cd63423cdd41e4149c"))
+            baseFee(BigInteger("1000"))
+        }
+
+        test("toBuilder carries every field over") {
+            val rebuilt = original.toBuilder().build()
+            rebuilt shouldBe original
+            (rebuilt !== original) shouldBe true
+        }
+
+        test("copy changes only the given fields and leaves the original untouched") {
+            val copy = original.copy { time = 2000L }
+
+            copy.time shouldBe 2000L
+            copy.copy { time = original.time } shouldBe original
+            original.time shouldBe 1000L
+        }
+
+        test("changing a builder after build does not change the built override") {
+            val builder = original.toBuilder()
+            val built = builder.build()
+
+            builder.number(200L).coinbase(null)
+
+            built shouldBe original
+            builder.build().number shouldBe 200L
+        }
+
+        test("chained setters and DSL property setters build equal overrides") {
+            val chained = BlockOverride.Builder()
+                .number(original.number)
+                .difficulty(original.difficulty)
+                .time(original.time)
+                .gasLimit(original.gasLimit)
+                .coinbase(original.coinbase)
+                .random(original.random)
+                .baseFee(original.baseFee)
+                .build()
+
+            val dsl = BlockOverride {
+                number = original.number
+                difficulty = original.difficulty
+                time = original.time
+                gasLimit = original.gasLimit
+                coinbase = original.coinbase
+                random = original.random
+                baseFee = original.baseFee
             }
 
-            val copy = BlockOverride(original)
-            copy shouldBe original
-            (copy !== original) shouldBe true
+            chained shouldBe original
+            dsl shouldBe original
         }
     }
 

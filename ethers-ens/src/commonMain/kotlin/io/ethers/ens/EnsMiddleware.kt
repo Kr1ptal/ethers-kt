@@ -28,7 +28,7 @@ import kotlinx.coroutines.coroutineScope
  *
  * ```kotlin
  * val provider = EnsMiddleware(Provider.builder(url).buildAwait().unwrap())
- * provider.call(EnsCallRequest("vitalik.eth").data(callData), BlockId.LATEST).sendAwait()
+ * provider.call(EnsCallRequest("vitalik.eth") { data = callData }, BlockId.LATEST).sendAwait()
  * ```
  *
  * Requests that are not an [EnsCallRequest] are passed through untouched, at no extra cost.

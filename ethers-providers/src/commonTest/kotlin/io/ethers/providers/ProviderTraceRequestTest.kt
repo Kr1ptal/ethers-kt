@@ -36,7 +36,7 @@ private const val CALL_FRAME_JSON =
 
 private fun response(result: String) = """{"jsonrpc":"2.0","id":0,"result":$result}"""
 
-private fun call() = CallRequest().apply {
+private fun call() = CallRequest {
     from = FROM
     to = TO
 }
@@ -97,7 +97,7 @@ class ProviderTraceRequestTest : FunSpec({
                 timeoutMs = 1500,
                 reexec = 64,
                 stateOverrides = StateOverride().apply { put(TO, AccountOverride().nonce(5)) },
-                blockOverrides = BlockOverride().apply { number = 10 },
+                blockOverrides = BlockOverride { number = 10 },
                 txIndex = 3,
             )
             provider.traceCall(call(), BlockId.Number(16), config).send().unwrap()
@@ -179,7 +179,7 @@ class ProviderTraceRequestTest : FunSpec({
         test("bundle, context and tracer config are sent") {
             server.enqueueJson(response("[[$CALL_FRAME_JSON,$CALL_FRAME_JSON]]"))
 
-            val config = TracerConfig(CallTracer(onlyTopCall = true, withLog = true), blockOverrides = BlockOverride().apply { time = 100 })
+            val config = TracerConfig(CallTracer(onlyTopCall = true, withLog = true), blockOverrides = BlockOverride { time = 100 })
             val traces = provider.traceCallMany(BlockId.Number(5), listOf(call(), call()), config, transactionIndex = 2)
                 .send().unwrap()
 
@@ -224,7 +224,7 @@ class ProviderTraceRequestTest : FunSpec({
                 listOf(call(), call()),
                 transactionIndex = 4,
                 stateOverride = StateOverride().apply { put(TO, AccountOverride().nonce(1)) },
-                blockOverride = BlockOverride().apply { number = 20 },
+                blockOverride = BlockOverride { number = 20 },
             ).send().unwrap()
 
             takeRequest().second shouldBe json(

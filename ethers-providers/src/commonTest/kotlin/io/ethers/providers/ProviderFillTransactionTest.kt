@@ -48,7 +48,7 @@ class ProviderFillTransactionTest : FunSpec({
             )
 
             // everything except the blob fee cap is set, so fee history is the only extra request
-            val call = CallRequest()
+            val call = CallRequest.Builder()
                 .from(Address("0x0000000000000000000000000000000000000001"))
                 .to(Address("0x0000000000000000000000000000000000000002"))
                 .gas(21000L)
@@ -59,6 +59,7 @@ class ProviderFillTransactionTest : FunSpec({
                 .blobVersionedHashes(
                     listOf(Hash("0x0100000000000000000000000000000000000000000000000000000000000001")),
                 )
+                .build()
 
             val tx = provider.fillTransaction(call).send().unwrap()
 
@@ -69,7 +70,7 @@ class ProviderFillTransactionTest : FunSpec({
         test("explicit blob fee cap is left untouched") {
             server.enqueueJson("""{"jsonrpc":"2.0","id":0,"error":{"code":-32601,"message":"Method not found"}}""")
 
-            val call = CallRequest()
+            val call = CallRequest.Builder()
                 .from(Address("0x0000000000000000000000000000000000000001"))
                 .to(Address("0x0000000000000000000000000000000000000002"))
                 .gas(21000L)
@@ -81,6 +82,7 @@ class ProviderFillTransactionTest : FunSpec({
                 .blobVersionedHashes(
                     listOf(Hash("0x0100000000000000000000000000000000000000000000000000000000000001")),
                 )
+                .build()
 
             val tx = provider.fillTransaction(call).send().unwrap()
 

@@ -20,7 +20,7 @@ interface TransactionRecovered : Transaction {
     val from: Address
 
     override fun toCallRequest(): CallRequest {
-        return super.toCallRequest().from(from)
+        return callRequestBuilder().from(from).build()
     }
 }
 
@@ -62,27 +62,34 @@ interface Transaction : IntoCallRequest {
     }
 
     override fun toCallRequest(): CallRequest {
-        val tx = this
-        return CallRequest {
-            to(tx.to)
-            value(tx.value)
-            nonce(tx.nonce)
-            gas(tx.gas)
-
-            if (tx.type == TxType.Legacy) {
-                gasPrice(tx.gasPrice)
-            } else {
-                gasTipCap(tx.gasTipCap)
-                gasFeeCap(tx.gasFeeCap)
-            }
-
-            data(tx.data)
-            chainId(tx.chainId)
-            accessList(tx.accessList)
-            blobFeeCap(tx.blobFeeCap)
-            blobVersionedHashes(tx.blobVersionedHashes)
-        }
+        return callRequestBuilder().build()
     }
+}
+
+/**
+ * Create a [CallRequest.Builder] holding the fields of **this** transaction, so implementations can add their own
+ * fields before building a single [CallRequest].
+ * */
+internal fun Transaction.callRequestBuilder(): CallRequest.Builder {
+    val builder = CallRequest.Builder()
+        .to(to)
+        .value(value)
+        .nonce(nonce)
+        .gas(gas)
+
+    if (type == TxType.Legacy) {
+        builder.gasPrice(gasPrice)
+    } else {
+        builder.gasTipCap(gasTipCap)
+        builder.gasFeeCap(gasFeeCap)
+    }
+
+    return builder
+        .data(data)
+        .chainId(chainId)
+        .accessList(accessList)
+        .blobFeeCap(blobFeeCap)
+        .blobVersionedHashes(blobVersionedHashes)
 }
 
 /**

@@ -670,7 +670,7 @@ Reference: [sol4k a166edd854a7198553fdafe9a5051a400d70b121](https://github.com/s
 | Unit conversion / fee estimation | `SolUnit`, `SolanaTransaction.estimateFee` |
 | Read a transaction's compute budget, any version | `computeUnitLimit`, `computeUnitPrice`, `priorityFee`, `heapSize`, `loadedAccountsDataSizeLimit` |
 | Read any transaction the same way, built or fetched | `SolanaTransaction`, implemented by `SolanaTransactionCompiled` and `SolanaRPCTransaction` |
-| Turn any transaction back into an editable request | `SolanaTransaction.toRequest`, `SolanaApi.decompileTransaction` |
+| Turn any transaction back into a request | `SolanaTransaction.toRequest`, `SolanaApi.decompileTransaction` |
 | Resolve a transaction's account indices to addresses and flags | `SolanaTransaction.resolveAccounts` |
 | Every documented JSON-RPC method and subscription | `SolanaApi` / `SolanaProvider` |
 | Submit and wait for confirmation | `sendTransaction`, `PendingSolanaTransaction`, `SignatureStatus`, `SolanaSendConfig` |
@@ -702,7 +702,8 @@ RPC coverage: `getAccountInfo`, `getBalance`, `getEpochInfo`, `getFeeForMessage`
   RPC result, with nullable logs supported.
 - Choose `SolanaTxLegacy.compile`, `SolanaTxV0.compile`, or `SolanaTxV1.compile` explicitly. Only v0 exposes lookup-table arguments;
   table contents are supplied by the caller. Automatic table fetching is outside this module's initial RPC coverage.
-- Transactions are immutable; signing builders mutate their signature collection. Message changes discard signatures.
+- Transactions and `SolanaTransactionRequest` are immutable; signing builders mutate their signature collection, and
+  `SolanaTransactionRequest.Builder` (or `copy { }`) derives changed requests. Message changes discard signatures.
   Signed transaction construction requires all signatures; partial import/export is explicit. Unknown versions, malformed
   lengths/indices, and invalid signatures are rejected by binary transaction decoders. RPC transaction reads
   are separate and preserve unsupported versions without binary decoding or signature verification.

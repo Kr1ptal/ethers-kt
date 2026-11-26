@@ -53,15 +53,16 @@ class ConstructorCall<T : AbiContract>(
             else -> TracerConfig(PRESTATE_DIFF_TRACER, stateOverrides = stateOverride, blockOverrides = blockOverride)
         }
 
-        val sender = call.from ?: Address.ZERO
-        val nonce = if (call.nonce == -1L) 0L else call.nonce
+        val request = call.build()
+        val sender = request.from ?: Address.ZERO
+        val nonce = if (request.nonce == -1L) 0L else request.nonce
         val deployAddress: Address = Address.computeCreate(sender, nonce)
 
         // deploy via traceCall to get the full state diff, which includes:
         // - the deployed contract bytecode,
         // - contracts that might have been created in the constructor,
         // - storage slots that might have been written in the constructor
-        return provider.traceCall(call, blockId, config)
+        return provider.traceCall(request, blockId, config)
             .mapError(::decodeContractRevert)
             .andThen {
                 val overrides = it.toStateOverride()
@@ -109,15 +110,16 @@ class PayableConstructorCall<T : AbiContract>(
             else -> TracerConfig(PRESTATE_DIFF_TRACER, stateOverrides = stateOverride, blockOverrides = blockOverride)
         }
 
-        val sender = call.from ?: Address.ZERO
-        val nonce = if (call.nonce == -1L) 0L else call.nonce
+        val request = call.build()
+        val sender = request.from ?: Address.ZERO
+        val nonce = if (request.nonce == -1L) 0L else request.nonce
         val deployAddress: Address = Address.computeCreate(sender, nonce)
 
         // deploy via traceCall to get the full state diff, which includes:
         // - the deployed contract bytecode,
         // - contracts that might have been created in the constructor,
         // - storage slots that might have been written in the constructor
-        return provider.traceCall(call, blockId, config)
+        return provider.traceCall(request, blockId, config)
             .mapError(::decodeContractRevert)
             .andThen {
                 val overrides = it.toStateOverride()

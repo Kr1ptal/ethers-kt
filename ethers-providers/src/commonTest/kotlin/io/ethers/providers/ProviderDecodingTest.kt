@@ -84,7 +84,7 @@ class ProviderDecodingTest : FunSpec({
 
     context("a filter polls with the id its creation returned, and decodes changes as its tree decoder did") {
         val filters = listOf<Triple<String, suspend Provider.() -> Unit, (JsonElement) -> Any?>>(
-            Triple("newFilter", { watchLogs(LogFilter()).send() }, { el -> el.jsonArray.map { Kotlinx.DEFAULT.decodeFromJsonElement(Log.serializer(), it) } }),
+            Triple("newFilter", { watchLogs(LogFilter {}).send() }, { el -> el.jsonArray.map { Kotlinx.DEFAULT.decodeFromJsonElement(Log.serializer(), it) } }),
             Triple("newBlockFilter", { watchNewBlockHashes().send() }, { el -> el.jsonArray.map { it.jsonPrimitive.asHash() } }),
             Triple("newPendingTransactionFilter", { watchNewPendingTransactionHashes().send() }, { el -> el.jsonArray.map { it.jsonPrimitive.asHash() } }),
             Triple("newPendingTransactionFilterFull", { watchNewPendingTransactions().send() }, { el -> el.jsonArray.map { Kotlinx.DEFAULT.decodeFromJsonElement(RPCTransaction.serializer(), it) } }),
@@ -126,7 +126,7 @@ private class Case(
 private fun cases(): List<Case> {
     val address = Address("0x0000000000000000000000000000000000000001")
     val hash = Hash("0x${"ab".repeat(32)}")
-    val call = CallRequest().to(address)
+    val call = CallRequest.Builder().to(address).build()
     fun <T : Any> trace(tracer: AnyTracer<T>) = TracerConfig(tracer)
     val quantity: (JsonElement) -> Any? = { it.jsonPrimitive.asHexLong() }
     val bigQuantity: (JsonElement) -> Any? = { it.jsonPrimitive.asHexBigInteger() }
@@ -256,7 +256,7 @@ private fun cases(): List<Case> {
         Case("newPendingTransactions", { subscribeNewPendingTransactionHashes().send() }, { it.jsonPrimitive.asHash() }, HASH_INPUTS),
         Case("newPendingTransactions full", { subscribeNewPendingTransactions().send() }, { Kotlinx.DEFAULT.decodeFromJsonElement(RPCTransaction.serializer(), it) }, listOf(TRANSACTION, "null", "{}")),
         Case("newHeads", { subscribeNewHeads().send() }, { Kotlinx.DEFAULT.decodeFromJsonElement(BlockWithHashes.serializer(), it) }, listOf("null", "{}", "[]")),
-        Case("logs", { subscribeLogs(LogFilter()).send() }, { Kotlinx.DEFAULT.decodeFromJsonElement(Log.serializer(), it) }, listOf(LOG, "null", "{}")),
+        Case("logs", { subscribeLogs(LogFilter {}).send() }, { Kotlinx.DEFAULT.decodeFromJsonElement(Log.serializer(), it) }, listOf(LOG, "null", "{}")),
     )
 }
 

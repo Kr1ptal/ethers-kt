@@ -45,21 +45,21 @@ it composes with other layers and can be used as a drop-in provider.
 val provider = EnsMiddleware(Provider.builder("<URL>").buildAwait().unwrap())
 
 val result = provider
-    .call(EnsCallRequest("vitalik.eth").data(callData), BlockId.LATEST)
+    .call(EnsCallRequest("vitalik.eth") { data = callData }, BlockId.LATEST)
     .sendAwait()
     .unwrap()
 ```
 
-`EnsCallRequest` carries the same chaining builders as `CallRequest`, and can also be built with a lambda or by
-wrapping a request you already have:
+`EnsCallRequest` is immutable, like `CallRequest`. Build it with a lambda, which configures a `CallRequest.Builder`,
+or by wrapping a request you already have:
 
 ```kotlin
-EnsCallRequest("vitalik.eth").data(callData).value(amount)   // chained
-EnsCallRequest("vitalik.eth") { data = callData }            // builder lambda
-CallRequest().data(callData).toEns("vitalik.eth")            // wrap an existing request
+EnsCallRequest("vitalik.eth") { data = callData }       // builder lambda
+CallRequest { data = callData }.toEns("vitalik.eth")    // wrap an existing request
+ensRequest.copy { value = amount }                      // derive a changed copy
 ```
 
-There is deliberately no `to(Address)` builder — the recipient of an `EnsCallRequest` is always its ENS name. Use
+The recipient is always the ENS name: any `to` set on the wrapped request is replaced by the resolved address. Use
 a plain `CallRequest` to target a raw address.
 
 Supported on `call`, `estimateGas`, `createAccessList`, `fillTransaction`, `traceCall`, `callMany` and

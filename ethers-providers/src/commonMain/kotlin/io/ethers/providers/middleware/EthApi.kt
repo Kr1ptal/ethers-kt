@@ -550,9 +550,9 @@ interface EthApi {
      */
     fun getLogs(blockId: BlockId): RpcRequest<List<Log>, RpcError> {
         val filter = when (blockId) {
-            is BlockId.Hash -> LogFilter().atBlock(blockId)
-            is BlockId.Name -> LogFilter().blockRange(blockId, blockId)
-            is BlockId.Number -> LogFilter().blockRange(blockId, blockId)
+            is BlockId.Hash -> LogFilter { atBlock(blockId) }
+            is BlockId.Name -> LogFilter { blockRange(blockId, blockId) }
+            is BlockId.Number -> LogFilter { blockRange(blockId, blockId) }
         }
         return getLogs(filter)
     }
