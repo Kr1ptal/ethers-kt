@@ -69,6 +69,26 @@ private data class Circle(val r: Int) : Shape
 
 private data class NotAnnotated(val x: Int)
 
+/** Writes [Counter.value] and counts its encodings; throws on the encodings listed in [failOn]. */
+private class Counter(var value: String, private val failOn: Set<Int> = emptySet()) {
+    var encodings = 0
+        private set
+
+    val serializer = object : SerializationStrategy<Counter> {
+        override val descriptor = PrimitiveSerialDescriptor("Counter", PrimitiveKind.STRING)
+        override fun serialize(encoder: Encoder, value: Counter) {
+            val n = ++encodings
+            if (n in failOn) throw IllegalStateException("encoding $n fails")
+            encoder.encodeString(value.value)
+        }
+    }
+
+    fun params(): RpcParams = buildRpcParams {
+        add("a")
+        add(this@Counter, serializer)
+    }
+}
+
 class RpcParamsTest : FunSpec({
     val addr = Address("0x00000000000000000000000000000000000000aa")
 
@@ -252,6 +272,78 @@ class RpcParamsTest : FunSpec({
         test("parameters that are already JSON") {
             RpcParams.ofJson(listOf(JsonPrimitive(1), JsonPrimitive("x"), JsonNull)).json() shouldBe """[1,"x",null]"""
             RpcParams.ofJson(emptyList()) shouldBeSameInstanceAs RpcParams.EMPTY
+        }
+    }
+
+    context("the encoding is kept") {
+        test("encode twice encodes once and returns the same array") {
+            val counter = Counter("x")
+            val params = counter.params()
+            val first = params.encode()
+            first.toString() shouldBe """["a","x"]"""
+            params.encode() shouldBeSameInstanceAs first
+            counter.encodings shouldBe 1
+        }
+
+        test("a failed encode keeps nothing, and the next one tries again") {
+            val counter = Counter("x", failOn = setOf(1))
+            val params = counter.params()
+            shouldThrow<IllegalStateException> { params.encode() }.message shouldBe "encoding 1 fails"
+            val second = params.encode()
+            second.toString() shouldBe """["a","x"]"""
+            params.encode() shouldBeSameInstanceAs second
+            counter.encodings shouldBe 2
+        }
+
+        test("toString before any encode fills the cache") {
+            val counter = Counter("x")
+            val params = counter.params()
+            val printed = params.toString()
+            printed shouldBe """["a","x"]"""
+            counter.encodings shouldBe 1
+
+            // encode uses what toString encoded, even after the value changed
+            counter.value = "y"
+            params.encode().toString() shouldBe printed
+            counter.encodings shouldBe 1
+        }
+
+        test("toString of params that fail to encode doesn't throw, and keeps nothing") {
+            val counter = Counter("x", failOn = setOf(1, 2))
+            val params = counter.params()
+            params.toString() shouldContain "unencodable: encoding 1 fails"
+            shouldThrow<IllegalStateException> { params.encode() }.message shouldBe "encoding 2 fails"
+            params.encode().toString() shouldBe """["a","x"]"""
+            counter.encodings shouldBe 3
+        }
+
+        test("a mutable value changed after the first encode is not picked up") {
+            val counter = Counter("x")
+            val params = counter.params()
+            params.encode().toString() shouldBe """["a","x"]"""
+            counter.value = "y"
+            params.encode().toString() shouldBe """["a","x"]"""
+            params.toString() shouldBe """["a","x"]"""
+            // new params pick up the change
+            counter.params().encode().toString() shouldBe """["a","y"]"""
+        }
+
+        test("drop gives new params that encode on their own") {
+            val counter = Counter("x")
+            val params = counter.params()
+            params.encode()
+            val dropped = params.drop(1)
+            dropped.encode().toString() shouldBe """["x"]"""
+            dropped.encode() shouldBeSameInstanceAs dropped.encode()
+            counter.encodings shouldBe 2
+        }
+
+        test("EMPTY and ofJson") {
+            RpcParams.EMPTY.encode() shouldBeSameInstanceAs RpcParams.EMPTY.encode()
+            RpcParams.EMPTY.encode().size shouldBe 0
+            val json = RpcParams.ofJson(listOf(JsonPrimitive(1)))
+            json.encode() shouldBeSameInstanceAs json.encode()
+            json.toString() shouldBe "[1]"
         }
     }
 

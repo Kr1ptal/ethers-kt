@@ -135,6 +135,70 @@ private fun httpSpecificTests() = funSpec {
             body["id"]!!.jsonPrimitive.long shouldBe 1L
         }
 
+        test("params encoded before a request, as a caching wrapper does, are not encoded again to send it") {
+            val counting = CountingSerializer()
+            val params = countedParams(counting, "0xabc", "latest")
+            val key = params.encode()
+
+            server.enqueueJson(SUCCESSFUL_RESPONSE)
+            client.request("eth_getBalance", params, stringSerializer).unwrap() shouldBe "0x1234567"
+
+            val body = Kotlinx.DEFAULT.parseToJsonElement(server.takeRequest(5_000L).bodyText).jsonObject
+            body["params"] shouldBe key
+            counting.encodings shouldBe 1
+        }
+
+        test("a batch sends params encoded before, and a call in two batches is encoded once") {
+            val counting = CountingSerializer()
+            val first = RpcCall(client, "eth_getBalance", countedParams(counting, "0xa"), stringSerializer)
+            val second = RpcCall(client, "eth_getCode", countedParams(counting, "0xb"), stringSerializer)
+            first.params.encode()
+            second.params.encode()
+            counting.encodings shouldBe 2
+
+            server.enqueueJson("""[{"jsonrpc":"2.0","id":1,"result":"0x1"},{"jsonrpc":"2.0","id":2,"result":"0x2"}]""")
+            val batch = BatchRpcRequest(2)
+            val firstResponse = batch.addRpcCall(first)
+            val secondResponse = batch.addRpcCall(second)
+            withTimeout(30.seconds) {
+                batch.send() shouldBe true
+                firstResponse.await().unwrap() shouldBe "0x1"
+                secondResponse.await().unwrap() shouldBe "0x2"
+            }
+            val sent = Kotlinx.DEFAULT.parseToJsonElement(server.takeRequest(5_000L).bodyText).jsonArray
+            sent.map { it.jsonObject["params"] } shouldBe listOf(first.params.encode(), second.params.encode())
+            counting.encodings shouldBe 2
+
+            // the first call again, in a new batch
+            server.enqueueJson("""[{"jsonrpc":"2.0","id":3,"result":"0x3"}]""")
+            val again = BatchRpcRequest(1)
+            val againResponse = again.addRpcCall(first)
+            withTimeout(30.seconds) {
+                again.send() shouldBe true
+                againResponse.await().unwrap() shouldBe "0x3"
+            }
+            val resent = Kotlinx.DEFAULT.parseToJsonElement(server.takeRequest(5_000L).bodyText).jsonArray
+            resent.single().jsonObject["params"] shouldBe first.params.encode()
+            counting.encodings shouldBe 2
+        }
+
+        test("a call sent in two batches without encoding it first is encoded once") {
+            val counting = CountingSerializer()
+            val call = RpcCall(client, "eth_getBalance", countedParams(counting, "0xa"), stringSerializer)
+
+            for (id in 1..2) {
+                server.enqueueJson("""[{"jsonrpc":"2.0","id":$id,"result":"0x$id"}]""")
+                val batch = BatchRpcRequest(1)
+                val response = batch.addRpcCall(call)
+                withTimeout(30.seconds) {
+                    batch.send() shouldBe true
+                    response.await().unwrap() shouldBe "0x$id"
+                }
+                server.takeRequest(5_000L).bodyText shouldContain "\"0xa\""
+            }
+            counting.encodings shouldBe 1
+        }
+
         test("empty response body") {
             server.enqueue(200, "")
 

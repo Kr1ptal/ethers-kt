@@ -4,10 +4,10 @@ import io.ethers.core.Kotlinx
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.SerializationStrategy
 import kotlinx.serialization.builtins.serializer
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.serializer
+import kotlin.concurrent.Volatile
 import kotlin.jvm.JvmField
 import kotlin.jvm.JvmStatic
 import kotlin.jvm.JvmSynthetic
@@ -51,11 +51,23 @@ import kotlin.reflect.typeOf
  * ```
  *
  * [ofJson] takes parameters that are already JSON.
+ *
+ * The parameters are encoded once, on the first [encode] or [toString], and every later [encode] returns that same
+ * JSON, so sending these params again (a retry, or the same call in another batch) doesn't encode them again. This
+ * also lets a client wrapper, such as a response cache, build a key from [encode] and forward the same params to the
+ * client without them being encoded twice. As a consequence, a change to a mutable value passed as a parameter after
+ * that first encoding (for example a `CallRequest` modified after the request was created) is not picked up: build
+ * new params for a changed value.
  */
 class RpcParams @PublishedApi internal constructor(
     private val values: Array<Any?>,
     private val serializers: Array<SerializationStrategy<Any?>>,
 ) {
+    // The first successful encoding. A JsonArray is immutable and is published through a volatile field, so a reader
+    // sees either null or the complete array.
+    @Volatile
+    private var encoded: JsonArray? = null
+
     /** Number of parameters. */
     val size: Int get() = values.size
 
@@ -77,18 +89,29 @@ class RpcParams @PublishedApi internal constructor(
     /**
      * Encode the parameters as the JSON array sent in the request, each with its serializer.
      *
+     * The parameters are encoded once, on the first [encode] or [toString]: that encoding is kept, and every later call
+     * returns that same array without running the serializers again. A mutable value passed as a parameter and changed
+     * after that is therefore not picked up; build new params for a changed value. A failed encode keeps nothing, so a
+     * later call tries again.
+     *
      * Throws whatever a parameter's serializer throws.
      */
-    fun encode(json: Json = Kotlinx.DEFAULT): JsonArray {
+    fun encode(): JsonArray {
+        encoded?.let { return it }
         if (values.isEmpty()) return EMPTY_JSON
 
+        // Callers racing here each encode and publish; their results are equal, and whichever is written last is kept.
+        val json = Kotlinx.DEFAULT
         val elements = ArrayList<JsonElement>(values.size)
         for (i in values.indices) {
             elements.add(json.encodeToJsonElement(serializers[i], values[i]))
         }
-        return JsonArray(elements)
+        val array = JsonArray(elements)
+        encoded = array
+        return array
     }
 
+    /** The encoded JSON, encoding the parameters if they weren't yet, as [encode] does. */
     override fun toString(): String = try {
         encode().toString()
     } catch (e: Exception) {

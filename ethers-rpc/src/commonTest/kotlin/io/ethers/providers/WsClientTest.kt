@@ -18,6 +18,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
 import io.ktor.client.plugins.websocket.WebSockets
+import kotlinx.atomicfu.atomic
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.KSerializer
@@ -86,6 +87,25 @@ val CALL_PARAMS = CallParams(
 fun unencodableParams(vararg leading: String): RpcParams = buildRpcParams {
     for (param in leading) add(param)
     add(1, UnencodableSerializer)
+}
+
+/** Writes its value as a string and counts how often it is encoded, to show how often a client encodes params. */
+class CountingSerializer : SerializationStrategy<String> {
+    private val count = atomic(0)
+
+    val encodings: Int get() = count.value
+
+    override val descriptor = PrimitiveSerialDescriptor("Counting", PrimitiveKind.STRING)
+    override fun serialize(encoder: Encoder, value: String) {
+        count.incrementAndGet()
+        encoder.encodeString(value)
+    }
+}
+
+/** Params of [leading] and then [value], encoded by [counting]. */
+fun countedParams(counting: CountingSerializer, value: String, vararg leading: String): RpcParams = buildRpcParams {
+    for (param in leading) add(param)
+    add(value, counting)
 }
 
 private object UnencodableSerializer : SerializationStrategy<Int> {
@@ -210,6 +230,74 @@ class WsClientTest : FunSpec({
             }
             mockServer.takeReceivedText(DELIVERY_WINDOW.inWholeMilliseconds)!! shouldContain "eth_chainId"
             mockServer.sessionsOpened shouldBe 1
+        }
+
+        test("params encoded before a request, as a caching wrapper does, are not encoded again to send it") {
+            val counting = CountingSerializer()
+            val params = countedParams(counting, "0xabc", "latest")
+            val key = params.encode()
+
+            mockServer.enqueueJson("""{"jsonrpc":"2.0","id":$REQUEST_ID,"result":"0x1"}""")
+            withTimeout(30.seconds) {
+                wsClient.request("eth_getBalance", params, stringSerializer).unwrap() shouldBe "0x1"
+            }
+
+            val sent = Kotlinx.DEFAULT.parseToJsonElement(mockServer.takeReceivedText(DELIVERY_WINDOW.inWholeMilliseconds)!!)
+            sent.jsonObject["params"] shouldBe key
+            counting.encodings shouldBe 1
+        }
+
+        test("a batch sends params encoded before, and a call in two batches is encoded once") {
+            val counting = CountingSerializer()
+            val first = RpcCall(wsClient, "eth_getBalance", countedParams(counting, "0xa"), stringSerializer)
+            val second = RpcCall(wsClient, "eth_getCode", countedParams(counting, "0xb"), stringSerializer)
+            first.params.encode()
+            second.params.encode()
+            counting.encodings shouldBe 2
+
+            mockServer.enqueueJson(
+                """[{"jsonrpc":"2.0","id":1,"result":"0x1"},{"jsonrpc":"2.0","id":2,"result":"0x2"}]""",
+            )
+            val batch = BatchRpcRequest(2)
+            val firstResponse = batch.addRpcCall(first)
+            val secondResponse = batch.addRpcCall(second)
+            withTimeout(30.seconds) {
+                batch.send() shouldBe true
+                firstResponse.await().unwrap() shouldBe "0x1"
+                secondResponse.await().unwrap() shouldBe "0x2"
+            }
+            val sent = Kotlinx.DEFAULT.parseToJsonElement(mockServer.takeReceivedText(DELIVERY_WINDOW.inWholeMilliseconds)!!)
+            sent.jsonArray.map { it.jsonObject["params"] } shouldBe listOf(first.params.encode(), second.params.encode())
+            counting.encodings shouldBe 2
+
+            // the first call again, in a new batch
+            mockServer.enqueueJson("""[{"jsonrpc":"2.0","id":3,"result":"0x3"}]""")
+            val again = BatchRpcRequest(1)
+            val againResponse = again.addRpcCall(first)
+            withTimeout(30.seconds) {
+                again.send() shouldBe true
+                againResponse.await().unwrap() shouldBe "0x3"
+            }
+            val resent = Kotlinx.DEFAULT.parseToJsonElement(mockServer.takeReceivedText(DELIVERY_WINDOW.inWholeMilliseconds)!!)
+            resent.jsonArray.single().jsonObject["params"] shouldBe first.params.encode()
+            counting.encodings shouldBe 2
+        }
+
+        test("a call sent in two batches without encoding it first is encoded once") {
+            val counting = CountingSerializer()
+            val call = RpcCall(wsClient, "eth_getBalance", countedParams(counting, "0xa"), stringSerializer)
+
+            for (id in 1..2) {
+                mockServer.enqueueJson("""[{"jsonrpc":"2.0","id":$id,"result":"0x$id"}]""")
+                val batch = BatchRpcRequest(1)
+                val response = batch.addRpcCall(call)
+                withTimeout(30.seconds) {
+                    batch.send() shouldBe true
+                    response.await().unwrap() shouldBe "0x$id"
+                }
+                mockServer.takeReceivedText(DELIVERY_WINDOW.inWholeMilliseconds)!! shouldContain "\"0xa\""
+            }
+            counting.encodings shouldBe 1
         }
 
         test("a batch call whose params can't be encoded fails only that send, without reconnecting") {
