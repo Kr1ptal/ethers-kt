@@ -139,6 +139,11 @@ class RpcParamsTest : FunSpec({
         test("JSON elements pass through") {
             rpcParams(buildJsonObject { put("a", 1) }, JsonPrimitive("x"), JsonNull).json() shouldBe """[{"a":1},"x",null]"""
         }
+
+        test("a byte array uses kotlinx's own serializer, an array of numbers, unless one is passed") {
+            rpcParams(byteArrayOf(1, 2)).json() shouldBe """[[1,2]]"""
+            buildRpcParams { add(byteArrayOf(1, 2), HexByteArraySerializer) }.json() shouldBe """["0x0102"]"""
+        }
     }
 
     context("a value without a serializer fails where the params are built") {
@@ -162,14 +167,6 @@ class RpcParamsTest : FunSpec({
             val error = shouldThrow<IllegalArgumentException> { rpcParams(bigIntegerOf(1L)) }
             error.message shouldContain "BigInteger"
             shouldThrow<IllegalArgumentException> { rpcParams(bigDecimalOf("1.5")) }
-        }
-
-        test("a bare byte array, which kotlinx would write as an array of numbers") {
-            val error = shouldThrow<IllegalArgumentException> { rpcParams(byteArrayOf(1, 2)) }
-            error.message shouldContain "ByteArray"
-            error.message shouldContain "HexByteArraySerializer"
-            shouldThrow<IllegalArgumentException> { buildRpcParams { add(null as ByteArray?) } }.message shouldContain
-                "HexByteArraySerializer"
         }
     }
 

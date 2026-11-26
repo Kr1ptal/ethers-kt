@@ -1,13 +1,9 @@
 package io.ethers.providers.types
 
 import io.ethers.core.Kotlinx
-import kotlinx.serialization.ExperimentalSerializationApi
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.SerializationStrategy
-import kotlinx.serialization.builtins.ByteArraySerializer
 import kotlinx.serialization.builtins.serializer
-import kotlinx.serialization.descriptors.nonNullOriginal
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -25,7 +21,9 @@ import kotlin.reflect.typeOf
  * [encode] when it sends the request, just as every result is decoded with an explicit deserializer. No parameter is
  * ever converted by looking at its runtime type:
  * - [RpcParamsBuilder.add] with just a value uses the serializer of the value's **static** type, as kotlinx.serialization
- *   defines it. A type without one fails right there, where the params are built.
+ *   defines it. A type without one fails right there, where the params are built. A `ByteArray` uses kotlinx's own
+ *   serializer, which writes an array of numbers, so pass `HexByteArraySerializer` (or use a type with its own
+ *   serializer) for a hex string.
  * - Any other encoding is passed explicitly, with [RpcParamsBuilder.add] and a serializer.
  *
  * ```kotlin
@@ -159,8 +157,7 @@ class RpcParamsBuilder @PublishedApi internal constructor() {
      * Add [value], encoded with the serializer of its static type [T], exactly as kotlinx.serialization defines it.
      *
      * @throws IllegalArgumentException if [T] has no serializer: annotate it with `@Serializable` (the module declaring
-     * it must apply the kotlinx serialization plugin), or pass a serializer with `add(value, serializer)`. Also if [T] is
-     * a `ByteArray`, which kotlinx writes as an array of numbers: pass `HexByteArraySerializer` for a hex string.
+     * it must apply the kotlinx serialization plugin), or pass a serializer with `add(value, serializer)`.
      */
     // hidden from Java, which can't call a reified function and would otherwise bind add(Object) to it
     @JvmSynthetic
@@ -170,7 +167,6 @@ class RpcParamsBuilder @PublishedApi internal constructor() {
         } catch (e: SerializationException) {
             throw noSerializer(typeOf<T>(), e)
         }
-        if (isByteArray(serializer)) throw byteArrayParam(typeOf<T>())
         return add(value, serializer)
     }
 
@@ -190,22 +186,6 @@ internal fun noSerializer(type: KType, cause: SerializationException): IllegalAr
         cause,
     )
 }
-
-/** Whether [serializer] is kotlinx's own byte array serializer, which writes a JSON array of numbers. */
-@PublishedApi
-@OptIn(ExperimentalSerializationApi::class)
-internal fun isByteArray(serializer: KSerializer<*>): Boolean = serializer.descriptor.nonNullOriginal == BYTE_ARRAY_DESCRIPTOR
-
-@PublishedApi
-internal fun byteArrayParam(type: KType): IllegalArgumentException {
-    return IllegalArgumentException(
-        "Cannot add a JSON-RPC param of type $type with its default serializer, which writes an array of numbers " +
-            "where JSON-RPC expects a hex string. Pass HexByteArraySerializer explicitly with " +
-            "add(value, HexByteArraySerializer), or use a type with its own serializer, such as Bytes.",
-    )
-}
-
-private val BYTE_ARRAY_DESCRIPTOR = ByteArraySerializer().descriptor
 
 /**
  * Build [RpcParams] from any number of parameters, each added with [RpcParamsBuilder.add].
