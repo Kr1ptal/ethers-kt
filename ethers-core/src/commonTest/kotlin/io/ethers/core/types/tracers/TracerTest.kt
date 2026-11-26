@@ -1,6 +1,7 @@
 package io.ethers.core.types.tracers
 
 import io.ethers.core.Kotlinx
+import io.ethers.core.toJsonElement
 import io.ethers.core.types.AccountOverride
 import io.ethers.core.types.Address
 import io.ethers.core.types.BlockOverride
@@ -118,6 +119,25 @@ class TracerTest : FunSpec({
                   }
                 }
             """
+        }
+
+        // TracerConfig is generic, so it can't be found by class lookup and must name its serializer through
+        // JsonSerializable. This is how it's encoded when passed as a JSON-RPC param.
+        test("TracerConfig is encoded by toJsonElement") {
+            val config = TracerConfig(CallTracer(onlyTopCall = true, withLog = false), timeoutMs = 5, txIndex = 2)
+
+            config.toJsonElement().toString() shouldEqualJson
+                """{"tracer":"callTracer","tracerConfig":{"onlyTopCall":true,"withLog":false},"timeout":"5ms","txIndex":"0x2"}"""
+        }
+
+        test("TracerConfig with an unnamed tracer is encoded by toJsonElement") {
+            TracerConfig(StructTracer(enableMemory = true)).toJsonElement().toString() shouldEqualJson
+                """{"enableMemory":true}"""
+        }
+
+        test("TracerConfig nested in a collection is encoded by toJsonElement") {
+            listOf(TracerConfig(FourByteTracer)).toJsonElement().toString() shouldEqualJson
+                """[{"tracer":"4byteTracer","tracerConfig":{}}]"""
         }
     }
 

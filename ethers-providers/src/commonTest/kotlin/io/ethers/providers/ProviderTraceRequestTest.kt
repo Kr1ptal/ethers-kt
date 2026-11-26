@@ -43,9 +43,10 @@ private fun call() = CallRequest().apply {
 }
 
 /**
- * Regression tests for RPC methods whose params are library types that `toJsonElement()` cannot encode by class
- * lookup (the generic [TracerConfig], and the internal `CallManyBundle`/`CallManyContext`). Sending these failed with
- * "Cannot serialize JSON value of type ...", and since the params were not JSON, they could not be used as cache keys.
+ * Regression tests for RPC methods whose params are library types that `toJsonElement()` could not encode: the generic
+ * [TracerConfig] (no class lookup possible, fixed by implementing `JsonSerializable`) and the internal
+ * `CallManyBundle`/`CallManyContext` (ethers-providers did not apply the serialization plugin). Sending these failed
+ * with "Cannot serialize JSON value of type ...", and caches that encode `RpcCall.params` failed the same way.
  */
 class ProviderTraceRequestTest : FunSpec({
     lateinit var server: MockServer
@@ -70,7 +71,7 @@ class ProviderTraceRequestTest : FunSpec({
 
     fun json(text: String): JsonElement = Json.parseToJsonElement(text)
 
-    // every param must already be JSON, so callers (e.g. request caches) can encode them without a class lookup
+    // anything that inspects RpcCall.params (e.g. request caches) must be able to encode every param
     fun RpcRequest<*, *>.shouldHaveJsonParams(expected: String) {
         val rpcCall = shouldBeInstanceOf<RpcCall<*>>()
         JsonArray(rpcCall.params.map { it.toJsonElement() }) shouldBe json(expected)
@@ -124,7 +125,7 @@ class ProviderTraceRequestTest : FunSpec({
             )
         }
 
-        test("request params are pre-encoded JSON") {
+        test("request params can be encoded as JSON by toJsonElement") {
             provider.traceCall(call(), BlockId.LATEST, TracerConfig(CallTracer(onlyTopCall = false, withLog = true)))
                 .shouldHaveJsonParams("""[$CALL_JSON,"latest",{"tracer":"callTracer","tracerConfig":{"onlyTopCall":false,"withLog":true}}]""")
         }
@@ -142,7 +143,7 @@ class ProviderTraceRequestTest : FunSpec({
             params shouldBe json("""["$TX_HASH",{"tracer":"callTracer","tracerConfig":{"onlyTopCall":false,"withLog":true},"timeout":"10ms"}]""")
         }
 
-        test("request params are pre-encoded JSON") {
+        test("request params can be encoded as JSON by toJsonElement") {
             provider.traceTransaction(TX_HASH, TracerConfig(FourByteTracer))
                 .shouldHaveJsonParams("""["$TX_HASH",{"tracer":"4byteTracer","tracerConfig":{}}]""")
         }
@@ -169,7 +170,7 @@ class ProviderTraceRequestTest : FunSpec({
             params shouldBe json("""["$BLOCK_HASH",{"tracer":"4byteTracer","tracerConfig":{}}]""")
         }
 
-        test("request params are pre-encoded JSON") {
+        test("request params can be encoded as JSON by toJsonElement") {
             provider.traceBlock(BlockId.LATEST, TracerConfig(FourByteTracer))
                 .shouldHaveJsonParams("""["latest",{"tracer":"4byteTracer","tracerConfig":{}}]""")
         }
@@ -197,7 +198,7 @@ class ProviderTraceRequestTest : FunSpec({
             traces.size shouldBe 2
         }
 
-        test("request params are pre-encoded JSON") {
+        test("request params can be encoded as JSON by toJsonElement") {
             provider.traceCallMany(BlockId.LATEST, listOf(call()), TracerConfig(FourByteTracer)).shouldHaveJsonParams(
                 """[[{"transactions":[$CALL_JSON]}],{"blockNumber":"latest","transactionIndex":-1},{"tracer":"4byteTracer","tracerConfig":{}}]""",
             )
@@ -239,7 +240,7 @@ class ProviderTraceRequestTest : FunSpec({
             withClue("second call reverted") { results[1].isFailure() shouldBe true }
         }
 
-        test("request params are pre-encoded JSON") {
+        test("request params can be encoded as JSON by toJsonElement") {
             provider.callMany(BlockId.LATEST, listOf(call()))
                 .shouldHaveJsonParams("""[{"transactions":[$CALL_JSON]},{"blockNumber":"latest","transactionIndex":-1},null]""")
         }

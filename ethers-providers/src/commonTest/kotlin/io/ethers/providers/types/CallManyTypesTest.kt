@@ -1,6 +1,7 @@
 package io.ethers.providers.types
 
 import io.ethers.core.Kotlinx
+import io.ethers.core.toJsonElement
 import io.ethers.core.types.Address
 import io.ethers.core.types.BlockId
 import io.ethers.core.types.BlockOverride
@@ -68,5 +69,19 @@ class CallManyTypesTest : FunSpec({
         """.trimIndent()
 
         Kotlinx.DEFAULT.encodeToString(CallManyContextSerializer, ctx) shouldEqualJson expected
+    }
+
+    // RPC params are encoded via toJsonElement(), which finds the serializer by class lookup. That only works if the
+    // module applies the serialization plugin, otherwise @Serializable(with = ...) generates nothing.
+    test("CallManyBundle is encoded by class lookup") {
+        val bundle = CallManyBundle(listOf(CallRequest { to = Address.ZERO }), BlockOverride { number = 1 })
+
+        bundle.toJsonElement().toString() shouldEqualJson
+            """{"transactions":[{"to":"0x0000000000000000000000000000000000000000"}],"blockOverride":{"number":"0x1"}}"""
+    }
+
+    test("CallManyContext is encoded by class lookup") {
+        CallManyContext(BlockId.LATEST, 3).toJsonElement().toString() shouldEqualJson
+            """{"blockNumber":"latest","transactionIndex":3}"""
     }
 })

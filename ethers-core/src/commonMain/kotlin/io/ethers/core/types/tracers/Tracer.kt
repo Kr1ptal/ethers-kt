@@ -1,6 +1,7 @@
 package io.ethers.core.types.tracers
 
 import io.ethers.core.FastHex
+import io.ethers.core.JsonSerializable
 import io.ethers.core.toJsonElement
 import io.ethers.core.types.BlockOverride
 import io.ethers.core.types.BlockOverrideSerializer
@@ -73,7 +74,11 @@ data class TracerConfig<T : Any> @JvmOverloads constructor(
     val stateOverrides: StateOverride? = null,
     val blockOverrides: BlockOverride? = null,
     val txIndex: Int = -1,
-)
+) : JsonSerializable<TracerConfig<*>> {
+    // generic, so it can't be found by class lookup when passed as a JSON-RPC param
+    override val jsonSerializer: KSerializer<TracerConfig<*>>
+        get() = TracerConfigSerializer
+}
 
 object TracerConfigSerializer : KSerializer<TracerConfig<*>> {
     override val descriptor = buildClassSerialDescriptor("TracerConfig")

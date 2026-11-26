@@ -34,15 +34,12 @@ import io.ethers.core.types.TxpoolContentFromAddress
 import io.ethers.core.types.TxpoolInspectResult
 import io.ethers.core.types.TxpoolStatus
 import io.ethers.core.types.tracers.TracerConfig
-import io.ethers.core.types.tracers.TracerConfigSerializer
 import io.ethers.core.types.tracers.TxTraceResult
 import io.ethers.core.types.transaction.TransactionUnsigned
 import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.CallFailedError
 import io.ethers.providers.types.CallManyBundle
-import io.ethers.providers.types.CallManyBundleSerializer
 import io.ethers.providers.types.CallManyContext
-import io.ethers.providers.types.CallManyContextSerializer
 import io.ethers.providers.types.FilterPoller
 import io.ethers.providers.types.PendingTransaction
 import io.ethers.providers.types.RpcCall
@@ -179,8 +176,8 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         stateOverride: StateOverride?,
         blockOverride: BlockOverride?,
     ): RpcRequest<List<Result<Bytes, CallFailedError>>, RpcError> {
-        val bundle = CallManyBundle(calls, blockOverride).toJson()
-        val ctx = CallManyContext(blockId, transactionIndex).toJson()
+        val bundle = CallManyBundle(calls, blockOverride)
+        val ctx = CallManyContext(blockId, transactionIndex)
 
         return RpcCall(client, "eth_callMany", arrayOf(bundle, ctx, stateOverride), ListSerializer(CallManyResultSerializer))
     }
@@ -542,7 +539,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         blockId: BlockId,
         config: TracerConfig<T>,
     ): RpcRequest<T, RpcError> {
-        val params = arrayOf(call.toCallRequest(), blockId.id, config.toJson())
+        val params = arrayOf(call.toCallRequest(), blockId.id, config)
         return RpcCall(client, "debug_traceCall", params, config.tracer.resultSerializer)
     }
 
@@ -552,16 +549,16 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         config: TracerConfig<T>,
         transactionIndex: Int,
     ): RpcRequest<List<T>, RpcError> {
-        val bundle = CallManyBundle(calls, config.blockOverrides).toJson()
-        val ctx = CallManyContext(blockId, transactionIndex).toJson()
+        val bundle = CallManyBundle(calls, config.blockOverrides)
+        val ctx = CallManyContext(blockId, transactionIndex)
 
         // one list of traces per bundle, and the call sends a single bundle
         val traces = ListSerializer(ListSerializer(config.tracer.resultSerializer))
-        return RpcCall(client, "debug_traceCallMany", arrayOf(JsonArray(listOf(bundle)), ctx, config.toJson()), traces.map { it.firstOrNull() ?: emptyList() })
+        return RpcCall(client, "debug_traceCallMany", arrayOf(arrayOf(bundle), ctx, config), traces.map { it.firstOrNull() ?: emptyList() })
     }
 
     override fun <T : Any> traceTransaction(txHash: Hash, config: TracerConfig<T>): RpcRequest<T, RpcError> {
-        val params = arrayOf(txHash, config.toJson())
+        val params = arrayOf(txHash, config)
         return RpcCall(client, "debug_traceTransaction", params, config.tracer.resultSerializer)
     }
 
@@ -569,7 +566,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         blockId: BlockId,
         config: TracerConfig<T>,
     ): RpcRequest<List<TxTraceResult<T>>, RpcError> {
-        val params = arrayOf(blockId.id, config.toJson())
+        val params = arrayOf(blockId.id, config)
         val method = when (blockId) {
             is BlockId.Hash -> "debug_traceBlockByHash"
             is BlockId.Number, is BlockId.Name -> "debug_traceBlockByNumber"
@@ -646,16 +643,6 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
     companion object {
         private val BIGINT_TWO = bigIntegerOf(2L)
         private val EMPTY_ARRAY = emptyArray<Any>()
-
-        // These params are encoded with their serializer up front rather than left to `toJsonElement()`, which finds a
-        // serializer by class lookup: that lookup fails for the generic TracerConfig (its companion serializer takes a
-        // type argument) and for the CallMany types (ethers-providers does not apply the serialization plugin). As JSON,
-        // the params also stay readable by anything that inspects RpcCall.params, like request caches.
-        private fun TracerConfig<*>.toJson(): JsonElement = Kotlinx.DEFAULT.encodeToJsonElement(TracerConfigSerializer, this)
-
-        private fun CallManyBundle.toJson(): JsonElement = Kotlinx.DEFAULT.encodeToJsonElement(CallManyBundleSerializer, this)
-
-        private fun CallManyContext.toJson(): JsonElement = Kotlinx.DEFAULT.encodeToJsonElement(CallManyContextSerializer, this)
 
         /**
          * Start building a [Provider] for [url].
