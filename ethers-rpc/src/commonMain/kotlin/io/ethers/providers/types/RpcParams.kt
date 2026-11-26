@@ -23,6 +23,8 @@ import kotlin.reflect.typeOf
  *   collections and maps of them.
  * - [RpcParamsBuilder.add] with an explicit serializer, when the type has no serializer of its own or the lookup
  *   should be skipped.
+ * - [builder], for Java callers: [RpcParamsBuilder.add] with an explicit serializer, which can encode generic
+ *   classes, and [RpcParamsBuilder.addDynamic].
  * - [ofDynamic], for callers that can't capture types (Java, or values only known at runtime).
  * - [ofJson], for parameters that are already JSON.
  */
@@ -80,6 +82,21 @@ class RpcParams @PublishedApi internal constructor(
         @JvmField
         val EMPTY = RpcParams(emptyArray(), emptyArray())
 
+        /**
+         * A builder for callers that can't use [rpcParams] or [buildRpcParams], such as Java. Add each parameter with
+         * its serializer, or with [RpcParamsBuilder.addDynamic] to convert it by its runtime type, then call
+         * [RpcParamsBuilder.build].
+         *
+         * ```java
+         * RpcParams params = RpcParams.builder()
+         *     .add(page, Page.Companion.serializer(Filter.Companion.serializer()))
+         *     .addDynamic("latest")
+         *     .build();
+         * ```
+         */
+        @JvmStatic
+        fun builder(): RpcParamsBuilder = RpcParamsBuilder()
+
         /** Parameters that are already JSON. */
         @JvmStatic
         fun ofJson(params: List<JsonElement>): RpcParams = ofDynamic(*params.toTypedArray())
@@ -98,7 +115,7 @@ class RpcParams @PublishedApi internal constructor(
 }
 
 /**
- * Builds [RpcParams], see [buildRpcParams].
+ * Builds [RpcParams]. Use [buildRpcParams] from Kotlin, or [RpcParams.builder] from Java.
  */
 class RpcParamsBuilder @PublishedApi internal constructor() {
     private val values = ArrayList<Any?>(4)
@@ -138,8 +155,8 @@ class RpcParamsBuilder @PublishedApi internal constructor() {
         return this
     }
 
-    @PublishedApi
-    internal fun build(): RpcParams {
+    /** The parameters added so far, or [RpcParams.EMPTY] if none were. */
+    fun build(): RpcParams {
         if (values.isEmpty()) return RpcParams.EMPTY
         return RpcParams(values.toTypedArray(), serializers.toTypedArray())
     }

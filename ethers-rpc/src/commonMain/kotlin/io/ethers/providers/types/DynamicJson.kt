@@ -45,7 +45,8 @@ internal fun Any?.toDynamicJson(): JsonElement = when (this) {
             // qualifiedName is null for local and anonymous classes, so fall back to simpleName to keep the
             // type identifiable in the message
             "Cannot serialize JSON value of type ${this::class.qualifiedName ?: this::class.simpleName}: " +
-                "it has no kotlinx @Serializable serializer, or it is a generic class, which can't be encoded from " +
+                "it has no kotlinx @Serializable serializer (an annotated class gets one only if the module declaring " +
+                "it applies the kotlinx serialization plugin), or it is a generic class, which can't be encoded from " +
                 "a runtime value. Pass it with its static type or serializer, or as a JsonElement.",
         )
         Kotlinx.DEFAULT.encodeToJsonElement(ser, this)

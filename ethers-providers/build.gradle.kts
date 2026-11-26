@@ -1,6 +1,7 @@
 plugins {
     `project-conventions`
     `jmh-conventions`
+    kotlin("plugin.serialization") version libs.versions.kotlin.get()
     `maven-publish-conventions`
 }
 

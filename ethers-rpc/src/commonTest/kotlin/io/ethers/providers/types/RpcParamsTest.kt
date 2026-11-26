@@ -7,6 +7,7 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.types.shouldBeSameInstanceAs
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
@@ -150,8 +151,10 @@ class RpcParamsTest : FunSpec({
             rpcParams(buildJsonObject { put("a", 1) }, JsonPrimitive("x")).json() shouldBe """[{"a":1},"x"]"""
         }
 
-        test("a class without a serializer fails with a message naming it") {
-            shouldThrow<IllegalArgumentException> { rpcParams(NotAnnotated(1)).encode() }.message shouldContain "NotAnnotated"
+        test("a class without a serializer fails with a message naming it and pointing at the plugin") {
+            val error = shouldThrow<IllegalArgumentException> { rpcParams(NotAnnotated(1)).encode() }
+            error.message shouldContain "NotAnnotated"
+            error.message shouldContain "applies the kotlinx serialization plugin"
         }
     }
 
@@ -172,6 +175,35 @@ class RpcParamsTest : FunSpec({
 
         test("explicit serializer") {
             buildRpcParams { add(listOf(bigIntegerOf(20L)), ListSerializer(HexBigIntegerSerializer)) }.json() shouldBe """[["0x14"]]"""
+        }
+    }
+
+    // only the API Java can call: no inline or reified functions
+    context("builder") {
+        test("explicit serializer for a generic class, and addDynamic") {
+            val page = Page(listOf(Filter(addr, 1)), null)
+            val params = RpcParams.builder()
+                .add(page, Page.serializer(Filter.serializer()))
+                .addDynamic("latest")
+                .addDynamic(byteArrayOf(1, 2))
+                .build()
+            params.size shouldBe 3
+            params[0] shouldBe page
+            params.json() shouldBe
+                """[{"items":[{"who":"0x00000000000000000000000000000000000000aa","limit":1}],"cursor":null},"latest","0x0102"]"""
+        }
+
+        test("an explicit serializer is used even where the static type would pick another") {
+            RpcParams.builder().add(bigIntegerOf(20L), HexBigIntegerSerializer).build().json() shouldBe """["0x14"]"""
+        }
+
+        test("an empty builder gives EMPTY") {
+            RpcParams.builder().build() shouldBeSameInstanceAs RpcParams.EMPTY
+        }
+
+        test("each builder is new") {
+            RpcParams.builder().addDynamic(1).build()
+            RpcParams.builder().build().isEmpty() shouldBe true
         }
     }
 
