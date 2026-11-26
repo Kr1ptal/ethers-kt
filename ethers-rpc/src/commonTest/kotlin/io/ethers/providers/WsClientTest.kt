@@ -1,5 +1,6 @@
 package io.ethers.providers
 
+import io.ethers.core.BigIntegerNumberSerializer
 import io.ethers.core.Kotlinx
 import io.ethers.core.isFailure
 import io.ethers.core.isSuccess
@@ -21,6 +22,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.SerializationStrategy
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.descriptors.PrimitiveKind
@@ -32,7 +34,6 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
-import kotlin.collections.mapOf
 import kotlin.time.Duration.Companion.seconds
 import io.ktor.client.HttpClient as KtorHttpClient
 
@@ -63,6 +64,35 @@ object SerializableValueSerializer : KSerializer<SerializableValue> {
     override fun serialize(encoder: Encoder, value: SerializableValue) = encoder.encodeString(value.value)
 }
 
+/** A call object mixing field types, each written by its own serializer. */
+@Serializable
+class CallParams(
+    val from: SerializableValue,
+    val to: SerializableValue,
+    @Serializable(with = BigIntegerNumberSerializer::class) val value: BigInteger,
+    @Serializable(with = HexByteArraySerializer::class) val data: ByteArray,
+    val gas: Long,
+)
+
+val CALL_PARAMS = CallParams(
+    SerializableValue("0x1111111111111111111111111111111111111111"),
+    SerializableValue("0x2222222222222222222222222222222222222222"),
+    bigIntegerOf(1),
+    byteArrayOf(0xde.toByte(), 0xad.toByte(), 0xbe.toByte(), 0xef.toByte()),
+    21000L,
+)
+
+/** Params whose encoding fails, as a caller's own serializer can when the client encodes a request. */
+fun unencodableParams(vararg leading: String): RpcParams = buildRpcParams {
+    for (param in leading) add(param)
+    add(1, UnencodableSerializer)
+}
+
+private object UnencodableSerializer : SerializationStrategy<Int> {
+    override val descriptor = PrimitiveSerialDescriptor("Unencodable", PrimitiveKind.INT)
+    override fun serialize(encoder: Encoder, value: Int) = throw SerializationException("Unencodable can't be encoded")
+}
+
 class WsClientTest : FunSpec({
     @Suppress("MoveLambdaOutsideParentheses")
     val commonJsonRpcTests = JsonRpcTestFactory.commonTests(
@@ -88,17 +118,10 @@ class WsClientTest : FunSpec({
             mockServer.stop()
         }
 
-        test("complex Map / BigInteger / ByteArray params are emitted as proper JSON") {
+        test("a call object with big number and byte array fields is emitted as proper JSON") {
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0x1234567"}""")
 
-            val callMap = mapOf(
-                "from" to SerializableValue("0x1111111111111111111111111111111111111111"),
-                "to" to SerializableValue("0x2222222222222222222222222222222222222222"),
-                "value" to bigIntegerOf(1),
-                "data" to byteArrayOf(0xde.toByte(), 0xad.toByte(), 0xbe.toByte(), 0xef.toByte()),
-                "gas" to 21000L,
-            )
-            wsClient.request("eth_call", rpcParams(callMap, "latest"), stringSerializer)
+            wsClient.request("eth_call", rpcParams(CALL_PARAMS, "latest"), stringSerializer)
 
             val sentText = mockServer.takeReceivedText()!!
             val body = Kotlinx.DEFAULT.parseToJsonElement(sentText).jsonObject
@@ -190,13 +213,11 @@ class WsClientTest : FunSpec({
         }
 
         test("a batch call whose params can't be encoded fails only that send, without reconnecting") {
-            class Unencodable(val value: Int)
-
             connect()
 
             val batch = BatchRpcRequest(2)
             val valid = batch.addRpcCall(RpcCall(wsClient, "eth_gasPrice", RpcParams.EMPTY, stringSerializer))
-            val invalid = batch.addRpcCall(RpcCall(wsClient, "eth_getBalance", rpcParams(Unencodable(1)), stringSerializer))
+            val invalid = batch.addRpcCall(RpcCall(wsClient, "eth_getBalance", unencodableParams(), stringSerializer))
 
             // the encoding error reaches the sender, and every call of the unsent batch fails instead of waiting
             withTimeout(DELIVERY_WINDOW) {
@@ -211,13 +232,11 @@ class WsClientTest : FunSpec({
         }
 
         test("a subscription whose params can't be encoded fails only that call, without reconnecting") {
-            class Unencodable(val value: Int)
-
             connect()
 
             withTimeout(DELIVERY_WINDOW) {
                 shouldThrow<IllegalArgumentException> {
-                    wsClient.subscribe(rpcParams("newHeads", Unencodable(1)), JsonObject.serializer())
+                    wsClient.subscribe(unencodableParams("newHeads"), JsonObject.serializer())
                 }
             }
 

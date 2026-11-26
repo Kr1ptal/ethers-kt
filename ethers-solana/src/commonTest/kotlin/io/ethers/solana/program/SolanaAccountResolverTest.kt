@@ -22,6 +22,8 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.serialization.DeserializationStrategy
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.jsonPrimitive
 import kotlin.io.encoding.Base64
 
 private val PROGRAM = SolanaAddress(ByteArray(32) { 9 })
@@ -55,8 +57,7 @@ private class AccountsClient : JsonRpcClient {
 
     override suspend fun <T> request(method: String, params: RpcParams, resultDeserializer: DeserializationStrategy<T>): Result<T, RpcError> {
         check(method == "getMultipleAccounts") { "Unexpected $method" }
-        @Suppress("UNCHECKED_CAST")
-        val addresses = (params[0] as List<String>).map(::SolanaAddress)
+        val addresses = (params[0] as JsonArray).map { SolanaAddress(it.jsonPrimitive.content) }
         requests.add(addresses)
         minContextSlots.add((params[1] as Map<*, *>)["minContextSlot"]?.toString())
         val values = addresses.joinToString(",") { accounts[it] ?: "null" }

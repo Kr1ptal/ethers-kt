@@ -15,6 +15,7 @@ import io.ethers.logger.trc
 import io.ethers.logger.wrn
 import io.ethers.providers.types.BatchRpcRequest
 import io.ethers.providers.types.RpcParams
+import io.ethers.providers.types.rpcParams
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 import io.ktor.client.plugins.websocket.webSocket
 import io.ktor.websocket.Frame
@@ -403,7 +404,7 @@ class WsClient(
                         serverIdToSubscription.remove(sub.serverId)
 
                         val id = requestId++
-                        val req = buildJsonRpcRequest(sub.descriptor.unsubscribeMethod, id, RpcParams.ofDynamic(sub.serverId))
+                        val req = buildJsonRpcRequest(sub.descriptor.unsubscribeMethod, id, rpcParams(sub.serverId))
 
                         LOG.trc { "Processing unsubscribe request: $req" }
                         wsSend(req)

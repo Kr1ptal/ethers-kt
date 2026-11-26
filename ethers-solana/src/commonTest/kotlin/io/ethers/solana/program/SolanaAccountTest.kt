@@ -34,6 +34,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.serialization.DeserializationStrategy
+import kotlinx.serialization.json.JsonPrimitive
 import kotlin.io.encoding.Base64
 
 private val PROGRAM = SolanaAddress(ByteArray(32) { 9 })
@@ -189,7 +190,7 @@ class SolanaAccountTest : FunSpec({
             failed.context shouldBe accounts.context
             failed.info.data.size shouldBe 3
             accounts.context.slot.toString() shouldBe "42"
-            client.params.getValue("getProgramAccounts").first() shouldBe PROGRAM.toString()
+            client.params.getValue("getProgramAccounts").first() shouldBe JsonPrimitive(PROGRAM.toString())
         }
 
         test("an empty query still reports the slot it was answered at") {
@@ -203,7 +204,7 @@ class SolanaAccountTest : FunSpec({
         test("an alternate deployment selects and checks against its own program id") {
             client.responses["getProgramAccounts"] = contextual("""[{"pubkey":"$FIRST","account":${account(Vault.ACCOUNT.encode(VAULT), owner = OTHER_PROGRAM)}}]""")
             SolanaAccountFilter(provider, Vault.ACCOUNT, PROGRAM).program(OTHER_PROGRAM).query().send().unwrap().single().unwrap().data shouldBe VAULT
-            client.params.getValue("getProgramAccounts").first() shouldBe OTHER_PROGRAM.toString()
+            client.params.getValue("getProgramAccounts").first() shouldBe JsonPrimitive(OTHER_PROGRAM.toString())
         }
 
         test("a program subscription retains failures and continues with the next account") {

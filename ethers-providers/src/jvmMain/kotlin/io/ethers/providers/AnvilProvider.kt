@@ -1,5 +1,6 @@
 package io.ethers.providers
 
+import io.ethers.core.BigIntegerNumberSerializer
 import io.ethers.core.FastHex
 import io.ethers.core.HexBigIntegerSerializer
 import io.ethers.core.Result
@@ -11,6 +12,7 @@ import io.ethers.providers.middleware.Middleware
 import io.ethers.providers.types.RpcCall
 import io.ethers.providers.types.RpcParams
 import io.ethers.providers.types.RpcRequest
+import io.ethers.providers.types.buildRpcParams
 import io.ethers.providers.types.rpcParams
 import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.DeserializationStrategy
@@ -177,7 +179,9 @@ class AnvilProvider private constructor(
      * [getSnapshot].
      * */
     fun revertSnapshot(snapshotId: BigInteger): RpcRequest<Boolean, RpcError> {
-        return RpcCall(client, "evm_revert", rpcParams(snapshotId), Boolean.serializer())
+        // a bare BigInteger has no serializer of its own, so say how it's sent: as a JSON number
+        val params = buildRpcParams { add(snapshotId, BigIntegerNumberSerializer) }
+        return RpcCall(client, "evm_revert", params, Boolean.serializer())
     }
 
     /**

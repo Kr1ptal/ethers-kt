@@ -8,8 +8,6 @@ import io.ethers.providers.types.BatchRpcRequest
 import io.ethers.providers.types.RpcCall
 import io.ethers.providers.types.RpcParams
 import io.ethers.providers.types.rpcParams
-import io.github.artificialpb.bignum.BigInteger
-import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.core.spec.style.funSpec
@@ -100,11 +98,9 @@ private fun httpSpecificTests() = funSpec {
         }
 
         test("a batch call whose params can't be encoded fails every call of the unsent batch") {
-            class Unencodable(val value: Int)
-
             val batch = BatchRpcRequest(2)
             val valid = batch.addRpcCall(RpcCall(client, "eth_gasPrice", RpcParams.EMPTY, stringSerializer))
-            val invalid = batch.addRpcCall(RpcCall(client, "eth_getBalance", rpcParams(Unencodable(1)), stringSerializer))
+            val invalid = batch.addRpcCall(RpcCall(client, "eth_getBalance", unencodableParams(), stringSerializer))
 
             // the encoding error reaches the sender, like a single request's, and no awaited call is left waiting
             withTimeout(5.seconds) {
@@ -122,13 +118,11 @@ private fun httpSpecificTests() = funSpec {
         }
 
         test("a batch whose params can't be encoded consumes no request IDs") {
-            class Unencodable(val value: Int)
-
             // the unencodable call is not the first, so IDs taken per call before encoding it would show up
             val batch = BatchRpcRequest(3)
             batch.addRpcCall(RpcCall(client, "eth_gasPrice", RpcParams.EMPTY, stringSerializer))
             batch.addRpcCall(RpcCall(client, "eth_chainId", RpcParams.EMPTY, stringSerializer))
-            batch.addRpcCall(RpcCall(client, "eth_getBalance", rpcParams(Unencodable(1)), stringSerializer))
+            batch.addRpcCall(RpcCall(client, "eth_getBalance", unencodableParams(), stringSerializer))
 
             withTimeout(5.seconds) {
                 shouldThrow<IllegalArgumentException> { batch.send() }
@@ -173,17 +167,10 @@ private fun httpSpecificTests() = funSpec {
             request.getHeader("Content-Type") shouldContain "application/json"
         }
 
-        test("complex Map / BigInteger / ByteArray params are emitted as proper JSON") {
+        test("a call object with big number and byte array fields is emitted as proper JSON") {
             server.enqueueJson(SUCCESSFUL_RESPONSE)
 
-            val callMap = mapOf(
-                "from" to SerializableValue("0x1111111111111111111111111111111111111111"),
-                "to" to SerializableValue("0x2222222222222222222222222222222222222222"),
-                "value" to bigIntegerOf(1),
-                "data" to byteArrayOf(0xde.toByte(), 0xad.toByte(), 0xbe.toByte(), 0xef.toByte()),
-                "gas" to 21000L,
-            )
-            client.request("eth_call", rpcParams(callMap, "latest"), stringSerializer)
+            client.request("eth_call", rpcParams(CALL_PARAMS, "latest"), stringSerializer)
 
             val body = Kotlinx.DEFAULT.parseToJsonElement(
                 server.takeRequest().bodyText,

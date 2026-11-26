@@ -42,15 +42,12 @@ class SubscriptionsTest : FunSpec({
     val client = SubscriptionClient()
     val provider = SolanaProvider(client)
 
-    test("descriptor resolves every method without changing caller params") {
+    test("descriptor resolves every method and drops the stream name from the params") {
         for (name in listOf("account", "program", "logs", "signature", "slot", "root", "block", "slotsUpdates", "vote")) {
-            val params = arrayOf(name, "argument")
-            val resolved = SolanaSubscriptionDescriptor.resolve(RpcParams.ofDynamic(*params))
+            val resolved = SolanaSubscriptionDescriptor.resolve(rpcParams(name, "argument"))
             resolved.subscribeMethod shouldBe "${name}Subscribe"
             resolved.unsubscribeMethod shouldBe "${name}Unsubscribe"
             resolved.notificationMethod shouldBe "${name}Notification"
-            resolved.params.toList() shouldBe listOf("argument")
-            params[1] = "changed"
             resolved.params.toList() shouldBe listOf("argument")
             resolved.isTerminal(Kotlinx.DEFAULT.decodeFromString(SIGNATURE_EVENT, contextual("{\"err\":null}"))) shouldBe (name == "signature")
         }
@@ -63,7 +60,7 @@ class SubscriptionsTest : FunSpec({
         provider.subscribeAccount(key).send().unwrap().receive()!!.value!!.data.toByteArray() shouldBe byteArrayOf(1, 2, 3)
         client.descriptor.subscribeMethod shouldBe "accountSubscribe"
         client.descriptor.unsubscribeMethod shouldBe "accountUnsubscribe"
-        client.params[0] shouldBe key.toString()
+        client.params[0] shouldBe JsonPrimitive(key.toString())
         client.params[1] shouldBe Kotlinx.DEFAULT.parseToJsonElement("""{"commitment":"finalized","encoding":"base64"}""")
         client.event = contextual("""{"pubkey":"$key","account":$account}""")
         provider.subscribeProgram(key, listOf(AccountFilter.DataSize(165), AccountFilter.Memcmp(0, key.toString()))).send().unwrap().receive()!!.value.pubkey shouldBe key

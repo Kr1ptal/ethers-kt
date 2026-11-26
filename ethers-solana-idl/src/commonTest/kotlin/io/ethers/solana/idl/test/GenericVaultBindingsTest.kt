@@ -31,6 +31,8 @@ import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.jsonPrimitive
 import kotlin.io.encoding.Base64
 
 private fun hex(value: String): ByteArray = FastHex.decode(value.replace(" ", ""))
@@ -47,8 +49,7 @@ private class VaultClient(private val address: SolanaAddress, data: ByteArray) :
     override suspend fun <T> request(method: String, params: RpcParams, resultDeserializer: DeserializationStrategy<T>): Result<T, RpcError> {
         check(method == "getMultipleAccounts") { "Unexpected $method" }
         requests++
-        @Suppress("UNCHECKED_CAST")
-        val values = (params[0] as List<String>).joinToString(",") { if (SolanaAddress(it) == address) account else "null" }
+        val values = (params[0] as JsonArray).joinToString(",") { if (SolanaAddress(it.jsonPrimitive.content) == address) account else "null" }
         return success(Kotlinx.DEFAULT.decodeFromString(resultDeserializer, """{"context":{"slot":1},"value":[$values]}"""))
     }
 

@@ -34,6 +34,7 @@ import io.ethers.core.types.TxpoolContentFromAddress
 import io.ethers.core.types.TxpoolInspectResult
 import io.ethers.core.types.TxpoolStatus
 import io.ethers.core.types.tracers.TracerConfig
+import io.ethers.core.types.tracers.TracerConfigSerializer
 import io.ethers.core.types.tracers.TxTraceResult
 import io.ethers.core.types.transaction.TransactionUnsigned
 import io.ethers.providers.middleware.Middleware
@@ -48,6 +49,7 @@ import io.ethers.providers.types.RpcRequest
 import io.ethers.providers.types.RpcSubscribe
 import io.ethers.providers.types.RpcSubscribeCall
 import io.ethers.providers.types.SuppliedRpcRequest
+import io.ethers.providers.types.buildRpcParams
 import io.ethers.providers.types.rpcParams
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
@@ -291,7 +293,8 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         return RpcCall(
             client,
             "eth_sendRawTransaction",
-            rpcParams(signedTransaction),
+            // wrapped without a copy, so it's sent as a hex string by Bytes' own serializer
+            rpcParams(Bytes(signedTransaction)),
             Hash.serializer().map { PendingTransaction(it, this) },
         )
     }
@@ -542,7 +545,12 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         blockId: BlockId,
         config: TracerConfig<T>,
     ): RpcRequest<T, RpcError> {
-        val params = rpcParams(call.toCallRequest(), blockId.id, config)
+        // T isn't reified here, so TracerConfig<T>'s serializer is passed explicitly
+        val params = buildRpcParams {
+            add(call.toCallRequest())
+            add(blockId.id)
+            add(config, TracerConfigSerializer)
+        }
         return RpcCall(client, "debug_traceCall", params, config.tracer.resultSerializer)
     }
 
@@ -557,12 +565,19 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
 
         // one list of traces per bundle, and the call sends a single bundle
         val traces = ListSerializer(ListSerializer(config.tracer.resultSerializer))
-        val params = rpcParams(listOf(bundle), ctx, config)
+        val params = buildRpcParams {
+            add(listOf(bundle))
+            add(ctx)
+            add(config, TracerConfigSerializer)
+        }
         return RpcCall(client, "debug_traceCallMany", params, traces.map { it.firstOrNull() ?: emptyList() })
     }
 
     override fun <T : Any> traceTransaction(txHash: Hash, config: TracerConfig<T>): RpcRequest<T, RpcError> {
-        val params = rpcParams(txHash, config)
+        val params = buildRpcParams {
+            add(txHash)
+            add(config, TracerConfigSerializer)
+        }
         return RpcCall(client, "debug_traceTransaction", params, config.tracer.resultSerializer)
     }
 
@@ -570,7 +585,10 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         blockId: BlockId,
         config: TracerConfig<T>,
     ): RpcRequest<List<TxTraceResult<T>>, RpcError> {
-        val params = rpcParams(blockId.id, config)
+        val params = buildRpcParams {
+            add(blockId.id)
+            add(config, TracerConfigSerializer)
+        }
         val method = when (blockId) {
             is BlockId.Hash -> "debug_traceBlockByHash"
             is BlockId.Number, is BlockId.Name -> "debug_traceBlockByNumber"
