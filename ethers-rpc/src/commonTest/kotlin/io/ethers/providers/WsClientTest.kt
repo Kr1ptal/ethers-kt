@@ -332,6 +332,100 @@ class WsClientTest : FunSpec({
         }
     }
 
+    context("WebSocket rate limit policy") {
+        lateinit var mockServer: MockWSServer
+        lateinit var wsClient: WsClient
+        val stringSerializer = String.serializer()
+
+        // a policy for a made-up provider that reports rate limits as "slow down", waiting 1.5s
+        val policy = RateLimitPolicy { if (it.message == "slow down") RateLimit(1500L) else null }
+        val rateLimited = """{"jsonrpc":"2.0","id":$REQUEST_ID,"error":{"code":-32000,"message":"slow down"}}"""
+
+        beforeEach {
+            mockServer = mockServerWebsocket()
+            wsClient = WsClient(
+                mockServer.url,
+                RpcClientConfig {
+                    client = KtorHttpClient { install(WebSockets) }
+                    rateLimitPolicy = policy
+                },
+            )
+        }
+
+        afterEach {
+            wsClient.close()
+            mockServer.stop()
+        }
+
+        test("an error the policy finds is a rate limit with the policy's wait") {
+            mockServer.enqueueJson(rateLimited)
+
+            val error = withTimeout(30.seconds) {
+                wsClient.request("eth_blockNumber", RpcParams.EMPTY, stringSerializer).unwrapError()
+            }
+
+            error.isRateLimited shouldBe true
+            error.rateLimit shouldBe RateLimit(1500L)
+            error.isHttpRateLimited shouldBe false
+            error.httpStatus shouldBe null
+        }
+
+        test("an error the policy does not find is not a rate limit") {
+            mockServer.enqueueJson("""{"jsonrpc":"2.0","id":$REQUEST_ID,"error":{"code":-32000,"message":"boom"}}""")
+
+            val error = withTimeout(30.seconds) {
+                wsClient.request("eth_blockNumber", RpcParams.EMPTY, stringSerializer).unwrapError()
+            }
+
+            error.isRateLimited shouldBe false
+            error.rateLimit shouldBe null
+        }
+
+        test("a batch call's error is checked with the policy") {
+            mockServer.enqueueJson(
+                """[{"jsonrpc":"2.0","id":1,"result":"0x1"},{"jsonrpc":"2.0","id":2,"error":{"code":-32000,"message":"slow down"}}]""",
+            )
+
+            val batch = BatchRpcRequest(2)
+            batch.addRpcCall(RpcCall(wsClient, "eth_blockNumber", RpcParams.EMPTY, stringSerializer))
+            batch.addRpcCall(RpcCall(wsClient, "eth_chainId", RpcParams.EMPTY, stringSerializer))
+
+            withTimeout(30.seconds) {
+                batch.send()
+                batch.responses[0].await().unwrap() shouldBe "0x1"
+                batch.responses[1].await().unwrapError().rateLimit shouldBe RateLimit(1500L)
+            }
+        }
+
+        test("a subscribe call's error is checked with the policy") {
+            mockServer.enqueueJson(rateLimited)
+
+            val error = withTimeout(30.seconds) {
+                wsClient.subscribe(rpcParams("newHeads"), JsonObject.serializer()).unwrapError()
+            }
+
+            error.rateLimit shouldBe RateLimit(1500L)
+        }
+
+        test("the default policy finds no rate limits, since WebSocket errors have no HTTP status") {
+            val defaultClient = WsClient(mockServer.url, KtorHttpClient { install(WebSockets) })
+            try {
+                mockServer.enqueueJson(
+                    """{"jsonrpc":"2.0","id":$REQUEST_ID,"error":{"code":429,"message":"Too many requests"}}""",
+                )
+
+                val error = withTimeout(30.seconds) {
+                    defaultClient.request("eth_blockNumber", RpcParams.EMPTY, stringSerializer).unwrapError()
+                }
+
+                error.code shouldBe 429
+                error.isRateLimited shouldBe false
+            } finally {
+                defaultClient.close()
+            }
+        }
+    }
+
     context("WebSocket subscription tests") {
         lateinit var mockServer: MockWSServer
         lateinit var wsClient: WsClient

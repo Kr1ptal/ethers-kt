@@ -3,6 +3,8 @@ package io.ethers.solana
 import io.ethers.core.Kotlinx
 import io.ethers.core.isFailure
 import io.ethers.providers.HttpClient
+import io.ethers.providers.RateLimit
+import io.ethers.providers.RateLimitPolicy
 import io.ethers.providers.RpcClientConfig
 import io.ethers.providers.RpcError
 import io.ethers.providers.SubscriptionDescriptor
@@ -505,6 +507,26 @@ class SolanaProviderTest : FunSpec({
         requests.size shouldBe 0
         built.close()
         SolanaProvider.builder("ftp://example.invalid").build().isFailure() shouldBe true
+    }
+
+    test("builder uses the Solana rate limit policy unless the config sets one") {
+        // Helius reports rate limits with -32005, which the validator's RPC uses for an unhealthy node
+        error = """{"code":-32005,"message":"Too many requests"}"""
+        val config = RpcClientConfig().client(ktor)
+        val built = SolanaProvider.builder("https://example.invalid").config(config).build().unwrap()
+        val custom = SolanaProvider.builder("https://example.invalid")
+            .config(RpcClientConfig().client(ktor).rateLimitPolicy(RateLimitPolicy.HTTP))
+            .build()
+            .unwrap()
+        try {
+            built.getSlot().send().unwrapError().rateLimit shouldBe RateLimit(null)
+            custom.getSlot().send().unwrapError().rateLimit shouldBe null
+            // the caller's config may also be used for another chain, so the builder doesn't set its policy there
+            config.rateLimitPolicy shouldBe null
+        } finally {
+            built.close()
+            custom.close()
+        }
     }
 
     test("builder defaults are copied and invalid per-method defaults are never silently substituted") {

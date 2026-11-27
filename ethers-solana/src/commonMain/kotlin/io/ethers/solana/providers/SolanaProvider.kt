@@ -138,14 +138,9 @@ class SolanaProviderBuilder internal constructor(private val url: String) {
         if (!url.matches(Regex("^(https?|wss?)://.+$"))) return failure(SolanaProviderBuildError("Unsupported RPC URL: $url"))
         if (ws != null && !ws.matches(Regex("^wss?://.+$"))) return failure(SolanaProviderBuildError("Unsupported WebSocket URL: $ws"))
         // Do not change the caller's config, which may also be used for an Ethereum client.
-        val rpcConfig = RpcClientConfig {
-            client = config.client
-            requestHeaders = config.requestHeaders
-            resubscribeOnReconnect = config.resubscribeOnReconnect
-            connectTimeoutMs = config.connectTimeoutMs
-            readTimeoutMs = config.readTimeoutMs
-            subscriptionDescriptor = SolanaSubscriptionDescriptor
-        }
+        val rpcConfig = config.copy()
+            .subscriptionDescriptor(SolanaSubscriptionDescriptor)
+            .rateLimitPolicy(config.rateLimitPolicy ?: SolanaRateLimitPolicy)
         val client = if (url.startsWith("http")) HttpClient(url, rpcConfig) else WsClient(url, rpcConfig)
         val subscriptions = if (ws == null || ws == url) client else WsClient(ws, rpcConfig)
         return success(SolanaProvider(client, defaultCommitment, subscriptions))

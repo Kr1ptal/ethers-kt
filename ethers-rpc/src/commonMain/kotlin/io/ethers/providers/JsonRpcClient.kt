@@ -84,12 +84,23 @@ object HexByteArraySerializer : KSerializer<ByteArray> {
 
 /**
  * Internal JSON-RPC error, returned when the RPC call fails.
+ *
+ * @param httpStatus status code of the HTTP response that carried this error, set only when it was outside the 2xx
+ * range. Null for errors the server returned with a successful status, for WebSocket calls, and for failures that got
+ * no response at all.
+ * @param retryAfterMs how long the server asked to wait before retrying, in milliseconds, taken from the `Retry-After`
+ * header of a response outside the 2xx range. Null if the response did not include one or it could not be parsed.
+ * @param rateLimit set when the client's [RateLimitPolicy] found that this error is a rate limit, with the wait it
+ * found, if any. Null for any other error.
  */
 data class RpcError @JvmOverloads constructor(
     val code: Int,
     override val message: String,
     val data: JsonElement? = null,
     override val cause: Exception? = null,
+    val httpStatus: Int? = null,
+    val retryAfterMs: Long? = null,
+    val rateLimit: RateLimit? = null,
 ) : ThrowableError {
     // [message] is the JSON-RPC error message, which on its own omits the code that identifies the failure
     override fun toException(): RuntimeException {
@@ -175,7 +186,20 @@ data class RpcError @JvmOverloads constructor(
      * */
     val isCallFailed get() = code == CODE_CALL_FAILED
 
+    /**
+     * The HTTP response that carried this error had status 429 (Too Many Requests). It says nothing about errors the
+     * server reports in a JSON-RPC response, which differ per chain and provider: see [isRateLimited] for those.
+     * */
+    val isHttpRateLimited get() = httpStatus == HTTP_TOO_MANY_REQUESTS
+
+    /**
+     * The client's [RateLimitPolicy] found that this error is a rate limit. [rateLimit] holds the wait it found.
+     * */
+    val isRateLimited get() = rateLimit != null
+
     companion object {
+        private const val HTTP_TOO_MANY_REQUESTS = 429
+
         private val UNSUPPORTED_METHOD_MESSAGE_FRAGMENTS = listOf(
             "did not match any variant", // foundry's Anvil
             "is not available", // go-ethereum / standard response
@@ -234,6 +258,15 @@ class RpcClientConfig {
     var requestHeaders: Map<String, String> = emptyMap()
         @JvmSynthetic set
 
+    /**
+     * Decides which errors are rate limits and how long to wait before retrying them, setting [RpcError.rateLimit].
+     *
+     * If null, the client uses its own default: [RateLimitPolicy.HTTP] for an [HttpClient] or [WsClient] created
+     * directly, or the chain's policy for a client made by a chain's provider builder.
+     * */
+    var rateLimitPolicy: RateLimitPolicy? = null
+        @JvmSynthetic set
+
     /** Subscription protocol rules. Defaults to Ethereum. Only used by [WsClient]. */
     var subscriptionDescriptor: SubscriptionDescriptor = SubscriptionDescriptor.ETHEREUM
         @JvmSynthetic set
@@ -270,6 +303,9 @@ class RpcClientConfig {
      * */
     fun requestHeaders(headers: Map<String, String>) = apply { this.requestHeaders = headers }
 
+    /** Decides which errors are rate limits. See [rateLimitPolicy]. */
+    fun rateLimitPolicy(policy: RateLimitPolicy?) = apply { this.rateLimitPolicy = policy }
+
     /** Subscription protocol rules. Only used by [WsClient]. */
     fun subscriptionDescriptor(descriptor: SubscriptionDescriptor) = apply { this.subscriptionDescriptor = descriptor }
 
@@ -287,6 +323,23 @@ class RpcClientConfig {
 
     /** Request read timeout in milliseconds. Only used by [WsClient]. */
     fun readTimeoutMs(ms: Long) = apply { this.readTimeoutMs = ms }
+
+    /**
+     * A new config with the same values, so a builder can change some of them without changing a config the caller
+     * may also use elsewhere.
+     * */
+    fun copy(): RpcClientConfig {
+        val source = this
+        return RpcClientConfig {
+            client = source.client
+            requestHeaders = source.requestHeaders
+            rateLimitPolicy = source.rateLimitPolicy
+            subscriptionDescriptor = source.subscriptionDescriptor
+            resubscribeOnReconnect = source.resubscribeOnReconnect
+            connectTimeoutMs = source.connectTimeoutMs
+            readTimeoutMs = source.readTimeoutMs
+        }
+    }
 
     companion object {
         private val DEFAULT_CLIENT by lazy {

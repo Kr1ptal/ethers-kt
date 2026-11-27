@@ -14,6 +14,7 @@ import io.kotest.core.spec.style.funSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
+import io.ktor.client.plugins.ResponseException
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.jsonArray
@@ -94,6 +95,194 @@ private fun httpSpecificTests() = funSpec {
                 missing.message shouldContain "HTTP 500"
                 batch.responses[1].await().unwrapError().message shouldBe "boom"
                 sent shouldBe false
+            }
+        }
+
+        test("HTTP 429 with a non-JSON body is rate limited and carries the status and Retry-After") {
+            server.enqueue(429, "Too Many Requests", mapOf("Retry-After" to "7"))
+
+            val error = client.request("eth_blockNumber", RpcParams.EMPTY, stringSerializer).unwrapError()
+
+            error.code shouldBe RpcError.CODE_CALL_FAILED
+            error.message shouldBe "HTTP 429: Too Many Requests"
+            error.httpStatus shouldBe 429
+            error.retryAfterMs shouldBe 7000L
+            error.isHttpRateLimited shouldBe true
+            error.rateLimit shouldBe RateLimit(7000L)
+        }
+
+        test("HTTP 429 with a JSON-RPC error body keeps the provider's error and adds the status and Retry-After") {
+            server.enqueue(429, RATE_LIMITED_RESPONSE, mapOf("Retry-After" to "2"))
+
+            val error = client.request("eth_blockNumber", RpcParams.EMPTY, stringSerializer).unwrapError()
+
+            error.code shouldBe 429
+            error.message shouldContain "compute units per second"
+            error.httpStatus shouldBe 429
+            error.retryAfterMs shouldBe 2000L
+            error.rateLimit shouldBe RateLimit(2000L)
+        }
+
+        test("HTTP error without Retry-After carries the status only and is not rate limited") {
+            server.enqueue(500, RPC_ERROR_RESPONSE)
+
+            val error = client.request("eth_blockNumber", RpcParams.EMPTY, stringSerializer).unwrapError()
+
+            error.httpStatus shouldBe 500
+            error.retryAfterMs shouldBe null
+            error.isHttpRateLimited shouldBe false
+            error.rateLimit shouldBe null
+        }
+
+        test("JSON-RPC error with a successful HTTP status has no HTTP status") {
+            server.enqueue(200, RPC_ERROR_RESPONSE, mapOf("Retry-After" to "5"))
+
+            val error = client.request("eth_blockNumber", RpcParams.EMPTY, stringSerializer).unwrapError()
+
+            error.code shouldBe -32601
+            error.httpStatus shouldBe null
+            error.retryAfterMs shouldBe null
+            error.rateLimit shouldBe null
+        }
+
+        test("a rate limit in a JSON-RPC error is found by a policy that knows it, not by the default") {
+            val body = """{"jsonrpc":"2.0","id":1,"error":{"code":-32000,"message":"slow down"}}"""
+            val policy = RateLimitPolicy { if (it.message == "slow down") RateLimit(1500L) else null }
+            val withPolicy = HttpClient(
+                server.url,
+                RpcClientConfig {
+                    this.client = KtorHttpClient()
+                    rateLimitPolicy = policy
+                },
+            )
+            try {
+                server.enqueue(200, body)
+                val default = client.request("eth_blockNumber", RpcParams.EMPTY, stringSerializer).unwrapError()
+                default.isRateLimited shouldBe false
+
+                server.enqueue(200, body)
+                val found = withPolicy.request("eth_blockNumber", RpcParams.EMPTY, stringSerializer).unwrapError()
+                found.isRateLimited shouldBe true
+                found.rateLimit shouldBe RateLimit(1500L)
+                found.httpStatus shouldBe null
+            } finally {
+                withPolicy.close()
+            }
+        }
+
+        test("a policy sees the HTTP status and Retry-After of the error it checks") {
+            val policy = RateLimitPolicy { if (it.httpStatus == 503) RateLimit(it.retryAfterMs) else null }
+            val withPolicy = HttpClient(server.url, KtorHttpClient(), rateLimitPolicy = policy)
+            try {
+                server.enqueue(503, "Service Unavailable", mapOf("Retry-After" to "6"))
+
+                val error = withPolicy.request("eth_blockNumber", RpcParams.EMPTY, stringSerializer).unwrapError()
+
+                error.rateLimit shouldBe RateLimit(6000L)
+            } finally {
+                withPolicy.close()
+            }
+        }
+
+        test("a policy that throws leaves the error as it is") {
+            val throwing = HttpClient(server.url, KtorHttpClient(), rateLimitPolicy = { throw IllegalStateException("bug") })
+            try {
+                server.enqueue(429, "Too Many Requests")
+
+                val error = throwing.request("eth_blockNumber", RpcParams.EMPTY, stringSerializer).unwrapError()
+
+                error.code shouldBe RpcError.CODE_CALL_FAILED
+                error.httpStatus shouldBe 429
+                error.rateLimit shouldBe null
+            } finally {
+                throwing.close()
+            }
+        }
+
+        test("a batch call's JSON-RPC error with a successful HTTP status is checked with the policy") {
+            val policy = RateLimitPolicy { if (it.message == "slow down") RateLimit(null) else null }
+            val withPolicy = HttpClient(server.url, KtorHttpClient(), rateLimitPolicy = policy)
+            try {
+                server.enqueue(
+                    200,
+                    """[{"jsonrpc":"2.0","id":1,"result":"0x1"},{"jsonrpc":"2.0","id":2,"error":{"code":-32000,"message":"slow down"}}]""",
+                )
+
+                val batch = BatchRpcRequest(2)
+                batch.addRpcCall(RpcCall(withPolicy, "eth_blockNumber", RpcParams.EMPTY, stringSerializer))
+                batch.addRpcCall(RpcCall(withPolicy, "eth_chainId", RpcParams.EMPTY, stringSerializer))
+
+                withTimeout(30.seconds) {
+                    batch.send()
+                    batch.responses[0].await().unwrap() shouldBe "0x1"
+                    batch.responses[1].await().unwrapError().rateLimit shouldBe RateLimit(null)
+                }
+            } finally {
+                withPolicy.close()
+            }
+        }
+
+        test("HTTP 429 batch fails answered and unanswered calls with the status and Retry-After") {
+            server.enqueue(
+                429,
+                """[{"jsonrpc":"2.0","id":2,"error":{"code":429,"message":"Too many requests"}}]""",
+                mapOf("Retry-After" to "3"),
+            )
+
+            val batch = BatchRpcRequest(2)
+            batch.addRpcCall(RpcCall(client, "eth_blockNumber", RpcParams.EMPTY, stringSerializer))
+            batch.addRpcCall(RpcCall(client, "eth_chainId", RpcParams.EMPTY, stringSerializer))
+
+            withTimeout(30.seconds) {
+                batch.send() shouldBe false
+
+                val missing = batch.responses[0].await().unwrapError()
+                missing.code shouldBe RpcError.CODE_CALL_FAILED
+                missing.httpStatus shouldBe 429
+                missing.retryAfterMs shouldBe 3000L
+                missing.rateLimit shouldBe RateLimit(3000L)
+
+                val answered = batch.responses[1].await().unwrapError()
+                answered.code shouldBe 429
+                answered.httpStatus shouldBe 429
+                answered.retryAfterMs shouldBe 3000L
+                answered.rateLimit shouldBe RateLimit(3000L)
+            }
+        }
+
+        test("HTTP 429 batch with a non-JSON body fails every call with the status and Retry-After") {
+            server.enqueue(429, "Too Many Requests", mapOf("Retry-After" to "4"))
+
+            val batch = BatchRpcRequest(2)
+            batch.addRpcCall(RpcCall(client, "eth_blockNumber", RpcParams.EMPTY, stringSerializer))
+            batch.addRpcCall(RpcCall(client, "eth_chainId", RpcParams.EMPTY, stringSerializer))
+
+            withTimeout(30.seconds) {
+                batch.send() shouldBe false
+                for (response in batch.responses) {
+                    val error = response.await().unwrapError()
+                    error.httpStatus shouldBe 429
+                    error.retryAfterMs shouldBe 4000L
+                    error.rateLimit shouldBe RateLimit(4000L)
+                }
+            }
+        }
+
+        test("HTTP 429 thrown by a client configured with expectSuccess carries the status and Retry-After") {
+            val throwingClient = HttpClient(server.url, KtorHttpClient { expectSuccess = true })
+            try {
+                server.enqueue(429, "Too Many Requests", mapOf("Retry-After" to "9"))
+
+                val error = throwingClient.request("eth_blockNumber", RpcParams.EMPTY, stringSerializer).unwrapError()
+
+                error.code shouldBe RpcError.CODE_CALL_FAILED
+                error.message shouldBe "HTTP 429: Too Many Requests"
+                error.httpStatus shouldBe 429
+                error.retryAfterMs shouldBe 9000L
+                error.rateLimit shouldBe RateLimit(9000L)
+                (error.cause is ResponseException) shouldBe true
+            } finally {
+                throwingClient.close()
             }
         }
 
@@ -332,6 +521,17 @@ private val SUCCESSFUL_RESPONSE = """
     "jsonrpc": "2.0",
     "id": 1,
     "result": "0x1234567"
+}
+""".trimIndent()
+
+private val RATE_LIMITED_RESPONSE = """
+{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "error": {
+        "code": 429,
+        "message": "Your app has exceeded its compute units per second capacity."
+    }
 }
 """.trimIndent()
 
