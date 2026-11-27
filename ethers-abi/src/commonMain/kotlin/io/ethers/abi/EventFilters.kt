@@ -146,7 +146,11 @@ abstract class EventFilterBase<T : ContractEvent, F : EventFilterBase<T, F>>(
     private val provider: Middleware,
     private val factory: EventFactory<T>,
 ) {
-    protected val filter: LogFilter = LogFilter()
+    /**
+     * Builder holding the filter conditions. It is never handed out: each RPC request gets a [LogFilter] built from
+     * it, so changing this filter afterwards does not change requests that were already created.
+     * */
+    protected val filter: LogFilter.Builder = LogFilter.Builder()
 
     /**
      * Watch for events matching this filter. Compared to [subscribe], this function installs a filter and intermittently
@@ -154,7 +158,7 @@ abstract class EventFilterBase<T : ContractEvent, F : EventFilterBase<T, F>>(
      * subscriptions. If the provider supports subscriptions, [subscribe] should be used instead.
      * */
     fun watch(): RpcRequest<FilterPoller<T>, RpcError> {
-        return provider.watchLogs(filter).map { it.mapNotNull(factory::decodeOrNull) }
+        return provider.watchLogs(filter.build()).map { it.mapNotNull(factory::decodeOrNull) }
     }
 
     /**
@@ -162,14 +166,14 @@ abstract class EventFilterBase<T : ContractEvent, F : EventFilterBase<T, F>>(
      * subscriptions.
      * */
     fun subscribe(): RpcSubscribe<T, RpcError> {
-        return provider.subscribeLogs(filter).map { it.mapNotNull(factory::decodeOrNull) }
+        return provider.subscribeLogs(filter.build()).map { it.mapNotNull(factory::decodeOrNull) }
     }
 
     /**
      * Query for events matching this filter.
      * */
     fun query(): RpcRequest<List<T>, RpcError> {
-        return provider.getLogs(filter).map(::decodeMatchingLogs)
+        return provider.getLogs(filter.build()).map(::decodeMatchingLogs)
     }
 
     /**

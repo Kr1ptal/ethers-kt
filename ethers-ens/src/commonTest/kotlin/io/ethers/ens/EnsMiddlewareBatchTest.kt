@@ -67,8 +67,8 @@ class EnsMiddlewareBatchTest : FunSpec({
         val result = middleware.callMany(
             BlockId.LATEST,
             listOf(
-                EnsCallRequest("vitalik.eth").data(Bytes("0x1234")),
-                CallRequest().to(plainTo),
+                EnsCallRequest("vitalik.eth") { data = Bytes("0x1234") },
+                CallRequest.Builder().to(plainTo).build(),
                 EnsCallRequest("nick.eth"),
             ),
         ).send()
@@ -103,7 +103,7 @@ class EnsMiddlewareBatchTest : FunSpec({
         val client = FakeJsonRpcClient().enqueue("eth_callMany", """[{"value":"0xaa"}]""")
         val middleware = EnsMiddleware(Provider(client, 1L))
 
-        middleware.callMany(BlockId.LATEST, listOf(CallRequest().to(to))).send().unwrap()
+        middleware.callMany(BlockId.LATEST, listOf(CallRequest.Builder().to(to).build())).send().unwrap()
 
         client.requests.size shouldBe 1
         client.requests[0].method shouldBe "eth_callMany"

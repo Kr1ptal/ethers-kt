@@ -31,6 +31,7 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import io.kotest.matchers.types.shouldBeSameInstanceAs
 
 class SolanaTransactionRequestTest : FunSpec({
     val alice = KeypairSigner.fromSeed(ByteArray(32) { 1 }).unwrap()
@@ -53,13 +54,15 @@ class SolanaTransactionRequestTest : FunSpec({
             SolanaTxV1.compile(alice.publicKey, blockhash, transfer, io.ethers.solana.types.transaction.SolanaTransactionConfig()).unwrap().serializeMessage()
     }
 
-    test("the DSL, chained setters and copy constructor agree") {
-        val chained = SolanaTransactionRequest()
+    test("the DSL, chained setters and toBuilder agree") {
+        val chained = SolanaTransactionRequest.Builder()
             .feePayer(alice.publicKey)
             .blockhash(blockhash)
             .instruction(transfer)
+            .build()
         chained.compileV0().unwrap().serializeMessage() shouldBe request().compileV0().unwrap().serializeMessage()
-        SolanaTransactionRequest(chained).compileV0().unwrap().serializeMessage() shouldBe chained.compileV0().unwrap().serializeMessage()
+        chained.toBuilder().build().compileV0().unwrap().serializeMessage() shouldBe chained.compileV0().unwrap().serializeMessage()
+        chained.toBuilder().build() shouldBe chained
 
         val many = SolanaTransactionRequest {
             feePayer(alice.publicKey)
@@ -79,7 +82,7 @@ class SolanaTransactionRequestTest : FunSpec({
     }
 
     test("legacy and v0 encode compute budget as prepended ComputeBudget instructions") {
-        val tx = request().apply {
+        val tx = request().copy {
             computeUnitLimit(200_000)
             computeUnitPrice(1_000)
         }.compileV0().unwrap()
@@ -126,8 +129,11 @@ class SolanaTransactionRequestTest : FunSpec({
     test("durableNonce sets the hash and preserves nonce tracking through compilation and signing") {
         val nonceAccount = SolanaAddress(ByteArray(32) { 9 })
         val nonce = SolanaBlockhash(ByteArray(32) { 10 })
-        val req = request().durableNonce(nonceAccount, bob.publicKey, nonce)
-            .computeUnitLimit(200_000).computeUnitPrice(1_000)
+        val req = request().copy {
+            durableNonce(nonceAccount, bob.publicKey, nonce)
+            computeUnitLimit(200_000)
+            computeUnitPrice(1_000)
+        }
         req.blockhash shouldBe nonce
         req.instructions shouldBe listOf(SystemProgram.advanceNonceAccount(nonceAccount, bob.publicKey), transfer)
         for (tx in listOf(req.compile().unwrap(), req.compileLegacy().unwrap(), req.compileV0().unwrap(), req.compileV1().unwrap())) {
@@ -144,14 +150,16 @@ class SolanaTransactionRequestTest : FunSpec({
         val nonce = SolanaBlockhash(ByteArray(32) { 11 })
         val laterAdvance = SystemProgram.advanceNonceAccount(firstAccount, alice.publicKey)
         val other = Instruction(Programs.TOKEN, emptyList(), byteArrayOf(4, 0, 0, 0))
-        val req = request().instructions(listOf(other, transfer, laterAdvance))
-        req.durableNonce(firstAccount, alice.publicKey, blockhash)
-        req.durableNonce(secondAccount, bob.publicKey, nonce)
-        req.durableNonce(secondAccount, bob.publicKey, nonce)
+        val req = request().copy {
+            instructions(listOf(other, transfer, laterAdvance))
+            durableNonce(firstAccount, alice.publicKey, blockhash)
+            durableNonce(secondAccount, bob.publicKey, nonce)
+            durableNonce(secondAccount, bob.publicKey, nonce)
+        }
         req.instructions shouldBe listOf(SystemProgram.advanceNonceAccount(secondAccount, bob.publicKey), other, transfer, laterAdvance)
         req.blockhash shouldBe nonce
-        val copied = SolanaTransactionRequest(req)
-        copied.durableNonce(firstAccount, alice.publicKey, blockhash)
+        val copied = req.copy { durableNonce(firstAccount, alice.publicKey, blockhash) }
+        copied.instructions.first() shouldBe SystemProgram.advanceNonceAccount(firstAccount, alice.publicKey)
         req.blockhash shouldBe nonce
         req.instructions.first() shouldBe SystemProgram.advanceNonceAccount(secondAccount, bob.publicKey)
     }
@@ -169,7 +177,10 @@ class SolanaTransactionRequestTest : FunSpec({
 
     test("nonce opcode from another program does not change compute budget placement") {
         val other = Instruction(Programs.TOKEN, emptyList(), byteArrayOf(4, 0, 0, 0))
-        val tx = request().instructions(listOf(other, transfer)).computeUnitLimit(200_000).compileLegacy().unwrap()
+        val tx = request().copy {
+            instructions(listOf(other, transfer))
+            computeUnitLimit(200_000)
+        }.compileLegacy().unwrap()
         tx.accounts[tx.instructions.first().programIdIndex] shouldBe Programs.COMPUTE_BUDGET
         tx.accounts[tx.instructions[1].programIdIndex] shouldBe Programs.TOKEN
     }
@@ -219,12 +230,11 @@ class SolanaTransactionRequestTest : FunSpec({
         tx.toRequest().unwrap().instructions shouldBe request.instructions
 
         // the same request states them inline on v1 when they are set as fields instead
-        val inline = SolanaTransactionRequest(request)
-            .instructions(listOf(transfer))
-            .computeUnitLimit(200_000)
-            .computeUnitPrice(1_000)
-            .compileV1()
-            .unwrap()
+        val inline = request.copy {
+            instructions(listOf(transfer))
+            computeUnitLimit(200_000)
+            computeUnitPrice(1_000)
+        }.compileV1().unwrap()
         inline.config.computeUnitLimit shouldBe 200_000
         // 200000 units * 1000 micro-lamports, rounded up to whole lamports
         inline.config.priorityFee shouldBe bigIntegerOf(200)
@@ -381,7 +391,7 @@ class SolanaTransactionRequestTest : FunSpec({
         error.reason shouldBe SolanaTransactionError.Reason.CONFIG
 
         // a limit carried by an instruction is enough
-        val withInstructionLimit = request().apply { instruction(ComputeBudgetProgram.setComputeUnitLimit(200_000)) }
+        val withInstructionLimit = request().copy { instruction(ComputeBudgetProgram.setComputeUnitLimit(200_000)) }
         withInstructionLimit.compileV0().isFailure() shouldBe false
     }
 
@@ -535,5 +545,86 @@ class SolanaTransactionRequestTest : FunSpec({
         }.compileV1().unwrapError()
         error.shouldBeInstanceOf<SolanaTransactionError.InvalidMessage>()
         error.reason shouldBe SolanaTransactionError.Reason.CONFIG
+    }
+
+    context("builder") {
+        val memo = Instruction(Programs.MEMO, emptyList(), byteArrayOf(1))
+
+        test("appending after build does not change the built request") {
+            val builder = SolanaTransactionRequest.Builder().feePayer(alice.publicKey).instruction(transfer)
+            val first = builder.build()
+
+            builder.instruction(memo)
+            val second = builder.build()
+            builder.instruction(transfer)
+
+            first.instructions shouldBe listOf(transfer)
+            second.instructions shouldBe listOf(transfer, memo)
+            builder.build().instructions shouldBe listOf(transfer, memo, transfer)
+        }
+
+        test("durableNonce after build does not change the built request") {
+            val nonceAccount = SolanaAddress(ByteArray(32) { 9 })
+            val builder = SolanaTransactionRequest.Builder().instruction(transfer)
+            val built = builder.build()
+
+            builder.durableNonce(nonceAccount, alice.publicKey, blockhash)
+
+            built.instructions shouldBe listOf(transfer)
+            built.blockhash shouldBe null
+            builder.build().instructions shouldBe listOf(SystemProgram.advanceNonceAccount(nonceAccount, alice.publicKey), transfer)
+        }
+
+        test("a builder from a request does not change it, nor the list it was given") {
+            val given = mutableListOf(transfer)
+            val original = SolanaTransactionRequest { instructions(given) }
+
+            val changed = original.copy { instruction(memo) }
+
+            original.instructions shouldBe listOf(transfer)
+            given shouldBe listOf(transfer)
+            changed.instructions shouldBe listOf(transfer, memo)
+        }
+
+        test("a built request shares the builder's list instead of copying it") {
+            val instructions = listOf(transfer, memo)
+            SolanaTransactionRequest { instructions(instructions) }.instructions shouldBeSameInstanceAs instructions
+        }
+
+        test("chained setters and DSL property setters build equal requests") {
+            val chained = SolanaTransactionRequest.Builder()
+                .feePayer(alice.publicKey)
+                .blockhash(blockhash)
+                .instructions(listOf(transfer))
+                .computeUnitLimit(1L)
+                .computeUnitPrice(bigIntegerOf(2))
+                .priorityFee(bigIntegerOf(3))
+                .loadedAccountsDataSizeLimit(4L)
+                .heapSize(5L)
+                .build()
+
+            val dsl = SolanaTransactionRequest {
+                feePayer = alice.publicKey
+                this.blockhash = blockhash
+                instructions = listOf(transfer)
+                computeUnitLimit = 1L
+                computeUnitPrice = bigIntegerOf(2)
+                priorityFee = bigIntegerOf(3)
+                loadedAccountsDataSizeLimit = 4L
+                heapSize = 5L
+            }
+
+            dsl shouldBe chained
+            chained.toBuilder().build() shouldBe chained
+        }
+
+        test("builder setters reject out of range values") {
+            val builder = SolanaTransactionRequest.Builder()
+            shouldThrow<IllegalArgumentException> { builder.computeUnitLimit(-1L) }
+            shouldThrow<IllegalArgumentException> { builder.heapSize(1L shl 32) }
+            shouldThrow<IllegalArgumentException> { builder.loadedAccountsDataSizeLimit(-1L) }
+            shouldThrow<IllegalArgumentException> { builder.priorityFee(bigIntegerOf(-1)) }
+            shouldThrow<IllegalArgumentException> { builder.computeUnitPrice(bigIntegerOf(-1)) }
+        }
     }
 })

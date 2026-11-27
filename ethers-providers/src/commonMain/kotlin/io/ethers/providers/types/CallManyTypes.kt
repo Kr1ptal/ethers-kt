@@ -8,7 +8,6 @@ import io.ethers.core.types.BlockOverride
 import io.ethers.core.types.BlockOverrideSerializer
 import io.ethers.core.types.CallRequest
 import io.ethers.core.types.CallRequestSerializer
-import io.ethers.core.types.IntoCallRequest
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.descriptors.buildClassSerialDescriptor
@@ -29,7 +28,11 @@ data class CallFailedError(val error: String) : ThrowableError
  * */
 @Serializable(with = CallManyBundleSerializer::class)
 internal data class CallManyBundle(
-    val transactions: List<IntoCallRequest>,
+    /**
+     * Converted when the RPC request is created, so changing the original calls before the request is sent does not
+     * change what is sent.
+     * */
+    val transactions: List<CallRequest>,
     val blockOverride: BlockOverride? = null,
 )
 
@@ -53,7 +56,7 @@ internal object CallManyBundleSerializer : KSerializer<CallManyBundle> {
                     "transactions",
                     buildJsonArray {
                         for (tx in value.transactions) {
-                            add(jsonEncoder.json.encodeToJsonElement(CallRequestSerializer, tx.toCallRequest()))
+                            add(jsonEncoder.json.encodeToJsonElement(CallRequestSerializer, tx))
                         }
                     },
                 )

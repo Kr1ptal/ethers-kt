@@ -17,8 +17,8 @@ class FakeJsonRpcClientTest : FunSpec({
         val provider = Provider(client, 1L)
         val to = Address("0x0000000000000000000000000000000000000001")
 
-        provider.call(CallRequest().to(to), BlockId.LATEST).send().unwrap() shouldBe Bytes("0xaaaa")
-        provider.call(CallRequest().to(to), BlockId.LATEST).send().unwrap() shouldBe Bytes("0xbbbb")
+        provider.call(CallRequest.Builder().to(to).build(), BlockId.LATEST).send().unwrap() shouldBe Bytes("0xaaaa")
+        provider.call(CallRequest.Builder().to(to).build(), BlockId.LATEST).send().unwrap() shouldBe Bytes("0xbbbb")
 
         client.requests.size shouldBe 2
         client.requests[0].method shouldBe "eth_call"
@@ -29,7 +29,7 @@ class FakeJsonRpcClientTest : FunSpec({
         val client = FakeJsonRpcClient()
         val provider = Provider(client, 1L)
 
-        val result = provider.call(CallRequest(), BlockId.LATEST).send()
+        val result = provider.call(CallRequest {}, BlockId.LATEST).send()
 
         result.isFailure() shouldBe true
         result.unwrapError().message shouldBe "FakeJsonRpcClient: no queued response for 'eth_call'"

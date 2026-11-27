@@ -258,8 +258,8 @@ interface SolanaApi {
     fun decompileTransaction(transaction: SolanaTransaction): RpcRequest<SolanaTransactionRequest, RpcError> = decompileTransaction(transaction, defaultCommitment)
 
     /**
-     * Resolve a transaction back into an editable [SolanaTransactionRequest], fetching whatever lookup
-     * tables it draws on.
+     * Resolve a transaction back into a [SolanaTransactionRequest], fetching whatever lookup tables it
+     * draws on. Derive a changed request from it with [SolanaTransactionRequest.copy].
      *
      * Nothing is fetched when the message needs no help: a legacy or v1 message loads no addresses,
      * and a `getTransaction` response carries the ones the node already resolved, which are preferred
@@ -435,12 +435,12 @@ interface SolanaApi {
         commitment: Commitment,
         computeUnitMarginPercent: Int,
     ): RpcRequest<SolanaTransactionUnsigned, RpcError> = SuppliedRpcRequest {
-        val filled = SolanaTransactionRequest(request)
+        val filled = request.toBuilder()
 
         // the blockhash and the fee samples do not depend on each other
         val fetched = coroutineScope {
-            val blockhash = if (filled.blockhash == null) async { getLatestBlockhash(commitment).send() } else null
-            val fees = if (filled.computeUnitPrice == null && filled.priorityFee == null) async { getRecentPrioritizationFees(filled.writableAccounts()).send() } else null
+            val blockhash = if (request.blockhash == null) async { getLatestBlockhash(commitment).send() } else null
+            val fees = if (request.computeUnitPrice == null && request.priorityFee == null) async { getRecentPrioritizationFees(request.writableAccounts()).send() } else null
             val blockhashResult = blockhash?.await()
             val feesResult = fees?.await()
             when {
@@ -457,7 +457,7 @@ interface SolanaApi {
         // the limit is estimated before the price is applied, because a v1 price needs a limit to
         // become a priority fee, and simulating is what tells us the limit
         if (filled.computeUnitLimit == null) {
-            val simulation = simulateFor(filled, type, lookupTables, commitment).send()
+            val simulation = simulateFor(filled.build(), type, lookupTables, commitment).send()
                 .unwrapOrReturn { return@SuppliedRpcRequest failure(it) }
                 .value
             val simulationError = simulation.err
@@ -471,7 +471,7 @@ interface SolanaApi {
         }
         price?.let { filled.computeUnitPrice(it) }
 
-        filled.compileFor(type, lookupTables).mapError { it.toRpcError() }
+        filled.build().compileFor(type, lookupTables).mapError { it.toRpcError() }
     }
 
     private fun simulateFor(
@@ -803,7 +803,7 @@ private fun SolanaTransactionRequest.compileForSimulation(type: SolanaTxType, lo
  * without one. The value is never executed against: [SolanaSimulationConfig.READ_ONLY] asks the node
  * to substitute its own blockhash first.
  */
-internal fun SolanaTransactionRequest.forSimulation(): SolanaTransactionRequest = if (blockhash != null) this else SolanaTransactionRequest(this).blockhash(SolanaBlockhash(ByteArray(32)))
+internal fun SolanaTransactionRequest.forSimulation(): SolanaTransactionRequest = if (blockhash != null) this else copy { blockhash(SolanaBlockhash(ByteArray(32))) }
 
 private fun SolanaTransactionRequest.compileFor(type: SolanaTxType?, lookupTables: List<AddressLookupTableAccount>): Result<SolanaTransactionUnsigned, SolanaTransactionError> = when (type) {
     null -> compile(lookupTables)

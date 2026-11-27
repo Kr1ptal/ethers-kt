@@ -40,7 +40,7 @@ import java.util.concurrent.TimeUnit
 open class RpcRequestBenchmark {
     private val address = Address("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2")
     private val block = "latest"
-    private val call = CallRequest().apply {
+    private val call = CallRequest {
         from = Address("0x00000000000000000000000000000000000000aa")
         to = address
         data = Bytes("0x70a082310000000000000000000000000d4a11d5eeaac28ec3f61d100daf4d40471f1852")

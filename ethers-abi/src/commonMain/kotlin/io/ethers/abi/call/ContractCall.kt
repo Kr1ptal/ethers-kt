@@ -73,7 +73,7 @@ abstract class ReadWriteContractCall<C, S : PendingInclusion<*>, B : ReadWriteCo
      * @return [TransactionSigned], or null if [call] is not ready to be signed or signing failed.
      * */
     fun signOrNull(signer: Signer): TransactionSigned? {
-        val tx = call.toUnsignedTransactionOrNull() ?: return null
+        val tx = call.build().toUnsignedTransactionOrNull() ?: return null
         return signer.trySignTransaction(tx).unwrapOrNull()
     }
 
@@ -85,7 +85,8 @@ abstract class ReadWriteContractCall<C, S : PendingInclusion<*>, B : ReadWriteCo
      * @return [TransactionSigned], or a [CallSigningError] if [call] is not ready to be signed or signing failed.
      * */
     fun trySign(signer: Signer): Result<TransactionSigned, CallSigningError> {
-        val tx = call.toUnsignedTransactionOrNull() ?: return failure(CallSigningError.IncompleteCall(call))
+        val request = call.build()
+        val tx = request.toUnsignedTransactionOrNull() ?: return failure(CallSigningError.IncompleteCall(request))
         return signer.trySignTransaction(tx).mapError(CallSigningError::SigningFailed)
     }
 
@@ -93,21 +94,21 @@ abstract class ReadWriteContractCall<C, S : PendingInclusion<*>, B : ReadWriteCo
      * Create access list for **this** contract call on a given block [blockHash].
      * */
     fun createAccessList(blockHash: Hash): RpcRequest<CreateAccessList, RpcError> {
-        return provider.createAccessList(call, blockHash)
+        return provider.createAccessList(call.build(), blockHash)
     }
 
     /**
      * Create access list for **this** contract call on a given block [blockNumber].
      * */
     fun createAccessList(blockNumber: Long): RpcRequest<CreateAccessList, RpcError> {
-        return provider.createAccessList(call, blockNumber)
+        return provider.createAccessList(call.build(), blockNumber)
     }
 
     /**
      * Create access list for **this** contract call on a given block [blockId].
      * */
     fun createAccessList(blockId: BlockId): RpcRequest<CreateAccessList, RpcError> {
-        return provider.createAccessList(call, blockId)
+        return provider.createAccessList(call.build(), blockId)
     }
 
     /**
@@ -117,14 +118,14 @@ abstract class ReadWriteContractCall<C, S : PendingInclusion<*>, B : ReadWriteCo
     fun send(signer: Signer): RpcRequest<S, RpcError> {
         // if all params are set on "call", create signed tx directly. Signing failures are propagated instead of
         // falling back to "fillTransaction", which would only fail again after an extra round-trip.
-        val unsigned = call.toUnsignedTransactionOrNull()
+        val request = call.build()
+        val unsigned = request.toUnsignedTransactionOrNull()
         if (unsigned != null) {
             return provider.sendRawTransaction(signer.signTransaction(unsigned)).map(::handleSendResult)
         }
 
-        // create a new copy to avoid modifying the original
-        val call = toCallRequest().from(signer.address)
-        return provider.fillTransaction(call).andThen { unsigned ->
+        val fill = if (request.from == signer.address) request else request.copy { from = signer.address }
+        return provider.fillTransaction(fill).andThen { unsigned ->
             val tx = signer.signTransaction(unsigned)
             provider.sendRawTransaction(tx).map(::handleSendResult).send()
         }
@@ -140,12 +141,13 @@ abstract class ReadWriteContractCall<C, S : PendingInclusion<*>, B : ReadWriteCo
 abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
     val provider: Middleware,
 ) : IntoCallRequest {
-    protected val call = CallRequest().apply { chainId = provider.chainId }
+    /**
+     * Builder holding the fields of this call. It is never handed out: each RPC request gets a [CallRequest] built
+     * from it, so changing this call afterwards does not change requests that were already created.
+     * */
+    protected val call = CallRequest.Builder().chainId(provider.chainId)
 
-    override fun toCallRequest(): CallRequest {
-        // create a new instance to avoid modifying the original
-        return CallRequest(call)
-    }
+    override fun toCallRequest(): CallRequest = call.build()
 
     /**
      * Execute "eth_call" at the given [blockHash] and return the result of the call. This is a read-only call, and it
@@ -219,7 +221,7 @@ abstract class ReadContractCall<C, B : ReadContractCall<C, B>>(
      * the tracer. Similar to [call] function, this is a read-only call, and it will not modify the blockchain state.
      * */
     fun <T : Any> traceCall(blockId: BlockId, config: TracerConfig<T>): RpcRequest<T, RpcError> {
-        return provider.traceCall(call, blockId, config)
+        return provider.traceCall(call.build(), blockId, config)
     }
 
     protected fun decodeContractRevert(err: RpcError): ContractError {

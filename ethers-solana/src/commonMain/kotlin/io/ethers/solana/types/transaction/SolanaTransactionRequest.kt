@@ -19,7 +19,7 @@ import kotlin.jvm.JvmSynthetic
 import kotlin.native.ObjCName
 
 /**
- * An incomplete transaction, to be compiled into a [SolanaTransactionUnsigned] of a chosen version.
+ * An immutable, incomplete transaction, to be compiled into a [SolanaTransactionUnsigned] of a chosen version.
  *
  * This is the Solana counterpart of `CallRequest`: every field is optional, so the same request can
  * be filled in by a provider, simulated, and finally compiled. Compilation derives the account list,
@@ -40,44 +40,28 @@ import kotlin.native.ObjCName
  * val v0 = request.compileV0(lookupTables)
  * val v1 = request.compileV1()
  * ```
+ *
+ * Fields are set through a [Builder], and a changed copy is derived with [copy] or [toBuilder]; the
+ * original is never modified:
+ *
+ * ```kotlin
+ * val fresh = request.copy { blockhash(newHash) }
+ * ```
  */
 @ObjCName("SolanaTransactionRequest", exact = true)
-class SolanaTransactionRequest() {
-    constructor(other: SolanaTransactionRequest) : this() {
-        this.feePayer = other.feePayer
-        this.blockhash = other.blockhash
-        this.instructions = other.instructions
-        this.computeUnitLimit = other.computeUnitLimit
-        this.computeUnitPrice = other.computeUnitPrice
-        this.priorityFee = other.priorityFee
-        this.loadedAccountsDataSizeLimit = other.loadedAccountsDataSizeLimit
-        this.heapSize = other.heapSize
-    }
-
-    // make property setters unavailable from Java since we provide custom chained functions
-    var feePayer: SolanaAddress? = null
-        @JvmSynthetic set
+class SolanaTransactionRequest private constructor(builder: Builder) {
+    val feePayer: SolanaAddress? = builder.feePayer
 
     /** Absent until set, so a provider can fill it in just before signing. */
-    var blockhash: SolanaBlockhash? = null
-        @JvmSynthetic set
+    val blockhash: SolanaBlockhash? = builder.blockhash
 
-    var instructions: List<Instruction> = emptyList()
-        @JvmSynthetic set
+    val instructions: List<Instruction> = builder.instructions
 
     /** Compute units the transaction may consume, encoded per version. */
-    var computeUnitLimit: Long? = null
-        @JvmSynthetic set(value) {
-            require(value == null || value in 0..U32_MAX) { "Compute unit limit must fit an unsigned 32-bit integer" }
-            field = value
-        }
+    val computeUnitLimit: Long? = builder.computeUnitLimit
 
     /** Micro-lamports per compute unit, as the ComputeBudget program states it. */
-    var computeUnitPrice: BigInteger? = null
-        @JvmSynthetic set(value) {
-            value?.let(::requireU64)
-            field = value
-        }
+    val computeUnitPrice: BigInteger? = builder.computeUnitPrice
 
     /**
      * Total priority fee in lamports, taking strict precedence over [computeUnitPrice].
@@ -86,58 +70,20 @@ class SolanaTransactionRequest() {
      * turned into `ceil(priorityFee * 1_000_000 / computeUnitLimit)` micro-lamports, which the runtime
      * charges back at no less than the requested total; stating it there needs a compute unit limit.
      */
-    var priorityFee: BigInteger? = null
-        @JvmSynthetic set(value) {
-            value?.let(::requireU64)
-            field = value
-        }
+    val priorityFee: BigInteger? = builder.priorityFee
 
     /** Combined size of the accounts the transaction may load, encoded per version. */
-    var loadedAccountsDataSizeLimit: Long? = null
-        @JvmSynthetic set(value) {
-            require(value == null || value in 0..U32_MAX) { "Loaded accounts data size limit must fit an unsigned 32-bit integer" }
-            field = value
-        }
+    val loadedAccountsDataSizeLimit: Long? = builder.loadedAccountsDataSizeLimit
 
     /** Heap space the transaction may use, encoded per version. */
-    var heapSize: Long? = null
-        @JvmSynthetic set(value) {
-            require(value == null || value in 0..U32_MAX) { "Heap size must fit an unsigned 32-bit integer" }
-            field = value
-        }
+    val heapSize: Long? = builder.heapSize
 
-    fun feePayer(feePayer: SolanaAddress?) = apply { this.feePayer = feePayer }
-    fun blockhash(blockhash: SolanaBlockhash?) = apply { this.blockhash = blockhash }
+    /** A [Builder] initialized with the fields of this request. */
+    fun toBuilder(): Builder = Builder(this)
 
-    /**
-     * Use [nonce] from [nonceAccount] as this transaction's blockhash and put its advance instruction
-     * first. [authority] must sign the transaction. Replaces an existing leading nonce advance,
-     * preserving every other instruction in order, so repeated calls do not add duplicate advances.
-     *
-     * This only updates the request; it does not fetch the nonce or submit a transaction. Subsequent
-     * calls to [blockhash] or [instructions] replace those fields normally. Append instructions with
-     * [instruction] to retain the nonce setup. Compilation keeps generated compute settings after it.
-     */
-    fun durableNonce(nonceAccount: SolanaAddress, authority: SolanaAddress, nonce: SolanaBlockhash) = apply {
-        val first = instructions.firstOrNull()
-        val remaining = if (first?.programId == Programs.SYSTEM && first.data.asByteArray().isAdvanceNonceData()) {
-            instructions.drop(1)
-        } else {
-            instructions
-        }
-        blockhash = nonce
-        instructions = listOf(SystemProgram.advanceNonceAccount(nonceAccount, authority)) + remaining
-    }
-
-    fun instructions(instructions: List<Instruction>) = apply { this.instructions = instructions }
-    fun instruction(instruction: Instruction) = apply { this.instructions += instruction }
-    fun computeUnitLimit(computeUnitLimit: Long?) = apply { this.computeUnitLimit = computeUnitLimit }
-    fun computeUnitPrice(computeUnitPrice: BigInteger?) = apply { this.computeUnitPrice = computeUnitPrice }
-    fun computeUnitPrice(computeUnitPrice: Long) = apply { this.computeUnitPrice = bigIntegerOf(computeUnitPrice) }
-    fun priorityFee(priorityFee: BigInteger?) = apply { this.priorityFee = priorityFee }
-    fun priorityFee(priorityFee: Long) = apply { this.priorityFee = bigIntegerOf(priorityFee) }
-    fun loadedAccountsDataSizeLimit(loadedAccountsDataSizeLimit: Long?) = apply { this.loadedAccountsDataSizeLimit = loadedAccountsDataSizeLimit }
-    fun heapSize(heapSize: Long?) = apply { this.heapSize = heapSize }
+    /** A copy of this request with the changes applied by [builder]. This request is not modified. */
+    @JvmSynthetic
+    inline fun copy(builder: Builder.() -> Unit): SolanaTransactionRequest = Builder(this).apply(builder).build()
 
     /**
      * Compile to whichever of legacy and v0 encodes this request in fewer bytes, the counterpart of
@@ -329,10 +275,138 @@ class SolanaTransactionRequest() {
             "loadedAccountsDataSizeLimit=$loadedAccountsDataSizeLimit, heapSize=$heapSize)"
     }
 
+    /**
+     * Mutable builder of [SolanaTransactionRequest]. Not thread-safe.
+     *
+     * Each [build] creates a new request and leaves the builder untouched, so it can keep being
+     * changed and built again. The instruction list is shared with the built request rather than
+     * copied, and copied only if the builder appends to it afterwards.
+     */
+    @ObjCName("SolanaTransactionRequestBuilder", exact = true)
+    class Builder() {
+        /** A builder initialized with the fields of [request]. */
+        constructor(request: SolanaTransactionRequest) : this() {
+            this.feePayer = request.feePayer
+            this.blockhash = request.blockhash
+            this.instructions = request.instructions
+            this.computeUnitLimit = request.computeUnitLimit
+            this.computeUnitPrice = request.computeUnitPrice
+            this.priorityFee = request.priorityFee
+            this.loadedAccountsDataSizeLimit = request.loadedAccountsDataSizeLimit
+            this.heapSize = request.heapSize
+        }
+
+        /**
+         * [instructions] when this builder may change it in place: a list it created itself and has
+         * not yet shared with a built request. Null when [instructions] may be shared.
+         */
+        private var ownedInstructions: ArrayList<Instruction>? = null
+
+        // make property setters unavailable from Java since we provide custom chained functions
+        var feePayer: SolanaAddress? = null
+            @JvmSynthetic set
+
+        /** Absent until set, so a provider can fill it in just before signing. */
+        var blockhash: SolanaBlockhash? = null
+            @JvmSynthetic set
+
+        var instructions: List<Instruction> = emptyList()
+            @JvmSynthetic set(value) {
+                field = value
+                ownedInstructions = null
+            }
+
+        /** Compute units the transaction may consume, encoded per version. */
+        var computeUnitLimit: Long? = null
+            @JvmSynthetic set(value) {
+                require(value == null || value in 0..U32_MAX) { "Compute unit limit must fit an unsigned 32-bit integer" }
+                field = value
+            }
+
+        /** Micro-lamports per compute unit, as the ComputeBudget program states it. */
+        var computeUnitPrice: BigInteger? = null
+            @JvmSynthetic set(value) {
+                value?.let(::requireU64)
+                field = value
+            }
+
+        /** Total priority fee in lamports, taking strict precedence over [computeUnitPrice]. See [SolanaTransactionRequest.priorityFee]. */
+        var priorityFee: BigInteger? = null
+            @JvmSynthetic set(value) {
+                value?.let(::requireU64)
+                field = value
+            }
+
+        /** Combined size of the accounts the transaction may load, encoded per version. */
+        var loadedAccountsDataSizeLimit: Long? = null
+            @JvmSynthetic set(value) {
+                require(value == null || value in 0..U32_MAX) { "Loaded accounts data size limit must fit an unsigned 32-bit integer" }
+                field = value
+            }
+
+        /** Heap space the transaction may use, encoded per version. */
+        var heapSize: Long? = null
+            @JvmSynthetic set(value) {
+                require(value == null || value in 0..U32_MAX) { "Heap size must fit an unsigned 32-bit integer" }
+                field = value
+            }
+
+        fun feePayer(feePayer: SolanaAddress?) = apply { this.feePayer = feePayer }
+        fun blockhash(blockhash: SolanaBlockhash?) = apply { this.blockhash = blockhash }
+
+        /**
+         * Use [nonce] from [nonceAccount] as this transaction's blockhash and put its advance instruction
+         * first. [authority] must sign the transaction. Replaces an existing leading nonce advance,
+         * preserving every other instruction in order, so repeated calls do not add duplicate advances.
+         *
+         * This only updates the builder; it does not fetch the nonce or submit a transaction. Subsequent
+         * calls to [blockhash] or [instructions] replace those fields normally. Append instructions with
+         * [instruction] to retain the nonce setup. Compilation keeps generated compute settings after it.
+         */
+        fun durableNonce(nonceAccount: SolanaAddress, authority: SolanaAddress, nonce: SolanaBlockhash) = apply {
+            val advance = SystemProgram.advanceNonceAccount(nonceAccount, authority)
+            val instructions = mutableInstructions()
+            val first = instructions.firstOrNull()
+            if (first?.programId == Programs.SYSTEM && first.data.asByteArray().isAdvanceNonceData()) {
+                instructions[0] = advance
+            } else {
+                instructions.add(0, advance)
+            }
+            blockhash = nonce
+        }
+
+        fun instructions(instructions: List<Instruction>) = apply { this.instructions = instructions }
+        fun instruction(instruction: Instruction) = apply { mutableInstructions().add(instruction) }
+        fun computeUnitLimit(computeUnitLimit: Long?) = apply { this.computeUnitLimit = computeUnitLimit }
+        fun computeUnitPrice(computeUnitPrice: BigInteger?) = apply { this.computeUnitPrice = computeUnitPrice }
+        fun computeUnitPrice(computeUnitPrice: Long) = apply { this.computeUnitPrice = bigIntegerOf(computeUnitPrice) }
+        fun priorityFee(priorityFee: BigInteger?) = apply { this.priorityFee = priorityFee }
+        fun priorityFee(priorityFee: Long) = apply { this.priorityFee = bigIntegerOf(priorityFee) }
+        fun loadedAccountsDataSizeLimit(loadedAccountsDataSizeLimit: Long?) = apply { this.loadedAccountsDataSizeLimit = loadedAccountsDataSizeLimit }
+        fun heapSize(heapSize: Long?) = apply { this.heapSize = heapSize }
+
+        /** A new request from the current fields of this builder. */
+        fun build(): SolanaTransactionRequest {
+            val request = SolanaTransactionRequest(this)
+            // the request now holds the list, so the next change must copy it first
+            ownedInstructions = null
+            return request
+        }
+
+        private fun mutableInstructions(): ArrayList<Instruction> {
+            ownedInstructions?.let { return it }
+            val copy = ArrayList<Instruction>(instructions.size + 4)
+            copy.addAll(instructions)
+            instructions = copy
+            ownedInstructions = copy
+            return copy
+        }
+    }
+
     companion object {
         @JvmSynthetic
-        inline operator fun invoke(builder: SolanaTransactionRequest.() -> Unit): SolanaTransactionRequest {
-            return SolanaTransactionRequest().apply(builder)
+        inline operator fun invoke(builder: Builder.() -> Unit): SolanaTransactionRequest {
+            return Builder().apply(builder).build()
         }
     }
 }

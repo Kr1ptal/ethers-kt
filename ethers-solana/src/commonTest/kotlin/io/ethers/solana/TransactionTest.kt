@@ -246,9 +246,9 @@ class TransactionTest : FunSpec({
         legacy.sign(alice).unwrap() shouldNotBe legacy
         legacy.sign(alice).unwrap() shouldNotBe v0.sign(alice).unwrap()
 
-        val request = SolanaTransactionRequest().feePayer(alice.publicKey).blockhash(blockhash).instruction(instruction)
-        request shouldBe SolanaTransactionRequest(request)
-        request shouldNotBe SolanaTransactionRequest(request).computeUnitLimit(1000)
+        val request = SolanaTransactionRequest.Builder().feePayer(alice.publicKey).blockhash(blockhash).instruction(instruction).build()
+        request shouldBe request.toBuilder().build()
+        request shouldNotBe request.copy { computeUnitLimit(1000) }
 
         legacy.toString() shouldContain "recentBlockhash=$blockhash"
         legacy.sign(alice).unwrap().toString() shouldContain "signatures="

@@ -153,14 +153,14 @@ class ResolutionBindingsTest : FunSpec({
             fun legacy(vararg instructions: Instruction) = SolanaTxLegacy.compile(PAYER, blockhash, instructions.toList()).unwrap().serializeMessage().toList()
             fun v0(vararg instructions: Instruction) = SolanaTxV0.compile(PAYER, blockhash, instructions.toList()).unwrap().serializeMessage().toList()
             fun v1(vararg instructions: Instruction) = SolanaTxV1.compile(PAYER, blockhash, instructions.toList(), SolanaTransactionConfig()).unwrap().serializeMessage().toList()
-            fun request(vararg instructions: Instruction) = SolanaTransactionRequest().feePayer(PAYER).blockhash(blockhash).instructions(instructions.toList())
+            fun request(vararg instructions: Instruction) = SolanaTransactionRequest.Builder().feePayer(PAYER).blockhash(blockhash).instructions(instructions.toList()).build()
 
             legacy(typed, transfer) shouldBe legacy(plain, transfer)
             v0(typed, transfer) shouldBe v0(plain, transfer)
             v1(typed, transfer) shouldBe v1(plain, transfer)
             SolanaTxV0.compile(PAYER, blockhash, typed).unwrap().serializeMessage().toList() shouldBe v0(plain)
             request(typed, transfer).compileV0().unwrap().serializeMessage().toList() shouldBe v0(plain, transfer)
-            SolanaTransactionRequest().feePayer(PAYER).blockhash(blockhash).instruction(typed).compileLegacy().unwrap().serializeMessage().toList() shouldBe legacy(plain)
+            SolanaTransactionRequest.Builder().feePayer(PAYER).blockhash(blockhash).instruction(typed).build().compileLegacy().unwrap().serializeMessage().toList() shouldBe legacy(plain)
         }
 
         test("every builder returns the same typed instruction, which a transaction takes as it is") {

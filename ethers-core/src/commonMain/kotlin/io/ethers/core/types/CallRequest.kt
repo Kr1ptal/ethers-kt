@@ -21,94 +21,53 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlin.jvm.JvmSynthetic
 
+/**
+ * An immutable request to call, estimate, or fill a transaction. Every field is optional, so a provider can fill
+ * in whatever is missing (see `Middleware.fillTransaction`).
+ *
+ * Build one with the DSL, or with a [Builder] when the fields are set across several steps:
+ * ```kotlin
+ * val request = CallRequest {
+ *     to = contract
+ *     data = calldata
+ * }
+ *
+ * val request = CallRequest.Builder().to(contract).data(calldata).build()
+ * ```
+ *
+ * Derive a changed copy with [copy] (or [toBuilder] from Java); the original is never modified:
+ * ```kotlin
+ * val withGas = request.copy { gas = 100_000 }
+ * ```
+ * */
 @Serializable(with = CallRequestSerializer::class)
-class CallRequest() : IntoCallRequest {
-    constructor(other: CallRequest) : this() {
-        this.from = other.from
-        this.to = other.to
-        this.gas = other.gas
-        this.gasPrice = other.gasPrice
-        this.gasFeeCap = other.gasFeeCap
-        this.gasTipCap = other.gasTipCap
-        this.value = other.value
-        this.nonce = other.nonce
-        this.data = other.data
-        this.accessList = other.accessList
-        this.chainId = other.chainId
-        this.blobFeeCap = other.blobFeeCap
-        this.blobVersionedHashes = other.blobVersionedHashes
-    }
+class CallRequest private constructor(builder: Builder) : IntoCallRequest {
+    val from: Address? = builder.from
+    val to: Address? = builder.to
+    val gas: Long = builder.gas
+    val gasPrice: BigInteger? = builder.gasPrice
+    val gasFeeCap: BigInteger? = builder.gasFeeCap
+    val gasTipCap: BigInteger? = builder.gasTipCap
+    val value: BigInteger? = builder.value
+    val nonce: Long = builder.nonce
+    val data: Bytes? = builder.data
+    val accessList: List<AccessList.Item> = builder.accessList
+    val chainId: Long = builder.chainId
+    val blobFeeCap: BigInteger? = builder.blobFeeCap
+    val blobVersionedHashes: List<Hash>? = builder.blobVersionedHashes
 
     override fun toCallRequest() = this
 
-    // make property setters unavailable from Java since we provide custom chained functions
-    var from: Address? = null
-        @JvmSynthetic set
+    /**
+     * Create a [Builder] initialized with the fields of **this** request.
+     * */
+    fun toBuilder(): Builder = Builder(this)
 
-    var to: Address? = null
-        @JvmSynthetic set
-
-    var gas: Long = -1L
-        @JvmSynthetic set
-
-    var gasPrice: BigInteger? = null
-        @JvmSynthetic set(value) {
-            require(value == null || value >= bigIntegerOf(0)) { "GasPrice must be non-negative" }
-            field = value
-        }
-
-    var gasFeeCap: BigInteger? = null
-        @JvmSynthetic set(value) {
-            require(value == null || value >= bigIntegerOf(0)) { "GasFeeCap must be non-negative" }
-            field = value
-        }
-
-    var gasTipCap: BigInteger? = null
-        @JvmSynthetic set(value) {
-            require(value == null || value >= bigIntegerOf(0)) { "GasTipCap must be non-negative" }
-            field = value
-        }
-
-    var value: BigInteger? = null
-        @JvmSynthetic set(value) {
-            require(value == null || value >= bigIntegerOf(0)) { "Value must be non-negative" }
-            field = value
-        }
-
-    var nonce: Long = -1L
-        @JvmSynthetic set
-
-    var data: Bytes? = null
-        @JvmSynthetic set
-
-    var accessList: List<AccessList.Item> = emptyList()
-        @JvmSynthetic set
-
-    var chainId: Long = -1L
-        @JvmSynthetic set
-
-    var blobFeeCap: BigInteger? = null
-        @JvmSynthetic set(value) {
-            require(value == null || value >= bigIntegerOf(0)) { "BlobFeeCap must be non-negative" }
-            field = value
-        }
-
-    var blobVersionedHashes: List<Hash>? = null
-        @JvmSynthetic set
-
-    fun from(from: Address?) = apply { this.from = from }
-    fun to(to: Address?) = apply { this.to = to }
-    fun gas(gas: Long) = apply { this.gas = gas }
-    fun gasPrice(gasPrice: BigInteger?) = apply { this.gasPrice = gasPrice }
-    fun gasFeeCap(gasFeeCap: BigInteger?) = apply { this.gasFeeCap = gasFeeCap }
-    fun gasTipCap(gasTipCap: BigInteger?) = apply { this.gasTipCap = gasTipCap }
-    fun value(value: BigInteger?) = apply { this.value = value }
-    fun nonce(nonce: Long) = apply { this.nonce = nonce }
-    fun data(data: Bytes?) = apply { this.data = data }
-    fun accessList(accessList: List<AccessList.Item>) = apply { this.accessList = accessList }
-    fun chainId(chainId: Long) = apply { this.chainId = chainId }
-    fun blobFeeCap(blobFeeCap: BigInteger?) = apply { this.blobFeeCap = blobFeeCap }
-    fun blobVersionedHashes(blobVersionedHashes: List<Hash>?) = apply { this.blobVersionedHashes = blobVersionedHashes }
+    /**
+     * Return a copy of **this** request with the changes applied by [builder]. **This** request is not modified.
+     * */
+    @JvmSynthetic
+    inline fun copy(builder: Builder.() -> Unit): CallRequest = Builder(this).apply(builder).build()
 
     /**
      * Try to convert [CallRequest] to [TransactionUnsigned], if all required fields are set. Returns null if
@@ -131,17 +90,17 @@ class CallRequest() : IntoCallRequest {
                 }
 
                 return TxBlob(
-                    to = to!!,
+                    to = to,
                     value = value ?: bigIntegerOf(0),
                     nonce = nonce,
                     gas = gas,
-                    gasFeeCap = gasFeeCap!!,
-                    gasTipCap = gasTipCap!!,
+                    gasFeeCap = gasFeeCap,
+                    gasTipCap = gasTipCap,
                     data = data,
                     chainId = chainId,
                     accessList = accessList,
-                    blobFeeCap = blobFeeCap!!,
-                    blobVersionedHashes = blobVersionedHashes!!,
+                    blobFeeCap = blobFeeCap,
+                    blobVersionedHashes = blobVersionedHashes,
                 )
             }
 
@@ -155,8 +114,8 @@ class CallRequest() : IntoCallRequest {
                     value = value ?: bigIntegerOf(0),
                     nonce = nonce,
                     gas = gas,
-                    gasFeeCap = gasFeeCap!!,
-                    gasTipCap = gasTipCap!!,
+                    gasFeeCap = gasFeeCap,
+                    gasTipCap = gasTipCap,
                     data = data,
                     chainId = chainId,
                     accessList = accessList,
@@ -173,7 +132,7 @@ class CallRequest() : IntoCallRequest {
                     value = value ?: bigIntegerOf(0),
                     nonce = nonce,
                     gas = gas,
-                    gasPrice = gasPrice!!,
+                    gasPrice = gasPrice,
                     data = data,
                     chainId = chainId,
                     accessList = accessList,
@@ -186,7 +145,7 @@ class CallRequest() : IntoCallRequest {
                     value = value ?: bigIntegerOf(0),
                     nonce = nonce,
                     gas = gas,
-                    gasPrice = gasPrice!!,
+                    gasPrice = gasPrice,
                     data = data,
                     chainId = chainId,
                 )
@@ -240,9 +199,112 @@ class CallRequest() : IntoCallRequest {
         return result
     }
 
+    /**
+     * Mutable builder of [CallRequest]. Each [build] creates a new [CallRequest] and leaves the builder untouched,
+     * so it can keep being changed and built again. Not thread-safe.
+     * */
+    class Builder() {
+        /**
+         * Create a builder initialized with the fields of [request].
+         * */
+        constructor(request: CallRequest) : this() {
+            this.from = request.from
+            this.to = request.to
+            this.gas = request.gas
+            this.gasPrice = request.gasPrice
+            this.gasFeeCap = request.gasFeeCap
+            this.gasTipCap = request.gasTipCap
+            this.value = request.value
+            this.nonce = request.nonce
+            this.data = request.data
+            this.accessList = request.accessList
+            this.chainId = request.chainId
+            this.blobFeeCap = request.blobFeeCap
+            this.blobVersionedHashes = request.blobVersionedHashes
+        }
+
+        // make property setters unavailable from Java since we provide custom chained functions
+        var from: Address? = null
+            @JvmSynthetic set
+
+        var to: Address? = null
+            @JvmSynthetic set
+
+        var gas: Long = -1L
+            @JvmSynthetic set
+
+        var gasPrice: BigInteger? = null
+            @JvmSynthetic set(value) {
+                require(value == null || value >= bigIntegerOf(0)) { "GasPrice must be non-negative" }
+                field = value
+            }
+
+        var gasFeeCap: BigInteger? = null
+            @JvmSynthetic set(value) {
+                require(value == null || value >= bigIntegerOf(0)) { "GasFeeCap must be non-negative" }
+                field = value
+            }
+
+        var gasTipCap: BigInteger? = null
+            @JvmSynthetic set(value) {
+                require(value == null || value >= bigIntegerOf(0)) { "GasTipCap must be non-negative" }
+                field = value
+            }
+
+        var value: BigInteger? = null
+            @JvmSynthetic set(value) {
+                require(value == null || value >= bigIntegerOf(0)) { "Value must be non-negative" }
+                field = value
+            }
+
+        var nonce: Long = -1L
+            @JvmSynthetic set
+
+        var data: Bytes? = null
+            @JvmSynthetic set
+
+        var accessList: List<AccessList.Item> = emptyList()
+            @JvmSynthetic set
+
+        var chainId: Long = -1L
+            @JvmSynthetic set
+
+        var blobFeeCap: BigInteger? = null
+            @JvmSynthetic set(value) {
+                require(value == null || value >= bigIntegerOf(0)) { "BlobFeeCap must be non-negative" }
+                field = value
+            }
+
+        var blobVersionedHashes: List<Hash>? = null
+            @JvmSynthetic set
+
+        fun from(from: Address?) = apply { this.from = from }
+        fun to(to: Address?) = apply { this.to = to }
+        fun gas(gas: Long) = apply { this.gas = gas }
+        fun gasPrice(gasPrice: BigInteger?) = apply { this.gasPrice = gasPrice }
+        fun gasFeeCap(gasFeeCap: BigInteger?) = apply { this.gasFeeCap = gasFeeCap }
+        fun gasTipCap(gasTipCap: BigInteger?) = apply { this.gasTipCap = gasTipCap }
+        fun value(value: BigInteger?) = apply { this.value = value }
+        fun nonce(nonce: Long) = apply { this.nonce = nonce }
+        fun data(data: Bytes?) = apply { this.data = data }
+        fun accessList(accessList: List<AccessList.Item>) = apply { this.accessList = accessList }
+        fun chainId(chainId: Long) = apply { this.chainId = chainId }
+        fun blobFeeCap(blobFeeCap: BigInteger?) = apply { this.blobFeeCap = blobFeeCap }
+        fun blobVersionedHashes(blobVersionedHashes: List<Hash>?) = apply { this.blobVersionedHashes = blobVersionedHashes }
+
+        /**
+         * Create a new [CallRequest] from the current fields of this builder.
+         * */
+        fun build(): CallRequest = CallRequest(this)
+    }
+
     companion object {
-        inline operator fun invoke(builder: CallRequest.() -> Unit): CallRequest {
-            return CallRequest().apply(builder)
+        /**
+         * Build a [CallRequest], configuring its fields with [builder].
+         * */
+        @JvmSynthetic
+        inline operator fun invoke(builder: Builder.() -> Unit): CallRequest {
+            return Builder().apply(builder).build()
         }
     }
 }
@@ -264,16 +326,16 @@ object CallRequestSerializer : KSerializer<CallRequest> {
                     put("gas", FastHex.encodeWithPrefix(value.gas))
                 }
                 if (value.gasPrice != null) {
-                    put("gasPrice", FastHex.encodeWithPrefix(value.gasPrice!!))
+                    put("gasPrice", FastHex.encodeWithPrefix(value.gasPrice))
                 }
                 if (value.gasFeeCap != null) {
-                    put("maxFeePerGas", FastHex.encodeWithPrefix(value.gasFeeCap!!))
+                    put("maxFeePerGas", FastHex.encodeWithPrefix(value.gasFeeCap))
                 }
                 if (value.gasTipCap != null) {
-                    put("maxPriorityFeePerGas", FastHex.encodeWithPrefix(value.gasTipCap!!))
+                    put("maxPriorityFeePerGas", FastHex.encodeWithPrefix(value.gasTipCap))
                 }
                 if (value.value != null) {
-                    put("value", FastHex.encodeWithPrefix(value.value!!))
+                    put("value", FastHex.encodeWithPrefix(value.value))
                 }
                 if (value.nonce != -1L) {
                     put("nonce", FastHex.encodeWithPrefix(value.nonce))

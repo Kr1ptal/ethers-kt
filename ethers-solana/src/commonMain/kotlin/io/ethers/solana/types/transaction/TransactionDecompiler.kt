@@ -86,7 +86,7 @@ internal fun decompile(
         instructions.add(Instruction(programId, keys, compiled.data))
     }
 
-    val request = SolanaTransactionRequest()
+    val request = SolanaTransactionRequest.Builder()
         .feePayer(accounts[0].publicKey)
         .blockhash(tx.recentBlockhash)
         .instructions(instructions)
@@ -100,7 +100,7 @@ internal fun decompile(
             .heapSize(tx.heapSize)
     }
 
-    return Result.success(request)
+    return Result.success(request.build())
 }
 
 private fun outOfRange(index: Int, size: Int) = SolanaTransactionError.InvalidMessage(

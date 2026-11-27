@@ -180,7 +180,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         stateOverride: StateOverride?,
         blockOverride: BlockOverride?,
     ): RpcRequest<List<Result<Bytes, CallFailedError>>, RpcError> {
-        val bundle = CallManyBundle(calls, blockOverride)
+        val bundle = CallManyBundle(calls.map { it.toCallRequest() }, blockOverride)
         val ctx = CallManyContext(blockId, transactionIndex)
 
         val params = rpcParams(bundle, ctx, stateOverride)
@@ -324,17 +324,14 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
     }
 
     private suspend fun manuallyFillTransaction(original: CallRequest): Result<TransactionUnsigned, RpcError> {
-        val call = CallRequest(original)
-        if (call.chainId == -1L) {
-            call.chainId = provider.chainId
-        }
+        val request = if (original.chainId == -1L) original.copy { chainId = provider.chainId } else original
 
-        var unsigned = call.toUnsignedTransactionOrNull()
+        var unsigned = request.toUnsignedTransactionOrNull()
         if (unsigned != null) {
             return success(unsigned)
         }
 
-        if (call.blobVersionedHashes != null && call.to == null) {
+        if (request.blobVersionedHashes != null && request.to == null) {
             return failure(
                 RpcError(
                     RpcError.CODE_CALL_FAILED,
@@ -343,8 +340,8 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             )
         }
 
-        val sender = call.from
-        val needsNonce = call.nonce < 0L
+        val sender = request.from
+        val needsNonce = request.nonce < 0L
         if (needsNonce && sender == null) {
             return failure(
                 RpcError(
@@ -354,8 +351,8 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             )
         }
 
-        val txFeesSet = call.gasPrice != null || (call.gasTipCap != null && call.gasFeeCap != null)
-        val blobFeesSet = call.blobVersionedHashes == null || call.blobFeeCap != null
+        val txFeesSet = request.gasPrice != null || (request.gasTipCap != null && request.gasFeeCap != null)
+        val blobFeesSet = request.blobVersionedHashes == null || request.blobFeeCap != null
 
         // request the missing pieces concurrently
         val (nonceResult, gasLimitResult, feeHistoryResult) = coroutineScope {
@@ -366,8 +363,8 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             }
 
             val gasLimitFut = when {
-                call.gas >= 21000L -> null
-                else -> async { provider.estimateGas(call, BlockId.LATEST).send() }
+                request.gas >= 21000L -> null
+                else -> async { provider.estimateGas(request, BlockId.LATEST).send() }
             }
 
             val feeHistoryFut = when {
@@ -378,6 +375,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             Triple(nonceFut?.await(), gasLimitFut?.await(), feeHistoryFut?.await())
         }
 
+        val call = request.toBuilder()
         if (nonceResult != null) {
             if (nonceResult.isFailure()) {
                 return nonceResult
@@ -433,12 +431,13 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
             }
         }
 
-        unsigned = call.toUnsignedTransactionOrNull()
+        val filled = call.build()
+        unsigned = filled.toUnsignedTransactionOrNull()
         if (unsigned != null) {
             return success(unsigned)
         }
 
-        val data = Kotlinx.DEFAULT.encodeToJsonElement(CallRequestSerializer, call)
+        val data = Kotlinx.DEFAULT.encodeToJsonElement(CallRequestSerializer, filled)
         return failure(RpcError(RpcError.CODE_CALL_FAILED, "Failed to manually fill transaction", data))
     }
 
@@ -560,7 +559,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         config: TracerConfig<T>,
         transactionIndex: Int,
     ): RpcRequest<List<T>, RpcError> {
-        val bundle = CallManyBundle(calls, config.blockOverrides)
+        val bundle = CallManyBundle(calls.map { it.toCallRequest() }, config.blockOverrides)
         val ctx = CallManyContext(blockId, transactionIndex)
 
         // one list of traces per bundle, and the call sends a single bundle

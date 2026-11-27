@@ -222,9 +222,11 @@ class TransactionDecompilerTest : FunSpec({
 
         val fresh = SolanaBlockhash(ByteArray(32) { 4 })
         val repriced = rpc.toRequest().unwrap()
-            .blockhash(fresh)
-            .computeUnitLimit(200_000)
-            .computeUnitPrice(bigIntegerOf(1_000))
+            .copy {
+                blockhash(fresh)
+                computeUnitLimit(200_000)
+                computeUnitPrice(bigIntegerOf(1_000))
+            }
             .compileLegacy().unwrap()
 
         repriced.recentBlockhash shouldBe fresh
@@ -233,10 +235,11 @@ class TransactionDecompilerTest : FunSpec({
     }
 })
 
-private fun requestOf(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instructions: List<Instruction>) = SolanaTransactionRequest()
+private fun requestOf(feePayer: SolanaAddress, blockhash: SolanaBlockhash, instructions: List<Instruction>) = SolanaTransactionRequest.Builder()
     .feePayer(feePayer)
     .blockhash(blockhash)
     .instructions(instructions)
+    .build()
 
 private fun SolanaTransactionError.shouldBeInvalidMessage(reason: SolanaTransactionError.Reason) {
     (this as SolanaTransactionError.InvalidMessage).reason shouldBe reason

@@ -92,12 +92,13 @@ class ProviderFeeHistoryTest : FunSpec({
         server.enqueueJson(FEE_HISTORY_RESPONSE.replace("%ID%", "1"))
 
         // everything except the fees is set, so fee history is the only extra request
-        val call = CallRequest()
+        val call = CallRequest.Builder()
             .from(Address("0x0000000000000000000000000000000000000001"))
             .to(Address("0x0000000000000000000000000000000000000002"))
             .gas(21000L)
             .nonce(0L)
             .chainId(1L)
+            .build()
 
         provider.fillTransaction(call).send().unwrap()
 

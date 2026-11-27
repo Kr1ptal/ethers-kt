@@ -540,10 +540,11 @@ class SolanaProviderTest : FunSpec({
         val program = SolanaAddress(ByteArray(32) { 42 })
         val payer = KeypairSigner.fromSeed(ByteArray(32) { 1 }).unwrap()
         val instruction = Instruction(program, movable.mapIndexed { i, a -> AccountMeta(a, writable = i % 2 == 0) }, byteArrayOf(1))
-        val request = SolanaTransactionRequest()
+        val request = SolanaTransactionRequest.Builder()
             .feePayer(payer.publicKey)
             .blockhash(blockhash)
             .instruction(instruction)
+            .build()
 
         // a legacy message loads no addresses, so no request is made at all
         val legacy = request.compileLegacy().unwrap()
@@ -592,7 +593,7 @@ class SolanaProviderTest : FunSpec({
         }
 
         test("a compute unit margin below -100%, without sending anything") {
-            val request = SolanaTransactionRequest().feePayer(address).blockhash(blockhash).instruction(SystemProgram.transfer(address, address, 1L))
+            val request = SolanaTransactionRequest.Builder().feePayer(address).blockhash(blockhash).instruction(SystemProgram.transfer(address, address, 1L)).build()
             val error = provider.fillTransaction(request, emptyList(), Commitment.CONFIRMED, -101).send().unwrapError()
             error.message shouldBe "Compute unit margin cannot be below -100%, got -101%"
             requests.size shouldBe 0
