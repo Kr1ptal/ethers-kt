@@ -11,6 +11,7 @@ ethers-kt is an async, high-performance Kotlin library for interacting with EVM-
 The codebase is divided into several modules, each with a specific purpose:
 
 - **ethers-abi**: ABI primitives with encoding/decoding logic for EVM types
+- **ethers-account-abstraction**: ERC-4337 user operations, bundler/paymaster clients, bundle decoding, ERC-6492 verification and passkey primitives
 - **ethers-abigen**: Code for generating type-safe smart contract bindings from JSON-ABI files
 - **ethers-abigen-plugin**: Gradle plugin for generating smart contract bindings during build
 - **ethers-core**: Optimized base types
