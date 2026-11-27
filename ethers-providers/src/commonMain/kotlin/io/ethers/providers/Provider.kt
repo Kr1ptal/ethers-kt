@@ -180,7 +180,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         stateOverride: StateOverride?,
         blockOverride: BlockOverride?,
     ): RpcRequest<List<Result<Bytes, CallFailedError>>, RpcError> {
-        val bundle = CallManyBundle(calls, blockOverride)
+        val bundle = CallManyBundle(calls.map { it.toCallRequest() }, blockOverride)
         val ctx = CallManyContext(blockId, transactionIndex)
 
         val params = rpcParams(bundle, ctx, stateOverride)
@@ -559,7 +559,7 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         config: TracerConfig<T>,
         transactionIndex: Int,
     ): RpcRequest<List<T>, RpcError> {
-        val bundle = CallManyBundle(calls, config.blockOverrides)
+        val bundle = CallManyBundle(calls.map { it.toCallRequest() }, config.blockOverrides)
         val ctx = CallManyContext(blockId, transactionIndex)
 
         // one list of traces per bundle, and the call sends a single bundle
