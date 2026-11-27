@@ -122,6 +122,13 @@ interface Block<T> {
     val excessBlobGas: Long
     val parentBeaconBlockRoot: Hash?
     val otherFields: Map<String, JsonElement>
+
+    /**
+     * Whether this is a pending block: one the node is building on top of the latest block, which has no [hash] yet.
+     * Its [number] is `-1` if the node didn't send one.
+     */
+    val isPending: Boolean
+        get() = hash == null
 }
 
 /**
@@ -204,7 +211,8 @@ private fun deserializeBlockCommon(obj: JsonObject, jsonDecoder: JsonDecoder): B
             "miner" -> miner = if (element is JsonNull) null else element.jsonPrimitive.asAddress()
             "mixHash" -> mixHash = if (element is JsonNull) null else element.jsonPrimitive.asHash()
             "nonce" -> nonce = if (element is JsonNull) null else element.jsonPrimitive.asHexBigInteger()
-            "number" -> number = element.jsonPrimitive.asHexLong()
+            // a pending block may come without a number, as the original JSON-RPC docs allowed
+            "number" -> if (element !is JsonNull) number = element.jsonPrimitive.asHexLong()
             "parentHash" -> parentHash = element.jsonPrimitive.asHash()
             "receiptsRoot" -> receiptsRoot = element.jsonPrimitive.asHash()
             "sha3Uncles" -> sha3Uncles = element.jsonPrimitive.asHash()

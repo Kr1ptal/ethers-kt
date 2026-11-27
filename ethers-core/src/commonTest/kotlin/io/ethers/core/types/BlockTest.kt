@@ -293,4 +293,64 @@ class BlockTest : FunSpec({
 
         result shouldBe expectedResult
     }
+
+    context("isPending") {
+        // a block as a node returns it, with the fields that are null in a pending block given as JSON
+        fun block(pendingFields: String): String = """
+            {
+              $pendingFields,
+              "difficulty": "0x0",
+              "extraData": "0x",
+              "gasLimit": "0x1c9c380",
+              "gasUsed": "0x0",
+              "logsBloom": "0x${"0".repeat(512)}",
+              "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+              "parentHash": "0x91e83f42e9fa6ca0c83c059c7bfa3eec339cdcf48ed14f2327d2af5006073067",
+              "receiptsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+              "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+              "size": "0x220",
+              "stateRoot": "0xd9988eb2accb57bbcad4b65f05e7a56defce642d37668681726e2adad96eb558",
+              "timestamp": "0x6527e5fb",
+              "transactionsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+              "transactions": [],
+              "uncles": []
+            }
+        """.trimIndent()
+
+        val mined = block(
+            """
+            "hash": "0xf58bc0d9ad6de2ca7169880cf7d6ffe970c85e48880c00745f21f7a0a5330560",
+            "nonce": "0x0000000000000000",
+            "miner": "0x3b64216ad1a58f61538b4fa1b27327675ab7ed67",
+            "number": "0x117c277"
+            """.trimIndent(),
+        )
+
+        // geth sends a pending block's number, with no hash, nonce or miner
+        val pending = block(""""hash": null, "nonce": null, "miner": null, "number": "0x117c278"""")
+
+        // the original JSON-RPC docs also left the number null
+        val pendingWithoutNumber = block(""""hash": null, "nonce": null, "miner": null, "number": null""")
+
+        test("a mined block is not pending") {
+            Kotlinx.DEFAULT.decodeFromString<BlockWithHashes>(mined).isPending shouldBe false
+            Kotlinx.DEFAULT.decodeFromString<BlockWithTransactions>(mined).isPending shouldBe false
+        }
+
+        test("a block without a hash is pending, and keeps its number") {
+            val withHashes = Kotlinx.DEFAULT.decodeFromString<BlockWithHashes>(pending)
+            withHashes.isPending shouldBe true
+            withHashes.number shouldBe 0x117c278L
+
+            Kotlinx.DEFAULT.decodeFromString<BlockWithTransactions>(pending).isPending shouldBe true
+        }
+
+        test("a pending block whose number is null decodes, with number -1") {
+            val withHashes = Kotlinx.DEFAULT.decodeFromString<BlockWithHashes>(pendingWithoutNumber)
+            withHashes.isPending shouldBe true
+            withHashes.number shouldBe -1L
+
+            Kotlinx.DEFAULT.decodeFromString<BlockWithTransactions>(pendingWithoutNumber).number shouldBe -1L
+        }
+    }
 })
