@@ -2,12 +2,11 @@ package io.ethers.providers
 
 import io.ethers.providers.types.RpcCall
 import io.ethers.providers.types.RpcParams
+import kotlinx.serialization.json.JsonPrimitive
 
 // The text of a request without its method, params and id: `{"id":`, `,"jsonrpc":"2.0","method":""`, `,"params":` and
 // `}`, plus room for an id of up to 19 digits.
 private const val REQUEST_OVERHEAD = 64
-
-private const val HEX_DIGITS = "0123456789abcdef"
 
 /** Build the text of a JSON-RPC request. */
 internal fun buildJsonRpcRequest(method: String, id: Long, params: RpcParams): String {
@@ -55,40 +54,15 @@ internal fun StringBuilder.appendJsonRpcRequest(method: String, id: Long, params
 }
 
 /**
- * Append [value] as a quoted JSON string, escaped exactly as kotlinx.serialization escapes it: `"` and `\` with a
- * backslash, the control characters that have a short escape with it, and the other control characters as `\u00xx`.
- * Every other character, non-ASCII included, is appended as is.
+ * Append [value] as a quoted JSON string, escaped exactly as kotlinx.serialization escapes it.
+ *
+ * Method names never need escaping, so they are checked first and appended as they are. A string that does need it is
+ * written by kotlinx itself, which keeps the escaping identical to every other string in the request.
  */
 internal fun StringBuilder.appendJsonString(value: String): StringBuilder {
-    append('"')
-    // a method name never needs escaping: find that out first, then append the whole string in one go
     for (i in value.indices) {
-        if (needsEscape(value[i])) return appendEscaped(value, i).append('"')
-    }
-    return append(value).append('"')
-}
-
-private fun needsEscape(c: Char): Boolean = c < ' ' || c == '"' || c == '\\'
-
-/** Append [value], whose first character that needs escaping is at [from]. */
-private fun StringBuilder.appendEscaped(value: String, from: Int): StringBuilder {
-    var start = 0
-    for (i in from until value.length) {
         val c = value[i]
-        if (!needsEscape(c)) continue
-
-        appendRange(value, start, i)
-        when (c) {
-            '"' -> append("\\\"")
-            '\\' -> append("\\\\")
-            '\n' -> append("\\n")
-            '\r' -> append("\\r")
-            '\t' -> append("\\t")
-            '\b' -> append("\\b")
-            '\u000C' -> append("\\f")
-            else -> append("\\u00").append(HEX_DIGITS[c.code shr 4]).append(HEX_DIGITS[c.code and 0xF])
-        }
-        start = i + 1
+        if (c < ' ' || c == '"' || c == '\\') return append(JsonPrimitive(value).toString())
     }
-    return appendRange(value, start, value.length)
+    return append('"').append(value).append('"')
 }

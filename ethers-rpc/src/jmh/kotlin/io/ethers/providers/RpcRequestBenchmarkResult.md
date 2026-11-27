@@ -35,8 +35,8 @@ A resend now only copies the kept params text into the request, so it costs abou
 
 How the params are encoded was chosen from these candidates, each writing byte-identical requests (checked against the
 `base` output in the benchmark's setup), measured in a separate benchmark with the same settings. All but `whole`
-write the request around the params text with a `StringBuilder`; the `final` column above also includes escaping the
-method name, which these leave out.
+write the request around the params text with a `StringBuilder`; the `final` column above also includes checking whether
+the method name needs escaping, which these leave out.
 
 | Candidate | `eth_getBalance` | `eth_call` | `debug_traceCall` | `eth_blockNumber` | resend `eth_getBalance` / `eth_call` |
 |---|---:|---:|---:|---:|---:|
