@@ -20,23 +20,27 @@ again.
 
 | Request | master (ns) | final (ns) | master (B/op) | final (B/op) |
 |---|---:|---:|---:|---:|
-| send `eth_getBalance` (Address, "latest") | 232 | 198 | 816 | 536 |
-| send `eth_call` (CallRequest, "latest") | 576 | 391 | 1820 | 960 |
-| send `debug_traceCall` (CallRequest, "latest", TracerConfig) | 953 | 768 | 2588 | 1360 |
+| send `eth_getBalance` (Address, "latest") | 232 | 198 | 816 | 528 |
+| send `eth_call` (CallRequest, "latest") | 576 | 391 | 1820 | 952 |
+| send `debug_traceCall` (CallRequest, "latest", TracerConfig) | 953 | 768 | 2588 | 1352 |
 | send `eth_blockNumber` (no params) | 73 | 45 | 312 | 80 |
 | resend `eth_getBalance` | 82 | 48 | 472 | 136 |
 | resend `eth_call` | 86 | 46 | 880 | 272 |
 | resend `debug_traceCall` | 111 | 61 | 1128 | 352 |
-| build `rpcParams(address, "latest")` | 5.8 | 6.3 | 72 | 80 |
-| build `buildRpcParams { 3 params }` | 16 | 17 | 152 | 160 |
+| build `rpcParams(address, "latest")` | 5.8 | 6.3 | 72 | 72 |
+| build `buildRpcParams { 3 params }` | 16 | 17 | 152 | 152 |
 | `Address` encoded the first time | 103 | 106 | 392 | 392 |
 | `Address` encoded again (hex cached) | 71 | 72 | 216 | 216 |
 | creating an `Address` (part of the first-time case) | 1.9 | 2.1 | 24 | 24 |
 
 Streaming the serializers saves about 160 ns and 470 B on a `CallRequest`, and about 140 ns and 740 B on
 `debug_traceCall`'s `CallRequest` plus `TracerConfig` (the `a` candidate below against `master`, which differ only in
-that). Writing bytes saves the rest: a resend now allocates only the request's bytes. `RpcParams` holds one more field,
-for the kept bytes, which is the 8 B more in `build*`.
+that). Writing bytes saves the rest: a resend now allocates only the request's bytes. `RpcParams` keeps only those
+bytes, so it is the same size as on `master`.
+
+The B/op of `final` above is after `RpcParams` stopped keeping a `String` form too, which took 8 B off each `build*`
+and `send*`; the raw output below was recorded before that. Times are from that run, on an idle machine; a later run
+on a busy machine matched them within its noise.
 
 `Address` caches its hex text, so encoding the same `Address` again skips the hex encoding: about 30 ns and 152 B per
 `Address` (first time minus again minus creating it). Request params go through that cached `toString()`; nothing on the
@@ -69,9 +73,8 @@ requests (checked in the benchmark's setup), measured in a separate benchmark wi
 `b` is the fastest for every request with params, sent or resent, and its resend allocates only the request. `c` and `d`
 allocate a little less on a send, as they never hold the params' bytes apart from the request, but kotlinx-io's writer
 (`c`) is 25 to 55% slower, and copying characters one by one (`d`) makes a resend 1.5 to 3.6 times slower than `b`'s
-array copy. `d2` converts the kept `String` on every resend. `encode()` still returns a `String`: with `b`, a request that
-is only sent keeps just the bytes, and the `String` is decoded from them, once, only if `encode()` or `toString()` is
-called.
+array copy. `d2` converts the kept `String` on every resend. With `b`, the params keep only their bytes, which
+`RpcParams.encode()` returns; a caller that wants the text decodes them with `decodeToString()`.
 
 master:
 

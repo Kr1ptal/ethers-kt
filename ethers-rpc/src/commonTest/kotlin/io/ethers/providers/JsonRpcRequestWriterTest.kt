@@ -101,7 +101,7 @@ class JsonRpcRequestWriterTest : FunSpec({
                 RpcCall(client, "eth_blockNumber", rpcParams(), String.serializer()),
                 RpcCall(client, "eth_get\"Code", rpcParams("0xb"), String.serializer()),
             )
-            val params = calls.map { it.params.encodeBytes() }
+            val params = calls.map { it.params.encode() }
             val indices = ArrayList<Int>()
 
             val batch = buildJsonRpcBatch(calls, params) { i ->
@@ -125,7 +125,7 @@ class JsonRpcRequestWriterTest : FunSpec({
         test("a single call is written with no comma") {
             val client = HttpClient("http://localhost")
             val calls = listOf(RpcCall(client, "eth_chainId", rpcParams(), String.serializer()))
-            buildJsonRpcBatch(calls, calls.map { it.params.encodeBytes() }) { 1L }.decodeToString() shouldBe
+            buildJsonRpcBatch(calls, calls.map { it.params.encode() }) { 1L }.decodeToString() shouldBe
                 """[{"id":1,"jsonrpc":"2.0","method":"eth_chainId","params":[]}]"""
             client.close()
         }

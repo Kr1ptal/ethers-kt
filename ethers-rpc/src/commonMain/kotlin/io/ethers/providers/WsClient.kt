@@ -844,7 +844,7 @@ class WsClient(
         val request = PendingRequest(
             method,
             // encoded here, so a parameter that can't be encoded fails this call instead of the processing loop
-            params.encodeBytes(),
+            params.encode(),
             resultDeserializer,
             CompletableDeferred(),
         )
@@ -864,7 +864,7 @@ class WsClient(
             descriptor,
             // encoded here, so a parameter that can't be encoded fails this call instead of the processing loop, and
             // kept to resubscribe with after a reconnect
-            descriptor.params.encodeBytes(),
+            descriptor.params.encode(),
             resultDeserializer,
             CompletableDeferred(),
         )

@@ -73,7 +73,7 @@ class ProviderTraceRequestTest : FunSpec({
     // anything that inspects RpcCall.params (e.g. request caches) can encode them without sending the request
     fun RpcRequest<*, *>.shouldHaveJsonParams(expected: String) {
         val rpcCall = shouldBeInstanceOf<RpcCall<*>>()
-        json(rpcCall.params.encode()) shouldBe json(expected)
+        json(rpcCall.params.encode().decodeToString()) shouldBe json(expected)
     }
 
     context("debug_traceCall") {

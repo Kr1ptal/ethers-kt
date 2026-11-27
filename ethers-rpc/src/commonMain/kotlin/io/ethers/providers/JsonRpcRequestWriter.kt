@@ -18,7 +18,7 @@ private val REQUEST_FIXED_SIZE = ID_PREFIX.size + METHOD_PREFIX.size + PARAMS_PR
  * are sent, with no whitespace, as kotlinx.serialization writes it.
  */
 internal fun buildJsonRpcRequest(method: String, id: Long, params: RpcParams): ByteArray {
-    return buildJsonRpcRequest(method, id, params.encodeBytes())
+    return buildJsonRpcRequest(method, id, params.encode())
 }
 
 /** Build a JSON-RPC request whose params are already encoded as the UTF-8 text of a JSON array. */

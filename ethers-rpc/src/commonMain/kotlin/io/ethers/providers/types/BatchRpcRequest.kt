@@ -123,7 +123,7 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) : Platfor
         val params = ArrayList<ByteArray>(requests.size)
         try {
             for (call in requests) {
-                params.add(call.params.encodeBytes())
+                params.add(call.params.encode())
             }
         } catch (e: Exception) {
             // every call before the failing one was encoded, so its index is the number encoded so far
