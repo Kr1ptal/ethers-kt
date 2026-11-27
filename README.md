@@ -50,7 +50,7 @@ It's recommended to define BOM platform dependency to ensure that ethers-kt arti
 
 ```kotlin
 plugins {
-    id("io.kriptal.ethers.abigen-plugin") version "2.2.0"
+    id("io.kriptal.ethers.abigen-plugin") version "2.3.0"
 }
 
 // default values
@@ -69,7 +69,7 @@ repositories {
 
 dependencies {
     // Define a BOM and its version
-    implementation(platform("io.kriptal.ethers:ethers-bom:2.2.0"))
+    implementation(platform("io.kriptal.ethers:ethers-bom:2.3.0"))
 
     // Define any required artifacts without version
     implementation("io.kriptal.ethers:ethers-abi")
@@ -85,7 +85,7 @@ In a multiplatform project, add the artifacts to `commonMain` instead:
 kotlin {
     sourceSets {
         commonMain.dependencies {
-            implementation(project.dependencies.platform("io.kriptal.ethers:ethers-bom:2.2.0"))
+            implementation(project.dependencies.platform("io.kriptal.ethers:ethers-bom:2.3.0"))
 
             implementation("io.kriptal.ethers:ethers-abi")
             implementation("io.kriptal.ethers:ethers-core")

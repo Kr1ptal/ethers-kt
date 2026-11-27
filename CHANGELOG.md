@@ -22,6 +22,33 @@ Sections:
 ### Security = Security patches.
 -->
 
+## [2.3.0] - 2026-11-27
+
+### Bug Fixes
+
+- [**breaking**] Send eth_feeHistory reward percentiles as JSON numbers, accept doubles (#596)
+- Decode pending blocks without a number, add Block.isPending (#604)
+- Send eth_callMany bundles as a list; add multi-bundle callMany (#606)
+
+### Features
+
+- [**breaking**] Make EnsNameCache an interface so it can be replaced (#595)
+- [**breaking**] Typed JSON-RPC params that capture serializers at the call site (#599)
+- Add RPCTransaction.isPending
+
+### Miscellaneous Tasks
+
+- Release by merging a release pull request (#598)
+
+### Performance
+
+- Write JSON-RPC requests as text and cache params as text (#601)
+- [**breaking**] Stream request serializers and send requests as bytes (#605)
+
+### Refactor
+
+- [**breaking**] Make CallRequest, BlockOverride, LogFilter and SolanaTransactionRequest immutable (#600)
+
 ## [2.2.0] - 2026-11-22
 
 This release adds Solana support alongside the EVM modules, and moves RPC result decoding off JSON trees. It carries
