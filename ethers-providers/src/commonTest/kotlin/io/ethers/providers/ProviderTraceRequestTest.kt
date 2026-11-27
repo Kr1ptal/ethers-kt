@@ -5,6 +5,7 @@ import io.ethers.core.types.AccountOverride
 import io.ethers.core.types.Address
 import io.ethers.core.types.BlockId
 import io.ethers.core.types.BlockOverride
+import io.ethers.core.types.Bytes
 import io.ethers.core.types.CallRequest
 import io.ethers.core.types.Hash
 import io.ethers.core.types.StateOverride
@@ -206,18 +207,18 @@ class ProviderTraceRequestTest : FunSpec({
 
     context("eth_callMany") {
         test("bundle and context are sent without overrides") {
-            server.enqueueJson(response("""[{"value":"0x01"}]"""))
+            server.enqueueJson(response("""[[{"value":"0x01"}]]"""))
 
             val results = provider.callMany(BlockId.Number(9), listOf(call())).send().unwrap()
 
             val (method, params) = takeRequest()
             method shouldBe "eth_callMany"
-            params shouldBe json("""[{"transactions":[$CALL_JSON]},{"blockNumber":"0x9","transactionIndex":-1},null]""")
+            params shouldBe json("""[[{"transactions":[$CALL_JSON]}],{"blockNumber":"0x9","transactionIndex":-1},null]""")
             results.size shouldBe 1
         }
 
         test("bundle, context and overrides are sent") {
-            server.enqueueJson(response("""[{"value":"0x01"},{"error":"reverted"}]"""))
+            server.enqueueJson(response("""[[{"value":"0x01"},{"error":"reverted"}]]"""))
 
             val results = provider.callMany(
                 BLOCK_HASH,
@@ -230,7 +231,7 @@ class ProviderTraceRequestTest : FunSpec({
             takeRequest().second shouldBe json(
                 """
                 [
-                  {"transactions":[$CALL_JSON,$CALL_JSON],"blockOverride":{"number":"0x14"}},
+                  [{"transactions":[$CALL_JSON,$CALL_JSON],"blockOverride":{"number":"0x14"}}],
                   {"blockNumber":"$BLOCK_HASH","transactionIndex":4},
                   {"0x00000000000000000000000000000000000000bb":{"nonce":"0x1"}}
                 ]
@@ -239,9 +240,26 @@ class ProviderTraceRequestTest : FunSpec({
             withClue("second call reverted") { results[1].isFailure() shouldBe true }
         }
 
+        // regression: the request sent one bundle object, which nodes reject with "invalid params", and the decoder
+        // expected a flat list of results where nodes answer with a list per bundle
+        test("one bundle is sent in a list, and the results of that bundle are returned") {
+            server.enqueueJson(response("""[[{"value":"0x01"},{"value":"0x02"}]]"""))
+
+            val results = provider.callMany(BlockId.LATEST, listOf(call(), call())).send().unwrap()
+
+            takeRequest().second[0] shouldBe json("""[{"transactions":[$CALL_JSON,$CALL_JSON]}]""")
+            results.map { it.unwrap() } shouldBe listOf(Bytes("0x01"), Bytes("0x02"))
+        }
+
+        test("an answer with no bundles is no results") {
+            server.enqueueJson(response("[]"))
+
+            provider.callMany(BlockId.LATEST, listOf(call())).send().unwrap() shouldBe emptyList()
+        }
+
         test("request params encode to the JSON that is sent") {
             provider.callMany(BlockId.LATEST, listOf(call()))
-                .shouldHaveJsonParams("""[{"transactions":[$CALL_JSON]},{"blockNumber":"latest","transactionIndex":-1},null]""")
+                .shouldHaveJsonParams("""[[{"transactions":[$CALL_JSON]}],{"blockNumber":"latest","transactionIndex":-1},null]""")
         }
     }
 })

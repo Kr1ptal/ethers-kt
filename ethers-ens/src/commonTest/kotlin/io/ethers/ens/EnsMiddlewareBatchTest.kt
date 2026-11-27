@@ -61,7 +61,7 @@ class EnsMiddlewareBatchTest : FunSpec({
         val plainTo = Address("0x0000000000000000000000000000000000000001")
         val client = FakeJsonRpcClient()
             .serveEnsNames(RESOLVER, "vitalik.eth" to VITALIK, "nick.eth" to NICK)
-            .enqueue("eth_callMany", """[{"value":"0xaa"},{"value":"0xbb"},{"value":"0xcc"}]""")
+            .enqueue("eth_callMany", """[[{"value":"0xaa"},{"value":"0xbb"},{"value":"0xcc"}]]""")
         val middleware = EnsMiddleware(Provider(client, 1L))
 
         val result = middleware.callMany(
@@ -85,7 +85,7 @@ class EnsMiddlewareBatchTest : FunSpec({
     test("names in a batch resolve concurrently rather than one after another") {
         val fake = FakeJsonRpcClient()
             .serveEnsNames(RESOLVER, "vitalik.eth" to VITALIK, "nick.eth" to NICK)
-            .enqueue("eth_callMany", """[{"value":"0xaa"},{"value":"0xbb"}]""")
+            .enqueue("eth_callMany", """[[{"value":"0xaa"},{"value":"0xbb"}]]""")
         val client = ConcurrencyTrackingClient(fake)
         val middleware = EnsMiddleware(Provider(client, 1L))
 
@@ -100,7 +100,7 @@ class EnsMiddlewareBatchTest : FunSpec({
 
     test("a batch with no ENS names passes through without any resolution traffic") {
         val to = Address("0x0000000000000000000000000000000000000001")
-        val client = FakeJsonRpcClient().enqueue("eth_callMany", """[{"value":"0xaa"}]""")
+        val client = FakeJsonRpcClient().enqueue("eth_callMany", """[[{"value":"0xaa"}]]""")
         val middleware = EnsMiddleware(Provider(client, 1L))
 
         middleware.callMany(BlockId.LATEST, listOf(CallRequest.Builder().to(to).build())).send().unwrap()
@@ -132,7 +132,7 @@ class EnsMiddlewareBatchTest : FunSpec({
     test("the block-number callMany overload also resolves names") {
         val client = FakeJsonRpcClient()
             .serveEnsNames(RESOLVER, "vitalik.eth" to VITALIK)
-            .enqueue("eth_callMany", """[{"value":"0xaa"}]""")
+            .enqueue("eth_callMany", """[[{"value":"0xaa"}]]""")
         val middleware = EnsMiddleware(Provider(client, 1L))
 
         middleware.callMany(1L, listOf(EnsCallRequest("vitalik.eth"))).send().unwrap()

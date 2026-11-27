@@ -183,8 +183,10 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         val bundle = CallManyBundle(calls.map { it.toCallRequest() }, blockOverride)
         val ctx = CallManyContext(blockId, transactionIndex)
 
-        val params = rpcParams(bundle, ctx, stateOverride)
-        return RpcCall(client, "eth_callMany", params, ListSerializer(CallManyResultSerializer))
+        // eth_callMany takes a list of bundles and answers with a list of results per bundle; the call sends one bundle
+        val params = rpcParams(listOf(bundle), ctx, stateOverride)
+        val results = ListSerializer(ListSerializer(CallManyResultSerializer))
+        return RpcCall(client, "eth_callMany", params, results.map { it.firstOrNull() ?: emptyList() })
     }
 
     override fun estimateGas(call: IntoCallRequest, blockId: BlockId): RpcRequest<Long, RpcError> {
