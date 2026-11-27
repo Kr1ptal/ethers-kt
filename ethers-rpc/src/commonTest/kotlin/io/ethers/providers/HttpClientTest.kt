@@ -14,6 +14,7 @@ import io.kotest.core.spec.style.funSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
+import io.ktor.client.plugins.ResponseException
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.jsonArray
@@ -94,6 +95,126 @@ private fun httpSpecificTests() = funSpec {
                 missing.message shouldContain "HTTP 500"
                 batch.responses[1].await().unwrapError().message shouldBe "boom"
                 sent shouldBe false
+            }
+        }
+
+        test("HTTP 429 with a non-JSON body is rate limited and carries the status and Retry-After") {
+            server.enqueue(429, "Too Many Requests", mapOf("Retry-After" to "7"))
+
+            val error = client.request("eth_blockNumber", RpcParams.EMPTY, stringSerializer).unwrapError()
+
+            error.code shouldBe RpcError.CODE_CALL_FAILED
+            error.message shouldBe "HTTP 429: Too Many Requests"
+            error.httpStatus shouldBe 429
+            error.retryAfterMs shouldBe 7000L
+            error.isRateLimited shouldBe true
+        }
+
+        test("HTTP 429 with a JSON-RPC error body keeps the provider's error and adds the status and Retry-After") {
+            server.enqueue(429, RATE_LIMITED_RESPONSE, mapOf("Retry-After" to "2"))
+
+            val error = client.request("eth_blockNumber", RpcParams.EMPTY, stringSerializer).unwrapError()
+
+            error.code shouldBe 429
+            error.message shouldContain "compute units per second"
+            error.httpStatus shouldBe 429
+            error.retryAfterMs shouldBe 2000L
+            error.isRateLimited shouldBe true
+        }
+
+        test("HTTP error without Retry-After carries the status only and is not rate limited") {
+            server.enqueue(500, RPC_ERROR_RESPONSE)
+
+            val error = client.request("eth_blockNumber", RpcParams.EMPTY, stringSerializer).unwrapError()
+
+            error.httpStatus shouldBe 500
+            error.retryAfterMs shouldBe null
+            error.isRateLimited shouldBe false
+        }
+
+        test("JSON-RPC error with a successful HTTP status has no HTTP status") {
+            server.enqueue(200, RPC_ERROR_RESPONSE, mapOf("Retry-After" to "5"))
+
+            val error = client.request("eth_blockNumber", RpcParams.EMPTY, stringSerializer).unwrapError()
+
+            error.code shouldBe -32601
+            error.httpStatus shouldBe null
+            error.retryAfterMs shouldBe null
+        }
+
+        test("JSON-RPC rate limit error with a successful HTTP status is rate limited") {
+            server.enqueue(
+                200,
+                """{"jsonrpc":"2.0","id":1,"error":{"code":-32005,"message":"project ID request rate exceeded"}}""",
+            )
+
+            val error = client.request("eth_blockNumber", RpcParams.EMPTY, stringSerializer).unwrapError()
+
+            error.httpStatus shouldBe null
+            error.isRateLimited shouldBe true
+        }
+
+        test("HTTP 429 batch fails answered and unanswered calls with the status and Retry-After") {
+            server.enqueue(
+                429,
+                """[{"jsonrpc":"2.0","id":2,"error":{"code":429,"message":"Too many requests"}}]""",
+                mapOf("Retry-After" to "3"),
+            )
+
+            val batch = BatchRpcRequest(2)
+            batch.addRpcCall(RpcCall(client, "eth_blockNumber", RpcParams.EMPTY, stringSerializer))
+            batch.addRpcCall(RpcCall(client, "eth_chainId", RpcParams.EMPTY, stringSerializer))
+
+            withTimeout(30.seconds) {
+                batch.send() shouldBe false
+
+                val missing = batch.responses[0].await().unwrapError()
+                missing.code shouldBe RpcError.CODE_CALL_FAILED
+                missing.httpStatus shouldBe 429
+                missing.retryAfterMs shouldBe 3000L
+                missing.isRateLimited shouldBe true
+
+                val answered = batch.responses[1].await().unwrapError()
+                answered.code shouldBe 429
+                answered.httpStatus shouldBe 429
+                answered.retryAfterMs shouldBe 3000L
+                answered.isRateLimited shouldBe true
+            }
+        }
+
+        test("HTTP 429 batch with a non-JSON body fails every call with the status and Retry-After") {
+            server.enqueue(429, "Too Many Requests", mapOf("Retry-After" to "4"))
+
+            val batch = BatchRpcRequest(2)
+            batch.addRpcCall(RpcCall(client, "eth_blockNumber", RpcParams.EMPTY, stringSerializer))
+            batch.addRpcCall(RpcCall(client, "eth_chainId", RpcParams.EMPTY, stringSerializer))
+
+            withTimeout(30.seconds) {
+                batch.send() shouldBe false
+                for (response in batch.responses) {
+                    val error = response.await().unwrapError()
+                    error.httpStatus shouldBe 429
+                    error.retryAfterMs shouldBe 4000L
+                    error.isRateLimited shouldBe true
+                }
+            }
+        }
+
+        test("HTTP 429 thrown by a client configured with expectSuccess carries the status and Retry-After") {
+            val throwingClient = HttpClient(server.url, KtorHttpClient { expectSuccess = true })
+            try {
+                server.enqueue(429, "Too Many Requests", mapOf("Retry-After" to "9"))
+
+                val error = throwingClient.request("eth_blockNumber", RpcParams.EMPTY, stringSerializer).unwrapError()
+
+                error.code shouldBe RpcError.CODE_CALL_FAILED
+                error.message shouldBe "HTTP 429: Too Many Requests"
+                error.httpStatus shouldBe 429
+                error.retryAfterMs shouldBe 9000L
+                error.isRateLimited shouldBe true
+                (error.cause is ResponseException) shouldBe true
+            } finally {
+                throwingClient.close()
             }
         }
 
@@ -332,6 +453,17 @@ private val SUCCESSFUL_RESPONSE = """
     "jsonrpc": "2.0",
     "id": 1,
     "result": "0x1234567"
+}
+""".trimIndent()
+
+private val RATE_LIMITED_RESPONSE = """
+{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "error": {
+        "code": 429,
+        "message": "Your app has exceeded its compute units per second capacity."
+    }
 }
 """.trimIndent()
 

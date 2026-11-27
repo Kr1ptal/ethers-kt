@@ -58,4 +58,67 @@ class RpcErrorTest : FunSpec({
             result shouldBe expected
         }
     }
+
+    test("isRateLimited") {
+        data class TestCase(val error: RpcError, val expected: Boolean)
+
+        Exhaustive.of(
+            // HTTP 429, whatever the error
+            TestCase(RpcError(RpcError.CODE_CALL_FAILED, "HTTP 429: Too Many Requests", httpStatus = 429), true),
+            TestCase(RpcError(-32000, "server busy", httpStatus = 429), true),
+            // Alchemy
+            TestCase(RpcError(429, "Your app has exceeded its compute units per second capacity."), true),
+            // Infura
+            TestCase(RpcError(-32005, "daily request count exceeded, request rate limited"), true),
+            TestCase(RpcError(-32005, "project ID request rate exceeded"), true),
+            // QuickNode
+            TestCase(RpcError(-32007, "15/second request limit reached - reduce calls per second"), true),
+            TestCase(RpcError(-32000, "Too Many Requests"), true),
+            TestCase(RpcError(-32000, "Rate-limited, try again later"), true),
+            // -32005 alone is a limit that retrying won't get past
+            TestCase(RpcError(-32005, "query returned more than 10000 results"), false),
+            TestCase(RpcError(RpcError.CODE_CALL_FAILED, "HTTP 503: Service Unavailable", httpStatus = 503), false),
+            TestCase(RpcError(RpcError.CODE_EXECUTION_ERROR, "execution reverted"), false),
+            TestCase(RpcError(-32000, "exceeds block gas limit"), false),
+        ).checkAll { (error, expected) ->
+            error.isRateLimited shouldBe expected
+        }
+    }
+
+    test("new fields default to null, so errors without them stay equal") {
+        val error = RpcError(RpcError.CODE_EXECUTION_ERROR, "execution reverted")
+
+        error.httpStatus shouldBe null
+        error.retryAfterMs shouldBe null
+        error shouldBe RpcError(RpcError.CODE_EXECUTION_ERROR, "execution reverted", null, null, null, null)
+    }
+
+    test("parse Retry-After") {
+        // Wed, 21 Oct 2015 07:28:00 GMT
+        val dateMs = 1_445_412_480_000L
+
+        data class TestCase(val value: String?, val expected: Long?)
+
+        Exhaustive.of(
+            TestCase(null, null),
+            TestCase("", null),
+            TestCase("   ", null),
+            TestCase("0", 0L),
+            TestCase("120", 120_000L),
+            TestCase(" 5 ", 5_000L),
+            TestCase("1.5", 1_500L),
+            TestCase("-1", null),
+            TestCase("-1.5", null),
+            TestCase("NaN", null),
+            TestCase("Infinity", null),
+            TestCase("${Long.MAX_VALUE}", Long.MAX_VALUE),
+            TestCase("soon", null),
+            // HTTP date, measured from now
+            TestCase("Wed, 21 Oct 2015 07:28:05 GMT", 5_000L),
+            // a date in the past means no wait
+            TestCase("Wed, 21 Oct 2015 07:27:00 GMT", 0L),
+        ).checkAll { (value, expected) ->
+            HttpClient.parseRetryAfterMs(value, nowMs = dateMs) shouldBe expected
+        }
+    }
 })

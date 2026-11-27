@@ -84,12 +84,20 @@ object HexByteArraySerializer : KSerializer<ByteArray> {
 
 /**
  * Internal JSON-RPC error, returned when the RPC call fails.
+ *
+ * @param httpStatus status code of the HTTP response that carried this error, set only when it was outside the 2xx
+ * range. Null for errors the server returned with a successful status, for WebSocket calls, and for failures that got
+ * no response at all.
+ * @param retryAfterMs how long the server asked to wait before retrying, in milliseconds, taken from the `Retry-After`
+ * header of a response outside the 2xx range. Null if the response did not include one or it could not be parsed.
  */
 data class RpcError @JvmOverloads constructor(
     val code: Int,
     override val message: String,
     val data: JsonElement? = null,
     override val cause: Exception? = null,
+    val httpStatus: Int? = null,
+    val retryAfterMs: Long? = null,
 ) : ThrowableError {
     // [message] is the JSON-RPC error message, which on its own omits the code that identifies the failure
     override fun toException(): RuntimeException {
@@ -175,7 +183,36 @@ data class RpcError @JvmOverloads constructor(
      * */
     val isCallFailed get() = code == CODE_CALL_FAILED
 
+    /**
+     * The server rejected the call because the client sent too many requests. True for an HTTP 429 response, for
+     * the JSON-RPC error code 429 that some providers use (e.g. Alchemy), and for messages that providers use to
+     * report rate limits (e.g. Infura, QuickNode), whatever their code.
+     *
+     * The EIP-1474 "limit exceeded" code -32005 alone does not count, because providers also return it for limits
+     * that retrying won't get past, such as an `eth_getLogs` query that matches too many logs.
+     *
+     * [retryAfterMs] holds the wait the server asked for, if it sent one.
+     * */
+    val isRateLimited: Boolean
+        get() {
+            return httpStatus == HTTP_TOO_MANY_REQUESTS ||
+                code == CODE_RATE_LIMITED ||
+                RATE_LIMIT_MESSAGE_FRAGMENTS.any { message.contains(it, ignoreCase = true) }
+        }
+
     companion object {
+        private const val HTTP_TOO_MANY_REQUESTS = 429
+
+        private val RATE_LIMIT_MESSAGE_FRAGMENTS = listOf(
+            "rate limit", // "rate limited", "rate limit exceeded", Infura's "request rate limited"
+            "rate-limit",
+            "ratelimit",
+            "too many requests",
+            "request rate", // Infura's "project ID request rate exceeded"
+            "request limit reached", // QuickNode
+            "compute units per second", // Alchemy
+        )
+
         private val UNSUPPORTED_METHOD_MESSAGE_FRAGMENTS = listOf(
             "did not match any variant", // foundry's Anvil
             "is not available", // go-ethereum / standard response
@@ -200,6 +237,9 @@ data class RpcError @JvmOverloads constructor(
         const val CODE_UNAUTHORIZED = 1
         const val CODE_ACTION_NOT_ALLOWED = 2
         const val CODE_EXECUTION_ERROR = 3
+
+        /** Code some providers (e.g. Alchemy) use for a rate-limited call, mirroring HTTP 429. */
+        const val CODE_RATE_LIMITED = 429
 
         // Client errors
         const val CODE_INVALID_RESPONSE = 5000

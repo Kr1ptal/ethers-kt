@@ -37,7 +37,7 @@ interface MockServer {
     val url: String
 
     fun enqueueJson(json: String)
-    fun enqueue(statusCode: Int, body: String)
+    fun enqueue(statusCode: Int, body: String, headers: Map<String, String> = emptyMap())
 
     /** Take the next request the server handled, or fail after [timeoutMs] rather than hanging. */
     suspend fun takeRequest(timeoutMs: Long = DEFAULT_TIMEOUT_MS): RecordedRequest
@@ -123,9 +123,11 @@ internal object RunningMockServers {
  * A real server also means connections are always accepted, so there is no per-connection upgrade to enqueue the
  * way MockWebServer required.
  */
+private data class MockResponse(val status: Int, val body: String, val headers: Map<String, String>)
+
 private class EmbeddedMockServer(private val websocket: Boolean) : MockWSServer {
     // UNLIMITED so enqueueing never suspends and ordering is preserved
-    private val responses = Channel<Pair<Int, String>>(Channel.UNLIMITED)
+    private val responses = Channel<MockResponse>(Channel.UNLIMITED)
     private val requests = Channel<RecordedRequest>(Channel.UNLIMITED)
     private val received = Channel<String>(Channel.UNLIMITED)
 
@@ -177,9 +179,10 @@ private class EmbeddedMockServer(private val websocket: Boolean) : MockWSServer 
                     .associate { (k, v) -> k to v.firstOrNull().orEmpty() }
                 requests.trySend(RecordedRequest(headers, call.receiveText().encodeToByteArray()))
 
-                val (status, body) = withTimeoutOrNull(RESPONSE_WAIT_MS) { responses.receive() }
-                    ?: (500 to """{"error":"no response enqueued in mock server"}""")
+                val (status, body, responseHeaders) = withTimeoutOrNull(RESPONSE_WAIT_MS) { responses.receive() }
+                    ?: MockResponse(500, """{"error":"no response enqueued in mock server"}""", emptyMap())
 
+                responseHeaders.forEach { (k, v) -> call.response.headers.append(k, v) }
                 call.respondText(body, status = HttpStatusCode.fromValue(status))
             }
         }
@@ -198,8 +201,8 @@ private class EmbeddedMockServer(private val websocket: Boolean) : MockWSServer 
 
     override fun enqueueJson(json: String) = enqueue(200, json)
 
-    override fun enqueue(statusCode: Int, body: String) {
-        responses.trySend(statusCode to body)
+    override fun enqueue(statusCode: Int, body: String, headers: Map<String, String>) {
+        responses.trySend(MockResponse(statusCode, body, headers))
     }
 
     override suspend fun takeRequest(timeoutMs: Long): RecordedRequest {
