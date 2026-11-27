@@ -70,7 +70,7 @@ interface Transaction : IntoCallRequest {
  * Create a [CallRequest.Builder] holding the fields of **this** transaction, so implementations can add their own
  * fields before building a single [CallRequest].
  * */
-internal fun Transaction.callRequestBuilder(): CallRequest.Builder {
+private fun Transaction.callRequestBuilder(): CallRequest.Builder {
     val builder = CallRequest.Builder()
         .to(to)
         .value(value)
