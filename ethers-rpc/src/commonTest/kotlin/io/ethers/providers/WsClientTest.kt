@@ -243,7 +243,7 @@ class WsClientTest : FunSpec({
             }
 
             val sent = Kotlinx.DEFAULT.parseToJsonElement(mockServer.takeReceivedText(DELIVERY_WINDOW.inWholeMilliseconds)!!)
-            sent.jsonObject["params"] shouldBe key
+            sent.jsonObject["params"].toString() shouldBe key
             counting.encodings shouldBe 1
         }
 
@@ -267,7 +267,7 @@ class WsClientTest : FunSpec({
                 secondResponse.await().unwrap() shouldBe "0x2"
             }
             val sent = Kotlinx.DEFAULT.parseToJsonElement(mockServer.takeReceivedText(DELIVERY_WINDOW.inWholeMilliseconds)!!)
-            sent.jsonArray.map { it.jsonObject["params"] } shouldBe listOf(first.params.encode(), second.params.encode())
+            sent.jsonArray.map { it.jsonObject["params"].toString() } shouldBe listOf(first.params.encode(), second.params.encode())
             counting.encodings shouldBe 2
 
             // the first call again, in a new batch
@@ -279,7 +279,7 @@ class WsClientTest : FunSpec({
                 againResponse.await().unwrap() shouldBe "0x3"
             }
             val resent = Kotlinx.DEFAULT.parseToJsonElement(mockServer.takeReceivedText(DELIVERY_WINDOW.inWholeMilliseconds)!!)
-            resent.jsonArray.single().jsonObject["params"] shouldBe first.params.encode()
+            resent.jsonArray.single().jsonObject["params"].toString() shouldBe first.params.encode()
             counting.encodings shouldBe 2
         }
 

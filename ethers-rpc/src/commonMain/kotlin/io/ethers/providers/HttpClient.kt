@@ -208,25 +208,16 @@ class HttpClient(
         val params = encodeParams()
         val requestIndexPerId = HashMap<Long, Int>(requests.size, 1.0F)
 
-        val sb = StringBuilder(requests.size * BYTE_BUFFER_DEFAULT_SIZE)
-        sb.append('[')
-        for (i in requests.indices) {
-            if (i > 0) sb.append(',')
-            val call = requests[i]
+        val json = buildJsonRpcBatch(requests, params) { i ->
             val id = requestId.getAndIncrement()
-            sb.append(buildJsonRpcRequest(call.method, id, params[i]))
             requestIndexPerId[id] = i
+            id
         }
-        sb.append(']')
-
-        val json = sb.toString()
         LOG.trc { "Request: $json" }
         return json to requestIndexPerId
     }
 
     companion object {
-        private const val BYTE_BUFFER_DEFAULT_SIZE = 128
-
         private val ERROR_SUBSCRIPTION_UNSUPPORTED = failure(
             RpcError(
                 RpcError.CODE_METHOD_NOT_FOUND,

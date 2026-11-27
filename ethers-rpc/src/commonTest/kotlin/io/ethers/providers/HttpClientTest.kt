@@ -144,7 +144,7 @@ private fun httpSpecificTests() = funSpec {
             client.request("eth_getBalance", params, stringSerializer).unwrap() shouldBe "0x1234567"
 
             val body = Kotlinx.DEFAULT.parseToJsonElement(server.takeRequest(5_000L).bodyText).jsonObject
-            body["params"] shouldBe key
+            body["params"].toString() shouldBe key
             counting.encodings shouldBe 1
         }
 
@@ -166,7 +166,7 @@ private fun httpSpecificTests() = funSpec {
                 secondResponse.await().unwrap() shouldBe "0x2"
             }
             val sent = Kotlinx.DEFAULT.parseToJsonElement(server.takeRequest(5_000L).bodyText).jsonArray
-            sent.map { it.jsonObject["params"] } shouldBe listOf(first.params.encode(), second.params.encode())
+            sent.map { it.jsonObject["params"].toString() } shouldBe listOf(first.params.encode(), second.params.encode())
             counting.encodings shouldBe 2
 
             // the first call again, in a new batch
@@ -178,7 +178,7 @@ private fun httpSpecificTests() = funSpec {
                 againResponse.await().unwrap() shouldBe "0x3"
             }
             val resent = Kotlinx.DEFAULT.parseToJsonElement(server.takeRequest(5_000L).bodyText).jsonArray
-            resent.single().jsonObject["params"] shouldBe first.params.encode()
+            resent.single().jsonObject["params"].toString() shouldBe first.params.encode()
             counting.encodings shouldBe 2
         }
 
