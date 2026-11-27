@@ -7,10 +7,12 @@ import io.ethers.core.types.Address
 import io.ethers.core.types.BlockId
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.CallRequest
+import io.ethers.core.types.Hash
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.Provider
 import io.ethers.providers.RpcError
 import io.ethers.providers.types.BatchRpcRequest
+import io.ethers.providers.types.CallBundle
 import io.ethers.providers.types.RpcParams
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -138,5 +140,71 @@ class EnsMiddlewareBatchTest : FunSpec({
         middleware.callMany(1L, listOf(EnsCallRequest("vitalik.eth"))).send().unwrap()
 
         client.requests.last().params[0].toString() shouldContain VITALIK.toString()
+    }
+
+    context("callMany with several bundles") {
+        val plainTo = Address("0x0000000000000000000000000000000000000001")
+
+        test("resolves the ENS names of every bundle, keeping each bundle's calls and order") {
+            val client = FakeJsonRpcClient()
+                .serveEnsNames(RESOLVER, "vitalik.eth" to VITALIK, "nick.eth" to NICK)
+                .enqueue("eth_callMany", """[[{"value":"0xaa"},{"value":"0xbb"}],[{"value":"0xcc"}]]""")
+            val middleware = EnsMiddleware(Provider(client, 1L))
+
+            val result = middleware.callMany(
+                BlockId.LATEST,
+                listOf(
+                    CallBundle(listOf(EnsCallRequest("vitalik.eth"), CallRequest.Builder().to(plainTo).build())),
+                    CallBundle(listOf(EnsCallRequest("nick.eth"))),
+                ),
+            ).send().unwrap()
+
+            result.map { it.size } shouldBe listOf(2, 1)
+
+            val bundles = (client.requests.last().params[0] as List<*>).map { it.toString() }
+            bundles.size shouldBe 2
+            bundles[0] shouldContain VITALIK.toString()
+            bundles[0] shouldContain plainTo.toString()
+            (bundles[0].indexOf(VITALIK.toString()) < bundles[0].indexOf(plainTo.toString())) shouldBe true
+            bundles[1] shouldContain NICK.toString()
+        }
+
+        test("bundles with no ENS names pass through without any resolution traffic") {
+            val client = FakeJsonRpcClient().enqueue("eth_callMany", """[[{"value":"0xaa"}]]""")
+            val middleware = EnsMiddleware(Provider(client, 1L))
+
+            middleware.callMany(BlockId.LATEST, listOf(CallBundle(listOf(CallRequest.Builder().to(plainTo).build())))).send().unwrap()
+
+            client.requests.map { it.method } shouldBe listOf("eth_callMany")
+        }
+
+        test("one unresolvable name fails all bundles, which are not sent") {
+            val client = FakeJsonRpcClient().serveEnsNames(RESOLVER, "vitalik.eth" to VITALIK)
+            val middleware = EnsMiddleware(Provider(client, 1L))
+
+            val result = middleware.callMany(
+                BlockId.LATEST,
+                listOf(CallBundle(listOf(EnsCallRequest("vitalik.eth"))), CallBundle(listOf(EnsCallRequest("nonexistent.eth")))),
+            ).send()
+
+            result.unwrapError().code shouldBe EnsMiddleware.CODE_ENS_RESOLUTION_FAILED
+            client.requests.none { it.method == "eth_callMany" } shouldBe true
+        }
+
+        // the block-number and block-hash overloads must go through the resolving one, not straight to the provider
+        test("the block-number and block-hash overloads also resolve names") {
+            val hash = Hash("0x2222222222222222222222222222222222222222222222222222222222222222")
+            val client = FakeJsonRpcClient()
+                .serveEnsNames(RESOLVER, "vitalik.eth" to VITALIK)
+                .enqueue("eth_callMany", """[[{"value":"0xaa"}]]""")
+                .enqueue("eth_callMany", """[[{"value":"0xbb"}]]""")
+            val middleware = EnsMiddleware(Provider(client, 1L))
+
+            middleware.callMany(1L, listOf(CallBundle(listOf(EnsCallRequest("vitalik.eth"))))).send().unwrap()
+            client.requests.last().params[0].toString() shouldContain VITALIK.toString()
+
+            middleware.callMany(hash, listOf(CallBundle(listOf(EnsCallRequest("vitalik.eth"))))).send().unwrap()
+            client.requests.last().params[0].toString() shouldContain VITALIK.toString()
+        }
     }
 })
