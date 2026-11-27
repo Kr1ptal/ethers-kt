@@ -41,7 +41,7 @@ import io.kotest.matchers.shouldBe
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpStatusCode
-import io.ktor.http.content.TextContent
+import io.ktor.http.content.OutgoingContent
 import io.ktor.http.headersOf
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -68,7 +68,7 @@ class SolanaProviderTest : FunSpec({
         status = HttpStatusCode.OK
         ktor = KtorHttpClient(
             MockEngine { request ->
-                val body = Kotlinx.DEFAULT.parseToJsonElement((request.body as TextContent).text).jsonObject
+                val body = Kotlinx.DEFAULT.parseToJsonElement((request.body as OutgoingContent.ByteArrayContent).bytes().decodeToString()).jsonObject
                 requests.add(body)
                 val payload = error?.let { "\"error\":$it" } ?: "\"result\":$response"
                 respond("""{"jsonrpc":"2.0","id":${body.getValue("id")},$payload}""", status, headersOf("Content-Type", "application/json"))

@@ -7,13 +7,17 @@ import io.ethers.core.types.StateOverride
 import io.ethers.core.types.StateOverrideSerializer
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.descriptors.buildClassSerialDescriptor
+import kotlinx.serialization.descriptors.element
+import kotlinx.serialization.encoding.CompositeEncoder
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
-import kotlinx.serialization.json.JsonEncoder
+import kotlinx.serialization.encoding.encodeStructure
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 import kotlin.jvm.JvmOverloads
 
 /**
@@ -76,42 +80,91 @@ data class TracerConfig<T : Any> @JvmOverloads constructor(
 )
 
 object TracerConfigSerializer : KSerializer<TracerConfig<*>> {
-    override val descriptor = buildClassSerialDescriptor("TracerConfig")
+    private const val TRACER = 0
+    private const val TRACER_CONFIG = 1
+
+    // The fields written after the tracer, in this order, as indices into TAIL_NAMES. In the descriptor, each is at
+    // TAIL_OFFSET plus its index.
+    private const val TIMEOUT = 0
+    private const val REEXEC = 1
+    private const val STATE_OVERRIDES = 2
+    private const val BLOCK_OVERRIDES = 3
+    private const val TX_INDEX = 4
+    private const val TAIL_OFFSET = 2
+    private val TAIL_NAMES = arrayOf("timeout", "reexec", "stateOverrides", "blockOverrides", "txIndex")
+
+    // The fields of the named-tracer form, `{"tracer":<name>,"tracerConfig":{…},…}`. The fields after the tracer's are
+    // optional: only the ones that are set are written, in this order.
+    override val descriptor = buildClassSerialDescriptor("TracerConfig") {
+        element<String>("tracer")
+        element("tracerConfig", JsonObject.serializer().descriptor)
+        element<String>(TAIL_NAMES[TIMEOUT], isOptional = true)
+        element<Long>(TAIL_NAMES[REEXEC], isOptional = true)
+        element(TAIL_NAMES[STATE_OVERRIDES], StateOverrideSerializer.descriptor, isOptional = true)
+        element(TAIL_NAMES[BLOCK_OVERRIDES], BlockOverrideSerializer.descriptor, isOptional = true)
+        element<String>(TAIL_NAMES[TX_INDEX], isOptional = true)
+    }
+
+    // The unnamed-tracer form (StructTracer) writes the tracer's config fields at the top level, next to the fields
+    // above, so its keys aren't known up front: it is written as a map of string keys, each followed by its value.
+    private val inlineConfigDescriptor = MapSerializer(String.serializer(), JsonElement.serializer()).descriptor
 
     override fun serialize(encoder: Encoder, value: TracerConfig<*>) {
-        val jsonEncoder = encoder as JsonEncoder
-        jsonEncoder.encodeJsonElement(
-            buildJsonObject {
-                when (val tracer = value.tracer) {
-                    is Tracer<*> -> {
-                        put("tracer", tracer.name)
-                        put("tracerConfig", tracer.config)
+        when (val tracer = value.tracer) {
+            is Tracer<*> -> {
+                val descriptor = descriptor
+                encoder.encodeStructure(descriptor) {
+                    encodeStringElement(descriptor, TRACER, tracer.name)
+                    encodeSerializableElement(descriptor, TRACER_CONFIG, JsonObject.serializer(), tracer.config)
+                    for (field in TAIL_NAMES.indices) {
+                        if (value.isSet(field)) encodeTailValue(descriptor, TAIL_OFFSET + field, value, field)
                     }
+                }
+            }
 
-                    else -> {
-                        for ((fieldName, fieldValue) in tracer.config) {
-                            put(fieldName, fieldValue)
+            else -> {
+                // Only StructTracer, whose config fields never have the name of a field written after them, so each
+                // key is written once, as putting them all into one JSON object would.
+                val descriptor = inlineConfigDescriptor
+                encoder.encodeStructure(descriptor) {
+                    var index = 0
+                    for ((name, element) in tracer.config) {
+                        encodeStringElement(descriptor, index++, name)
+                        encodeSerializableElement(descriptor, index++, JsonElement.serializer(), element)
+                    }
+                    for (field in TAIL_NAMES.indices) {
+                        if (value.isSet(field)) {
+                            encodeStringElement(descriptor, index++, TAIL_NAMES[field])
+                            encodeTailValue(descriptor, index++, value, field)
                         }
                     }
                 }
+            }
+        }
+    }
 
-                if (value.timeoutMs >= 0) {
-                    put("timeout", "${value.timeoutMs}ms")
-                }
-                if (value.reexec >= 0) {
-                    put("reexec", value.reexec)
-                }
-                if (!value.stateOverrides.isNullOrEmpty()) {
-                    put("stateOverrides", jsonEncoder.json.encodeToJsonElement(StateOverrideSerializer, value.stateOverrides))
-                }
-                if (value.blockOverrides != null) {
-                    put("blockOverrides", jsonEncoder.json.encodeToJsonElement(BlockOverrideSerializer, value.blockOverrides))
-                }
-                if (value.txIndex >= 0) {
-                    put("txIndex", FastHex.encodeWithPrefix(value.txIndex))
-                }
-            },
-        )
+    private fun TracerConfig<*>.isSet(field: Int): Boolean = when (field) {
+        TIMEOUT -> timeoutMs >= 0
+        REEXEC -> reexec >= 0
+        STATE_OVERRIDES -> !stateOverrides.isNullOrEmpty()
+        BLOCK_OVERRIDES -> blockOverrides != null
+        else -> txIndex >= 0
+    }
+
+    // Write the value of the tail [field], which must be set, as the element at [index].
+    private fun CompositeEncoder.encodeTailValue(
+        descriptor: SerialDescriptor,
+        index: Int,
+        value: TracerConfig<*>,
+        field: Int,
+    ) {
+        when (field) {
+            TIMEOUT -> encodeStringElement(descriptor, index, "${value.timeoutMs}ms")
+            REEXEC -> encodeLongElement(descriptor, index, value.reexec)
+            STATE_OVERRIDES -> encodeSerializableElement(descriptor, index, StateOverrideSerializer, value.stateOverrides!!)
+            BLOCK_OVERRIDES -> encodeSerializableElement(descriptor, index, BlockOverrideSerializer, value.blockOverrides!!)
+            else -> encodeStringElement(descriptor, index, FastHex.encodeWithPrefix(value.txIndex))
+        }
     }
 
     override fun deserialize(decoder: Decoder): TracerConfig<*> = throw UnsupportedOperationException()

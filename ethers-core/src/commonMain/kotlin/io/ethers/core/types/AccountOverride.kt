@@ -4,13 +4,12 @@ import io.ethers.core.FastHex
 import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.descriptors.buildClassSerialDescriptor
+import kotlinx.serialization.descriptors.element
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
-import kotlinx.serialization.json.JsonEncoder
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
+import kotlinx.serialization.encoding.encodeStructure
 import kotlin.jvm.JvmSynthetic
 
 /**
@@ -173,40 +172,39 @@ class AccountOverride() {
 }
 
 object AccountOverrideSerializer : KSerializer<AccountOverride> {
-    override val descriptor = buildClassSerialDescriptor("AccountOverride")
+    // a storage map, written as an object of hash keys and hash values
+    private val storageSerializer = MapSerializer(HashSerializer, HashSerializer)
+
+    private const val NONCE = 0
+    private const val CODE = 1
+    private const val BALANCE = 2
+    private const val STATE = 3
+    private const val STATE_DIFF = 4
+
+    // Every field is optional: only the ones that are set are written, in this order.
+    override val descriptor = buildClassSerialDescriptor("AccountOverride") {
+        element<String>("nonce", isOptional = true)
+        element<String>("code", isOptional = true)
+        element<String>("balance", isOptional = true)
+        element("state", storageSerializer.descriptor, isOptional = true)
+        element("stateDiff", storageSerializer.descriptor, isOptional = true)
+    }
 
     override fun serialize(encoder: Encoder, value: AccountOverride) {
-        val jsonEncoder = encoder as JsonEncoder
-        jsonEncoder.encodeJsonElement(
-            buildJsonObject {
-                if (value.nonce != -1L) {
-                    put("nonce", FastHex.encodeWithPrefix(value.nonce))
-                }
-                if (value.code != null) {
-                    put("code", value.code!!.toString())
-                }
-                if (value.balance != null) {
-                    put("balance", FastHex.encodeWithPrefix(value.balance!!))
-                }
-                // empty map clears the state
-                if (value.state != null) {
-                    put(
-                        "state",
-                        buildJsonObject {
-                            value.state!!.forEach { (k, v) -> put(k.toString(), v.toString()) }
-                        },
-                    )
-                }
-                if (!value.stateDiff.isNullOrEmpty()) {
-                    put(
-                        "stateDiff",
-                        buildJsonObject {
-                            value.stateDiff!!.forEach { (k, v) -> put(k.toString(), v.toString()) }
-                        },
-                    )
-                }
-            },
-        )
+        val descriptor = descriptor
+        encoder.encodeStructure(descriptor) {
+            val nonce = value.nonce
+            if (nonce != -1L) encodeStringElement(descriptor, NONCE, FastHex.encodeWithPrefix(nonce))
+            val code = value.code
+            if (code != null) encodeStringElement(descriptor, CODE, code.toString())
+            val balance = value.balance
+            if (balance != null) encodeStringElement(descriptor, BALANCE, FastHex.encodeWithPrefix(balance))
+            // empty map clears the state
+            val state = value.state
+            if (state != null) encodeSerializableElement(descriptor, STATE, storageSerializer, state)
+            val stateDiff = value.stateDiff
+            if (!stateDiff.isNullOrEmpty()) encodeSerializableElement(descriptor, STATE_DIFF, storageSerializer, stateDiff)
+        }
     }
 
     override fun deserialize(decoder: Decoder): AccountOverride = throw UnsupportedOperationException()

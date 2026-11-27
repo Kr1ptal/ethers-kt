@@ -14,7 +14,7 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpStatusCode
-import io.ktor.http.content.TextContent
+import io.ktor.http.content.OutgoingContent
 import io.ktor.http.headersOf
 import kotlinx.serialization.json.jsonObject
 import kotlin.time.Duration
@@ -28,7 +28,7 @@ class PendingTransactionNativeApiTest : FunSpec({
     fun provider(confirmationStatus: String): SolanaProvider {
         val ktor = KtorHttpClient(
             MockEngine { request ->
-                val id = Kotlinx.DEFAULT.parseToJsonElement((request.body as TextContent).text).jsonObject.getValue("id")
+                val id = Kotlinx.DEFAULT.parseToJsonElement((request.body as OutgoingContent.ByteArrayContent).bytes().decodeToString()).jsonObject.getValue("id")
                 respond(
                     """{"jsonrpc":"2.0","id":$id,"result":{"context":{"slot":9},"value":[{"slot":9,"confirmations":null,"err":null,"confirmationStatus":"$confirmationStatus"}]}}""",
                     HttpStatusCode.OK,

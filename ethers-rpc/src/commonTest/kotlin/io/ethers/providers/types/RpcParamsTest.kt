@@ -440,6 +440,50 @@ class RpcParamsTest : FunSpec({
         }
     }
 
+    context("the encoding is kept as the bytes the clients send") {
+        test("encodeBytes twice encodes once and returns the same array, the UTF-8 of encode's string") {
+            val counter = Counter("é 中")
+            val params = counter.params()
+            val bytes = params.encodeBytes()
+            params.encodeBytes() shouldBeSameInstanceAs bytes
+            bytes.decodeToString() shouldBe """["a","é 中"]"""
+            counter.encodings shouldBe 1
+
+            // encode returns the same encoding, decoded once from the bytes without encoding again
+            counter.value = "y"
+            val text = params.encode()
+            text shouldBe """["a","é 中"]"""
+            params.encode() shouldBeSameInstanceAs text
+            params.toString() shouldBe text
+            counter.encodings shouldBe 1
+        }
+
+        test("encodeBytes after encode converts encode's string without encoding again") {
+            val counter = Counter("x")
+            val params = counter.params()
+            val text = params.encode()
+            counter.value = "y"
+            params.encodeBytes() shouldBe text.encodeToByteArray()
+            params.encode() shouldBeSameInstanceAs text
+            counter.encodings shouldBe 1
+        }
+
+        test("a failed encodeBytes keeps nothing, and the next one tries again") {
+            val counter = Counter("x", failOn = setOf(1))
+            val params = counter.params()
+            shouldThrow<IllegalStateException> { params.encodeBytes() }.message shouldBe "encoding 1 fails"
+            params.encodeBytes().decodeToString() shouldBe """["a","x"]"""
+            params.encode() shouldBe """["a","x"]"""
+            counter.encodings shouldBe 2
+        }
+
+        test("EMPTY and ofJson") {
+            RpcParams.EMPTY.encodeBytes() shouldBeSameInstanceAs RpcParams.EMPTY.encodeBytes()
+            RpcParams.EMPTY.encodeBytes().decodeToString() shouldBe "[]"
+            RpcParams.ofJson(listOf(JsonPrimitive(1))).encodeBytes().decodeToString() shouldBe "[1]"
+        }
+    }
+
     context("inspection") {
         test("size, get, toList and drop expose the values as passed in") {
             val params = rpcParams("signature", addr, 5)

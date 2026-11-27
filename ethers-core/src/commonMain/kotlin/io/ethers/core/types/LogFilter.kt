@@ -2,15 +2,16 @@ package io.ethers.core.types
 
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationStrategy
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.descriptors.buildClassSerialDescriptor
+import kotlinx.serialization.descriptors.element
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
-import kotlinx.serialization.json.JsonEncoder
+import kotlinx.serialization.encoding.encodeCollection
+import kotlinx.serialization.encoding.encodeStructure
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonArray
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 import kotlin.jvm.JvmSynthetic
 
 /**
@@ -343,68 +344,80 @@ sealed interface BlockSelector {
 }
 
 object LogFilterSerializer : KSerializer<LogFilter> {
-    override val descriptor = buildClassSerialDescriptor("LogFilter")
+    private val addressesSerializer = ListSerializer(AddressSerializer)
+
+    private const val BLOCK_HASH = 0
+    private const val FROM_BLOCK = 1
+    private const val TO_BLOCK = 2
+    private const val ADDRESS = 3
+    private const val TOPICS = 4
+
+    // Either blockHash, or fromBlock and toBlock, then the optional address and topics, in this order.
+    override val descriptor = buildClassSerialDescriptor("LogFilter") {
+        element<String>("blockHash", isOptional = true)
+        element<String>("fromBlock", isOptional = true)
+        element<String>("toBlock", isOptional = true)
+        element("address", addressesSerializer.descriptor, isOptional = true)
+        element("topics", TopicsSerializer.descriptor, isOptional = true)
+    }
 
     override fun serialize(encoder: Encoder, value: LogFilter) {
-        val jsonEncoder = encoder as JsonEncoder
-        jsonEncoder.encodeJsonElement(
-            buildJsonObject {
-                when (val blocks = value.blocks) {
-                    is BlockSelector.Hash -> put("blockHash", blocks.from.id)
-                    is BlockSelector.Range -> {
-                        put("fromBlock", blocks.from.id)
-                        put("toBlock", blocks.to.id)
-                    }
+        val descriptor = descriptor
+        encoder.encodeStructure(descriptor) {
+            when (val blocks = value.blocks) {
+                is BlockSelector.Hash -> encodeStringElement(descriptor, BLOCK_HASH, blocks.from.id)
+                is BlockSelector.Range -> {
+                    encodeStringElement(descriptor, FROM_BLOCK, blocks.from.id)
+                    encodeStringElement(descriptor, TO_BLOCK, blocks.to.id)
                 }
+            }
 
-                val address = value.addresses
-                if (address != null) {
-                    put(
-                        "address",
-                        buildJsonArray {
-                            for (i in address.indices) {
-                                add(JsonPrimitive(address[i].toString()))
-                            }
-                        },
-                    )
-                }
+            val addresses = value.addresses
+            if (addresses != null) encodeSerializableElement(descriptor, ADDRESS, addressesSerializer, addresses)
 
-                val lastValidIndex = when {
-                    value.topic3 != null -> 3
-                    value.topic2 != null -> 2
-                    value.topic1 != null -> 1
-                    value.topic0 != null -> 0
-                    else -> -1
-                }
-                if (lastValidIndex != -1) {
-                    put(
-                        "topics",
-                        buildJsonArray {
-                            for (i in 0..lastValidIndex) {
-                                val hashes = when (i) {
-                                    0 -> value.topic0
-                                    1 -> value.topic1
-                                    2 -> value.topic2
-                                    else -> value.topic3
-                                }
-                                when {
-                                    hashes == null -> add(JsonNull)
-                                    hashes.size == 1 -> add(JsonPrimitive(hashes[0].toString()))
-                                    else -> add(
-                                        buildJsonArray {
-                                            for (j in hashes.indices) {
-                                                add(JsonPrimitive(hashes[j].toString()))
-                                            }
-                                        },
-                                    )
-                                }
-                            }
-                        },
-                    )
-                }
-            },
-        )
+            if (topicCount(value) != 0) encodeSerializableElement(descriptor, TOPICS, TopicsSerializer, value)
+        }
     }
 
     override fun deserialize(decoder: Decoder): LogFilter = throw UnsupportedOperationException()
+
+    /** The number of topics written: up to the last one that is set. */
+    private fun topicCount(value: LogFilter): Int = when {
+        value.topic3 != null -> 4
+        value.topic2 != null -> 3
+        value.topic1 != null -> 2
+        value.topic0 != null -> 1
+        else -> 0
+    }
+
+    /**
+     * Writes the topics of a filter up to the last one that is set, which must exist: a topic that isn't set as `null`,
+     * a topic of one hash as that hash, and any other as an array of its hashes.
+     */
+    private object TopicsSerializer : SerializationStrategy<LogFilter> {
+        private val hashesSerializer = ListSerializer(HashSerializer)
+
+        // only its LIST kind is read by the JSON encoder; the elements are of the three kinds above
+        override val descriptor = ListSerializer(JsonElement.serializer()).descriptor
+
+        override fun serialize(encoder: Encoder, value: LogFilter) {
+            val descriptor = descriptor
+            val size = topicCount(value)
+            encoder.encodeCollection(descriptor, size) {
+                for (i in 0 until size) {
+                    val hashes = when (i) {
+                        0 -> value.topic0
+                        1 -> value.topic1
+                        2 -> value.topic2
+                        else -> value.topic3
+                    }
+                    when {
+                        hashes == null -> encodeSerializableElement(descriptor, i, JsonNull.serializer(), JsonNull)
+                        hashes.size == 1 -> encodeStringElement(descriptor, i, hashes[0].toString())
+                        else -> encodeSerializableElement(descriptor, i, hashesSerializer, hashes)
+                    }
+                }
+            }
+        }
+    }
 }

@@ -183,10 +183,11 @@ class WsClient(
         }
     }
 
-    private suspend fun wsSend(text: String): Boolean {
+    /** Send [request], the UTF-8 text of a JSON-RPC request or batch, as one text frame. */
+    private suspend fun wsSend(request: ByteArray): Boolean {
         val session = currentSession ?: return false
         return try {
-            session.send(Frame.Text(text))
+            session.send(Frame.Text(true, request))
             true
         } catch (_: Exception) {
             false
@@ -334,7 +335,7 @@ class WsClient(
                         val pending = pendingSendRequests.first()
                         val id = requestId++
                         val req = buildJsonRpcRequest(pending.method, id, pending.params)
-                        LOG.trc { "Processing request: $req" }
+                        LOG.trc { "Processing request: ${req.decodeToString()}" }
                         if (wsSend(req)) {
                             pendingSendRequests.removeFirst()
                             inFlightRequests[id] = pending
@@ -355,7 +356,7 @@ class WsClient(
                             idToIndex[id] = i
                             id
                         }
-                        LOG.trc { "Processing batch request: $req" }
+                        LOG.trc { "Processing batch request: ${req.decodeToString()}" }
 
                         if (wsSend(req)) {
                             pendingSendBatchRequests.removeFirst()
@@ -375,7 +376,7 @@ class WsClient(
                         }
                         val id = requestId++
                         val req = buildJsonRpcRequest(pending.descriptor.subscribeMethod, id, pending.params)
-                        LOG.trc { "Processing subscription request: $req" }
+                        LOG.trc { "Processing subscription request: ${req.decodeToString()}" }
                         if (wsSend(req)) {
                             pendingSendSubscriptionRequests.removeFirst()
                             inFlightSubscriptionRequests[id] = pending
@@ -399,7 +400,7 @@ class WsClient(
                         val id = requestId++
                         val req = buildJsonRpcRequest(sub.descriptor.unsubscribeMethod, id, rpcParams(sub.serverId))
 
-                        LOG.trc { "Processing unsubscribe request: $req" }
+                        LOG.trc { "Processing unsubscribe request: ${req.decodeToString()}" }
                         wsSend(req)
                     }
 
@@ -843,7 +844,7 @@ class WsClient(
         val request = PendingRequest(
             method,
             // encoded here, so a parameter that can't be encoded fails this call instead of the processing loop
-            params.encode(),
+            params.encodeBytes(),
             resultDeserializer,
             CompletableDeferred(),
         )
@@ -863,7 +864,7 @@ class WsClient(
             descriptor,
             // encoded here, so a parameter that can't be encoded fails this call instead of the processing loop, and
             // kept to resubscribe with after a reconnect
-            descriptor.params.encode(),
+            descriptor.params.encodeBytes(),
             resultDeserializer,
             CompletableDeferred(),
         )
@@ -883,7 +884,8 @@ class WsClient(
 
     private class PendingRequest<T>(
         val method: String,
-        val params: String,
+        // the encoded params, the UTF-8 text of their JSON array
+        val params: ByteArray,
         val resultDeserializer: DeserializationStrategy<T>,
         val response: CompletableDeferred<Result<T, RpcError>>,
     ) : ExpiringRequest() {
@@ -894,8 +896,8 @@ class WsClient(
 
     private data class PendingBatchRequest(
         val request: BatchRpcRequest,
-        // the encoded params of each call in request.requests, each the text of its JSON array
-        val params: List<String>,
+        // the encoded params of each call in request.requests, each the UTF-8 text of its JSON array
+        val params: List<ByteArray>,
         val response: CompletableDeferred<Boolean>,
     ) : ExpiringRequest() {
         override fun expireRequest() {
@@ -908,8 +910,8 @@ class WsClient(
 
     private class PendingSubscriptionRequest<T : Any>(
         val descriptor: SubscriptionDescriptor.Resolved,
-        // descriptor.params, encoded as the text of a JSON array
-        val params: String,
+        // descriptor.params, encoded as the UTF-8 text of a JSON array
+        val params: ByteArray,
         val resultDeserializer: DeserializationStrategy<T>,
         val response: CompletableDeferred<Result<ChannelReceiver<T>, RpcError>>,
     ) : ExpiringRequest() {
@@ -949,7 +951,7 @@ class WsClient(
         var serverId: kotlinx.serialization.json.JsonPrimitive,
         val descriptor: SubscriptionDescriptor.Resolved,
         // descriptor.params as encoded at subscribe time, which resubscribing sends again
-        val params: String,
+        val params: ByteArray,
         val closed: kotlinx.atomicfu.AtomicBoolean,
         val resultDeserializer: DeserializationStrategy<T>,
         val stream: Channel<T>,

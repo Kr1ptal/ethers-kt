@@ -1,12 +1,12 @@
 package io.ethers.core.types
 
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.descriptors.buildClassSerialDescriptor
+import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
-import kotlinx.serialization.json.JsonEncoder
-import kotlinx.serialization.json.buildJsonObject
 import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmStatic
 import kotlin.jvm.JvmSynthetic
@@ -213,17 +213,15 @@ fun StateOverride?.mergeChanges(other: StateOverride?): StateOverride? {
 }
 
 object StateOverrideSerializer : KSerializer<StateOverride> {
-    override val descriptor = buildClassSerialDescriptor("StateOverride")
+    // Written as kotlinx writes any map: an object of address keys, each followed by its account override, in the
+    // map's iteration order.
+    private val mapSerializer = MapSerializer(AddressSerializer, AccountOverrideSerializer)
+
+    @OptIn(ExperimentalSerializationApi::class)
+    override val descriptor: SerialDescriptor = SerialDescriptor("StateOverride", mapSerializer.descriptor)
 
     override fun serialize(encoder: Encoder, value: StateOverride) {
-        val jsonEncoder = encoder as JsonEncoder
-        jsonEncoder.encodeJsonElement(
-            buildJsonObject {
-                for ((address, override) in value) {
-                    put(address.toString(), jsonEncoder.json.encodeToJsonElement(AccountOverrideSerializer, override))
-                }
-            },
-        )
+        mapSerializer.serialize(encoder, value)
     }
 
     override fun deserialize(decoder: Decoder): StateOverride = throw UnsupportedOperationException()

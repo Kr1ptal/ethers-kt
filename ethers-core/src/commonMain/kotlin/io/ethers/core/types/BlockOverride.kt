@@ -6,11 +6,10 @@ import io.github.artificialpb.bignum.bigIntegerOf
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.descriptors.buildClassSerialDescriptor
+import kotlinx.serialization.descriptors.element
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
-import kotlinx.serialization.json.JsonEncoder
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
+import kotlinx.serialization.encoding.encodeStructure
 import kotlin.jvm.JvmStatic
 import kotlin.jvm.JvmSynthetic
 
@@ -196,35 +195,43 @@ class BlockOverride private constructor(builder: Builder) {
 }
 
 object BlockOverrideSerializer : KSerializer<BlockOverride> {
-    override val descriptor = buildClassSerialDescriptor("BlockOverride")
+    private const val NUMBER = 0
+    private const val DIFFICULTY = 1
+    private const val TIME = 2
+    private const val GAS_LIMIT = 3
+    private const val COINBASE = 4
+    private const val RANDOM = 5
+    private const val BASE_FEE = 6
+
+    // Every field is optional: only the ones that are set are written, in this order.
+    override val descriptor = buildClassSerialDescriptor("BlockOverride") {
+        element<String>("number", isOptional = true)
+        element<String>("difficulty", isOptional = true)
+        element<String>("time", isOptional = true)
+        element<String>("gasLimit", isOptional = true)
+        element<String>("coinbase", isOptional = true)
+        element<String>("random", isOptional = true)
+        element<String>("baseFee", isOptional = true)
+    }
 
     override fun serialize(encoder: Encoder, value: BlockOverride) {
-        val jsonEncoder = encoder as JsonEncoder
-        jsonEncoder.encodeJsonElement(
-            buildJsonObject {
-                if (value.number != -1L) {
-                    put("number", FastHex.encodeWithPrefix(value.number))
-                }
-                if (value.difficulty != null) {
-                    put("difficulty", FastHex.encodeWithPrefix(value.difficulty))
-                }
-                if (value.time != -1L) {
-                    put("time", FastHex.encodeWithPrefix(value.time))
-                }
-                if (value.gasLimit != -1L) {
-                    put("gasLimit", FastHex.encodeWithPrefix(value.gasLimit))
-                }
-                if (value.coinbase != null) {
-                    put("coinbase", value.coinbase.toString())
-                }
-                if (value.random != null) {
-                    put("random", value.random.toString())
-                }
-                if (value.baseFee != null) {
-                    put("baseFee", FastHex.encodeWithPrefix(value.baseFee))
-                }
-            },
-        )
+        val descriptor = descriptor
+        encoder.encodeStructure(descriptor) {
+            val number = value.number
+            if (number != -1L) encodeStringElement(descriptor, NUMBER, FastHex.encodeWithPrefix(number))
+            val difficulty = value.difficulty
+            if (difficulty != null) encodeStringElement(descriptor, DIFFICULTY, FastHex.encodeWithPrefix(difficulty))
+            val time = value.time
+            if (time != -1L) encodeStringElement(descriptor, TIME, FastHex.encodeWithPrefix(time))
+            val gasLimit = value.gasLimit
+            if (gasLimit != -1L) encodeStringElement(descriptor, GAS_LIMIT, FastHex.encodeWithPrefix(gasLimit))
+            val coinbase = value.coinbase
+            if (coinbase != null) encodeStringElement(descriptor, COINBASE, coinbase.toString())
+            val random = value.random
+            if (random != null) encodeStringElement(descriptor, RANDOM, random.toString())
+            val baseFee = value.baseFee
+            if (baseFee != null) encodeStringElement(descriptor, BASE_FEE, FastHex.encodeWithPrefix(baseFee))
+        }
     }
 
     override fun deserialize(decoder: Decoder): BlockOverride = throw UnsupportedOperationException()
