@@ -733,4 +733,3 @@ private object CallManyResultSerializer : KSerializer<Result<Bytes, CallFailedEr
 // JSON-RPC spec defines reward percentiles as JSON numbers. Clients like geth and reth reject any other
 // representation (e.g. strings) with "invalid params".
 private fun DoubleArray.toPercentilesJson(): JsonArray = JsonArray(map(::JsonPrimitive))
-
