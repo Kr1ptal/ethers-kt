@@ -14,13 +14,10 @@ import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
-import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.put
 import kotlin.jvm.JvmField
 import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmSynthetic
@@ -83,25 +80,6 @@ object HexByteArraySerializer : KSerializer<ByteArray> {
     override fun serialize(encoder: Encoder, value: ByteArray) {
         encoder.encodeString(FastHex.encodeWithPrefix(value))
     }
-}
-
-/**
- * Build a JSON-RPC request string.
- */
-internal fun buildJsonRpcRequest(method: String, id: Long, params: RpcParams): String {
-    return buildJsonRpcRequest(method, id, params.encode())
-}
-
-/**
- * Build a JSON-RPC request string from already encoded [params].
- */
-internal fun buildJsonRpcRequest(method: String, id: Long, params: JsonArray): String {
-    return buildJsonObject {
-        put("id", id)
-        put("jsonrpc", "2.0")
-        put("method", method)
-        put("params", params)
-    }.toString()
 }
 
 /**

@@ -349,19 +349,12 @@ class WsClient(
                         var batchId = -1L
                         val idToIndex = HashMap<Long, Int>(pending.request.requests.size, 1.0F)
 
-                        val sb = StringBuilder()
-                        sb.append('[')
-                        for (i in pending.request.requests.indices) {
-                            if (i > 0) sb.append(',')
-                            val reqItem = pending.request.requests[i]
+                        val req = buildJsonRpcBatch(pending.request.requests, pending.params) { i ->
                             val id = requestId++
                             if (batchId == -1L) batchId = id
                             idToIndex[id] = i
-                            sb.append(buildJsonRpcRequest(reqItem.method, id, pending.params[i]))
+                            id
                         }
-                        sb.append(']')
-
-                        val req = sb.toString()
                         LOG.trc { "Processing batch request: $req" }
 
                         if (wsSend(req)) {
@@ -890,7 +883,7 @@ class WsClient(
 
     private class PendingRequest<T>(
         val method: String,
-        val params: JsonArray,
+        val params: String,
         val resultDeserializer: DeserializationStrategy<T>,
         val response: CompletableDeferred<Result<T, RpcError>>,
     ) : ExpiringRequest() {
@@ -901,8 +894,8 @@ class WsClient(
 
     private data class PendingBatchRequest(
         val request: BatchRpcRequest,
-        // the encoded params of each call in request.requests
-        val params: List<JsonArray>,
+        // the encoded params of each call in request.requests, each the text of its JSON array
+        val params: List<String>,
         val response: CompletableDeferred<Boolean>,
     ) : ExpiringRequest() {
         override fun expireRequest() {
@@ -915,8 +908,8 @@ class WsClient(
 
     private class PendingSubscriptionRequest<T : Any>(
         val descriptor: SubscriptionDescriptor.Resolved,
-        // descriptor.params, encoded
-        val params: JsonArray,
+        // descriptor.params, encoded as the text of a JSON array
+        val params: String,
         val resultDeserializer: DeserializationStrategy<T>,
         val response: CompletableDeferred<Result<ChannelReceiver<T>, RpcError>>,
     ) : ExpiringRequest() {
@@ -956,7 +949,7 @@ class WsClient(
         var serverId: kotlinx.serialization.json.JsonPrimitive,
         val descriptor: SubscriptionDescriptor.Resolved,
         // descriptor.params as encoded at subscribe time, which resubscribing sends again
-        val params: JsonArray,
+        val params: String,
         val closed: kotlinx.atomicfu.AtomicBoolean,
         val resultDeserializer: DeserializationStrategy<T>,
         val stream: Channel<T>,
