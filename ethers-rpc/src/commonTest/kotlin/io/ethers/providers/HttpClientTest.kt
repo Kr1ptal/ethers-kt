@@ -107,7 +107,8 @@ private fun httpSpecificTests() = funSpec {
             error.message shouldBe "HTTP 429: Too Many Requests"
             error.httpStatus shouldBe 429
             error.retryAfterMs shouldBe 7000L
-            error.isRateLimited shouldBe true
+            error.isHttpRateLimited shouldBe true
+            error.rateLimit shouldBe RateLimit(7000L)
         }
 
         test("HTTP 429 with a JSON-RPC error body keeps the provider's error and adds the status and Retry-After") {
@@ -119,7 +120,7 @@ private fun httpSpecificTests() = funSpec {
             error.message shouldContain "compute units per second"
             error.httpStatus shouldBe 429
             error.retryAfterMs shouldBe 2000L
-            error.isRateLimited shouldBe true
+            error.rateLimit shouldBe RateLimit(2000L)
         }
 
         test("HTTP error without Retry-After carries the status only and is not rate limited") {
@@ -129,7 +130,8 @@ private fun httpSpecificTests() = funSpec {
 
             error.httpStatus shouldBe 500
             error.retryAfterMs shouldBe null
-            error.isRateLimited shouldBe false
+            error.isHttpRateLimited shouldBe false
+            error.rateLimit shouldBe null
         }
 
         test("JSON-RPC error with a successful HTTP status has no HTTP status") {
@@ -140,18 +142,84 @@ private fun httpSpecificTests() = funSpec {
             error.code shouldBe -32601
             error.httpStatus shouldBe null
             error.retryAfterMs shouldBe null
+            error.rateLimit shouldBe null
         }
 
-        test("JSON-RPC rate limit error with a successful HTTP status is rate limited") {
-            server.enqueue(
-                200,
-                """{"jsonrpc":"2.0","id":1,"error":{"code":-32005,"message":"project ID request rate exceeded"}}""",
+        test("a rate limit in a JSON-RPC error is found by a policy that knows it, not by the default") {
+            val body = """{"jsonrpc":"2.0","id":1,"error":{"code":-32000,"message":"slow down"}}"""
+            val policy = RateLimitPolicy { if (it.message == "slow down") RateLimit(1500L) else null }
+            val withPolicy = HttpClient(
+                server.url,
+                RpcClientConfig {
+                    this.client = KtorHttpClient()
+                    rateLimitPolicy = policy
+                },
             )
+            try {
+                server.enqueue(200, body)
+                val default = client.request("eth_blockNumber", RpcParams.EMPTY, stringSerializer).unwrapError()
+                default.isRateLimited shouldBe false
 
-            val error = client.request("eth_blockNumber", RpcParams.EMPTY, stringSerializer).unwrapError()
+                server.enqueue(200, body)
+                val found = withPolicy.request("eth_blockNumber", RpcParams.EMPTY, stringSerializer).unwrapError()
+                found.isRateLimited shouldBe true
+                found.rateLimit shouldBe RateLimit(1500L)
+                found.httpStatus shouldBe null
+            } finally {
+                withPolicy.close()
+            }
+        }
 
-            error.httpStatus shouldBe null
-            error.isRateLimited shouldBe true
+        test("a policy sees the HTTP status and Retry-After of the error it checks") {
+            val policy = RateLimitPolicy { if (it.httpStatus == 503) RateLimit(it.retryAfterMs) else null }
+            val withPolicy = HttpClient(server.url, KtorHttpClient(), rateLimitPolicy = policy)
+            try {
+                server.enqueue(503, "Service Unavailable", mapOf("Retry-After" to "6"))
+
+                val error = withPolicy.request("eth_blockNumber", RpcParams.EMPTY, stringSerializer).unwrapError()
+
+                error.rateLimit shouldBe RateLimit(6000L)
+            } finally {
+                withPolicy.close()
+            }
+        }
+
+        test("a policy that throws leaves the error as it is") {
+            val throwing = HttpClient(server.url, KtorHttpClient(), rateLimitPolicy = { throw IllegalStateException("bug") })
+            try {
+                server.enqueue(429, "Too Many Requests")
+
+                val error = throwing.request("eth_blockNumber", RpcParams.EMPTY, stringSerializer).unwrapError()
+
+                error.code shouldBe RpcError.CODE_CALL_FAILED
+                error.httpStatus shouldBe 429
+                error.rateLimit shouldBe null
+            } finally {
+                throwing.close()
+            }
+        }
+
+        test("a batch call's JSON-RPC error with a successful HTTP status is checked with the policy") {
+            val policy = RateLimitPolicy { if (it.message == "slow down") RateLimit(null) else null }
+            val withPolicy = HttpClient(server.url, KtorHttpClient(), rateLimitPolicy = policy)
+            try {
+                server.enqueue(
+                    200,
+                    """[{"jsonrpc":"2.0","id":1,"result":"0x1"},{"jsonrpc":"2.0","id":2,"error":{"code":-32000,"message":"slow down"}}]""",
+                )
+
+                val batch = BatchRpcRequest(2)
+                batch.addRpcCall(RpcCall(withPolicy, "eth_blockNumber", RpcParams.EMPTY, stringSerializer))
+                batch.addRpcCall(RpcCall(withPolicy, "eth_chainId", RpcParams.EMPTY, stringSerializer))
+
+                withTimeout(30.seconds) {
+                    batch.send()
+                    batch.responses[0].await().unwrap() shouldBe "0x1"
+                    batch.responses[1].await().unwrapError().rateLimit shouldBe RateLimit(null)
+                }
+            } finally {
+                withPolicy.close()
+            }
         }
 
         test("HTTP 429 batch fails answered and unanswered calls with the status and Retry-After") {
@@ -172,13 +240,13 @@ private fun httpSpecificTests() = funSpec {
                 missing.code shouldBe RpcError.CODE_CALL_FAILED
                 missing.httpStatus shouldBe 429
                 missing.retryAfterMs shouldBe 3000L
-                missing.isRateLimited shouldBe true
+                missing.rateLimit shouldBe RateLimit(3000L)
 
                 val answered = batch.responses[1].await().unwrapError()
                 answered.code shouldBe 429
                 answered.httpStatus shouldBe 429
                 answered.retryAfterMs shouldBe 3000L
-                answered.isRateLimited shouldBe true
+                answered.rateLimit shouldBe RateLimit(3000L)
             }
         }
 
@@ -195,7 +263,7 @@ private fun httpSpecificTests() = funSpec {
                     val error = response.await().unwrapError()
                     error.httpStatus shouldBe 429
                     error.retryAfterMs shouldBe 4000L
-                    error.isRateLimited shouldBe true
+                    error.rateLimit shouldBe RateLimit(4000L)
                 }
             }
         }
@@ -211,7 +279,7 @@ private fun httpSpecificTests() = funSpec {
                 error.message shouldBe "HTTP 429: Too Many Requests"
                 error.httpStatus shouldBe 429
                 error.retryAfterMs shouldBe 9000L
-                error.isRateLimited shouldBe true
+                error.rateLimit shouldBe RateLimit(9000L)
                 (error.cause is ResponseException) shouldBe true
             } finally {
                 throwingClient.close()

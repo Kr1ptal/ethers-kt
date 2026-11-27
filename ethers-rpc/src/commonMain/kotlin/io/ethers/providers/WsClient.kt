@@ -33,6 +33,7 @@ import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -52,6 +53,10 @@ import kotlinx.serialization.json.JsonElement as KJsonElement
  *
  * Reconnection happens automatically when WS connection is in dropped / fail state. All unfinished requests for which
  * the response was not received are automatically resubmitted when new connection is established.
+ *
+ * Every error the server returns is checked with [rateLimitPolicy], which sets [RpcError.rateLimit] on rate limits.
+ * WebSocket messages have no HTTP status or headers, so only a policy that knows the chain's codes and messages finds
+ * any: [RateLimitPolicy.HTTP], the default, finds none.
  */
 class WsClient(
     url: String,
@@ -61,6 +66,7 @@ class WsClient(
     private val connectTimeoutMs: Long = 10_000L,
     private val readTimeoutMs: Long = 30_000L,
     private val subscriptionDescriptor: SubscriptionDescriptor = SubscriptionDescriptor.ETHEREUM,
+    private val rateLimitPolicy: RateLimitPolicy = RateLimitPolicy.HTTP,
 ) : JsonRpcClient {
     @JvmOverloads
     constructor(url: String, config: RpcClientConfig = RpcClientConfig()) : this(
@@ -71,6 +77,7 @@ class WsClient(
         config.connectTimeoutMs,
         config.readTimeoutMs,
         config.subscriptionDescriptor,
+        config.rateLimitPolicy ?: RateLimitPolicy.HTTP,
     )
 
     /**
@@ -517,7 +524,7 @@ class WsClient(
         val resultEl = obj["result"]
         val paramsEl = obj["params"]
         val errorEl = obj["error"]
-        val error = if (errorEl != null && errorEl !is JsonNull) RpcError.fromJsonObject(errorEl.jsonObject) else null
+        val error = if (errorEl != null && errorEl !is JsonNull) serverError(errorEl.jsonObject) else null
 
         // DO NOT CHANGE ORDER OF THESE OPERATIONS
         when {
@@ -560,7 +567,7 @@ class WsClient(
             if (fields.hasMethod || (fields.id as? JsonPrimitive)?.longOrNull != id) return false
             val error = fields.error
             when {
-                error != null && error !is JsonNull -> failure(RpcError.fromJsonObject(error.jsonObject))
+                error != null && error !is JsonNull -> failure(serverError(error.jsonObject))
                 // the result is only absent while hasResult is false, so it holds a T, which may itself be nullable
                 @Suppress("UNCHECKED_CAST")
                 fields.hasResult
@@ -596,7 +603,7 @@ class WsClient(
 
                 val errorEl = obj["error"]
                 val resultEl = obj["result"]
-                val error = if (errorEl != null && errorEl !is JsonNull) RpcError.fromJsonObject(errorEl.jsonObject) else null
+                val error = if (errorEl != null && errorEl !is JsonNull) serverError(errorEl.jsonObject) else null
 
                 if (batch == null || requestIndexPerId == null || responseId == -1L) {
                     throw Exception("Invalid response, no matching batch found for ID $responseId: $text")
@@ -627,6 +634,11 @@ class WsClient(
         if (batch != null) {
             batch.response.complete(!batch.request.failUnanswered(HttpClient.missingResponse(text)))
         }
+    }
+
+    /** An error the server returned, checked with [rateLimitPolicy]. */
+    private fun serverError(obj: JsonObject): RpcError {
+        return RpcError.fromJsonObject(obj).withRateLimit(rateLimitPolicy)
     }
 
     private fun getBatchFromRequestId(requestId: Long): Pair<PendingBatchRequest, HashMap<Long, Int>>? {
@@ -752,7 +764,7 @@ class WsClient(
         LOG.trc { "Handled response for re-subscription request $id" }
     }
 
-    private fun handleNotification(method: String, paramsObj: kotlinx.serialization.json.JsonObject) {
+    private fun handleNotification(method: String, paramsObj: JsonObject) {
         val subscriptionId = paramsObj["subscription"]?.jsonPrimitive ?: return
         val resultEl = paramsObj["result"] ?: return
         val subscription = serverIdToSubscription[subscriptionId] ?: return

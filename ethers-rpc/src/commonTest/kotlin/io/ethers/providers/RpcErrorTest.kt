@@ -59,30 +59,27 @@ class RpcErrorTest : FunSpec({
         }
     }
 
-    test("isRateLimited") {
-        data class TestCase(val error: RpcError, val expected: Boolean)
+    test("isHttpRateLimited is true for HTTP 429 only") {
+        RpcError(RpcError.CODE_CALL_FAILED, "HTTP 429: Too Many Requests", httpStatus = 429).isHttpRateLimited shouldBe true
+        RpcError(RpcError.CODE_CALL_FAILED, "HTTP 503: Service Unavailable", httpStatus = 503).isHttpRateLimited shouldBe false
+        // a JSON-RPC code that mirrors 429 is not an HTTP status
+        RpcError(429, "Too many requests").isHttpRateLimited shouldBe false
+    }
 
-        Exhaustive.of(
-            // HTTP 429, whatever the error
-            TestCase(RpcError(RpcError.CODE_CALL_FAILED, "HTTP 429: Too Many Requests", httpStatus = 429), true),
-            TestCase(RpcError(-32000, "server busy", httpStatus = 429), true),
-            // Alchemy
-            TestCase(RpcError(429, "Your app has exceeded its compute units per second capacity."), true),
-            // Infura
-            TestCase(RpcError(-32005, "daily request count exceeded, request rate limited"), true),
-            TestCase(RpcError(-32005, "project ID request rate exceeded"), true),
-            // QuickNode
-            TestCase(RpcError(-32007, "15/second request limit reached - reduce calls per second"), true),
-            TestCase(RpcError(-32000, "Too Many Requests"), true),
-            TestCase(RpcError(-32000, "Rate-limited, try again later"), true),
-            // -32005 alone is a limit that retrying won't get past
-            TestCase(RpcError(-32005, "query returned more than 10000 results"), false),
-            TestCase(RpcError(RpcError.CODE_CALL_FAILED, "HTTP 503: Service Unavailable", httpStatus = 503), false),
-            TestCase(RpcError(RpcError.CODE_EXECUTION_ERROR, "execution reverted"), false),
-            TestCase(RpcError(-32000, "exceeds block gas limit"), false),
-        ).checkAll { (error, expected) ->
-            error.isRateLimited shouldBe expected
-        }
+    test("isRateLimited is true when a policy set rateLimit") {
+        RpcError(-32000, "Too many requests").isRateLimited shouldBe false
+        RpcError(-32000, "Too many requests", rateLimit = RateLimit(null)).isRateLimited shouldBe true
+    }
+
+    test("the HTTP policy finds HTTP 429 with its Retry-After, and nothing else") {
+        val policy = RateLimitPolicy.HTTP
+
+        policy.rateLimit(RpcError(RpcError.CODE_CALL_FAILED, "HTTP 429", httpStatus = 429, retryAfterMs = 3000L)) shouldBe
+            RateLimit(3000L)
+        policy.rateLimit(RpcError(RpcError.CODE_CALL_FAILED, "HTTP 429", httpStatus = 429)) shouldBe RateLimit(null)
+        policy.rateLimit(RpcError(RpcError.CODE_CALL_FAILED, "HTTP 503", httpStatus = 503, retryAfterMs = 3000L)) shouldBe null
+        policy.rateLimit(RpcError(429, "Your app has exceeded its compute units per second capacity.")) shouldBe null
+        policy.rateLimit(RpcError(-32005, "project ID request rate exceeded")) shouldBe null
     }
 
     test("new fields default to null, so errors without them stay equal") {
@@ -90,7 +87,8 @@ class RpcErrorTest : FunSpec({
 
         error.httpStatus shouldBe null
         error.retryAfterMs shouldBe null
-        error shouldBe RpcError(RpcError.CODE_EXECUTION_ERROR, "execution reverted", null, null, null, null)
+        error.rateLimit shouldBe null
+        error shouldBe RpcError(RpcError.CODE_EXECUTION_ERROR, "execution reverted", null, null, null, null, null)
     }
 
     test("parse Retry-After") {

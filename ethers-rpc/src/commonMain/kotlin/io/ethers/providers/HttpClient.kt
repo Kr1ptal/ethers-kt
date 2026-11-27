@@ -38,11 +38,14 @@ import kotlinx.serialization.json.JsonElement as KJsonElement
 /**
  * [JsonRpcClient] implementation via HTTP transport. Supports both single and batch requests. Subscriptions are not
  * supported.
+ *
+ * Every error it returns is checked with [rateLimitPolicy], which sets [RpcError.rateLimit] on rate limits.
  */
 class HttpClient(
     url: String,
     client: KtorHttpClient,
     private val requestHeaders: Map<String, String> = emptyMap(),
+    private val rateLimitPolicy: RateLimitPolicy = RateLimitPolicy.HTTP,
 ) : JsonRpcClient {
     /**
      * A child of the supplied client, sharing its engine and configuration but owning its own lifecycle.
@@ -56,6 +59,7 @@ class HttpClient(
         url,
         config.client!!,
         config.requestHeaders,
+        config.rateLimitPolicy ?: RateLimitPolicy.HTTP,
     )
 
     private val LOG = getLogger()
@@ -89,14 +93,14 @@ class HttpClient(
                             index = requestIndexPerId[id] ?: throw Exception("Invalid response ID: $id")
                             batch.requests[index].resultDeserializer
                         }
-                        batch.complete(index, result.mapError { it.withHttpStatus(status, retryAfterMs) })
+                        batch.complete(index, result.mapError { it.withHttpStatus(status, retryAfterMs).withRateLimit(rateLimitPolicy) })
                     }
                     // calls the response left out fail with the HTTP error below
                     if (!batch.hasUnanswered()) return true
                 } catch (_: Exception) {
                 }
 
-                val error = httpError(response, JsonPrimitive(text), null, retryAfterMs)
+                val error = httpError(response, JsonPrimitive(text), null, retryAfterMs).withRateLimit(rateLimitPolicy)
                 LOG.err { "Batch request failed: $error" }
 
                 for (i in batch.responses.indices) {
@@ -113,14 +117,14 @@ class HttpClient(
                     index = requestIndexPerId[id] ?: throw Exception("Invalid response ID: $id")
                     batch.requests[index].resultDeserializer
                 }
-                batch.complete(index, result)
+                batch.complete(index, result.withRateLimit())
             }
-            !batch.failUnanswered(missingResponse(text))
+            !batch.failUnanswered(missingResponse(text).withRateLimit())
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             LOG.err(e) { "Error processing batch response" }
-            val rpcResponse = getResponseFromException(e)
+            val rpcResponse = getResponseFromException(e).withRateLimit()
             for (i in batch.responses.indices) {
                 batch.complete(i, rpcResponse)
             }
@@ -135,6 +139,13 @@ class HttpClient(
         resultDeserializer: DeserializationStrategy<T>,
     ): Result<T, RpcError> = execute(method, params) { text ->
         Kotlinx.DEFAULT.decodeFromString(RpcResponseDeserializer(resultDeserializer), text)
+    }.withRateLimit()
+
+    /** This result, with [RpcError.rateLimit] set from [rateLimitPolicy] if it failed with a rate limit. */
+    private fun <T> Result<T, RpcError>.withRateLimit(): Result<T, RpcError> {
+        if (this !is Result.Failure) return this
+        val checked = error.withRateLimit(rateLimitPolicy)
+        return if (checked === error) this else failure(checked)
     }
 
     /** Send a single request and turn its response body into a result with [decode]. */

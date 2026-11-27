@@ -90,6 +90,8 @@ object HexByteArraySerializer : KSerializer<ByteArray> {
  * no response at all.
  * @param retryAfterMs how long the server asked to wait before retrying, in milliseconds, taken from the `Retry-After`
  * header of a response outside the 2xx range. Null if the response did not include one or it could not be parsed.
+ * @param rateLimit set when the client's [RateLimitPolicy] found that this error is a rate limit, with the wait it
+ * found, if any. Null for any other error.
  */
 data class RpcError @JvmOverloads constructor(
     val code: Int,
@@ -98,6 +100,7 @@ data class RpcError @JvmOverloads constructor(
     override val cause: Exception? = null,
     val httpStatus: Int? = null,
     val retryAfterMs: Long? = null,
+    val rateLimit: RateLimit? = null,
 ) : ThrowableError {
     // [message] is the JSON-RPC error message, which on its own omits the code that identifies the failure
     override fun toException(): RuntimeException {
@@ -184,34 +187,18 @@ data class RpcError @JvmOverloads constructor(
     val isCallFailed get() = code == CODE_CALL_FAILED
 
     /**
-     * The server rejected the call because the client sent too many requests. True for an HTTP 429 response, for
-     * the JSON-RPC error code 429 that some providers use (e.g. Alchemy), and for messages that providers use to
-     * report rate limits (e.g. Infura, QuickNode), whatever their code.
-     *
-     * The EIP-1474 "limit exceeded" code -32005 alone does not count, because providers also return it for limits
-     * that retrying won't get past, such as an `eth_getLogs` query that matches too many logs.
-     *
-     * [retryAfterMs] holds the wait the server asked for, if it sent one.
+     * The HTTP response that carried this error had status 429 (Too Many Requests). It says nothing about errors the
+     * server reports in a JSON-RPC response, which differ per chain and provider: see [isRateLimited] for those.
      * */
-    val isRateLimited: Boolean
-        get() {
-            return httpStatus == HTTP_TOO_MANY_REQUESTS ||
-                code == CODE_RATE_LIMITED ||
-                RATE_LIMIT_MESSAGE_FRAGMENTS.any { message.contains(it, ignoreCase = true) }
-        }
+    val isHttpRateLimited get() = httpStatus == HTTP_TOO_MANY_REQUESTS
+
+    /**
+     * The client's [RateLimitPolicy] found that this error is a rate limit. [rateLimit] holds the wait it found.
+     * */
+    val isRateLimited get() = rateLimit != null
 
     companion object {
         private const val HTTP_TOO_MANY_REQUESTS = 429
-
-        private val RATE_LIMIT_MESSAGE_FRAGMENTS = listOf(
-            "rate limit", // "rate limited", "rate limit exceeded", Infura's "request rate limited"
-            "rate-limit",
-            "ratelimit",
-            "too many requests",
-            "request rate", // Infura's "project ID request rate exceeded"
-            "request limit reached", // QuickNode
-            "compute units per second", // Alchemy
-        )
 
         private val UNSUPPORTED_METHOD_MESSAGE_FRAGMENTS = listOf(
             "did not match any variant", // foundry's Anvil
@@ -237,9 +224,6 @@ data class RpcError @JvmOverloads constructor(
         const val CODE_UNAUTHORIZED = 1
         const val CODE_ACTION_NOT_ALLOWED = 2
         const val CODE_EXECUTION_ERROR = 3
-
-        /** Code some providers (e.g. Alchemy) use for a rate-limited call, mirroring HTTP 429. */
-        const val CODE_RATE_LIMITED = 429
 
         // Client errors
         const val CODE_INVALID_RESPONSE = 5000
@@ -272,6 +256,15 @@ class RpcClientConfig {
      * Headers to include with each RPC request. Can be used to set authorization headers, etc...
      * */
     var requestHeaders: Map<String, String> = emptyMap()
+        @JvmSynthetic set
+
+    /**
+     * Decides which errors are rate limits and how long to wait before retrying them, setting [RpcError.rateLimit].
+     *
+     * If null, the client uses its own default: [RateLimitPolicy.HTTP] for an [HttpClient] or [WsClient] created
+     * directly, or the chain's policy for a client made by a chain's provider builder.
+     * */
+    var rateLimitPolicy: RateLimitPolicy? = null
         @JvmSynthetic set
 
     /** Subscription protocol rules. Defaults to Ethereum. Only used by [WsClient]. */
@@ -310,6 +303,9 @@ class RpcClientConfig {
      * */
     fun requestHeaders(headers: Map<String, String>) = apply { this.requestHeaders = headers }
 
+    /** Decides which errors are rate limits. See [rateLimitPolicy]. */
+    fun rateLimitPolicy(policy: RateLimitPolicy?) = apply { this.rateLimitPolicy = policy }
+
     /** Subscription protocol rules. Only used by [WsClient]. */
     fun subscriptionDescriptor(descriptor: SubscriptionDescriptor) = apply { this.subscriptionDescriptor = descriptor }
 
@@ -327,6 +323,23 @@ class RpcClientConfig {
 
     /** Request read timeout in milliseconds. Only used by [WsClient]. */
     fun readTimeoutMs(ms: Long) = apply { this.readTimeoutMs = ms }
+
+    /**
+     * A new config with the same values, so a builder can change some of them without changing a config the caller
+     * may also use elsewhere.
+     * */
+    fun copy(): RpcClientConfig {
+        val source = this
+        return RpcClientConfig {
+            client = source.client
+            requestHeaders = source.requestHeaders
+            rateLimitPolicy = source.rateLimitPolicy
+            subscriptionDescriptor = source.subscriptionDescriptor
+            resubscribeOnReconnect = source.resubscribeOnReconnect
+            connectTimeoutMs = source.connectTimeoutMs
+            readTimeoutMs = source.readTimeoutMs
+        }
+    }
 
     companion object {
         private val DEFAULT_CLIENT by lazy {

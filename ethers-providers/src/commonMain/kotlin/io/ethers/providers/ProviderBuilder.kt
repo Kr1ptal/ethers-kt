@@ -66,6 +66,12 @@ class ProviderBuilder internal constructor(private val url: String) : PlatformPr
     fun readTimeout(timeout: Duration) = apply { config.readTimeoutMs(timeout.inWholeMilliseconds) }
 
     /**
+     * Decides which errors are rate limits and how long to wait before retrying them, setting
+     * [RpcError.rateLimit]. Defaults to [EvmRateLimitPolicy].
+     * */
+    fun rateLimitPolicy(policy: RateLimitPolicy) = apply { config.rateLimitPolicy(policy) }
+
+    /**
      * Build a [Provider] with a known [chainId].
      *
      * Makes no RPC call at all, so it neither suspends nor blocks. [chainId] is a parameter rather than a
@@ -92,10 +98,14 @@ class ProviderBuilder internal constructor(private val url: String) : PlatformPr
         return RpcCall(client, "eth_chainId", RpcParams.EMPTY, HexLongSerializer)
     }
 
-    private fun clientOrNull(): JsonRpcClient? = when {
-        url.matches(PROTO_HTTPS) -> HttpClient(url, config)
-        url.matches(PROTO_WSS) -> WsClient(url, config)
-        else -> null
+    private fun clientOrNull(): JsonRpcClient? {
+        // a copy, so the caller's config, which may also be used for another chain, keeps its own policy
+        val config = if (config.rateLimitPolicy != null) config else config.copy().rateLimitPolicy(EvmRateLimitPolicy)
+        return when {
+            url.matches(PROTO_HTTPS) -> HttpClient(url, config)
+            url.matches(PROTO_WSS) -> WsClient(url, config)
+            else -> null
+        }
     }
 
     companion object {
