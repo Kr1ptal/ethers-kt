@@ -114,13 +114,13 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) : Platfor
     }
 
     /**
-     * Encode the params of every call in [requests], each as the text of its JSON array, returned in the same order. A
-     * batch is sent whole or not at all, so if the params of any call can't be encoded, every call in the batch fails
-     * with an error naming that call before the exception is rethrown to the sender, as [JsonRpcClient.request] does
-     * for a single call. Without that, a caller awaiting a call's response would wait forever.
+     * Encode the params of every call in [requests], each as the UTF-8 text of its JSON array, returned in the same
+     * order. A batch is sent whole or not at all, so if the params of any call can't be encoded, every call in the batch
+     * fails with an error naming that call before the exception is rethrown to the sender, as [JsonRpcClient.request]
+     * does for a single call. Without that, a caller awaiting a call's response would wait forever.
      */
-    internal fun encodeParams(): List<String> {
-        val params = ArrayList<String>(requests.size)
+    internal fun encodeParams(): List<ByteArray> {
+        val params = ArrayList<ByteArray>(requests.size)
         try {
             for (call in requests) {
                 params.add(call.params.encode())

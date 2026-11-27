@@ -10,13 +10,12 @@ import io.ethers.core.types.CallRequest
 import io.ethers.core.types.CallRequestSerializer
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.descriptors.buildClassSerialDescriptor
+import kotlinx.serialization.descriptors.element
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
-import kotlinx.serialization.json.JsonEncoder
-import kotlinx.serialization.json.buildJsonArray
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
+import kotlinx.serialization.encoding.encodeStructure
 
 /**
  * Error returned for a call in `eth_callMany` that fails.
@@ -46,41 +45,45 @@ internal data class CallManyContext(
 )
 
 internal object CallManyBundleSerializer : KSerializer<CallManyBundle> {
-    override val descriptor = buildClassSerialDescriptor("CallManyBundle")
+    private val transactionsSerializer = ListSerializer(CallRequestSerializer)
+
+    private const val TRANSACTIONS = 0
+    private const val BLOCK_OVERRIDE = 1
+
+    override val descriptor = buildClassSerialDescriptor("CallManyBundle") {
+        element("transactions", transactionsSerializer.descriptor)
+        element("blockOverride", BlockOverrideSerializer.descriptor, isOptional = true)
+    }
 
     override fun serialize(encoder: Encoder, value: CallManyBundle) {
-        val jsonEncoder = encoder as JsonEncoder
-        jsonEncoder.encodeJsonElement(
-            buildJsonObject {
-                put(
-                    "transactions",
-                    buildJsonArray {
-                        for (tx in value.transactions) {
-                            add(jsonEncoder.json.encodeToJsonElement(CallRequestSerializer, tx))
-                        }
-                    },
-                )
-                if (value.blockOverride != null) {
-                    put("blockOverride", jsonEncoder.json.encodeToJsonElement(BlockOverrideSerializer, value.blockOverride))
-                }
-            },
-        )
+        val descriptor = descriptor
+        encoder.encodeStructure(descriptor) {
+            encodeSerializableElement(descriptor, TRANSACTIONS, transactionsSerializer, value.transactions)
+            val blockOverride = value.blockOverride
+            if (blockOverride != null) {
+                encodeSerializableElement(descriptor, BLOCK_OVERRIDE, BlockOverrideSerializer, blockOverride)
+            }
+        }
     }
 
     override fun deserialize(decoder: Decoder): CallManyBundle = throw UnsupportedOperationException()
 }
 
 internal object CallManyContextSerializer : KSerializer<CallManyContext> {
-    override val descriptor = buildClassSerialDescriptor("CallManyContext")
+    private const val BLOCK_NUMBER = 0
+    private const val TRANSACTION_INDEX = 1
+
+    override val descriptor = buildClassSerialDescriptor("CallManyContext") {
+        element("blockNumber", BlockIdSerializer.descriptor)
+        element<Int>("transactionIndex")
+    }
 
     override fun serialize(encoder: Encoder, value: CallManyContext) {
-        val jsonEncoder = encoder as JsonEncoder
-        jsonEncoder.encodeJsonElement(
-            buildJsonObject {
-                put("blockNumber", jsonEncoder.json.encodeToJsonElement(BlockIdSerializer, value.blockNumber))
-                put("transactionIndex", value.transactionIndex)
-            },
-        )
+        val descriptor = descriptor
+        encoder.encodeStructure(descriptor) {
+            encodeSerializableElement(descriptor, BLOCK_NUMBER, BlockIdSerializer, value.blockNumber)
+            encodeIntElement(descriptor, TRANSACTION_INDEX, value.transactionIndex)
+        }
     }
 
     override fun deserialize(decoder: Decoder): CallManyContext = throw UnsupportedOperationException()

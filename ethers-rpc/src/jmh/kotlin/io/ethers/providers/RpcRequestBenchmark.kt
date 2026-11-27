@@ -1,6 +1,8 @@
 package io.ethers.providers
 
+import io.ethers.core.Kotlinx
 import io.ethers.core.types.Address
+import io.ethers.core.types.AddressSerializer
 import io.ethers.core.types.Bytes
 import io.ethers.core.types.CallRequest
 import io.ethers.core.types.tracers.CallTracer
@@ -21,8 +23,8 @@ import org.openjdk.jmh.annotations.Warmup
 import java.util.concurrent.TimeUnit
 
 /**
- * Writing the text of a JSON-RPC request, as `HttpClient` and `WsClient` send it, with params built as `Provider`
- * builds them.
+ * Writing a JSON-RPC request up to the UTF-8 bytes handed to Ktor, as `HttpClient` and `WsClient` send it, with params
+ * built as `Provider` builds them.
  *
  * - `send*`: the params are built and encoded, then the request is written around them: a request sent for the first
  *   time.
@@ -30,6 +32,8 @@ import java.util.concurrent.TimeUnit
  *   same call in another batch, or params a caching wrapper encoded for its key.
  * - `build*`: only building the params, without encoding them: `rpcParams` for `eth_getBalance`, `buildRpcParams` for
  *   `debug_traceCall`.
+ * - `address*`: encoding an `Address` as a JSON string, the first time (a new `Address`, whose hex isn't cached yet) and
+ *   again (the same `Address`, whose hex is cached).
  */
 @Fork(value = 2)
 @Warmup(iterations = 5, time = 1)
@@ -57,34 +61,51 @@ open class RpcRequestBenchmark {
         add(tracerConfig, TracerConfigSerializer)
     }
 
-    private val encodedBalance = balanceParams().also { it.encode() }
-    private val encodedCall = callParams().also { it.encode() }
-    private val encodedTraceCall = traceCallParams().also { it.encode() }
+    /** The bytes of a request, as handed to Ktor. */
+    private fun request(method: String, params: RpcParams): ByteArray = buildJsonRpcRequest(method, 1L, params)
+
+    // sent once, so their encoding is kept as a client keeps it
+    private val encodedBalance = balanceParams().also { request("eth_getBalance", it) }
+    private val encodedCall = callParams().also { request("eth_call", it) }
+    private val encodedTraceCall = traceCallParams().also { request("debug_traceCall", it) }
+
+    private val addressBytes = address.toByteArray()
 
     @Benchmark
-    open fun sendGetBalance(): String = buildJsonRpcRequest("eth_getBalance", 1L, balanceParams())
+    open fun sendGetBalance(): ByteArray = request("eth_getBalance", balanceParams())
 
     @Benchmark
-    open fun sendCall(): String = buildJsonRpcRequest("eth_call", 1L, callParams())
+    open fun sendCall(): ByteArray = request("eth_call", callParams())
 
     @Benchmark
-    open fun sendTraceCall(): String = buildJsonRpcRequest("debug_traceCall", 1L, traceCallParams())
+    open fun sendTraceCall(): ByteArray = request("debug_traceCall", traceCallParams())
 
     @Benchmark
-    open fun sendBlockNumber(): String = buildJsonRpcRequest("eth_blockNumber", 1L, RpcParams.EMPTY)
+    open fun sendBlockNumber(): ByteArray = request("eth_blockNumber", RpcParams.EMPTY)
 
     @Benchmark
-    open fun resendGetBalance(): String = buildJsonRpcRequest("eth_getBalance", 1L, encodedBalance)
+    open fun resendGetBalance(): ByteArray = request("eth_getBalance", encodedBalance)
 
     @Benchmark
-    open fun resendCall(): String = buildJsonRpcRequest("eth_call", 1L, encodedCall)
+    open fun resendCall(): ByteArray = request("eth_call", encodedCall)
 
     @Benchmark
-    open fun resendTraceCall(): String = buildJsonRpcRequest("debug_traceCall", 1L, encodedTraceCall)
+    open fun resendTraceCall(): ByteArray = request("debug_traceCall", encodedTraceCall)
 
     @Benchmark
     open fun buildGetBalance(): RpcParams = balanceParams()
 
     @Benchmark
     open fun buildTraceCall(): RpcParams = traceCallParams()
+
+    // a new Address around the same bytes (not copied), so its hex is encoded on each call
+    @Benchmark
+    open fun addressFirstEncode(): String = Kotlinx.DEFAULT.encodeToString(AddressSerializer, Address(addressBytes))
+
+    @Benchmark
+    open fun addressCachedEncode(): String = Kotlinx.DEFAULT.encodeToString(AddressSerializer, address)
+
+    // what the two above share: creating the Address alone
+    @Benchmark
+    open fun addressCreate(): Address = Address(addressBytes)
 }

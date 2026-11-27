@@ -23,7 +23,7 @@ import io.kotest.matchers.shouldBe
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpStatusCode
-import io.ktor.http.content.TextContent
+import io.ktor.http.content.OutgoingContent
 import io.ktor.http.headersOf
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
@@ -45,7 +45,7 @@ class SolanaSimulationTest : FunSpec({
         responses.clear()
         ktor = KtorHttpClient(
             MockEngine { request ->
-                val body = Kotlinx.DEFAULT.parseToJsonElement((request.body as TextContent).text).jsonObject
+                val body = Kotlinx.DEFAULT.parseToJsonElement((request.body as OutgoingContent.ByteArrayContent).bytes().decodeToString()).jsonObject
                 requests.add(body)
                 val method = body.getValue("method").jsonPrimitive.content
                 val result = responses[method] ?: "null"

@@ -21,7 +21,7 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpStatusCode
-import io.ktor.http.content.TextContent
+import io.ktor.http.content.OutgoingContent
 import io.ktor.http.headersOf
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -40,7 +40,7 @@ class PendingTransactionTest : FunSpec({
         requests.clear()
         val ktor = KtorHttpClient(
             MockEngine { request ->
-                val body = Kotlinx.DEFAULT.parseToJsonElement((request.body as TextContent).text).jsonObject
+                val body = Kotlinx.DEFAULT.parseToJsonElement((request.body as OutgoingContent.ByteArrayContent).bytes().decodeToString()).jsonObject
                 val method = body.getValue("method").jsonPrimitive.content
                 calls.add(method)
                 requests += body.getValue("params").toString()
@@ -462,7 +462,7 @@ class PendingTransactionTest : FunSpec({
     test("a rejected submission never produces a handle, so there is nothing to confirm") {
         val ktor = KtorHttpClient(
             MockEngine { request ->
-                val id = Kotlinx.DEFAULT.parseToJsonElement((request.body as TextContent).text).jsonObject.getValue("id")
+                val id = Kotlinx.DEFAULT.parseToJsonElement((request.body as OutgoingContent.ByteArrayContent).bytes().decodeToString()).jsonObject.getValue("id")
                 respond(
                     """{"jsonrpc":"2.0","id":$id,"error":{"code":-32002,"message":"Blockhash not found"}}""",
                     HttpStatusCode.OK,

@@ -15,7 +15,7 @@ import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
-import io.ktor.http.contentType
+import io.ktor.http.content.ByteArrayContent
 import kotlinx.atomicfu.atomic
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.DeserializationStrategy
@@ -61,13 +61,12 @@ class HttpClient(
             return true
         }
 
-        val (json, requestIndexPerId) = batch.toRequestBody()
+        val (body, requestIndexPerId) = batch.toRequestBody()
 
         return try {
             val response = client.post(httpUrl) {
-                contentType(ContentType.Application.Json)
                 headers { requestHeaders.forEach { (k, v) -> append(k, v) } }
-                setBody(json)
+                setBody(ByteArrayContent(body, ContentType.Application.Json))
             }
             val text = response.bodyAsText()
             LOG.trc { "Batch response: ${text.removeSuffix("\n")}" }
@@ -138,14 +137,14 @@ class HttpClient(
         params: RpcParams,
         decode: (text: String) -> Result<T, RpcError>,
     ): Result<T, RpcError> {
-        val json = buildJsonRpcRequest(method, requestId.getAndIncrement(), params)
-        LOG.trc { "Request: $json" }
+        val body = buildJsonRpcRequest(method, requestId.getAndIncrement(), params)
+        LOG.trc { "Request: ${body.decodeToString()}" }
 
         return try {
             val response = client.post(httpUrl) {
-                contentType(ContentType.Application.Json)
                 headers { requestHeaders.forEach { (k, v) -> append(k, v) } }
-                setBody(json)
+                // the request's UTF-8 bytes, sent as they are: a String body would be copied into new bytes by Ktor
+                setBody(ByteArrayContent(body, ContentType.Application.Json))
             }
             val text = response.bodyAsText()
             LOG.trc { "Response: ${text.removeSuffix("\n")}" }
@@ -203,18 +202,18 @@ class HttpClient(
         client.close()
     }
 
-    private fun BatchRpcRequest.toRequestBody(): Pair<String, HashMap<Long, Int>> {
+    private fun BatchRpcRequest.toRequestBody(): Pair<ByteArray, HashMap<Long, Int>> {
         // encoded before taking any request ID, so a batch that can't be encoded doesn't consume IDs
         val params = encodeParams()
         val requestIndexPerId = HashMap<Long, Int>(requests.size, 1.0F)
 
-        val json = buildJsonRpcBatch(requests, params) { i ->
+        val body = buildJsonRpcBatch(requests, params) { i ->
             val id = requestId.getAndIncrement()
             requestIndexPerId[id] = i
             id
         }
-        LOG.trc { "Request: $json" }
-        return json to requestIndexPerId
+        LOG.trc { "Request: ${body.decodeToString()}" }
+        return body to requestIndexPerId
     }
 
     companion object {

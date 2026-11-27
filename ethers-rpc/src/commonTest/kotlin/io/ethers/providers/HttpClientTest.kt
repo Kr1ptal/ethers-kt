@@ -138,7 +138,7 @@ private fun httpSpecificTests() = funSpec {
         test("params encoded before a request, as a caching wrapper does, are not encoded again to send it") {
             val counting = CountingSerializer()
             val params = countedParams(counting, "0xabc", "latest")
-            val key = params.encode()
+            val key = params.encode().decodeToString()
 
             server.enqueueJson(SUCCESSFUL_RESPONSE)
             client.request("eth_getBalance", params, stringSerializer).unwrap() shouldBe "0x1234567"
@@ -166,7 +166,7 @@ private fun httpSpecificTests() = funSpec {
                 secondResponse.await().unwrap() shouldBe "0x2"
             }
             val sent = Kotlinx.DEFAULT.parseToJsonElement(server.takeRequest(5_000L).bodyText).jsonArray
-            sent.map { it.jsonObject["params"].toString() } shouldBe listOf(first.params.encode(), second.params.encode())
+            sent.map { it.jsonObject["params"].toString() } shouldBe listOf(first.params.encode().decodeToString(), second.params.encode().decodeToString())
             counting.encodings shouldBe 2
 
             // the first call again, in a new batch
@@ -178,7 +178,7 @@ private fun httpSpecificTests() = funSpec {
                 againResponse.await().unwrap() shouldBe "0x3"
             }
             val resent = Kotlinx.DEFAULT.parseToJsonElement(server.takeRequest(5_000L).bodyText).jsonArray
-            resent.single().jsonObject["params"].toString() shouldBe first.params.encode()
+            resent.single().jsonObject["params"].toString() shouldBe first.params.encode().decodeToString()
             counting.encodings shouldBe 2
         }
 

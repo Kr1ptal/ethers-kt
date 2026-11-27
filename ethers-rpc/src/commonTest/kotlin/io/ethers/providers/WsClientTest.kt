@@ -235,7 +235,7 @@ class WsClientTest : FunSpec({
         test("params encoded before a request, as a caching wrapper does, are not encoded again to send it") {
             val counting = CountingSerializer()
             val params = countedParams(counting, "0xabc", "latest")
-            val key = params.encode()
+            val key = params.encode().decodeToString()
 
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":$REQUEST_ID,"result":"0x1"}""")
             withTimeout(30.seconds) {
@@ -267,7 +267,7 @@ class WsClientTest : FunSpec({
                 secondResponse.await().unwrap() shouldBe "0x2"
             }
             val sent = Kotlinx.DEFAULT.parseToJsonElement(mockServer.takeReceivedText(DELIVERY_WINDOW.inWholeMilliseconds)!!)
-            sent.jsonArray.map { it.jsonObject["params"].toString() } shouldBe listOf(first.params.encode(), second.params.encode())
+            sent.jsonArray.map { it.jsonObject["params"].toString() } shouldBe listOf(first.params.encode().decodeToString(), second.params.encode().decodeToString())
             counting.encodings shouldBe 2
 
             // the first call again, in a new batch
@@ -279,7 +279,7 @@ class WsClientTest : FunSpec({
                 againResponse.await().unwrap() shouldBe "0x3"
             }
             val resent = Kotlinx.DEFAULT.parseToJsonElement(mockServer.takeReceivedText(DELIVERY_WINDOW.inWholeMilliseconds)!!)
-            resent.jsonArray.single().jsonObject["params"].toString() shouldBe first.params.encode()
+            resent.jsonArray.single().jsonObject["params"].toString() shouldBe first.params.encode().decodeToString()
             counting.encodings shouldBe 2
         }
 

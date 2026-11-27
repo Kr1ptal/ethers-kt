@@ -54,21 +54,21 @@ import kotlin.reflect.typeOf
  *
  * [ofJson] takes parameters that are already JSON.
  *
- * The parameters are encoded once, on the first [encode] or [toString], into the text of the JSON array sent in the
- * request, and every later [encode] returns that same string, so sending these params again (a retry, or the same call
- * in another batch) doesn't encode them again. This also lets a client wrapper, such as a response cache, use the
- * string [encode] returns as a key (or hash it) and forward the same params to the client without them being encoded
- * twice. As a consequence, a change to a mutable value passed as a parameter after that first encoding (for example a
- * `CallRequest` modified after the request was created) is not picked up: build new params for a changed value.
+ * The parameters are encoded once, on the first [encode], [toString] or send, into the UTF-8 bytes of the JSON array
+ * sent in the request, and that encoding is kept, so sending these params again (a retry, or the same call in another
+ * batch) doesn't encode them again. A client wrapper, such as a response cache, can build a key from [encode] (as is,
+ * with `contentHashCode`, or as text with `decodeToString()`) and forward the same params to the client without them
+ * being encoded twice. As a consequence, a change to a mutable value passed as a parameter after that first encoding
+ * is not picked up: build new params for a changed value.
  */
 class RpcParams @PublishedApi internal constructor(
     private val values: Array<Any?>,
     private val serializers: Array<SerializationStrategy<Any?>>,
 ) {
-    // The first successful encoding. A String is immutable and is published through a volatile field, so a reader sees
-    // either null or the complete text.
+    // The first successful encoding. It is complete before it is published through the volatile field, and never
+    // changed after, so a reader sees either null or the complete encoding.
     @Volatile
-    private var encoded: String? = null
+    private var encoded: ByteArray? = null
 
     /** Number of parameters. */
     val size: Int get() = values.size
@@ -89,36 +89,37 @@ class RpcParams @PublishedApi internal constructor(
     }
 
     /**
-     * Encode the parameters as the text of the JSON array sent in the request, each with its serializer, such as
-     * `["0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2","latest"]`.
+     * Encode the parameters as the UTF-8 bytes of the JSON array sent in the request, each with its serializer, such as
+     * the bytes of `["0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2","latest"]`. Use `decodeToString()` for the text.
      *
-     * The parameters are encoded once, on the first [encode] or [toString]: that encoding is kept, and every later call
-     * returns that same string without running the serializers again. A mutable value passed as a parameter and changed
-     * after that is therefore not picked up; build new params for a changed value. A failed encode keeps nothing, so a
-     * later call tries again.
+     * The parameters are encoded once, on the first [encode], [toString] or send: that encoding is kept, and every later
+     * call returns that same array without running the serializers again. The array is the one the clients send, so it
+     * must not be modified. A mutable value passed as a parameter and changed after the first encoding is not picked
+     * up; build new params for a changed value. A failed encode keeps nothing, so a later call tries again.
      *
      * Throws whatever a parameter's serializer throws.
      */
-    fun encode(): String {
+    fun encode(): ByteArray {
         encoded?.let { return it }
         if (values.isEmpty()) return EMPTY_JSON
 
         // Callers racing here each encode and publish; their results are equal, and whichever is written last is kept.
-        val json = Kotlinx.DEFAULT.encodeToString(ParamsSerializer, this)
-        encoded = json
-        return json
+        // kotlinx writes JSON text fastest as a String, which is converted to UTF-8 once.
+        val bytes = Kotlinx.DEFAULT.encodeToString(ParamsSerializer, this).encodeToByteArray()
+        encoded = bytes
+        return bytes
     }
 
-    /** The encoded JSON, encoding the parameters if they weren't yet, as [encode] does. */
+    /** The encoded JSON as text, encoding the parameters if they weren't yet, as [encode] does. */
     override fun toString(): String = try {
-        encode()
+        encode().decodeToString()
     } catch (e: Exception) {
         "RpcParams(size=$size, unencodable: ${e.message})"
     }
 
     /**
      * Writes all the parameters as one JSON array with a single encoder, each element with its own serializer, which
-     * is what [encode] returns. A kotlinx list descriptor makes the JSON encoder write `[`, `,` and `]` around them, so
+     * [encode] turns into bytes. A kotlinx list descriptor makes the JSON encoder write `[`, `,` and `]` around them, so
      * each one is written exactly as encoding it alone would write it.
      */
     private object ParamsSerializer : SerializationStrategy<RpcParams> {
@@ -137,7 +138,9 @@ class RpcParams @PublishedApi internal constructor(
     }
 
     companion object {
-        private const val EMPTY_JSON = "[]"
+
+        // shared by every empty params, which is safe as it is never modified
+        private val EMPTY_JSON = "[]".encodeToByteArray()
 
         /** No parameters. */
         @JvmField

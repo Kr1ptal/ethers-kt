@@ -15,7 +15,7 @@ import io.kotest.matchers.shouldBe
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpStatusCode
-import io.ktor.http.content.TextContent
+import io.ktor.http.content.OutgoingContent
 import io.ktor.http.headersOf
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -36,7 +36,7 @@ class SolanaBatchTest : FunSpec({
     fun providerAnswering(byMethod: Map<String, String>, bodies: MutableList<JsonElement>): SolanaProvider {
         val ktor = KtorHttpClient(
             MockEngine { request ->
-                val body = Kotlinx.DEFAULT.parseToJsonElement((request.body as TextContent).text)
+                val body = Kotlinx.DEFAULT.parseToJsonElement((request.body as OutgoingContent.ByteArrayContent).bytes().decodeToString())
                 bodies.add(body)
                 val calls = if (body is JsonArray) body.jsonArray.map { it.jsonObject } else listOf(body.jsonObject)
                 val answers = calls.joinToString(",") {
@@ -86,7 +86,7 @@ class SolanaBatchTest : FunSpec({
         val bodies = mutableListOf<JsonElement>()
         val ktor = KtorHttpClient(
             MockEngine { request ->
-                val body = Kotlinx.DEFAULT.parseToJsonElement((request.body as TextContent).text)
+                val body = Kotlinx.DEFAULT.parseToJsonElement((request.body as OutgoingContent.ByteArrayContent).bytes().decodeToString())
                 bodies.add(body)
                 val calls = body.jsonArray.map { it.jsonObject }
                 val answers = calls.joinToString(",") {
