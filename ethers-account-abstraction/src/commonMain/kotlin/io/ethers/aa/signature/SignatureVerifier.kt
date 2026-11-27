@@ -110,7 +110,7 @@ class SignatureVerifier(private val provider: Middleware) {
 
         val wrapped = if (factory != null) Erc6492Signature.wrap(signature, factory, factoryData ?: Bytes.EMPTY) else signature
         val args = AbiCodec.encode(listOf(AbiType.Address, AbiType.FixedBytes(32), AbiType.Bytes), listOf(signer, Bytes(hash.asByteArray()), wrapped))
-        val call = CallRequest().data(Bytes(ERC6492_VALIDATOR_BYTECODE.asByteArray() + args))
+        val call = CallRequest { data = Bytes(ERC6492_VALIDATOR_BYTECODE.asByteArray() + args) }
         val onChain = provider.call(call, blockId)
             .orElse { error -> if (error.isRevert()) success(Bytes.EMPTY) else failure(error) }
             .map { result -> result.size > 0 && result.asByteArray().last().toInt() == 1 }

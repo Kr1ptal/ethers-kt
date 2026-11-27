@@ -16,8 +16,11 @@ import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import io.ethers.providers.map
 import io.ethers.providers.types.RpcCall
+import io.ethers.providers.types.RpcParams
 import io.ethers.providers.types.RpcRequest
 import io.ethers.providers.types.SuppliedRpcRequest
+import io.ethers.providers.types.buildRpcParams
+import io.ethers.providers.types.rpcParams
 import kotlinx.coroutines.delay
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.nullable
@@ -82,7 +85,7 @@ interface BundlerApi {
  */
 class BundlerClient(val client: JsonRpcClient) : BundlerApi {
     override fun sendUserOperation(userOperation: UserOperation, entryPoint: EntryPoint): RpcRequest<PendingUserOperation, RpcError> {
-        val params = arrayOf(userOperation.toJson(entryPoint.version), entryPoint.address)
+        val params = rpcParams(userOperation.toJson(entryPoint.version), entryPoint.address)
         return RpcCall(client, "eth_sendUserOperation", params, Hash.serializer().map { PendingUserOperation(it, this) })
     }
 
@@ -91,31 +94,27 @@ class BundlerClient(val client: JsonRpcClient) : BundlerApi {
         entryPoint: EntryPoint,
         stateOverride: StateOverride?,
     ): RpcRequest<UserOperationGasEstimate, RpcError> {
-        val op = userOperation.toJson(entryPoint.version)
-        val params = when (stateOverride) {
-            null -> arrayOf(op, entryPoint.address)
-            else -> arrayOf(op, entryPoint.address, stateOverride)
+        val params = buildRpcParams {
+            add(userOperation.toJson(entryPoint.version))
+            add(entryPoint.address)
+            if (stateOverride != null) add(stateOverride)
         }
         return RpcCall(client, "eth_estimateUserOperationGas", params, UserOperationGasEstimate.serializer())
     }
 
     override fun getUserOperationByHash(userOpHash: Hash): RpcRequest<UserOperationByHash?, RpcError> {
-        return RpcCall(client, "eth_getUserOperationByHash", arrayOf(userOpHash), UserOperationByHash.serializer().nullable)
+        return RpcCall(client, "eth_getUserOperationByHash", rpcParams(userOpHash), UserOperationByHash.serializer().nullable)
     }
 
     override fun getUserOperationReceipt(userOpHash: Hash): RpcRequest<UserOperationReceipt?, RpcError> {
-        return RpcCall(client, "eth_getUserOperationReceipt", arrayOf(userOpHash), UserOperationReceipt.serializer().nullable)
+        return RpcCall(client, "eth_getUserOperationReceipt", rpcParams(userOpHash), UserOperationReceipt.serializer().nullable)
     }
 
     override fun supportedEntryPoints(): RpcRequest<List<Address>, RpcError> {
-        return RpcCall(client, "eth_supportedEntryPoints", EMPTY_PARAMS, ListSerializer(Address.serializer()))
+        return RpcCall(client, "eth_supportedEntryPoints", RpcParams.EMPTY, ListSerializer(Address.serializer()))
     }
 
     override fun chainId(): RpcRequest<Long, RpcError> {
-        return RpcCall(client, "eth_chainId", EMPTY_PARAMS, HexLongSerializer)
-    }
-
-    private companion object {
-        val EMPTY_PARAMS = emptyArray<Any>()
+        return RpcCall(client, "eth_chainId", RpcParams.EMPTY, HexLongSerializer)
     }
 }

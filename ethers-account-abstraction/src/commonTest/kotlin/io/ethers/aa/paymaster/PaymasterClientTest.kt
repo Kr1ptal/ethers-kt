@@ -33,7 +33,7 @@ class PaymasterClientTest : FunSpec({
             "pm_getPaymasterStubData",
             """{"paymaster":"$paymaster","paymasterData":"0x01","paymasterVerificationGasLimit":"0x10","paymasterPostOpGasLimit":"0x20","sponsor":{"name":"Acme","icon":"data:image/png;base64,AA=="},"isFinal":true}""",
         )
-        val stub = PaymasterClient(rpc).getPaymasterStubData(userOp, EntryPoint.V0_7, 8453, mapOf("policyId" to "p1")).send().unwrap()
+        val stub = PaymasterClient(rpc).getPaymasterStubData(userOp, EntryPoint.V0_7, 8453, JsonObject(mapOf("policyId" to JsonPrimitive("p1")))).send().unwrap()
 
         stub shouldBe PaymasterStubData(
             paymaster = paymaster,

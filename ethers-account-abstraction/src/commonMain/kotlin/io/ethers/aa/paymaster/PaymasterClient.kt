@@ -8,13 +8,14 @@ import io.ethers.core.FastHex
 import io.ethers.core.asAddress
 import io.ethers.core.asBytes
 import io.ethers.core.asHexByteArray
-import io.ethers.core.toJsonElement
 import io.ethers.core.types.Address
 import io.ethers.core.types.Bytes
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import io.ethers.providers.types.RpcCall
+import io.ethers.providers.types.RpcParams
 import io.ethers.providers.types.RpcRequest
+import io.ethers.providers.types.rpcParams
 import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerializationException
@@ -75,13 +76,13 @@ interface PaymasterApi {
     ): RpcRequest<PaymasterStubData, RpcError> = getPaymasterStubData(userOperation, entryPoint, chainId, null)
 
     /**
-     * Like [getPaymasterStubData], passing paymaster-specific [context], e.g. a sponsorship policy ID.
+     * Like [getPaymasterStubData], passing paymaster-specific [context], e.g. `{"policyId": "..."}`.
      */
     fun getPaymasterStubData(
         userOperation: UserOperation,
         entryPoint: EntryPoint,
         chainId: Long,
-        context: Map<String, Any?>?,
+        context: JsonObject?,
     ): RpcRequest<PaymasterStubData, RpcError>
 
     /**
@@ -94,13 +95,13 @@ interface PaymasterApi {
     ): RpcRequest<PaymasterData, RpcError> = getPaymasterData(userOperation, entryPoint, chainId, null)
 
     /**
-     * Like [getPaymasterData], passing paymaster-specific [context], e.g. a sponsorship policy ID.
+     * Like [getPaymasterData], passing paymaster-specific [context], e.g. `{"policyId": "..."}`.
      */
     fun getPaymasterData(
         userOperation: UserOperation,
         entryPoint: EntryPoint,
         chainId: Long,
-        context: Map<String, Any?>?,
+        context: JsonObject?,
     ): RpcRequest<PaymasterData, RpcError>
 }
 
@@ -108,11 +109,15 @@ interface PaymasterApi {
  * [PaymasterApi] over a [JsonRpcClient] connected to an ERC-7677 paymaster service.
  */
 class PaymasterClient(val client: JsonRpcClient) : PaymasterApi {
+    private companion object {
+        val EMPTY_CONTEXT = JsonObject(emptyMap())
+    }
+
     override fun getPaymasterStubData(
         userOperation: UserOperation,
         entryPoint: EntryPoint,
         chainId: Long,
-        context: Map<String, Any?>?,
+        context: JsonObject?,
     ): RpcRequest<PaymasterStubData, RpcError> {
         val params = params(userOperation, entryPoint, chainId, context)
         return RpcCall(client, "pm_getPaymasterStubData", params, PaymasterStubDataSerializer(entryPoint.version))
@@ -122,19 +127,14 @@ class PaymasterClient(val client: JsonRpcClient) : PaymasterApi {
         userOperation: UserOperation,
         entryPoint: EntryPoint,
         chainId: Long,
-        context: Map<String, Any?>?,
+        context: JsonObject?,
     ): RpcRequest<PaymasterData, RpcError> {
         val params = params(userOperation, entryPoint, chainId, context)
         return RpcCall(client, "pm_getPaymasterData", params, PaymasterDataSerializer(entryPoint.version))
     }
 
-    private fun params(op: UserOperation, entryPoint: EntryPoint, chainId: Long, context: Map<String, Any?>?): Array<Any> {
-        return arrayOf(
-            op.toJson(entryPoint.version),
-            entryPoint.address,
-            FastHex.encodeWithPrefix(chainId),
-            context?.toJsonElement() ?: JsonObject(emptyMap()),
-        )
+    private fun params(op: UserOperation, entryPoint: EntryPoint, chainId: Long, context: JsonObject?): RpcParams {
+        return rpcParams(op.toJson(entryPoint.version), entryPoint.address, FastHex.encodeWithPrefix(chainId), context ?: EMPTY_CONTEXT)
     }
 }
 

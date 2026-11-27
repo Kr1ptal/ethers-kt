@@ -5,12 +5,13 @@ import io.ethers.core.Kotlinx
 import io.ethers.core.Result
 import io.ethers.core.failure
 import io.ethers.core.success
-import io.ethers.core.toJsonElement
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import io.ethers.providers.types.BatchRpcRequest
+import io.ethers.providers.types.RpcParams
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.jsonArray
 
 /**
  * A [JsonRpcClient] that answers from registered handlers instead of the network, and records every request.
@@ -49,10 +50,11 @@ class FakeJsonRpcClient : JsonRpcClient {
 
     override suspend fun <T> request(
         method: String,
-        params: Array<*>,
+        params: RpcParams,
         resultDeserializer: DeserializationStrategy<T>,
     ): Result<T, RpcError> {
-        val jsonParams = params.map { it.toJsonElement() }
+        // the params exactly as the HTTP and WebSocket clients send them
+        val jsonParams = Kotlinx.DEFAULT.parseToJsonElement(params.encode()).jsonArray.toList()
         recorded.add(Request(method, jsonParams))
 
         val result = try {
@@ -73,7 +75,7 @@ class FakeJsonRpcClient : JsonRpcClient {
     }
 
     override suspend fun <T : Any> subscribe(
-        params: Array<*>,
+        params: RpcParams,
         resultDeserializer: DeserializationStrategy<T>,
     ): Result<ChannelReceiver<T>, RpcError> {
         return failure(RpcError(RpcError.CODE_METHOD_NOT_FOUND, "FakeJsonRpcClient does not support subscriptions"))
