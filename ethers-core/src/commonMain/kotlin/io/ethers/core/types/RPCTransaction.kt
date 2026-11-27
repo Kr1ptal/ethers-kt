@@ -51,6 +51,13 @@ data class RPCTransaction(
     val otherFields: Map<String, JsonElement> = emptyMap(),
 ) : TransactionRecovered {
     /**
+     * Whether the transaction is pending: known to the node but not yet included in a block. A pending transaction has
+     * no [blockHash], and its [blockNumber] and [transactionIndex] are `-1`.
+     */
+    val isPending: Boolean
+        get() = blockHash == null
+
+    /**
      * Return true if the transaction has a signature, false otherwise.
      * */
     val hasSignature: Boolean

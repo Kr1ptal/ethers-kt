@@ -94,4 +94,56 @@ class RPCTransactionTest : FunSpec({
         result shouldBe expectedResult
         result.blobGas shouldBe TxBlob.GAS_PER_BLOB * 2
     }
+
+    context("isPending") {
+        // the fields a node returns for a transaction, with the block fields given as JSON
+        fun transaction(blockFields: String): RPCTransaction {
+            @Language("JSON")
+            val jsonString = """
+                {
+                  $blockFields,
+                  "from": "0x1264f83b093abbf840ea80a361988d19c7f5a686",
+                  "gas": "0x6ddd0",
+                  "gasPrice": "0x1cd5d2c16",
+                  "hash": "0xc74b35721eec9b338589ea735f8d322b3e27f3259d9e924ef354a4336fb715a8",
+                  "input": "0x69277b67",
+                  "nonce": "0x3e2e",
+                  "to": "0xb0bababe78a9be0810fadf99dd2ed31ed12568be",
+                  "value": "0x0",
+                  "type": "0x0",
+                  "chainId": "0x1",
+                  "v": "0x25",
+                  "r": "0x1",
+                  "s": "0x1"
+                }
+            """.trimIndent()
+            return Kotlinx.DEFAULT.decodeFromString<RPCTransaction>(jsonString)
+        }
+
+        test("a transaction in a block is not pending") {
+            val tx = transaction(
+                """
+                "blockHash": "0xf58bc0d9ad6de2ca7169880cf7d6ffe970c85e48880c00745f21f7a0a5330560",
+                "blockNumber": "0x117c277",
+                "transactionIndex": "0x1"
+                """.trimIndent(),
+            )
+
+            tx.isPending shouldBe false
+        }
+
+        test("a transaction whose block fields are null is pending") {
+            val tx = transaction(""""blockHash": null, "blockNumber": null, "transactionIndex": null""")
+
+            tx.isPending shouldBe true
+            tx.blockNumber shouldBe -1L
+            tx.transactionIndex shouldBe -1
+        }
+
+        test("a transaction without block fields is pending") {
+            val tx = transaction(""""transactionIndex": null""")
+
+            tx.isPending shouldBe true
+        }
+    }
 })
