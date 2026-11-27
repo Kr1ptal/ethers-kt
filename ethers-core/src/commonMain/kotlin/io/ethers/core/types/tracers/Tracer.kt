@@ -1,7 +1,6 @@
 package io.ethers.core.types.tracers
 
 import io.ethers.core.FastHex
-import io.ethers.core.toJsonElement
 import io.ethers.core.types.BlockOverride
 import io.ethers.core.types.BlockOverrideSerializer
 import io.ethers.core.types.StateOverride
@@ -12,6 +11,7 @@ import kotlinx.serialization.descriptors.buildClassSerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.JsonEncoder
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlin.jvm.JvmOverloads
@@ -32,10 +32,10 @@ import kotlin.jvm.JvmOverloads
  * ) : Tracer<MyTracer.Result> {
  *     override val name = "myTracer"
  *     override val resultSerializer = Result.serializer()
- *     override val config = mapOf(
- *         "someOption" to someOption,
- *         "anotherOption" to anotherOption,
- *     )
+ *     override val config = buildJsonObject {
+ *         put("someOption", someOption)
+ *         put("anotherOption", anotherOption)
+ *     }
  *
  *     @Serializable
  *     data class Result(val data: String, val count: Int)
@@ -60,9 +60,9 @@ sealed interface AnyTracer<T : Any> {
     val resultSerializer: KSerializer<T>
 
     /**
-     * Tracer configuration payload to serialize as tracerConfig.
+     * Tracer configuration, sent as `tracerConfig`.
      */
-    val config: Map<String, Any?>
+    val config: JsonObject
 }
 
 @Serializable(with = TracerConfigSerializer::class)
@@ -85,12 +85,12 @@ object TracerConfigSerializer : KSerializer<TracerConfig<*>> {
                 when (val tracer = value.tracer) {
                     is Tracer<*> -> {
                         put("tracer", tracer.name)
-                        put("tracerConfig", tracer.config.toJsonElement())
+                        put("tracerConfig", tracer.config)
                     }
 
                     else -> {
                         for ((fieldName, fieldValue) in tracer.config) {
-                            put(fieldName, fieldValue.toJsonElement())
+                            put(fieldName, fieldValue)
                         }
                     }
                 }

@@ -4,8 +4,8 @@ import io.channels.core.ChannelReceiver
 import io.ethers.core.FastHex
 import io.ethers.core.Result
 import io.ethers.core.ThrowableError
-import io.ethers.core.toJsonElement
 import io.ethers.providers.types.BatchRpcRequest
+import io.ethers.providers.types.RpcParams
 import io.ktor.client.plugins.websocket.WebSockets
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.KSerializer
@@ -14,13 +14,13 @@ import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
-import kotlinx.serialization.json.putJsonArray
 import kotlin.jvm.JvmField
 import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmSynthetic
@@ -40,7 +40,7 @@ interface JsonRpcClient : AutoCloseable {
      */
     suspend fun <T> request(
         method: String,
-        params: Array<*>,
+        params: RpcParams,
         resultDeserializer: DeserializationStrategy<T>,
     ): Result<T, RpcError>
 
@@ -59,7 +59,7 @@ interface JsonRpcClient : AutoCloseable {
      * @param resultDeserializer decodes each JSON event into object [T]
      */
     suspend fun <T : Any> subscribe(
-        params: Array<*>,
+        params: RpcParams,
         resultDeserializer: DeserializationStrategy<T>,
     ): Result<ChannelReceiver<T>, RpcError>
 }
@@ -88,26 +88,21 @@ object HexByteArraySerializer : KSerializer<ByteArray> {
 /**
  * Build a JSON-RPC request string.
  */
-internal fun buildJsonRpcRequest(method: String, id: Long, params: Array<*>): String {
+internal fun buildJsonRpcRequest(method: String, id: Long, params: RpcParams): String {
+    return buildJsonRpcRequest(method, id, params.encode())
+}
+
+/**
+ * Build a JSON-RPC request string from already encoded [params].
+ */
+internal fun buildJsonRpcRequest(method: String, id: Long, params: JsonArray): String {
     return buildJsonObject {
         put("id", id)
         put("jsonrpc", "2.0")
         put("method", method)
-        putJsonArray("params") {
-            params.forEach { add(it.toParamJsonElement()) }
-        }
+        put("params", params)
     }.toString()
 }
-
-/**
- * Convert any value to a [KJsonElement] suitable for use as a JSON-RPC parameter.
- *
- * Recursively handles common Kotlin/JVM types so callers can pass arbitrary nested
- * structures (e.g. `mapOf("from" to addr, "data" to bytes)`). Custom types are looked up
- * via the kotlinx `@Serializable` contract and fail fast if no serializer is registered,
- * rather than silently producing an unusable payload.
- */
-internal fun Any?.toParamJsonElement(): KJsonElement = toJsonElement()
 
 /**
  * Internal JSON-RPC error, returned when the RPC call fails.

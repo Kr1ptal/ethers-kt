@@ -14,6 +14,8 @@ import io.ethers.logger.inf
 import io.ethers.logger.trc
 import io.ethers.logger.wrn
 import io.ethers.providers.types.BatchRpcRequest
+import io.ethers.providers.types.RpcParams
+import io.ethers.providers.types.rpcParams
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 import io.ktor.client.plugins.websocket.webSocket
 import io.ktor.websocket.Frame
@@ -315,7 +317,7 @@ class WsClient(
                                 }
                                 LOG.dbg { "Resubscribing stream with ID: $id" }
                                 sub.awaitingResubscribe = true
-                                wsSend(buildJsonRpcRequest(sub.descriptor.subscribeMethod, id, sub.descriptor.params))
+                                wsSend(buildJsonRpcRequest(sub.descriptor.subscribeMethod, id, sub.params))
                             }
                         } else {
                             for ((id, sub) in requestIdToSubscription) {
@@ -355,7 +357,7 @@ class WsClient(
                             val id = requestId++
                             if (batchId == -1L) batchId = id
                             idToIndex[id] = i
-                            sb.append(buildJsonRpcRequest(reqItem.method, id, reqItem.params))
+                            sb.append(buildJsonRpcRequest(reqItem.method, id, pending.params[i]))
                         }
                         sb.append(']')
 
@@ -379,7 +381,7 @@ class WsClient(
                             continue
                         }
                         val id = requestId++
-                        val req = buildJsonRpcRequest(pending.descriptor.subscribeMethod, id, pending.descriptor.params)
+                        val req = buildJsonRpcRequest(pending.descriptor.subscribeMethod, id, pending.params)
                         LOG.trc { "Processing subscription request: $req" }
                         if (wsSend(req)) {
                             pendingSendSubscriptionRequests.removeFirst()
@@ -402,7 +404,7 @@ class WsClient(
                         serverIdToSubscription.remove(sub.serverId)
 
                         val id = requestId++
-                        val req = buildJsonRpcRequest(sub.descriptor.unsubscribeMethod, id, arrayOf(sub.serverId))
+                        val req = buildJsonRpcRequest(sub.descriptor.unsubscribeMethod, id, rpcParams(sub.serverId))
 
                         LOG.trc { "Processing unsubscribe request: $req" }
                         wsSend(req)
@@ -714,6 +716,7 @@ class WsClient(
                 requestId = id,
                 serverId = resultElement,
                 descriptor = request.descriptor,
+                params = request.params,
                 closed = closed,
                 resultDeserializer = request.resultDeserializer,
                 stream = QueueChannel.spscUnbounded {
@@ -830,7 +833,9 @@ class WsClient(
             return true
         }
 
-        val request = PendingBatchRequest(batch, CompletableDeferred())
+        // encoded here, so a parameter that can't be encoded fails this batch instead of the processing loop
+        val params = batch.encodeParams()
+        val request = PendingBatchRequest(batch, params, CompletableDeferred())
 
         batchRequestQueue.enqueue(request)
         signalEvent()
@@ -839,12 +844,13 @@ class WsClient(
 
     override suspend fun <T> request(
         method: String,
-        params: Array<*>,
+        params: RpcParams,
         resultDeserializer: DeserializationStrategy<T>,
     ): Result<T, RpcError> {
         val request = PendingRequest(
             method,
-            params,
+            // encoded here, so a parameter that can't be encoded fails this call instead of the processing loop
+            params.encode(),
             resultDeserializer,
             CompletableDeferred(),
         )
@@ -856,11 +862,15 @@ class WsClient(
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     override suspend fun <T : Any> subscribe(
-        params: Array<*>,
+        params: RpcParams,
         resultDeserializer: DeserializationStrategy<T>,
     ): Result<ChannelReceiver<T>, RpcError> {
+        val descriptor = subscriptionDescriptor.resolve(params)
         val request = PendingSubscriptionRequest(
-            subscriptionDescriptor.resolve(params),
+            descriptor,
+            // encoded here, so a parameter that can't be encoded fails this call instead of the processing loop, and
+            // kept to resubscribe with after a reconnect
+            descriptor.params.encode(),
             resultDeserializer,
             CompletableDeferred(),
         )
@@ -880,7 +890,7 @@ class WsClient(
 
     private class PendingRequest<T>(
         val method: String,
-        val params: Array<*>,
+        val params: JsonArray,
         val resultDeserializer: DeserializationStrategy<T>,
         val response: CompletableDeferred<Result<T, RpcError>>,
     ) : ExpiringRequest() {
@@ -891,6 +901,8 @@ class WsClient(
 
     private data class PendingBatchRequest(
         val request: BatchRpcRequest,
+        // the encoded params of each call in request.requests
+        val params: List<JsonArray>,
         val response: CompletableDeferred<Boolean>,
     ) : ExpiringRequest() {
         override fun expireRequest() {
@@ -903,6 +915,8 @@ class WsClient(
 
     private class PendingSubscriptionRequest<T : Any>(
         val descriptor: SubscriptionDescriptor.Resolved,
+        // descriptor.params, encoded
+        val params: JsonArray,
         val resultDeserializer: DeserializationStrategy<T>,
         val response: CompletableDeferred<Result<ChannelReceiver<T>, RpcError>>,
     ) : ExpiringRequest() {
@@ -941,6 +955,8 @@ class WsClient(
         val requestId: Long,
         var serverId: kotlinx.serialization.json.JsonPrimitive,
         val descriptor: SubscriptionDescriptor.Resolved,
+        // descriptor.params as encoded at subscribe time, which resubscribing sends again
+        val params: JsonArray,
         val closed: kotlinx.atomicfu.AtomicBoolean,
         val resultDeserializer: DeserializationStrategy<T>,
         val stream: Channel<T>,

@@ -11,6 +11,7 @@ import io.ethers.core.types.CallRequest
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import io.ethers.providers.types.BatchRpcRequest
+import io.ethers.providers.types.RpcParams
 import kotlinx.serialization.DeserializationStrategy
 
 /**
@@ -46,7 +47,7 @@ class FakeJsonRpcClient : JsonRpcClient {
 
     override suspend fun <T> request(
         method: String,
-        params: Array<*>,
+        params: RpcParams,
         resultDeserializer: DeserializationStrategy<T>,
     ): Result<T, RpcError> {
         val paramList = params.toList()
@@ -69,7 +70,7 @@ class FakeJsonRpcClient : JsonRpcClient {
     }
 
     override suspend fun <T : Any> subscribe(
-        params: Array<*>,
+        params: RpcParams,
         resultDeserializer: DeserializationStrategy<T>,
     ): Result<ChannelReceiver<T>, RpcError> {
         return failure(RpcError(RpcError.CODE_METHOD_NOT_FOUND, "FakeJsonRpcClient does not support subscriptions"))

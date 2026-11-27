@@ -6,6 +6,7 @@ import io.ethers.core.failure
 import io.ethers.core.success
 import io.ethers.core.unwrapOrReturn
 import io.ethers.providers.types.RpcCall
+import io.ethers.providers.types.RpcParams
 import io.ethers.providers.types.RpcRequest
 import kotlin.time.Duration
 import io.ktor.client.HttpClient as KtorHttpClient
@@ -88,7 +89,7 @@ class ProviderBuilder internal constructor(private val url: String) : PlatformPr
     }
 
     private fun getChainId(client: JsonRpcClient): RpcRequest<Long, RpcError> {
-        return RpcCall(client, "eth_chainId", EMPTY_ARRAY, HexLongSerializer)
+        return RpcCall(client, "eth_chainId", RpcParams.EMPTY, HexLongSerializer)
     }
 
     private fun clientOrNull(): JsonRpcClient? = when {
@@ -100,6 +101,5 @@ class ProviderBuilder internal constructor(private val url: String) : PlatformPr
     companion object {
         private val PROTO_HTTPS = "^(https?)://.+$".toRegex()
         private val PROTO_WSS = "^(wss?)://.+$".toRegex()
-        private val EMPTY_ARRAY = emptyArray<Any>()
     }
 }

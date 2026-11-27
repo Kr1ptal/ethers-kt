@@ -11,6 +11,7 @@ import io.ethers.providers.RpcError
 import io.ethers.providers.WsClient
 import io.ethers.providers.types.RpcSubscribe
 import io.ethers.providers.types.RpcSubscribeCall
+import io.ethers.providers.types.buildRpcParams
 import io.ethers.solana.providers.middleware.SolanaApi
 import io.ethers.solana.types.SolanaAddress
 import io.ethers.solana.types.SolanaSignature
@@ -30,7 +31,9 @@ import io.github.artificialpb.bignum.BigInteger
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.builtins.nullable
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObjectBuilder
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
@@ -54,17 +57,17 @@ class SolanaProvider @JvmOverloads constructor(
         get() = this
 
     override fun subscribeAccount(address: SolanaAddress, config: SolanaAccountConfig): RpcSubscribe<ContextValue<AccountInfo?>, RpcError> {
-        return subscribe("account", arrayOf(address.toString(), accountOptions(config)), ContextValue.serializer(AccountInfo.serializer().nullable))
+        return subscribe("account", JsonPrimitive(address.toString()), accountOptions(config), deserializer = ContextValue.serializer(AccountInfo.serializer().nullable))
     }
 
     override fun subscribeProgram(program: SolanaAddress, filters: List<AccountFilter>, config: SolanaAccountConfig): RpcSubscribe<ContextValue<ProgramAccount>, RpcError> {
         val options = accountOptions(config) {
             put("filters", JsonArray(filters.map { it.toJson() }))
         }
-        return subscribe("program", arrayOf(program.toString(), options), ContextValue.serializer(ProgramAccount.serializer()))
+        return subscribe("program", JsonPrimitive(program.toString()), options, deserializer = ContextValue.serializer(ProgramAccount.serializer()))
     }
 
-    override fun subscribeLogs(filter: LogsFilter, commitment: Commitment): RpcSubscribe<ContextValue<LogsNotification>, RpcError> = subscribe("logs", arrayOf(filter.toJson(), options(commitment)), ContextValue.serializer(LogsNotification.serializer()))
+    override fun subscribeLogs(filter: LogsFilter, commitment: Commitment): RpcSubscribe<ContextValue<LogsNotification>, RpcError> = subscribe("logs", filter.toJson(), options(commitment), deserializer = ContextValue.serializer(LogsNotification.serializer()))
 
     /** The stream closes after its status event; received notifications are non-terminal. */
     override fun subscribeSignature(signature: SolanaSignature, commitment: Commitment, enableReceivedNotification: Boolean): RpcSubscribe<ContextValue<SignatureNotification>, RpcError> {
@@ -72,7 +75,7 @@ class SolanaProvider @JvmOverloads constructor(
             put("commitment", commitment.toString())
             put("enableReceivedNotification", enableReceivedNotification)
         }
-        return subscribe("signature", arrayOf(signature.toString(), config), ContextValue.serializer(SignatureNotification.serializer()))
+        return subscribe("signature", JsonPrimitive(signature.toString()), config, deserializer = ContextValue.serializer(SignatureNotification.serializer()))
     }
 
     override fun subscribeBlock(filter: BlockFilter, commitment: Commitment): RpcSubscribe<ContextValue<BlockNotification>, RpcError> {
@@ -83,17 +86,24 @@ class SolanaProvider @JvmOverloads constructor(
             put("maxSupportedTransactionVersion", 255)
             put("showRewards", false)
         }
-        return subscribe("block", arrayOf(filter.toJson(), config), ContextValue.serializer(BlockNotification.serializer()))
+        return subscribe("block", filter.toJson(), config, deserializer = ContextValue.serializer(BlockNotification.serializer()))
     }
 
-    override fun subscribeSlotsUpdates(): RpcSubscribe<SlotUpdateNotification, RpcError> = subscribe("slotsUpdates", emptyArray<Any>(), SlotUpdateNotification.serializer())
+    override fun subscribeSlotsUpdates(): RpcSubscribe<SlotUpdateNotification, RpcError> = subscribe("slotsUpdates", deserializer = SlotUpdateNotification.serializer())
 
-    override fun subscribeVote(): RpcSubscribe<VoteNotification, RpcError> = subscribe("vote", emptyArray<Any>(), VoteNotification.serializer())
+    override fun subscribeVote(): RpcSubscribe<VoteNotification, RpcError> = subscribe("vote", deserializer = VoteNotification.serializer())
 
-    override fun subscribeSlot(): RpcSubscribe<SlotNotification, RpcError> = subscribe("slot", emptyArray<Any>(), SlotNotification.serializer())
-    override fun subscribeRoot(): RpcSubscribe<BigInteger, RpcError> = subscribe("root", emptyArray<Any>(), U64Serializer)
+    override fun subscribeSlot(): RpcSubscribe<SlotNotification, RpcError> = subscribe("slot", deserializer = SlotNotification.serializer())
+    override fun subscribeRoot(): RpcSubscribe<BigInteger, RpcError> = subscribe("root", deserializer = U64Serializer)
 
-    private fun <T : Any> subscribe(method: String, params: Array<*>, deserializer: DeserializationStrategy<T>): RpcSubscribe<T, RpcError> = RpcSubscribeCall(subscriptionClient, arrayOf(method, *params), deserializer)
+    /** The stream's name is the first param, which [SolanaSubscriptionDescriptor] turns into the method names. */
+    private fun <T : Any> subscribe(stream: String, vararg params: JsonElement, deserializer: DeserializationStrategy<T>): RpcSubscribe<T, RpcError> {
+        val rpcParams = buildRpcParams {
+            add(stream)
+            for (param in params) add(param)
+        }
+        return RpcSubscribeCall(subscriptionClient, rpcParams, deserializer)
+    }
 
     override fun close() {
         client.close()

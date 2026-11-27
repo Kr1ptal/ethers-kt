@@ -9,6 +9,7 @@ import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcClientConfig
 import io.ethers.providers.RpcError
 import io.ethers.providers.types.BatchRpcRequest
+import io.ethers.providers.types.RpcParams
 import io.ethers.solana.codec.BorshReader
 import io.ethers.solana.codec.BorshWriter
 import io.ethers.solana.codec.SolanaCodec
@@ -281,12 +282,12 @@ private class LogsClient(private val notification: String) : JsonRpcClient {
     private val config = RpcClientConfig().subscriptionDescriptor(SolanaSubscriptionDescriptor)
     var params: List<Any?> = emptyList()
 
-    override suspend fun <T : Any> subscribe(params: Array<*>, resultDeserializer: DeserializationStrategy<T>): Result<ChannelReceiver<T>, RpcError> {
+    override suspend fun <T : Any> subscribe(params: RpcParams, resultDeserializer: DeserializationStrategy<T>): Result<ChannelReceiver<T>, RpcError> {
         this.params = config.subscriptionDescriptor.resolve(params).params.toList()
         return success(QueueChannel.spscUnbounded<T>().apply { offer(Kotlinx.DEFAULT.decodeFromString(resultDeserializer, notification)) })
     }
 
-    override suspend fun <T> request(method: String, params: Array<*>, resultDeserializer: DeserializationStrategy<T>): Result<T, RpcError> = error("Unexpected request")
+    override suspend fun <T> request(method: String, params: RpcParams, resultDeserializer: DeserializationStrategy<T>): Result<T, RpcError> = error("Unexpected request")
     override suspend fun requestBatch(batch: BatchRpcRequest): Boolean = error("Unexpected batch")
     override fun close() = Unit
 }

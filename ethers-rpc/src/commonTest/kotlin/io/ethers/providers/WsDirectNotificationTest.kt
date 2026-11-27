@@ -2,6 +2,7 @@ package io.ethers.providers
 
 import io.channels.core.ChannelReceiver
 import io.ethers.core.Kotlinx
+import io.ethers.providers.types.rpcParams
 import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -148,7 +149,7 @@ class WsDirectNotificationTest : FunSpec({
         try {
             val recorder = DecoderRecorder(String.serializer())
             server.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0xs"}""")
-            val stream = client.subscribe(arrayOf("newHeads"), recorder).unwrap()
+            val stream = client.subscribe(rpcParams("newHeads"), recorder).unwrap()
 
             server.sendJson("""{"jsonrpc":"2.0","method":"eth_subscription","params":{"result":"a","subscription":"0xs"}}""")
             stream.next() shouldBe "a"
@@ -173,12 +174,12 @@ class WsDirectNotificationTest : FunSpec({
         val server = mockServerWebsocket()
         val ktor = KtorHttpClient { install(WebSockets) }
         val descriptor = SubscriptionDescriptor { params ->
-            SubscriptionDescriptor.Resolved("eth_subscribe", "eth_unsubscribe", "eth_subscription", params.copyOf()) { it == "done" }
+            SubscriptionDescriptor.Resolved("eth_subscribe", "eth_unsubscribe", "eth_subscription", params) { it == "done" }
         }
         val client = WsClient(server.url, RpcClientConfig().client(ktor).subscriptionDescriptor(descriptor))
         try {
             server.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":7}""")
-            val stream = client.subscribe(arrayOf("newHeads"), String.serializer()).unwrap()
+            val stream = client.subscribe(rpcParams("newHeads"), String.serializer()).unwrap()
             server.takeReceivedText()
 
             server.sendJson("""{"jsonrpc":"2.0","method":"eth_subscription","params":{"result":"done","subscription":7}}""")
@@ -203,7 +204,7 @@ private suspend fun <T : Any> checkCase(case: NotificationCase<T>, subscriptionI
     val client = WsClient(server.url, KtorHttpClient { install(WebSockets) })
     try {
         server.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":$subscriptionId}""")
-        val stream = client.subscribe(arrayOf("newHeads"), case.serializer).unwrap()
+        val stream = client.subscribe(rpcParams("newHeads"), case.serializer).unwrap()
         val id = Kotlinx.DEFAULT.parseToJsonElement(subscriptionId).jsonPrimitive
         val sentinel = Kotlinx.DEFAULT.decodeFromString(case.serializer, case.sentinel)
         val decodeTree = { element: JsonElement -> Kotlinx.DEFAULT.decodeFromJsonElement(case.serializer, element) as Any }

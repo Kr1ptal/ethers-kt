@@ -10,6 +10,7 @@ import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import io.ethers.providers.map
 import io.ethers.providers.types.RpcCall
+import io.ethers.providers.types.RpcParams
 import io.ethers.providers.types.RpcRequest
 import io.ethers.providers.types.RpcSubscribe
 import io.ethers.providers.types.SuppliedRpcRequest
@@ -87,6 +88,7 @@ import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.nullable
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.JsonPrimitive
@@ -181,23 +183,23 @@ interface SolanaApi {
 
     fun getBalance(address: SolanaAddress): RpcRequest<ContextValue<BigInteger>, RpcError> = getBalance(address, defaultCommitment)
     fun getBalance(address: SolanaAddress, commitment: Commitment): RpcRequest<ContextValue<BigInteger>, RpcError> = getBalance(address, SolanaReadConfig(commitment = commitment))
-    fun getBalance(address: SolanaAddress, config: SolanaReadConfig): RpcRequest<ContextValue<BigInteger>, RpcError> = rpc("getBalance", address.toString(), readConfig(config), deserializer = ContextValue.serializer(U64Serializer))
+    fun getBalance(address: SolanaAddress, config: SolanaReadConfig): RpcRequest<ContextValue<BigInteger>, RpcError> = rpc("getBalance", JsonPrimitive(address.toString()), readConfig(config), deserializer = ContextValue.serializer(U64Serializer))
 
     /**
      * The token-amount reads take only a commitment: the node accepts a `minContextSlot` alongside
      * these and answers regardless, so [SolanaReadConfig] would promise a guarantee they do not keep.
      */
     fun getTokenAccountBalance(address: SolanaAddress): RpcRequest<ContextValue<TokenAmount>, RpcError> = getTokenAccountBalance(address, defaultCommitment)
-    fun getTokenAccountBalance(address: SolanaAddress, commitment: Commitment): RpcRequest<ContextValue<TokenAmount>, RpcError> = typedRpc("getTokenAccountBalance", address.toString(), commitmentConfig(commitment))
+    fun getTokenAccountBalance(address: SolanaAddress, commitment: Commitment): RpcRequest<ContextValue<TokenAmount>, RpcError> = typedRpc("getTokenAccountBalance", JsonPrimitive(address.toString()), commitmentConfig(commitment))
     fun getTokenSupply(mint: SolanaAddress): RpcRequest<ContextValue<TokenAmount>, RpcError> = getTokenSupply(mint, defaultCommitment)
-    fun getTokenSupply(mint: SolanaAddress, commitment: Commitment): RpcRequest<ContextValue<TokenAmount>, RpcError> = typedRpc("getTokenSupply", mint.toString(), commitmentConfig(commitment))
+    fun getTokenSupply(mint: SolanaAddress, commitment: Commitment): RpcRequest<ContextValue<TokenAmount>, RpcError> = typedRpc("getTokenSupply", JsonPrimitive(mint.toString()), commitmentConfig(commitment))
     fun getLatestBlockhash(): RpcRequest<ContextValue<LatestBlockhash>, RpcError> = getLatestBlockhash(defaultCommitment)
     fun getLatestBlockhash(commitment: Commitment): RpcRequest<ContextValue<LatestBlockhash>, RpcError> = getLatestBlockhash(SolanaReadConfig(commitment = commitment))
     fun getLatestBlockhash(config: SolanaReadConfig): RpcRequest<ContextValue<LatestBlockhash>, RpcError> = typedRpc("getLatestBlockhash", readConfig(config))
 
     fun isBlockhashValid(blockhash: SolanaBlockhash): RpcRequest<ContextValue<Boolean>, RpcError> = isBlockhashValid(blockhash, defaultCommitment)
     fun isBlockhashValid(blockhash: SolanaBlockhash, commitment: Commitment): RpcRequest<ContextValue<Boolean>, RpcError> = isBlockhashValid(blockhash, SolanaReadConfig(commitment = commitment))
-    fun isBlockhashValid(blockhash: SolanaBlockhash, config: SolanaReadConfig): RpcRequest<ContextValue<Boolean>, RpcError> = rpc("isBlockhashValid", blockhash.toString(), readConfig(config), deserializer = ContextValue.serializer(Boolean.serializer()))
+    fun isBlockhashValid(blockhash: SolanaBlockhash, config: SolanaReadConfig): RpcRequest<ContextValue<Boolean>, RpcError> = rpc("isBlockhashValid", JsonPrimitive(blockhash.toString()), readConfig(config), deserializer = ContextValue.serializer(Boolean.serializer()))
 
     fun getHealth(): RpcRequest<SolanaNodeHealth, RpcError> = rpc("getHealth", deserializer = JsonPrimitive.serializer().map { if (it.content == "ok") SolanaNodeHealth.OK else SolanaNodeHealth.ERROR })
     fun getEpochInfo(): RpcRequest<EpochInfo, RpcError> = getEpochInfo(defaultCommitment)
@@ -225,7 +227,7 @@ interface SolanaApi {
             put("encoding", "json")
             put("maxSupportedTransactionVersion", maxSupportedTransactionVersion)
         }
-        return rpc("getTransaction", signature.toString(), options, deserializer = SolanaRPCTransaction.serializer().nullable)
+        return rpc("getTransaction", JsonPrimitive(signature.toString()), options, deserializer = SolanaRPCTransaction.serializer().nullable)
     }
     fun getAccountInfo(address: SolanaAddress): RpcRequest<ContextValue<AccountInfo?>, RpcError> = getAccountInfo(address, defaultCommitment)
     fun getAccountInfo(address: SolanaAddress, commitment: Commitment): RpcRequest<ContextValue<AccountInfo?>, RpcError> = getAccountInfo(address, SolanaAccountConfig(commitment = commitment))
@@ -233,10 +235,10 @@ interface SolanaApi {
     fun getMultipleAccounts(addresses: List<SolanaAddress>, commitment: Commitment): RpcRequest<ContextValue<List<AccountInfo?>>, RpcError> = getMultipleAccounts(addresses, SolanaAccountConfig(commitment = commitment))
 
     /** As above, slicing the data read and refusing a slot older than the config names. */
-    fun getAccountInfo(address: SolanaAddress, config: SolanaAccountConfig): RpcRequest<ContextValue<AccountInfo?>, RpcError> = typedRpc("getAccountInfo", address.toString(), accountConfig(config))
+    fun getAccountInfo(address: SolanaAddress, config: SolanaAccountConfig): RpcRequest<ContextValue<AccountInfo?>, RpcError> = typedRpc("getAccountInfo", JsonPrimitive(address.toString()), accountConfig(config))
 
     /** As above, slicing the data read and refusing a slot older than the config names. */
-    fun getMultipleAccounts(addresses: List<SolanaAddress>, config: SolanaAccountConfig): RpcRequest<ContextValue<List<AccountInfo?>>, RpcError> = typedRpc("getMultipleAccounts", addresses.map { it.toString() }, accountConfig(config))
+    fun getMultipleAccounts(addresses: List<SolanaAddress>, config: SolanaAccountConfig): RpcRequest<ContextValue<List<AccountInfo?>>, RpcError> = typedRpc("getMultipleAccounts", jsonStrings(addresses), accountConfig(config))
     fun getAddressLookupTable(address: SolanaAddress): RpcRequest<ContextValue<AddressLookupTableAccount?>, RpcError> = getAddressLookupTable(address, defaultCommitment)
 
     /**
@@ -298,7 +300,7 @@ interface SolanaApi {
     fun getMinimumBalanceForRentExemption(space: Long): RpcRequest<BigInteger, RpcError> = getMinimumBalanceForRentExemption(space, defaultCommitment)
     fun getMinimumBalanceForRentExemption(space: Long, commitment: Commitment): RpcRequest<BigInteger, RpcError> = getMinimumBalanceForRentExemption(bigIntegerOf(space), commitment)
     fun requestAirdrop(address: SolanaAddress, lamports: BigInteger): RpcRequest<SolanaSignature, RpcError> = requestAirdrop(address, lamports, defaultCommitment)
-    fun requestAirdrop(address: SolanaAddress, lamports: BigInteger, commitment: Commitment): RpcRequest<SolanaSignature, RpcError> = rpc("requestAirdrop", address.toString(), rpcInteger(lamports), commitmentConfig(commitment), deserializer = SolanaSignature.serializer())
+    fun requestAirdrop(address: SolanaAddress, lamports: BigInteger, commitment: Commitment): RpcRequest<SolanaSignature, RpcError> = rpc("requestAirdrop", JsonPrimitive(address.toString()), rpcInteger(lamports), commitmentConfig(commitment), deserializer = SolanaSignature.serializer())
     fun requestAirdrop(address: SolanaAddress, lamports: Long): RpcRequest<SolanaSignature, RpcError> = requestAirdrop(address, lamports, defaultCommitment)
     fun requestAirdrop(address: SolanaAddress, lamports: Long, commitment: Commitment): RpcRequest<SolanaSignature, RpcError> = requestAirdrop(address, bigIntegerOf(lamports), commitment)
 
@@ -329,7 +331,7 @@ interface SolanaApi {
     private fun submit(transaction: ByteArray, options: SolanaSendConfig, tracking: ConfirmationTracking): RpcRequest<PendingSolanaTransaction, RpcError> {
         return rpc(
             "sendTransaction",
-            FastBase64.encode(transaction),
+            JsonPrimitive(FastBase64.encode(transaction)),
             buildJsonObject {
                 put("encoding", "base64")
                 put("preflightCommitment", (options.preflightCommitment ?: defaultCommitment).toString())
@@ -347,7 +349,7 @@ interface SolanaApi {
     fun simulateTransaction(transaction: ByteArray, commitment: Commitment): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = simulateTransaction(transaction, SolanaSimulationConfig(commitment = commitment))
 
     /** Simulate with explicit options; see [SolanaSimulationConfig]. */
-    fun simulateTransaction(transaction: ByteArray, config: SolanaSimulationConfig): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = typedRpc("simulateTransaction", FastBase64.encode(transaction), simulationConfig(config))
+    fun simulateTransaction(transaction: ByteArray, config: SolanaSimulationConfig): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = typedRpc("simulateTransaction", JsonPrimitive(FastBase64.encode(transaction)), simulationConfig(config))
 
     fun simulateTransaction(request: SolanaTransactionRequest): RpcRequest<ContextValue<TransactionSimulation>, RpcError> = simulateTransaction(request, emptyList(), defaultCommitment)
 
@@ -487,11 +489,11 @@ interface SolanaApi {
     fun getFeeForMessage(message: SolanaTransactionCompiled, config: SolanaReadConfig): RpcRequest<ContextValue<BigInteger?>, RpcError> = getFeeForMessage(message.serializeMessage(), config)
     fun getFeeForMessage(message: ByteArray): RpcRequest<ContextValue<BigInteger?>, RpcError> = getFeeForMessage(message, defaultCommitment)
     fun getFeeForMessage(message: ByteArray, commitment: Commitment): RpcRequest<ContextValue<BigInteger?>, RpcError> = getFeeForMessage(message, SolanaReadConfig(commitment = commitment))
-    fun getFeeForMessage(message: ByteArray, config: SolanaReadConfig): RpcRequest<ContextValue<BigInteger?>, RpcError> = rpc("getFeeForMessage", FastBase64.encode(message), readConfig(config), deserializer = ContextValue.serializer(U64Serializer.nullable))
+    fun getFeeForMessage(message: ByteArray, config: SolanaReadConfig): RpcRequest<ContextValue<BigInteger?>, RpcError> = rpc("getFeeForMessage", JsonPrimitive(FastBase64.encode(message)), readConfig(config), deserializer = ContextValue.serializer(U64Serializer.nullable))
 
     fun getRecentPrioritizationFees(): RpcRequest<List<PrioritizationFee>, RpcError> = getRecentPrioritizationFees(emptyList())
     fun getRecentPrioritizationFees(addresses: List<SolanaAddress> = emptyList()): RpcRequest<List<PrioritizationFee>, RpcError> {
-        return typedRpc("getRecentPrioritizationFees", addresses.map { it.toString() })
+        return typedRpc("getRecentPrioritizationFees", jsonStrings(addresses))
     }
 
     fun getSlot(): RpcRequest<BigInteger, RpcError> = getSlot(defaultCommitment)
@@ -515,7 +517,7 @@ interface SolanaApi {
             return SuppliedRpcRequest { failure(RpcError(INVALID_PARAMS, "At most 256 signatures can be queried at once, got ${signatures.size}")) }
         }
         val options = buildJsonObject { put("searchTransactionHistory", searchTransactionHistory) }
-        return rpc("getSignatureStatuses", signatures.map { it.toString() }, options, deserializer = ContextValue.serializer(ListSerializer(SignatureStatus.serializer().nullable)))
+        return rpc("getSignatureStatuses", jsonStrings(signatures), options, deserializer = ContextValue.serializer(ListSerializer(SignatureStatus.serializer().nullable)))
     }
 
     /**
@@ -530,7 +532,7 @@ interface SolanaApi {
 
     /** As above, slicing the data read and refusing a slot older than the config names. */
     fun getProgramAccounts(program: SolanaAddress, filters: List<AccountFilter>, config: SolanaAccountConfig): RpcRequest<ContextValue<List<ProgramAccount>>, RpcError> {
-        return typedRpc("getProgramAccounts", program.toString(), accountConfig(config, filters, withContext = true))
+        return typedRpc("getProgramAccounts", JsonPrimitive(program.toString()), accountConfig(config, filters, withContext = true))
     }
 
     /** Token accounts [owner] holds, for one mint or across one token program. */
@@ -587,7 +589,7 @@ interface SolanaApi {
 
     /** The 20 largest holders of [mint]. */
     fun getTokenLargestAccounts(mint: SolanaAddress): RpcRequest<ContextValue<List<LargestTokenAccount>>, RpcError> = getTokenLargestAccounts(mint, defaultCommitment)
-    fun getTokenLargestAccounts(mint: SolanaAddress, commitment: Commitment): RpcRequest<ContextValue<List<LargestTokenAccount>>, RpcError> = rpc("getTokenLargestAccounts", mint.toString(), commitmentConfig(commitment), deserializer = ContextValue.serializer(ListSerializer(LargestTokenAccount.serializer())))
+    fun getTokenLargestAccounts(mint: SolanaAddress, commitment: Commitment): RpcRequest<ContextValue<List<LargestTokenAccount>>, RpcError> = rpc("getTokenLargestAccounts", JsonPrimitive(mint.toString()), commitmentConfig(commitment), deserializer = ContextValue.serializer(ListSerializer(LargestTokenAccount.serializer())))
 
     /** The 20 largest accounts by lamports, optionally restricted to circulating supply or not. */
     fun getLargestAccounts(): RpcRequest<ContextValue<List<LargestAccount>>, RpcError> = getLargestAccounts(null, defaultCommitment)
@@ -607,7 +609,7 @@ interface SolanaApi {
     fun getTokenAccountsByDelegateForProgram(delegate: SolanaAddress, program: SolanaAddress, config: SolanaAccountConfig): RpcRequest<ContextValue<List<ProgramAccount>>, RpcError> = tokenAccountsBy("getTokenAccountsByDelegate", delegate, "programId", program, config)
 
     private fun tokenAccountsBy(method: String, owner: SolanaAddress, key: String, value: SolanaAddress, config: SolanaAccountConfig): RpcRequest<ContextValue<List<ProgramAccount>>, RpcError> {
-        return typedRpc(method, owner.toString(), buildJsonObject { put(key, value.toString()) }, accountConfig(config))
+        return typedRpc(method, JsonPrimitive(owner.toString()), buildJsonObject { put(key, value.toString()) }, accountConfig(config))
     }
 
     //-----------------------------------------------------------------------------------------------------------------
@@ -617,7 +619,7 @@ interface SolanaApi {
     /** Up to [limit] slots with confirmed blocks, starting at [start]; the node caps the limit at 500,000. */
     fun getBlocksWithLimit(start: BigInteger, limit: Int): RpcRequest<List<BigInteger>, RpcError> = getBlocksWithLimit(start, limit, defaultCommitment)
     fun getBlocksWithLimit(start: BigInteger, limit: Int, commitment: Commitment): RpcRequest<List<BigInteger>, RpcError> = getBlocksWithLimit(start, limit, SolanaReadConfig(commitment = commitment))
-    fun getBlocksWithLimit(start: BigInteger, limit: Int, config: SolanaReadConfig): RpcRequest<List<BigInteger>, RpcError> = rpc("getBlocksWithLimit", rpcInteger(start), limit, readConfig(config), deserializer = ListSerializer(U64Serializer))
+    fun getBlocksWithLimit(start: BigInteger, limit: Int, config: SolanaReadConfig): RpcRequest<List<BigInteger>, RpcError> = rpc("getBlocksWithLimit", rpcInteger(start), JsonPrimitive(limit), readConfig(config), deserializer = ListSerializer(U64Serializer))
 
     /** When a block was produced, as a Unix timestamp, or null for a slot the node cannot answer for. */
     fun getBlockTime(slot: BigInteger): RpcRequest<Long?, RpcError> = rpc("getBlockTime", rpcInteger(slot), deserializer = Long.serializer().nullable)
@@ -653,7 +655,7 @@ interface SolanaApi {
 
     /** Recent throughput samples, most recent first, which is what observed TPS is computed from. */
     fun getRecentPerformanceSamples(): RpcRequest<List<PerformanceSample>, RpcError> = typedRpc("getRecentPerformanceSamples")
-    fun getRecentPerformanceSamples(limit: Int): RpcRequest<List<PerformanceSample>, RpcError> = typedRpc("getRecentPerformanceSamples", limit)
+    fun getRecentPerformanceSamples(limit: Int): RpcRequest<List<PerformanceSample>, RpcError> = typedRpc("getRecentPerformanceSamples", JsonPrimitive(limit))
 
     //-----------------------------------------------------------------------------------------------------------------
     //                                  Cluster and validators
@@ -695,8 +697,7 @@ interface SolanaApi {
             put("commitment", commitment.toString())
             identity?.let { put("identity", it.toString()) }
         }
-        val params = if (slot == null) arrayOf<Any>(JsonNull, options) else arrayOf<Any>(rpcInteger(slot), options)
-        return rpc("getLeaderSchedule", *params, deserializer = MapSerializer(String.serializer(), ListSerializer(U64Serializer)).nullable)
+        return rpc("getLeaderSchedule", slot?.let(::rpcInteger) ?: JsonNull, options, deserializer = MapSerializer(String.serializer(), ListSerializer(U64Serializer)).nullable)
     }
 
     /** Which validator leads the current slot. */
@@ -705,7 +706,7 @@ interface SolanaApi {
     fun getSlotLeader(config: SolanaReadConfig): RpcRequest<SolanaAddress, RpcError> = rpc("getSlotLeader", readConfig(config), deserializer = SolanaAddress.serializer())
 
     /** Leaders for [limit] slots from [start], which is how a sender targets upcoming leaders. */
-    fun getSlotLeaders(start: BigInteger, limit: Int): RpcRequest<List<SolanaAddress>, RpcError> = rpc("getSlotLeaders", rpcInteger(start), limit, deserializer = ListSerializer(SolanaAddress.serializer()))
+    fun getSlotLeaders(start: BigInteger, limit: Int): RpcRequest<List<SolanaAddress>, RpcError> = rpc("getSlotLeaders", rpcInteger(start), JsonPrimitive(limit), deserializer = ListSerializer(SolanaAddress.serializer()))
 
     /** How slots map onto epochs, including the shorter warm-up epochs at genesis. */
     fun getEpochSchedule(): RpcRequest<EpochSchedule, RpcError> = typedRpc("getEpochSchedule")
@@ -753,7 +754,7 @@ interface SolanaApi {
             readConfig(config).forEach { (key, value) -> put(key, value) }
             epoch?.let { put("epoch", rpcInteger(it)) }
         }
-        return rpc("getInflationReward", addresses.map { it.toString() }, options, deserializer = ListSerializer(InflationReward.serializer().nullable))
+        return rpc("getInflationReward", jsonStrings(addresses), options, deserializer = ListSerializer(InflationReward.serializer().nullable))
     }
 
     /** The smallest stake delegation the runtime accepts, in lamports. */
@@ -775,7 +776,7 @@ interface SolanaApi {
             before?.let { put("before", it.toString()) }
             until?.let { put("until", it.toString()) }
         }
-        return typedRpc("getSignaturesForAddress", address.toString(), options)
+        return typedRpc("getSignaturesForAddress", JsonPrimitive(address.toString()), options)
     }
 }
 
@@ -860,10 +861,13 @@ private fun SolanaApi.accountConfig(
     if (withContext) put("withContext", true)
 }
 
-private fun <T> SolanaApi.rpc(method: String, vararg params: Any?, deserializer: DeserializationStrategy<T>): RpcRequest<T, RpcError> = RpcCall(client, method, params, deserializer)
+private fun <T> SolanaApi.rpc(method: String, vararg params: JsonElement, deserializer: DeserializationStrategy<T>): RpcRequest<T, RpcError> = RpcCall(client, method, RpcParams.ofJson(params.asList()), deserializer)
 
 /** A call whose result [T] has a serializer, which lets the client decode the response without a JSON tree. */
-private inline fun <reified T> SolanaApi.typedRpc(method: String, vararg params: Any?): RpcRequest<T, RpcError> = RpcCall(client, method, params, serializer<T>())
+private inline fun <reified T> SolanaApi.typedRpc(method: String, vararg params: JsonElement): RpcRequest<T, RpcError> = RpcCall(client, method, RpcParams.ofJson(params.asList()), serializer<T>())
+
+/** Addresses, signatures and the like as a JSON array of their string forms. */
+private fun jsonStrings(values: List<Any>): JsonArray = JsonArray(values.map { JsonPrimitive(it.toString()) })
 
 private fun commitmentConfig(commitment: Commitment) = buildJsonObject {
     put("commitment", commitment.toString())

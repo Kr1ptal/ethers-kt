@@ -11,16 +11,31 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.putJsonObject
 
 private object CustomDefaultDecodeTracer : Tracer<CustomDefaultDecodeResult> {
     override val name: String = "customDefaultDecodeTracer"
     override val resultSerializer: KSerializer<CustomDefaultDecodeResult> = CustomDefaultDecodeResult.serializer()
-    override val config: Map<String, Any?> = mapOf(
-        "enabled" to true,
-        "steps" to listOf(1, 2, 3),
-        "nested" to mapOf("labels" to arrayOf("alpha", "beta")),
-        "payload" to byteArrayOf(0xde.toByte(), 0xad.toByte()),
-    )
+    override val config: JsonObject = buildJsonObject {
+        put("enabled", true)
+        putJsonArray("steps") {
+            add(1)
+            add(2)
+            add(3)
+        }
+        putJsonObject("nested") {
+            putJsonArray("labels") {
+                add("alpha")
+                add("beta")
+            }
+        }
+        put("payload", "0xdead")
+    }
 }
 
 @Serializable
@@ -39,11 +54,11 @@ class TracerTest : FunSpec({
                 enableReturnData = true,
                 debug = true,
                 limit = 1,
-                overrides = hashMapOf(
-                    "override_1" to "value_1",
-                    "override_2" to "value_2",
-                    "override_3" to "value_3",
-                ),
+                overrides = buildJsonObject {
+                    put("override_1", "value_1")
+                    put("override_2", "value_2")
+                    put("override_3", "value_3")
+                },
             )
 
             val config = TracerConfig(

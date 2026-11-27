@@ -1,22 +1,30 @@
 package io.ethers.providers
 
+import io.ethers.core.BigIntegerNumberSerializer
 import io.ethers.core.Kotlinx
 import io.ethers.core.isFailure
 import io.ethers.core.isSuccess
 import io.ethers.providers.types.BatchRpcRequest
 import io.ethers.providers.types.RpcCall
+import io.ethers.providers.types.RpcParams
+import io.ethers.providers.types.buildRpcParams
+import io.ethers.providers.types.rpcParams
 import io.github.artificialpb.bignum.BigInteger
 import io.github.artificialpb.bignum.bigIntegerOf
 import io.kotest.assertions.nondeterministic.eventually
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
 import io.ktor.client.plugins.websocket.WebSockets
+import kotlinx.atomicfu.atomic
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.SerializationStrategy
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.descriptors.PrimitiveKind
 import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
@@ -27,7 +35,6 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
-import kotlin.collections.mapOf
 import kotlin.time.Duration.Companion.seconds
 import io.ktor.client.HttpClient as KtorHttpClient
 
@@ -58,6 +65,54 @@ object SerializableValueSerializer : KSerializer<SerializableValue> {
     override fun serialize(encoder: Encoder, value: SerializableValue) = encoder.encodeString(value.value)
 }
 
+/** A call object mixing field types, each written by its own serializer. */
+@Serializable
+class CallParams(
+    val from: SerializableValue,
+    val to: SerializableValue,
+    @Serializable(with = BigIntegerNumberSerializer::class) val value: BigInteger,
+    @Serializable(with = HexByteArraySerializer::class) val data: ByteArray,
+    val gas: Long,
+)
+
+val CALL_PARAMS = CallParams(
+    SerializableValue("0x1111111111111111111111111111111111111111"),
+    SerializableValue("0x2222222222222222222222222222222222222222"),
+    bigIntegerOf(1),
+    byteArrayOf(0xde.toByte(), 0xad.toByte(), 0xbe.toByte(), 0xef.toByte()),
+    21000L,
+)
+
+/** Params whose encoding fails, as a caller's own serializer can when the client encodes a request. */
+fun unencodableParams(vararg leading: String): RpcParams = buildRpcParams {
+    for (param in leading) add(param)
+    add(1, UnencodableSerializer)
+}
+
+/** Writes its value as a string and counts how often it is encoded, to show how often a client encodes params. */
+class CountingSerializer : SerializationStrategy<String> {
+    private val count = atomic(0)
+
+    val encodings: Int get() = count.value
+
+    override val descriptor = PrimitiveSerialDescriptor("Counting", PrimitiveKind.STRING)
+    override fun serialize(encoder: Encoder, value: String) {
+        count.incrementAndGet()
+        encoder.encodeString(value)
+    }
+}
+
+/** Params of [leading] and then [value], encoded by [counting]. */
+fun countedParams(counting: CountingSerializer, value: String, vararg leading: String): RpcParams = buildRpcParams {
+    for (param in leading) add(param)
+    add(value, counting)
+}
+
+private object UnencodableSerializer : SerializationStrategy<Int> {
+    override val descriptor = PrimitiveSerialDescriptor("Unencodable", PrimitiveKind.INT)
+    override fun serialize(encoder: Encoder, value: Int) = throw SerializationException("Unencodable can't be encoded")
+}
+
 class WsClientTest : FunSpec({
     @Suppress("MoveLambdaOutsideParentheses")
     val commonJsonRpcTests = JsonRpcTestFactory.commonTests(
@@ -83,17 +138,10 @@ class WsClientTest : FunSpec({
             mockServer.stop()
         }
 
-        test("complex Map / BigInteger / ByteArray params are emitted as proper JSON") {
+        test("a call object with big number and byte array fields is emitted as proper JSON") {
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0x1234567"}""")
 
-            val callMap = mapOf(
-                "from" to SerializableValue("0x1111111111111111111111111111111111111111"),
-                "to" to SerializableValue("0x2222222222222222222222222222222222222222"),
-                "value" to bigIntegerOf(1),
-                "data" to byteArrayOf(0xde.toByte(), 0xad.toByte(), 0xbe.toByte(), 0xef.toByte()),
-                "gas" to 21000L,
-            )
-            wsClient.request("eth_call", arrayOf(callMap, "latest"), stringSerializer)
+            wsClient.request("eth_call", rpcParams(CALL_PARAMS, "latest"), stringSerializer)
 
             val sentText = mockServer.takeReceivedText()!!
             val body = Kotlinx.DEFAULT.parseToJsonElement(sentText).jsonObject
@@ -116,7 +164,7 @@ class WsClientTest : FunSpec({
         test("request(KSerializer<T>) with ByteArray decodes a 0x-prefixed hex string") {
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0xdeadbeef"}""")
 
-            val result = wsClient.request("eth_getCode", emptyArray<Any>(), HexByteArraySerializer)
+            val result = wsClient.request("eth_getCode", RpcParams.EMPTY, HexByteArraySerializer)
 
             result.isSuccess() shouldBe true
             result.unwrap() shouldBe byteArrayOf(0xde.toByte(), 0xad.toByte(), 0xbe.toByte(), 0xef.toByte())
@@ -125,7 +173,7 @@ class WsClientTest : FunSpec({
         test("subscribe(KSerializer<T>) with ByteArray decodes hex-string notification results") {
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"0xsub123"}""")
 
-            val subscriptionResult = wsClient.subscribe(arrayOf("newPendingTransactions"), HexByteArraySerializer)
+            val subscriptionResult = wsClient.subscribe(rpcParams("newPendingTransactions"), HexByteArraySerializer)
             subscriptionResult.isSuccess() shouldBe true
             val stream = subscriptionResult.unwrap()
 
@@ -143,7 +191,7 @@ class WsClientTest : FunSpec({
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":{"not":"an id"}}""")
 
             val result = withTimeout(30.seconds) {
-                wsClient.subscribe(arrayOf("newHeads"), JsonObject.serializer())
+                wsClient.subscribe(rpcParams("newHeads"), JsonObject.serializer())
             }
 
             result.isFailure() shouldBe true
@@ -154,14 +202,133 @@ class WsClientTest : FunSpec({
             mockServer.enqueueJson("""[{"jsonrpc":"2.0","id":1,"result":"0x1"},"not a response"]""")
 
             val batch = BatchRpcRequest(2)
-            batch.addRpcCall(RpcCall(wsClient, "eth_blockNumber", emptyArray<Any>(), stringSerializer))
-            batch.addRpcCall(RpcCall(wsClient, "eth_chainId", emptyArray<Any>(), stringSerializer))
+            batch.addRpcCall(RpcCall(wsClient, "eth_blockNumber", RpcParams.EMPTY, stringSerializer))
+            batch.addRpcCall(RpcCall(wsClient, "eth_chainId", RpcParams.EMPTY, stringSerializer))
 
             withTimeout(30.seconds) {
                 batch.send() shouldBe false
                 batch.responses[0].await().unwrap() shouldBe "0x1"
                 batch.responses[1].await().unwrapError().code shouldBe RpcError.CODE_INVALID_RESPONSE
             }
+        }
+
+        // Connect with a request that succeeds, so a reconnect afterwards shows as a second session.
+        suspend fun connect() {
+            mockServer.enqueueJson("""{"jsonrpc":"2.0","id":$REQUEST_ID,"result":"0x1"}""")
+            withTimeout(30.seconds) {
+                wsClient.request("eth_blockNumber", RpcParams.EMPTY, stringSerializer).unwrap() shouldBe "0x1"
+            }
+            mockServer.takeReceivedText(DELIVERY_WINDOW.inWholeMilliseconds)!! shouldContain "eth_blockNumber"
+        }
+
+        // The next request after a failed send is the next message the server receives, and the connection the
+        // client opened at the start is still the only one.
+        suspend fun assertStillConnectedAndNothingSent() {
+            mockServer.enqueueJson("""{"jsonrpc":"2.0","id":$REQUEST_ID,"result":"0x2"}""")
+            withTimeout(30.seconds) {
+                wsClient.request("eth_chainId", RpcParams.EMPTY, stringSerializer).unwrap() shouldBe "0x2"
+            }
+            mockServer.takeReceivedText(DELIVERY_WINDOW.inWholeMilliseconds)!! shouldContain "eth_chainId"
+            mockServer.sessionsOpened shouldBe 1
+        }
+
+        test("params encoded before a request, as a caching wrapper does, are not encoded again to send it") {
+            val counting = CountingSerializer()
+            val params = countedParams(counting, "0xabc", "latest")
+            val key = params.encode()
+
+            mockServer.enqueueJson("""{"jsonrpc":"2.0","id":$REQUEST_ID,"result":"0x1"}""")
+            withTimeout(30.seconds) {
+                wsClient.request("eth_getBalance", params, stringSerializer).unwrap() shouldBe "0x1"
+            }
+
+            val sent = Kotlinx.DEFAULT.parseToJsonElement(mockServer.takeReceivedText(DELIVERY_WINDOW.inWholeMilliseconds)!!)
+            sent.jsonObject["params"] shouldBe key
+            counting.encodings shouldBe 1
+        }
+
+        test("a batch sends params encoded before, and a call in two batches is encoded once") {
+            val counting = CountingSerializer()
+            val first = RpcCall(wsClient, "eth_getBalance", countedParams(counting, "0xa"), stringSerializer)
+            val second = RpcCall(wsClient, "eth_getCode", countedParams(counting, "0xb"), stringSerializer)
+            first.params.encode()
+            second.params.encode()
+            counting.encodings shouldBe 2
+
+            mockServer.enqueueJson(
+                """[{"jsonrpc":"2.0","id":1,"result":"0x1"},{"jsonrpc":"2.0","id":2,"result":"0x2"}]""",
+            )
+            val batch = BatchRpcRequest(2)
+            val firstResponse = batch.addRpcCall(first)
+            val secondResponse = batch.addRpcCall(second)
+            withTimeout(30.seconds) {
+                batch.send() shouldBe true
+                firstResponse.await().unwrap() shouldBe "0x1"
+                secondResponse.await().unwrap() shouldBe "0x2"
+            }
+            val sent = Kotlinx.DEFAULT.parseToJsonElement(mockServer.takeReceivedText(DELIVERY_WINDOW.inWholeMilliseconds)!!)
+            sent.jsonArray.map { it.jsonObject["params"] } shouldBe listOf(first.params.encode(), second.params.encode())
+            counting.encodings shouldBe 2
+
+            // the first call again, in a new batch
+            mockServer.enqueueJson("""[{"jsonrpc":"2.0","id":3,"result":"0x3"}]""")
+            val again = BatchRpcRequest(1)
+            val againResponse = again.addRpcCall(first)
+            withTimeout(30.seconds) {
+                again.send() shouldBe true
+                againResponse.await().unwrap() shouldBe "0x3"
+            }
+            val resent = Kotlinx.DEFAULT.parseToJsonElement(mockServer.takeReceivedText(DELIVERY_WINDOW.inWholeMilliseconds)!!)
+            resent.jsonArray.single().jsonObject["params"] shouldBe first.params.encode()
+            counting.encodings shouldBe 2
+        }
+
+        test("a call sent in two batches without encoding it first is encoded once") {
+            val counting = CountingSerializer()
+            val call = RpcCall(wsClient, "eth_getBalance", countedParams(counting, "0xa"), stringSerializer)
+
+            for (id in 1..2) {
+                mockServer.enqueueJson("""[{"jsonrpc":"2.0","id":$id,"result":"0x$id"}]""")
+                val batch = BatchRpcRequest(1)
+                val response = batch.addRpcCall(call)
+                withTimeout(30.seconds) {
+                    batch.send() shouldBe true
+                    response.await().unwrap() shouldBe "0x$id"
+                }
+                mockServer.takeReceivedText(DELIVERY_WINDOW.inWholeMilliseconds)!! shouldContain "\"0xa\""
+            }
+            counting.encodings shouldBe 1
+        }
+
+        test("a batch call whose params can't be encoded fails only that send, without reconnecting") {
+            connect()
+
+            val batch = BatchRpcRequest(2)
+            val valid = batch.addRpcCall(RpcCall(wsClient, "eth_gasPrice", RpcParams.EMPTY, stringSerializer))
+            val invalid = batch.addRpcCall(RpcCall(wsClient, "eth_getBalance", unencodableParams(), stringSerializer))
+
+            // the encoding error reaches the sender, and every call of the unsent batch fails instead of waiting
+            withTimeout(DELIVERY_WINDOW) {
+                shouldThrow<IllegalArgumentException> { batch.send() }
+                valid.await().unwrapError().code shouldBe RpcError.CODE_CALL_FAILED
+                val error = invalid.await().unwrapError()
+                error.code shouldBe RpcError.CODE_CALL_FAILED
+                error.message shouldContain "eth_getBalance"
+            }
+
+            assertStillConnectedAndNothingSent()
+        }
+
+        test("a subscription whose params can't be encoded fails only that call, without reconnecting") {
+            connect()
+
+            withTimeout(DELIVERY_WINDOW) {
+                shouldThrow<IllegalArgumentException> {
+                    wsClient.subscribe(unencodableParams("newHeads"), JsonObject.serializer())
+                }
+            }
+
+            assertStillConnectedAndNothingSent()
         }
     }
 
@@ -186,7 +353,7 @@ class WsClientTest : FunSpec({
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":1,"result":"$subscriptionId"}""")
 
             // Subscribe to new block headers
-            val params = arrayOf("newHeads")
+            val params = rpcParams("newHeads")
             val resultSerializer = JsonObject.serializer()
 
             val subscriptionResult = wsClient.subscribe(params, resultSerializer)
@@ -297,7 +464,7 @@ class WsClientTest : FunSpec({
             )
 
             // Subscribe to new block headers
-            val params = arrayOf("newHeads")
+            val params = rpcParams("newHeads")
             val resultSerializer = JsonObject.serializer()
 
             val subscriptionResult = wsClient.subscribe(params, resultSerializer)
@@ -332,7 +499,7 @@ class WsClientTest : FunSpec({
             wsClient = WsClient(mockServer.url, KtorHttpClient { install(WebSockets) })
 
             // Subscribe to new block headers
-            val params = arrayOf("newHeads")
+            val params = rpcParams("newHeads")
             val resultSerializer = JsonObject.serializer()
 
             val subscriptionResult = wsClient.subscribe(params, resultSerializer)
@@ -383,6 +550,37 @@ class WsClientTest : FunSpec({
             event["number"]?.jsonPrimitive?.content shouldBe "0x9999"
         }
 
+        test("resubscribing after a reconnect sends the params encoded at subscribe time") {
+            // encodes to something new each time, so the resubscribe only matches if it reuses the first encoding
+            val counting = object : SerializationStrategy<String> {
+                private var encodings = 0
+                override val descriptor = PrimitiveSerialDescriptor("Counting", PrimitiveKind.STRING)
+                override fun serialize(encoder: Encoder, value: String) {
+                    encoder.encodeString("$value-${++encodings}")
+                }
+            }
+            val params = buildRpcParams {
+                add("logs")
+                add("filter", counting)
+            }
+
+            mockServer.enqueueJson("""{"jsonrpc":"2.0","id":$REQUEST_ID,"result":"0xfirst"}""")
+            wsClient.subscribe(params, JsonObject.serializer()).isSuccess() shouldBe true
+            val subscribe = mockServer.takeReceivedText(DELIVERY_WINDOW.inWholeMilliseconds)!!
+
+            mockServer.enqueueJson("""{"jsonrpc":"2.0","id":$REQUEST_ID,"result":"0xsecond"}""")
+            mockServer.closeConnection()
+
+            val resubscribe = mockServer.takeReceivedText(RECONNECT_WINDOW.inWholeMilliseconds)
+            resubscribe shouldNotBe null
+
+            val sent = Kotlinx.DEFAULT.parseToJsonElement(subscribe).jsonObject
+            val resent = Kotlinx.DEFAULT.parseToJsonElement(resubscribe!!).jsonObject
+            resent["method"] shouldBe sent["method"]
+            resent["params"] shouldBe sent["params"]
+            sent["params"]!!.jsonArray[1].jsonPrimitive.content shouldContain "filter-"
+        }
+
         test("successful unsubscribe") {
             val subscriptionId = "0xdef456"
 
@@ -391,7 +589,7 @@ class WsClientTest : FunSpec({
             mockServer.enqueueJson("""{"jsonrpc":"2.0","id":2,"result":true}""")
 
             // First create a subscription
-            val params = arrayOf("newHeads")
+            val params = rpcParams("newHeads")
             val resultSerializer = JsonObject.serializer()
 
             val subscriptionResult = wsClient.subscribe(params, resultSerializer)
@@ -469,7 +667,7 @@ class WsClientTest : FunSpec({
             withTimeout(30.seconds) {
                 while (true) {
                     mockServer.enqueueJson("""{"jsonrpc":"2.0","id":$REQUEST_ID,"result":"0x1234567"}""")
-                    if (wsClient.request("eth_blockNumber", emptyArray<Any>(), stringSerializer).isSuccess()) break
+                    if (wsClient.request("eth_blockNumber", RpcParams.EMPTY, stringSerializer).isSuccess()) break
                 }
             }
 
@@ -483,7 +681,7 @@ class WsClientTest : FunSpec({
             // failed attempt parks for WsClient.RECONNECT_BACKOFF. The budget here has to exceed that backoff
             // rather than equal it, otherwise the test races the wait it depends on.
             val result = withTimeout(WsClient.RECONNECT_BACKOFF + 3.seconds) {
-                wsClient.request("eth_blockNumber", emptyArray<Any>(), stringSerializer)
+                wsClient.request("eth_blockNumber", RpcParams.EMPTY, stringSerializer)
             }
 
             result.isFailure() shouldBe true

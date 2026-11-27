@@ -11,6 +11,8 @@ import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.encoding.decodeStructure
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
 import kotlin.reflect.KClass
 
 /**
@@ -38,8 +40,8 @@ data class MuxTracer(
 
     override val resultSerializer: KSerializer<Result> = ResultSerializer(tracers)
 
-    override val config: Map<String, Any?> = HashMap<String, Any?>(tracers.size, 1.0f).also {
-        tracers.forEach { tracer -> it[tracer.name] = tracer.config }
+    override val config: JsonObject = buildJsonObject {
+        tracers.forEach { tracer -> put(tracer.name, tracer.config) }
     }
 
     /**

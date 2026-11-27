@@ -11,7 +11,14 @@ import io.kotest.datatest.withData
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import org.intellij.lang.annotations.Language
+
+private fun config(onlyTopCall: Boolean, withLog: Boolean) = buildJsonObject {
+    put("onlyTopCall", onlyTopCall)
+    put("withLog", withLog)
+}
 
 class CallTracerTest : FunSpec({
     val callTracer = CallTracer(onlyTopCall = true, withLog = true)
@@ -143,10 +150,10 @@ class CallTracerTest : FunSpec({
     context("config selection") {
         withData(
             nameFn = { (flags, _) -> "onlyTopCall=${flags.first}, withLog=${flags.second}" },
-            (true to true) to mapOf("onlyTopCall" to true, "withLog" to true),
-            (true to false) to mapOf("onlyTopCall" to true, "withLog" to false),
-            (false to true) to mapOf("onlyTopCall" to false, "withLog" to true),
-            (false to false) to mapOf("onlyTopCall" to false, "withLog" to false),
+            (true to true) to config(true, true),
+            (true to false) to config(true, false),
+            (false to true) to config(false, true),
+            (false to false) to config(false, false),
         ) { (flags, expectedConfig) ->
             CallTracer(onlyTopCall = flags.first, withLog = flags.second).config shouldBe expectedConfig
         }

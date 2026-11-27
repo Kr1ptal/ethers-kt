@@ -7,6 +7,7 @@ import io.ethers.core.success
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import io.ethers.providers.types.BatchRpcRequest
+import io.ethers.providers.types.RpcParams
 import io.ethers.solana.codec.BorshReader
 import io.ethers.solana.codec.BorshWriter
 import io.ethers.solana.codec.SolanaAccountFactory
@@ -21,6 +22,8 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.serialization.DeserializationStrategy
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.jsonPrimitive
 import kotlin.io.encoding.Base64
 
 private val PROGRAM = SolanaAddress(ByteArray(32) { 9 })
@@ -52,17 +55,16 @@ private class AccountsClient : JsonRpcClient {
     val minContextSlots = ArrayList<String?>()
     private var slot = 10
 
-    override suspend fun <T> request(method: String, params: Array<*>, resultDeserializer: DeserializationStrategy<T>): Result<T, RpcError> {
+    override suspend fun <T> request(method: String, params: RpcParams, resultDeserializer: DeserializationStrategy<T>): Result<T, RpcError> {
         check(method == "getMultipleAccounts") { "Unexpected $method" }
-        @Suppress("UNCHECKED_CAST")
-        val addresses = (params[0] as List<String>).map(::SolanaAddress)
+        val addresses = (params[0] as JsonArray).map { SolanaAddress(it.jsonPrimitive.content) }
         requests.add(addresses)
         minContextSlots.add((params[1] as Map<*, *>)["minContextSlot"]?.toString())
         val values = addresses.joinToString(",") { accounts[it] ?: "null" }
         return success(Kotlinx.DEFAULT.decodeFromString(resultDeserializer, """{"context":{"slot":${slot++}},"value":[$values]}"""))
     }
 
-    override suspend fun <T : Any> subscribe(params: Array<*>, resultDeserializer: DeserializationStrategy<T>): Result<ChannelReceiver<T>, RpcError> = error("Unexpected subscription")
+    override suspend fun <T : Any> subscribe(params: RpcParams, resultDeserializer: DeserializationStrategy<T>): Result<ChannelReceiver<T>, RpcError> = error("Unexpected subscription")
     override suspend fun requestBatch(batch: BatchRpcRequest): Boolean = error("Unexpected batch")
     override fun close() = Unit
 }

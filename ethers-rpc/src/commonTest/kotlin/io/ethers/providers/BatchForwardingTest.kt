@@ -5,6 +5,7 @@ import io.ethers.core.success
 import io.ethers.providers.types.BatchRpcRequest
 import io.ethers.providers.types.BatchRpcResponse
 import io.ethers.providers.types.RpcCall
+import io.ethers.providers.types.RpcParams
 import io.ethers.providers.types.send
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
@@ -54,9 +55,9 @@ class BatchForwardingTest : FunSpec({
         server.enqueueJson("""[{"jsonrpc":"2.0","id":2,"result":["x","y"]},{"jsonrpc":"2.0","id":1,"result":"0x10"}]""")
 
         val results = listOf(
-            RpcCall(client, "eth_a", emptyArray<Any>(), String.serializer()),
-            RpcCall(client, "cached", emptyArray<Any>(), String.serializer()),
-            RpcCall(client, "eth_b", emptyArray<Any>(), ListSerializer(String.serializer())),
+            RpcCall(client, "eth_a", RpcParams.EMPTY, String.serializer()),
+            RpcCall(client, "cached", RpcParams.EMPTY, String.serializer()),
+            RpcCall(client, "eth_b", RpcParams.EMPTY, ListSerializer(String.serializer())),
         ).send()
 
         results.map { it.unwrap() } shouldBe listOf("0x10", "from cache", listOf("x", "y"))
@@ -71,14 +72,14 @@ class BatchForwardingTest : FunSpec({
         val client = ForwardingClient(parent)
         server.enqueueJson("""[{"jsonrpc":"2.0","id":1,"result":"0x10"}]""")
 
-        val result = listOf(RpcCall(client, "eth_a", emptyArray<Any>(), String.serializer().map { it.length })).send()
+        val result = listOf(RpcCall(client, "eth_a", RpcParams.EMPTY, String.serializer().map { it.length })).send()
 
         result.single().unwrap() shouldBe 4
     }
 
     test("a batch is sent once, whichever way it is sent") {
         val batch = BatchRpcRequest()
-        RpcCall(parent, "eth_a", emptyArray<Any>(), String.serializer()).batch(batch)
+        RpcCall(parent, "eth_a", RpcParams.EMPTY, String.serializer()).batch(batch)
         server.enqueueJson("""[{"jsonrpc":"2.0","id":1,"result":"0x10"}]""")
         batch.sendWith(parent) shouldBe true
 
@@ -88,7 +89,7 @@ class BatchForwardingTest : FunSpec({
 
     test("a response is completed once") {
         val batch = BatchRpcRequest()
-        val response = RpcCall(parent, "eth_a", emptyArray<Any>(), String.serializer()).batch(batch)
+        val response = RpcCall(parent, "eth_a", RpcParams.EMPTY, String.serializer()).batch(batch)
 
         batch.complete(0, success("first")) shouldBe true
         batch.complete(0, success("second")) shouldBe false

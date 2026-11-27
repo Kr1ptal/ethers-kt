@@ -174,7 +174,7 @@ internal class RpcSubscribeConstant<T : Any, E : ThrowableError>(
  */
 class RpcSubscribeCall<T : Any>(
     private val client: JsonRpcClient,
-    private val params: Array<*>,
+    private val params: RpcParams,
     private val resultDeserializer: DeserializationStrategy<T>,
 ) : RpcSubscribe<T, RpcError> {
     override suspend fun send(): Result<ChannelReceiver<T>, RpcError> {
@@ -182,7 +182,7 @@ class RpcSubscribeCall<T : Any>(
     }
 
     override fun toString(): String {
-        return "RpcSubscribeCall(params=${params.contentToString()})"
+        return "RpcSubscribeCall(params=$params)"
     }
 }
 

@@ -19,9 +19,12 @@ import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import kotlin.jvm.JvmOverloads
 
 /**
@@ -40,7 +43,7 @@ data class CallTracer(
     override val resultSerializer: KSerializer<CallFrame>
         get() = CallFrameSerializer
 
-    override val config: Map<String, Any?> =
+    override val config: JsonObject =
         when {
             onlyTopCall && withLog -> CONFIG_TOP_CALL_WITH_LOGS
             onlyTopCall -> CONFIG_TOP_CALL_WITHOUT_LOGS
@@ -180,22 +183,15 @@ data class CallTracer(
     }
 
     companion object {
-        private val CONFIG_TOP_CALL_WITH_LOGS = mapOf(
-            "onlyTopCall" to true,
-            "withLog" to true,
-        )
-        private val CONFIG_TOP_CALL_WITHOUT_LOGS = mapOf(
-            "onlyTopCall" to true,
-            "withLog" to false,
-        )
-        private val CONFIG_ALL_CALLS_WITH_LOGS = mapOf(
-            "onlyTopCall" to false,
-            "withLog" to true,
-        )
-        private val CONFIG_ALL_CALLS_NO_LOGS = mapOf(
-            "onlyTopCall" to false,
-            "withLog" to false,
-        )
+        private fun config(onlyTopCall: Boolean, withLog: Boolean) = buildJsonObject {
+            put("onlyTopCall", onlyTopCall)
+            put("withLog", withLog)
+        }
+
+        private val CONFIG_TOP_CALL_WITH_LOGS = config(onlyTopCall = true, withLog = true)
+        private val CONFIG_TOP_CALL_WITHOUT_LOGS = config(onlyTopCall = true, withLog = false)
+        private val CONFIG_ALL_CALLS_WITH_LOGS = config(onlyTopCall = false, withLog = true)
+        private val CONFIG_ALL_CALLS_NO_LOGS = config(onlyTopCall = false, withLog = false)
     }
 }
 

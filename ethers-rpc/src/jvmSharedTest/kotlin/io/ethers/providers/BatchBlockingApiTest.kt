@@ -3,6 +3,7 @@ package io.ethers.providers
 import io.ethers.core.Result
 import io.ethers.providers.types.BatchRpcRequest
 import io.ethers.providers.types.RpcCall
+import io.ethers.providers.types.RpcParams
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -33,7 +34,7 @@ class BatchBlockingApiTest : FunSpec({
 
     test("toFuture() fails with the batch's IllegalStateException before it is sent") {
         val batch = BatchRpcRequest(1)
-        val pending = batch.addRpcCall(RpcCall(client, "eth_blockNumber", emptyArray<Any>(), stringSerializer))
+        val pending = batch.addRpcCall(RpcCall(client, "eth_blockNumber", RpcParams.EMPTY, stringSerializer))
 
         shouldThrow<ExecutionException> {
             pending.toFuture().get()
@@ -44,7 +45,7 @@ class BatchBlockingApiTest : FunSpec({
         server.enqueueJson("""[{"jsonrpc":"2.0","id":1,"result":"0x1234567"}]""")
 
         val batch = BatchRpcRequest(1)
-        val pending = batch.addRpcCall(RpcCall(client, "eth_blockNumber", emptyArray<Any>(), stringSerializer))
+        val pending = batch.addRpcCall(RpcCall(client, "eth_blockNumber", RpcParams.EMPTY, stringSerializer))
 
         batch.send() shouldBe true
 

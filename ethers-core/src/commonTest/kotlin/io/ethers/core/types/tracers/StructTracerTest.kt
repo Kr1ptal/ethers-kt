@@ -6,6 +6,8 @@ import io.ethers.core.types.Hash
 import io.kotest.assertions.json.shouldEqualJson
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import org.intellij.lang.annotations.Language
 
 class StructTracerTest : FunSpec({
@@ -16,11 +18,11 @@ class StructTracerTest : FunSpec({
         enableReturnData = true,
         debug = true,
         limit = 1,
-        overrides = hashMapOf(
-            "override_1" to "value_1",
-            "override_2" to "value_2",
-            "override_3" to "value_3",
-        ),
+        overrides = buildJsonObject {
+            put("override_1", "value_1")
+            put("override_2", "value_2")
+            put("override_3", "value_3")
+        },
     )
 
     test("encode tracer") {

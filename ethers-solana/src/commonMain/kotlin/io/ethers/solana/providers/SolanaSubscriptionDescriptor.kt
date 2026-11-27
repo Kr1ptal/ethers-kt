@@ -1,6 +1,7 @@
 package io.ethers.solana.providers
 
 import io.ethers.providers.SubscriptionDescriptor
+import io.ethers.providers.types.RpcParams
 import io.ethers.solana.types.rpc.ContextValue
 import io.ethers.solana.types.rpc.SignatureNotification
 import kotlinx.serialization.json.JsonObject
@@ -24,13 +25,13 @@ object SolanaSubscriptionDescriptor : SubscriptionDescriptor {
         }
     }
 
-    override fun resolve(params: Array<*>): SubscriptionDescriptor.Resolved {
-        val name = params.firstOrNull()?.toString().orEmpty()
+    override fun resolve(params: RpcParams): SubscriptionDescriptor.Resolved {
+        val name = if (params.size == 0) "" else params[0]?.toString().orEmpty()
         return SubscriptionDescriptor.Resolved(
             "${name}Subscribe",
             "${name}Unsubscribe",
             "${name}Notification",
-            params.drop(1).toTypedArray(),
+            params.drop(1),
             if (name == "signature") SIGNATURE_STATUS else NEVER,
         )
     }

@@ -10,6 +10,8 @@ import io.ethers.providers.RpcClientConfig
 import io.ethers.providers.RpcError
 import io.ethers.providers.SubscriptionDescriptor
 import io.ethers.providers.types.BatchRpcRequest
+import io.ethers.providers.types.RpcParams
+import io.ethers.providers.types.rpcParams
 import io.ethers.solana.providers.AccountFilter
 import io.ethers.solana.providers.BlockFilter
 import io.ethers.solana.providers.LogsFilter
@@ -40,20 +42,17 @@ class SubscriptionsTest : FunSpec({
     val client = SubscriptionClient()
     val provider = SolanaProvider(client)
 
-    test("descriptor resolves every method without changing caller params") {
+    test("descriptor resolves every method and drops the stream name from the params") {
         for (name in listOf("account", "program", "logs", "signature", "slot", "root", "block", "slotsUpdates", "vote")) {
-            val params = arrayOf(name, "argument")
-            val resolved = SolanaSubscriptionDescriptor.resolve(params)
+            val resolved = SolanaSubscriptionDescriptor.resolve(rpcParams(name, "argument"))
             resolved.subscribeMethod shouldBe "${name}Subscribe"
             resolved.unsubscribeMethod shouldBe "${name}Unsubscribe"
             resolved.notificationMethod shouldBe "${name}Notification"
             resolved.params.toList() shouldBe listOf("argument")
-            params[1] = "changed"
-            resolved.params.toList() shouldBe listOf("argument")
             resolved.isTerminal(Kotlinx.DEFAULT.decodeFromString(SIGNATURE_EVENT, contextual("{\"err\":null}"))) shouldBe (name == "signature")
         }
-        SolanaSubscriptionDescriptor.resolve(emptyArray<Any>()).subscribeMethod shouldBe "Subscribe"
-        SolanaSubscriptionDescriptor.resolve(arrayOf("unknown")).subscribeMethod shouldBe "unknownSubscribe"
+        SolanaSubscriptionDescriptor.resolve(RpcParams.EMPTY).subscribeMethod shouldBe "Subscribe"
+        SolanaSubscriptionDescriptor.resolve(rpcParams("unknown")).subscribeMethod shouldBe "unknownSubscribe"
     }
 
     test("account and program subscriptions decode contextual data and filters") {
@@ -61,7 +60,7 @@ class SubscriptionsTest : FunSpec({
         provider.subscribeAccount(key).send().unwrap().receive()!!.value!!.data.toByteArray() shouldBe byteArrayOf(1, 2, 3)
         client.descriptor.subscribeMethod shouldBe "accountSubscribe"
         client.descriptor.unsubscribeMethod shouldBe "accountUnsubscribe"
-        client.params[0] shouldBe key.toString()
+        client.params[0] shouldBe JsonPrimitive(key.toString())
         client.params[1] shouldBe Kotlinx.DEFAULT.parseToJsonElement("""{"commitment":"finalized","encoding":"base64"}""")
         client.event = contextual("""{"pubkey":"$key","account":$account}""")
         provider.subscribeProgram(key, listOf(AccountFilter.DataSize(165), AccountFilter.Memcmp(0, key.toString()))).send().unwrap().receive()!!.value.pubkey shouldBe key
@@ -169,7 +168,7 @@ class SubscriptionsTest : FunSpec({
     }
 
     test("a signature status is recognized decoded as a ContextValue or as JSON, and nothing else is") {
-        val isTerminal = SolanaSubscriptionDescriptor.resolve(arrayOf("signature")).isTerminal
+        val isTerminal = SolanaSubscriptionDescriptor.resolve(rpcParams("signature")).isTerminal
         val status = contextual("""{"err":null}""")
         val received = contextual("\"receivedSignature\"")
 
@@ -199,15 +198,15 @@ private class SubscriptionClient : JsonRpcClient {
     var event = "null"
     private val config = RpcClientConfig().subscriptionDescriptor(SolanaSubscriptionDescriptor)
     lateinit var descriptor: SubscriptionDescriptor.Resolved
-    lateinit var params: Array<*>
-    override suspend fun <T : Any> subscribe(params: Array<*>, resultDeserializer: DeserializationStrategy<T>): Result<ChannelReceiver<T>, RpcError> {
+    lateinit var params: RpcParams
+    override suspend fun <T : Any> subscribe(params: RpcParams, resultDeserializer: DeserializationStrategy<T>): Result<ChannelReceiver<T>, RpcError> {
         this.descriptor = config.subscriptionDescriptor.resolve(params)
         this.params = descriptor.params
         val channel = QueueChannel.spscUnbounded<T>()
         channel.offer(Kotlinx.DEFAULT.decodeFromString(resultDeserializer, event))
         return success(channel)
     }
-    override suspend fun <T> request(method: String, params: Array<*>, resultDeserializer: DeserializationStrategy<T>): Result<T, RpcError> = error("Unexpected request")
+    override suspend fun <T> request(method: String, params: RpcParams, resultDeserializer: DeserializationStrategy<T>): Result<T, RpcError> = error("Unexpected request")
     override suspend fun requestBatch(batch: BatchRpcRequest): Boolean = error("Unexpected batch")
     override fun close() = Unit
 }

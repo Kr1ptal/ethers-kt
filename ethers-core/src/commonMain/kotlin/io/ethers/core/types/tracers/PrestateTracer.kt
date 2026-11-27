@@ -17,9 +17,11 @@ import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
+import kotlinx.serialization.json.put
 
 /**
  * The prestate tracer has two modes: "prestate" and "diff". The prestate mode returns the accounts necessary to execute
@@ -42,7 +44,7 @@ data class PrestateTracer(val diffMode: Boolean) : Tracer<PrestateTracer.Result>
     override val resultSerializer: KSerializer<Result>
         get() = ResultSerializer
 
-    override val config: Map<String, Any?> = when {
+    override val config: JsonObject = when {
         diffMode -> CONFIG_DIFF
         else -> CONFIG_PRESTATE
     }
@@ -182,7 +184,7 @@ data class PrestateTracer(val diffMode: Boolean) : Tracer<PrestateTracer.Result>
 
     companion object {
         private val ARB_OS_ADDRESS = Address("0xa4b05fffffffffffffffffffffffffffffffffff")
-        private val CONFIG_PRESTATE = mapOf("diffMode" to false)
-        private val CONFIG_DIFF = mapOf("diffMode" to true)
+        private val CONFIG_PRESTATE = buildJsonObject { put("diffMode", false) }
+        private val CONFIG_DIFF = buildJsonObject { put("diffMode", true) }
     }
 }

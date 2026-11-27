@@ -4,6 +4,7 @@ import io.ethers.core.Kotlinx
 import io.ethers.core.Result
 import io.ethers.core.isFailure
 import io.ethers.providers.types.RpcCall
+import io.ethers.providers.types.RpcParams
 import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -124,7 +125,7 @@ class HttpTypedDecodeTest : FunSpec({
 
     suspend fun <T> outcome(status: Int, body: String, serializer: DeserializationStrategy<T>): Any? {
         server.enqueue(status, body)
-        return client.request("m", emptyArray<Any>(), serializer).outcome()
+        return client.request("m", RpcParams.EMPTY, serializer).outcome()
     }
 
     test("decoding a response straight into the result matches decoding it through a JSON tree") {
@@ -169,7 +170,7 @@ class HttpTypedDecodeTest : FunSpec({
         val serializer = ListSerializer(String.serializer())
 
         server.enqueueJson("""{"result":["x","y"],"id":1,"jsonrpc":"2.0"}""")
-        RpcCall(recording, "m", emptyArray<Any>(), serializer).send().outcome() shouldBe listOf("x", "y")
+        RpcCall(recording, "m", RpcParams.EMPTY, serializer).send().outcome() shouldBe listOf("x", "y")
         recording.deserializers.single() shouldBeSameInstanceAs serializer
     }
 
@@ -188,7 +189,7 @@ class HttpTypedDecodeTest : FunSpec({
 private class RecordingClient(private val delegate: HttpClient) : JsonRpcClient by delegate {
     val deserializers = mutableListOf<DeserializationStrategy<*>>()
 
-    override suspend fun <T> request(method: String, params: Array<*>, resultDeserializer: DeserializationStrategy<T>): Result<T, RpcError> {
+    override suspend fun <T> request(method: String, params: RpcParams, resultDeserializer: DeserializationStrategy<T>): Result<T, RpcError> {
         deserializers += resultDeserializer
         return delegate.request(method, params, resultDeserializer)
     }

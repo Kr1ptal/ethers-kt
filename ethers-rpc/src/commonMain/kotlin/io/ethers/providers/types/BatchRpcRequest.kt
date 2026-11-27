@@ -4,6 +4,7 @@ package io.ethers.providers.types
 
 import io.ethers.core.Result
 import io.ethers.core.ThrowableError
+import io.ethers.core.failure
 import io.ethers.providers.JsonRpcClient
 import io.ethers.providers.RpcError
 import kotlinx.atomicfu.atomic
@@ -13,6 +14,7 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.serialization.json.JsonArray
 import kotlin.jvm.JvmInline
 import kotlin.jvm.JvmOverloads
 
@@ -110,6 +112,29 @@ class BatchRpcRequest @JvmOverloads constructor(defaultSize: Int = 10) : Platfor
             if (response.complete(error)) any = true
         }
         return any
+    }
+
+    /**
+     * Encode the params of every call in [requests], returned in the same order. A batch is sent whole or not at all,
+     * so if the params of any call can't be encoded, every call in the batch fails with an error naming that call
+     * before the exception is rethrown to the sender, as [JsonRpcClient.request] does for a single call. Without that,
+     * a caller awaiting a call's response would wait forever.
+     */
+    internal fun encodeParams(): List<JsonArray> {
+        val params = ArrayList<JsonArray>(requests.size)
+        try {
+            for (call in requests) {
+                params.add(call.params.encode())
+            }
+        } catch (e: Exception) {
+            // every call before the failing one was encoded, so its index is the number encoded so far
+            val index = params.size
+            val call = requests[index]
+            val message = "Batch not sent, params of call $index (${call.method}) can't be encoded: ${e.message}"
+            failUnanswered(failure(RpcError(RpcError.CODE_CALL_FAILED, message, null, e)))
+            throw e
+        }
+        return params
     }
 
     /** Whether some call has not been completed yet. */
