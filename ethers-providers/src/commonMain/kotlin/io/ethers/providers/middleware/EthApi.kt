@@ -20,6 +20,7 @@ import io.ethers.core.types.TransactionReceipt
 import io.ethers.core.types.transaction.TransactionSigned
 import io.ethers.core.types.transaction.TransactionUnsigned
 import io.ethers.providers.RpcError
+import io.ethers.providers.types.CallBundle
 import io.ethers.providers.types.CallFailedError
 import io.ethers.providers.types.FilterPoller
 import io.ethers.providers.types.PendingTransaction
@@ -288,6 +289,67 @@ interface EthApi {
         stateOverride: StateOverride? = null,
         blockOverride: BlockOverride? = null,
     ): RpcRequest<List<Result<Bytes, CallFailedError>>, RpcError>
+
+    /**
+     * Execute several [bundles] of calls one after another, starting at an arbitrary [transactionIndex] in the block,
+     * each call on the state left by the calls before it, with the option of providing a state override. Each bundle
+     * can override the block its calls run in, see [CallBundle].
+     *
+     * @param blockNumber the block state on which to execute the bundles on.
+     * @param bundles the bundles of calls to execute, in order.
+     * @param transactionIndex the index of where in the block to start executing the calls at, with -1 meaning
+     * at the end of the block.
+     * @param stateOverride a map of account state overrides to apply to the block state.
+     * @return the results of each bundle's calls, in the order of [bundles].
+     * */
+    fun callMany(
+        blockNumber: Long,
+        bundles: List<CallBundle>,
+        transactionIndex: Int = -1,
+        stateOverride: StateOverride? = null,
+    ): RpcRequest<List<List<Result<Bytes, CallFailedError>>>, RpcError> {
+        return callMany(BlockId.Number(blockNumber), bundles, transactionIndex, stateOverride)
+    }
+
+    /**
+     * Execute several [bundles] of calls one after another, starting at an arbitrary [transactionIndex] in the block,
+     * each call on the state left by the calls before it, with the option of providing a state override. Each bundle
+     * can override the block its calls run in, see [CallBundle].
+     *
+     * @param blockHash the block state on which to execute the bundles on.
+     * @param bundles the bundles of calls to execute, in order.
+     * @param transactionIndex the index of where in the block to start executing the calls at, with -1 meaning
+     * at the end of the block.
+     * @param stateOverride a map of account state overrides to apply to the block state.
+     * @return the results of each bundle's calls, in the order of [bundles].
+     * */
+    fun callMany(
+        blockHash: Hash,
+        bundles: List<CallBundle>,
+        transactionIndex: Int = -1,
+        stateOverride: StateOverride? = null,
+    ): RpcRequest<List<List<Result<Bytes, CallFailedError>>>, RpcError> {
+        return callMany(BlockId.Hash(blockHash), bundles, transactionIndex, stateOverride)
+    }
+
+    /**
+     * Execute several [bundles] of calls one after another, starting at an arbitrary [transactionIndex] in the block,
+     * each call on the state left by the calls before it, with the option of providing a state override. Each bundle
+     * can override the block its calls run in, see [CallBundle].
+     *
+     * @param blockId the block state on which to execute the bundles on.
+     * @param bundles the bundles of calls to execute, in order.
+     * @param transactionIndex the index of where in the block to start executing the calls at, with -1 meaning
+     * at the end of the block.
+     * @param stateOverride a map of account state overrides to apply to the block state.
+     * @return the results of each bundle's calls, in the order of [bundles].
+     * */
+    fun callMany(
+        blockId: BlockId,
+        bundles: List<CallBundle>,
+        transactionIndex: Int = -1,
+        stateOverride: StateOverride? = null,
+    ): RpcRequest<List<List<Result<Bytes, CallFailedError>>>, RpcError>
 
     /**
      * Estimate gas required to execute [call] on given block [hash].

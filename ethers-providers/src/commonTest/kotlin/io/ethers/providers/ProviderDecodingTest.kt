@@ -155,8 +155,9 @@ private fun cases(): List<Case> {
         Case(
             "eth_callMany",
             { callMany(BlockId.LATEST, listOf(call), -1, null, null).send() },
+            // a list of results per bundle, of which the call sends one
             { element ->
-                element.jsonArray.map { item ->
+                (element.jsonArray.firstOrNull()?.jsonArray ?: emptyList()).map { item ->
                     var result: Result<Bytes, CallFailedError>? = null
                     item.jsonObject.forEach { (field, value) ->
                         when (field) {
@@ -168,10 +169,12 @@ private fun cases(): List<Case> {
                 }
             },
             listOf(
-                """[{"value":"0x01"},{"error":"boom"},{"output":"0x02","error":"x"},{"error":"x","result":"0x03"}]""",
-                """[{"value":"0x","extra":{"a":[1,{"b":null}]}},{"result":""}]""",
-                "[]", "[{}]", """[{"value":null}]""", """[{"error":null}]""", """[{"error":5}]""", """[{"error":{}}]""",
-                """[{"value":"0x0"}]""", """[{"value":12}]""", "[1]", "null", "{}",
+                """[[{"value":"0x01"},{"error":"boom"},{"output":"0x02","error":"x"},{"error":"x","result":"0x03"}]]""",
+                """[[{"value":"0x","extra":{"a":[1,{"b":null}]}},{"result":""}]]""",
+                "[]", "[[]]", "[[{}]]", """[[{"value":null}]]""", """[[{"error":null}]]""", """[[{"error":5}]]""", """[[{"error":{}}]]""",
+                """[[{"value":"0x0"}]]""", """[[{"value":12}]]""", "[[1]]", "[1]", "null", "{}",
+                // only the first bundle's results are returned
+                """[[{"value":"0x01"}],[{"value":"0x02"}]]""",
             ),
         ),
         Case(

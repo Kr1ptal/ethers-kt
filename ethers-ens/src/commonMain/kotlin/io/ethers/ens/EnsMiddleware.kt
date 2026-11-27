@@ -15,6 +15,7 @@ import io.ethers.core.types.transaction.TransactionUnsigned
 import io.ethers.core.unwrapOrReturn
 import io.ethers.providers.RpcError
 import io.ethers.providers.middleware.Middleware
+import io.ethers.providers.types.CallBundle
 import io.ethers.providers.types.CallFailedError
 import io.ethers.providers.types.RpcRequest
 import io.ethers.providers.types.SuppliedRpcRequest
@@ -235,6 +236,55 @@ class EnsMiddleware(
         stateOverride: StateOverride?,
         blockOverride: BlockOverride?,
     ) = callMany(BlockId.Hash(blockHash), calls, transactionIndex, stateOverride, blockOverride)
+
+    override fun callMany(
+        blockId: BlockId,
+        bundles: List<CallBundle>,
+        transactionIndex: Int,
+        stateOverride: StateOverride?,
+    ): RpcRequest<List<List<Result<Bytes, CallFailedError>>>, RpcError> {
+        if (bundles.none { bundle -> bundle.calls.any { it is EnsCallRequest } }) {
+            return inner.callMany(blockId, bundles, transactionIndex, stateOverride)
+        }
+
+        return SuppliedRpcRequest {
+            val resolved = resolveBundles(bundles).unwrapOrReturn { return@SuppliedRpcRequest failure(it) }
+            inner.callMany(blockId, resolved, transactionIndex, stateOverride).send()
+        }
+    }
+
+    override fun callMany(
+        blockNumber: Long,
+        bundles: List<CallBundle>,
+        transactionIndex: Int,
+        stateOverride: StateOverride?,
+    ) = callMany(BlockId.Number(blockNumber), bundles, transactionIndex, stateOverride)
+
+    override fun callMany(
+        blockHash: Hash,
+        bundles: List<CallBundle>,
+        transactionIndex: Int,
+        stateOverride: StateOverride?,
+    ) = callMany(BlockId.Hash(blockHash), bundles, transactionIndex, stateOverride)
+
+    /**
+     * Resolve the ENS names of every bundle's calls, all at once so they are looked up in parallel, and put them back
+     * into their bundles. A name that cannot be resolved fails all of them, as in [resolveRecipients].
+     * */
+    private suspend fun resolveBundles(bundles: List<CallBundle>): Result<List<CallBundle>, RpcError> {
+        val calls = ArrayList<IntoCallRequest>()
+        for (bundle in bundles) calls.addAll(bundle.calls)
+        val resolved = resolveRecipients(calls).unwrapOrReturn { return failure(it) }
+
+        var start = 0
+        val out = ArrayList<CallBundle>(bundles.size)
+        for (bundle in bundles) {
+            val end = start + bundle.calls.size
+            out.add(CallBundle(resolved.subList(start, end), bundle.blockOverride))
+            start = end
+        }
+        return success(out)
+    }
 
     override fun <T : Any> traceCallMany(
         blockId: BlockId,

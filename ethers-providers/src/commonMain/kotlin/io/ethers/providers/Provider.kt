@@ -38,6 +38,7 @@ import io.ethers.core.types.tracers.TracerConfigSerializer
 import io.ethers.core.types.tracers.TxTraceResult
 import io.ethers.core.types.transaction.TransactionUnsigned
 import io.ethers.providers.middleware.Middleware
+import io.ethers.providers.types.CallBundle
 import io.ethers.providers.types.CallFailedError
 import io.ethers.providers.types.CallManyBundle
 import io.ethers.providers.types.CallManyContext
@@ -183,8 +184,26 @@ class Provider(override val client: JsonRpcClient, override val chainId: Long) :
         val bundle = CallManyBundle(calls.map { it.toCallRequest() }, blockOverride)
         val ctx = CallManyContext(blockId, transactionIndex)
 
-        val params = rpcParams(bundle, ctx, stateOverride)
-        return RpcCall(client, "eth_callMany", params, ListSerializer(CallManyResultSerializer))
+        // eth_callMany takes a list of bundles and answers with a list of results per bundle; the call sends one bundle
+        val params = rpcParams(listOf(bundle), ctx, stateOverride)
+        return RpcCall(client, "eth_callMany", params, CALL_MANY_RESULTS.map { it.firstOrNull() ?: emptyList() })
+    }
+
+    override fun callMany(
+        blockId: BlockId,
+        bundles: List<CallBundle>,
+        transactionIndex: Int,
+        stateOverride: StateOverride?,
+    ): RpcRequest<List<List<Result<Bytes, CallFailedError>>>, RpcError> {
+        val converted = ArrayList<CallManyBundle>(bundles.size)
+        for (i in bundles.indices) {
+            val bundle = bundles[i]
+            converted.add(CallManyBundle(bundle.calls.map { it.toCallRequest() }, bundle.blockOverride))
+        }
+        val ctx = CallManyContext(blockId, transactionIndex)
+
+        val params = rpcParams<List<CallManyBundle>, CallManyContext, StateOverride?>(converted, ctx, stateOverride)
+        return RpcCall(client, "eth_callMany", params, CALL_MANY_RESULTS)
     }
 
     override fun estimateGas(call: IntoCallRequest, blockId: BlockId): RpcRequest<Long, RpcError> {
@@ -704,6 +723,9 @@ private object FilledTransactionDeserializer : DeserializationStrategy<Transacti
  * or `value` the node uses, or its `error`. The last of them in the object wins, so the object is read as a map,
  * whose entries both the text and the tree decoder visit in order; other entries are skipped.
  */
+// eth_callMany's answer: the results of each bundle's calls
+private val CALL_MANY_RESULTS = ListSerializer(ListSerializer(CallManyResultSerializer))
+
 private object CallManyResultSerializer : KSerializer<Result<Bytes, CallFailedError>> {
     override val descriptor: SerialDescriptor = MapSerializer(String.serializer(), JsonElement.serializer()).descriptor
 

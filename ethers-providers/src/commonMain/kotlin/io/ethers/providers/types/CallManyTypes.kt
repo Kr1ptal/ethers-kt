@@ -8,6 +8,7 @@ import io.ethers.core.types.BlockOverride
 import io.ethers.core.types.BlockOverrideSerializer
 import io.ethers.core.types.CallRequest
 import io.ethers.core.types.CallRequestSerializer
+import io.ethers.core.types.IntoCallRequest
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
@@ -16,11 +17,23 @@ import kotlinx.serialization.descriptors.element
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.encoding.encodeStructure
+import kotlin.jvm.JvmOverloads
 
 /**
  * Error returned for a call in `eth_callMany` that fails.
  * */
 data class CallFailedError(val error: String) : ThrowableError
+
+/**
+ * A bundle of [calls] for `eth_callMany`, run one after another, each on the state left by the calls before it,
+ * including those of earlier bundles. [blockOverride] overrides the block that the bundle's calls run in.
+ *
+ * The calls are converted to [CallRequest]s when the RPC request is created, not when the bundle is.
+ * */
+data class CallBundle @JvmOverloads constructor(
+    val calls: List<IntoCallRequest>,
+    val blockOverride: BlockOverride? = null,
+)
 
 /**
  * Internal type used for correctly serializing `eth_callMany`/`debug_traceCallMany` request arguments.

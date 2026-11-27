@@ -5,6 +5,7 @@ import io.ethers.core.types.CallRequest
 import io.ethers.core.types.IntoCallRequest
 import io.ethers.core.types.tracers.StructTracer
 import io.ethers.core.types.tracers.TracerConfig
+import io.ethers.providers.types.CallBundle
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import kotlinx.serialization.json.Json
@@ -44,14 +45,26 @@ class ProviderCallManyTest : FunSpec({
     }
 
     test("callMany converts the calls when the request is created, not when it is sent") {
-        server.enqueueJson("""{"jsonrpc":"2.0","id":0,"result":[]}""")
+        server.enqueueJson("""{"jsonrpc":"2.0","id":0,"result":[[]]}""")
         val call = ChangingCall(CallRequest { nonce = 1 })
 
         val request = provider.callMany(BlockId.LATEST, listOf(call), -1, null, null)
         call.current = CallRequest { nonce = 2 }
         request.send().unwrap()
 
-        takeParams()[0].jsonObject.singleNonce() shouldBe "0x1"
+        // eth_callMany takes a list of bundles
+        takeParams()[0].jsonArray.single().jsonObject.singleNonce() shouldBe "0x1"
+    }
+
+    test("callMany with bundles converts the calls when the request is created, not when it is sent") {
+        server.enqueueJson("""{"jsonrpc":"2.0","id":0,"result":[[]]}""")
+        val call = ChangingCall(CallRequest { nonce = 1 })
+
+        val request = provider.callMany(BlockId.LATEST, listOf(CallBundle(listOf(call))))
+        call.current = CallRequest { nonce = 2 }
+        request.send().unwrap()
+
+        takeParams()[0].jsonArray.single().jsonObject.singleNonce() shouldBe "0x1"
     }
 
     test("traceCallMany converts the calls when the request is created, not when it is sent") {
